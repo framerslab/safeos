@@ -195,23 +195,23 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
         : options.idempotencyKey
       : undefined;
 
-    const response = await client.emails.send(
-      {
-        from: config.from,
-        to: address,
-        subject: options.subject,
-        html: `${options.html}${renderFooterHtml(info.why, unsubscribeUrl)}`,
-        text: `${bodyText}\n\n${renderFooterText(info.why, unsubscribeUrl)}`,
-        replyTo: config.replyTo,
-        headers: {
-          'List-Unsubscribe': `<${unsubscribeUrl}>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        },
-        tags,
+    const payload = {
+      from: config.from,
+      to: address,
+      subject: options.subject,
+      html: `${options.html}${renderFooterHtml(info.why, unsubscribeUrl)}`,
+      text: `${bodyText}\n\n${renderFooterText(info.why, unsubscribeUrl)}`,
+      replyTo: config.replyTo,
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
       },
-      // Resend reads the idempotency key from the request, not from the mail's headers.
-      idempotencyKey ? { idempotencyKey } : undefined,
-    );
+      tags,
+    };
+    // Resend reads the idempotency key from the request, not from the mail's headers.
+    const response = idempotencyKey
+      ? await client.emails.send(payload, { idempotencyKey })
+      : await client.emails.send(payload);
 
     if (response.error) {
       throw new Error(`Resend send failed: ${response.error.message}`);
