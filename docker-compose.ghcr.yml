@@ -81,6 +81,9 @@ services:
       - RESEND_API_KEY=${RESEND_API_KEY:-}
       - EMAIL_FROM=${EMAIL_FROM:-}
       - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-}
+      # https address of this API server; every mail's unsubscribe link points here
+      - SAFEOS_API_PUBLIC_URL=${SAFEOS_API_PUBLIC_URL:-}
+      - SAFEOS_DOMAIN=${SAFEOS_DOMAIN:-}
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_EMAIL=${VAPID_EMAIL:-}

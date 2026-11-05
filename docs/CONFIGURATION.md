@@ -43,6 +43,16 @@ Complete reference for all configuration options, environment variables, and thr
 |----------|-------------|
 | `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
 
+#### Email (Resend)
+
+| Variable | Description |
+|----------|-------------|
+| `RESEND_API_KEY` | Resend API key for the server's own mail |
+| `EMAIL_FROM` | Sender, e.g. `SafeOS Guardian <alerts@yourdomain.com>` (a domain verified in Resend) |
+| `EMAIL_REPLY_TO` | Reply-to address; the unsubscribe page names it as the contact for account deletion |
+| `SAFEOS_API_PUBLIC_URL` | https address of this API server. Every mail's Unsubscribe link and `List-Unsubscribe` header point at `<this>/api/mail/unsubscribe/<token>`. Falls back to `https://SAFEOS_DOMAIN`; with neither, no mail is sent |
+| `SAFEOS_DOMAIN` | Domain the bundled Caddy serves the API on (also used for the unsubscribe link when `SAFEOS_API_PUBLIC_URL` is unset) |
+
 #### Browser Push
 
 | Variable | Description |
@@ -218,6 +228,12 @@ TWILIO_FROM_NUMBER=+1...
 
 # Telegram Notifications (optional)
 TELEGRAM_BOT_TOKEN=...
+
+# Email via Resend (optional)
+RESEND_API_KEY=re_...
+EMAIL_FROM="SafeOS Guardian <alerts@yourdomain.com>"
+EMAIL_REPLY_TO=team@yourdomain.com
+SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com
 
 # Browser Push (optional)
 VAPID_PUBLIC_KEY=...

@@ -45,6 +45,8 @@ export interface NotificationConfig {
 export interface NotificationResult {
   channel: string;
   success: boolean;
+  /** True when nothing was sent because the recipient turned this mail off. */
+  skipped?: boolean;
   error?: string;
 }
 
@@ -103,6 +105,11 @@ export class NotificationManager {
         await this.sendToChannel(channel, payload);
         results.push({ channel, success: true });
       } catch (error) {
+        if (error instanceof Error && error.name === 'EmailSuppressedError') {
+          console.info(`[NotificationManager] ${channel} channel skipped: the recipient turned this mail off`);
+          results.push({ channel, success: false, skipped: true, error: error.message });
+          continue;
+        }
         console.error(`Failed to send ${channel} notification:`, error);
         results.push({
           channel,
@@ -148,13 +155,16 @@ export class NotificationManager {
    *  2. `emailRecipient` is set (we know where to send)
    *  3. Either a server `RESEND_API_KEY` exists OR the user has supplied
    *     `emailOverride.apiKey` (BYO key path).
+   *
+   * A recipient who unsubscribed gets nothing; `notify` reports the channel
+   * as skipped.
    */
   private async sendEmail(payload: NotificationPayload): Promise<void> {
     if (!this.config.email || !this.config.emailRecipient) return;
 
     const hasUserKey = !!this.config.emailOverride?.apiKey;
     if (!hasUserKey && !isResendConfigured()) {
-      console.warn('[NotificationManager] email channel skipped: no Resend key configured');
+      console.warn('[NotificationManager] email channel skipped: email is not configured (RESEND_API_KEY, EMAIL_FROM and an https SAFEOS_API_PUBLIC_URL)');
       return;
     }
 
