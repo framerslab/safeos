@@ -193,12 +193,14 @@ SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
             <li>
               To stop all email to an address, account email included, run{' '}
               <code>docker compose exec -T api npx tsx src/cli/mail-suppress.ts &lt; addresses.txt</code>{' '}
-              (one address per line).
+              (one address per line). When a person who unsubscribed asks for email again, the same
+              command with <code>--resubscribe</code> lifts their unsubscribe; a manual stop stays.
             </li>
             <li>
               Mail apps act on the one-click header only when your domain&apos;s DKIM signature covers
-              it. Open a received email&apos;s original source and check that the <code>h=</code> list
-              of its <code>DKIM-Signature</code> includes <code>list-unsubscribe</code>.
+              both headers. Open a received email&apos;s original source and check that the{' '}
+              <code>h=</code> list of its <code>DKIM-Signature</code> includes{' '}
+              <code>list-unsubscribe</code> and <code>list-unsubscribe-post</code>.
             </li>
           </ul>
         </Card>
@@ -274,7 +276,9 @@ SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
             </Trouble>
             <Trouble q={'The test says the address unsubscribed.'}>
               Someone used the Unsubscribe link in an email to that address, so SafeOS Guardian
-              sends it no more alert or test email. Use another address.
+              sends it no more alert or test email. If it was you, ask whoever runs the server to
+              run the <code>mail-suppress</code> command with <code>--resubscribe</code> for your
+              address, or use another address.
             </Trouble>
             <Trouble q={'I get "Resend send failed: From address not authorized".'}>
               Your <code>From</code> address must use a domain that&apos;s verified in your Resend

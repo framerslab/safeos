@@ -93,7 +93,9 @@ jobs:
 
   # PR preview comment (for pull requests)
   preview-comment:
-    if: github.event_name == 'pull_request'
+    # A pull request from a fork gets a read-only token, so only same-repository
+    # pull requests get the comment.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     needs: build
     runs-on: ubuntu-latest
     # The workflow grants only contents/pages/id-token; commenting on the pull

@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Every mail the API server sends (alerts, the settings test message, account verification, password reset) ends with a visible Unsubscribe link and carries `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058).
 - `GET /api/mail/unsubscribe/:token` shows a page that asks and changes nothing; `POST` stops the mail at once (a blank `200` for a mailbox's one-click POST). No mail is sent to confirm an unsubscribe.
 - A suppression list in the SafeOS database, read before every send. It stores only SHA-256 hashes of addresses and tokens.
-- `src/cli/mail-suppress.ts` stops all mail, account mail included, to the addresses piped into it.
+- `src/cli/mail-suppress.ts` stops all mail, account mail included, to the addresses piped into it; with `--resubscribe` it lifts the unsubscribes of a person who asks for mail again (manual stops stay).
+- `EmailSendError` lists the recipients that already got a mail when a send fails part-way.
+- The API request log and the bundled Caddy access log print `[token]` in place of an unsubscribe token.
 - `SAFEOS_API_PUBLIC_URL`: the https address the unsubscribe link points at (falls back to `https://SAFEOS_DOMAIN`).
 
 ### Changed
@@ -21,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - The Resend idempotency key went out as a header inside the mail, where Resend ignores it; it is now sent as the request's `Idempotency-Key`.
-- The pull request preview comment job can write its comment.
+- The pull request preview comment job can write its comment, and skips pull requests from forks, whose token is read-only.
+- The production compose file passes `SAFEOS_DOMAIN` and `CORS_ORIGIN` to Caddy, which serves `{$SAFEOS_DOMAIN}`.
 
 ## [0.1.0] - 2025-01-08
 

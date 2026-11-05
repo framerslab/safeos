@@ -392,6 +392,8 @@ Stops the mail at once. No mail is sent to confirm it.
 - The page's form posts `scope=optional`, turns off every optional mail and answers a page saying so.
 - `404` (`Unknown link.`) for an unknown or malformed token.
 
+The request log prints `[token]` in place of the token.
+
 ---
 
 ### Webhooks

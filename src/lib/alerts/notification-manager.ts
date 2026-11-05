@@ -106,7 +106,7 @@ export class NotificationManager {
         results.push({ channel, success: true });
       } catch (error) {
         if (error instanceof Error && error.name === 'EmailSuppressedError') {
-          console.info(`[NotificationManager] ${channel} channel skipped: the recipient turned this mail off`);
+          console.warn(`[NotificationManager] ${channel} channel skipped: the recipient unsubscribed from this mail`);
           results.push({ channel, success: false, skipped: true, error: error.message });
           continue;
         }

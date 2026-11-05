@@ -212,17 +212,25 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       tags,
     };
     // Resend reads the idempotency key from the request, not from the mail's headers.
-    const response = idempotencyKey
-      ? await client.emails.send(payload, { idempotencyKey })
-      : await client.emails.send(payload);
+    let response: Awaited<ReturnType<typeof client.emails.send>>;
+    try {
+      response = idempotencyKey
+        ? await client.emails.send(payload, { idempotencyKey })
+        : await client.emails.send(payload);
+    } catch (error) {
+      throw new EmailSendError(
+        `Resend send failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+        sentSoFar(ids, sentTo),
+      );
+    }
 
     if (response.error) {
-      throw new Error(`Resend send failed: ${response.error.message}`);
+      throw new EmailSendError(`Resend send failed: ${response.error.message}`, sentSoFar(ids, sentTo));
     }
 
     const id = response.data?.id;
     if (!id) {
-      throw new Error('Resend returned no message id');
+      throw new EmailSendError('Resend returned no message id', sentSoFar(ids, sentTo));
     }
 
     ids.push(id);
@@ -505,6 +513,25 @@ export class EmailNotConfiguredError extends Error {
     super(message);
     this.name = 'EmailNotConfiguredError';
   }
+}
+
+/**
+ * A send failed. `sent` lists the recipients that already got the mail, so a
+ * caller can retry the rest (a retry with the same idempotency key sends the
+ * same mail, which Resend does not send twice).
+ */
+export class EmailSendError extends Error {
+  constructor(
+    message: string,
+    readonly sent: ReadonlyArray<{ id: string; to: string }>,
+  ) {
+    super(message);
+    this.name = 'EmailSendError';
+  }
+}
+
+function sentSoFar(ids: string[], sentTo: string[]): Array<{ id: string; to: string }> {
+  return ids.map((id, index) => ({ id, to: sentTo[index] }));
 }
 
 /** Every recipient of a send is on the suppression list for that kind of mail. */

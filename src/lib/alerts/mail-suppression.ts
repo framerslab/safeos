@@ -204,6 +204,24 @@ export class MailSuppressionStore {
     await this.suppressHash(hashAddress(address), scope, reason);
   }
 
+  /**
+   * Remove the suppressions this address made with its unsubscribe links.
+   * Manual stops stay. Returns whether anything was removed.
+   */
+  async liftUnsubscribes(address: string): Promise<boolean> {
+    const db = await this.database();
+    const addressHash = hashAddress(address);
+    const before = await db.get(
+      "SELECT scope FROM mail_suppressions WHERE address_hash = ? AND reason = 'unsubscribe' LIMIT 1",
+      [addressHash],
+    );
+    if (!before) return false;
+    await db.run("DELETE FROM mail_suppressions WHERE address_hash = ? AND reason = 'unsubscribe'", [
+      addressHash,
+    ]);
+    return true;
+  }
+
   /** Whether mail of this category may not go to this address. */
   async isSuppressed(address: string, category: MailCategory): Promise<boolean> {
     const scopes: SuppressionScope[] = isRequiredCategory(category)
@@ -239,6 +257,35 @@ export function getMailSuppressionStore(): MailSuppressionStore {
 /** Replace the shared store (tests, or a host that keeps its own database). */
 export function setMailSuppressionStore(store: MailSuppressionStore | null): void {
   sharedStore = store;
+}
+
+/**
+ * Lift the unsubscribes a person made with their links, for each address in
+ * `text`, when that person asks for mail again. A manual stop (scope `all`,
+ * reason `manual`) is never lifted here. Returns counts only.
+ */
+export async function resubscribeAddressesFromText(
+  text: string,
+  store: MailSuppressionStore = getMailSuppressionStore(),
+): Promise<{ resubscribed: number; unchanged: number; skipped: number }> {
+  let resubscribed = 0;
+  let unchanged = 0;
+  let skipped = 0;
+  for (const line of text.split(/\r?\n/)) {
+    const entry = line.trim();
+    if (!entry || entry.startsWith('#')) continue;
+    const mailbox = mailboxOf(entry);
+    if (!ADDRESS_PATTERN.test(mailbox)) {
+      skipped += 1;
+      continue;
+    }
+    if (await store.liftUnsubscribes(mailbox)) {
+      resubscribed += 1;
+    } else {
+      unchanged += 1;
+    }
+  }
+  return { resubscribed, unchanged, skipped };
 }
 
 /**

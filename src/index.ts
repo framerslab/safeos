@@ -68,6 +68,7 @@ export {
   isResendConfigured,
   isMailLinkConfigured,
   EmailNotConfiguredError,
+  EmailSendError,
   EmailSuppressedError,
 } from './lib/alerts/email';
 
@@ -76,6 +77,7 @@ export {
   getMailSuppressionStore,
   setMailSuppressionStore,
   suppressAddressesFromText,
+  resubscribeAddressesFromText,
 } from './lib/alerts/mail-suppression';
 
 export { MAIL_KINDS, type MailKind, type MailCategory, type SuppressionScope } from './lib/alerts/mail-kinds';

@@ -37,7 +37,9 @@ export function createMailRoutes(store?: MailSuppressionStore): Router {
   const router = Router();
   const resolveStore = (): MailSuppressionStore => store ?? getMailSuppressionStore();
 
-  router.use(express.urlencoded({ extended: false, limit: '2kb' }));
+  // Parses the page form and the one-click body when the router is mounted on
+  // its own; on the SafeOS server the global body parsers have already run.
+  router.use(express.urlencoded({ extended: false }));
 
   router.get('/unsubscribe/:token', async (req: Request, res: Response) => {
     setPrivateHeaders(res);

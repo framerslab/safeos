@@ -147,6 +147,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # The Caddyfile serves {$SAFEOS_DOMAIN}; the API builds unsubscribe links from it too
+      - SAFEOS_DOMAIN=${SAFEOS_DOMAIN:-safeos-api.yourdomain.com}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://safeos.sh}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
