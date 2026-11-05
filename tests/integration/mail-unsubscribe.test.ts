@@ -1,0 +1,434 @@
+/**
+ * Unsubscribe Path Integration Tests
+ *
+ * Sends every SafeOS Guardian mail through its real sender (the Resend client
+ * is stubbed where the request would leave the process), then drives the
+ * unsubscribe page and the RFC 8058 one-click POST over HTTP against a real
+ * database file.
+ *
+ * @module tests/integration/mail-unsubscribe.test
+ */
+
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import express from 'express';
+import { createServer, type Server } from 'http';
+import type { AddressInfo } from 'net';
+import { mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { createDatabase } from '@framers/sql-storage-adapter';
+
+const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }));
+
+vi.mock('resend', () => ({
+  Resend: vi.fn().mockImplementation(() => ({
+    emails: { send: sendMock },
+  })),
+}));
+
+import {
+  sendAlertEmail,
+  sendEmail,
+  sendPasswordResetEmail,
+  sendTestEmail,
+  sendVerificationEmail,
+  isResendConfigured,
+  EmailNotConfiguredError,
+  EmailSuppressedError,
+} from '../../src/lib/alerts/email.js';
+import {
+  MailSuppressionStore,
+  setMailSuppressionStore,
+  suppressAddressesFromText,
+} from '../../src/lib/alerts/mail-suppression.js';
+import { NotificationManager } from '../../src/lib/alerts/notification-manager.js';
+import { createMailRoutes } from '../../src/api/routes/mail.js';
+import { notificationRoutes } from '../../src/api/routes/notifications.js';
+
+// =============================================================================
+// Harness
+// =============================================================================
+
+const PUBLIC_API = 'https://api.safeos.test';
+const UNSUBSCRIBE_URL = /^https:\/\/api\.safeos\.test\/api\/mail\/unsubscribe\/([A-Za-z0-9_-]{43})$/;
+
+let dir: string;
+let db: any;
+let store: MailSuppressionStore;
+let server: Server;
+let local: string;
+
+interface SentMail {
+  to: string | string[];
+  subject: string;
+  html: string;
+  text: string;
+  headers?: Record<string, string>;
+}
+
+function mailAt(index: number): SentMail {
+  return sendMock.mock.calls[index][0] as SentMail;
+}
+
+function requestOptionsAt(index: number): unknown {
+  return sendMock.mock.calls[index][1];
+}
+
+/** The public link points at the operator's API; the test server listens locally. */
+function toLocal(url: string): string {
+  return url.replace(PUBLIC_API, local);
+}
+
+/**
+ * Asserts the parts every mail must carry and returns its unsubscribe URL.
+ */
+function expectUnsubscribeParts(mail: SentMail): string {
+  const header = mail.headers?.['List-Unsubscribe'];
+  expect(header).toMatch(/^<https:\/\/[^>]+>$/);
+  const url = String(header).slice(1, -1);
+  expect(url).toMatch(UNSUBSCRIBE_URL);
+  expect(mail.headers?.['List-Unsubscribe-Post']).toBe('List-Unsubscribe=One-Click');
+  // The idempotency key is a request option, never a header in the delivered mail.
+  expect(mail.headers).not.toHaveProperty('Idempotency-Key');
+
+  // A visible link in the footer, to the same URL.
+  const link = mail.html.match(/<a\b[^>]*href="([^"]+)"[^>]*>\s*Unsubscribe\s*<\/a>/i);
+  expect(link?.[1]).toBe(url);
+
+  // Nothing a person reads is under 13px at a phone's width.
+  const sizes = [...mail.html.matchAll(/font-size:\s*(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1]));
+  expect(sizes.length).toBeGreaterThan(0);
+  expect(Math.min(...sizes)).toBeGreaterThanOrEqual(13);
+
+  // The plain-text part carries the same link.
+  expect(mail.text).toContain(`Unsubscribe: ${url}`);
+  return url;
+}
+
+function oneClick(url: string): Promise<Response> {
+  return fetch(toLocal(url), {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: 'List-Unsubscribe=One-Click',
+  });
+}
+
+function testEmailRoute(to: string): Promise<Response> {
+  return fetch(`${local}/api/notifications/test-email`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ to }),
+  });
+}
+
+beforeAll(async () => {
+  dir = mkdtempSync(join(tmpdir(), 'safeos-mail-'));
+  db = await createDatabase({
+    file: join(dir, 'mail.sqlite3'),
+    priority: ['better-sqlite3', 'sqljs'],
+  } as any);
+  store = new MailSuppressionStore(async () => db);
+  setMailSuppressionStore(store);
+
+  const app = express();
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
+  app.use('/api/mail', createMailRoutes(store));
+  app.use('/api/notifications', notificationRoutes);
+  server = createServer(app);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+  local = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+
+afterAll(async () => {
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  setMailSuppressionStore(null);
+  await db.close();
+  rmSync(dir, { recursive: true, force: true });
+});
+
+beforeEach(() => {
+  sendMock.mockReset();
+  let sent = 0;
+  sendMock.mockImplementation(async () => ({ data: { id: `msg_${++sent}` }, error: null }));
+  process.env['RESEND_API_KEY'] = 're_server_key';
+  process.env['EMAIL_FROM'] = 'SafeOS Guardian <alerts@safeos.test>';
+  process.env['EMAIL_REPLY_TO'] = 'team@safeos.test';
+  process.env['SAFEOS_API_PUBLIC_URL'] = PUBLIC_API;
+  delete process.env['SAFEOS_DOMAIN'];
+});
+
+afterEach(() => {
+  delete process.env['RESEND_API_KEY'];
+  delete process.env['EMAIL_FROM'];
+  delete process.env['EMAIL_REPLY_TO'];
+  delete process.env['SAFEOS_API_PUBLIC_URL'];
+  delete process.env['SAFEOS_DOMAIN'];
+});
+
+// =============================================================================
+// Every mail carries the link and both headers
+// =============================================================================
+
+describe('every mail carries an unsubscribe link and the one-click headers', () => {
+  it('alert mail sent by the notification manager', async () => {
+    const manager = new NotificationManager({
+      browserPush: false,
+      email: true,
+      emailRecipient: 'parent@example.com',
+    });
+
+    const results = await manager.notify({
+      streamId: 'nursery',
+      alertId: 'alert-1',
+      severity: 'high',
+      title: 'Crying detected',
+      message: 'Nursery camera',
+      timestamp: '2026-11-05T10:00:00Z',
+    });
+
+    expect(results.find((r) => r.channel === 'email')?.success).toBe(true);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const mail = mailAt(0);
+    expect(mail.to).toBe('parent@example.com');
+    expectUnsubscribeParts(mail);
+    expect(mail.html).toContain('alert email is turned on');
+    expect(requestOptionsAt(0)).toEqual({ idempotencyKey: 'alert-1' });
+  });
+
+  it('account verification mail', async () => {
+    await sendVerificationEmail('new@example.com', 'https://safeos.sh/verify-email?token=abc', 'Alice');
+
+    const mail = mailAt(0);
+    expect(mail.to).toBe('new@example.com');
+    expectUnsubscribeParts(mail);
+    expect(mail.html).toContain('signed up');
+  });
+
+  it('password reset mail', async () => {
+    await sendPasswordResetEmail('user@example.com', 'https://safeos.sh/reset-password?token=t1', 'Bob');
+
+    const mail = mailAt(0);
+    expect(mail.to).toBe('user@example.com');
+    expectUnsubscribeParts(mail);
+    expect(mail.html).toContain('reset the password');
+  });
+
+  it('settings test mail sent through the test-email route', async () => {
+    const res = await testEmailRoute('tester@example.com');
+
+    expect(res.status).toBe(200);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const mail = mailAt(0);
+    expect(mail.to).toBe('tester@example.com');
+    expectUnsubscribeParts(mail);
+    expect(mail.html).toContain('test message');
+  });
+
+  it('sends one mail per recipient, each with its own link', async () => {
+    await sendEmail({
+      kind: 'alert',
+      to: ['a@example.com', 'b@example.com'],
+      subject: 'Hi',
+      html: '<p>Body</p>',
+    });
+
+    expect(sendMock).toHaveBeenCalledTimes(2);
+    expect(mailAt(0).to).toBe('a@example.com');
+    expect(mailAt(1).to).toBe('b@example.com');
+    expect(expectUnsubscribeParts(mailAt(0))).not.toBe(expectUnsubscribeParts(mailAt(1)));
+  });
+
+  it('refuses an unknown kind of mail', async () => {
+    await expect(
+      sendEmail({ kind: 'newsletter' as any, to: 'x@example.com', subject: 'S', html: '<p>x</p>' }),
+    ).rejects.toThrow(/Unknown mail kind/);
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+});
+
+// =============================================================================
+// The unsubscribe link
+// =============================================================================
+
+describe('the unsubscribe link', () => {
+  it('a GET only asks: alert mail keeps coming until the POST', async () => {
+    await sendAlertEmail('gina@example.com', 'high', 'Motion', 'Hall');
+    const url = expectUnsubscribeParts(mailAt(0));
+
+    const page = await fetch(toLocal(url));
+    expect(page.status).toBe(200);
+    expect(page.headers.get('content-type')).toMatch(/text\/html/);
+    const html = await page.text();
+    expect(html).toMatch(/<form[^>]*method="post"/i);
+    expect(html).toContain('Unsubscribe');
+
+    const head = await fetch(toLocal(url), { method: 'HEAD' });
+    expect(head.status).toBe(200);
+
+    await sendAlertEmail('gina@example.com', 'high', 'Motion again', 'Hall');
+    expect(sendMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('the one-click POST stops alert mail at once, answers a blank 200 and sends no confirmation', async () => {
+    await sendAlertEmail('olive@example.com', 'high', 'Motion', 'Hall');
+    const url = expectUnsubscribeParts(mailAt(0));
+    const before = sendMock.mock.calls.length;
+
+    const res = await oneClick(url);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('');
+    expect(sendMock.mock.calls.length).toBe(before);
+
+    await expect(sendAlertEmail('olive@example.com', 'critical', 'Smoke', 'Kitchen')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+    await expect(sendAlertEmail(' OLIVE@Example.com ', 'critical', 'Smoke', 'Kitchen')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+
+    // The settings test message to that address is refused as well.
+    const test = await testEmailRoute('olive@example.com');
+    expect(test.status).toBe(409);
+
+    // The notification manager reports the channel as skipped, not sent.
+    const manager = new NotificationManager({
+      browserPush: false,
+      email: true,
+      emailRecipient: 'olive@example.com',
+    });
+    const results = await manager.notify({
+      streamId: 'kitchen',
+      alertId: 'alert-2',
+      severity: 'critical',
+      title: 'Smoke',
+      message: 'Kitchen',
+      timestamp: '2026-11-05T10:05:00Z',
+    });
+    expect(results.find((r) => r.channel === 'email')).toMatchObject({ success: false, skipped: true });
+    expect(sendMock.mock.calls.length).toBe(before);
+
+    // Other addresses are untouched, and account mail still comes when asked for.
+    await sendAlertEmail('someone-else@example.com', 'high', 'Motion', 'Hall');
+    await sendPasswordResetEmail('olive@example.com', 'https://safeos.sh/reset-password?token=r1');
+    expect(sendMock.mock.calls.length).toBe(before + 2);
+  });
+
+  it('the page form turns off every optional mail and says so', async () => {
+    await sendTestEmail('pat@example.com');
+    const url = expectUnsubscribeParts(mailAt(0));
+
+    const res = await fetch(toLocal(url), {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'scope=optional',
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toMatch(/text\/html/);
+    expect(await res.text()).toMatch(/unsubscribed/i);
+    expect(sendMock).toHaveBeenCalledTimes(1);
+
+    await expect(sendAlertEmail('pat@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+  });
+
+  it('account mail: the link opens the preferences page, which turns off optional mail and says what still comes', async () => {
+    await sendVerificationEmail('rory@example.com', 'https://safeos.sh/verify-email?token=v1');
+    const url = expectUnsubscribeParts(mailAt(0));
+
+    const page = await fetch(toLocal(url));
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toMatch(/still/i);
+    expect(html).toMatch(/only when/i);
+    expect(html).toMatch(/delete/i);
+    expect(html).toMatch(/<form[^>]*method="post"/i);
+
+    // Alert mail still flows before the POST.
+    await sendAlertEmail('rory@example.com', 'high', 'Motion', 'Hall');
+    expect(sendMock).toHaveBeenCalledTimes(2);
+
+    const res = await oneClick(url);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('');
+    expect(sendMock).toHaveBeenCalledTimes(2);
+
+    await expect(sendAlertEmail('rory@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+    await sendPasswordResetEmail('rory@example.com', 'https://safeos.sh/reset-password?token=r2');
+    expect(sendMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('an unknown or malformed link changes nothing', async () => {
+    const unknown = `${local}/api/mail/unsubscribe/${'A'.repeat(43)}`;
+    expect((await fetch(unknown)).status).toBe(404);
+    const post = await fetch(unknown, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: 'List-Unsubscribe=One-Click',
+    });
+    expect(post.status).toBe(404);
+    const malformed = await fetch(`${local}/api/mail/unsubscribe/not-a-token`, { method: 'POST' });
+    expect(malformed.status).toBe(404);
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps only hashes: no address and no token in the database', async () => {
+    await sendAlertEmail('quinn@example.com', 'high', 'Motion', 'Hall');
+    const url = expectUnsubscribeParts(mailAt(0));
+    const token = String(url.match(UNSUBSCRIBE_URL)?.[1]);
+    expect((await oneClick(url)).status).toBe(200);
+
+    const rows = JSON.stringify([
+      await db.all('SELECT * FROM mail_unsubscribe_tokens'),
+      await db.all('SELECT * FROM mail_suppressions'),
+    ]);
+    expect(rows).not.toContain('quinn@example.com');
+    expect(rows).not.toContain(token);
+  });
+});
+
+// =============================================================================
+// Manual stops and configuration
+// =============================================================================
+
+describe('manual stops and configuration', () => {
+  it('a manual stop list blocks every mail to those addresses, account mail included', async () => {
+    const result = await suppressAddressesFromText('# do not contact\nblocked@example.com\nnot an address\n', store);
+    expect(result).toEqual({ added: 1, skipped: 1 });
+
+    await expect(
+      sendVerificationEmail('Blocked@Example.com', 'https://safeos.sh/verify-email?token=b1'),
+    ).rejects.toBeInstanceOf(EmailSuppressedError);
+    await expect(sendAlertEmail('blocked@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses to send without an https address for the unsubscribe link', async () => {
+    delete process.env['SAFEOS_API_PUBLIC_URL'];
+    expect(isResendConfigured()).toBe(false);
+    await expect(sendAlertEmail('dana@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailNotConfiguredError,
+    );
+
+    process.env['SAFEOS_API_PUBLIC_URL'] = 'http://api.safeos.test';
+    await expect(sendAlertEmail('dana@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailNotConfiguredError,
+    );
+    expect((await testEmailRoute('dana@example.com')).status).toBe(400);
+    expect(sendMock).not.toHaveBeenCalled();
+
+    // The domain the bundled Caddy serves the API on is enough.
+    delete process.env['SAFEOS_API_PUBLIC_URL'];
+    process.env['SAFEOS_DOMAIN'] = 'guardian.example.org';
+    expect(isResendConfigured()).toBe(true);
+    await sendAlertEmail('dana@example.com', 'high', 'Motion', 'Hall');
+    expect(mailAt(0).headers?.['List-Unsubscribe']).toMatch(
+      /^<https:\/\/guardian\.example\.org\/api\/mail\/unsubscribe\/[A-Za-z0-9_-]{43}>$/,
+    );
+  });
+});
