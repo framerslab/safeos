@@ -42,7 +42,7 @@ export function createMailRoutes(store?: MailSuppressionStore): Router {
   router.get('/unsubscribe/:token', async (req: Request, res: Response) => {
     setPrivateHeaders(res);
     try {
-      const record = await resolveStore().findToken(req.params['token'] ?? '');
+      const record = await resolveStore().findToken(tokenParam(req));
       if (!record) {
         return sendPage(res, 404, gonePage());
       }
@@ -57,7 +57,7 @@ export function createMailRoutes(store?: MailSuppressionStore): Router {
     setPrivateHeaders(res);
     try {
       const target = resolveStore();
-      const record = await target.findToken(req.params['token'] ?? '');
+      const record = await target.findToken(tokenParam(req));
       if (!record) {
         return res.status(404).type('text/plain').send('Unknown link.');
       }
@@ -90,6 +90,11 @@ export default mailRoutes;
 // =============================================================================
 // Pages
 // =============================================================================
+
+function tokenParam(req: Request): string {
+  const raw: unknown = req.params['token'];
+  return typeof raw === 'string' ? raw : '';
+}
 
 function setPrivateHeaders(res: Response): void {
   res.set('Cache-Control', 'no-store');
