@@ -228,7 +228,7 @@ export class EmailAuthService {
         console.error('[EmailAuth] Failed to send verification email:', error);
       }
     } else {
-      console.warn('[EmailAuth] RESEND_API_KEY not set — verification email not sent.');
+      console.warn('[EmailAuth] Email is not configured (RESEND_API_KEY, EMAIL_FROM, SAFEOS_API_PUBLIC_URL); verification email not sent.');
     }
 
     return {
@@ -374,7 +374,7 @@ export class EmailAuthService {
         console.error('[EmailAuth] Failed to send password reset email:', error);
       }
     } else {
-      console.warn('[EmailAuth] RESEND_API_KEY not set — password reset email not sent.');
+      console.warn('[EmailAuth] Email is not configured (RESEND_API_KEY, EMAIL_FROM, SAFEOS_API_PUBLIC_URL); password reset email not sent.');
     }
 
     return { success: true };

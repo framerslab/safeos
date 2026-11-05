@@ -22,6 +22,7 @@ export default defineConfig({
         '*.config.ts',        // Root config files (vitest, capacitor)
         '*.config.js',        // Any JS config files
         'src/index.ts',       // Entry point with startup logic
+        'src/cli/**',         // CLI entry points; their logic lives in src/lib and is tested there
         'src/api/server.ts',  // Server bootstrap - tested via integration
         'src/api/routes/**',  // API routes - require integration tests
         'src/api/middleware/**', // Middleware - require integration tests

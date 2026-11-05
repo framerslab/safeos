@@ -24,6 +24,8 @@ import { authRouter } from './routes/auth';
 import { webhookRouter } from './routes/webhooks';
 import { exportRouter } from './routes/export';
 import { analyticsRoutes } from './routes/analytics';
+import { mailRoutes } from './routes/mail';
+import { requestLogger } from './middleware/request-log';
 import {
   standardLimiter,
   authLimiter,
@@ -101,11 +103,8 @@ export class SafeOSServer {
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true }));
 
-    // Request logging
-    this.app.use((req: Request, _res: Response, next: NextFunction) => {
-      console.log(`${new Date().toISOString()} ${req.method} ${req.path}`);
-      next();
-    });
+    // Request logging (unsubscribe tokens are redacted)
+    this.app.use(requestLogger);
   }
 
   // ---------------------------------------------------------------------------
@@ -133,6 +132,8 @@ export class SafeOSServer {
     this.app.use('/api/webhooks', webhookRouter);
     this.app.use('/api/export', exportLimiter, exportRouter);
     this.app.use('/api/analytics', analyticsRoutes);
+    // Unsubscribe link carried by every mail (GET asks, POST stops the mail)
+    this.app.use('/api/mail', mailRoutes);
 
     // Ollama status
     this.app.get('/api/ollama/status', async (_req: Request, res: Response) => {

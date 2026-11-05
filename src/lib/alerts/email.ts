@@ -4,10 +4,19 @@
  * Send transactional + alert email via Resend. Falls back to server-level
  * env vars if no per-user override is supplied.
  *
+ * Every mail carries an unsubscribe path: a visible Unsubscribe link in the
+ * footer, `List-Unsubscribe` with an https URL on this server, and
+ * `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058). The link is
+ * bound to its recipient, so a mail goes to one recipient at a time, and the
+ * suppression list is read before every send.
+ *
  * @module lib/alerts/email
  */
 
+import { createHash } from 'crypto';
 import { Resend } from 'resend';
+import { MAIL_KINDS, isMailKind, type MailKind } from './mail-kinds.js';
+import { getMailSuppressionStore } from './mail-suppression.js';
 
 // =============================================================================
 // Types
@@ -20,6 +29,8 @@ export interface EmailConfig {
 }
 
 export interface SendEmailOptions {
+  /** What this mail is; decides its unsubscribe category and footer line. */
+  kind: MailKind;
   /** Override server-level Resend config (e.g. user supplied their own key). */
   override?: Partial<EmailConfig>;
   to: string | string[];
@@ -36,7 +47,11 @@ export interface SendEmailOptions {
 }
 
 export interface SendEmailResult {
+  /** Message id of the first mail sent. */
   id: string;
+  /** Message ids, one per recipient that was sent to. */
+  ids: string[];
+  /** The recipients that were sent to (suppressed addresses are left out). */
   to: string | string[];
   from: string;
 }
@@ -54,11 +69,45 @@ function getServerConfig(): EmailConfig | null {
   return { apiKey, from, replyTo };
 }
 
+const CADDY_PLACEHOLDER_DOMAIN = 'safeos-api.yourdomain.com';
+
 /**
- * Whether the server has a Resend key configured (for /api/notifications/status).
+ * The https origin of this API server, which every unsubscribe link points at.
+ *
+ * `SAFEOS_API_PUBLIC_URL` wins; otherwise the domain the bundled Caddy serves
+ * the API on (`SAFEOS_DOMAIN`). Returns null when neither gives an https
+ * address: one-click unsubscribe needs https (RFC 8058, section 3.1), so no
+ * mail is sent until one is set.
+ */
+export function getMailLinkBase(): string | null {
+  const explicit = process.env['SAFEOS_API_PUBLIC_URL']?.trim();
+  if (explicit) {
+    const match = explicit.match(/^https:\/\/([^\s/?#:]+)(:\d+)?(\/[^\s?#]*)?$/i);
+    if (!match || match[1].toLowerCase() === CADDY_PLACEHOLDER_DOMAIN) return null;
+    return explicit.replace(/\/+$/, '');
+  }
+  const domain = process.env['SAFEOS_DOMAIN']?.trim();
+  if (
+    domain &&
+    domain.toLowerCase() !== CADDY_PLACEHOLDER_DOMAIN &&
+    /^[a-z0-9.-]+(:\d+)?$/i.test(domain)
+  ) {
+    return `https://${domain}`;
+  }
+  return null;
+}
+
+/** Whether every mail can carry a working unsubscribe link. */
+export function isMailLinkConfigured(): boolean {
+  return getMailLinkBase() !== null;
+}
+
+/**
+ * Whether the server can send mail on its own key (for /api/notifications/status):
+ * a Resend key, a From address and an https address for the unsubscribe link.
  */
 export function isResendConfigured(): boolean {
-  return getServerConfig() !== null;
+  return getServerConfig() !== null && isMailLinkConfigured();
 }
 
 // =============================================================================
@@ -80,6 +129,9 @@ function getClient(apiKey: string): Resend {
 // Send
 // =============================================================================
 
+const MAIL_LINK_NOT_CONFIGURED =
+  'Every mail carries an unsubscribe link to this server. Set SAFEOS_API_PUBLIC_URL to its https address (or SAFEOS_DOMAIN behind the bundled Caddy) before sending mail.';
+
 /**
  * Send an email via Resend.
  *
@@ -87,9 +139,19 @@ function getClient(apiKey: string): Resend {
  *   1. `options.override` (per-user / per-call values)
  *   2. server env (RESEND_API_KEY, EMAIL_FROM, EMAIL_REPLY_TO)
  *
- * Throws `EmailNotConfiguredError` when neither path yields a complete config.
+ * Each recipient gets a mail of its own with a link bound to its address.
+ * A recipient whose address is suppressed for this kind of mail is skipped;
+ * when every recipient is suppressed, nothing is sent and
+ * `EmailSuppressedError` is thrown.
+ *
+ * Throws `EmailNotConfiguredError` when neither path yields a complete config,
+ * or when no https address for the unsubscribe link is set.
  */
 export async function sendEmail(options: SendEmailOptions): Promise<SendEmailResult> {
+  if (!isMailKind(options.kind)) {
+    throw new Error(`Unknown mail kind: ${String(options.kind)}`);
+  }
+
   const server = getServerConfig();
   const config: EmailConfig = {
     apiKey: options.override?.apiKey ?? server?.apiKey ?? '',
@@ -103,36 +165,109 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
     );
   }
 
-  const client = getClient(config.apiKey);
-  const text = options.text ?? htmlToText(options.html);
+  const linkBase = getMailLinkBase();
+  if (!linkBase) {
+    throw new EmailNotConfiguredError(MAIL_LINK_NOT_CONFIGURED);
+  }
 
+  const info = MAIL_KINDS[options.kind];
+  const store = getMailSuppressionStore();
+  const recipients = (Array.isArray(options.to) ? options.to : [options.to])
+    .map((address) => address.trim())
+    .filter((address) => address.length > 0);
+
+  const client = getClient(config.apiKey);
+  const bodyText = options.text ?? htmlToText(options.html);
   const tags = options.severity
     ? [{ name: 'severity', value: options.severity }]
     : undefined;
 
-  const response = await client.emails.send({
+  const ids: string[] = [];
+  const sentTo: string[] = [];
+
+  // One recipient: null when suppressed, else the Resend message id.
+  const sendOne = async (address: string): Promise<string | null> => {
+    if (await store.isSuppressed(address, info.category)) return null;
+
+    const idempotencyKey = options.idempotencyKey
+      ? boundIdempotencyKey(
+          recipients.length > 1 ? `${options.idempotencyKey}:${address}` : options.idempotencyKey,
+        )
+      : undefined;
+    // With an idempotency key the token is derived from it, so a retry sends
+    // the same mail and Resend matches it instead of rejecting a changed body.
+    const token = await store.issueToken(address, info.category, idempotencyKey);
+    const unsubscribeUrl = `${linkBase}/api/mail/unsubscribe/${token}`;
+
+    const payload = {
+      from: config.from,
+      to: address,
+      subject: options.subject,
+      html: `${options.html}${renderFooterHtml(info.why, unsubscribeUrl)}`,
+      text: `${bodyText}\n\n${renderFooterText(info.why, unsubscribeUrl)}`,
+      replyTo: config.replyTo,
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeUrl}>`,
+        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      },
+      tags,
+    };
+    // Resend reads the idempotency key from the request, not from the mail's headers.
+    let response: Awaited<ReturnType<typeof client.emails.send>>;
+    try {
+      response = idempotencyKey
+        ? await client.emails.send(payload, { idempotencyKey })
+        : await client.emails.send(payload);
+    } catch (error) {
+      throw new EmailSendError(
+        `Resend send failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+        sentSoFar(ids, sentTo),
+      );
+    }
+
+    if (response.error) {
+      throw new EmailSendError(`Resend send failed: ${response.error.message}`, sentSoFar(ids, sentTo));
+    }
+
+    const id = response.data?.id;
+    if (!id) {
+      throw new EmailSendError('Resend returned no message id', sentSoFar(ids, sentTo));
+    }
+
+    return id;
+  };
+
+  for (const address of recipients) {
+    let id: string | null;
+    try {
+      id = await sendOne(address);
+    } catch (error) {
+      if (error instanceof EmailSendError) throw error;
+      // A store failure (suppression lookup, token) still reports what went out.
+      throw new EmailSendError(
+        `Mail not sent: ${error instanceof Error ? error.message : 'unknown error'}`,
+        sentSoFar(ids, sentTo),
+      );
+    }
+    if (id === null) continue;
+    ids.push(id);
+    sentTo.push(address);
+  }
+
+  if (ids.length === 0) {
+    throw new EmailSuppressedError(
+      info.required
+        ? 'Mail to this address is stopped.'
+        : 'The recipient turned this mail off.',
+    );
+  }
+
+  return {
+    id: ids[0],
+    ids,
+    to: Array.isArray(options.to) ? sentTo : sentTo[0],
     from: config.from,
-    to: options.to,
-    subject: options.subject,
-    html: options.html,
-    text,
-    replyTo: config.replyTo,
-    headers: options.idempotencyKey
-      ? { 'Idempotency-Key': options.idempotencyKey }
-      : undefined,
-    tags,
-  });
-
-  if (response.error) {
-    throw new Error(`Resend send failed: ${response.error.message}`);
-  }
-
-  const id = response.data?.id;
-  if (!id) {
-    throw new Error('Resend returned no message id');
-  }
-
-  return { id, to: options.to, from: config.from };
+  };
 }
 
 // =============================================================================
@@ -169,6 +304,7 @@ export async function sendAlertEmail(
   });
 
   return sendEmail({
+    kind: 'alert',
     to,
     subject: `[SafeOS ${severity.toUpperCase()}] ${title}`,
     html,
@@ -204,13 +340,14 @@ export async function sendVerificationEmail(
         <span style="word-break:break-all;">${verificationUrl}</span>
       </p>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
-      <p style="color:#5a6270;font-size:12px;">
-        You're receiving this because someone (hopefully you) signed up for SafeOS Guardian. If it wasn't you, ignore this email.
+      <p style="color:#5a6270;font-size:13px;">
+        If it wasn't you, ignore this email.
       </p>
     </div>
   `;
 
   return sendEmail({
+    kind: 'verification',
     to,
     subject: 'Verify your SafeOS Guardian account',
     html,
@@ -244,6 +381,7 @@ export async function sendPasswordResetEmail(
   `;
 
   return sendEmail({
+    kind: 'password-reset',
     to,
     subject: 'Reset your SafeOS Guardian password',
     html,
@@ -264,11 +402,12 @@ export async function sendTestEmail(
       <p>This is a test email sent from your Settings → Notifications page.</p>
       <p>If you're seeing this, alerts will reach you when SafeOS Guardian detects something important.</p>
       <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
-      <p style="color:#5a6270;font-size:12px;">Sent at ${new Date().toISOString()}</p>
+      <p style="color:#5a6270;font-size:13px;">Sent at ${new Date().toISOString()}</p>
     </div>
   `;
 
   return sendEmail({
+    kind: 'test',
     to,
     subject: 'SafeOS Guardian — email is working',
     html,
@@ -306,7 +445,7 @@ function renderAlertEmail(params: {
 
   return `
     <div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:0 auto;color:#1a1f24;">
-      <div style="background:${color};color:#fff;padding:12px 16px;border-radius:8px 8px 0 0;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">
+      <div style="background:${color};color:#fff;padding:12px 16px;border-radius:8px 8px 0 0;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;">
         ${params.severity}
       </div>
       <div style="border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px;padding:20px;">
@@ -323,11 +462,39 @@ function renderAlertEmail(params: {
           </a>
         </p>
       </div>
-      <p style="color:#5a6270;font-size:11px;text-align:center;margin:16px 0 0;">
+      <p style="color:#5a6270;font-size:13px;text-align:center;margin:16px 0 0;">
         SafeOS Guardian is a supplemental monitoring tool. It does not replace human supervision.
       </p>
     </div>
   `;
+}
+
+/** Resend accepts idempotency keys of up to 256 characters; longer ones are hashed. */
+const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
+
+function boundIdempotencyKey(key: string): string {
+  if (key.length <= MAX_IDEMPOTENCY_KEY_LENGTH) return key;
+  return `sha256:${createHash('sha256').update(key, 'utf8').digest('hex')}`;
+}
+
+/**
+ * Footer appended to every mail: why the person gets it, and the
+ * Unsubscribe link (13px, legible at a phone's width).
+ */
+function renderFooterHtml(why: string, unsubscribeUrl: string): string {
+  const href = escapeHtml(unsubscribeUrl);
+  return `
+    <div style="font-family:system-ui,-apple-system,sans-serif;max-width:560px;margin:24px auto 0;padding:16px 0 0;border-top:1px solid #e5e7eb;color:#5a6270;font-size:13px;line-height:1.5;text-align:center;">
+      <p style="margin:0 0 8px;font-size:13px;">${escapeHtml(why)}</p>
+      <p style="margin:0;font-size:13px;">
+        <a href="${href}" style="color:#047857;font-size:13px;text-decoration:underline;">Unsubscribe</a>
+      </p>
+    </div>
+  `;
+}
+
+function renderFooterText(why: string, unsubscribeUrl: string): string {
+  return `--\n${why}\nUnsubscribe: ${unsubscribeUrl}`;
 }
 
 function escapeHtml(input: string): string {
@@ -362,5 +529,32 @@ export class EmailNotConfiguredError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'EmailNotConfiguredError';
+  }
+}
+
+/**
+ * A send failed. `sent` lists the recipients that already got the mail, so a
+ * caller can retry the rest (a retry with the same idempotency key sends the
+ * same mail, which Resend does not send twice).
+ */
+export class EmailSendError extends Error {
+  constructor(
+    message: string,
+    readonly sent: ReadonlyArray<{ id: string; to: string }>,
+  ) {
+    super(message);
+    this.name = 'EmailSendError';
+  }
+}
+
+function sentSoFar(ids: string[], sentTo: string[]): Array<{ id: string; to: string }> {
+  return ids.map((id, index) => ({ id, to: sentTo[index] }));
+}
+
+/** Every recipient of a send is on the suppression list for that kind of mail. */
+export class EmailSuppressedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EmailSuppressedError';
   }
 }

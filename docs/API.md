@@ -361,6 +361,39 @@ Send a test notification (simulated in the default implementation).
 }
 ```
 
+#### POST /api/notifications/test-email
+Send a real test mail through Resend to check the email setup. The mail carries the same Unsubscribe link and headers as every other mail.
+
+**Request:**
+```json
+{
+  "to": "you@example.com",
+  "resendApiKey": "optional BYO key",
+  "fromOverride": "optional sender on a domain verified in Resend",
+  "replyTo": "optional reply-to address"
+}
+```
+
+**Responses:** `200` sent; `400` email not configured (no Resend key, or no https address for the unsubscribe link: set `SAFEOS_API_PUBLIC_URL`); `409` the address unsubscribed from alert email, so nothing was sent.
+
+---
+
+### Mail
+
+Every mail the server sends carries a visible Unsubscribe link and the `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers (RFC 8058), all pointing at the URL below. The token is bound to one recipient and reveals nothing: random, or derived from the mail's idempotency key with a secret kept in the database, so a retried send carries the same link. The server stores only its SHA-256.
+
+#### GET /api/mail/unsubscribe/:token
+An HTML page that asks. It changes nothing, so link scanners that open it stop nothing. For alert email and the settings test message, the page offers to unsubscribe from every optional mail. For account mail (verification, password reset), it says what still comes and when, and offers to turn off every optional mail. `404` for an unknown link.
+
+#### POST /api/mail/unsubscribe/:token
+Stops the mail at once. No mail is sent to confirm it.
+
+- A mailbox provider's one-click POST (body `List-Unsubscribe=One-Click`, or any body without `scope`) stops that kind of mail and answers a blank `200`. On account mail it turns off every optional mail.
+- The page's form posts `scope=optional`, turns off every optional mail and answers a page saying so.
+- `404` (`Unknown link.`) for an unknown or malformed token.
+
+The request log prints `[token]` in place of the token.
+
 ---
 
 ### Webhooks

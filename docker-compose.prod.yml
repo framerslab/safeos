@@ -39,6 +39,13 @@ services:
       - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
       # Telegram Alerts
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      # Email via Resend; every mail's unsubscribe link points at SAFEOS_API_PUBLIC_URL,
+      # or https://SAFEOS_DOMAIN (the domain Caddy serves) when that is unset
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - EMAIL_FROM=${EMAIL_FROM:-}
+      - EMAIL_REPLY_TO=${EMAIL_REPLY_TO:-}
+      - SAFEOS_API_PUBLIC_URL=${SAFEOS_API_PUBLIC_URL:-}
+      - SAFEOS_DOMAIN=${SAFEOS_DOMAIN:-}
       # Web Push Notifications (generate with: npx web-push generate-vapid-keys)
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
@@ -140,6 +147,10 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # The Caddyfile serves {$SAFEOS_DOMAIN}; the API builds unsubscribe links from it too
+      - SAFEOS_DOMAIN=${SAFEOS_DOMAIN:-safeos-api.yourdomain.com}
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://safeos.sh}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

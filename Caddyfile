@@ -46,14 +46,19 @@
     # Gzip compression
     encode gzip
 
-    # Logging
+    # Logging (the token in an unsubscribe link is replaced with [token])
     log {
         output file /data/access.log {
             roll_size 10mb
             roll_keep 3
             roll_keep_for 168h
         }
-        format json
+        format filter {
+            wrap json
+            fields {
+                request>uri regexp "(?i)/api/mail/unsubscribe/[^/?#]+" "/api/mail/unsubscribe/[token]"
+            }
+        }
     }
 }
 
