@@ -34,16 +34,19 @@ import {
   sendVerificationEmail,
   isResendConfigured,
   EmailNotConfiguredError,
+  EmailSendError,
   EmailSuppressedError,
 } from '../../src/lib/alerts/email.js';
 import {
   MailSuppressionStore,
   setMailSuppressionStore,
   suppressAddressesFromText,
+  resubscribeAddressesFromText,
 } from '../../src/lib/alerts/mail-suppression.js';
 import { NotificationManager } from '../../src/lib/alerts/notification-manager.js';
 import { createMailRoutes } from '../../src/api/routes/mail.js';
 import { notificationRoutes } from '../../src/api/routes/notifications.js';
+import { requestLogger } from '../../src/api/middleware/request-log.js';
 
 // =============================================================================
 // Harness
@@ -450,6 +453,79 @@ describe('retries and address forms', () => {
       EmailSuppressedError,
     );
     expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// =============================================================================
+// Failures, logs and the way back
+// =============================================================================
+
+describe('failures, logs and the way back', () => {
+  it('a failure part-way through a send says which recipients already got the mail', async () => {
+    sendMock.mockReset();
+    sendMock
+      .mockResolvedValueOnce({ data: { id: 'msg_first' }, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: 'Rate limited' } });
+
+    const failure = await sendEmail({
+      kind: 'alert',
+      to: ['first@example.com', 'second@example.com'],
+      subject: 'Hi',
+      html: '<p>Body</p>',
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(EmailSendError);
+    expect((failure as EmailSendError).message).toMatch(/Resend send failed: Rate limited/);
+    expect((failure as EmailSendError).sent).toEqual([{ id: 'msg_first', to: 'first@example.com' }]);
+  });
+
+  it('the request log never shows an unsubscribe token', async () => {
+    const app = express();
+    app.use(requestLogger);
+    app.use('/api/mail', createMailRoutes(store));
+    const logged = createServer(app);
+    await new Promise<void>((resolve) => logged.listen(0, '127.0.0.1', () => resolve()));
+    const base = `http://127.0.0.1:${(logged.address() as AddressInfo).port}`;
+    const lines: string[] = [];
+    const spy = vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      lines.push(args.map(String).join(' '));
+    });
+
+    try {
+      await sendAlertEmail('lena@example.com', 'high', 'Motion', 'Hall');
+      const url = expectUnsubscribeParts(mailAt(0));
+      const token = String(url.match(UNSUBSCRIBE_URL)?.[1]);
+      await fetch(url.replace(PUBLIC_API, base));
+      await fetch(url.replace(PUBLIC_API, base), {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: 'List-Unsubscribe=One-Click',
+      });
+
+      expect(lines.some((line) => line.includes('/api/mail/unsubscribe/'))).toBe(true);
+      expect(lines.join('\n')).not.toContain(token);
+    } finally {
+      spy.mockRestore();
+      await new Promise<void>((resolve) => logged.close(() => resolve()));
+    }
+  });
+
+  it('the operator can turn mail back on for a person who asks, but never lifts a manual stop', async () => {
+    await sendAlertEmail('max@example.com', 'high', 'Motion', 'Hall');
+    expect((await oneClick(expectUnsubscribeParts(mailAt(0)))).status).toBe(200);
+    await expect(sendAlertEmail('max@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+    await suppressAddressesFromText('held@example.com\n', store);
+
+    const result = await resubscribeAddressesFromText('Max <max@example.com>\nheld@example.com\nnope\n', store);
+    expect(result).toEqual({ resubscribed: 1, unchanged: 1, skipped: 1 });
+
+    await sendAlertEmail('max@example.com', 'high', 'Motion again', 'Hall');
+    expect(sendMock).toHaveBeenCalledTimes(2);
+    await expect(sendAlertEmail('held@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
   });
 });
 
