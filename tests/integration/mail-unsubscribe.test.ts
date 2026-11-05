@@ -391,6 +391,69 @@ describe('the unsubscribe link', () => {
 });
 
 // =============================================================================
+// Retries and address forms
+// =============================================================================
+
+describe('retries and address forms', () => {
+  it('a retried send with the same idempotency key sends the same mail, so Resend can match it', async () => {
+    await sendAlertEmail('ivy@example.com', 'high', 'Motion', 'Hall', {
+      alertId: 'alert-retry',
+      timestamp: '2026-11-05T11:00:00Z',
+    });
+    await sendAlertEmail('ivy@example.com', 'high', 'Motion', 'Hall', {
+      alertId: 'alert-retry',
+      timestamp: '2026-11-05T11:00:00Z',
+    });
+
+    expect(requestOptionsAt(0)).toEqual({ idempotencyKey: 'alert-retry' });
+    expect(requestOptionsAt(1)).toEqual({ idempotencyKey: 'alert-retry' });
+    expect(mailAt(1).headers).toEqual(mailAt(0).headers);
+    expect(mailAt(1).html).toBe(mailAt(0).html);
+    expect(mailAt(1).text).toBe(mailAt(0).text);
+
+    // A different alert gets a different link, and the shared link still works.
+    await sendAlertEmail('ivy@example.com', 'high', 'Motion', 'Hall', { alertId: 'alert-other' });
+    const url = expectUnsubscribeParts(mailAt(0));
+    expect(expectUnsubscribeParts(mailAt(2))).not.toBe(url);
+    expect((await oneClick(url)).status).toBe(200);
+    await expect(sendAlertEmail('ivy@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+  });
+
+  it('keeps every idempotency key within Resend\'s 256 characters', async () => {
+    const address = `${'x'.repeat(64)}@example.com`;
+    const link = `https://safeos.sh/verify-email?token=${'a'.repeat(220)}`;
+    await sendVerificationEmail(address, link);
+    await sendVerificationEmail(address, link);
+
+    const first = (requestOptionsAt(0) as { idempotencyKey: string }).idempotencyKey;
+    expect(first.length).toBeGreaterThan(0);
+    expect(first.length).toBeLessThanOrEqual(256);
+    expect((requestOptionsAt(1) as { idempotencyKey: string }).idempotencyKey).toBe(first);
+  });
+
+  it('reads the mailbox out of a "Name <address>" recipient for every suppression', async () => {
+    const stop = await suppressAddressesFromText('Alice Example <alice@example.com>\n', store);
+    expect(stop).toEqual({ added: 1, skipped: 0 });
+    await expect(sendAlertEmail('alice@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+    await expect(
+      sendVerificationEmail('Alice <ALICE@example.com>', 'https://safeos.sh/verify-email?token=c1'),
+    ).rejects.toBeInstanceOf(EmailSuppressedError);
+
+    await sendAlertEmail('Bea <bea@example.com>', 'high', 'Motion', 'Hall');
+    expect(mailAt(0).to).toBe('Bea <bea@example.com>');
+    expect((await oneClick(expectUnsubscribeParts(mailAt(0)))).status).toBe(200);
+    await expect(sendAlertEmail('bea@example.com', 'high', 'Motion', 'Hall')).rejects.toBeInstanceOf(
+      EmailSuppressedError,
+    );
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// =============================================================================
 // Manual stops and configuration
 // =============================================================================
 
