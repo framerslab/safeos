@@ -479,6 +479,30 @@ describe('failures, logs and the way back', () => {
     expect((failure as EmailSendError).sent).toEqual([{ id: 'msg_first', to: 'first@example.com' }]);
   });
 
+  it('a database failure on a later recipient still says which recipients got the mail', async () => {
+    class FlakyStore extends MailSuppressionStore {
+      async isSuppressed(address: string, category: any): Promise<boolean> {
+        if (address.includes('flaky')) throw new Error('database is locked');
+        return super.isSuppressed(address, category);
+      }
+    }
+    setMailSuppressionStore(new FlakyStore(async () => db));
+    try {
+      const failure = await sendEmail({
+        kind: 'alert',
+        to: ['steady@example.com', 'flaky@example.com'],
+        subject: 'Hi',
+        html: '<p>Body</p>',
+      }).catch((error: unknown) => error);
+
+      expect(failure).toBeInstanceOf(EmailSendError);
+      expect((failure as EmailSendError).message).toMatch(/database is locked/);
+      expect((failure as EmailSendError).sent).toEqual([{ id: 'msg_1', to: 'steady@example.com' }]);
+    } finally {
+      setMailSuppressionStore(store);
+    }
+  });
+
   it('the request log never shows an unsubscribe token', async () => {
     const app = express();
     app.use(requestLogger);
@@ -496,6 +520,11 @@ describe('failures, logs and the way back', () => {
       const url = expectUnsubscribeParts(mailAt(0));
       const token = String(url.match(UNSUBSCRIBE_URL)?.[1]);
       await fetch(url.replace(PUBLIC_API, base));
+      // Express matches routes regardless of case, so this address works too.
+      const shouted = url
+        .replace(PUBLIC_API, base)
+        .replace('/api/mail/unsubscribe/', '/API/MAIL/UNSUBSCRIBE/');
+      expect((await fetch(shouted)).status).toBe(200);
       await fetch(url.replace(PUBLIC_API, base), {
         method: 'POST',
         headers: { 'content-type': 'application/x-www-form-urlencoded' },
