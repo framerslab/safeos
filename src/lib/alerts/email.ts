@@ -185,8 +185,9 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   const ids: string[] = [];
   const sentTo: string[] = [];
 
-  for (const address of recipients) {
-    if (await store.isSuppressed(address, info.category)) continue;
+  // One recipient: null when suppressed, else the Resend message id.
+  const sendOne = async (address: string): Promise<string | null> => {
+    if (await store.isSuppressed(address, info.category)) return null;
 
     const idempotencyKey = options.idempotencyKey
       ? boundIdempotencyKey(
@@ -233,6 +234,22 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
       throw new EmailSendError('Resend returned no message id', sentSoFar(ids, sentTo));
     }
 
+    return id;
+  };
+
+  for (const address of recipients) {
+    let id: string | null;
+    try {
+      id = await sendOne(address);
+    } catch (error) {
+      if (error instanceof EmailSendError) throw error;
+      // A store failure (suppression lookup, token) still reports what went out.
+      throw new EmailSendError(
+        `Mail not sent: ${error instanceof Error ? error.message : 'unknown error'}`,
+        sentSoFar(ids, sentTo),
+      );
+    }
+    if (id === null) continue;
     ids.push(id);
     sentTo.push(address);
   }

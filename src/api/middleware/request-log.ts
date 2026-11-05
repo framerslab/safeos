@@ -9,7 +9,8 @@
 
 import type { Request, Response, NextFunction } from 'express';
 
-const UNSUBSCRIBE_TOKEN = /(\/api\/mail\/unsubscribe\/)[^/?#]+/g;
+// Case-insensitive, as Express matches routes regardless of case.
+const UNSUBSCRIBE_TOKEN = /(\/api\/mail\/unsubscribe\/)[^/?#]+/gi;
 
 /** The path with every unsubscribe token replaced. */
 export function redactPath(path: string): string {

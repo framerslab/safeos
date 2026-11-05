@@ -56,7 +56,7 @@
         format filter {
             wrap json
             fields {
-                request>uri regexp "/api/mail/unsubscribe/[^/?#]+" "/api/mail/unsubscribe/[token]"
+                request>uri regexp "(?i)/api/mail/unsubscribe/[^/?#]+" "/api/mail/unsubscribe/[token]"
             }
         }
     }
