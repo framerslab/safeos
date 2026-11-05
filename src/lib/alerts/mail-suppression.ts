@@ -4,18 +4,20 @@
  * Unsubscribe tokens and the suppression list, kept in the SafeOS database
  * through @framers/sql-storage-adapter.
  *
- * - A token is 32 random bytes (base64url). Only its SHA-256 is stored, bound
- *   to the recipient's address hash and the mail's category. It can do one
- *   thing: stop mail to that address.
- * - Addresses are stored as the SHA-256 of the trimmed, lower-cased address,
- *   never in clear.
+ * - A token is 32 bytes (base64url): random, or, for a mail sent with an
+ *   idempotency key, an HMAC-SHA256 of the key under a secret kept in the
+ *   database, so a retried send carries the same link and the same mail.
+ *   Only its SHA-256 is stored, bound to the recipient's address hash and the
+ *   mail's category. It can do one thing: stop mail to that address.
+ * - Addresses are stored as the SHA-256 of the lower-cased mailbox (the part
+ *   inside <...> of a "Name <address>" recipient), never in clear.
  * - Every send reads the list first: optional mail stops on its category,
  *   `optional` or `all`; required mail stops only on `all` (a manual stop).
  *
  * @module lib/alerts/mail-suppression
  */
 
-import { createHash, randomBytes } from 'crypto';
+import { createHash, createHmac, randomBytes } from 'crypto';
 import { getSafeOSDatabase, now } from '../../db/index.js';
 import {
   isMailCategory,
@@ -58,8 +60,14 @@ function sha256(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+/** The mailbox of a recipient: `Name <a@b.c>` and `a@b.c` both give `a@b.c`. */
+export function mailboxOf(address: string): string {
+  const named = address.match(/<([^<>]*)>\s*$/);
+  return (named ? named[1] : address).trim();
+}
+
 export function normalizeAddress(address: string): string {
-  return address.trim().toLowerCase();
+  return mailboxOf(address).toLowerCase();
 }
 
 export function hashAddress(address: string): string {
@@ -70,14 +78,24 @@ export function hashAddress(address: string): string {
 // Store
 // =============================================================================
 
+interface OpenStore {
+  db: MailStoreDatabase;
+  /** Key for tokens derived from an idempotency key. */
+  secret: string;
+}
+
 export class MailSuppressionStore {
-  private ready: Promise<MailStoreDatabase> | null = null;
+  private ready: Promise<OpenStore> | null = null;
 
   constructor(private readonly openDatabase: () => Promise<MailStoreDatabase>) {}
 
-  private database(): Promise<MailStoreDatabase> {
+  private async database(): Promise<MailStoreDatabase> {
+    return (await this.open()).db;
+  }
+
+  private open(): Promise<OpenStore> {
     if (!this.ready) {
-      const opening = (async () => {
+      const opening = (async (): Promise<OpenStore> => {
         const db = await this.openDatabase();
         await db.exec(`
           CREATE TABLE IF NOT EXISTS mail_unsubscribe_tokens (
@@ -96,7 +114,24 @@ export class MailSuppressionStore {
             PRIMARY KEY (address_hash, scope)
           )
         `);
-        return db;
+        await db.exec(`
+          CREATE TABLE IF NOT EXISTS mail_settings (
+            name TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+          )
+        `);
+        await db.run(
+          `INSERT INTO mail_settings (name, value) VALUES ('token_secret', ?)
+           ON CONFLICT (name) DO NOTHING`,
+          [randomBytes(32).toString('hex')],
+        );
+        const row = (await db.get(
+          "SELECT value FROM mail_settings WHERE name = 'token_secret'",
+        )) as { value?: string } | null | undefined;
+        if (!row?.value) {
+          throw new Error('Mail token secret is missing');
+        }
+        return { db, secret: row.value };
       })();
       // A failed open is retried on the next call instead of being cached.
       opening.catch(() => {
@@ -107,16 +142,29 @@ export class MailSuppressionStore {
     return this.ready;
   }
 
-  /** Mint a token bound to this address and category; returns the raw token. */
-  async issueToken(address: string, category: MailCategory): Promise<string> {
+  /**
+   * Mint a token bound to this address and category; returns the raw token.
+   * With an idempotency key the token is derived from it, so a retry of the
+   * same send gets the same token.
+   */
+  async issueToken(
+    address: string,
+    category: MailCategory,
+    idempotencyKey?: string,
+  ): Promise<string> {
     if (!isMailCategory(category)) {
       throw new Error(`Unknown mail category: ${String(category)}`);
     }
-    const db = await this.database();
-    const token = randomBytes(32).toString('base64url');
+    const { db, secret } = await this.open();
+    const token = idempotencyKey
+      ? createHmac('sha256', secret)
+          .update(`${category}\n${normalizeAddress(address)}\n${idempotencyKey}`, 'utf8')
+          .digest('base64url')
+      : randomBytes(32).toString('base64url');
     await db.run(
       `INSERT INTO mail_unsubscribe_tokens (token_hash, address_hash, category, created_at)
-       VALUES (?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (token_hash) DO NOTHING`,
       [sha256(token), hashAddress(address), category, now()],
     );
     return token;
@@ -195,7 +243,8 @@ export function setMailSuppressionStore(store: MailSuppressionStore | null): voi
 
 /**
  * Stop every mail, required mail included, to each address in `text`
- * (one per line; blank lines and lines starting with # are ignored).
+ * (one per line, bare or as "Name <address>"; blank lines and lines starting
+ * with # are ignored).
  * Returns counts only, so no address reaches a log.
  */
 export async function suppressAddressesFromText(
@@ -205,13 +254,14 @@ export async function suppressAddressesFromText(
   let added = 0;
   let skipped = 0;
   for (const line of text.split(/\r?\n/)) {
-    const address = line.trim();
-    if (!address || address.startsWith('#')) continue;
-    if (!ADDRESS_PATTERN.test(address)) {
+    const entry = line.trim();
+    if (!entry || entry.startsWith('#')) continue;
+    const mailbox = mailboxOf(entry);
+    if (!ADDRESS_PATTERN.test(mailbox)) {
       skipped += 1;
       continue;
     }
-    await store.suppressAddress(address, 'all', 'manual');
+    await store.suppressAddress(mailbox, 'all', 'manual');
     added += 1;
   }
   return { added, skipped };

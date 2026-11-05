@@ -183,7 +183,7 @@ Every mail the API server sends (alerts, the settings test message, account veri
 - The link points at this server: `https://<SAFEOS_API_PUBLIC_URL>/api/mail/unsubscribe/<token>`. Set `SAFEOS_API_PUBLIC_URL` to the API server's https address; behind the bundled Caddy, `SAFEOS_DOMAIN` is used when it is unset. Without an https address the server sends no mail and `/api/notifications/test-email` says why.
 - Opening the link shows a page that asks and changes nothing. The page's button, or a mailbox's one-click POST, stops the mail at once. No mail is sent to confirm it.
 - Alert email and the settings test message stop for that address. Account mail (verification, password reset) is sent only when someone asks for it; its link opens a page that turns off every optional mail and says what still comes.
-- The token in the link is random and bound to one recipient; the server stores only its SHA-256 and the SHA-256 of the address.
+- The token in the link is bound to one recipient and reveals nothing: random, or, when the mail has an idempotency key, derived from that key with a secret kept in the database, so a retried send carries the same link. The server stores only its SHA-256 and the SHA-256 of the address.
 - To stop all mail to an address, account mail included, pipe it in: `docker compose exec -T api npx tsx src/cli/mail-suppress.ts < addresses.txt` (one address per line; the command prints counts only).
 - Mailbox providers act on the one-click header only when the mail's DKIM signature covers it. After setting up your sending domain, open a received mail's original source and check that the `h=` list of its `DKIM-Signature` includes `list-unsubscribe` and `list-unsubscribe-post`.
 

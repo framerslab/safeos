@@ -380,7 +380,7 @@ Send a real test mail through Resend to check the email setup. The mail carries 
 
 ### Mail
 
-Every mail the server sends carries a visible Unsubscribe link and the `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers (RFC 8058), all pointing at the URL below. The token is random and bound to one recipient; the server stores only its SHA-256.
+Every mail the server sends carries a visible Unsubscribe link and the `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers (RFC 8058), all pointing at the URL below. The token is bound to one recipient and reveals nothing: random, or derived from the mail's idempotency key with a secret kept in the database, so a retried send carries the same link. The server stores only its SHA-256.
 
 #### GET /api/mail/unsubscribe/:token
 An HTML page that asks. It changes nothing, so link scanners that open it stop nothing. For alert email and the settings test message, the page offers to unsubscribe from every optional mail. For account mail (verification, password reset), it says what still comes and when, and offers to turn off every optional mail. `404` for an unknown link.

@@ -250,7 +250,7 @@ SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
             </li>
             <li>
               For the Unsubscribe link, the server keeps the SHA-256 of the recipient address and of
-              the link&apos;s random token, never the address itself.
+              the link&apos;s token, never the address itself.
             </li>
             <li>
               Frame does not receive copies of your alert emails. The path is{' '}

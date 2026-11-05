@@ -13,6 +13,7 @@
  * @module lib/alerts/email
  */
 
+import { createHash } from 'crypto';
 import { Resend } from 'resend';
 import { MAIL_KINDS, isMailKind, type MailKind } from './mail-kinds.js';
 import { getMailSuppressionStore } from './mail-suppression.js';
@@ -187,13 +188,15 @@ export async function sendEmail(options: SendEmailOptions): Promise<SendEmailRes
   for (const address of recipients) {
     if (await store.isSuppressed(address, info.category)) continue;
 
-    const token = await store.issueToken(address, info.category);
-    const unsubscribeUrl = `${linkBase}/api/mail/unsubscribe/${token}`;
     const idempotencyKey = options.idempotencyKey
-      ? recipients.length > 1
-        ? `${options.idempotencyKey}:${address}`
-        : options.idempotencyKey
+      ? boundIdempotencyKey(
+          recipients.length > 1 ? `${options.idempotencyKey}:${address}` : options.idempotencyKey,
+        )
       : undefined;
+    // With an idempotency key the token is derived from it, so a retry sends
+    // the same mail and Resend matches it instead of rejecting a changed body.
+    const token = await store.issueToken(address, info.category, idempotencyKey);
+    const unsubscribeUrl = `${linkBase}/api/mail/unsubscribe/${token}`;
 
     const payload = {
       from: config.from,
@@ -439,6 +442,14 @@ function renderAlertEmail(params: {
       </p>
     </div>
   `;
+}
+
+/** Resend accepts idempotency keys of up to 256 characters; longer ones are hashed. */
+const MAX_IDEMPOTENCY_KEY_LENGTH = 256;
+
+function boundIdempotencyKey(key: string): string {
+  if (key.length <= MAX_IDEMPOTENCY_KEY_LENGTH) return key;
+  return `sha256:${createHash('sha256').update(key, 'utf8').digest('hex')}`;
 }
 
 /**
