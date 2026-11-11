@@ -66,6 +66,18 @@ class InMemoryStore {
     return entry;
   }
 
+  /**
+   * Take back one request counted in the window that ends at `resetTime`.
+   * Does nothing once that window has ended, so a request never lowers the
+   * next window's count.
+   */
+  decrement(key: string, resetTime: number): void {
+    const entry = this.store.get(key);
+    if (entry && entry.resetTime === resetTime && entry.count > 0) {
+      entry.count--;
+    }
+  }
+
   async reset(key: string): Promise<void> {
     this.store.delete(key);
   }
@@ -144,17 +156,16 @@ export function rateLimit(config: RateLimitConfig): RequestHandler {
         return;
       }
 
-      // Track success/failure for conditional skipping
+      // Every request is counted when it arrives, so requests in flight at
+      // the same time cannot pass the limit together. A request of a kind the
+      // limiter skips is taken back off the count once its answer is sent.
       if (skipSuccessfulRequests || skipFailedRequests) {
-        res.on('finish', async () => {
+        const windowEnd = entry.resetTime;
+        res.on('finish', () => {
           const isSuccess = res.statusCode < 400;
 
           if ((skipSuccessfulRequests && isSuccess) || (skipFailedRequests && !isSuccess)) {
-            // Decrement the count for skipped requests
-            const current = await store.increment(key, windowMs);
-            if (current.count > 0) {
-              current.count--;
-            }
+            store.decrement(key, windowEnd);
           }
         });
       }

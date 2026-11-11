@@ -40,7 +40,14 @@ const VISITOR_TEXT_FILES = listFiles(path.join(APP_ROOT, 'src', 'app'), ['.tsx',
     path.join(REPO_ROOT, 'README.md'),
     path.join(REPO_ROOT, '.github', 'FUNDING.yml'),
   ])
-  .concat(listFiles(path.join(REPO_ROOT, 'docs'), ['.md']));
+  .concat(listFiles(path.join(REPO_ROOT, 'docs'), ['.md']))
+  .concat(listFiles(path.join(APP_ROOT, 'src', 'lib', 'i18n'), ['.ts']))
+  .concat(listFiles(path.join(APP_ROOT, 'src', 'i18n'), ['.json']));
+
+// The translated strings, every language.
+const TRANSLATION_FILES = listFiles(path.join(APP_ROOT, 'src', 'lib', 'i18n'), ['.ts']).concat(
+  listFiles(path.join(APP_ROOT, 'src', 'i18n'), ['.json'])
+);
 
 function rel(file: string): string {
   return path.relative(REPO_ROOT, file);
@@ -104,6 +111,16 @@ describe('the humanitarian pledge reads one way everywhere', () => {
     expect(filesMatching(VISITOR_TEXT_FILES, /non-?profit|\bcharit(y|ies|able)\b/i)).toEqual([]);
   });
 
+  it('no translation gives the pledge as a percentage or names SuperCloud', () => {
+    // Every language writes the pledge's number as 10 and a percent sign.
+    expect(filesMatching(TRANSLATION_FILES, /(^|[^\d])10\s*%|SuperCloud/)).toEqual([]);
+  });
+
+  it('package.json names the framerslab repository', () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
+    expect(pkg.repository?.url).toMatch(/github\.com\/framerslab\/safeos/);
+  });
+
   it('no FUNDING entry points at an account that is not framerslab', () => {
     const funding = fs.readFileSync(path.join(REPO_ROOT, '.github', 'FUNDING.yml'), 'utf8');
     expect(funding).not.toMatch(/framersai|manicinc/);
@@ -132,5 +149,20 @@ describe('sitemap', () => {
       if (!fs.existsSync(pageFile)) missing.push(url);
     }
     expect(missing).toEqual([]);
+  });
+});
+
+describe('storage and network statements', () => {
+  const PAGES = listFiles(path.join(APP_ROOT, 'src', 'app'), ['.tsx']);
+
+  it('settings are kept in localStorage, so no page says they are in IndexedDB', () => {
+    // stores/settings-store.ts persists with createJSONStorage(() => localStorage).
+    const store = fs.readFileSync(path.join(APP_ROOT, 'src', 'stores', 'settings-store.ts'), 'utf8');
+    expect(store).toMatch(/createJSONStorage\(\(\) => localStorage\)/);
+    expect(filesMatching(PAGES, /settings(?:(?!localStorage)[^.'"]){0,80}\bin (your browser(&apos;|'|\\')s )?IndexedDB/i)).toEqual([]);
+  });
+
+  it('no page says nothing goes anywhere: the model download and the star count reach Google and GitHub', () => {
+    expect(filesMatching(PAGES, /nothing is sent anywhere|nowhere else|Nothing is sent to remote servers/i)).toEqual([]);
   });
 });

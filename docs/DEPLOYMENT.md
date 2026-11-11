@@ -259,7 +259,7 @@ Open <http://localhost:3000>. The web app, the API (`localhost:3001`) and Ollama
 git clone https://github.com/framerslab/safeos.git
 cd safeos
 npm install --legacy-peer-deps
-(cd apps/guardian-ui && npm install --legacy-peer-deps)
+(cd apps/guardian-ui && npm ci)
 
 # Start API + UI
 npm run dev

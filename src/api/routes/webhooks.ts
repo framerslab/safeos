@@ -10,6 +10,7 @@ import { Router } from 'express';
 import { createHmac, randomBytes } from 'crypto';
 import { getSafeOSDatabase, generateId, now } from '../../db/index.js';
 import { validate } from '../middleware/validate.js';
+import { findLiveSession } from '../middleware/auth.js';
 import { CreateWebhookSchema, IdParamsSchema } from '../schemas/index.js';
 
 // =============================================================================
@@ -59,11 +60,8 @@ webhookRouter.get('/', async (req, res) => {
 
     const db = await getSafeOSDatabase();
 
-    // Get profile ID from session
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return res.status(401).json({ success: false, error: 'Invalid session' });
@@ -103,11 +101,8 @@ webhookRouter.post('/', validate(CreateWebhookSchema), async (req, res) => {
 
     const db = await getSafeOSDatabase();
 
-    // Get profile ID from session
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return res.status(401).json({ success: false, error: 'Invalid session' });
@@ -154,11 +149,8 @@ webhookRouter.delete('/:id', validate(IdParamsSchema, 'params'), async (req, res
     const { id } = req.params;
     const db = await getSafeOSDatabase();
 
-    // Verify ownership
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return res.status(401).json({ success: false, error: 'Invalid session' });
@@ -196,11 +188,8 @@ webhookRouter.post('/:id/test', validate(IdParamsSchema, 'params'), async (req, 
     const { id } = req.params;
     const db = await getSafeOSDatabase();
 
-    // Verify ownership
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return res.status(401).json({ success: false, error: 'Invalid session' });

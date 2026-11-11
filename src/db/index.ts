@@ -296,8 +296,55 @@ export async function runMigrations(db: Database): Promise<void> {
     )
   `);
 
+  // Create webhooks table (the /api/webhooks routes and their delivery)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      failure_count INTEGER NOT NULL DEFAULT 0,
+      last_triggered TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (profile_id) REFERENCES user_profiles(id)
+    )
+  `);
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_webhooks_profile_id ON webhooks(profile_id)
+  `);
+
+  // Roles: 'user' (everyone), 'reviewer' (reads and acts on content flags),
+  // 'operator' (runs the deployment). The operator grants a role with
+  // UPDATE user_profiles SET role = 'reviewer' WHERE id = '<profile id>'.
+  await addColumnIfMissing(db, 'user_profiles', 'role', "TEXT NOT NULL DEFAULT 'user'");
+
+  // Monitoring profiles a person creates carry their profile id; the built-in
+  // defaults have none and are shared, read-only to everyone but the operator.
+  await addColumnIfMissing(db, 'monitoring_profiles', 'owner_id', 'TEXT');
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_monitoring_profiles_owner ON monitoring_profiles(owner_id)
+  `);
+
   // Insert default profiles if not exist
   await insertDefaultProfiles(db);
+}
+
+/**
+ * Add a column to an existing table once; CREATE TABLE IF NOT EXISTS leaves
+ * the tables of an existing database as they were.
+ */
+async function addColumnIfMissing(
+  db: Database,
+  table: string,
+  column: string,
+  definition: string
+): Promise<void> {
+  const columns = await db.all<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (columns.some((c) => c.name === column)) return;
+  await db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }
 
 /**

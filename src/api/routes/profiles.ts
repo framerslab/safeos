@@ -15,7 +15,7 @@ import {
   ListProfilesQuerySchema,
   IdParamsSchema,
 } from '../schemas/index.js';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, getProfileId } from '../middleware/auth.js';
 
 // =============================================================================
 // Router
@@ -25,6 +25,36 @@ export const profileRoutes = Router();
 
 // Apply auth middleware to all profile routes
 profileRoutes.use(requireAuth);
+
+/**
+ * A caller reads their own profiles and the shared built-in defaults
+ * (owner_id NULL). A caller changes only their own; the operator may also
+ * change the defaults.
+ */
+const READABLE = '(owner_id = ? OR owner_id IS NULL)';
+
+function writableClause(req: Request): { sql: string; params: any[] } {
+  if (req.session?.role === 'operator') {
+    return { sql: '(owner_id = ? OR owner_id IS NULL)', params: [getProfileId(req)] };
+  }
+  return { sql: 'owner_id = ?', params: [getProfileId(req)] };
+}
+
+async function findWritable(req: Request, id: string): Promise<any> {
+  const db = await getSafeOSDatabase();
+  const w = writableClause(req);
+  return db.get(`SELECT * FROM monitoring_profiles WHERE id = ? AND ${w.sql}`, [id, ...w.params]);
+}
+
+/** Deactivates the other profiles of a scenario that the caller can see. */
+async function deactivateScenario(req: Request, scenario: string): Promise<void> {
+  const db = await getSafeOSDatabase();
+  const w = writableClause(req);
+  await db.run(
+    `UPDATE monitoring_profiles SET is_active = 0 WHERE scenario = ? AND ${w.sql}`,
+    [scenario, ...w.params]
+  );
+}
 
 // =============================================================================
 // Routes
@@ -38,11 +68,11 @@ profileRoutes.get('/', validate(ListProfilesQuerySchema, 'query'), async (req: R
     const db = await getSafeOSDatabase();
     const { scenario } = req.query;
 
-    let query = 'SELECT * FROM monitoring_profiles';
-    const params: any[] = [];
+    let query = `SELECT * FROM monitoring_profiles WHERE ${READABLE}`;
+    const params: any[] = [getProfileId(req)];
 
     if (scenario) {
-      query += ' WHERE scenario = ?';
+      query += ' AND scenario = ?';
       params.push(scenario);
     }
 
@@ -71,7 +101,10 @@ profileRoutes.get('/:id', validate(IdParamsSchema, 'params'), async (req: Reques
     const db = await getSafeOSDatabase();
     const { id } = req.params;
 
-    const profile = await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id]);
+    const profile = await db.get(`SELECT * FROM monitoring_profiles WHERE id = ? AND ${READABLE}`, [
+      id,
+      getProfileId(req),
+    ]);
 
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
@@ -101,9 +134,9 @@ profileRoutes.post('/', validate(CreateProfileSchema), async (req: Request, res:
     const timestamp = now();
 
     await db.run(
-      `INSERT INTO monitoring_profiles (id, name, scenario, settings, is_active, created_at)
-       VALUES (?, ?, ?, ?, 0, ?)`,
-      [id, name, scenario, JSON.stringify(settings || {}), timestamp]
+      `INSERT INTO monitoring_profiles (id, name, scenario, settings, is_active, created_at, owner_id)
+       VALUES (?, ?, ?, ?, 0, ?, ?)`,
+      [id, name, scenario, JSON.stringify(settings || {}), timestamp, getProfileId(req)]
     );
 
     const profile = await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id]);
@@ -129,7 +162,7 @@ profileRoutes.patch('/:id', validate(IdParamsSchema, 'params'), validate(UpdateP
     const { id } = req.params;
     const { name, settings, isActive } = req.body;
 
-    const profile = await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id]);
+    const profile = await findWritable(req, String(id));
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
@@ -150,10 +183,7 @@ profileRoutes.patch('/:id', validate(IdParamsSchema, 'params'), validate(UpdateP
     if (isActive !== undefined) {
       // If activating, deactivate other profiles of same scenario
       if (isActive) {
-        await db.run(
-          'UPDATE monitoring_profiles SET is_active = 0 WHERE scenario = ?',
-          [(profile as any).scenario]
-        );
+        await deactivateScenario(req, (profile as any).scenario);
       }
       updates.push('is_active = ?');
       params.push(isActive ? 1 : 0);
@@ -189,7 +219,7 @@ profileRoutes.delete('/:id', validate(IdParamsSchema, 'params'), async (req: Req
     const db = await getSafeOSDatabase();
     const { id } = req.params;
 
-    const profile = await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id]);
+    const profile = await findWritable(req, String(id));
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
@@ -217,16 +247,13 @@ profileRoutes.post('/:id/activate', validate(IdParamsSchema, 'params'), async (r
     const db = await getSafeOSDatabase();
     const { id } = req.params;
 
-    const profile = await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id]);
+    const profile = await findWritable(req, String(id));
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
     // Deactivate other profiles of same scenario
-    await db.run(
-      'UPDATE monitoring_profiles SET is_active = 0 WHERE scenario = ?',
-      [(profile as any).scenario]
-    );
+    await deactivateScenario(req, (profile as any).scenario);
 
     // Activate this profile
     await db.run(

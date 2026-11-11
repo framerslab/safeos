@@ -187,7 +187,8 @@ export default function AboutPage() {
             <p className="text-slate-300 leading-relaxed mb-4">
               On safeos.sh, SafeOS runs entirely in your browser. Your recordings, settings, and personal
               information stay on your device. If you connect a server you run yourself, camera frames and
-              alerts go to that server and nowhere else.
+              alerts go to that server. If you also give that server a key for a cloud AI provider, it can
+              send a frame to that provider when its local analysis is unavailable.
             </p>
             <p className="text-slate-400 leading-relaxed">
               <strong className="text-emerald-400">Important:</strong> SafeOS Guardian is a supplemental,
@@ -348,7 +349,7 @@ export default function AboutPage() {
                 step={4}
                 icon={<IconDatabase size={16} />}
                 title="Local Storage"
-                description="All settings, alert history, and preferences are stored in IndexedDB on your device. Nothing is sent to remote servers."
+                description="Settings are kept in your browser's localStorage, and saved frames and reference photos in IndexedDB, all on your device."
               />
               <ArchitectureStep
                 step={5}

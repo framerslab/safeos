@@ -35,7 +35,7 @@
       },
       "free": {
         "title": "Toujours Gratuit",
-        "description": "Fait partie de l'initiative 10% pour l'Humanité de SuperCloud. Ce service ne sera jamais monétisé."
+        "description": "Frame consacre une partie de ses ressources de développement à un travail humanitaire, et SafeOS fait partie de ce travail. Ce service ne sera jamais monétisé."
       }
     },
     "abusePrevention": {
@@ -329,7 +329,7 @@
     "tagline": "Un outil humanitaire pour protéger ce qui compte le plus.",
     "mission": { "title": "Notre Mission", "p1": "SafeOS Guardian a été créé pour fournir des outils de surveillance accessibles.", "p2": "Tout fonctionne dans votre navigateur.", "disclaimer": "SafeOS Guardian est un outil expérimental supplémentaire." },
     "values": { "title": "Nos Valeurs", "privacyFirst": "Confidentialité D'abord", "privacyFirstDesc": "Vos données restent sur votre appareil.", "openTransparent": "Ouvert et Transparent", "openTransparentDesc": "Code open source.", "humanitarian": "But Humanitaire", "humanitarianDesc": "Construit pour les familles.", "accessible": "Accessible Mondialement", "accessibleDesc": "Support multilingue." },
-    "tenPercent": { "title": "10% pour l'Humanité", "subtitle": "Engagement envers les causes humanitaires", "text": "Si SafeOS génère des revenus, nous donnerons 10% à des organisations humanitaires." },
+    "tenPercent": { "title": "Travail humanitaire", "subtitle": "Engagement envers les causes humanitaires", "text": "Frame consacre une partie de ses ressources de développement à un travail humanitaire, et SafeOS fait partie de ce travail." },
     "technology": { "title": "Technologie", "nextjs": "Next.js et React", "tensorflow": "TensorFlow.js", "indexeddb": "IndexedDB", "webaudio": "Web Audio API", "mediadevices": "MediaDevices API" },
     "abusePrevention": { "title": "Prévention des Abus", "text": "SafeOS est conçu uniquement pour une surveillance légitime.", "warning1": "La surveillance sans consentement est illégale", "warning2": "Des limitations sont en place", "warning3": "Nous nous réservons le droit de suspendre le service" },
     "contact": { "title": "Contact", "text": "Des questions?" },
@@ -339,7 +339,7 @@
     "title": "Soutenir SafeOS",
     "comingSoon": "Bientôt Disponible",
     "subtitle": "Nous travaillons sur les options de don.",
-    "promise": { "title": "Notre Promesse", "text": "10% des dons iront aux organisations humanitaires." },
+    "promise": { "title": "Notre Promesse", "text": "Un parrainage finance le temps de développement de SafeOS et l'hébergement qui maintient safeos.sh en ligne." },
     "enable": { "title": "Ce que votre soutien permettra", "fasterDev": "Développement Plus Rapide", "fasterDevDesc": "Plus de fonctionnalités", "globalTranslations": "Traductions Mondiales", "globalTranslationsDesc": "Plus de langues", "advancedAI": "IA Avancée", "advancedAIDesc": "Meilleurs algorithmes", "mobileApps": "Applications Mobiles", "mobileAppsDesc": "iOS et Android natifs" },
     "notify": { "title": "Me notifier quand les dons ouvrent", "placeholder": "votre@email.com", "button": "Me Notifier", "thanks": "Merci!", "thanksText": "Nous vous notifierons quand les dons seront disponibles." },
     "helpNow": { "title": "Façons d'aider maintenant", "star": "Étoiler sur GitHub", "bugs": "Signaler des bugs", "share": "Partager SafeOS" },

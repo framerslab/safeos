@@ -35,7 +35,7 @@
       },
       "free": {
         "title": "常に無料",
-        "description": "SuperCloudの「人類のための10%」イニシアチブの一部。このサービスは決して収益化されません。"
+        "description": "Frameは開発リソースの一部を人道的な活動に充てており、SafeOSはその活動の一部です。このサービスは決して収益化されません。"
       }
     },
     "abusePrevention": {
@@ -329,7 +329,7 @@
     "tagline": "最も大切なものを守るための人道的ツール。",
     "mission": { "title": "私たちの使命", "p1": "SafeOS Guardianはアクセス可能でプライバシーを尊重する監視ツールを提供するために作られました。", "p2": "すべてがブラウザで動作します。", "disclaimer": "SafeOS Guardianは実験的な補助ツールです。" },
     "values": { "title": "私たちの価値観", "privacyFirst": "プライバシー優先", "privacyFirstDesc": "データはデバイスに保存されます。", "openTransparent": "オープンで透明", "openTransparentDesc": "オープンソースコード。", "humanitarian": "人道的目的", "humanitarianDesc": "家族のために構築。", "accessible": "グローバルにアクセス可能", "accessibleDesc": "多言語サポート。" },
-    "tenPercent": { "title": "人類のための10%", "subtitle": "人道的目的へのコミットメント", "text": "SafeOSが収益を生み出す場合、人道組織に10%を寄付します。" },
+    "tenPercent": { "title": "人道的な活動", "subtitle": "人道的目的へのコミットメント", "text": "Frameは開発リソースの一部を人道的な活動に充てており、SafeOSはその活動の一部です。" },
     "technology": { "title": "技術", "nextjs": "Next.jsとReact", "tensorflow": "TensorFlow.js", "indexeddb": "IndexedDB", "webaudio": "Web Audio API", "mediadevices": "MediaDevices API" },
     "abusePrevention": { "title": "悪用防止", "text": "SafeOSは正当な監視のみを目的としています。", "warning1": "同意のない監視は違法です", "warning2": "制限が実施されています", "warning3": "サービスを停止する権利を留保します" },
     "contact": { "title": "連絡先", "text": "質問がありますか？" },
@@ -339,7 +339,7 @@
     "title": "SafeOSを支援",
     "comingSoon": "近日公開",
     "subtitle": "寄付オプションを準備中です。",
-    "promise": { "title": "私たちの約束", "text": "寄付の10%は人道組織に寄付されます。" },
+    "promise": { "title": "私たちの約束", "text": "スポンサーシップはSafeOSの開発時間と、safeos.shを公開し続けるホスティング費用に充てられます。" },
     "enable": { "title": "あなたのサポートで実現できること", "fasterDev": "より速い開発", "fasterDevDesc": "より多くの機能", "globalTranslations": "グローバル翻訳", "globalTranslationsDesc": "より多くの言語", "advancedAI": "高度なAI", "advancedAIDesc": "より良いアルゴリズム", "mobileApps": "モバイルアプリ", "mobileAppsDesc": "ネイティブiOSとAndroid" },
     "notify": { "title": "寄付開始時に通知", "placeholder": "your@email.com", "button": "通知する", "thanks": "ありがとうございます！", "thanksText": "寄付が利用可能になったらお知らせします。" },
     "helpNow": { "title": "今すぐ助ける方法", "star": "GitHubでスター", "bugs": "バグを報告", "share": "SafeOSを共有" },

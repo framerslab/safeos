@@ -138,7 +138,8 @@ authRouter.post('/session', validate(CreateSessionSchema), async (req, res) => {
       `INSERT INTO sessions (
         id, token, device_id, is_guest, profile_id, created_at, expires_at, last_active_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, token, deviceId || null, true, profile.id, now(), expiresAt, now()]
+      // SQLite stores booleans as integers; better-sqlite3 refuses a JS boolean
+      [sessionId, token, deviceId || null, 1, profile.id, now(), expiresAt, now()]
     );
 
     res.status(201).json({

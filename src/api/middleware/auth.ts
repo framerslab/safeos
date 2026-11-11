@@ -19,7 +19,16 @@ interface Session {
   token: string;
   expires_at: string;
   created_at: string;
+  role: string | null;
 }
+
+/** Roles a profile can hold. Every profile starts as `user`. */
+export type Role = 'user' | 'reviewer' | 'operator';
+
+/** Reads a session and its profile's role by token. */
+const SESSION_BY_TOKEN = `SELECT s.*, p.role AS role
+  FROM sessions s LEFT JOIN user_profiles p ON p.id = s.profile_id
+  WHERE s.token = ?`;
 
 // Extend Express Request to include session data
 declare global {
@@ -30,6 +39,7 @@ declare global {
         profileId: string;
         token: string;
         expiresAt: Date;
+        role: Role;
       };
     }
   }
@@ -45,6 +55,8 @@ declare global {
  * Expects the token in either:
  * - `x-session-token` header
  * - `Authorization: Bearer <token>` header
+ *
+ * A token in the query string is refused.
  */
 export const requireAuth: RequestHandler = async (
   req: Request,
@@ -66,10 +78,7 @@ export const requireAuth: RequestHandler = async (
 
     // Validate session
     const db = await getSafeOSDatabase();
-    const session = await db.get<Session>(
-      `SELECT * FROM sessions WHERE token = ?`,
-      [token]
-    );
+    const session = await db.get<Session>(SESSION_BY_TOKEN, [token]);
 
     if (!session) {
       res.status(401).json({
@@ -100,6 +109,7 @@ export const requireAuth: RequestHandler = async (
       profileId: session.profile_id,
       token: session.token,
       expiresAt,
+      role: toRole(session.role),
     };
 
     next();
@@ -131,10 +141,7 @@ export const optionalAuth: RequestHandler = async (
     }
 
     const db = await getSafeOSDatabase();
-    const session = await db.get<Session>(
-      `SELECT * FROM sessions WHERE token = ?`,
-      [token]
-    );
+    const session = await db.get<Session>(SESSION_BY_TOKEN, [token]);
 
     if (session) {
       const expiresAt = new Date(session.expires_at);
@@ -144,6 +151,7 @@ export const optionalAuth: RequestHandler = async (
           profileId: session.profile_id,
           token: session.token,
           expiresAt,
+          role: toRole(session.role),
         };
       }
     }
@@ -157,28 +165,27 @@ export const optionalAuth: RequestHandler = async (
 };
 
 /**
- * Require admin role (placeholder for future role system)
- * Currently just requires authentication
+ * Require a signed-in caller whose profile holds one of `roles`.
+ * Answers 401 with no valid session and 403 for any other role.
  */
-export const requireAdmin: RequestHandler = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  // First ensure authenticated
-  await new Promise<void>((resolve) => {
-    requireAuth(req, res, () => resolve());
-  });
+export function requireRole(...roles: Role[]): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    void requireAuth(req, res, () => {
+      if (!req.session || !roles.includes(req.session.role)) {
+        res.status(403).json({
+          success: false,
+          error: 'Forbidden',
+          message: 'This route needs the ' + roles.join(' or ') + ' role',
+        });
+        return;
+      }
+      next();
+    });
+  };
+}
 
-  if (!req.session) {
-    // requireAuth already sent response
-    return;
-  }
-
-  // TODO: Add role check when role system is implemented
-  // For now, just pass through if authenticated
-  next();
-};
+/** Require the operator role. */
+export const requireAdmin: RequestHandler = requireRole('operator');
 
 // =============================================================================
 // Helpers
@@ -200,13 +207,28 @@ function extractToken(req: Request): string | null {
     return authHeader.slice(7);
   }
 
-  // Check query param (for WebSocket connections)
-  const queryToken = req.query['token'];
-  if (typeof queryToken === 'string') {
-    return queryToken;
-  }
-
+  // A token in the query string is never accepted: URLs end up in access
+  // logs, browser history and Referer headers.
   return null;
+}
+
+function toRole(value: string | null | undefined): Role {
+  return value === 'reviewer' || value === 'operator' ? value : 'user';
+}
+
+/**
+ * Look up a session that has not expired. Returns null for an unknown or
+ * expired token. For handlers that read the token themselves.
+ */
+export async function findLiveSession(
+  token: string | undefined | null
+): Promise<{ id: string; profile_id: string; role: Role } | null> {
+  if (!token) return null;
+  const db = await getSafeOSDatabase();
+  const session = await db.get<Session>(SESSION_BY_TOKEN, [token]);
+  if (!session) return null;
+  if (new Date(session.expires_at) < new Date()) return null;
+  return { id: session.id, profile_id: session.profile_id, role: toRole(session.role) };
 }
 
 /**
@@ -216,4 +238,4 @@ export function getProfileId(req: Request): string | null {
   return req.session?.profileId || null;
 }
 
-export default { requireAuth, optionalAuth, requireAdmin, getProfileId };
+export default { requireAuth, optionalAuth, requireAdmin, requireRole, getProfileId, findLiveSession };

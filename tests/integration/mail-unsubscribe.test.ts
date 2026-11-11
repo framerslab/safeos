@@ -18,7 +18,14 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { createDatabase } from '@framers/sql-storage-adapter';
 
-const { sendMock } = vi.hoisted(() => ({ sendMock: vi.fn() }));
+const { sendMock, dbRef } = vi.hoisted(() => ({ sendMock: vi.fn(), dbRef: { current: null as any } }));
+
+// The test mail route signs its caller in against the app database; point it
+// at this test's database file.
+vi.mock('../../src/db/index.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/db/index.js')>();
+  return { ...actual, getSafeOSDatabase: async () => dbRef.current };
+});
 
 vi.mock('resend', () => ({
   Resend: vi.fn().mockImplementation(() => ({
@@ -47,6 +54,7 @@ import { NotificationManager } from '../../src/lib/alerts/notification-manager.j
 import { createMailRoutes } from '../../src/api/routes/mail.js';
 import { notificationRoutes } from '../../src/api/routes/notifications.js';
 import { requestLogger } from '../../src/api/middleware/request-log.js';
+import { runMigrations } from '../../src/db/index.js';
 
 // =============================================================================
 // Harness
@@ -116,10 +124,13 @@ function oneClick(url: string): Promise<Response> {
   });
 }
 
+/** The test mail on the server's Resend account is the operator's. */
+const OPERATOR_TOKEN = 'operator-session-token';
+
 function testEmailRoute(to: string): Promise<Response> {
   return fetch(`${local}/api/notifications/test-email`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', 'x-session-token': OPERATOR_TOKEN },
     body: JSON.stringify({ to }),
   });
 }
@@ -132,6 +143,19 @@ beforeAll(async () => {
   } as any);
   store = new MailSuppressionStore(async () => db);
   setMailSuppressionStore(store);
+
+  dbRef.current = db;
+  await runMigrations(db);
+  const stamp = new Date().toISOString();
+  await db.run(
+    `INSERT INTO user_profiles (id, display_name, role, created_at, updated_at) VALUES (?, ?, 'operator', ?, ?)`,
+    ['operator-profile', 'Operator', stamp, stamp]
+  );
+  await db.run(
+    `INSERT INTO sessions (id, token, is_guest, profile_id, created_at, expires_at, last_active_at)
+     VALUES (?, ?, 0, ?, ?, ?, ?)`,
+    ['operator-session', OPERATOR_TOKEN, 'operator-profile', stamp, new Date(Date.now() + 3_600_000).toISOString(), stamp]
+  );
 
   const app = express();
   app.use(express.json());

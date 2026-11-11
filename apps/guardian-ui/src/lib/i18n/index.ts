@@ -129,7 +129,7 @@ const translationsData = {
 
     // Footer
     'footer.disclaimer': 'Not a replacement for direct care',
-    'footer.humanitarian': "Part of SuperCloud's 10% for Humanity Initiative",
+    'footer.humanitarian': 'Humanitarian work',
   },
 
   es: {
@@ -235,7 +235,7 @@ const translationsData = {
 
     // Footer
     'footer.disclaimer': 'No es un reemplazo del cuidado directo',
-    'footer.humanitarian': 'Parte de la Iniciativa 10% para la Humanidad de SuperCloud',
+    'footer.humanitarian': 'Trabajo humanitario',
   },
 
   fr: {
@@ -322,7 +322,7 @@ const translationsData = {
     'error.camera': 'Accès à la caméra refusé',
     'error.microphone': 'Accès au microphone refusé',
     'footer.disclaimer': 'Ne remplace pas les soins directs',
-    'footer.humanitarian': 'Partie de l\'Initiative 10% pour l\'Humanité de SuperCloud',
+    'footer.humanitarian': 'Travail humanitaire',
   },
 
   de: {
@@ -409,7 +409,7 @@ const translationsData = {
     'error.camera': 'Kamerazugang verweigert',
     'error.microphone': 'Mikrofonzugang verweigert',
     'footer.disclaimer': 'Kein Ersatz für direkte Betreuung',
-    'footer.humanitarian': 'Teil der SuperCloud 10% für die Menschheit Initiative',
+    'footer.humanitarian': 'Humanitäre Arbeit',
   },
 
   // Stub entries for other languages (will be filled with English fallbacks below)

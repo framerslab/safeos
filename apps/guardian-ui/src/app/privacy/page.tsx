@@ -30,7 +30,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconDatabase,
     title: 'Local-First Storage',
-    description: 'Your settings, saved frames, and reference photos are stored in your browser\'s IndexedDB. On safeos.sh nothing is sent to a server. If you connect a server you run yourself, the monitor sends camera frames to that server only.',
+    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. On safeos.sh nothing is sent to a server. If you connect a server you run yourself, the monitor sends camera frames to that server only.',
   },
   {
     icon: IconEye,

@@ -441,7 +441,7 @@ function LandingPage() {
               summary="SafeOS installs as a Progressive Web App. The service worker keeps a copy of the pages you open, so a loaded monitor keeps running without WiFi. Person and animal detection download their model from Google's servers and need a connection to load it."
               details={[
                 'The service worker stores the main pages on install and each page you open after that.',
-                'Settings, Lost & Found photos, and saved frames persist in IndexedDB; monitor alerts clear on reload.',
+                'Settings stay in localStorage; Lost & Found photos and saved frames persist in IndexedDB; monitor alerts clear on reload.',
                 'No origin server required — host the static `out/` folder on GitHub Pages, Netlify, or any CDN.',
                 'Optional API server is just that: optional. Only needed for SMS/Telegram fan-out or Ollama LLM bridging.',
               ]}

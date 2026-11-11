@@ -35,7 +35,7 @@
       },
       "free": {
         "title": "永久免费",
-        "description": "SuperCloud「10%为人类」计划的一部分。此服务永不商业化。"
+        "description": "Frame 将部分开发资源投入人道主义工作，SafeOS 是其中的一部分。此服务永不商业化。"
       }
     },
     "abusePrevention": {
@@ -329,7 +329,7 @@
     "tagline": "保护最重要的人和事的人道主义工具。",
     "mission": { "title": "我们的使命", "p1": "SafeOS Guardian旨在提供可访问的、尊重隐私的监控工具。", "p2": "一切都在您的浏览器中运行。", "disclaimer": "SafeOS Guardian是一个实验性的辅助工具。" },
     "values": { "title": "我们的价值观", "privacyFirst": "隐私优先", "privacyFirstDesc": "您的数据保留在您的设备上。", "openTransparent": "开放透明", "openTransparentDesc": "开源代码。", "humanitarian": "人道主义目的", "humanitarianDesc": "为家庭而建。", "accessible": "全球可访问", "accessibleDesc": "多语言支持。" },
-    "tenPercent": { "title": "10%用于人道主义", "subtitle": "对人道主义事业的承诺", "text": "如果SafeOS产生收入，我们将向人道主义组织捐赠10%。" },
+    "tenPercent": { "title": "人道主义工作", "subtitle": "对人道主义事业的承诺", "text": "Frame 将部分开发资源投入人道主义工作，SafeOS 是其中的一部分。" },
     "technology": { "title": "技术", "nextjs": "Next.js和React", "tensorflow": "TensorFlow.js", "indexeddb": "IndexedDB", "webaudio": "Web Audio API", "mediadevices": "MediaDevices API" },
     "abusePrevention": { "title": "滥用预防", "text": "SafeOS仅用于合法监控。", "warning1": "未经同意的监控是违法的", "warning2": "已实施限制措施", "warning3": "我们保留暂停服务的权利" },
     "contact": { "title": "联系方式", "text": "有问题吗？" },
@@ -339,7 +339,7 @@
     "title": "支持SafeOS",
     "comingSoon": "即将推出",
     "subtitle": "我们正在努力开发捐赠选项。",
-    "promise": { "title": "我们的承诺", "text": "10%的捐款将用于人道主义组织。" },
+    "promise": { "title": "我们的承诺", "text": "赞助用于支付 SafeOS 的开发时间以及维持 safeos.sh 在线的托管费用。" },
     "enable": { "title": "您的支持将实现", "fasterDev": "更快的开发", "fasterDevDesc": "更多功能", "globalTranslations": "全球翻译", "globalTranslationsDesc": "更多语言", "advancedAI": "高级AI", "advancedAIDesc": "更好的算法", "mobileApps": "移动应用", "mobileAppsDesc": "原生iOS和Android" },
     "notify": { "title": "捐赠开放时通知我", "placeholder": "您的@邮箱.com", "button": "通知我", "thanks": "谢谢！", "thanksText": "我们会在捐赠可用时通知您。" },
     "helpNow": { "title": "现在可以帮助的方式", "star": "在GitHub上给星", "bugs": "报告错误", "share": "分享SafeOS" },

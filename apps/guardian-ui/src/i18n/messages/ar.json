@@ -35,7 +35,7 @@
       },
       "free": {
         "title": "مجاني دائماً",
-        "description": "جزء من مبادرة SuperCloud \"10% للإنسانية\". لن يتم تسييل هذه الخدمة أبداً."
+        "description": "تخصص Frame جزءاً من موارد التطوير لديها للعمل الإنساني، وSafeOS جزء من هذا العمل. لن يتم تسييل هذه الخدمة أبداً."
       }
     },
     "abusePrevention": {
@@ -399,7 +399,7 @@
     "tagline": "أداة إنسانية لحماية ما يهم أكثر.",
     "mission": { "title": "مهمتنا", "p1": "تم إنشاء SafeOS Guardian لتوفير أدوات مراقبة يسهل الوصول إليها.", "p2": "كل شيء يعمل في متصفحك.", "disclaimer": "SafeOS Guardian أداة تجريبية تكميلية." },
     "values": { "title": "قيمنا", "privacyFirst": "الخصوصية أولاً", "privacyFirstDesc": "بياناتك تبقى على جهازك.", "openTransparent": "مفتوح وشفاف", "openTransparentDesc": "كود مفتوح المصدر.", "humanitarian": "غرض إنساني", "humanitarianDesc": "مبني للعائلات.", "accessible": "متاح عالمياً", "accessibleDesc": "دعم متعدد اللغات." },
-    "tenPercent": { "title": "10% للإنسانية", "subtitle": "التزام بالقضايا الإنسانية", "text": "إذا حقق SafeOS إيرادات، سنتبرع بـ 10% للمنظمات الإنسانية." },
+    "tenPercent": { "title": "العمل الإنساني", "subtitle": "التزام بالقضايا الإنسانية", "text": "تخصص Frame جزءاً من موارد التطوير لديها للعمل الإنساني، وSafeOS جزء من هذا العمل." },
     "technology": { "title": "التكنولوجيا", "nextjs": "Next.js و React", "tensorflow": "TensorFlow.js", "indexeddb": "IndexedDB", "webaudio": "Web Audio API", "mediadevices": "MediaDevices API" },
     "abusePrevention": { "title": "منع الإساءة", "text": "SafeOS مصمم للمراقبة المشروعة فقط.", "warning1": "المراقبة بدون موافقة غير قانونية", "warning2": "تم تطبيق قيود", "warning3": "نحتفظ بحق تعليق الخدمة" },
     "contact": { "title": "اتصل", "text": "أسئلة؟" },
@@ -409,7 +409,7 @@
     "title": "ادعم SafeOS",
     "comingSoon": "قريباً",
     "subtitle": "نعمل على خيارات التبرع.",
-    "promise": { "title": "وعدنا", "text": "10% من التبرعات ستذهب للمنظمات الإنسانية." },
+    "promise": { "title": "وعدنا", "text": "تغطي الرعاية وقت تطوير SafeOS والاستضافة التي تُبقي safeos.sh متاحاً." },
     "enable": { "title": "ما سيمكنه دعمك", "fasterDev": "تطوير أسرع", "fasterDevDesc": "ميزات أكثر", "globalTranslations": "ترجمات عالمية", "globalTranslationsDesc": "لغات أكثر", "advancedAI": "ذكاء اصطناعي متقدم", "advancedAIDesc": "خوارزميات أفضل", "mobileApps": "تطبيقات الجوال", "mobileAppsDesc": "iOS و Android أصلي" },
     "notify": { "title": "أعلمني عند فتح التبرعات", "placeholder": "your@email.com", "button": "أعلمني", "thanks": "شكراً!", "thanksText": "سنعلمك عند توفر التبرعات." },
     "helpNow": { "title": "طرق للمساعدة الآن", "star": "نجمة على GitHub", "bugs": "الإبلاغ عن الأخطاء", "share": "مشاركة SafeOS" },
