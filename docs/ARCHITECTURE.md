@@ -488,7 +488,8 @@ The SQLite worker claims each pending job atomically. It uses the job ID for the
 analysis result and a stable derived alert ID, so retrying completion cannot
 insert another result or resend the saved alert. After inserting a new alert it
 loads the stream owner's notification settings and dispatches through that
-owner's channels. Push subscriptions and Telegram chats are read from their
+owner's severity-eligible channels (SMS for high/critical; push, Telegram and
+email from medium). Push subscriptions and Telegram chats are read from their
 owner-scoped SQLite tables. Channel attempts start concurrently and report their
 own failures; they do not trigger analysis retries. See the API delivery settings
 for configuration and the best-effort delivery limitation.

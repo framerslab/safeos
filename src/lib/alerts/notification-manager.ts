@@ -57,7 +57,7 @@ export interface NotificationResult {
 const SEVERITY_CHANNELS: Record<string, string[]> = {
   info: ['browser'],
   low: ['browser'],
-  medium: ['browser', 'telegram', 'sms', 'email'],
+  medium: ['browser', 'telegram', 'email'],
   high: ['browser', 'telegram', 'sms', 'email'],
   critical: ['browser', 'telegram', 'sms', 'email'],
 };

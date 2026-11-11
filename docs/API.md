@@ -718,7 +718,9 @@ Full OpenAPI 3.0 specification available at:
 ### Server alert delivery settings
 
 With the optional API server running, new analysis alerts of medium or greater
-severity are handed to the stream owner's enabled channels. Set preferences with
+severity are handed to the stream owner's enabled channels. SMS retains its
+high/critical severity threshold; browser push, Telegram and email are eligible
+from medium severity. Set preferences with
 `PATCH /api/auth/profile`, carrying `X-Session-Token` (or a Bearer token):
 
 ```json
