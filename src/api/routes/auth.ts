@@ -2,7 +2,7 @@
  * Authentication Routes
  *
  * Session management with guest mode support.
- * All data stored locally in client IndexedDB.
+ * Server sessions and profiles are persisted in the database.
  *
  * @module api/routes/auth
  */
@@ -10,6 +10,7 @@
 import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getSafeOSDatabase, generateId, now } from '../../db/index.js';
+import { extractToken } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { CreateSessionSchema, UpdateUserProfileSchema } from '../schemas/index.js';
 
@@ -20,22 +21,32 @@ import { CreateSessionSchema, UpdateUserProfileSchema } from '../schemas/index.j
 interface Session {
   id: string;
   token: string;
-  deviceId: string | null;
-  isGuest: boolean;
-  profileId: string;
-  createdAt: string;
-  expiresAt: string;
-  lastActiveAt: string;
+  device_id: string | null;
+  is_guest: number;
+  profile_id: string;
+  expires_at: string;
 }
 
-interface UserProfile {
+interface UserProfileRow {
   id: string;
-  displayName: string;
-  avatarUrl: string | null;
-  preferences: Record<string, any>;
-  notificationSettings: Record<string, any>;
-  createdAt: string;
-  updatedAt: string;
+  display_name: string;
+  avatar_url: string | null;
+  preferences: string;
+  notification_settings: string;
+  created_at: string;
+  updated_at: string;
+}
+
+function presentProfile(profile: UserProfileRow) {
+  return {
+    id: profile.id,
+    displayName: profile.display_name,
+    avatarUrl: profile.avatar_url,
+    preferences: JSON.parse(profile.preferences || '{}'),
+    notificationSettings: JSON.parse(profile.notification_settings || '{}'),
+    createdAt: profile.created_at,
+    updatedAt: profile.updated_at,
+  };
 }
 
 // =============================================================================
@@ -57,20 +68,24 @@ authRouter.post('/session', validate(CreateSessionSchema), async (req, res) => {
     const db = await getSafeOSDatabase();
     const { deviceId, displayName } = req.body;
 
-    // Check for existing session by device ID
-    let profile: UserProfile | null = null;
-
-    if (deviceId) {
+    // A device label is not a credential. Only the live guest session for
+    // that device can authorize reuse of its profile.
+    let profile: UserProfileRow | null = null;
+    const proof = extractToken(req);
+    if (proof !== null) {
       const existingSession = await db.get<Session>(
-        `SELECT * FROM sessions WHERE device_id = ? AND expires_at > datetime('now')`,
-        [deviceId]
+        `SELECT * FROM sessions WHERE token = ? AND julianday(expires_at) > julianday(?)`,
+        [proof, now()]
       );
-
-      if (existingSession) {
-        profile = await db.get<UserProfile>(
-          `SELECT * FROM user_profiles WHERE id = ?`,
-          [existingSession.profileId]
-        );
+      if (!existingSession || !existingSession.is_guest ||
+          existingSession.device_id !== (deviceId || null)) {
+        return res.status(401).json({ success: false, error: 'Invalid session proof' });
+      }
+      profile = await db.get<UserProfileRow>(
+        'SELECT * FROM user_profiles WHERE id = ?', [existingSession.profile_id]
+      );
+      if (!profile) {
+        return res.status(401).json({ success: false, error: 'Invalid session proof' });
       }
     }
 
@@ -107,26 +122,9 @@ authRouter.post('/session', validate(CreateSessionSchema), async (req, res) => {
         ]
       );
 
-      profile = {
-        id: profileId,
-        displayName: guestName,
-        avatarUrl: null,
-        preferences: {
-          defaultScenario: 'pet',
-          motionSensitivity: 0.5,
-          audioSensitivity: 0.5,
-          alertVolume: 0.7,
-          theme: 'dark',
-        },
-        notificationSettings: {
-          browserPush: true,
-          sms: false,
-          telegram: false,
-          emailDigest: false,
-        },
-        createdAt: now(),
-        updatedAt: now(),
-      };
+      profile = await db.get<UserProfileRow>(
+        'SELECT * FROM user_profiles WHERE id = ?', [profileId]
+      );
     }
 
     // Create session
@@ -149,15 +147,7 @@ authRouter.post('/session', validate(CreateSessionSchema), async (req, res) => {
         token,
         isGuest: true,
         expiresAt,
-        profile: {
-          id: profile.id,
-          displayName: profile.displayName,
-          avatarUrl: profile.avatarUrl,
-          preferences: profile.preferences,
-          notificationSettings: profile.notificationSettings,
-          createdAt: profile.createdAt,
-          updatedAt: profile.updatedAt,
-        },
+        profile: presentProfile(profile),
       },
     });
   } catch (error) {
@@ -175,7 +165,7 @@ authRouter.post('/session', validate(CreateSessionSchema), async (req, res) => {
  */
 authRouter.get('/session', async (req, res) => {
   try {
-    const token = req.headers['x-session-token'] as string;
+    const token = extractToken(req);
 
     if (!token) {
       return res.status(401).json({
@@ -187,8 +177,8 @@ authRouter.get('/session', async (req, res) => {
     const db = await getSafeOSDatabase();
 
     const session = await db.get<Session>(
-      `SELECT * FROM sessions WHERE token = ? AND expires_at > datetime('now')`,
-      [token]
+      `SELECT * FROM sessions WHERE token = ? AND julianday(expires_at) > julianday(?)`,
+      [token, now()]
     );
 
     if (!session) {
@@ -200,7 +190,7 @@ authRouter.get('/session', async (req, res) => {
 
     const profile = await db.get<any>(
       `SELECT * FROM user_profiles WHERE id = ?`,
-      [session.profileId]
+      [session.profile_id]
     );
 
     // Update last active
@@ -214,17 +204,9 @@ authRouter.get('/session', async (req, res) => {
       data: {
         sessionId: session.id,
         token: session.token,
-        isGuest: session.isGuest,
-        expiresAt: session.expiresAt,
-        profile: profile ? {
-          id: profile.id,
-          displayName: profile.display_name,
-          avatarUrl: profile.avatar_url,
-          preferences: JSON.parse(profile.preferences || '{}'),
-          notificationSettings: JSON.parse(profile.notification_settings || '{}'),
-          createdAt: profile.created_at,
-          updatedAt: profile.updated_at,
-        } : null,
+        isGuest: Boolean(session.is_guest),
+        expiresAt: session.expires_at,
+        profile: profile ? presentProfile(profile) : null,
       },
     });
   } catch (error) {
@@ -242,7 +224,7 @@ authRouter.get('/session', async (req, res) => {
  */
 authRouter.delete('/session', async (req, res) => {
   try {
-    const token = req.headers['x-session-token'] as string;
+    const token = extractToken(req);
 
     if (!token) {
       return res.status(401).json({
@@ -281,7 +263,7 @@ authRouter.delete('/session', async (req, res) => {
  */
 authRouter.get('/profile', async (req, res) => {
   try {
-    const token = req.headers['x-session-token'] as string;
+    const token = extractToken(req);
 
     if (!token) {
       return res.status(401).json({
@@ -293,8 +275,8 @@ authRouter.get('/profile', async (req, res) => {
     const db = await getSafeOSDatabase();
 
     const session = await db.get<Session>(
-      `SELECT * FROM sessions WHERE token = ? AND expires_at > datetime('now')`,
-      [token]
+      `SELECT * FROM sessions WHERE token = ? AND julianday(expires_at) > julianday(?)`,
+      [token, now()]
     );
 
     if (!session) {
@@ -306,7 +288,7 @@ authRouter.get('/profile', async (req, res) => {
 
     const profile = await db.get<any>(
       `SELECT * FROM user_profiles WHERE id = ?`,
-      [session.profileId]
+      [session.profile_id]
     );
 
     if (!profile) {
@@ -318,15 +300,7 @@ authRouter.get('/profile', async (req, res) => {
 
     res.json({
       success: true,
-      data: {
-        id: profile.id,
-        displayName: profile.display_name,
-        avatarUrl: profile.avatar_url,
-        preferences: JSON.parse(profile.preferences || '{}'),
-        notificationSettings: JSON.parse(profile.notification_settings || '{}'),
-        createdAt: profile.created_at,
-        updatedAt: profile.updated_at,
-      },
+      data: presentProfile(profile),
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -343,7 +317,7 @@ authRouter.get('/profile', async (req, res) => {
  */
 authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res) => {
   try {
-    const token = req.headers['x-session-token'] as string;
+    const token = extractToken(req);
 
     if (!token) {
       return res.status(401).json({
@@ -355,8 +329,8 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
     const db = await getSafeOSDatabase();
 
     const session = await db.get<Session>(
-      `SELECT * FROM sessions WHERE token = ? AND expires_at > datetime('now')`,
-      [token]
+      `SELECT * FROM sessions WHERE token = ? AND julianday(expires_at) > julianday(?)`,
+      [token, now()]
     );
 
     if (!session) {
@@ -381,7 +355,7 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
       // Merge with existing preferences
       const existing = await db.get<any>(
         `SELECT preferences FROM user_profiles WHERE id = ?`,
-        [session.profileId]
+        [session.profile_id]
       );
       const merged = {
         ...JSON.parse(existing?.preferences || '{}'),
@@ -395,7 +369,7 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
       // Merge with existing settings
       const existing = await db.get<any>(
         `SELECT notification_settings FROM user_profiles WHERE id = ?`,
-        [session.profileId]
+        [session.profile_id]
       );
       const merged = {
         ...JSON.parse(existing?.notification_settings || '{}'),
@@ -408,7 +382,7 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
     if (updates.length > 0) {
       updates.push('updated_at = ?');
       params.push(now());
-      params.push(session.profileId);
+      params.push(session.profile_id);
 
       await db.run(
         `UPDATE user_profiles SET ${updates.join(', ')} WHERE id = ?`,
@@ -419,20 +393,12 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
     // Return updated profile
     const profile = await db.get<any>(
       `SELECT * FROM user_profiles WHERE id = ?`,
-      [session.profileId]
+      [session.profile_id]
     );
 
     res.json({
       success: true,
-      data: {
-        id: profile.id,
-        displayName: profile.display_name,
-        avatarUrl: profile.avatar_url,
-        preferences: JSON.parse(profile.preferences || '{}'),
-        notificationSettings: JSON.parse(profile.notification_settings || '{}'),
-        createdAt: profile.created_at,
-        updatedAt: profile.updated_at,
-      },
+      data: presentProfile(profile),
     });
   } catch (error) {
     console.error('Update profile error:', error);
@@ -453,7 +419,7 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
  */
 authRouter.post('/device', async (req, res) => {
   try {
-    const token = req.headers['x-session-token'] as string;
+    const token = extractToken(req);
     const { deviceId } = req.body;
 
     if (!token) {
@@ -463,7 +429,7 @@ authRouter.post('/device', async (req, res) => {
       });
     }
 
-    if (!deviceId) {
+    if (typeof deviceId !== 'string' || !deviceId.trim()) {
       return res.status(400).json({
         success: false,
         error: 'Device ID required',
@@ -471,6 +437,14 @@ authRouter.post('/device', async (req, res) => {
     }
 
     const db = await getSafeOSDatabase();
+
+    const session = await db.get<Session>(
+      'SELECT * FROM sessions WHERE token = ? AND julianday(expires_at) > julianday(?)',
+      [token, now()]
+    );
+    if (!session) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired session' });
+    }
 
     await db.run(
       `UPDATE sessions SET device_id = ? WHERE token = ?`,
@@ -489,32 +463,3 @@ authRouter.post('/device', async (req, res) => {
     });
   }
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
