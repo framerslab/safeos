@@ -241,3 +241,7 @@ networks:
     ipam:
       config:
         - subnet: 172.30.0.0/24
+          # Containers without a fixed address (the API) get one from the
+          # upper half, so none can take Caddy's 172.30.0.2 by starting first,
+          # on a deploy or after a reboot.
+          ip_range: 172.30.0.128/25
