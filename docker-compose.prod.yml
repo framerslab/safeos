@@ -28,6 +28,9 @@ services:
     environment:
       - NODE_ENV=production
       - SAFEOS_PORT=3001
+      # Caddy is the one proxy in front of the API (the API port is only
+      # exposed to Caddy), so the API reads the client address from it.
+      - SAFEOS_TRUST_PROXY=1
       - SAFEOS_DB_PATH=/app/db_data/safeos.sqlite3
       - OLLAMA_HOST=http://ollama:11434
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}

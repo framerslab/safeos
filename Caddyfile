@@ -24,8 +24,8 @@
     # CORS headers for GitHub Pages frontend
     header {
         Access-Control-Allow-Origin {$CORS_ORIGIN:https://safeos.sh}
-        Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+        Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type, Authorization, X-Session-Token, X-Requested-With"
         Access-Control-Allow-Credentials "true"
         Access-Control-Max-Age "86400"
     }
@@ -46,7 +46,9 @@
     # Gzip compression
     encode gzip
 
-    # Logging (the token in an unsubscribe link is replaced with [token])
+    # Logging. No credential reaches the log: the token in an unsubscribe link
+    # and any token= query parameter become [token], and the session headers
+    # are dropped.
     log {
         output file /data/access.log {
             roll_size 10mb
@@ -56,7 +58,9 @@
         format filter {
             wrap json
             fields {
-                request>uri regexp "(?i)/api/mail/unsubscribe/[^/?#]+" "/api/mail/unsubscribe/[token]"
+                request>uri regexp "(?i)(/api/mail/unsubscribe/)[^/?#]+|([?&]token=)[^&#]*" "$1$2[token]"
+                request>headers>X-Session-Token delete
+                request>headers>Authorization delete
             }
         }
     }

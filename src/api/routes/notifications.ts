@@ -18,6 +18,8 @@ import {
 import { sendTestEmail, isResendConfigured, isMailLinkConfigured } from '../../lib/alerts/email.js';
 import { sendTestSms, isTwilioConfigured } from '../../lib/alerts/twilio.js';
 import { strictLimiter } from '../middleware/rate-limiter.js';
+import { requireAuth, getProfileId } from '../middleware/auth.js';
+import { getSafeOSDatabase } from '../../db/index.js';
 
 // =============================================================================
 // Router
@@ -167,7 +169,7 @@ notificationRoutes.post('/test', validate(TestNotificationSchema), async (req: R
  *     twilioAuthToken?: string,         // optional BYO
  *     twilioFromNumber?: string }       // optional BYO (must be a Twilio-owned number)
  */
-notificationRoutes.post('/test-sms', strictLimiter, async (req: Request, res: Response) => {
+notificationRoutes.post('/test-sms', requireAuth, strictLimiter, async (req: Request, res: Response) => {
   try {
     const { to, twilioAccountSid, twilioAuthToken, twilioFromNumber } = req.body ?? {};
 
@@ -189,6 +191,22 @@ notificationRoutes.post('/test-sms', strictLimiter, async (req: Request, res: Re
         message:
           'No Twilio credentials were supplied and the server has no TWILIO_* env vars set. Add credentials in Settings → Notifications or configure them on the server.',
       });
+    }
+
+    // On the server's Twilio account a caller may text only their own
+    // verified number; the operator may text any number.
+    if (!overrideProvided && req.session?.role !== 'operator') {
+      const db = await getSafeOSDatabase();
+      const own = await db.get(
+        'SELECT id FROM phone_numbers WHERE profile_id = ? AND phone_number = ? AND verified = 1',
+        [getProfileId(req), to.trim()]
+      );
+      if (!own) {
+        return res.status(403).json({
+          error: 'Not your verified number',
+          message: 'A test text on this server goes only to a number you have verified.',
+        });
+      }
     }
 
     const override = overrideProvided
@@ -219,7 +237,7 @@ notificationRoutes.post('/test-sms', strictLimiter, async (req: Request, res: Re
   }
 });
 
-notificationRoutes.post('/test-email', strictLimiter, async (req: Request, res: Response) => {
+notificationRoutes.post('/test-email', requireAuth, strictLimiter, async (req: Request, res: Response) => {
   try {
     const { to, resendApiKey, fromOverride, replyTo } = req.body ?? {};
 
@@ -250,6 +268,15 @@ notificationRoutes.post('/test-email', strictLimiter, async (req: Request, res: 
         error: 'Email not configured',
         message:
           'No Resend API key was supplied and the server has no RESEND_API_KEY set. Add a key in Settings → Notifications or set one on the server.',
+      });
+    }
+
+    // A profile has no verified address, so a test mail on the server's
+    // Resend account (and a From override on it) is for the operator alone.
+    if (!resendApiKey && req.session?.role !== 'operator') {
+      return res.status(403).json({
+        error: 'Operator only',
+        message: 'A test mail on this server’s Resend account is for the operator. Supply your own Resend key to test it.',
       });
     }
 

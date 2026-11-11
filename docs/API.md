@@ -11,11 +11,25 @@ Production: https://api.safeos.dev
 
 ## Authentication
 
-Most endpoints require a session token passed in the `X-Session-Token` header.
+Most endpoints require a session token, sent in the `X-Session-Token` header or as `Authorization: Bearer <token>`. A token in the query string is refused, since URLs reach access logs, browser history and `Referer` headers. An expired session is refused on every route.
 
 ```bash
 curl -H "X-Session-Token: your-token-here" http://localhost:3001/api/streams
 ```
+
+**Who may call a route.** Each route below says one of:
+
+- **Anyone**: no session needed.
+- **Signed in**: any valid session. Data routes return and change only the caller's own records: alerts and analysis results of streams the caller owns, monitoring profiles the caller created. Another owner's record answers `404`, as if it did not exist.
+- **Reviewer or operator**: a session whose profile holds the `reviewer` or `operator` role. Any other session gets `403`.
+
+Every profile starts with the role `user`. The operator grants a role in the database:
+
+```sql
+UPDATE user_profiles SET role = 'reviewer' WHERE id = '<profile id>';
+```
+
+Behind the bundled Caddy (`docker-compose.prod.yml`), `SAFEOS_TRUST_PROXY=1` tells the API that one proxy sits in front of it, so the rate limits count each client's own address. Leave it unset when clients reach the API directly; set it to the number of proxies only when nothing else can reach the API port.
 
 ---
 
@@ -198,6 +212,8 @@ Resume a paused stream.
 
 ### Analysis
 
+All analysis routes: **signed in**. `GET /api/analysis`, `GET /api/analysis/:id` and `GET /api/analysis/stats/summary` return results of the caller's own streams only; another owner's result answers `404`.
+
 #### POST /api/analysis/frame
 Submit a frame for AI analysis.
 
@@ -246,8 +262,10 @@ Get analysis statistics.
 
 ### Alerts
 
+All alert routes: **signed in**, the caller's own alerts only.
+
 #### GET /api/alerts
-List alerts.
+List the caller's alerts.
 
 **Query Parameters:**
 - `streamId` - Filter by stream
@@ -268,7 +286,10 @@ List alerts.
 ```
 
 #### POST /api/alerts/:id/acknowledge
-Acknowledge an alert.
+Acknowledge one of the caller's alerts. Another owner's alert answers `404`.
+
+#### POST /api/alerts/acknowledge/all
+Acknowledge every unacknowledged alert of the caller's streams, or of one of them with `{ "streamId": "..." }`. Alerts of other owners are never touched.
 
 **Response:**
 ```json
@@ -286,11 +307,13 @@ Delete an alert.
 
 ### Monitoring Profiles
 
+All profile routes: **signed in**. The built-in defaults (`profile-<scenario>-default`) are shared and read-only; the operator alone may change them. A custom profile belongs to the caller who created it: others neither see nor change it (`404`).
+
 #### GET /api/profiles
-List monitoring profiles.
+List the built-in defaults and the caller's own profiles.
 
 #### POST /api/profiles
-Create a custom profile.
+Create a custom profile owned by the caller.
 
 **Request:**
 ```json
@@ -306,10 +329,13 @@ Create a custom profile.
 ```
 
 #### PATCH /api/profiles/:id
-Update a profile.
+Update one of the caller's profiles.
+
+#### POST /api/profiles/:id/activate
+Make one of the caller's profiles the active one for its scenario.
 
 #### DELETE /api/profiles/:id
-Delete a profile.
+Delete one of the caller's profiles.
 
 ---
 
@@ -361,8 +387,13 @@ Send a test notification (simulated in the default implementation).
 }
 ```
 
+#### POST /api/notifications/test-sms
+Send a real test text through Twilio. **Signed in.** On the server's Twilio account the caller may text only a number verified on their own profile (a `phone_numbers` row with `verified = 1`); the operator may text any number. No route verifies a number yet, so on the server's account this is the operator's route in practice. With their own Twilio credentials in the body (`twilioAccountSid`, `twilioAuthToken`, `twilioFromNumber`) a signed-in caller may text any number on that account.
+
+**Responses:** `200` sent; `400` invalid number or Twilio not configured; `401` no session; `403` not the caller's verified number.
+
 #### POST /api/notifications/test-email
-Send a real test mail through Resend to check the email setup. The mail carries the same Unsubscribe link and headers as every other mail.
+Send a real test mail through Resend to check the email setup. The mail carries the same Unsubscribe link and headers as every other mail. **Signed in.** On the server's Resend account (no `resendApiKey` in the body) the route is the operator's alone, `fromOverride` included; any signed-in caller may test their own Resend key.
 
 **Request:**
 ```json
@@ -374,7 +405,7 @@ Send a real test mail through Resend to check the email setup. The mail carries 
 }
 ```
 
-**Responses:** `200` sent; `400` email not configured (no Resend key, or no https address for the unsubscribe link: set `SAFEOS_API_PUBLIC_URL`); `409` the address unsubscribed from alert email, so nothing was sent.
+**Responses:** `200` sent; `400` email not configured (no Resend key, or no https address for the unsubscribe link: set `SAFEOS_API_PUBLIC_URL`); `401` no session; `403` the server's account without the operator role; `409` the address unsubscribed from alert email, so nothing was sent.
 
 ---
 
@@ -397,6 +428,8 @@ The request log prints `[token]` in place of the token.
 ---
 
 ### Webhooks
+
+All webhook routes: **signed in** with the `X-Session-Token` header, the caller's own webhooks only. An expired session gets `401`.
 
 #### GET /api/webhooks
 List registered webhooks.
@@ -446,6 +479,8 @@ Send a test payload.
 
 ### Data Export
 
+All export routes: **signed in** with the `X-Session-Token` header, the caller's own data only. An expired session gets `401`.
+
 #### GET /api/export/alerts
 Export alerts as JSON or CSV.
 
@@ -469,6 +504,8 @@ Export all user data (GDPR compliant).
 ---
 
 ### Human Review
+
+All review routes (`/api/review/flags`, `/api/review/flags/:id`, `/api/review/flags/:id/action`, `/api/review/stats`, `/api/review/queue`): **reviewer or operator**. No session gets `401`; any other role gets `403`.
 
 #### GET /api/review/flags
 List content flags for review.
@@ -497,10 +534,10 @@ Connect to `ws://localhost:3001` for real-time frame submission and alerts.
 
 ### Connection
 
-Include your session token as a query parameter:
+The WebSocket reads no session token today: it is open to any client, and its sign-in is separate work. The HTTP rule above (no token in a query string) applies to it too once it gains one.
 
 ```
-ws://localhost:3001?token=your-session-token
+ws://localhost:3001
 ```
 
 ### Client → Server Messages
@@ -635,7 +672,8 @@ All errors follow this format:
 
 | Endpoint | Limit |
 |----------|-------|
-| General API | 100 req/min |
+| General API | 100 req/min per client address |
+| Sign-in (`/api/auth`) | 5 failed req/min per client address; a successful request is not counted |
 | Analysis submission | 30 req/min |
 | Webhook triggers | 60 req/min |
 

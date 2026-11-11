@@ -132,7 +132,7 @@ function saveToStorage(settings: NotificationsSettings): void {
 // =============================================================================
 
 export default function NotificationsSettingsPage() {
-  const { profile, updateProfile } = useAuthStore();
+  const { profile, updateProfile, sessionToken } = useAuthStore();
   const { status: backendStatus, config: backendConfig } = useBackendStatus();
 
   const [mounted, setMounted] = useState(false);
@@ -269,9 +269,10 @@ export default function NotificationsSettingsPage() {
         }
       }
 
+      // The server answers this route only for a signed-in caller.
       const res = await fetch(`${backendConfig.apiUrl}/api/notifications/test-email`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
         body: JSON.stringify(body),
       });
 
@@ -286,7 +287,7 @@ export default function NotificationsSettingsPage() {
       const message = error instanceof Error ? error.message : 'Unknown error';
       setTestEmailStatus({ type: 'error', message });
     }
-  }, [canTestEmail, backendStatus.api, backendConfig.apiUrl, settings]);
+  }, [canTestEmail, backendStatus.api, backendConfig.apiUrl, settings, sessionToken]);
 
   // ---------------------------------------------------------------------------
   // Test SMS (Twilio)
@@ -322,9 +323,10 @@ export default function NotificationsSettingsPage() {
         body.twilioFromNumber = settings.smsFromNumber.trim();
       }
 
+      // The server answers this route only for a signed-in caller.
       const res = await fetch(`${backendConfig.apiUrl}/api/notifications/test-sms`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
         body: JSON.stringify(body),
       });
 
@@ -339,7 +341,7 @@ export default function NotificationsSettingsPage() {
       const message = error instanceof Error ? error.message : 'Unknown error';
       setTestSmsStatus({ type: 'error', message });
     }
-  }, [canTestSms, backendStatus.api, backendConfig.apiUrl, settings]);
+  }, [canTestSms, backendStatus.api, backendConfig.apiUrl, settings, sessionToken]);
 
   // ---------------------------------------------------------------------------
   // Render
