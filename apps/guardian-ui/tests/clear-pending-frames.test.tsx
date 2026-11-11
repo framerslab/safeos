@@ -25,9 +25,12 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   Object.defineProperty(HTMLVideoElement.prototype, 'videoWidth', { configurable: true, get: () => 8 });
   Object.defineProperty(HTMLVideoElement.prototype, 'videoHeight', { configurable: true, get: () => 8 });
   const videoTrack = new BrowserTrack('video');
-  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: jest.fn().mockResolvedValue({
-    getTracks: () => [videoTrack], getVideoTracks: () => [videoTrack], getAudioTracks: () => [],
-  }) } });
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: Object.assign(new EventTarget(), {
+    enumerateDevices: jest.fn().mockResolvedValue([]),
+    getUserMedia: jest.fn().mockResolvedValue({
+      getTracks: () => [videoTrack], getVideoTracks: () => [videoTrack], getAudioTracks: () => [],
+    }),
+  }) });
   Object.defineProperty(window, 'AudioContext', { configurable: true, value: class {
     createMediaStreamSource() { return { connect: jest.fn() }; }
     createAnalyser() { return { fftSize: 256, frequencyBinCount: 128, getByteFrequencyData: jest.fn(), context: { sampleRate: 44100 } }; }
