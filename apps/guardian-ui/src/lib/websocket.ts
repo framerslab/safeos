@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { isStaticMode } from './env';
+import { useAuthStore } from '../stores/auth-store';
 
 // =============================================================================
 // Types
@@ -56,6 +57,8 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     maxReconnectAttempts = MAX_RECONNECT_ATTEMPTS,
   } = options;
 
+  const sessionToken = useAuthStore(state => state.sessionToken);
+  const authenticatedRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
@@ -75,7 +78,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     // Don't attempt connection with empty URL
-    if (!url) return;
+    if (!url || !sessionToken) return;
 
     // Only connect to localhost when actually running locally
     if (url.startsWith('ws://localhost') || url.startsWith('wss://localhost')) {
@@ -93,26 +96,23 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        setIsConnected(true);
-        reconnectAttemptsRef.current = 0;
-        onConnect?.();
-
-        // Clear any existing heartbeat before starting new one
-        if (heartbeatRef.current) {
-          clearInterval(heartbeatRef.current);
-        }
-
-        // Start heartbeat
-        heartbeatRef.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'ping' }));
-          }
-        }, HEARTBEAT_INTERVAL);
+        authenticatedRef.current = false;
+        ws.send(JSON.stringify({ type: 'authenticate', payload: { token: sessionToken } }));
       };
 
       ws.onmessage = (event) => {
         try {
           const message: WSMessage = JSON.parse(event.data);
+          if (message.type === 'connected') {
+            authenticatedRef.current = true;
+            setIsConnected(true);
+            reconnectAttemptsRef.current = 0;
+            if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+            heartbeatRef.current = setInterval(() => {
+              if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+            }, HEARTBEAT_INTERVAL);
+            onConnect?.();
+          }
           setLastMessage(message);
           onMessage?.(message);
         } catch (err) {
@@ -121,6 +121,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       };
 
       ws.onclose = () => {
+        authenticatedRef.current = false;
         setIsConnected(false);
         onDisconnect?.();
 
@@ -144,7 +145,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     } catch (err) {
       console.error('WebSocket connection error:', err);
     }
-  }, [url, onConnect, onDisconnect, onMessage, onError, reconnect, reconnectDelay, maxReconnectAttempts]);
+  }, [url, sessionToken, onConnect, onDisconnect, onMessage, onError, reconnect, reconnectDelay, maxReconnectAttempts]);
 
   // Disconnect from WebSocket
   const disconnect = useCallback(() => {
@@ -163,7 +164,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
   // Send message
   const sendMessage = useCallback((message: WSMessage) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    if (authenticatedRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           ...message,
@@ -236,6 +237,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
+  private authenticated = false;
   private url: string;
   private reconnectAttempts = 0;
   private maxReconnectAttempts: number;
@@ -268,7 +270,8 @@ export class WebSocketClient {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
     // Don't attempt connection with empty URL
-    if (!this.url) return;
+    const token = useAuthStore.getState().sessionToken;
+    if (!this.url || !token) return;
 
     // Only connect to localhost when actually running locally
     if (this.url.startsWith('ws://localhost') || this.url.startsWith('wss://localhost')) {
@@ -284,22 +287,20 @@ export class WebSocketClient {
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      this.reconnectAttempts = 0;
-      this.onConnectCallback?.();
-
-      // Clear any existing heartbeat before starting new one
-      if (this.heartbeatInterval) {
-        clearInterval(this.heartbeatInterval);
-      }
-
-      this.heartbeatInterval = setInterval(() => {
-        this.send({ type: 'ping' });
-      }, HEARTBEAT_INTERVAL);
+      this.authenticated = false;
+      this.ws?.send(JSON.stringify({ type: 'authenticate', payload: { token } }));
     };
 
     this.ws.onmessage = (event) => {
       try {
         const message: WSMessage = JSON.parse(event.data);
+        if (message.type === 'connected') {
+          this.authenticated = true;
+          this.reconnectAttempts = 0;
+          if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+          this.heartbeatInterval = setInterval(() => this.send({ type: 'ping' }), HEARTBEAT_INTERVAL);
+          this.onConnectCallback?.();
+        }
         this.onMessageCallback?.(message);
       } catch (err) {
         console.error('Failed to parse WebSocket message:', err);
@@ -307,6 +308,7 @@ export class WebSocketClient {
     };
 
     this.ws.onclose = () => {
+      this.authenticated = false;
       this.onDisconnectCallback?.();
 
       if (this.heartbeatInterval) {
@@ -340,7 +342,7 @@ export class WebSocketClient {
   }
 
   send(message: WSMessage): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (this.authenticated && this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
           ...message,
@@ -359,7 +361,7 @@ export class WebSocketClient {
   }
 
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.authenticated && this.ws?.readyState === WebSocket.OPEN;
   }
 }
 

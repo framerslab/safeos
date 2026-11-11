@@ -41,6 +41,9 @@ interface WSClient {
   id: string;
   ws: WebSocket;
   streamId?: string;
+  token?: string;
+  profileId?: string;
+  authTimer?: NodeJS.Timeout;
   subscriptions: Set<string>;
   // Rate limiting
   frameCount: number;
@@ -184,50 +187,50 @@ export class SafeOSServer {
   // ---------------------------------------------------------------------------
 
   private setupWebSocket(): void {
-    this.wss.on('connection', (ws: WebSocket) => {
-      const clientId = generateId();
-      const now = Date.now();
+    this.wss.on('connection', (ws: WebSocket, req) => {
       const client: WSClient = {
-        id: clientId,
-        ws,
-        subscriptions: new Set(),
-        // Initialize rate limiting
-        frameCount: 0,
-        frameWindowStart: now,
-        // Initialize heartbeat tracking
-        lastPong: now,
-        missedHeartbeats: 0,
+        id: generateId(), ws, subscriptions: new Set(),
+        frameCount: 0, frameWindowStart: Date.now(),
+        lastPong: Date.now(), missedHeartbeats: 0,
       };
-      this.clients.set(clientId, client);
+      this.clients.set(client.id, client);
+      client.authTimer = setTimeout(() => ws.close(1008, 'Session required'), 5000);
 
-      console.log(`WebSocket client connected: ${clientId}`);
-
-      // Send welcome message
-      this.sendToClient(client, {
-        type: 'connected',
-        payload: { clientId },
+      // Browser clients authenticate in their first message. Native clients
+      // may use the same headers as HTTP. Credentials never belong in URLs.
+      const header = req.headers['x-session-token'];
+      const token = typeof header === 'string' ? header
+        : req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+      let pending = token ? this.authenticateClient(client, token) : Promise.resolve();
+      ws.on('message', (data) => {
+        // Preserve wire order across asynchronous session and database reads.
+        pending = pending.then(async () => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          let message: WSMessage;
+          try {
+            message = JSON.parse(data.toString());
+            if (!message || typeof message.type !== 'string') throw new Error('Invalid message');
+          } catch {
+            ws.close(1007, 'Invalid message');
+            return;
+          }
+          if (!client.profileId) {
+            if (message.type !== 'authenticate') {
+              ws.close(1008, 'Session required');
+              return;
+            }
+            await this.authenticateClient(client, message.payload?.token);
+            return;
+          }
+          if (await this.validateClientSession(client)) await this.handleWSMessage(client, message);
+        }).catch(() => ws.close(1011, 'Unable to process message'));
       });
-
-      // Handle messages
-      ws.on('message', async (data) => {
-        try {
-          const message: WSMessage = JSON.parse(data.toString());
-          await this.handleWSMessage(client, message);
-        } catch (err) {
-          console.error('Failed to parse WebSocket message:', err);
-        }
-      });
-
-      // Handle close
       ws.on('close', () => {
-        console.log(`WebSocket client disconnected: ${clientId}`);
-        this.clients.delete(clientId);
+        clearTimeout(client.authTimer);
+        this.clients.delete(client.id);
       });
-
-      // Handle error
-      ws.on('error', (err) => {
-        console.error(`WebSocket error for ${clientId}:`, err);
-      });
+      // Do not log message bodies, headers or decoder errors containing input.
+      ws.on('error', () => ws.close());
     });
 
     // Start heartbeat with stale client cleanup
@@ -235,6 +238,8 @@ export class SafeOSServer {
       const staleClients: string[] = [];
 
       this.clients.forEach((client) => {
+        if (!client.profileId) return;
+        void this.validateClientSession(client);
         if (client.ws.readyState === WebSocket.OPEN) {
           // Increment missed heartbeats (will be reset when pong received)
           client.missedHeartbeats++;
@@ -260,6 +265,37 @@ export class SafeOSServer {
         console.log(`Cleaned up ${staleClients.length} stale WebSocket client(s)`);
       }
     }, WS_HEARTBEAT_INTERVAL);
+  }
+
+  private async authenticateClient(client: WSClient, token: unknown): Promise<void> {
+    if (typeof token !== 'string' || !token || token.length > 512) {
+      client.ws.close(1008, 'Invalid session');
+      return;
+    }
+    client.token = token;
+    if (await this.validateClientSession(client)) {
+      clearTimeout(client.authTimer);
+      this.sendToClient(client, { type: 'connected', payload: { clientId: client.id } });
+    }
+  }
+
+  private async validateClientSession(client: WSClient): Promise<boolean> {
+    try {
+      const db = await getSafeOSDatabase();
+      const session = await db.get<{ profile_id: string; expires_at: string }>(
+        `SELECT s.profile_id, s.expires_at FROM sessions s
+         JOIN user_profiles p ON p.id = s.profile_id WHERE s.token = ?`, [client.token || '']
+      );
+      if (session && Date.parse(session.expires_at) > Date.now()
+          && (!client.profileId || client.profileId === session.profile_id)) {
+        client.profileId = session.profile_id;
+        return true;
+      }
+      client.ws.close(1008, 'Invalid or expired session');
+    } catch {
+      client.ws.close(1011, 'Unable to validate session');
+    }
+    return false;
   }
 
   private async handleWSMessage(client: WSClient, message: WSMessage): Promise<void> {
@@ -504,6 +540,7 @@ export class SafeOSServer {
 
     // Close all WebSocket connections
     this.clients.forEach((client) => {
+      clearTimeout(client.authTimer);
       client.ws.close();
     });
     this.clients.clear();
