@@ -192,3 +192,30 @@ describe('optional registration name', () => {
     expect((await db.get('SELECT display_name FROM users WHERE email = ?', [email])).display_name).toBe(email.split('@')[0]);
   });
 });
+
+describe('consistent password replacement rules', () => {
+  it.each(['reset-password', 'change-password'])('keeps registration strength rules for %s', async (action) => {
+    const { emailAuthService } = await import('../../src/auth/email-auth.js');
+    const email = `${action}-policy@example.com`;
+    const account = await emailAuthService.register({ email, password: 'GoodPassword123' });
+    await db.run('UPDATE users SET email_verified = 1 WHERE id = ?', [account.user!.id]);
+    const login = await call('post', '/api/auth/email/login').send({ email, password: 'GoodPassword123' });
+    expect(login.status).toBe(200);
+    const token = login.body.sessionToken;
+    await call('post', '/api/auth/email/forgot-password').send({ email }).expect(200);
+    const resetToken = (await db.get('SELECT reset_token FROM users WHERE email = ?', [email])).reset_token;
+    const before = await db.get('SELECT password_hash, reset_token FROM users WHERE email = ?', [email]);
+    for (const newPassword of ['aaaaaaaa', 'AAAAAAAA', 'OnlyLetters', '12345678']) {
+      const body = action === 'reset-password'
+        ? { token: resetToken, newPassword }
+        : { currentPassword: 'GoodPassword123', newPassword };
+      expect((await call('post', `/api/auth/email/${action}`, token).send(body)).status).toBe(400);
+      expect(await db.get('SELECT password_hash, reset_token FROM users WHERE email = ?', [email])).toEqual(before);
+    }
+    const strong = action === 'reset-password'
+      ? { token: resetToken, newPassword: 'ChangedPassword456' }
+      : { currentPassword: 'GoodPassword123', newPassword: 'ChangedPassword456' };
+    expect((await call('post', `/api/auth/email/${action}`, token).send(strong)).status).toBe(200);
+    expect((await call('post', '/api/auth/email/login').send({ email, password: 'ChangedPassword456' })).status).toBe(200);
+  });
+});
