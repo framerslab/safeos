@@ -14,6 +14,8 @@ it('keeps detection weights for a fresh offline page and shares them across dete
   await waitFor(() => expect(screen.getByText('AI: Ready')).toBeTruthy());
   expect(await cache.match(MODEL_URL)).toBeDefined();
   expect(await cache.match(WEIGHT_URL)).toBeDefined();
+  // resetModules clears globally installed spies when simulating a new document.
+  expect(network.mock.calls.filter(([url]) => String(url) === WEIGHT_URL)).toHaveLength(1);
   first.unmount();
 
   // A fresh JS realm retains browser storage but no model singleton.
@@ -27,7 +29,6 @@ it('keeps detection weights for a fresh offline page and shares them across dete
   await agreeIfOffered();
   await waitFor(() => expect(screen.getByText('AI: Ready')).toBeTruthy());
   expect(globalThis.fetch).not.toHaveBeenCalled();
-  expect(network.mock.calls.filter(([url]) => String(url) === WEIGHT_URL)).toHaveLength(1);
 });
 
 it('the offered download supplies detection rather than the unused classifier', async () => {
