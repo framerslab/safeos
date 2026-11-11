@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { boundary, startPipeline } from '../helpers/pipeline.js';
+import { boundary, image, startPipeline } from '../helpers/pipeline.js';
 
 it('delivers each new alert once to its owner and continues after a channel fails', async () => {
   const p = await startPipeline();
@@ -19,7 +19,7 @@ it('delivers each new alert once to its owner and continues after a channel fail
     boundary.analyze.mockResolvedValue('CONCERN_LEVEL: critical\nDETECTED_ISSUES: needs attention');
     boundary.sms.mockRejectedValue(new Error('Channel unavailable'));
     const ws = await p.connect();
-    await p.frame(ws, 'critical-frame', 100);
+    await p.frame(ws, await image('critical-frame'), 100);
     await p.tick(1000);
     const res = await p.api.get(`/api/alerts?streamId=${p.streamId}`).set('x-session-token', p.owner.token);
     expect(res.status).toBe(200);

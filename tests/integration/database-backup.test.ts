@@ -25,3 +25,16 @@ it('backs up the real database and restores an HTTP-created stream with the docu
     expect(res.body.stream.user_id).toBe(p.owner.id);
   } finally { await p.close(); }
 });
+
+it('opens the live database in the documented legacy profile upgrade step', async () => {
+  const p = await startPipeline();
+  try {
+    const guide = readFileSync(new URL('../../docs/DEPLOYMENT.md', import.meta.url), 'utf8');
+    const step = guide.split('4. **Assign an owner')[1].split('5. **Ask people')[0];
+    const databasePath = step.match(/sqlite3 (\/app\/db_data\/[^'\s]+)/)![1];
+    // Use the same database path relative to the API working directory.
+    const result = execFileSync('sqlite3', [join(p.dir, databasePath.slice('/app/'.length)),
+      'SELECT id FROM user_profiles ORDER BY id;'], { encoding: 'utf8' });
+    expect(result.split('\n')).toContain(p.owner.id);
+  } finally { await p.close(); }
+});

@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { boundary, startPipeline } from '../helpers/pipeline.js';
+import { boundary, image, startPipeline } from '../helpers/pipeline.js';
 import WebSocket from 'ws';
 import { once } from 'node:events';
 
@@ -27,7 +27,7 @@ it('logs only the retention error name and a fixed message and retries the next 
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
     const ws = await p.connect();
-    const id = await p.frame(ws, 'private-frame-content');
+    const id = await p.frame(ws, await image('private-frame-content'));
     const original = p.db.run.bind(p.db);
     let fail = true;
     const run = vi.spyOn(p.db, 'run').mockImplementation(async (...args: any[]) => {
@@ -103,9 +103,9 @@ it('accepts camera frames after the same server instance stops and starts', asyn
     await p.service.stop();
     await p.service.start();
     const port = (p.service as any).server.address().port;
-    ws = new WebSocket(`ws://127.0.0.1:${port}`, { handshakeTimeout: 1000 });
+    ws = new WebSocket(`ws://127.0.0.1:${port}`, { handshakeTimeout: 1000, headers: { 'x-session-token': p.owner.token } });
     await once(ws, 'open');
-    const frameId = await p.frame(ws, 'after-restart');
+    const frameId = await p.frame(ws, await image('after-restart'));
     expect(await p.db.get('SELECT id FROM frame_buffer WHERE id = ?', [frameId])).toBeTruthy();
   } finally {
     if (ws && ws.readyState !== WebSocket.CLOSED) { ws.close(); await once(ws, 'close'); }

@@ -1,12 +1,12 @@
 import { it, expect, vi } from 'vitest';
-import { boundary, startPipeline } from '../helpers/pipeline.js';
+import { boundary, image, startPipeline } from '../helpers/pipeline.js';
 
 type Pipeline = Awaited<ReturnType<typeof startPipeline>>;
 async function alert(p: Pipeline) {
   boundary.triage.mockResolvedValue('CONCERN_LEVEL: critical');
   boundary.analyze.mockResolvedValue('CONCERN_LEVEL: critical\nDETECTED_ISSUES: needs attention');
   const ws = await p.connect();
-  await p.frame(ws, 'destination-test-frame', 100);
+  await p.frame(ws, await image('destination-test-frame'), 100);
   await p.tick();
   const res = await p.api.get(`/api/alerts?streamId=${p.streamId}`).set('x-session-token', p.owner.token);
   expect(res.status).toBe(200);
@@ -127,7 +127,8 @@ it('honors owner supplied provider credentials saved through the profile route',
     };
     const saved = await p.api.patch('/api/auth/profile').set('x-session-token', p.owner.token).send({ notificationSettings: settings });
     expect(saved.status).toBe(200);
-    expect(saved.body.data.notificationSettings).toMatchObject(settings);
+    expect(JSON.parse((await p.db.get('SELECT notification_settings FROM user_profiles WHERE id = ?', [p.owner.id])).notification_settings)).toMatchObject(settings);
+    expect(saved.body.data.notificationSettings).toMatchObject({ smsOverride: { hasAuthToken: true }, emailOverride: { hasApiKey: true }, hasBotToken: true });
     expect((await p.api.post('/api/notifications/telegram/register').set('x-session-token', p.owner.token)
       .send({ chatId: '12345' })).status).toBe(200);
     await alert(p);

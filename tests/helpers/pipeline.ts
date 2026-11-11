@@ -2,6 +2,8 @@ import { vi, expect } from 'vitest';
 import request from 'supertest';
 import WebSocket from 'ws';
 import { once } from 'events';
+import sharp from 'sharp';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -80,6 +82,12 @@ export async function until(check: () => Promise<boolean>): Promise<void> {
   throw new Error('Pipeline did not reach the expected state');
 }
 
+export async function image(label: string): Promise<string> {
+  const [r, g, b] = createHash('sha256').update(label).digest();
+  return (await sharp({ create: { width: 2, height: 2, channels: 3, background: { r, g, b } } })
+    .png().toBuffer()).toString('base64');
+}
+
 export async function startPipeline() {
   vi.stubEnv('SAFEOS_PORT', '0');
   vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
@@ -124,7 +132,11 @@ export async function startPipeline() {
   async function connect(caller = owner) {
     const ws = new WebSocket(`ws://127.0.0.1:${address.port}`, { headers: { 'x-session-token': caller.token } });
     clients.push(ws);
+    const connected = new Promise<void>((resolve) => ws.on('message', raw => {
+      if (JSON.parse(raw.toString()).type === 'connected') resolve();
+    }));
     await once(ws, 'open');
+    await connected;
     ws.on('message', (raw) => { if (JSON.parse(raw.toString()).type === 'ping') ws.send(JSON.stringify({ type: 'pong' })); });
     return ws;
   }

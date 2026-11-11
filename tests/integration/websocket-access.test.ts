@@ -254,7 +254,7 @@ describe('WebSocket decode capacity', () => {
     const streamId = await stream(owner);
     const otherStream = await stream(other);
     const peers = await Promise.all([connected(owner), connected(owner), connected(other), connected(other)]);
-    const png = (await sharp({ create: { width: 4000, height: 4000, channels: 4, background: 'white' } }).png().toBuffer()).toString('base64');
+    const png = (await sharp({ create: { width: 2, height: 2, channels: 4, background: 'white' } }).png().toBuffer()).toString('base64');
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
     const original = sharp.prototype.metadata;

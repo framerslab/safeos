@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { boundary, startPipeline } from '../helpers/pipeline.js';
+import { boundary, image, startPipeline } from '../helpers/pipeline.js';
 
 const keys = { p256dh: 'key', auth: 'auth' };
 const endpoint = (name: string) => `https://fcm.googleapis.com/push/${name}`;
@@ -74,7 +74,7 @@ it('skips personal-key mail without a sender when server mail is unavailable', a
     boundary.triage.mockResolvedValue('CONCERN_LEVEL: critical');
     boundary.analyze.mockResolvedValue('CONCERN_LEVEL: critical');
     const ws = await p.connect();
-    await p.frame(ws, 'missing-sender', 100);
+    await p.frame(ws, await image('missing-sender'), 100);
     await p.tick();
     expect(boundary.email).not.toHaveBeenCalled();
     expect(log.mock.calls).toContainEqual(['[NotificationManager] email channel skipped: personal mail requires a sender or complete server mail configuration']);

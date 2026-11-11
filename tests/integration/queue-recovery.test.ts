@@ -1,11 +1,11 @@
 import { it, expect, vi } from 'vitest';
-import { boundary, startPipeline } from '../helpers/pipeline.js';
+import { boundary, image, startPipeline } from '../helpers/pipeline.js';
 
 it('marks legacy jobs without frame identity as failed rather than completed', async () => {
   const p = await startPipeline();
   try {
     const ws = await p.connect();
-    await p.frame(ws, 'unrelated-to-legacy');
+    await p.frame(ws, await image('unrelated-to-legacy'));
     await p.db.run(`INSERT INTO analysis_queue (id, stream_id, scenario, status, created_at)
       VALUES (?, ?, 'baby', 'pending', ?)`, ['legacy-job', p.streamId, new Date().toISOString()]);
     await p.tick();
@@ -30,7 +30,7 @@ it('creates the alert from the stored analysis result after an insertion retry',
       return original(...args);
     });
     const ws = await p.connect();
-    await p.frame(ws, 'retry-result', 100);
+    await p.frame(ws, await image('retry-result'), 100);
     await p.tick(2000);
     const results = (await p.api.get(`/api/analysis?streamId=${p.streamId}`).set('x-session-token', p.owner.token)).body.results;
     const alerts = (await p.api.get(`/api/alerts?streamId=${p.streamId}`).set('x-session-token', p.owner.token)).body.alerts;

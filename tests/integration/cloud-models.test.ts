@@ -1,5 +1,5 @@
 import { it, expect, vi } from 'vitest';
-import { boundary, startPipeline } from '../helpers/pipeline.js';
+import { boundary, image, startPipeline } from '../helpers/pipeline.js';
 
 it.each([
   ['anthropic', 'ANTHROPIC_API_KEY', 'claude-haiku-5-5'],
@@ -15,7 +15,7 @@ it.each([
       ? { content: [{ type: 'text', text: reply }], usage: { input_tokens: 1, output_tokens: 1 } }
       : { choices: [{ message: { content: reply } }], usage: { total_tokens: 2 } });
     const ws = await p.connect();
-    await p.frame(ws, `${provider}-frame`, 100);
+    await p.frame(ws, await image(`${provider}-frame`), 100);
     await p.tick(1000);
     const res = await p.api.get(`/api/analysis?streamId=${p.streamId}`).set('x-session-token', p.owner.token);
     expect(res.status).toBe(200);

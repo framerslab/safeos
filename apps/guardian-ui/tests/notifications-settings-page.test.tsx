@@ -109,3 +109,27 @@ describe('notification settings test buttons', () => {
     expect(sessionHeader('/api/notifications/test-sms')).toBe('session-token-for-test');
   });
 });
+
+describe('authenticated notification status and server tests', () => {
+  it.each(['@/app/settings/page', '@/app/settings/notifications/page'])('loads status with the session from %s', async path => {
+    const Page = require(path).default;
+    render(<Page />);
+    await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/notifications/status'))).toBe(true));
+    expect(sessionHeader('/api/notifications/status')).toBe('session-token-for-test');
+    if (path === '@/app/settings/page') {
+      fireEvent.click(screen.getByRole('button', { name: /^notifications$/i }));
+      const label = await screen.findByText('SMS provider configured');
+      expect(label.parentElement?.textContent).toContain('Yes');
+    } else {
+      expect(await screen.findByText(/Server has Twilio configured/)).toBeTruthy();
+    }
+  });
+
+  it('sends the current session from the server test button', async () => {
+    const Page = require('@/app/settings/test-alerts/page').default;
+    render(<Page />);
+    await press(/^test push$/i);
+    await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/notifications/test'))).toBe(true));
+    expect(sessionHeader('/api/notifications/test')).toBe('session-token-for-test');
+  });
+});

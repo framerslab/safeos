@@ -590,6 +590,7 @@ describe('NotificationManager', () => {
         email: true,
         emailRecipient: 'alerts@example.com',
         emailOverride: { apiKey: 're_byo' },
+        emailFromOverride: 'Me <me@example.com>',
       });
 
       await m.notify({
@@ -606,7 +607,7 @@ describe('NotificationManager', () => {
         'high',
         'T',
         'M',
-        expect.objectContaining({ override: { apiKey: 're_byo' } }),
+        expect.objectContaining({ override: { apiKey: 're_byo' }, fromOverride: 'Me <me@example.com>' }),
       );
     });
 
