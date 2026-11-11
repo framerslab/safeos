@@ -246,3 +246,40 @@ describe('WebSocket analysis scenario', () => {
     await vi.waitFor(async () => expect(await db.get('SELECT scenario FROM analysis_queue WHERE stream_id = ?', [streamId])).toEqual({ scenario }));
   });
 });
+
+describe('WebSocket decode capacity', () => {
+  it('bounds simultaneous decodes across sockets and profiles', async () => {
+    const owner = await signIn();
+    const other = await signIn();
+    const streamId = await stream(owner);
+    const otherStream = await stream(other);
+    const peers = await Promise.all([connected(owner), connected(owner), connected(other), connected(other)]);
+    const png = (await sharp({ create: { width: 4000, height: 4000, channels: 4, background: 'white' } }).png().toBuffer()).toString('base64');
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const original = sharp.prototype.metadata;
+    let active = 0;
+    let peak = 0;
+    // Keep real image reads in flight so the admission assertion does not
+    // depend on machine speed. Every admitted image still uses the decoder.
+    const metadata = vi.spyOn(sharp.prototype, 'metadata').mockImplementation(async function (this: sharp.Sharp) {
+      active++;
+      peak = Math.max(peak, active);
+      try {
+        const result = await original.call(this);
+        await gate;
+        return result;
+      } finally { active--; }
+    });
+    try {
+      peers.forEach((peer, i) => frame(peer, i < 2 ? streamId : otherStream, png));
+      await vi.waitFor(() => expect(peers.flatMap(p => p.messages).filter(m => m.payload?.code === 'RATE_LIMITED')).toHaveLength(2));
+      expect(peak).toBe(2);
+    } finally {
+      release();
+      await Promise.all(peers.map(settle));
+      metadata.mockRestore();
+    }
+    expect(await frameCount(streamId) + await frameCount(otherStream)).toBe(2);
+  });
+});
