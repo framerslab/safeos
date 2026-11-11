@@ -67,7 +67,7 @@ const SEVERITY_ICONS: Record<Alert['severity'], React.ComponentType<{ size?: num
 
 export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProps) {
   const storeAlerts = useMonitoringStore((state) => state.alerts);
-  const removeAlert = useMonitoringStore((state) => state.removeAlert);
+  const acknowledgeAlert = useMonitoringStore((state) => state.acknowledgeAlert);
   const effectiveVolume = useSettingsStore((state) => state.getEffectiveVolume());
   const globalMute = useSettingsStore((state) => state.globalMute);
   const emergencyModeActive = useSettingsStore((state) => state.emergencyModeActive);
@@ -200,37 +200,33 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
 
   // Handle acknowledge
   const handleAcknowledge = useCallback(
-    async (alertId: string) => {
-      try {
-        // Remove from escalation tracking; the escalation tick will stop any looping
-        // emergency audio once no emergency-level alerts remain.
-        escalationLevelsRef.current.delete(alertId);
-        setEscalationLevels((prev) => {
-          const next = new Map(prev);
-          next.delete(alertId);
-          return next;
+    (alertId: string) => {
+      // Remove from escalation tracking; the escalation tick will stop any looping
+      // emergency audio once no emergency-level alerts remain.
+      escalationLevelsRef.current.delete(alertId);
+      setEscalationLevels((prev) => {
+        const next = new Map(prev);
+        next.delete(alertId);
+        return next;
+      });
+
+      // The acknowledgement counts on this device whether or not a server answers,
+      // and the alert stays in history marked acknowledged.
+      if (onAcknowledge) {
+        onAcknowledge(alertId);
+      } else {
+        acknowledgeAlert(alertId);
+      }
+
+      // Tell the server as well (skip in static mode)
+      const apiUrl = getApiUrl();
+      if (!isStaticMode() && apiUrl) {
+        void fetch(`${apiUrl}/api/alerts/${alertId}/acknowledge`, { method: 'POST' }).catch((error) => {
+          console.warn('[AlertPanel] The server did not record the acknowledgement:', error);
         });
-
-        // Call API to acknowledge (skip in static mode)
-        const apiUrl = getApiUrl();
-        if (!isStaticMode() && apiUrl) {
-          await fetch(
-            `${apiUrl}/api/alerts/${alertId}/acknowledge`,
-            { method: 'POST' }
-          );
-        }
-
-        // Update store or call callback
-        if (onAcknowledge) {
-          onAcknowledge(alertId);
-        } else {
-          removeAlert(alertId);
-        }
-      } catch (error) {
-        console.error('Failed to acknowledge alert:', error);
       }
     },
-    [onAcknowledge, removeAlert]
+    [onAcknowledge, acknowledgeAlert]
   );
 
   // Toggle mute

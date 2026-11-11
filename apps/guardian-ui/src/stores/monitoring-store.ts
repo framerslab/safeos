@@ -129,6 +129,13 @@ function writeAlerts(write: () => Promise<void>) {
     console.warn('[Monitoring] Could not save alert history:', error);
   });
 }
+// Alerts arrive from a connected server and from saved history; a severity the
+// panels have no style for is mapped to a known one instead of breaking the page.
+const SEVERITIES: ReadonlyArray<Alert['severity']> = ['info', 'low', 'medium', 'high', 'critical'];
+function knownSeverity(severity: unknown): Alert['severity'] {
+  if (SEVERITIES.includes(severity as Alert['severity'])) return severity as Alert['severity'];
+  return severity === 'emergency' ? 'critical' : 'medium';
+}
 function saveAlert(alert: Alert) {
   return cacheAlert({ ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
 }
@@ -169,7 +176,11 @@ export const useMonitoringStore = create<MonitoringState>()(
       setHasCrying: (crying) => set({ hasCrying: crying }),
 
       addAlert: (alert) => {
-        const dated = { ...alert, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() };
+        const dated = {
+          ...alert,
+          severity: knownSeverity(alert.severity),
+          createdAt: alert.createdAt || alert.timestamp || new Date().toISOString(),
+        };
         set((state) => ({ alerts: [dated, ...state.alerts.filter(a => a.id !== dated.id)].slice(0, 100) }));
         writeAlerts(() => saveAlert(dated));
       },
@@ -193,7 +204,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       hydrateAlerts: async () => {
         await alertWrites;
         const revision = alertRevision;
-        const saved: Alert[] = await getCachedMonitoringAlerts();
+        const saved: Alert[] = (await getCachedMonitoringAlerts())
+          .map((alert: Alert) => ({ ...alert, severity: knownSeverity(alert.severity) }));
         if (revision !== alertRevision) return get().hydrateAlerts();
         set((state) => ({
           alerts: Array.from(new Map([...saved, ...state.alerts].map(a => [a.id, a])).values())
