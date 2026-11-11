@@ -76,15 +76,22 @@ export default function SetupPage() {
   const requestPermissions = async () => {
     setPermissionError(null);
     setPermissionStatus('pending');
+    const video = deviceId ? { deviceId: { exact: deviceId } } : true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: deviceId ? { deviceId: { exact: deviceId } } : true,
-        audio: true,
-      });
+      let microphone = true;
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
+      } catch (error) {
+        // A camera without a microphone is enough to monitor video.
+        if (!(error instanceof Error) || error.name !== 'NotFoundError') throw error;
+        stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+        microphone = false;
+      }
       stream.getTracks().forEach((track) => track.stop());
       setPermissionStatus('granted');
       onboarding.setCameraPermission(true);
-      onboarding.setMicrophonePermission(true);
+      onboarding.setMicrophonePermission(microphone && stream.getAudioTracks().length > 0);
     } catch (error) {
       const name = error instanceof Error ? error.name : '';
       const denied = name === 'NotAllowedError' || name === 'SecurityError';

@@ -117,6 +117,8 @@ export default function MonitorPage() {
   } = useLostFoundStore();
 
   const [captureRequested, setCaptureRequested] = useState(false);
+  // True once this capture request has shown video; a later pause keeps it true.
+  const [videoSeen, setVideoSeen] = useState(false);
   const captureRequestedRef = useRef(false);
   const serverRequestedRef = useRef(false);
   const [showLostFoundPanel, setShowLostFoundPanel] = useState(false);
@@ -315,11 +317,13 @@ export default function MonitorPage() {
   const startStream = () => {
     captureRequestedRef.current = true;
     setCaptureRequested(true);
+    setVideoSeen(false);
   };
 
   const stopStream = () => {
     captureRequestedRef.current = false;
     setCaptureRequested(false);
+    setVideoSeen(false);
     setStreaming(false);
     setStreamId(null);
     if (serverRequestedRef.current) sendMessage({ type: 'stop-stream' });
@@ -334,6 +338,7 @@ export default function MonitorPage() {
       return;
     }
     if (!captureRequestedRef.current) return;
+    setVideoSeen(true);
     setStreaming(true);
     setStreamId(`local-${Date.now()}`);
   };
@@ -1043,7 +1048,7 @@ export default function MonitorPage() {
                   onClick={stopStream}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
                 >
-                  {isStreaming ? 'Stop Monitoring' : 'Cancel Starting'}
+                  {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
                 </button>
               )}
             </div>
@@ -1139,7 +1144,7 @@ export default function MonitorPage() {
               />
               <StatCard
                 label="Stream"
-                value={isStreaming ? 'Active' : captureRequested ? 'Starting' : 'Inactive'}
+                value={isStreaming ? 'Active' : captureRequested ? (videoSeen ? 'Paused' : 'Starting') : 'Inactive'}
                 color={isStreaming ? 'green' : 'gray'}
               />
               <StatCard

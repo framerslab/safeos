@@ -108,7 +108,8 @@ export function CameraFeed({
   const requestRef = useRef(0);
   const removeTrackListenersRef = useRef<(() => void) | null>(null);
   const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+  const videoPausedRef = useRef(false);
+  const videoReadyRef = useRef(false);
   const pixelEngineRef = useRef<PixelDetectionEngine | null>(null);
   const lastPixelResultRef = useRef<PixelDetectionResult | null>(null);
 
@@ -141,6 +142,7 @@ export function CameraFeed({
   const [hasCrying, setHasCrying] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [microphoneUnavailable, setMicrophoneUnavailable] = useState(false);
+  const [videoPaused, setVideoPaused] = useState(false);
   const [pixelChangePercent, setPixelChangePercent] = useState(0);
   const [pixelChangedPixels, setPixelChangedPixels] = useState(0);
   const motionScoreRef = useRef(0);
@@ -227,9 +229,12 @@ export function CameraFeed({
     setAudioLevel(0);
     setHasCrying(false);
     resetCryDetection();
+    videoPausedRef.current = false;
+    videoReadyRef.current = false;
     onVideoReadyRef.current?.(null);
     setCameraActive(false);
     setMicrophoneUnavailable(false);
+    setVideoPaused(false);
     setIsLoading(false);
   }, []);
 
@@ -242,14 +247,21 @@ export function CameraFeed({
     try {
       setIsLoading(true);
       setError(null);
-      acquired = await navigator.mediaDevices.getUserMedia({
+      const constraints = (audio: boolean): MediaStreamConstraints => ({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
           ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' }),
         },
-        audio: audioEnabled,
+        audio,
       });
+      try {
+        acquired = await navigator.mediaDevices.getUserMedia(constraints(audioEnabled));
+      } catch (err) {
+        // A camera without a microphone still monitors video; a missing camera fails again below.
+        if (!audioEnabled || !isCurrent() || !(err instanceof Error) || err.name !== 'NotFoundError') throw err;
+        acquired = await navigator.mediaDevices.getUserMedia(constraints(false));
+      }
       if (!isCurrent()) {
         acquired.getTracks().forEach((track) => track.stop());
         return;
@@ -264,9 +276,25 @@ export function CameraFeed({
         setError(error.message);
         onErrorRef.current?.(error);
       };
+      // A muted track is a temporary interruption: not live while it lasts, live again on unmute.
+      const paused = () => {
+        if (!isCurrent() || videoPausedRef.current) return;
+        videoPausedRef.current = true;
+        previousFrameRef.current = null;
+        setVideoPaused(true);
+        if (videoReadyRef.current) onVideoReadyRef.current?.(null);
+      };
+      const resumed = () => {
+        if (!isCurrent() || !videoPausedRef.current || tracks.some(track => track.muted)) return;
+        videoPausedRef.current = false;
+        previousFrameRef.current = null;
+        setVideoPaused(false);
+        if (videoReadyRef.current && videoRef.current) onVideoReadyRef.current?.(videoRef.current);
+      };
       for (const track of tracks) {
         track.addEventListener('ended', lost);
-        track.addEventListener('mute', lost);
+        track.addEventListener('mute', paused);
+        track.addEventListener('unmute', resumed);
       }
       const audioLost = () => {
         if (!isCurrent()) return;
@@ -294,13 +322,15 @@ export function CameraFeed({
         }
         for (const track of tracks) {
           track.removeEventListener('ended', lost);
-          track.removeEventListener('mute', lost);
+          track.removeEventListener('mute', paused);
+          track.removeEventListener('unmute', resumed);
         }
       };
-      if (!acquired.getVideoTracks().length || tracks.some(track => track.readyState === 'ended' || track.muted)) {
+      if (!tracks.length || tracks.some(track => track.readyState === 'ended')) {
         lost();
         return;
       }
+      if (tracks.some(track => track.muted)) paused();
       const video = videoRef.current;
       if (!video) throw new Error('Camera preview is unavailable');
       video.srcObject = acquired;
@@ -321,7 +351,8 @@ export function CameraFeed({
       }
       setCameraActive(true);
       setIsLoading(false);
-      onVideoReadyRef.current?.(video);
+      videoReadyRef.current = true;
+      if (!videoPausedRef.current) onVideoReadyRef.current?.(video);
     } catch (err) {
       if (!isCurrent()) return;
       stopCamera();
@@ -336,6 +367,8 @@ export function CameraFeed({
   }, [audioEnabled, deviceId, stopCamera]);
 
   useEffect(() => {
+    // Updated here rather than during render, so only committed props guard capture.
+    enabledRef.current = enabled;
     if (enabled) void initCamera();
     else setIsLoading(false);
     return stopCamera;
@@ -350,7 +383,7 @@ export function CameraFeed({
     if (!ctx) return;
 
     const interval = setInterval(() => {
-      if (!videoRef.current) return;
+      if (!videoRef.current || videoPausedRef.current) return;
 
       // Draw current frame
       canvas.width = videoRef.current.videoWidth || 640;
@@ -450,6 +483,7 @@ export function CameraFeed({
 
     const intervalMs = Math.max(250, frameIntervalMs ?? FRAME_INTERVAL);
     const interval = setInterval(() => {
+      if (videoPausedRef.current) return;
       const pixelTriggered = lastPixelResultRef.current?.changed ?? false;
       const motion = motionScoreRef.current;
       const audio = audioLevelRef.current;
@@ -549,6 +583,12 @@ export function CameraFeed({
         </div>
       )}
 
+      {cameraActive && videoPaused && !error && (
+        <p role="status" className="absolute top-4 left-4 right-4 rounded-lg bg-slate-900/90 p-3 text-sm text-amber-300">
+          Camera paused: the device is not sending video. Monitoring resumes when video returns.
+        </p>
+      )}
+
       {cameraActive && microphoneUnavailable && (
         <p role="status" className="absolute bottom-4 left-4 right-4 rounded-lg bg-slate-900/90 p-3 text-sm text-amber-300">
           Microphone unavailable. Video monitoring continues.
@@ -556,7 +596,7 @@ export function CameraFeed({
       )}
 
       {/* Status indicators */}
-      {cameraActive && !error && (
+      {cameraActive && !videoPaused && !error && (
         <>
           {/* Recording indicator */}
           <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-slate-900/60 rounded-full backdrop-blur-sm">
