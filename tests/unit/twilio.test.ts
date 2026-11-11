@@ -86,7 +86,7 @@ describe('sendTwilioSms', () => {
   it('uses server env credentials when no override is supplied', async () => {
     await twilio.sendTwilioSms('+15559876543', 'hello');
 
-    expect(twilioFactory).toHaveBeenCalledWith('AC_server', 'tok_server');
+    expect(twilioFactory).toHaveBeenCalledWith('AC_server', 'tok_server', { timeout: 15000 });
     expect(createMock).toHaveBeenCalledWith({
       body: 'hello',
       from: '+15550001111',
@@ -112,7 +112,7 @@ describe('sendTwilioSms', () => {
       },
     });
 
-    expect(twilioFactory).toHaveBeenCalledWith('AC_user', 'tok_user');
+    expect(twilioFactory).toHaveBeenCalledWith('AC_user', 'tok_user', { timeout: 15000 });
     expect(createMock).toHaveBeenCalledWith({
       body: 'hi',
       from: '+15552223333',
@@ -125,7 +125,7 @@ describe('sendTwilioSms', () => {
       override: { fromNumber: '+15554445555' },
     });
 
-    expect(twilioFactory).toHaveBeenCalledWith('AC_server', 'tok_server');
+    expect(twilioFactory).toHaveBeenCalledWith('AC_server', 'tok_server', { timeout: 15000 });
     expect(createMock).toHaveBeenCalledWith({
       body: 'hi',
       from: '+15554445555',
@@ -256,7 +256,7 @@ describe('sendAlertSms', () => {
       },
     });
 
-    expect(twilioFactory).toHaveBeenCalledWith('AC_byo', 'tok_byo');
+    expect(twilioFactory).toHaveBeenCalledWith('AC_byo', 'tok_byo', { timeout: 15000 });
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({ from: '+15553334444' }),
     );
@@ -285,7 +285,7 @@ describe('sendTestSms', () => {
       override: { accountSid: 'AC_x', authToken: 'tok_x', fromNumber: '+15555556666' },
     });
 
-    expect(twilioFactory).toHaveBeenCalledWith('AC_x', 'tok_x');
+    expect(twilioFactory).toHaveBeenCalledWith('AC_x', 'tok_x', { timeout: 15000 });
   });
 });
 

@@ -218,3 +218,35 @@ it.each([['medium', '23:30', 0], ['high', '23:30', 0], ['critical', '23:30', 1],
     for (const sender of [boundary.push, boundary.email, boundary.telegram]) expect(sender).toHaveBeenCalledTimes(calls);
   } finally { await p.close(); }
 });
+
+
+it('delivers critical alerts beyond capacity and releases stalled channels after fifteen seconds', async () => {
+  const p = await startPipeline();
+  const queue = (p.service as any).analysisQueue;
+  try {
+    await channels(p); concern('critical');
+    boundary.email.mockImplementation(() => new Promise(() => {}));
+    const ws = await p.connect();
+    const streams: string[] = [];
+    for (let i = 0; i < 33; i++) {
+      const stream = i === 0 ? p.streamId : (await p.api.post('/api/streams')
+        .set('x-session-token', p.owner.token).send({ scenario: 'elderly' }).expect(201)).body.stream.id;
+      streams.push(stream);
+      ws.send(JSON.stringify({ type: 'frame', streamId: stream,
+        payload: { imageData: await image(`deadline-${i}`), motionScore: 100 } }));
+      await until(async () => (await p.db.get('SELECT COUNT(*) AS n FROM analysis_queue')).n === i + 1);
+    }
+    // Keep socket I/O real; only provider deadlines and the worker clock are fake.
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
+    // Exercise the actual worker at a fixed clock so all 33 calls overlap.
+    for (let i = 0; i < 33; i++) await queue.processJobs();
+    expect(boundary.push).toHaveBeenCalledTimes(33);
+    expect(boundary.sms).toHaveBeenCalledTimes(33);
+    expect(boundary.push.mock.calls[32][1].data.streamId).toBe(streams[32]);
+    expect((await queue.getStats()).deliveriesInFlight).toBe(33);
+    await p.tick(14999);
+    expect((await queue.getStats()).deliveriesInFlight).toBe(33);
+    await p.tick(1);
+    expect((await queue.getStats()).deliveriesInFlight).toBe(0);
+  } finally { await p.tick(15000); await p.close(); }
+});

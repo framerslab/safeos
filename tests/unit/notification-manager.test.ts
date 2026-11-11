@@ -732,3 +732,18 @@ describe('NotificationManager', () => {
     });
   });
 });
+
+
+it('reports a channel timeout while preserving successful channels', async () => {
+  const { sendAlertEmail } = await import('../../src/lib/alerts/email.js');
+  vi.mocked(sendAlertEmail).mockImplementationOnce(() => new Promise(() => {}));
+  vi.useFakeTimers();
+  try {
+    const manager = new NotificationManager({ email: true, emailRecipient: 'owner@example.com',
+      emailOverride: { apiKey: 'personal' }, emailFromOverride: 'owner@example.com' });
+    const pending = manager.notify({ streamId: 's', alertId: 'a', severity: 'critical',
+      title: 'Alert', message: 'Check monitoring', timestamp: new Date().toISOString() });
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(await pending).toContainEqual({ channel: 'email', success: false, error: 'timeout' });
+  } finally { vi.useRealTimers(); }
+});
