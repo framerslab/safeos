@@ -42,3 +42,28 @@ it('logs only the retention error name and a fixed message and retries the next 
     run.mockRestore();
   } finally { log.mockRestore(); await p.close(); }
 });
+
+it('reports an initial retention failure once without exposing stored values to the caller', async () => {
+  const p = await startPipeline();
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  let run: ReturnType<typeof vi.spyOn> | undefined;
+  try {
+    await p.service.stop();
+    const original = p.db.run.bind(p.db);
+    run = vi.spyOn(p.db, 'run').mockImplementation(async (...args: any[]) => {
+      if (String(args[0]).startsWith('DELETE FROM frame_buffer')) {
+        throw new TypeError('private-frame-content in SQL');
+      }
+      return original(...args);
+    });
+    const failure = await p.service.start().then(() => undefined, (error: Error) => error);
+    expect.soft(failure?.message).toBe('Frame retention cleanup failed');
+    expect.soft(log.mock.calls).toEqual([['Frame retention cleanup failed (TypeError)']]);
+    expect.soft(vi.getTimerCount()).toBe(0);
+  } finally {
+    run?.mockRestore();
+    log.mockRestore();
+    if (!(p.service as any).server.listening) await p.service.start();
+    await p.close();
+  }
+});
