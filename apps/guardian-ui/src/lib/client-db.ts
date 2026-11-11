@@ -7,6 +7,7 @@
  * @module lib/client-db
  */
 
+import { getLocalDataGeneration, isCurrentLocalData } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
 // =============================================================================
@@ -787,12 +788,14 @@ export interface MatchFrameDB {
   exported: boolean;
 }
 
-export async function saveMatchFrame(frame: MatchFrameDB): Promise<void> {
+export async function saveMatchFrame(frame: MatchFrameDB, generation = getLocalDataGeneration()): Promise<void> {
   try {
     const db = await getDB();
+    if (!isCurrentLocalData(generation)) return;
     await db.put('match_frame', frame);
     
     // Update subject match count
+    if (!isCurrentLocalData(generation)) return;
     await updateSubjectMatchCount(frame.subjectId, 1);
     
     // Enforce max limit

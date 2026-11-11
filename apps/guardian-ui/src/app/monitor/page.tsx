@@ -8,6 +8,7 @@
  * @module app/monitor/page
  */
 
+import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
@@ -176,8 +177,10 @@ export default function MonitorPage() {
       // Check if should record
       if (matcher.shouldRecord() && result.frameData) {
         // Create match frame and save to IndexedDB (async thumbnail creation)
+        const generation = getLocalDataGeneration();
         const frameData = result.frameData;
         createThumbnail(frameData).then((thumbnailData) => {
+          if (!isCurrentLocalData(generation)) return;
           const matchFrame: MatchFrameDB = {
             id: result.id,
             subjectId: activeSubject.id,
@@ -192,7 +195,7 @@ export default function MonitorPage() {
             exported: false,
           };
 
-          saveMatchFrame(matchFrame);
+          saveMatchFrame(matchFrame, generation);
         });
         addMatchFrameToStore(createMatchFrame(activeSubject.id, result));
       }

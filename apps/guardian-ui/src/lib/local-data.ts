@@ -1,4 +1,5 @@
 /** Local data shared by the privacy controls and account sign-out. */
+import { invalidatePendingLocalData } from './local-data-generation';
 import { clearClientData } from './client-db';
 import { clearCustomSounds } from './custom-sounds-db';
 import { getSoundManager } from './sound-manager';
@@ -12,6 +13,7 @@ import { useThemeStore } from './theme-manager';
 import { useOnboardingStore } from '../stores/onboarding-store';
 
 export async function clearLocalData(options: { preserveBackendConfig?: boolean } = {}): Promise<void> {
+  invalidatePendingLocalData();
   // Stop producers before clearing their records and persisted state.
   getSoundManager().stopAll();
   getSoundManager().stopCustomSounds();
