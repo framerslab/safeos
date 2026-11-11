@@ -133,7 +133,13 @@ Create a DNS `A` record (and an `AAAA` record if the server has IPv6) for the AP
 
 #### 2. Install Docker and close the firewall
 
-Install Docker Engine with the Compose plugin by following Docker's guide for your distribution: <https://docs.docker.com/engine/install/>. Then confirm both are present:
+Install Docker Engine 28 or later with the Compose plugin by following Docker's guide for your distribution: <https://docs.docker.com/engine/install/>. Let your SSH user run Docker without `sudo` (<https://docs.docker.com/engine/install/linux-postinstall/>), then log out and back in:
+
+```bash
+sudo usermod -aG docker "$USER"
+```
+
+Then confirm both are present:
 
 ```bash
 docker --version
@@ -245,7 +251,7 @@ cp .env.example .env        # optional: fill in only the keys you want
 docker compose up -d --build
 ```
 
-Open <http://localhost:3000>. The web app, the API (`localhost:3001`) and Ollama (`localhost:11434`) are published on `127.0.0.1`, so they answer on this computer and on no other. `docker-compose.ghcr.yml` does the same from the published images without building. [DOCKER.md](./DOCKER.md) has the details. To serve other devices, use the production server above.
+Open <http://localhost:3000>. The web app, the API (`localhost:3001`) and Ollama (`localhost:11434`) are published on `127.0.0.1`, so they answer on this computer and on no other. That holds on Docker Engine 28 or later; in older releases, hosts on the same network segment can reach ports published to localhost (<https://docs.docker.com/engine/network/port-publishing/>). `docker-compose.ghcr.yml` does the same from the published images without building. [DOCKER.md](./DOCKER.md) has the details. To serve other devices, use the production server above.
 
 ### Local development
 
