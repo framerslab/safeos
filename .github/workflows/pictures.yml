@@ -21,7 +21,7 @@ on:
       routes:
         description: Routes to capture, separated by spaces
         required: true
-        default: / /monitor/ /settings/ /help/
+        default: / /monitor/ /setup/ /settings/ /help/
   pull_request:
     types: [labeled, synchronize, reopened]
     branches: [master]
@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /settings/ /help/
+  DEFAULT_ROUTES: / /monitor/ /setup/ /settings/ /help/
 
 jobs:
   pictures:
