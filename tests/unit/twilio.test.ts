@@ -213,6 +213,7 @@ describe('truncateForSms', () => {
     const gsmOnly = 'a'.repeat(60);
     const withEmDash = 'a'.repeat(59) + '—'; // em dash is NOT GSM-7
     expect(twilio.truncateForSms(gsmOnly)).toBe(gsmOnly);
+    expect(twilio.truncateForSms(withEmDash)).toBe(withEmDash);
     // The em-dash version is 60 chars but > UCS-2 limit (67) only if longer;
     // length 60 ≤ 67, so it stays put — but a 100-char version should truncate.
     const longWithEmDash = 'a'.repeat(99) + '—';

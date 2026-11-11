@@ -7,7 +7,7 @@ This guide covers local development setup, testing, code style, and contribution
 ## Prerequisites
 
 - **Node.js** 20+ (LTS recommended)
-- **npm** 10+ (package manager)
+- **npm** (comes with Node.js; CI uses npm)
 - **Ollama** (optional, for LLM-enhanced analysis)
 
 ---
@@ -24,12 +24,17 @@ cd safeos
 ### 2. Install Dependencies
 
 ```bash
-# API and tooling, from the repository root
+# Server (repository root)
 npm install --legacy-peer-deps
 
-# The web app has its own lockfile
-(cd apps/guardian-ui && npm ci)
+# Web app
+cd apps/guardian-ui
+npm ci
+cd ../..
 ```
+
+Commands below run from the repository root unless they start with
+`cd apps/guardian-ui`.
 
 ### 3. Start Development Servers
 
@@ -83,19 +88,31 @@ safeos/
 
 ## Available Scripts
 
+Repository root (the server):
+
 | Script | Description |
 |--------|-------------|
 | `npm run dev` | Start API + UI in development mode |
 | `npm run api` | Start API server only |
 | `npm run ui` | Start UI dev server only |
-| `npm run build` | Build both API and UI |
-| `npm test` | Run all tests |
-| `npm run test:watch` | Run tests in watch mode |
-| `npm run test:coverage` | Run tests with coverage |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | Run TypeScript type checking |
+| `npm run build` | Compile the server with `tsc` (fails on a type error) |
+| `npm run build:ui` | Build the web app's static export |
+| `npm test` | Run the server's Vitest suite (`tests/`) |
+| `npm run test:watch` | Run the server's tests in watch mode |
+| `npm run test:coverage` | Run the server's tests with coverage |
+| `npm run lint` | Run ESLint on `src` and `tests` (`eslint.config.js`) |
+| `npm run typecheck` | Type check the server |
 | `npm run ollama:check` | Verify Ollama connection |
 | `npm run ollama:pull` | Pull required Ollama models |
+
+`apps/guardian-ui` (the web app):
+
+| Script | Description |
+|--------|-------------|
+| `npm test` | Run the web app's Jest suite (`apps/guardian-ui/tests`) |
+| `npm run lint` | Run `next lint` (`.eslintrc.json`). The lockfile carries no ESLint, so first run `npm install --no-save eslint@8.57.1 eslint-config-next@14.2.35`, the same command CI runs |
+| `npx tsc --noEmit` | Type check the web app |
+| `npm run build` | Build the static export into `out/` |
 
 ---
 
@@ -104,18 +121,27 @@ safeos/
 ### Running Tests
 
 ```bash
-# Run all tests
+# Server tests
 npm test
 
 # Run specific test file
-npm test tests/unit/frame-analyzer.test.ts
+npm test -- tests/unit/frame-analyzer.test.ts
 
 # Run with coverage
 npm run test:coverage
 
 # Watch mode (re-runs on file changes)
 npm run test:watch
+
+# Web app tests
+cd apps/guardian-ui && npm test && cd ../..
 ```
+
+A test that fails on master for a reason not yet fixed is marked with the
+runner's own known-failure marker (`it.fails` in Vitest, `test.failing` in
+Jest) and a one-line reason, and is listed in issue 2. It still runs: the
+marker turns red the day the test starts passing, so the mark comes off with
+the fix.
 
 ### Test Structure
 
@@ -309,13 +335,58 @@ export const ExampleQuerySchema = z.object({
 
 ---
 
+## Continuous Integration
+
+Every pull request into `master` and every push to `master` runs these
+workflows in `.github/workflows/`. Any failing step fails the run; no check
+prints an error and carries on.
+
+| Workflow | Job | What it proves |
+|---|---|---|
+| `ci.yml` | Server type check and lint | `tsc --noEmit` on `src` has no errors; ESLint on `src` and `tests` has no errors (explicit `any` is reported as a warning) |
+| `ci.yml` | Server tests | The Vitest suite passes and meets the coverage thresholds in `vitest.config.ts`; the coverage summary (`coverage-summary.json`, `lcov.info`) is uploaded as the `server-coverage` artifact |
+| `ci.yml` | Server build | `npm run build` (`tsc`) compiles the server |
+| `ci.yml` | Web app type check and lint | `tsc --noEmit` and `next lint` pass for `apps/guardian-ui` |
+| `ci.yml` | Web app tests | The web app's Jest suite passes |
+| `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
+| `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
+| `pictures.yml` | Capture pictures | Screenshots of the web app (see below); runs only when asked |
+
+Concurrency: a newer push to a pull request cancels that pull request's older
+runs, and a pull request never cancels a run on `master`. On `master`, every
+commit's checks run to the end (each run has its own group). The Pages deploy
+and the image publish run one at a time and a running one is never cancelled;
+while one runs, only the newest waiting one is kept, so when several commits
+land at once the site and the `latest` images go straight to the newest.
+
+### Pictures
+
+`pictures.yml` builds the static site, serves it inside the job, opens each
+route in Chromium with Playwright at 390 and 1280 pixels wide, in the light and
+the dark look, and uploads the full-page PNG files as the run's `pictures`
+artifact (`<route>-<width>-<look>.png`).
+
+- On a pull request: add the label `pictures`. It runs on the labelling and on
+  every later push to that pull request, for `/`, `/monitor/`, `/settings/` and
+  `/help/`.
+- By hand: Actions, Pictures, Run workflow. Give a branch, tag or commit and the
+  routes separated by spaces (for example `/ /about/ /faq/`).
+- The capture script is `apps/guardian-ui/scripts/capture-pictures.mjs`; with
+  the export served locally it runs as
+  `node scripts/capture-pictures.mjs http://127.0.0.1:4173 pictures / /monitor/`.
+
+Download the artifact from the run's summary page, or with
+`gh run download <run id> -n pictures`.
+
+---
+
 ## Pull Request Checklist
 
 Before submitting a PR, ensure:
 
-- [ ] All tests pass (`npm test`)
-- [ ] TypeScript compiles without errors (`npm run typecheck`)
-- [ ] Linting passes (`npm run lint`)
+- [ ] All tests pass (`npm test` at the root and in `apps/guardian-ui`)
+- [ ] TypeScript compiles without errors (`npm run typecheck`, and `npx tsc --noEmit` in `apps/guardian-ui`)
+- [ ] Linting passes (`npm run lint`, and `npm run lint` in `apps/guardian-ui`)
 - [ ] New features have tests
 - [ ] API changes are documented
 - [ ] No hardcoded secrets or credentials

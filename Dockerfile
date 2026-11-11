@@ -54,8 +54,13 @@ CMD ["npx", "tsx", "src/api/server.ts"]
 
 # -----------------------------------------------------------------------------
 # builder-frontend: build the Next.js static export (out/)
+# The export is plain HTML, CSS and JS, the same for every platform, so this
+# stage runs on the build machine's own platform: a multi-platform build
+# (linux/amd64 and linux/arm64) compiles it once, natively, instead of under
+# emulation.
 # -----------------------------------------------------------------------------
-FROM base AS builder-frontend
+FROM --platform=$BUILDPLATFORM node:20-alpine AS builder-frontend
+RUN apk add --no-cache python3 make g++
 WORKDIR /app/apps/guardian-ui
 COPY apps/guardian-ui/package.json apps/guardian-ui/package-lock.json* ./
 RUN npm install --legacy-peer-deps

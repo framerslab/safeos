@@ -239,7 +239,7 @@ export function SystemStatus({ stats }: SystemStatusProps) {
           {/* Analysis Stats */}
           <div>
             <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Today's Stats
+              Today&apos;s Stats
             </h4>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div className="bg-slate-700/50 rounded-lg p-2">

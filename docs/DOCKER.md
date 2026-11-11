@@ -31,7 +31,10 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 Pin a version with `SAFEOS_TAG` (default `latest`); add `-f docker-compose.gpu.yml`
 on an NVIDIA host. The images are published from `master` by
-`.github/workflows/docker-publish.yml`. The `safeos-ui` image bakes an API URL of
+`.github/workflows/docker-publish.yml` for `linux/amd64` and `linux/arm64`, so a
+64-bit Raspberry Pi (or any arm64 host) pulls the same tags as a PC. A pull
+request that changes the Dockerfile or anything copied into the images builds
+both images for both platforms without pushing. The `safeos-ui` image bakes an API URL of
 `http://localhost:3001` (Next inlines `NEXT_PUBLIC_*` at build time), which is
 correct for local trial; a production deployment builds the UI with its own URL.
 

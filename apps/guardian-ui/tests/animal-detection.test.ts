@@ -189,10 +189,10 @@ describe('Danger Level Functions', () => {
 
 describe('Size Functions', () => {
   describe('getSizeIcon', () => {
-    it('should return correct icons', () => {
-      expect(getSizeIcon('large')).toBe('🦁');
-      expect(getSizeIcon('medium')).toBe('🦊');
-      expect(getSizeIcon('small')).toBe('🐿️');
+    it('should return the size as a word', () => {
+      expect(getSizeIcon('large')).toBe('large');
+      expect(getSizeIcon('medium')).toBe('medium');
+      expect(getSizeIcon('small')).toBe('small');
     });
   });
 });
