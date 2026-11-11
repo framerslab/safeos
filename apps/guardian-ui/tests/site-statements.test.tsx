@@ -159,7 +159,7 @@ describe('storage and network statements', () => {
     // stores/settings-store.ts persists with createJSONStorage(() => localStorage).
     const store = fs.readFileSync(path.join(APP_ROOT, 'src', 'stores', 'settings-store.ts'), 'utf8');
     expect(store).toMatch(/createJSONStorage\(\(\) => localStorage\)/);
-    expect(filesMatching(PAGES, /settings[^.'"]{0,80}\bin (your browser(&apos;|'|\\')s )?IndexedDB/i)).toEqual([]);
+    expect(filesMatching(PAGES, /settings(?:(?!localStorage)[^.'"]){0,80}\bin (your browser(&apos;|'|\\')s )?IndexedDB/i)).toEqual([]);
   });
 
   it('no page says nothing goes anywhere: the model download and the star count reach Google and GitHub', () => {
