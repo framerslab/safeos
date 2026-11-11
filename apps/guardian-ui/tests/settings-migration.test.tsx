@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import './helpers/browser-data';
 import SettingsPage from '@/app/settings/page';
 import { useAuthStore } from '@/stores/auth-store';

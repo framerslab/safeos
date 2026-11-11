@@ -8,12 +8,15 @@ other scripts running on the same site can read browser storage.
 
 **Settings → Privacy → Clear All Local Data** clears the records in both SafeOS
 databases, including microphone recordings and uploaded sounds. It resets local
-monitoring state and preferences and removes the SafeOS service-worker caches.
+monitoring state, schedules and appearance preferences and removes the SafeOS
+service-worker caches. Pending thumbnail work is invalidated before records are
+deleted, so it cannot restore an earlier match after clearing.
 The page reloads only after clearing succeeds. A failed operation displays an
 error and can be retried.
 
-**Log Out** and **Clear Session** perform the same cleanup before completing
-sign-out. Saved frames, history, subjects, sounds and settings do not carry over
+**Log Out** and **Clear Session** clear personal data before completing
+sign-out. They retain the device's server connection so the next account can
+sign in to the same server. Clear All Local Data also removes that connection. Saved frames, history, subjects, sounds and settings do not carry over
 to the next person using that browser. Export anything you want to keep first.
 This removes local copies; it does not delete records held by a connected server.
 
@@ -23,8 +26,11 @@ Save Changes on the main Settings page updates the settings store used by
 monitoring and sound playback. Motion sensitivity, audio sensitivity and alert
 volume use the same values as the monitor controls. A volume of zero stays zero.
 Emergency alarms retain their explicit full-volume behavior. Quiet hours are
-saved to the shared schedule settings. Account preferences remain compatible
-with the server profile.
+saved to the shared schedule settings from both Settings and Notification
+Settings. Existing account preferences are imported once per account into that
+store, including zero values; older browser preferences are imported when there
+is no account. Later edits use the shared store. Account preferences remain
+compatible with the server profile.
 
 Email and SMS provider secrets entered in Notification Settings stay in page
 memory. They are omitted from browser storage, and older saved secrets are
@@ -43,7 +49,9 @@ is used when a server is configured.
 Backend Settings, AI Models and the dashboard ask the SafeOS server for its
 model status. The browser does not connect directly to Ollama. Configure Ollama
 on the SafeOS server; private container addresses need not be reachable from a
-phone. A failed server status check is reported as unavailable.
+phone. A failed server status check is reported as unavailable. The dashboard
+shows installed models without claiming they are loaded in memory. A connected
+server with no installed models is shown as an empty list, not an offline server.
 
 ## Controls and notifications
 
@@ -53,15 +61,18 @@ link contacts GitHub. Model downloads remain separate network requests.
 Browser notifications use an existing service-worker registration when available,
 including on phones that reject the page Notification constructor. Desktop
 installations without a worker use a guarded constructor fallback. Delivery
-failure does not interrupt in-app alerts. This does not enable background push
+failure does not interrupt in-app alerts. Opening a local notification focuses an
+existing tab without navigating away from a camera page. This does not enable background push
 subscriptions or guarantee delivery when the app is closed.
 
 The nap camera test stays active through ordinary renders and is stopped when
 the page unmounts. Global keyboard shortcuts defer to focused buttons and other
-interactive controls, preserving native Space activation.
+interactive controls for activation and widget navigation keys, preserving native
+Space activation. Unrelated shortcuts, including Help, remain available.
 
-Admin review controls send the server's accepted review statuses and display an
-error when the server rejects an action.
+Admin review controls map the server's flag fields, send its accepted review
+statuses and display an error when the server rejects an action. Admin measurements
+that the server does not supply are shown as unavailable.
 
 ## Regression coverage
 

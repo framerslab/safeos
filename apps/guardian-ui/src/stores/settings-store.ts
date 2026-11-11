@@ -553,7 +553,8 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       // Initial state
-      settingsSourceId: null,      activePresetId: 'maximum',
+      settingsSourceId: null,
+      activePresetId: 'maximum',
       activeSleepPreset: null,
       globalSettings: { ...DEFAULT_PRESETS.maximum },
       scenarioOverrides: {},

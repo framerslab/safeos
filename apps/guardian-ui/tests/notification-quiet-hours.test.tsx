@@ -2,7 +2,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Page from '@/app/settings/notifications/page';
-import SettingsPage from '@/app/settings/page';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useAuthStore } from '@/stores/auth-store';
 jest.mock('next/navigation', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));

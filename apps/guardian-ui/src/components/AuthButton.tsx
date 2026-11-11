@@ -207,7 +207,7 @@ export function AuthButton() {
             </a>
 
             <hr className="my-2 border-slate-700" aria-hidden="true" />
-            <p className="px-3 py-2 text-xs text-slate-400">Signing out deletes this browser&apos;s saved frames, history, recordings and settings.</p>
+            <p className="px-3 py-2 text-xs text-slate-400">Signing out deletes this browser&apos;s saved frames, history, recordings and personal settings. The server connection is kept for the next sign-in.</p>
 
             {isGuest && (
               <div className="px-3 py-2 text-xs text-slate-500">
