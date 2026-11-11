@@ -445,6 +445,7 @@ export const DEFAULT_ALERT_ESCALATION_LEVELS: AlertEscalationLevel[] = [
 // =============================================================================
 
 interface SettingsState {
+  settingsSourceId: string | null;
   // Current active preset
   activePresetId: PresetId;
   
@@ -552,7 +553,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       // Initial state
-      activePresetId: 'maximum',
+      settingsSourceId: null,      activePresetId: 'maximum',
       activeSleepPreset: null,
       globalSettings: { ...DEFAULT_PRESETS.maximum },
       scenarioOverrides: {},
@@ -902,6 +903,7 @@ export const useSettingsStore = create<SettingsState>()(
       // Reset
       resetToDefaults: () => {
         set({
+          settingsSourceId: null,
           activePresetId: 'maximum',
           globalSettings: { ...DEFAULT_PRESETS.maximum },
           activeSleepPreset: null,
@@ -957,6 +959,7 @@ export const useSettingsStore = create<SettingsState>()(
       name: 'safeos-settings',
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
+        settingsSourceId: state.settingsSourceId,
         activePresetId: state.activePresetId,
         activeSleepPreset: state.activeSleepPreset,
         globalSettings: state.globalSettings,

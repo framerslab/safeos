@@ -14,6 +14,8 @@ import { BackendStatusProvider } from '@/contexts/BackendStatusContext';
 import { BackendSettings } from '@/components/BackendSettings';
 import { ToastProvider } from '@/components/Toast';
 import { useSettingsStore } from '@/stores/settings-store';
+import { hydrateSavedSettings } from '@/lib/settings-hydration';
+import { useAuthStore } from '@/stores/auth-store';
 import { getSoundManager } from '@/lib/sound-manager';
 
 // =============================================================================
@@ -30,6 +32,9 @@ interface ProvidersProps {
 
 export function Providers({ children }: ProvidersProps) {
   const [showBackendSettings, setShowBackendSettings] = useState(false);
+
+  const profile = useAuthStore((state) => state.profile);
+  useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
 
   // Keep SoundManager synced with user settings globally (quiet hours + emergency/mute).
   useEffect(() => {

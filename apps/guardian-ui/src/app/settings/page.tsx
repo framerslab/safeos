@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { hydrateSavedSettings } from '@/lib/settings-hydration';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -61,6 +62,8 @@ export default function SettingsPage() {
   const [quietHoursEnabled, setQuietHoursEnabled] = useState(quietHoursSettings.enabled);
   const [quietHoursStart, setQuietHoursStart] = useState(quietHoursSettings.startTime);
   const [quietHoursEnd, setQuietHoursEnd] = useState(quietHoursSettings.endTime);
+
+  useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
 
   useEffect(() => {
     // Hydrate from profile first (if available)
