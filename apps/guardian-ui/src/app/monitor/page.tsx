@@ -109,6 +109,8 @@ export default function MonitorPage() {
     recordAlert: recordLostFoundAlert,
   } = useLostFoundStore();
 
+  const [captureRequested, setCaptureRequested] = useState(false);
+  const captureRequestedRef = useRef(false);
   const [showLostFoundPanel, setShowLostFoundPanel] = useState(false);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
 
@@ -261,10 +263,13 @@ export default function MonitorPage() {
     (message: WSMessage) => {
       switch (message.type) {
         case 'stream-started':
+          if (!captureRequestedRef.current || !videoRef.current) break;
           setStreaming(true);
           setStreamId(message.payload?.streamId);
           break;
         case 'stream-stopped':
+          captureRequestedRef.current = false;
+          setCaptureRequested(false);
           setStreaming(false);
           setStreamId(null);
           break;
@@ -300,27 +305,36 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
 
   const startStream = () => {
+    captureRequestedRef.current = true;
+    setCaptureRequested(true);
+  };
+
+  const stopStream = () => {
+    captureRequestedRef.current = false;
+    setCaptureRequested(false);
+    setStreaming(false);
+    setStreamId(null);
+    if (wsConnected) sendMessage({ type: 'stop-stream' });
+  };
+
+  const handleVideoReady = (video: HTMLVideoElement | null) => {
+    videoRef.current = video;
+    if (!video || !captureRequestedRef.current) return;
+    setStreaming(true);
+    setStreamId(`local-${Date.now()}`);
     if (wsConnected) {
       sendMessage({
         type: 'start-stream',
         payload: { scenario: selectedScenario || scenario },
       });
-      return;
     }
-
-    // Local/offline mode: run monitoring entirely in-browser.
-    setStreaming(true);
-    setStreamId(streamId || `local-${Date.now()}`);
   };
 
-  const stopStream = () => {
-    if (wsConnected) {
-      sendMessage({ type: 'stop-stream' });
-    }
-
-    setStreaming(false);
-    setStreamId(null);
-  };
+  useEffect(() => () => {
+    captureRequestedRef.current = false;
+    useMonitoringStore.getState().setStreaming(false);
+    useMonitoringStore.getState().setStreamId(null);
+  }, []);
 
   const handleFrame = (data: { imageData: string; motionScore: number; audioLevel: number }) => {
     if (!isStreaming) return;
@@ -996,7 +1010,7 @@ export default function MonitorPage() {
                 )}
               </button>
 
-              {!isStreaming && (
+              {!captureRequested && (
                 <button
                   onClick={startStream}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
@@ -1005,12 +1019,12 @@ export default function MonitorPage() {
                 </button>
               )}
 
-              {isStreaming && (
+              {captureRequested && (
                 <button
                   onClick={stopStream}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
                 >
-                  Stop Monitoring
+                  {isStreaming ? 'Stop Monitoring' : 'Cancel Starting'}
                 </button>
               )}
             </div>
@@ -1038,16 +1052,15 @@ export default function MonitorPage() {
               {isLostFoundWatching && <SubjectPreviewOverlay />}
 
               <CameraFeed
-                enabled={isStreaming}
+                enabled={captureRequested}
                 scenario={selectedScenario || scenario || undefined}
                 onFrame={handleFrame}
                 onMotion={handleMotion}
                 onMotionZones={handleMotionZones}
                 onAudio={handleAudio}
                 onPixel={handlePixel}
-                onVideoReady={(video) => {
-                  videoRef.current = video;
-                }}
+                onVideoReady={handleVideoReady}
+                onError={stopStream}
                 showDebug={true}
                 showZonesOverlay={true}
                 className="aspect-video"
@@ -1105,7 +1118,7 @@ export default function MonitorPage() {
               />
               <StatCard
                 label="Stream"
-                value={isStreaming ? 'Active' : 'Inactive'}
+                value={isStreaming ? 'Active' : captureRequested ? 'Starting' : 'Inactive'}
                 color={isStreaming ? 'green' : 'gray'}
               />
               <StatCard
