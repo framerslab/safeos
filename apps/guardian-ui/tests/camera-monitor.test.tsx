@@ -1,0 +1,35 @@
+/** @jest-environment jsdom */
+import React from 'react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import MonitorPage from '@/app/monitor/page';
+import { useMonitoringStore } from '@/stores/monitoring-store';
+import { useSettingsStore } from '@/stores/settings-store';
+import { BrowserSocket, installCameraBrowser, startMonitoring } from './helpers/camera-browser';
+
+jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
+jest.mock('@/contexts/BackendStatusContext', () => ({
+  useBackendStatus: () => ({ config: { wsUrl: 'wss://monitor.example.test' } }),
+}));
+
+let browser: ReturnType<typeof installCameraBrowser>;
+beforeEach(() => {
+  jest.useFakeTimers();
+  localStorage.clear();
+  useMonitoringStore.getState().reset();
+  useSettingsStore.setState({ globalMute: true });
+  useSettingsStore.getState().updateGlobalSettings({ processingMode: 'local', analysisInterval: 1 });
+  browser = installCameraBrowser();
+});
+afterEach(() => { cleanup(); jest.useRealTimers(); jest.restoreAllMocks(); });
+
+it('keeps captured frames on device in local mode with a connected server', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  act(() => BrowserSocket.instances.at(-1)!.onopen?.());
+  await startMonitoring();
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'stream-started', payload: { streamId: 'server' } }));
+  await act(async () => { jest.advanceTimersByTime(1500); });
+  expect(browser.readFrame).toHaveBeenCalled();
+  expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalled();
+  expect(BrowserSocket.instances.flatMap(s => s.sent).filter(m => m.type === 'frame')).toEqual([]);
+});
