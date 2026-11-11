@@ -12,7 +12,7 @@ import { isIP } from 'net';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
 import sharp from 'sharp';
-import { getSafeOSDatabase, runMigrations, generateId, now } from '../db';
+import { cleanupOldFrames, getSafeOSDatabase, runMigrations, generateId, now } from '../db';
 import { AnalysisQueue } from '../queues/analysis-queue';
 import { OllamaClient } from '../lib/ollama/client';
 import { streamRoutes } from './routes/streams';
@@ -89,6 +89,20 @@ function parseTrustedProxies(value: string | undefined): string[] | false {
   return addresses.every((address) => isIP(address) !== 0) ? addresses : false;
 }
 
+class FrameRetentionCleanupError extends Error {}
+
+async function cleanupRetainedFrames(db: Parameters<typeof cleanupOldFrames>[0]): Promise<void> {
+  try {
+    await cleanupOldFrames(db);
+  } catch (error: unknown) {
+    // Database messages and stacks may include stored values. Do not retain the cause.
+    const names = ['Error', 'TypeError', 'RangeError', 'SyntaxError', 'ReferenceError', 'URIError', 'EvalError', 'AggregateError', 'SqliteError'];
+    const name = error instanceof Error && names.includes(error.name) ? error.name : 'Error';
+    console.error(`Frame retention cleanup failed (${name})`);
+    throw new FrameRetentionCleanupError('Frame retention cleanup failed');
+  }
+}
+
 // =============================================================================
 // Server Class
 // =============================================================================
@@ -97,11 +111,15 @@ export class SafeOSServer {
   private app: Express;
   private server: Server;
   private wss: WebSocketServer;
+  private webSocketClosed = false;
   private clients: Map<string, WSClient> = new Map();
   private frameAllowances = new Map<string, { count: number; resetAt: number }>();
   private analysisQueue: AnalysisQueue | null = null;
   private ollamaClient: OllamaClient;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+
+  private frameCleanupInterval: NodeJS.Timeout | null = null;
+  private frameCleanup: Promise<void> | null = null;
 
   constructor() {
     this.app = express();
@@ -240,6 +258,10 @@ export class SafeOSServer {
       ws.on('error', () => ws.close());
     });
 
+    this.startHeartbeat();
+  }
+
+  private startHeartbeat(): void {
     // Start heartbeat with stale client cleanup
     this.heartbeatInterval = setInterval(() => {
       const staleClients: string[] = [];
@@ -595,51 +617,102 @@ export class SafeOSServer {
   // ---------------------------------------------------------------------------
 
   async start(): Promise<void> {
-    // Initialize database
-    const db = await getSafeOSDatabase();
-    await runMigrations(db);
-    console.log('Database initialized');
+    try {
+      if (this.webSocketClosed) {
+        this.wss = new WebSocketServer({ server: this.server });
+        this.webSocketClosed = false;
+        this.setupWebSocket();
+      }
+      if (!this.heartbeatInterval) this.startHeartbeat();
+      // Initialize database
+      const db = await getSafeOSDatabase();
+      await runMigrations(db);
+      console.log('Database initialized');
 
-    // Check Ollama
-    const ollamaAvailable = await this.ollamaClient.isHealthy();
-    console.log(`Ollama: ${ollamaAvailable ? 'available' : 'not available'}`);
+      // Retention must keep running even when every camera stops uploading.
+      await cleanupRetainedFrames(db);
+      this.frameCleanupInterval = setInterval(() => {
+        if (this.frameCleanup) return this.frameCleanup;
+        this.frameCleanup = cleanupRetainedFrames(db)
+          .catch(() => {
+            // Already reported safely; allow the next scheduled sweep to retry.
+          })
+          .finally(() => { this.frameCleanup = null; });
+        return this.frameCleanup;
+      }, 1000);
 
-    if (ollamaAvailable) {
-      // Ensure required models are available
-      await this.ollamaClient.ensureModels(['moondream', 'llava:7b']);
+      // Check Ollama
+      const ollamaAvailable = await this.ollamaClient.isHealthy();
+      console.log(`Ollama: ${ollamaAvailable ? 'available' : 'not available'}`);
+
+      if (ollamaAvailable) {
+        // Ensure required models are available
+        await this.ollamaClient.ensureModels(['moondream', 'llava:7b']);
+      }
+
+      // Initialize analysis queue
+      this.analysisQueue = new AnalysisQueue({
+        concurrency: 2,
+        maxRetries: 3,
+        retryDelay: 5000,
+      });
+      await this.analysisQueue.start();
+      console.log('Analysis queue started');
+
+      // Start server
+      await new Promise<void>((resolve, reject) => {
+        const onError = (error: Error) => {
+          removeListeners();
+          reject(error);
+        };
+        const onListening = () => {
+          removeListeners();
+          console.log(`SafeOS server running on port ${PORT}`);
+          console.log(`WebSocket server ready`);
+          resolve();
+        };
+        const removeListeners = () => {
+          this.server.off('error', onError);
+          this.wss.off('error', onError);
+          this.server.off('listening', onListening);
+        };
+        // ws forwards HTTP listen errors; consume both events so startup can unwind.
+        this.server.once('error', onError);
+        this.wss.once('error', onError);
+        this.server.once('listening', onListening);
+        try { this.server.listen(PORT); }
+        catch (error) { removeListeners(); reject(error); }
+      });
+    } catch (error) {
+      await this.stopScheduledWork();
+      throw error;
+    }
+  }
+
+  private async stopScheduledWork(): Promise<void> {
+    // Stop heartbeat
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
 
-    // Initialize analysis queue
-    this.analysisQueue = new AnalysisQueue({
-      concurrency: 2,
-      maxRetries: 3,
-      retryDelay: 5000,
-    });
-    await this.analysisQueue.start();
-    console.log('Analysis queue started');
+    if (this.frameCleanupInterval) {
+      clearInterval(this.frameCleanupInterval);
+      this.frameCleanupInterval = null;
+    }
+    await this.frameCleanup;
 
-    // Start server
-    return new Promise((resolve) => {
-      this.server.listen(PORT, () => {
-        console.log(`SafeOS server running on port ${PORT}`);
-        console.log(`WebSocket server ready`);
-        resolve();
-      });
-    });
+    // Stop analysis queue
+    if (this.analysisQueue) {
+      await this.analysisQueue.stop();
+      this.analysisQueue = null;
+    }
   }
 
   async stop(): Promise<void> {
     console.log('Shutting down SafeOS server...');
 
-    // Stop heartbeat
-    if (this.heartbeatInterval) {
-      clearInterval(this.heartbeatInterval);
-    }
-
-    // Stop analysis queue
-    if (this.analysisQueue) {
-      await this.analysisQueue.stop();
-    }
+    await this.stopScheduledWork();
 
     // Close all WebSocket connections
     this.clients.forEach((client) => {
@@ -651,6 +724,7 @@ export class SafeOSServer {
     // Close server
     return new Promise((resolve, reject) => {
       this.wss.close(() => {
+        this.webSocketClosed = true;
         this.server.close((err) => {
           if (err) reject(err);
           else resolve();
@@ -673,7 +747,9 @@ const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   const server = new SafeOSServer();
   server.start().catch((err) => {
-    console.error('Failed to start server:', err);
+    if (!(err instanceof FrameRetentionCleanupError)) {
+      console.error('Failed to start server:', err);
+    }
     process.exit(1);
   });
 

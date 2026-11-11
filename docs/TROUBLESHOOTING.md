@@ -16,7 +16,7 @@ curl http://localhost:3001/health
 curl http://localhost:11434/api/version
 
 # Database exists
-ls -la db_data/safeos.sqlite3
+ls -la db_data/app.sqlite3
 ```
 
 ---
@@ -226,7 +226,7 @@ See [WebSocket API](API.md#websocket-api).
 
 1. **Check for multiple processes:**
    ```bash
-   lsof db_data/safeos.sqlite3
+   lsof db_data/app.sqlite3
    ```
 
 2. **Restart API server:**
@@ -252,23 +252,42 @@ See [WebSocket API](API.md#websocket-api).
 
 1. **Try integrity check:**
    ```bash
-   sqlite3 db_data/safeos.sqlite3 "PRAGMA integrity_check;"
+   sqlite3 db_data/app.sqlite3 "PRAGMA integrity_check;"
    ```
 
 2. **Recover from backup:**
-   ```bash
-   cp backup/safeos-latest.sqlite3 db_data/safeos.sqlite3
-   ```
+   Stop the API and follow the database restore procedure in the deployment
+   guide. Preserve the existing database and any WAL sidecars for rollback;
+   use SQLite's `.restore` command with a checked backup before restarting.
 
 3. **Export and recreate:**
-   ```bash
-   # Export what you can
-   sqlite3 db_data/safeos.sqlite3 ".dump" > backup.sql
+   Stop the API first. Run as the service user (or root) from the API working
+   directory. This prepares a checked recovery snapshot while retaining the
+   original database and sidecars. A partial export must not replace live data.
 
-   # Delete and restart (will recreate schema)
-   rm db_data/safeos.sqlite3
-   npm run api
+   ```bash
+   set -eu
+   umask 077
+   test -s db_data/app.sqlite3
+   mkdir -p backup
+   chmod 700 backup
+   test ! -e backup/safeos.sqlite3
+   recovery=$(mktemp -d backup/recovery.XXXXXX)
+   for file in app.sqlite3 app.sqlite3-wal app.sqlite3-shm; do
+     if test -e "db_data/$file"; then cp "db_data/$file" "$recovery/$file"; fi
+   done
+   sqlite3 -bail db_data/app.sqlite3 '.dump' > "$recovery/export.sql"
+   sqlite3 -bail "$recovery/recovered.sqlite3" < "$recovery/export.sql"
+   test "$(sqlite3 "$recovery/recovered.sqlite3" 'PRAGMA integrity_check;')" = ok
+   test "$(sqlite3 "$recovery/recovered.sqlite3" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('user_profiles','streams','alerts','analysis_queue');")" = 4
+   mv "$recovery/recovered.sqlite3" backup/safeos.sqlite3
+   chmod 600 backup/safeos.sqlite3
    ```
+
+   If export, import or verification fails, keep the API stopped and retain the
+   original files for recovery. Otherwise follow **Database Restore** in the
+   deployment guide before restarting; it imports this checked snapshot and
+   preserves another rollback copy.
 
 ---
 
@@ -292,7 +311,7 @@ See [WebSocket API](API.md#websocket-api).
 
 3. **Database session table issue:**
    ```bash
-   sqlite3 db_data/safeos.sqlite3 "SELECT * FROM sessions LIMIT 5;"
+   sqlite3 db_data/app.sqlite3 "SELECT * FROM sessions LIMIT 5;"
    ```
 
 ---
@@ -339,7 +358,7 @@ See [WebSocket API](API.md#websocket-api).
 
 3. **Verify chat ID is saved:**
    ```bash
-   sqlite3 db_data/safeos.sqlite3 "SELECT * FROM telegram_chats;"
+   sqlite3 db_data/app.sqlite3 "SELECT * FROM telegram_chats;"
    ```
 
 ### "Browser notifications not working"

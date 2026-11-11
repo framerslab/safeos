@@ -28,8 +28,7 @@ export class TelegramBotService {
   private bot: TelegramBot | null = null;
   private registeredChats: Set<string> = new Set();
 
-  constructor() {
-    const token = process.env['TELEGRAM_BOT_TOKEN'];
+  constructor(token = process.env['TELEGRAM_BOT_TOKEN']) {
     if (token) {
       this.bot = new TelegramBot(token, { polling: false });
       console.log('Telegram bot initialized');

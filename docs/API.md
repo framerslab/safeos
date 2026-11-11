@@ -380,13 +380,13 @@ Delete one of the caller's profiles.
 
 ### Notifications
 
-These routes manage notification configuration for deployments that run the optional SafeOS API server.
+These routes require a session and manage notification configuration for deployments that run the optional SafeOS API server.
 
 **Important:** remote delivery channels (Web Push / SMS / Telegram / Email) require additional setup and provider credentials.
 Some endpoints may store configuration only and do not send messages by default.
 
 #### POST /api/notifications/subscribe
-Register a Web Push subscription (storage-only in the default implementation).
+Store a Web Push subscription for the signed-in profile. Registration returns `400` unless the endpoint is HTTPS on a documented push service, uses the default port, and resolves only to public addresses. Delivery repeats these checks for stored rows and never follows redirects. See the provider list in CONFIGURATION.md. The analysis worker uses it when that owner's browser-push preference is enabled.
 
 **Request:**
 ```json
@@ -400,7 +400,7 @@ Register a Web Push subscription (storage-only in the default implementation).
 Unregister a Web Push subscription.
 
 #### POST /api/notifications/telegram/register
-Register a Telegram chat ID (storage-only in the default implementation).
+Store a Telegram chat ID for the signed-in profile. Registration does not verify ownership of the chat. The analysis worker sends only when that owner's Telegram preference and personal `telegramBotToken` are set; it skips the server bot because chat verification is unavailable.
 
 **Request:**
 ```json
@@ -413,7 +413,7 @@ Register a Telegram chat ID (storage-only in the default implementation).
 Unregister a Telegram chat ID.
 
 #### GET /api/notifications/status
-Check which notification channels are configured/enabled on the server.
+Check server channel availability and the signed-in profile's registration counts.
 
 #### POST /api/notifications/test
 Send a test notification (simulated in the default implementation).
@@ -750,3 +750,71 @@ Full OpenAPI 3.0 specification available at:
 
 
 
+
+
+### Server alert delivery settings
+
+With the optional API server running, new analysis alerts of medium or greater
+severity are handed to the stream owner's enabled channels. SMS retains its
+high/critical severity threshold; browser push, Telegram and email are eligible
+from medium severity. Set preferences with
+`PATCH /api/auth/profile`, carrying `X-Session-Token` (or a Bearer token):
+
+```json
+{
+  "notificationSettings": {
+    "browserPush": true,
+    "telegram": true,
+    "sms": true,
+    "smsNumber": "+15551234567",
+    "email": true,
+    "emailRecipient": "parent@example.com"
+  }
+}
+```
+
+Email uses `email`, not the legacy `emailDigest` preference. Each channel requires
+its opt-in flag. Server SMS requires a matching `phone_numbers` row with
+`verified = 1` for the alert owner, including operator-owned alerts. Unlike the
+interactive test route, queued SMS has no operator bypass. Server email is
+operator-only, matching the test-mail route: profiles have no verified email
+field. Other owners must supply their own Resend key. Server-bot Telegram is
+skipped because chat registration does not establish recipient ownership.
+
+Personal credentials are supported in `notificationSettings`:
+
+- `smsOverride`: `accountSid`, `authToken`, and `fromNumber` (all required for a
+  personal account; a partial override never changes the server sender).
+- `emailOverride`: `apiKey`, with optional `replyTo`; `emailFromOverride` may
+  specify a sender verified in that account. Without a personal sender, complete
+  server mail configuration must supply the fallback; otherwise delivery is skipped.
+- `telegramBotToken`: a personal bot token, used with the owner's registered chats.
+
+The same profile route saves these credentials. Treat access to the profile and
+database as access to them. Clear `emailOverride` or `smsOverride` with `{}` and
+`telegramBotToken` with an empty string. A personal key or complete SMS override
+does not use the server account's recipient authorization. Email suppression
+still applies. Unauthorized channels are skipped with one fixed log line naming
+the channel and reason, without the recipient. Browser push requires VAPID
+configuration and a permitted subscription destination.
+
+All `/api/notifications` routes require a session. Push and Telegram registrations
+are stored in SQLite under that session's profile and survive restarts. A caller's
+`userId` field cannot select a different owner. Re-registering an endpoint or chat
+is idempotent. A push endpoint belongs to one current profile and session;
+registering it again transfers ownership. Signing out revokes only that session's
+push registrations. Expired sessions cannot receive push. Each profile may store
+at most 32 endpoints (a further new endpoint returns `409`); refreshing one at
+the limit is allowed. Endpoint, public key and auth key lengths are limited to
+2048, 256 and 128 characters. DNS validation has a two-second deadline. Legacy
+push rows without a session binding must be registered again. Push unsubscribe removes that owner's registrations; Telegram
+unregister removes only the named chat for that owner. Status counts are scoped
+to the caller. Existing in-memory registrations must be registered again once
+when upgrading.
+
+Each new alert starts its channels independently. One provider failure does not
+prevent the others from receiving an attempt, and an analysis retry does not
+resend an existing alert. This is one best-effort attempt per channel, not a
+retrying delivery outbox: a process crash between saving an alert and sending it
+can leave it unsent. Provider delivery itself is not guaranteed. No new alert
+WebSocket message is introduced by this change.

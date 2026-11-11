@@ -24,9 +24,9 @@ export interface CloudAnalysisResult {
 // Constants
 // =============================================================================
 
-const ANTHROPIC_MODEL = 'claude-3-haiku-20240307';
-const OPENAI_MODEL = 'gpt-4o-mini';
-const OPENROUTER_MODEL = 'google/gemini-flash-1.5';
+const ANTHROPIC_MODEL = 'claude-haiku-5-5';
+const OPENAI_MODEL = 'gpt-5.6-terra';
+const OPENROUTER_MODEL = 'google/gemini-2.5-flash';
 
 // =============================================================================
 // Clients
@@ -162,7 +162,7 @@ async function analyzeWithOpenAI(
         ],
       },
     ],
-    max_tokens: 500,
+    max_completion_tokens: 4096,
   });
 
   return {

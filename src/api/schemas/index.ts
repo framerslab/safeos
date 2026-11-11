@@ -115,6 +115,17 @@ export const UpdateUserProfileSchema = z.object({
       sms: z.boolean().optional(),
       telegram: z.boolean().optional(),
       emailDigest: z.boolean().optional(),
+      email: z.boolean().optional(),
+      emailRecipient: z.string().email().optional(),
+      emailOverride: z.object({ apiKey: z.string().max(4096).optional(), replyTo: z.string().email().optional() }).optional(),
+      emailFromOverride: z.string().max(320).optional(),
+      smsOverride: z.object({
+        accountSid: z.string().max(256).optional(),
+        authToken: z.string().max(4096).optional(),
+        fromNumber: z.string().regex(/^\+[1-9]\d{6,14}$/).optional(),
+      }).optional(),
+      telegramBotToken: z.string().max(4096).optional(),
+      smsNumber: z.string().regex(/^\+[1-9]\d{6,14}$/).optional(),
       quietHoursStart: z.string().nullable().optional(),
       quietHoursEnd: z.string().nullable().optional(),
     })
@@ -154,10 +165,10 @@ export const UpdateWebhookSchema = z.object({
 
 export const PushSubscriptionSchema = z.object({
   subscription: z.object({
-    endpoint: z.string().url(),
+    endpoint: z.string().url().max(2048),
     keys: z.object({
-      p256dh: z.string().min(1),
-      auth: z.string().min(1),
+      p256dh: z.string().min(1).max(256),
+      auth: z.string().min(1).max(128),
     }),
   }),
   userId: z.string().optional(),

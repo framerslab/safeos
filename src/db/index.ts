@@ -30,14 +30,6 @@ const BUFFER_MINUTES = 10; // Rolling buffer for privacy
 // =============================================================================
 
 const hooks: StorageHooks = {
-  onAfterWrite: async (context, _result) => {
-    // Cleanup old frames after every write
-    if (context.statement?.includes('frame_buffer')) {
-      const db = await getSafeOSDatabase();
-      await cleanupOldFrames(db);
-    }
-  },
-
   onAfterQuery: async (context, _result) => {
     // Log slow queries
     const duration = Date.now() - (context.startTime || Date.now());
@@ -199,6 +191,9 @@ export async function runMigrations(db: Database): Promise<void> {
     )
   `);
 
+  // Existing queues predate the frame identity column.
+  await addColumnIfMissing(db, 'analysis_queue', 'frame_id', 'TEXT');
+
   // Create user_profiles table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS user_profiles (
@@ -272,6 +267,13 @@ export async function runMigrations(db: Database): Promise<void> {
       FOREIGN KEY (profile_id) REFERENCES user_profiles(id)
     )
   `);
+
+  await addColumnIfMissing(db, 'push_subscriptions', 'session_id', 'TEXT');
+  // A browser endpoint belongs to one current registration. Keep the latest
+  // legacy row; unbound registrations must be refreshed by an active session.
+  await db.exec(`DELETE FROM push_subscriptions WHERE rowid NOT IN
+    (SELECT MAX(rowid) FROM push_subscriptions GROUP BY endpoint)`);
+  await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_endpoint ON push_subscriptions(endpoint)');
 
   // Create telegram_chats table
   await db.exec(`
@@ -442,7 +444,7 @@ export async function insertDefaultProfiles(db: Database): Promise<void> {
 export async function cleanupOldFrames(db: Database): Promise<void> {
   const threshold = new Date(Date.now() - BUFFER_MINUTES * 60 * 1000).toISOString();
 
-  await db.run('DELETE FROM frame_buffer WHERE created_at < ?', [threshold]);
+  await db.run('DELETE FROM frame_buffer WHERE created_at <= ?', [threshold]);
 }
 
 // =============================================================================

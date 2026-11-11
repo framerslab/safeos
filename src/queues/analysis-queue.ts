@@ -10,6 +10,7 @@ import { getSafeOSDatabase, generateId, now } from '../db';
 import { OllamaClient } from '../lib/ollama/client';
 import { cloudFallbackAnalysis } from '../lib/analysis/cloud-fallback';
 import { ContentFilter } from '../lib/safety/content-filter';
+import { NotificationManager, type NotificationPayload } from '../lib/alerts/notification-manager';
 
 // =============================================================================
 // Types
@@ -18,7 +19,7 @@ import { ContentFilter } from '../lib/safety/content-filter';
 export interface AnalysisJob {
   id: string;
   streamId: string;
-  frameId?: string;
+  frameId: string;
   imageData: string;
   motionScore: number;
   audioLevel: number;
@@ -153,13 +154,8 @@ export class AnalysisQueue {
   }
 
   async enqueue(job: AnalysisJob): Promise<void> {
+    if (!job.frameId) throw new Error('Analysis jobs require a frame identity');
     const db = await getSafeOSDatabase();
-
-    await db.run(
-      `INSERT INTO analysis_queue (id, stream_id, scenario, priority, status, retries, created_at)
-       VALUES (?, ?, ?, ?, 'pending', 0, ?)`,
-      [job.id, job.streamId, job.scenario, job.priority, job.createdAt]
-    );
 
     // Store frame data in buffer if not already there
     if (job.imageData && job.frameId) {
@@ -172,6 +168,12 @@ export class AnalysisQueue {
         );
       }
     }
+
+    await db.run(
+      `INSERT INTO analysis_queue (id, stream_id, frame_id, scenario, priority, status, retries, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', 0, ?)`,
+      [job.id, job.streamId, job.frameId, job.scenario, job.priority, job.createdAt]
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -185,21 +187,22 @@ export class AnalysisQueue {
 
     const db = await getSafeOSDatabase();
 
-    // Get next pending job
+    // Claim atomically so overlapping worker ticks cannot analyse the same job.
     const job = await db.get<any>(
-      `SELECT * FROM analysis_queue 
-       WHERE status = 'pending' 
-       ORDER BY priority DESC, created_at ASC 
-       LIMIT 1`
+      `UPDATE analysis_queue SET status = 'processing'
+       WHERE id = (
+         SELECT id FROM analysis_queue WHERE status = 'pending'
+         ORDER BY priority DESC, created_at ASC LIMIT 1
+       ) AND status = 'pending'
+       RETURNING *`
     );
 
     if (!job) return;
-
-    // Mark as processing
-    await db.run(
-      `UPDATE analysis_queue SET status = 'processing' WHERE id = ?`,
-      [job.id]
-    );
+    if (!job.frame_id) {
+      await db.run("UPDATE analysis_queue SET status = 'failed' WHERE id = ?", [job.id]);
+      console.warn('Analysis job failed: missing frame identity');
+      return;
+    }
 
     this.activeJobs++;
 
@@ -233,11 +236,16 @@ export class AnalysisQueue {
   private async processJob(job: any): Promise<void> {
     const db = await getSafeOSDatabase();
     const startTime = Date.now();
+    const stored = await this.readStoredResult(job.id);
+    if (stored) {
+      if (['medium', 'high', 'critical'].includes(stored.concernLevel)) await this.createAlert(stored);
+      return;
+    }
 
     // Get frame data
     const frame = await db.get<any>(
-      `SELECT * FROM frame_buffer WHERE stream_id = ? ORDER BY created_at DESC LIMIT 1`,
-      [job.stream_id]
+      `SELECT * FROM frame_buffer WHERE id = ? AND stream_id = ? AND created_at > ?`,
+      [job.frame_id, job.stream_id, new Date(Date.now() - 10 * 60 * 1000).toISOString()]
     );
 
     if (!frame || !frame.frame_data) {
@@ -317,9 +325,12 @@ export class AnalysisQueue {
       // Flag is already created by content filter
     }
 
+    // A retry keeps the same result and alert identity.
+    result.id = job.id;
+
     // Store result
     await db.run(
-      `INSERT INTO analysis_results 
+      `INSERT OR IGNORE INTO analysis_results
        (id, stream_id, frame_id, concern_level, description, detected_issues, 
         processing_time_ms, model_used, is_cloud_fallback, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -337,10 +348,29 @@ export class AnalysisQueue {
       ]
     );
 
+    // Use the persisted result even if another attempt already saved it.
+    result = (await this.readStoredResult(job.id))!;
+    if (!result) throw new Error('Analysis result was not stored');
     // Create alert if concern level is medium or higher
     if (['medium', 'high', 'critical'].includes(result.concernLevel)) {
       await this.createAlert(result);
     }
+  }
+
+  private async readStoredResult(id: string): Promise<AnalysisResult | undefined> {
+    const row = await (await getSafeOSDatabase()).get<any>('SELECT * FROM analysis_results WHERE id = ?', [id]);
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      streamId: row.stream_id,
+      frameId: row.frame_id,
+      concernLevel: row.concern_level,
+      description: row.description,
+      detectedIssues: JSON.parse(row.detected_issues || '[]'),
+      processingTimeMs: row.processing_time_ms,
+      modelUsed: row.model_used,
+      isCloudFallback: !!row.is_cloud_fallback,
+    };
   }
 
   private async cloudAnalysis(
@@ -421,21 +451,21 @@ export class AnalysisQueue {
   private async createAlert(result: AnalysisResult): Promise<void> {
     const db = await getSafeOSDatabase();
 
-    const severityMap: Record<string, string> = {
-      medium: 'medium',
-      high: 'high',
-      critical: 'critical',
-    };
+    const alertId = `alert-${result.id}`;
+    // Insertion claims the delivery attempt; retries must not resend it.
+    if (await db.get('SELECT id FROM alerts WHERE id = ?', [alertId])) return;
+    const timestamp = now();
+    const severity = result.concernLevel as NotificationPayload['severity'];
 
     await db.run(
       `INSERT INTO alerts 
        (id, stream_id, alert_type, severity, message, metadata, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        generateId(),
+        alertId,
         result.streamId,
         'analysis',
-        severityMap[result.concernLevel] || 'medium',
+        severity,
         result.description.slice(0, 500),
         JSON.stringify({
           analysisId: result.id,
@@ -443,9 +473,31 @@ export class AnalysisQueue {
           modelUsed: result.modelUsed,
           isCloudFallback: result.isCloudFallback,
         }),
-        now(),
+        timestamp,
       ]
     );
+
+    try {
+      const owner = await db.get<{ id: string; notification_settings: string }>(
+        `SELECT p.id, p.notification_settings FROM user_profiles p
+         JOIN streams s ON s.user_id = p.id WHERE s.id = ?`, [result.streamId]
+      );
+      if (owner) {
+        const settings = JSON.parse(owner.notification_settings || '{}');
+        const manager = new NotificationManager(settings, owner.id);
+        await manager.notify({
+          streamId: result.streamId,
+          alertId,
+          severity,
+          title: 'Monitoring alert',
+          message: result.description.slice(0, 500),
+          timestamp,
+        });
+      }
+    } catch {
+      // Delivery is best effort. Do not retry analysis and duplicate other channels.
+      console.error(`Alert delivery failed for ${alertId}`);
+    }
 
     console.log(`Alert created for stream ${result.streamId}: ${result.concernLevel}`);
   }

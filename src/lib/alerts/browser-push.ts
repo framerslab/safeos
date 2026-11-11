@@ -7,6 +7,7 @@
  */
 
 import webpush from 'web-push';
+import { resolvePushDestination, pushDestinationAgent } from './push-destination.js';
 
 // =============================================================================
 // Types
@@ -64,6 +65,7 @@ export async function sendBrowserPushNotification(
   subscription: PushSubscription,
   payload: PushPayload
 ): Promise<void> {
+  const destination = await resolvePushDestination(subscription.endpoint);
   setupVapid();
 
   if (!vapidConfigured) {
@@ -84,7 +86,16 @@ export async function sendBrowserPushNotification(
     },
   });
 
-  await webpush.sendNotification(subscription, pushPayload);
+  const agent = pushDestinationAgent(destination);
+  try {
+    // web-push uses https.request directly and does not follow redirects.
+    const response = await webpush.sendNotification(
+      { ...subscription, endpoint: destination.url.href }, pushPayload, { agent, timeout: 10000 }
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw new Error('Push service did not accept the notification');
+    }
+  } finally { agent.destroy(); }
 }
 
 /**
