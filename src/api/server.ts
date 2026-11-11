@@ -10,6 +10,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import { createServer, Server } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
+import sharp from 'sharp';
 import { getSafeOSDatabase, runMigrations, generateId, now } from '../db';
 import { AnalysisQueue } from '../queues/analysis-queue';
 import { OllamaClient } from '../lib/ollama/client';
@@ -45,9 +46,6 @@ interface WSClient {
   profileId?: string;
   authTimer?: NodeJS.Timeout;
   subscriptions: Set<string>;
-  // Rate limiting
-  frameCount: number;
-  frameWindowStart: number;
   // Heartbeat tracking
   lastPong: number;
   missedHeartbeats: number;
@@ -71,6 +69,10 @@ const WS_HEARTBEAT_INTERVAL = 30000;
 // Rate limiting constants
 const MAX_FRAMES_PER_MINUTE = 30;
 const FRAME_WINDOW_MS = 60000; // 1 minute
+const MAX_FRAME_BYTES = 2 * 1024 * 1024;
+const MAX_FRAME_PIXELS = 16_000_000;
+const MAX_WS_PAYLOAD = 3 * 1024 * 1024;
+const MAX_PENDING_MESSAGES = 32;
 const MAX_MISSED_HEARTBEATS = 3; // Disconnect after 3 missed heartbeats (90 seconds)
 
 /**
@@ -91,6 +93,7 @@ export class SafeOSServer {
   private server: Server;
   private wss: WebSocketServer;
   private clients: Map<string, WSClient> = new Map();
+  private frameAllowances = new Map<string, { count: number; resetAt: number }>();
   private analysisQueue: AnalysisQueue | null = null;
   private ollamaClient: OllamaClient;
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -98,7 +101,7 @@ export class SafeOSServer {
   constructor() {
     this.app = express();
     this.server = createServer(this.app);
-    this.wss = new WebSocketServer({ server: this.server });
+    this.wss = new WebSocketServer({ server: this.server, maxPayload: MAX_WS_PAYLOAD });
     this.ollamaClient = new OllamaClient();
 
     this.setupMiddleware();
@@ -190,7 +193,6 @@ export class SafeOSServer {
     this.wss.on('connection', (ws: WebSocket, req) => {
       const client: WSClient = {
         id: generateId(), ws, subscriptions: new Set(),
-        frameCount: 0, frameWindowStart: Date.now(),
         lastPong: Date.now(), missedHeartbeats: 0,
       };
       this.clients.set(client.id, client);
@@ -202,7 +204,12 @@ export class SafeOSServer {
       const token = typeof header === 'string' ? header
         : req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
       let pending = token ? this.authenticateClient(client, token) : Promise.resolve();
+      let queuedMessages = 0;
       ws.on('message', (data) => {
+        if (++queuedMessages > MAX_PENDING_MESSAGES) {
+          ws.close(1008, 'Too many pending messages');
+          return;
+        }
         // Preserve wire order across asynchronous session and database reads.
         pending = pending.then(async () => {
           if (ws.readyState !== WebSocket.OPEN) return;
@@ -223,7 +230,7 @@ export class SafeOSServer {
             return;
           }
           if (await this.validateClientSession(client)) await this.handleWSMessage(client, message);
-        }).catch(() => ws.close(1011, 'Unable to process message'));
+        }).catch(() => ws.close(1011, 'Unable to process message')).finally(() => { queuedMessages--; });
       });
       ws.on('close', () => {
         clearTimeout(client.authTimer);
@@ -236,6 +243,9 @@ export class SafeOSServer {
     // Start heartbeat with stale client cleanup
     this.heartbeatInterval = setInterval(() => {
       const staleClients: string[] = [];
+      for (const [profileId, allowance] of this.frameAllowances) {
+        if (allowance.resetAt <= Date.now()) this.frameAllowances.delete(profileId);
+      }
 
       this.clients.forEach((client) => {
         if (!client.profileId) return;
@@ -376,34 +386,67 @@ export class SafeOSServer {
     }
   }
 
+  private frameError(client: WSClient, code: 'INVALID_FRAME' | 'FRAME_TOO_LARGE'): void {
+    this.sendToClient(client, {
+      type: 'error', payload: { code, message: 'Use a decodable JPEG, PNG or WebP up to 2 MiB and 16 megapixels' },
+    });
+  }
+
   private async handleFrame(client: WSClient, message: WSMessage): Promise<void> {
     const { streamId, payload } = message;
     if (!streamId || !payload) return;
 
-    // Rate limiting check
+    // Reserve before decoding or awaiting: simultaneous sockets share one
+    // allowance for the profile, and disconnecting never deletes it.
     const currentTime = Date.now();
-    if (currentTime - client.frameWindowStart > FRAME_WINDOW_MS) {
-      // Reset window
-      client.frameCount = 0;
-      client.frameWindowStart = currentTime;
+    let allowance = this.frameAllowances.get(client.profileId!);
+    if (!allowance || allowance.resetAt <= currentTime) {
+      allowance = { count: 0, resetAt: currentTime + FRAME_WINDOW_MS };
+      this.frameAllowances.set(client.profileId!, allowance);
     }
-
-    client.frameCount++;
-
-    if (client.frameCount > MAX_FRAMES_PER_MINUTE) {
-      // Rate limit exceeded - notify client and drop frame
+    if (allowance.count >= MAX_FRAMES_PER_MINUTE) {
       this.sendToClient(client, {
-        type: 'error',
-        payload: {
-          code: 'RATE_LIMITED',
-          message: `Frame rate limit exceeded (max ${MAX_FRAMES_PER_MINUTE}/min). Frame dropped.`,
-        },
+        type: 'error', payload: { code: 'RATE_LIMITED', message: 'Maximum 30 frame attempts per minute' },
       });
-      console.log(`Rate limit exceeded for client ${client.id}: ${client.frameCount} frames/min`);
       return;
     }
+    allowance.count++;
 
-    const { imageData, motionScore, audioLevel } = payload;
+    let { imageData } = payload;
+    const { motionScore, audioLevel } = payload;
+    if (typeof imageData !== 'string') {
+      this.frameError(client, 'INVALID_FRAME');
+      return;
+    }
+    // Accept the camera's data URL as well as plain base64; store plain base64.
+    imageData = imageData.replace(/^data:image\/(?:jpeg|png|webp);base64,/, '');
+    if (imageData.length > 4 * Math.ceil(MAX_FRAME_BYTES / 3)) {
+      this.frameError(client, 'FRAME_TOO_LARGE');
+      return;
+    }
+    if (!imageData || imageData.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageData)) {
+      this.frameError(client, 'INVALID_FRAME');
+      return;
+    }
+    const bytes = Buffer.from(imageData, 'base64');
+    if (bytes.length > MAX_FRAME_BYTES) {
+      this.frameError(client, 'FRAME_TOO_LARGE');
+      return;
+    }
+    try {
+      if (bytes.toString('base64') !== imageData) throw new Error('Invalid base64');
+      const image = sharp(bytes, { limitInputPixels: MAX_FRAME_PIXELS, failOn: 'warning' });
+      const metadata = await image.metadata();
+      if (!['jpeg', 'png', 'webp'].includes(metadata.format || '') || (metadata.pages || 1) !== 1) {
+        throw new Error('Unsupported image');
+      }
+      // Metadata alone does not establish that the image is decodable.
+      await image.raw().toBuffer();
+    } catch {
+      this.frameError(client, 'INVALID_FRAME');
+      return;
+    }
+    if (!await this.validateClientSession(client) || !await this.ownsStream(client, streamId)) return;
 
     // Store frame in buffer
     const db = await getSafeOSDatabase();
