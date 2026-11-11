@@ -47,6 +47,7 @@ export default function SetupPage() {
   const deviceId = useCameraStore(state => state.deviceId);
   const [currentStep, setCurrentStep] = useState<Step>('welcome');
   const [permissionStatus, setPermissionStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
@@ -73,6 +74,8 @@ export default function SetupPage() {
   };
 
   const requestPermissions = async () => {
+    setPermissionError(null);
+    setPermissionStatus('pending');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: deviceId ? { deviceId: { exact: deviceId } } : true,
@@ -83,7 +86,13 @@ export default function SetupPage() {
       onboarding.setCameraPermission(true);
       onboarding.setMicrophonePermission(true);
     } catch (error) {
-      setPermissionStatus('denied');
+      const name = error instanceof Error ? error.name : '';
+      const denied = name === 'NotAllowedError' || name === 'SecurityError';
+      setPermissionStatus(denied ? 'denied' : 'pending');
+      setPermissionError(name === 'OverconstrainedError' || name === 'NotFoundError'
+        ? 'The selected camera is unavailable. Choose another camera.'
+        : denied ? 'Permission denied. Please enable camera/microphone access in your browser settings.'
+          : 'Unable to access the camera or microphone. Check the device and try again.');
     }
   };
 
@@ -157,6 +166,7 @@ export default function SetupPage() {
           {currentStep === 'permissions' && (
             <PermissionsStep
               status={permissionStatus}
+              errorMessage={permissionError}
               onRequest={requestPermissions}
               onContinue={goNext}
               onBack={goBack}
@@ -387,11 +397,13 @@ function ScenarioStep({
 
 function PermissionsStep({
   status,
+  errorMessage,
   onRequest,
   onContinue,
   onBack,
 }: {
   status: 'pending' | 'granted' | 'denied';
+  errorMessage: string | null;
   onRequest: () => void;
   onContinue: () => void;
   onBack: () => void;
@@ -428,10 +440,10 @@ function PermissionsStep({
           />
         </div>
 
-        {status === 'denied' && (
+        {errorMessage && (
           <div className="p-3 rounded bg-[var(--color-alert-critical)]/10 border border-[var(--color-alert-critical)]/30">
             <p className="text-sm text-[var(--color-alert-critical)]">
-              Permission denied. Please enable camera/microphone access in your browser settings.
+              {errorMessage}
             </p>
           </div>
         )}

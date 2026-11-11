@@ -140,6 +140,7 @@ export function CameraFeed({
   const [audioLevel, setAudioLevel] = useState(0);
   const [hasCrying, setHasCrying] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [microphoneUnavailable, setMicrophoneUnavailable] = useState(false);
   const [pixelChangePercent, setPixelChangePercent] = useState(0);
   const [pixelChangedPixels, setPixelChangedPixels] = useState(0);
   const motionScoreRef = useRef(0);
@@ -228,6 +229,7 @@ export function CameraFeed({
     resetCryDetection();
     onVideoReadyRef.current?.(null);
     setCameraActive(false);
+    setMicrophoneUnavailable(false);
     setIsLoading(false);
   }, []);
 
@@ -253,7 +255,8 @@ export function CameraFeed({
         return;
       }
       streamRef.current = acquired;
-      const tracks = acquired.getTracks();
+      const tracks = acquired.getVideoTracks();
+      const audioTracks = acquired.getAudioTracks();
       const lost = () => {
         if (!isCurrent()) return;
         stopCamera();
@@ -265,7 +268,30 @@ export function CameraFeed({
         track.addEventListener('ended', lost);
         track.addEventListener('mute', lost);
       }
+      const audioLost = () => {
+        if (!isCurrent()) return;
+        analyserRef.current = null;
+        if (audioContextRef.current) {
+          void audioContextRef.current.close().catch(() => {});
+          audioContextRef.current = null;
+        }
+        audioLevelRef.current = 0;
+        hasCryingRef.current = false;
+        setAudioLevel(0);
+        setHasCrying(false);
+        resetCryDetection();
+        onAudioRef.current?.(0);
+        setMicrophoneUnavailable(true);
+      };
+      for (const track of audioTracks) {
+        track.addEventListener('ended', audioLost);
+        track.addEventListener('mute', audioLost);
+      }
       removeTrackListenersRef.current = () => {
+        for (const track of audioTracks) {
+          track.removeEventListener('ended', audioLost);
+          track.removeEventListener('mute', audioLost);
+        }
         for (const track of tracks) {
           track.removeEventListener('ended', lost);
           track.removeEventListener('mute', lost);
@@ -283,12 +309,15 @@ export function CameraFeed({
         acquired.getTracks().forEach((track) => track.stop());
         return;
       }
-      if (audioEnabled) {
+      const audioAvailable = audioTracks.some(track => track.readyState === 'live' && !track.muted);
+      if (audioEnabled && audioAvailable) {
         audioContextRef.current = new AudioContext();
         const source = audioContextRef.current.createMediaStreamSource(acquired);
         analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 256;
         source.connect(analyserRef.current);
+      } else if (audioEnabled) {
+        audioLost();
       }
       setCameraActive(true);
       setIsLoading(false);
@@ -296,7 +325,11 @@ export function CameraFeed({
     } catch (err) {
       if (!isCurrent()) return;
       stopCamera();
-      const error = err instanceof Error ? err : new Error('Failed to access camera');
+      const message = (err instanceof Error && err.message.trim()) ||
+        (err instanceof Error && err.name === 'OverconstrainedError'
+          ? 'The selected camera is unavailable. Choose another camera.'
+          : 'Failed to access camera. Check the device and browser permissions.');
+      const error = new Error(message);
       setError(error.message);
       onErrorRef.current?.(error);
     }
@@ -514,6 +547,12 @@ export function CameraFeed({
             </button>}
           </div>
         </div>
+      )}
+
+      {cameraActive && microphoneUnavailable && (
+        <p role="status" className="absolute bottom-4 left-4 right-4 rounded-lg bg-slate-900/90 p-3 text-sm text-amber-300">
+          Microphone unavailable. Video monitoring continues.
+        </p>
       )}
 
       {/* Status indicators */}
