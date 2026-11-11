@@ -164,3 +164,21 @@ describe('personal active monitoring choices', () => {
     expect((await call('get', '/api/profiles/profile-baby-default', bob.token)).body.profile.is_active).toBe(1);
   });
 });
+
+describe('unassigned legacy monitoring profiles', () => {
+  it('hides legacy rows until the operator assigns an owner', async () => {
+    await db.run(`INSERT INTO monitoring_profiles (id, name, scenario, settings, is_active, created_at)
+      VALUES ('legacy-watch', 'Private old settings', 'baby', '{"privateNote":"nursery"}', 1, ?)`, [now()]);
+    await runMigrations(db);
+    const caller = await guest();
+    const list = await call('get', '/api/profiles', caller.token);
+    expect(list.body.profiles.map((p: any) => p.id)).not.toContain('legacy-watch');
+    expect(list.body.profiles.map((p: any) => p.id)).toContain('profile-baby-default');
+    expect((await call('get', '/api/profiles/legacy-watch', caller.token)).status).toBe(404);
+    expect((await call('post', '/api/profiles/legacy-watch/activate', caller.token)).status).toBe(404);
+    await db.run('UPDATE monitoring_profiles SET owner_id = ? WHERE id = ?', [caller.profile.id, 'legacy-watch']);
+    expect((await call('get', '/api/profiles/legacy-watch', caller.token)).status).toBe(200);
+    const other = await guest();
+    expect((await call('get', '/api/profiles/legacy-watch', other.token)).status).toBe(404);
+  });
+});
