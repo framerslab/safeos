@@ -569,116 +569,114 @@ Action a content flag.
 
 ## WebSocket API
 
-Connect to `ws://localhost:3001` for real-time frame submission and alerts.
+Connect to `ws://localhost:3001/ws` (use `wss://` outside local development).
 
-### Connection
+### Connection and session
 
-The WebSocket reads no session token today: it is open to any client, and its sign-in is separate work. The HTTP rule above (no token in a query string) applies to it too once it gains one.
+A live session from `POST /api/auth/session` is required. Native clients may
+supply `X-Session-Token` or `Authorization: Bearer <token>` in the handshake.
+Browser clients send this as their first message, within five seconds:
 
+```json
+{"type":"authenticate","payload":{"token":"session-token"}}
 ```
-ws://localhost:3001
+
+Wait for `{"type":"connected","payload":{"clientId":"peer-id"}}` before
+sending application messages. Missing, unknown, revoked or expired sessions
+close with code `1008`; session checks also run on each message and heartbeat.
+Tokens in URLs are not accepted. The browser client uses the current sign-in
+session. The hook and client class do not open sockets for tokens beginning
+with `local-` or `offline-`. After a `1008` close they stop retrying that
+session, including explicit reconnect attempts, until the session changes.
+The socket hook initializes a session on a fresh monitoring visit. Logout and
+session changes cancel old retries and detach the old socket's event handlers.
+Updating hook callbacks does not reconnect the socket.
+
+### Stream ownership
+
+Only the stream's owner may join it, submit frames or audio levels, or relay
+signalling. A missing or unowned stream receives an `error` message with
+`payload.code: "STREAM_FORBIDDEN"`.
+
+```json
+{"type":"join_stream","streamId":"stream-uuid"}
 ```
 
-### Client → Server Messages
+Joining receives `metrics` and `audio_level` events for that stream. Send
+`{"type":"leave_stream"}` to stop receiving them. `offer`, `answer` and
+`ice-candidate` messages must name `streamId` and `payload.targetPeerId`;
+both peers must be signed in as the stream owner and joined to that same stream.
+The forwarded message includes the sender's `payload.peerId`.
 
-#### Submit Frame for Analysis
+### Frame submission
+
 ```json
 {
   "type": "frame",
   "streamId": "stream-uuid",
-  "frameData": "base64-encoded-jpeg",
-  "motionScore": 15,
-  "audioLevel": 8,
-  "timestamp": "2024-12-21T00:00:00.000Z"
-}
-```
-
-**Rate Limit:** 30 frames per minute per client. Excess frames receive `rate_limited` response.
-
-#### Acknowledge Alert
-```json
-{
-  "type": "acknowledge",
-  "alertId": "alert-uuid"
-}
-```
-
-#### Heartbeat Response
-```json
-{
-  "type": "pong"
-}
-```
-
-### Server → Client Messages
-
-#### Alert Notification
-```json
-{
-  "type": "alert",
-  "alert": {
-    "id": "alert-uuid",
-    "streamId": "stream-uuid",
-    "alertType": "motion_detected",
-    "severity": "high",
-    "message": "Unusual motion detected in monitored area",
-    "createdAt": "2024-12-21T00:00:00.000Z"
-  }
-}
-```
-
-#### Analysis Result
-```json
-{
-  "type": "analysis",
-  "result": {
-    "concernLevel": "medium",
-    "description": "Pet appears to be scratching at the door",
-    "detectedIssues": ["door_scratching", "vocalization"]
-  }
-}
-```
-
-#### Heartbeat Ping
-```json
-{
-  "type": "ping"
-}
-```
-
-Clients must respond with `pong` within 30 seconds. After 3 missed heartbeats, the connection is terminated.
-
-#### Rate Limit Warning
-```json
-{
-  "type": "rate_limited",
-  "message": "Frame submission rate exceeded",
-  "retryAfter": 2000
-}
-```
-
-#### Stats Update
-```json
-{
-  "type": "stats",
   "payload": {
-    "activeStreams": 2,
-    "analysisQueueSize": 5,
-    "ollamaStatus": "online"
+    "imageData": "base64-encoded-jpeg",
+    "motionScore": 15,
+    "audioLevel": 8
   }
 }
 ```
 
-### Channel Subscriptions
+Images must fully decode as a single JPEG, PNG or WebP image, at most
+**2 MiB (2,097,152 bytes)** before base64 encoding and **16,000,000 pixels**.
+Plain base64 and matching `data:image/...;base64,` URLs are accepted; stored
+frames use plain base64. Invalid content receives `INVALID_FRAME`; images
+above the byte limit receive `FRAME_TOO_LARGE`. Rejected frames are neither
+stored nor queued. Entire WebSocket messages above **3 MiB** close with `1009`.
+A connection with more than 32 pending messages closes with `1008`.
+At most **two image decodes** run at once across the API process. While both
+slots are occupied, additional frames receive `RATE_LIMITED` and are not
+stored or queued. Decoding scans pixels without returning a full bitmap to
+JavaScript.
 
-Subscribe to specific event channels:
+Each profile has **30 frame attempts per 60-second window**, shared across
+its streams, sessions and concurrent connections. Invalid images count toward
+this allowance. Reconnecting does not reset it; a different profile has its
+own allowance. Counters live in the API process and reset on process restart;
+multiple API processes would need a shared limit store.
+
+Frames with motion of at least 10 or audio of at least 15 are queued for
+analysis using the stream's saved `pet`, `baby` or `elderly` scenario.
+
+### Audio and heartbeat
 
 ```json
-{
-  "type": "subscribe",
-  "channel": "alerts" | "stats" | "stream:{streamId}"
-}
+{"type":"audio_level","streamId":"stream-uuid","payload":{"level":12,"hasCrying":false}}
 ```
+
+Respond to server `ping` messages with `{"type":"pong"}`. The server also
+answers client `ping` messages with `pong`. Heartbeats run every 30 seconds;
+a connection closes after more than three missed responses. Both browser
+clients answer server pings automatically after sign-in.
+
+### Errors and events
+
+Errors use this envelope:
+
+```json
+{"type":"error","payload":{"code":"RATE_LIMITED","message":"Maximum 30 frame attempts per minute"}}
+```
+
+Stream metrics use `{"type":"metrics","streamId":"...","payload":{"motionScore":15,"audioLevel":8}}`.
+Messages from the server include a millisecond `timestamp`. Channel
+`subscribe` and `unsubscribe` messages accept a `channel` field; subscribing
+to `stream:<id>` requires ownership too. Channel names must contain 1–128
+ASCII letters, digits, colons, underscores or hyphens. Each connection holds
+at most 32 distinct subscriptions. Invalid names receive `INVALID_CHANNEL`;
+additional subscriptions receive `SUBSCRIPTION_LIMIT`. Subscribing again to
+an existing channel uses no extra slot; unsubscribing frees a slot.
+Subscription and unknown-message log lines do not include the supplied value.
+An internal failure closes the socket with `1011` and logs one fixed diagnostic
+with the error name, without the error message, session or client data.
+
+The current worker does not send
+alert or analysis-result events over this socket; use the HTTP routes to
+read those records and acknowledge alerts.
 
 ---
 

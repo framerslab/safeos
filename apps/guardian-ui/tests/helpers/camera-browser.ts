@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/stores/auth-store';
 import { act, fireEvent, screen } from '@testing-library/react';
 
 export class BrowserTrack extends EventTarget {
@@ -21,12 +22,18 @@ export class BrowserSocket {
   onmessage: ((event: { data: string }) => void) | null = null;
   sent: any[] = [];
   constructor(public url: string) { BrowserSocket.instances.push(this); }
-  send = (data: string) => { this.sent.push(JSON.parse(data)); };
+  send = (data: string) => {
+    const message = JSON.parse(data);
+    this.sent.push(message);
+    if (message.type === 'authenticate') this.receive({ type: 'connected', payload: { clientId: 'camera-peer' } });
+  };
   close = jest.fn(() => { this.readyState = 3; });
   receive(message: unknown) { this.onmessage?.({ data: JSON.stringify(message) }); }
 }
 
 export function installCameraBrowser() {
+  // These camera scenarios use a server session; offline sessions are tested separately.
+  useAuthStore.setState({ sessionToken: 'camera-session', isInitialized: true, isLoading: false });
   BrowserSocket.instances = [];
   Object.defineProperty(global, 'WebSocket', { configurable: true, value: BrowserSocket });
   const video = new BrowserTrack('video');

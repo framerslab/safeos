@@ -314,69 +314,46 @@ CREATE INDEX idx_frame_buffer_created_at ON frame_buffer(created_at);
 
 ## WebSocket Protocol
 
+A valid session is required through handshake headers or a browser's first
+`authenticate` message. The server sends `connected` only after validation.
+Stream joins, frames, audio and signalling are restricted to the stream owner;
+signalling peers must also be joined to the same stream.
+
 ### Client -> Server Messages
 
 ```typescript
-// Submit frame for analysis
+// First message for a browser client
+{ type: 'authenticate', payload: { token: 'session-token' } }
+
+// Submit a frame after receiving connected
 {
   type: 'frame',
-  streamId: string,
-  frameData: string,  // base64
-  motionScore: number,
-  audioLevel: number,
-  timestamp: string
-}
-
-// Acknowledge alert
-{
-  type: 'acknowledge',
-  alertId: string
+  streamId: 'stream-id',
+  payload: { imageData: 'base64-image', motionScore: 15, audioLevel: 8 }
 }
 
 // Heartbeat response
-{
-  type: 'pong'
-}
+{ type: 'pong' }
 ```
+
+Frames fully decode as JPEG, PNG or WebP before storage, with a 2 MiB byte
+limit and 16 megapixel limit. At most two frames decode concurrently across
+the process, without returning full bitmaps to JavaScript. Analysis jobs use
+the stream's stored scenario.
+See [WebSocket API](API.md#websocket-api) for the complete wire format.
 
 ### Server -> Client Messages
 
 ```typescript
-// Alert notification
-{
-  type: 'alert',
-  alert: {
-    id: string,
-    streamId: string,
-    alertType: string,
-    severity: string,
-    message: string,
-    createdAt: string
-  }
-}
-
-// Analysis result
-{
-  type: 'analysis',
-  result: {
-    concernLevel: string,
-    description: string,
-    detectedIssues: string[]
-  }
-}
-
-// Heartbeat ping
-{
-  type: 'ping'
-}
-
-// Rate limit warning
-{
-  type: 'rate_limited',
-  message: string,
-  retryAfter: number
-}
+{ type: 'connected', payload: { clientId: 'peer-id' } }
+{ type: 'metrics', streamId: 'stream-id', payload: { motionScore: 15, audioLevel: 8 } }
+{ type: 'audio_level', streamId: 'stream-id', payload: { level: 12, hasCrying: false } }
+{ type: 'ping' }
+{ type: 'error', payload: { code: 'RATE_LIMITED', message: 'Maximum 30 frame attempts per minute' } }
 ```
+
+The current analysis worker does not emit alert or analysis-result socket
+events. Those records are read and acknowledged through HTTP.
 
 ---
 
@@ -409,7 +386,9 @@ WHERE s.user_id = ?;
 
 ```
 WebSocket:
-- 30 frames/minute per client
+- 30 frame attempts/minute per profile across sessions and connections
+- Allowances survive reconnects; process restarts reset them
+- 3 MiB maximum message; 32 pending messages per connection
 - Heartbeat timeout: 90 seconds (3 missed pings)
 - Stale clients automatically disconnected
 

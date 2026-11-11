@@ -11,6 +11,7 @@ import { createServer, Server } from 'http';
 import { isIP } from 'net';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
+import sharp from 'sharp';
 import { getSafeOSDatabase, runMigrations, generateId, now } from '../db';
 import { AnalysisQueue } from '../queues/analysis-queue';
 import { OllamaClient } from '../lib/ollama/client';
@@ -43,10 +44,10 @@ interface WSClient {
   id: string;
   ws: WebSocket;
   streamId?: string;
+  token?: string;
+  profileId?: string;
+  authTimer?: NodeJS.Timeout;
   subscriptions: Set<string>;
-  // Rate limiting
-  frameCount: number;
-  frameWindowStart: number;
   // Heartbeat tracking
   lastPong: number;
   missedHeartbeats: number;
@@ -70,6 +71,15 @@ const WS_HEARTBEAT_INTERVAL = 30000;
 // Rate limiting constants
 const MAX_FRAMES_PER_MINUTE = 30;
 const FRAME_WINDOW_MS = 60000; // 1 minute
+const MAX_FRAME_BYTES = 2 * 1024 * 1024;
+const MAX_FRAME_PIXELS = 16_000_000;
+const MAX_WS_PAYLOAD = 3 * 1024 * 1024;
+const MAX_PENDING_MESSAGES = 32;
+const MAX_CHANNEL_LENGTH = 128;
+const MAX_SUBSCRIPTIONS = 32;
+const MAX_CONCURRENT_FRAME_DECODES = 2;
+// Shared by every socket and server instance in this process.
+let activeFrameDecodes = 0;
 const MAX_MISSED_HEARTBEATS = 3; // Disconnect after 3 missed heartbeats (90 seconds)
 
 /** Only explicit proxy IP addresses are trusted; invalid settings fail closed. */
@@ -88,6 +98,7 @@ export class SafeOSServer {
   private server: Server;
   private wss: WebSocketServer;
   private clients: Map<string, WSClient> = new Map();
+  private frameAllowances = new Map<string, { count: number; resetAt: number }>();
   private analysisQueue: AnalysisQueue | null = null;
   private ollamaClient: OllamaClient;
   private heartbeatInterval: NodeJS.Timeout | null = null;
@@ -95,7 +106,7 @@ export class SafeOSServer {
   constructor() {
     this.app = express();
     this.server = createServer(this.app);
-    this.wss = new WebSocketServer({ server: this.server });
+    this.wss = new WebSocketServer({ server: this.server, maxPayload: MAX_WS_PAYLOAD });
     this.ollamaClient = new OllamaClient();
 
     this.setupMiddleware();
@@ -179,57 +190,66 @@ export class SafeOSServer {
   // ---------------------------------------------------------------------------
 
   private setupWebSocket(): void {
-    this.wss.on('connection', (ws: WebSocket) => {
-      const clientId = generateId();
-      const now = Date.now();
+    this.wss.on('connection', (ws: WebSocket, req) => {
       const client: WSClient = {
-        id: clientId,
-        ws,
-        subscriptions: new Set(),
-        // Initialize rate limiting
-        frameCount: 0,
-        frameWindowStart: now,
-        // Initialize heartbeat tracking
-        lastPong: now,
-        missedHeartbeats: 0,
+        id: generateId(), ws, subscriptions: new Set(),
+        lastPong: Date.now(), missedHeartbeats: 0,
       };
-      this.clients.set(clientId, client);
+      this.clients.set(client.id, client);
+      client.authTimer = setTimeout(() => ws.close(1008, 'Session required'), 5000);
 
-      console.log(`WebSocket client connected: ${clientId}`);
-
-      // Send welcome message
-      this.sendToClient(client, {
-        type: 'connected',
-        payload: { clientId },
-      });
-
-      // Handle messages
-      ws.on('message', async (data) => {
-        try {
-          const message: WSMessage = JSON.parse(data.toString());
-          await this.handleWSMessage(client, message);
-        } catch (err) {
-          console.error('Failed to parse WebSocket message:', err);
+      // Browser clients authenticate in their first message. Native clients
+      // may use the same headers as HTTP. Credentials never belong in URLs.
+      const header = req.headers['x-session-token'];
+      const token = typeof header === 'string' ? header
+        : req.headers.authorization?.match(/^Bearer (.+)$/i)?.[1];
+      let pending = token ? this.authenticateClient(client, token) : Promise.resolve();
+      let queuedMessages = 0;
+      ws.on('message', (data) => {
+        if (++queuedMessages > MAX_PENDING_MESSAGES) {
+          ws.close(1008, 'Too many pending messages');
+          return;
         }
+        // Preserve wire order across asynchronous session and database reads.
+        pending = pending.then(async () => {
+          if (ws.readyState !== WebSocket.OPEN) return;
+          let message: WSMessage;
+          try {
+            message = JSON.parse(data.toString());
+            if (!message || typeof message.type !== 'string') throw new Error('Invalid message');
+          } catch {
+            ws.close(1007, 'Invalid message');
+            return;
+          }
+          if (!client.profileId) {
+            if (message.type !== 'authenticate') {
+              ws.close(1008, 'Session required');
+              return;
+            }
+            await this.authenticateClient(client, message.payload?.token);
+            return;
+          }
+          if (await this.validateClientSession(client)) await this.handleWSMessage(client, message);
+        }).catch(error => this.closeInternalError(client, error)).finally(() => { queuedMessages--; });
       });
-
-      // Handle close
       ws.on('close', () => {
-        console.log(`WebSocket client disconnected: ${clientId}`);
-        this.clients.delete(clientId);
+        clearTimeout(client.authTimer);
+        this.clients.delete(client.id);
       });
-
-      // Handle error
-      ws.on('error', (err) => {
-        console.error(`WebSocket error for ${clientId}:`, err);
-      });
+      // Do not log message bodies, headers or decoder errors containing input.
+      ws.on('error', () => ws.close());
     });
 
     // Start heartbeat with stale client cleanup
     this.heartbeatInterval = setInterval(() => {
       const staleClients: string[] = [];
+      for (const [profileId, allowance] of this.frameAllowances) {
+        if (allowance.resetAt <= Date.now()) this.frameAllowances.delete(profileId);
+      }
 
       this.clients.forEach((client) => {
+        if (!client.profileId) return;
+        void this.validateClientSession(client);
         if (client.ws.readyState === WebSocket.OPEN) {
           // Increment missed heartbeats (will be reset when pong received)
           client.missedHeartbeats++;
@@ -257,7 +277,65 @@ export class SafeOSServer {
     }, WS_HEARTBEAT_INTERVAL);
   }
 
+  private async authenticateClient(client: WSClient, token: unknown): Promise<void> {
+    if (typeof token !== 'string' || !token || token.length > 512) {
+      client.ws.close(1008, 'Invalid session');
+      return;
+    }
+    client.token = token;
+    if (await this.validateClientSession(client)) {
+      clearTimeout(client.authTimer);
+      this.sendToClient(client, { type: 'connected', payload: { clientId: client.id } });
+    }
+  }
+
+  private async validateClientSession(client: WSClient): Promise<boolean> {
+    try {
+      const db = await getSafeOSDatabase();
+      const session = await db.get<{ profile_id: string; expires_at: string }>(
+        `SELECT s.profile_id, s.expires_at FROM sessions s
+         JOIN user_profiles p ON p.id = s.profile_id WHERE s.token = ?`, [client.token || '']
+      );
+      if (session && Date.parse(session.expires_at) > Date.now()
+          && (!client.profileId || client.profileId === session.profile_id)) {
+        client.profileId = session.profile_id;
+        return true;
+      }
+      client.ws.close(1008, 'Invalid or expired session');
+    } catch (error) {
+      this.closeInternalError(client, error);
+    }
+    return false;
+  }
+
+  private closeInternalError(client: WSClient, error: unknown): void {
+    // Concurrent work may fail after the first close; report that close once.
+    if (client.ws.readyState !== WebSocket.OPEN) return;
+    const name = error instanceof Error && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name)
+      ? error.name : 'Error';
+    console.error('[WebSocket] Internal error', name);
+    client.ws.close(1011, 'Internal error');
+  }
+
+  private streamForbidden(client: WSClient): void {
+    this.sendToClient(client, {
+      type: 'error', payload: { code: 'STREAM_FORBIDDEN', message: 'Stream unavailable' },
+    });
+  }
+
+  private async ownsStream(client: WSClient, streamId: unknown): Promise<boolean> {
+    if (!client.profileId || typeof streamId !== 'string' || !streamId) return false;
+    const db = await getSafeOSDatabase();
+    return !!await db.get('SELECT id FROM streams WHERE id = ? AND user_id = ?', [streamId, client.profileId]);
+  }
+
   private async handleWSMessage(client: WSClient, message: WSMessage): Promise<void> {
+    if (['join_stream', 'frame', 'audio_level', 'offer', 'answer', 'ice-candidate'].includes(message.type)) {
+      if (!await this.ownsStream(client, message.streamId)) {
+        this.streamForbidden(client);
+        return;
+      }
+    }
     switch (message.type) {
       case 'ping':
         this.sendToClient(client, { type: 'pong' });
@@ -270,10 +348,25 @@ export class SafeOSServer {
         break;
 
       case 'subscribe':
-        if (message.channel) {
-          client.subscriptions.add(message.channel);
-          console.log(`Client ${client.id} subscribed to ${message.channel}`);
+        if (typeof message.channel !== 'string' || message.channel.length > MAX_CHANNEL_LENGTH
+            || !/^[A-Za-z0-9:_-]+$/.test(message.channel)) {
+          this.sendToClient(client, {
+            type: 'error', payload: { code: 'INVALID_CHANNEL', message: 'Use 1–128 letters, digits, colons, underscores or hyphens' },
+          });
+          return;
         }
+        if (message.channel.startsWith('stream:') && !await this.ownsStream(client, message.channel.slice(7))) {
+          this.streamForbidden(client);
+          return;
+        }
+        if (!client.subscriptions.has(message.channel) && client.subscriptions.size >= MAX_SUBSCRIPTIONS) {
+          this.sendToClient(client, {
+            type: 'error', payload: { code: 'SUBSCRIPTION_LIMIT', message: 'Maximum 32 subscriptions per connection' },
+          });
+          return;
+        }
+        client.subscriptions.add(message.channel);
+        console.log('[WebSocket] Channel subscribed');
         break;
 
       case 'unsubscribe':
@@ -305,45 +398,95 @@ export class SafeOSServer {
       case 'offer':
       case 'answer':
       case 'ice-candidate':
-        this.handleSignaling(client, message);
+        await this.handleSignaling(client, message);
         break;
 
       default:
-        console.log(`Unknown message type: ${message.type}`);
+        console.log('[WebSocket] Unknown message type');
     }
+  }
+
+  private frameError(client: WSClient, code: 'INVALID_FRAME' | 'FRAME_TOO_LARGE'): void {
+    this.sendToClient(client, {
+      type: 'error', payload: { code, message: 'Use a decodable JPEG, PNG or WebP up to 2 MiB and 16 megapixels' },
+    });
   }
 
   private async handleFrame(client: WSClient, message: WSMessage): Promise<void> {
     const { streamId, payload } = message;
     if (!streamId || !payload) return;
 
-    // Rate limiting check
+    // Reserve before decoding or awaiting: simultaneous sockets share one
+    // allowance for the profile, and disconnecting never deletes it.
     const currentTime = Date.now();
-    if (currentTime - client.frameWindowStart > FRAME_WINDOW_MS) {
-      // Reset window
-      client.frameCount = 0;
-      client.frameWindowStart = currentTime;
+    let allowance = this.frameAllowances.get(client.profileId!);
+    if (!allowance || allowance.resetAt <= currentTime) {
+      allowance = { count: 0, resetAt: currentTime + FRAME_WINDOW_MS };
+      this.frameAllowances.set(client.profileId!, allowance);
     }
-
-    client.frameCount++;
-
-    if (client.frameCount > MAX_FRAMES_PER_MINUTE) {
-      // Rate limit exceeded - notify client and drop frame
+    if (allowance.count >= MAX_FRAMES_PER_MINUTE) {
       this.sendToClient(client, {
-        type: 'error',
-        payload: {
-          code: 'RATE_LIMITED',
-          message: `Frame rate limit exceeded (max ${MAX_FRAMES_PER_MINUTE}/min). Frame dropped.`,
-        },
+        type: 'error', payload: { code: 'RATE_LIMITED', message: 'Maximum 30 frame attempts per minute' },
       });
-      console.log(`Rate limit exceeded for client ${client.id}: ${client.frameCount} frames/min`);
       return;
     }
+    allowance.count++;
 
-    const { imageData, motionScore, audioLevel } = payload;
+    let { imageData } = payload;
+    const { motionScore, audioLevel } = payload;
+    if (typeof imageData !== 'string') {
+      this.frameError(client, 'INVALID_FRAME');
+      return;
+    }
+    // Accept the camera's data URL as well as plain base64; store plain base64.
+    imageData = imageData.replace(/^data:image\/(?:jpeg|png|webp);base64,/, '');
+    if (imageData.length > 4 * Math.ceil(MAX_FRAME_BYTES / 3)) {
+      this.frameError(client, 'FRAME_TOO_LARGE');
+      return;
+    }
+    if (!imageData || imageData.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(imageData)) {
+      this.frameError(client, 'INVALID_FRAME');
+      return;
+    }
+    const bytes = Buffer.from(imageData, 'base64');
+    if (bytes.length > MAX_FRAME_BYTES) {
+      this.frameError(client, 'FRAME_TOO_LARGE');
+      return;
+    }
+    if (activeFrameDecodes >= MAX_CONCURRENT_FRAME_DECODES) {
+      this.sendToClient(client, {
+        type: 'error', payload: { code: 'RATE_LIMITED', message: 'Frame decoder busy; retry later' },
+      });
+      return;
+    }
+    activeFrameDecodes++;
+    try {
+      if (bytes.toString('base64') !== imageData) throw new Error('Invalid base64');
+      const image = sharp(bytes, { limitInputPixels: MAX_FRAME_PIXELS, failOn: 'warning' });
+      const metadata = await image.metadata();
+      if (!['jpeg', 'png', 'webp'].includes(metadata.format || '') || (metadata.pages || 1) !== 1) {
+        throw new Error('Unsupported image');
+      }
+      // Statistics scan the decoded pixels without returning a full bitmap
+      // to JavaScript. Metadata alone cannot establish image integrity.
+      await image.stats();
+    } catch {
+      this.frameError(client, 'INVALID_FRAME');
+      return;
+    } finally {
+      activeFrameDecodes--;
+    }
+    if (!await this.validateClientSession(client) || !await this.ownsStream(client, streamId)) return;
 
     // Store frame in buffer
     const db = await getSafeOSDatabase();
+    const stream = await db.get<{ scenario: 'baby' | 'pet' | 'elderly' }>(
+      'SELECT scenario FROM streams WHERE id = ? AND user_id = ?', [streamId, client.profileId]
+    );
+    if (!stream) {
+      this.streamForbidden(client);
+      return;
+    }
     const frameId = generateId();
     await db.run(
       `INSERT INTO frame_buffer (id, stream_id, frame_data, motion_score, audio_level, created_at)
@@ -364,7 +507,7 @@ export class SafeOSServer {
           imageData,
           motionScore: motionScore || 0,
           audioLevel: audioLevel || 0,
-          scenario: 'baby', // TODO: Get from stream
+          scenario: stream.scenario,
           priority: (motionScore || 0) > 50 ? 2 : 1,
           status: 'pending',
           createdAt: now(),
@@ -392,26 +535,18 @@ export class SafeOSServer {
     });
   }
 
-  private handleSignaling(client: WSClient, message: WSMessage): void {
-    const { type, payload } = message;
-    const targetPeerId = payload?.targetPeerId;
-
-    if (!targetPeerId) return;
-
-    // Find target client and forward message
-    const targetClient = Array.from(this.clients.values()).find(
-      (c) => c.id === targetPeerId
-    );
-
-    if (targetClient && targetClient.ws.readyState === WebSocket.OPEN) {
-      this.sendToClient(targetClient, {
-        type,
-        payload: {
-          ...payload,
-          peerId: client.id,
-        },
-      });
+  private async handleSignaling(client: WSClient, message: WSMessage): Promise<void> {
+    const { type, streamId, payload } = message;
+    const targetClient = this.clients.get(payload?.targetPeerId);
+    if (!streamId || client.streamId !== streamId || !targetClient
+        || targetClient.streamId !== streamId || targetClient.profileId !== client.profileId
+        || !await this.validateClientSession(targetClient)) {
+      this.streamForbidden(client);
+      return;
     }
+    this.sendToClient(targetClient, {
+      type, streamId, payload: { ...payload, peerId: client.id },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -435,9 +570,18 @@ export class SafeOSServer {
   public broadcastToStream(streamId: string, message: WSMessage): void {
     this.clients.forEach((client) => {
       if (client.streamId === streamId) {
-        this.sendToClient(client, message);
+        void this.sendStreamMessage(client, streamId, message);
       }
     });
+  }
+
+  private async sendStreamMessage(client: WSClient, streamId: string, message: WSMessage): Promise<void> {
+    try {
+      if (await this.validateClientSession(client) && await this.ownsStream(client, streamId)
+          && client.streamId === streamId) this.sendToClient(client, message);
+    } catch (error) {
+      this.closeInternalError(client, error);
+    }
   }
 
   public broadcastToAll(message: WSMessage): void {
@@ -499,6 +643,7 @@ export class SafeOSServer {
 
     // Close all WebSocket connections
     this.clients.forEach((client) => {
+      clearTimeout(client.authTimer);
       client.ws.close();
     });
     this.clients.clear();

@@ -440,8 +440,12 @@ Use browser DevTools Network tab (WS filter) or:
 ```bash
 # wscat for CLI testing
 npm i -g wscat
-wscat -c ws://localhost:3001
+wscat -c ws://localhost:3001/ws
 ```
+
+Send an `authenticate` message with a live session within five seconds and
+wait for `connected`. See [WebSocket API](API.md#websocket-api); do not put a
+session token in the URL.
 
 ---
 
