@@ -341,7 +341,7 @@ describe('NotificationManager', () => {
 
       expect(sendAlertSms).not.toHaveBeenCalled();
       const smsResult = results.find((r) => r.channel === 'sms');
-      expect(smsResult?.success).toBe(true); // skip is silent
+      expect(smsResult).toMatchObject({ success: false, skipped: true });
     });
 
     it('skips sms when override is incomplete (missing fromNumber)', async () => {
@@ -549,9 +549,9 @@ describe('NotificationManager', () => {
       });
 
       expect(sendAlertEmail).not.toHaveBeenCalled();
-      // Channel attempted; skip is silent (success-shaped to avoid false failures)
+      // An unavailable channel cannot count as a delivered alert.
       const emailResult = results.find((r) => r.channel === 'email');
-      expect(emailResult?.success).toBe(true);
+      expect(emailResult).toMatchObject({ success: false, skipped: true });
     });
 
     it('sends email when enabled + recipient set + server Resend configured', async () => {

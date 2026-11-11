@@ -318,3 +318,57 @@ it('reserves the banned status for reviewers and operators', async () => {
     }
   } finally { await p.close(); }
 });
+
+
+it.each(['disabled', 'failed', 'no-destinations'])('retries after nobody received an alert with %s push and bot channels', async mode => {
+  const p = await startPipeline();
+  try {
+    await channels(p); concern('critical');
+    if (mode === 'disabled') await p.api.patch('/api/auth/profile').set('x-session-token', p.owner.token)
+      .send({ notificationSettings: { browserPush: false, telegram: false } }).expect(200);
+    if (mode === 'no-destinations') {
+      await p.api.delete('/api/notifications/subscribe').set('x-session-token', p.owner.token).send({}).expect(200);
+      await p.api.delete('/api/notifications/telegram/unregister').set('x-session-token', p.owner.token)
+        .send({ chatId: '12345' }).expect(200);
+    }
+    for (const sender of [boundary.sms, boundary.email, boundary.push, boundary.telegram]) {
+      sender.mockRejectedValue(new Error('Provider unavailable'));
+    }
+    await delivered(p, `first-failure-${mode}`);
+    await until(async () => JSON.parse((await p.db.get('SELECT metadata FROM alerts')).metadata).deliveryFailed === true);
+    const first = JSON.parse((await p.db.get('SELECT metadata FROM alerts')).metadata);
+    expect(first).toMatchObject({ deliveryAttempted: true, deliverySucceeded: false, deliveryFailed: true });
+    await p.tick(3 * 60 * 1000);
+    await delivered(p, `second-failure-${mode}`);
+    expect(boundary.sms).toHaveBeenCalledTimes(2);
+    expect(boundary.email).toHaveBeenCalledTimes(2);
+    if (mode === 'failed') {
+      expect(boundary.push).toHaveBeenCalledTimes(2);
+      expect(boundary.telegram).toHaveBeenCalledTimes(2);
+    }
+    expect(await p.db.all('SELECT id FROM alerts')).toHaveLength(2);
+  } finally { await p.close(); }
+});
+
+it.each(['push', 'telegram'] as const)('starts cooldown when at least one %s destination succeeds', async successful => {
+  const p = await startPipeline();
+  try {
+    await channels(p); concern('critical');
+    for (const sender of [boundary.sms, boundary.email, boundary.push, boundary.telegram]) {
+      sender.mockRejectedValue(new Error('Provider unavailable'));
+    }
+    if (successful === 'push') await p.api.post('/api/notifications/subscribe').set('x-session-token', p.owner.token)
+      .send({ subscription: { endpoint: 'https://fcm.googleapis.com/push/second', keys: { p256dh: 'key', auth: 'auth' } } }).expect(200);
+    else await p.api.post('/api/notifications/telegram/register').set('x-session-token', p.owner.token)
+      .send({ chatId: '67890' }).expect(200);
+    boundary[successful].mockResolvedValueOnce(undefined);
+    await delivered(p, `partial-success-${successful}`);
+    await until(async () => JSON.parse((await p.db.get('SELECT metadata FROM alerts')).metadata).deliverySucceeded === true);
+    await p.tick(3 * 60 * 1000);
+    await delivered(p, `after-success-${successful}`);
+    expect(boundary.sms).toHaveBeenCalledTimes(1);
+    expect(boundary.email).toHaveBeenCalledTimes(1);
+    const rows = await p.db.all('SELECT metadata FROM alerts');
+    expect(rows.filter((row: any) => JSON.parse(row.metadata).deliverySkipped === 'cooldown')).toHaveLength(1);
+  } finally { await p.close(); }
+});
