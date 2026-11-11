@@ -16,6 +16,7 @@
 
 'use client';
 
+import { getServerModelStatus } from '@/lib/server-model-status';
 import React, { useState, useEffect, useCallback } from 'react';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 
@@ -334,11 +335,7 @@ export function BackendSettings({ onClose, isModal = false, className = '' }: Ba
       }
 
       if (type === 'ollama') {
-        const response = await fetch(`${url}/api/tags`, {
-          method: 'GET',
-          signal: AbortSignal.timeout(5000),
-        });
-        return response.ok ? 'success' : 'failed';
+        return (await getServerModelStatus(url)).available ? 'success' : 'failed';
       }
 
       return 'failed';
@@ -353,7 +350,7 @@ export function BackendSettings({ onClose, isModal = false, className = '' }: Ba
     setTestResults({
       api: apiUrl ? 'testing' : null,
       ws: wsUrl ? 'testing' : null,
-      ollama: ollamaUrl ? 'testing' : null,
+      ollama: apiUrl ? 'testing' : null,
     });
 
     const results: TestResult = {
@@ -366,7 +363,7 @@ export function BackendSettings({ onClose, isModal = false, className = '' }: Ba
     const [apiResult, wsResult, ollamaResult] = await Promise.all([
       apiUrl ? testConnection('api', apiUrl) : Promise.resolve(null),
       wsUrl ? testConnection('ws', wsUrl) : Promise.resolve(null),
-      ollamaUrl ? testConnection('ollama', ollamaUrl) : Promise.resolve(null),
+      apiUrl ? testConnection('ollama', apiUrl) : Promise.resolve(null),
     ]);
 
     results.api = apiResult as TestResult['api'];
@@ -658,36 +655,10 @@ Example: wss://safeos-api.yourdomain.com"
           </div>
         </div>
 
-        {/* Ollama URL (Optional) */}
-        <div>
-          <div className="flex items-center gap-1 mb-1.5">
-            <label className="text-sm font-medium text-slate-300">
-              Ollama URL <span className="text-slate-500">(Optional)</span>
-            </label>
-            <TooltipInfo
-              title="Ollama Local AI"
-              content="Ollama runs advanced AI models locally on your machine or server.
-
-Enables enhanced scene analysis using models like LLaVA or Moondream.
-
-Example: http://localhost:11434 (local)
-Example: http://ollama:11434 (Docker)
-
-Not required - browser AI works without this."
-            />
-          </div>
-          <div className="relative">
-            <input
-              type="url"
-              value={ollamaUrl}
-              onChange={(e) => setOllamaUrl(e.target.value)}
-              placeholder="http://localhost:11434"
-              className="w-full px-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:border-emerald-500"
-            />
-            {testResults.ollama && (
-              <StatusIcon status={testResults.ollama} className="absolute right-3 top-1/2 -translate-y-1/2" />
-            )}
-          </div>
+        <div className="text-sm text-slate-400">
+          <p>Model status comes from your SafeOS server. Configure Ollama on that server;
+            your browser does not need access to the model server.</p>
+          {testResults.ollama && <StatusIcon status={testResults.ollama} />}
         </div>
 
         {/* Actions */}

@@ -9,6 +9,7 @@
 
 'use client';
 
+import { getServerModelStatus } from '@/lib/server-model-status';
 import React, { useState, useEffect } from 'react';
 import { useSettingsStore, type ProcessingMode, getProcessingModeInfo } from '../../../stores/settings-store';
 import { ModelDownloadProgress, ModelStatusBadge } from '../../../components/ModelDownloadProgress';
@@ -53,26 +54,12 @@ export default function AIModelsPage() {
     const checkOllamaStatus = async () => {
         setIsCheckingOllama(true);
         try {
-            const host = process.env.NEXT_PUBLIC_OLLAMA_HOST || 'http://localhost:11434';
-            const response = await fetch(`${host}/api/tags`, {
-                signal: AbortSignal.timeout(5000),
+            const status = await getServerModelStatus();
+            setOllamaStatus({
+                connected: status.available,
+                models: status.models.map((model) => model.name),
+                lastChecked: new Date(),
             });
-
-            if (response.ok) {
-                const data = await response.json();
-                setOllamaStatus({
-                    connected: true,
-                    models: data.models?.map((m: { name: string }) => m.name) || [],
-                    lastChecked: new Date(),
-                });
-            } else {
-                setOllamaStatus({
-                    connected: false,
-                    models: [],
-                    error: 'Ollama not responding',
-                    lastChecked: new Date(),
-                });
-            }
         } catch (error) {
             setOllamaStatus({
                 connected: false,
@@ -235,8 +222,8 @@ export default function AIModelsPage() {
                             <div className="mt-3 text-sm text-slate-400">
                                 <p className="mb-2">To enable Ollama:</p>
                                 <ol className="list-decimal list-inside space-y-1 text-slate-500">
-                                    <li>Install Ollama: <code className="px-1 py-0.5 bg-slate-700 rounded text-xs">brew install ollama</code></li>
-                                    <li>Start server: <code className="px-1 py-0.5 bg-slate-700 rounded text-xs">ollama serve</code></li>
+                                    <li>On your SafeOS server, install Ollama: <code className="px-1 py-0.5 bg-slate-700 rounded text-xs">brew install ollama</code></li>
+                                    <li>Start the model server: <code className="px-1 py-0.5 bg-slate-700 rounded text-xs">ollama serve</code></li>
                                     <li>Pull models: <code className="px-1 py-0.5 bg-slate-700 rounded text-xs">ollama pull moondream</code></li>
                                 </ol>
                             </div>
