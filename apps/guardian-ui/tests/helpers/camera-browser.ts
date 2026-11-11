@@ -46,15 +46,16 @@ export function installCameraBrowser() {
   });
   Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: mediaDevices });
   jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
+  jest.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
   jest.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
   let frame = 0;
   const readFrame = jest.fn(() => {
     const data = new Uint8ClampedArray(16 * 16 * 4).fill(++frame % 2 ? 0 : 255);
     return new ImageData(data, 16, 16);
   });
-  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((() => ({
     drawImage: jest.fn(), getImageData: readFrame,
-  } as unknown as CanvasRenderingContext2D);
+  })) as typeof HTMLCanvasElement.prototype.getContext);
   jest.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,frame');
   const closeAudio = jest.fn().mockResolvedValue(undefined);
   class BrowserAudioContext {
@@ -63,7 +64,7 @@ export function installCameraBrowser() {
     currentTime = 0;
     destination = {};
     createMediaStreamSource() { return { connect: jest.fn(), disconnect: jest.fn() }; }
-    createAnalyser() { return { fftSize: 256, frequencyBinCount: 128,
+    createAnalyser() { return { context: this, fftSize: 256, frequencyBinCount: 128,
       getByteFrequencyData: (data: Uint8Array) => data.fill(0),
       getByteTimeDomainData: (data: Uint8Array) => data.fill(128),
     }; }
