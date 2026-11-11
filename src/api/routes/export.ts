@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { getSafeOSDatabase } from '../../db/index.js';
 import { validate } from '../middleware/validate.js';
+import { findLiveSession } from '../middleware/auth.js';
 import { ExportQuerySchema, ConcernLevelEnum } from '../schemas/index.js';
 import { unauthorized, internalError } from '../utils/errors.js';
 import { z } from 'zod';
@@ -42,10 +43,8 @@ exportRouter.get('/alerts', validate(ExportQuerySchema, 'query'), async (req, re
 
     const db = await getSafeOSDatabase();
 
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return unauthorized(res, 'Invalid session');
@@ -130,10 +129,8 @@ exportRouter.get('/analysis', validate(ExportAnalysisQuerySchema, 'query'), asyn
 
     const db = await getSafeOSDatabase();
 
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return unauthorized(res, 'Invalid session');
@@ -226,10 +223,8 @@ exportRouter.get('/streams', validate(ExportQuerySchema, 'query'), async (req, r
 
     const db = await getSafeOSDatabase();
 
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return unauthorized(res, 'Invalid session');
@@ -301,10 +296,8 @@ exportRouter.get('/profile', async (req, res) => {
 
     const db = await getSafeOSDatabase();
 
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return unauthorized(res, 'Invalid session');
@@ -364,10 +357,8 @@ exportRouter.get('/all', async (req, res) => {
 
     const db = await getSafeOSDatabase();
 
-    const session = await db.get<{ profile_id: string }>(
-      `SELECT profile_id FROM sessions WHERE token = ?`,
-      [token]
-    );
+    // An expired session is refused like an unknown one.
+    const session = await findLiveSession(token);
 
     if (!session) {
       return unauthorized(res, 'Invalid session');

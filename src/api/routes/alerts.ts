@@ -8,7 +8,7 @@
 
 import { Router, Request, Response } from 'express';
 import { getSafeOSDatabase, now } from '../../db';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, getProfileId } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
   AcknowledgeAllAlertsSchema,
@@ -27,6 +27,9 @@ export const alertRoutes = Router();
 // Apply auth middleware to all alert routes
 alertRoutes.use(requireAuth);
 
+/** Limits a query on alerts to the streams the caller owns. */
+const OWNED = 'stream_id IN (SELECT id FROM streams WHERE user_id = ?)';
+
 // =============================================================================
 // Routes
 // =============================================================================
@@ -44,9 +47,10 @@ alertRoutes.get('/', validate(ListAlertsQuerySchema, 'query'), async (req: Reque
     const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
     const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
-    let query = 'SELECT * FROM alerts WHERE 1=1';
-    const params: any[] = [];
-    const countParams: any[] = [];
+    const owner = getProfileId(req);
+    let query = `SELECT * FROM alerts WHERE ${OWNED}`;
+    const params: any[] = [owner];
+    const countParams: any[] = [owner];
 
     if (streamId) {
       query += ' AND stream_id = ?';
@@ -69,7 +73,7 @@ alertRoutes.get('/', validate(ListAlertsQuerySchema, 'query'), async (req: Reque
 
     // Build count query with same filters
     const countQuery =
-      'SELECT COUNT(*) as count FROM alerts WHERE 1=1' +
+      `SELECT COUNT(*) as count FROM alerts WHERE ${OWNED}` +
       (streamId ? ' AND stream_id = ?' : '') +
       (acknowledged !== undefined ? ' AND acknowledged = ?' : '') +
       (severity ? ' AND severity = ?' : '');
@@ -107,7 +111,10 @@ alertRoutes.get('/:id', validate(IdParamsSchema, 'params'), async (req: Request,
     const db = await getSafeOSDatabase();
     const { id } = req.params;
 
-    const alert = await db.get('SELECT * FROM alerts WHERE id = ?', [id]);
+    const alert = await db.get(`SELECT * FROM alerts WHERE id = ? AND ${OWNED}`, [
+      id,
+      getProfileId(req),
+    ]);
 
     if (!alert) {
       return notFound(res, 'Alert');
@@ -128,7 +135,10 @@ alertRoutes.post('/:id/acknowledge', async (req: Request, res: Response) => {
     const db = await getSafeOSDatabase();
     const { id } = req.params;
 
-    const alert = await db.get('SELECT * FROM alerts WHERE id = ?', [id]);
+    const alert = await db.get(`SELECT * FROM alerts WHERE id = ? AND ${OWNED}`, [
+      id,
+      getProfileId(req),
+    ]);
     if (!alert) {
       return notFound(res, 'Alert');
     }
@@ -147,15 +157,16 @@ alertRoutes.post('/:id/acknowledge', async (req: Request, res: Response) => {
 });
 
 /**
- * POST /api/alerts/:id/acknowledge/all - Acknowledge all alerts for a stream
+ * POST /api/alerts/acknowledge/all - Acknowledge all of the caller's alerts,
+ * or those of one of the caller's streams
  */
 alertRoutes.post('/acknowledge/all', validate(AcknowledgeAllAlertsSchema), async (req: Request, res: Response) => {
   try {
     const db = await getSafeOSDatabase();
     const { streamId } = req.body;
 
-    let query = 'UPDATE alerts SET acknowledged = 1, acknowledged_at = ? WHERE acknowledged = 0';
-    const params: any[] = [now()];
+    let query = `UPDATE alerts SET acknowledged = 1, acknowledged_at = ? WHERE acknowledged = 0 AND ${OWNED}`;
+    const params: any[] = [now(), getProfileId(req)];
 
     if (streamId) {
       query += ' AND stream_id = ?';
@@ -182,8 +193,8 @@ alertRoutes.get('/summary/stats', validate(AlertSummaryQuerySchema, 'query'), as
     const db = await getSafeOSDatabase();
     const { streamId, since } = req.query;
 
-    let whereClause = '1=1';
-    const params: any[] = [];
+    let whereClause = OWNED;
+    const params: any[] = [getProfileId(req)];
 
     if (streamId) {
       whereClause += ' AND stream_id = ?';

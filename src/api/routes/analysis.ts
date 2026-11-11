@@ -8,7 +8,7 @@
 
 import { Router, Request, Response } from 'express';
 import { getSafeOSDatabase } from '../../db';
-import { requireAuth } from '../middleware/auth.js';
+import { requireAuth, getProfileId } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import {
   ListAnalysisQuerySchema,
@@ -26,6 +26,9 @@ export const analysisRoutes = Router();
 // Apply auth middleware to all analysis routes
 analysisRoutes.use(requireAuth);
 
+/** Limits a query on analysis results to the streams the caller owns. */
+const OWNED = 'stream_id IN (SELECT id FROM streams WHERE user_id = ?)';
+
 // =============================================================================
 // Routes
 // =============================================================================
@@ -42,8 +45,8 @@ analysisRoutes.get('/', validate(ListAnalysisQuerySchema, 'query'), async (req: 
     const limit = parseInt(queryParams.limit || '50', 10);
     const offset = parseInt(queryParams.offset || '0', 10);
 
-    let sqlQuery = 'SELECT * FROM analysis_results WHERE 1=1';
-    const params: any[] = [];
+    let sqlQuery = `SELECT * FROM analysis_results WHERE ${OWNED}`;
+    const params: any[] = [getProfileId(req)];
 
     if (streamId) {
       sqlQuery += ' AND stream_id = ?';
@@ -81,7 +84,10 @@ analysisRoutes.get('/:id', validate(IdParamsSchema, 'params'), async (req: Reque
     const db = await getSafeOSDatabase();
     const { id } = req.params as { id: string };
 
-    const result = await db.get('SELECT * FROM analysis_results WHERE id = ?', [id]);
+    const result = await db.get(
+      `SELECT * FROM analysis_results WHERE id = ? AND ${OWNED}`,
+      [id, getProfileId(req)]
+    );
 
     if (!result) {
       return notFound(res, 'Analysis result');
@@ -109,8 +115,8 @@ analysisRoutes.get('/stats/summary', validate(AnalysisStatsQuerySchema, 'query')
     const db = await getSafeOSDatabase();
     const { streamId, since } = req.query as { streamId?: string; since?: string };
 
-    let whereClause = '1=1';
-    const params: any[] = [];
+    let whereClause = OWNED;
+    const params: any[] = [getProfileId(req)];
 
     if (streamId) {
       whereClause += ' AND stream_id = ?';

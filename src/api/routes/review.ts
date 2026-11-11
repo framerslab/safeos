@@ -9,6 +9,7 @@
 import { Router, Request, Response } from 'express';
 import { getSafeOSDatabase, now } from '../../db';
 import { validate } from '../middleware/validate.js';
+import { requireRole } from '../middleware/auth.js';
 import {
   ReviewActionSchema,
   ListFlagsQuerySchema,
@@ -21,6 +22,10 @@ import {
 // =============================================================================
 
 export const reviewRoutes = Router();
+
+// Flags describe what other people's cameras saw, and an action can ban a
+// stream: only a reviewer or the operator may call these routes.
+reviewRoutes.use(requireRole('reviewer', 'operator'));
 
 // =============================================================================
 // Routes
