@@ -232,6 +232,8 @@ Serve the resulting `out/` folder from that domain (for example `safeos.example.
 
 #### Updating
 
+For the first upgrade to per-person profile choices, follow the ordered steps below before starting the new release. For later updates:
+
 ```bash
 cd safeos
 git pull
@@ -239,6 +241,91 @@ docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 The SQLite database and the downloaded models live in named volumes (`safeos-data`, `ollama-models`) and survive the rebuild.
+
+##### Upgrading to the proxy network and per-person profile choices
+
+This release moves Caddy onto a proxy network of its own, keeps each person's active monitoring profile apart from everyone else's, hides monitoring profiles that have no owner, and mounts email sign-in. Upgrade a server that runs an earlier release in this order.
+
+1. **Back up the database.** From the repository directory, stop Caddy and the API and archive the data volume outside it. Keep this shell open for the remaining steps:
+
+   ```bash
+   backup_dir="$(pwd)/../safeos-backups/$(date -u +%Y%m%dT%H%M%SZ)"
+   mkdir -p "$backup_dir"
+   chmod 700 "$backup_dir"
+   git rev-parse HEAD > "$backup_dir/revision"
+   cp docker-compose.prod.yml .env "$backup_dir/"
+   docker compose -f docker-compose.prod.yml stop caddy api
+   docker run --rm --volumes-from safeos-api:ro alpine:3.20 \
+     tar -C /app/db_data -czf - . > "$backup_dir/database.tar.gz"
+   ```
+
+2. **Pull the release and check the proxy subnet.** The production file creates `proxy-network` on `172.30.0.0/24`, gives Caddy `172.30.0.2` and hands other containers addresses from `172.30.0.128/25` only. The API trusts a forwarded client address only from `172.30.0.2` (`SAFEOS_TRUST_PROXY`). Inspect host routes and existing Docker networks with the commands below. If another network overlaps this subnet, change the subnet, the `ip_range`, Caddy's `ipv4_address` and `SAFEOS_TRUST_PROXY` together in `docker-compose.prod.yml`. The dynamic range must exclude Caddy's address.
+
+   ```bash
+   git pull
+   ip -4 route
+   docker network ls -q | xargs -r docker network inspect \
+     --format '{{.Name}} {{json .IPAM.Config}}'
+   ${EDITOR:-vi} docker-compose.prod.yml
+   ```
+
+3. **Pull and recreate the API and Caddy.** Remove the old Compose containers and networks, keeping named volumes, then recreate the stack. This also replaces an existing proxy network whose allocation range has changed. On first start the API copies each person's own active monitoring profile into the new per-person table:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml down
+   docker compose -f docker-compose.prod.yml up -d --build
+   docker compose -f docker-compose.prod.yml ps
+   docker inspect safeos-caddy --format '{{range $n, $c := .NetworkSettings.Networks}}{{$n}} {{$c.IPAddress}}{{"\n"}}{{end}}'
+   ```
+
+   Check that the API is healthy and Caddy is running. The last command must list a network ending in `_proxy-network` with `172.30.0.2` (or the address chosen in step 2). Its prefix is the Compose project name. Never add `--volumes` to `down` during an upgrade. A server that runs the API behind another proxy sets `SAFEOS_TRUST_PROXY` to that proxy's exact IP addresses, comma-separated; the earlier hop count `1` now trusts no proxy, so every client would share the proxy's rate limit.
+
+4. **Assign an owner to each monitoring profile that has none.** Profiles created before profiles had owners stay hidden from everyone, the operator included, until they have one. Open the database:
+
+   ```bash
+   docker run --rm -it --volumes-from safeos-api alpine:3.20 \
+     sh -c 'apk add --no-cache sqlite >/dev/null && sqlite3 /app/db_data/safeos.sqlite3'
+   ```
+
+   List them, then give each to the person it belongs to. A person's profile id is the `id` that `GET /api/auth/profile` returns for their session.
+
+   ```sql
+   SELECT id, name, scenario, created_at FROM monitoring_profiles
+   WHERE owner_id IS NULL
+     AND id NOT IN ('profile-baby-default', 'profile-pet-default', 'profile-elderly-default');
+
+   UPDATE monitoring_profiles SET owner_id = '<user profile id>'
+   WHERE id = '<monitoring profile id>' AND owner_id IS NULL
+     AND id NOT IN ('profile-baby-default', 'profile-pet-default', 'profile-elderly-default')
+     AND EXISTS (SELECT 1 FROM user_profiles WHERE id = '<user profile id>');
+
+   .quit
+   ```
+
+   Replace both placeholders with the selected IDs before running the update. Leave the three built-in defaults without an owner. A profile nobody claims stays hidden. Active choices for owners that no longer exist are not imported; choices for existing owners carry over.
+
+5. **Ask people to choose their shared default again.** A person's own active custom profile carries over. The earlier release kept one active flag on each built-in default for everyone, which names nobody, so it is not carried over: each person selects the built-in default they want once. Each person can use their own session token with the API:
+
+   ```bash
+   read -r -p 'Public API base URL (https): ' api_url
+   read -r -s -p 'Your session token: ' session_token; printf '\n'
+   read -r -p 'Default profile ID (profile-baby-default, profile-pet-default or profile-elderly-default): ' profile_id
+   curl --fail-with-body -X POST -H "X-Session-Token: $session_token" \
+     "${api_url%/}/api/profiles/$profile_id/activate"
+   unset session_token
+   ```
+
+6. **Configure account mail before offering email sign-up.** Email sign-in is served at `/api/auth/email`, and its verification and reset links point at this API (`<api>/api/auth/email/verify` and `/reset-password`), not at the web app. Set `RESEND_API_KEY`, `EMAIL_FROM` and an https `SAFEOS_API_PUBLIC_URL` (or `SAFEOS_DOMAIN`) in `.env`, then run `docker compose -f docker-compose.prod.yml up -d`. Without them the server sends no account mail, and an account registered meanwhile cannot be verified. Guest sessions need no mail.
+
+   ```bash
+   ${EDITOR:-vi} .env
+   docker compose -f docker-compose.prod.yml up -d
+   docker compose -f docker-compose.prod.yml ps
+   ```
+
+Keep the backup archive, saved revision, Compose file and environment file until the upgrade is accepted. A rollback must stop the API and restore the whole data volume from that archive along with the saved release and configuration; do not mix a restored database with newer SQLite journal files.
+
+A successful guest resume rotates its token in place; clients must persist the returned token because the previous one stops working immediately. Email registration returns a generic response for both new and existing addresses. Password resets and changes enforce the registration password requirements. Account-link forms support an API public URL with a path prefix. Existing email accounts receive a persistent profile at their first successful login; password resets end the account's existing sessions.
 
 ### One machine with Docker Compose
 
@@ -486,13 +573,3 @@ find $BACKUP_DIR -name "*.gz" -mtime +7 -delete
 - [Configuration Reference](./CONFIGURATION.md)
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Troubleshooting Guide](./TROUBLESHOOTING.md)
-
-### Session and monitoring profile upgrade
-
-Production Compose gives Caddy `172.30.0.2` on a dedicated `172.30.0.0/24` proxy network and sets `SAFEOS_TRUST_PROXY` to that address. The API also joins the service network to reach Ollama. If that subnet overlaps your infrastructure, change the proxy network subnet, Caddy address and API trust setting together. Recreate the API and Caddy after changing the network. Other reverse proxies must use explicit IP addresses in `SAFEOS_TRUST_PROXY`; the previous hop-count setting `1` now trusts no proxy.
-
-On startup, migrations create `active_monitoring_profiles` and import existing owned active choices once. Each person selects shared defaults independently; a previous global default selection cannot be attributed to a person and is not imported. Legacy custom monitoring profiles with no owner stay hidden until the operator assigns `monitoring_profiles.owner_id` to a `user_profiles.id`. Leave the three built-in default IDs unowned.
-
-Email sign-in is mounted at `/api/auth/email`. Configure Resend and `SAFEOS_API_PUBLIC_URL` (https), or `SAFEOS_DOMAIN`, before offering registration. Verification and reset links are served by the same API, so the static frontend needs no account-link pages. Accounts require email verification; guest sessions remain available without mail. Existing email accounts get a persistent profile at first successful login. Resetting a password ends the account's existing sessions. A device ID cannot restore a guest profile without its live session token.
-
-A successful guest resume rotates its token in place; clients must persist the returned token because the previous one stops working immediately. Email registration returns a generic response for both new and existing addresses. Password resets and changes enforce the registration password requirements. Account-link forms also support an API public URL with a path prefix.
