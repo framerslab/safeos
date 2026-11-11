@@ -146,12 +146,12 @@ let modelLoadError: Error | null = null;
  */
 export async function loadAnimalDetectionModel(): Promise<CocoSsdModel> {
   if (model) return model;
-  if (modelLoadError) throw modelLoadError;
   
   if (modelLoading) {
     return modelLoading;
   }
 
+  modelLoadError = null;
   modelLoading = (async () => {
     try {
       const tf = await import('@tensorflow/tfjs');

@@ -77,12 +77,12 @@ let modelLoadError: Error | null = null;
  */
 export async function loadPersonDetectionModel(): Promise<CocoSsdModel> {
   if (model) return model;
-  if (modelLoadError) throw modelLoadError;
   
   if (modelLoading) {
     return modelLoading;
   }
 
+  modelLoadError = null;
   modelLoading = (async () => {
     try {
       // Dynamic import to avoid loading TensorFlow.js until needed
