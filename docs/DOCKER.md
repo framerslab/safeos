@@ -165,11 +165,14 @@ the HTTPS endpoint, are in [DEPLOYMENT.md](./DEPLOYMENT.md#production-server-wit
 
 ## Browser-side models
 
-The PWA also runs in-browser detection through TensorFlow.js (`coco-ssd`) and
-Transformers.js (`@xenova/transformers`, ONNX). Those weights are fetched by the
-browser from their CDNs on first use and then cached by the service worker, so the
-app keeps working offline after the first load. They are independent of the Ollama
-models above and need no server-side download.
+The PWA runs person and animal detection through TensorFlow.js COCO-SSD.
+After setup, choose **Download detection model** on Security, Wildlife, or
+Settings → Models. The browser downloads about 19 MB from Google model storage
+and saves the manifest and weights in Cache Storage. Both detection pages share
+that model; no separate scene classifier is downloaded. Failed downloads can be
+retried. Offline starts need a completed app installation and saved model, and
+stop being available if the browser clears or evicts those caches. These weights
+are independent of Ollama and need no server-side download.
 
 ## Useful commands
 

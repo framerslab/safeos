@@ -6,7 +6,7 @@
 #
 # The deployed app runs in local-only mode with:
 # - TensorFlow.js for person/animal detection
-# - Transformers.js for enhanced vision analysis
+# - Cache Storage for the agreed detection model download
 # - IndexedDB for offline storage
 # - Web Push notifications
 #

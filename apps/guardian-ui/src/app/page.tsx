@@ -369,7 +369,7 @@ function LandingPage() {
               alt="SafeOS Guardian architecture — browser inference pipeline plus optional API server"
               caption={
                 <>
-                  The solid path runs in your browser and keeps running offline once a page has loaded.
+                  The solid path runs in your browser. Offline starts need a completed app installation and a saved detection model.
                   The dashed path engages only when you deploy the optional API server.
                 </>
               }

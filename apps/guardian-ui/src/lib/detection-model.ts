@@ -53,9 +53,12 @@ export function loadDetectionModel(): Promise<ObjectDetection> {
       await tf.setBackend('webgl');
       await tf.ready();
       if (!routerRegistered) {
-        tf.io.registerLoadRouter(url => url === MODEL_ROUTE
+        // TensorFlow's router contract uses null for a non-match, although its
+        // published type omits null (the library is built without strict nulls).
+        const router = (url: string | string[]) => url === MODEL_ROUTE
           ? tf.io.browserHTTPRequest(MODEL_URL, { fetchFunc: cachedModelFetch })
-          : null);
+          : null;
+        tf.io.registerLoadRouter(router as Parameters<typeof tf.io.registerLoadRouter>[0]);
         routerRegistered = true;
       }
       model = await coco.load({ base: 'lite_mobilenet_v2', modelUrl: MODEL_ROUTE });

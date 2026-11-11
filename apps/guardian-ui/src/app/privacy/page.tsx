@@ -148,7 +148,7 @@ export default function PrivacyPage() {
               </p>
               <p>
                 <strong className="text-white">Service Worker:</strong> We use a service worker 
-                for offline functionality. It caches app files locally—no data is synced anywhere.
+                for offline functionality. It caches app files locally. After you agree to the detection model download, its manifest and weights are saved separately in browser Cache Storage.
                 Browser notifications (when enabled) are handled by your browser; true background push
                 notifications require additional setup and are not enabled by default.
               </p>

@@ -50,7 +50,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'Does it work offline?',
-        answer: 'Partly. Motion, pixel, and sound alerts run on your device and need no server. The service worker keeps a copy of the pages you have opened, so a monitor page you loaded online opens again without a connection. Person detection (Security) and animal detection (Wildlife) download their model from Google\'s servers, so they need a connection to load it. You can also install SafeOS as a Progressive Web App (PWA).',
+        answer: 'Yes, after preparation. Wait for the service worker to finish installing the app files while online. Motion, pixel, and sound alerts need no model. For Security and Wildlife, complete setup and choose Download detection model to save about 19 MB from Google model storage. Both pages reuse that model offline. Browser storage must be retained; clearing or evicting it requires another online download. Server integrations still need a connection.',
       },
       {
         question: 'What browsers are supported?',
