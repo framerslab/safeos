@@ -21,7 +21,7 @@ it('shows models that only the SafeOS server can reach', async () => {
   expect((global.fetch as jest.Mock).mock.calls.every(([url]) => String(url).startsWith('https://api.example.test'))).toBe(true);
 });
 it('checks the model server through SafeOS in backend settings', async () => {
-  render(<BackendStatusProvider><BackendSettings isOpen onClose={() => {}} /></BackendStatusProvider>);
+  render(<BackendStatusProvider><BackendSettings isModal onClose={() => {}} /></BackendStatusProvider>);
   await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('https://api.example.test/api/status', expect.anything()));
   expect((global.fetch as jest.Mock).mock.calls.every(([url]) => String(url).startsWith('https://api.example.test'))).toBe(true);
 });
