@@ -30,7 +30,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconDatabase,
     title: 'Local-First Storage',
-    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. On safeos.sh nothing is sent to a server. If you connect a server you run yourself, the monitor sends camera frames to that server only.',
+    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself, the monitor sends camera frames to that server only.',
   },
   {
     icon: IconEye,
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
           </h2>
           <ul className="space-y-2">
             {[
-              'On safeos.sh, your camera feed never leaves your device',
+              'Without a configured server, your camera feed stays on your device',
               'We store nothing on our servers',
               'No accounts, no sign-ups, no tracking',
               'All data lives in your browser',
@@ -129,22 +129,23 @@ export default function PrivacyPage() {
                 <strong className="text-white">Camera Access:</strong> Your camera feed is processed 
                 entirely within your browser using JavaScript. Frames are analyzed locally using 
                 motion detection algorithms and, on the Security and Wildlife pages, the COCO-SSD
-                model. On safeos.sh no video leaves your device. If you connect a server you run
+                model. Without a configured server, no video leaves your device. If you connect a server you run
                 yourself, the monitor page sends camera frames to that server.
               </p>
               <p>
                 <strong className="text-white">Data Storage:</strong> Your preferences are stored in
                 your browser&apos;s local storage. Saved frames from Security, Lost &amp; Found, and
                 Wildlife, and your reference photos, are stored in IndexedDB. Alerts on the monitor
-                page are kept in memory and clear when you reload. Clearing your browser data removes
-                everything.
+                page are saved in IndexedDB and restored in History after a reload. Clearing your browser data removes
+                everything. Clear All Local Data also removes recorded sounds and the offline cache.
+                Signing out clears local records before another account can use the browser.
               </p>
               <p>
                 <strong className="text-white">AI Processing:</strong> When you use AI features, 
                 processing happens either in your browser (TensorFlow.js) or via your local Ollama 
                 installation. We do not provide cloud AI services. Security and Wildlife download
-                the COCO-SSD model from Google&apos;s servers, and the navigation bar asks GitHub&apos;s
-                API for the project&apos;s star count, so those two services see your IP address.
+                the COCO-SSD model from Google&apos;s servers, which see your IP address.
+                The GitHub link makes no request until you open it.
               </p>
               <p>
                 <strong className="text-white">Service Worker:</strong> We use a service worker 

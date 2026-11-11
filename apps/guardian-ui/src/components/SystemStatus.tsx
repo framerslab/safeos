@@ -8,6 +8,7 @@
 
 'use client';
 
+import { getServerModelStatus } from '@/lib/server-model-status';
 import { useState, useEffect } from 'react';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 
@@ -36,7 +37,6 @@ interface SystemStats {
 interface OllamaModel {
   name: string;
   size: string;
-  loaded: boolean;
 }
 
 interface SystemStatusProps {
@@ -57,51 +57,24 @@ export function SystemStatus({ stats }: SystemStatusProps) {
   useEffect(() => {
     if (!expanded) return;
 
-    if (!backendConfig.ollamaUrl || backendStatus.ollama !== 'connected') {
+    if (!backendConfig.apiUrl || backendStatus.ollama !== 'connected') {
       setModels([]);
       return;
     }
 
     setLoadingModels(true);
-    const controller = new AbortController();
-
-    Promise.allSettled([
-      fetch(`${backendConfig.ollamaUrl}/api/tags`, { signal: controller.signal }).then((res) =>
-        res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))
-      ),
-      fetch(`${backendConfig.ollamaUrl}/api/ps`, { signal: controller.signal }).then((res) =>
-        res.ok ? res.json() : Promise.resolve({ models: [] as Array<{ name?: string }> })
-      ),
-    ])
-      .then(([tagsResult, psResult]) => {
-        const tags = tagsResult.status === 'fulfilled' ? tagsResult.value : null;
-        const ps = psResult.status === 'fulfilled' ? psResult.value : null;
-
-        const loadedNames = new Set(
-          (ps?.models || [])
-            .map((m: { name?: string }) => (typeof m.name === 'string' ? m.name : ''))
-            .filter(Boolean)
-        );
-
-        const nextModels: OllamaModel[] = (tags?.models || []).map(
-          (m: { name?: string; size?: number | string }) => {
-            const name = typeof m.name === 'string' ? m.name : 'unknown';
-            const sizeBytes = typeof m.size === 'number' ? m.size : Number(m.size);
-            return {
-              name,
-              size: Number.isFinite(sizeBytes) ? formatBytes(sizeBytes) : '—',
-              loaded: loadedNames.has(name),
-            };
-          }
-        );
-
-        setModels(nextModels);
+    let cancelled = false;
+    getServerModelStatus(backendConfig.apiUrl)
+      .then((status) => {
+        if (!cancelled) setModels(status.models.map((model) => ({
+          name: model.name, size: model.size || '—',
+        })));
       })
-      .catch(() => setModels([]))
-      .finally(() => setLoadingModels(false));
+      .catch(() => { if (!cancelled) setModels([]); })
+      .finally(() => { if (!cancelled) setLoadingModels(false); });
 
-    return () => controller.abort();
-  }, [backendConfig.ollamaUrl, backendStatus.ollama, expanded]);
+    return () => { cancelled = true; };
+  }, [backendConfig.apiUrl, backendStatus.ollama, expanded]);
 
   return (
     <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
@@ -208,18 +181,14 @@ export function SystemStatus({ stats }: SystemStatusProps) {
                     <span className="text-slate-300">{model.name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-500">{model.size}</span>
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          model.loaded ? 'bg-emerald-500' : 'bg-slate-600'
-                        }`}
-                      />
+                      <span className="text-xs text-slate-500">Installed; running state unavailable</span>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
               <div className="text-sm text-slate-500">
-                {backendConfig.ollamaUrl && backendStatus.ollama === 'connected'
+                {backendConfig.apiUrl && backendStatus.ollama === 'connected'
                   ? 'No models installed'
                   : 'Ollama is offline'}
               </div>

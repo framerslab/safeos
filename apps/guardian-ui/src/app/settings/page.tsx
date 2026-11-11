@@ -10,8 +10,11 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { hydrateSavedSettings } from '@/lib/settings-hydration';
+import { useSettingsStore } from '@/stores/settings-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
+import { clearLocalData } from '@/lib/local-data';
 import { FeatureDisabledBadge } from '@/components/StatusBanner';
 
 // =============================================================================
@@ -30,6 +33,7 @@ interface SettingsSection {
 
 export default function SettingsPage() {
   const { profile, updateProfile } = useAuthStore();
+  const { globalSettings, quietHoursSettings, updateGlobalSettings, updateQuietHoursSettings } = useSettingsStore();
   const { status: backendStatus, config: backendConfig } = useBackendStatus();
   const [activeSection, setActiveSection] = useState('general');
   const [isSaving, setIsSaving] = useState(false);
@@ -46,26 +50,25 @@ export default function SettingsPage() {
 
   // Form state
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
-  const [motionSensitivity, setMotionSensitivity] = useState(50);
-  const [audioSensitivity, setAudioSensitivity] = useState(50);
-  const [alertVolume, setAlertVolume] = useState(70);
+  const [motionSensitivity, setMotionSensitivity] = useState(globalSettings.motionSensitivity);
+  const [audioSensitivity, setAudioSensitivity] = useState(globalSettings.audioSensitivity);
+  const [alertVolume, setAlertVolume] = useState(globalSettings.alertVolume);
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark');
 
   // Notification settings
   const [browserPush, setBrowserPush] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [telegramEnabled, setTelegramEnabled] = useState(false);
-  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
-  const [quietHoursStart, setQuietHoursStart] = useState('22:00');
-  const [quietHoursEnd, setQuietHoursEnd] = useState('07:00');
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(quietHoursSettings.enabled);
+  const [quietHoursStart, setQuietHoursStart] = useState(quietHoursSettings.startTime);
+  const [quietHoursEnd, setQuietHoursEnd] = useState(quietHoursSettings.endTime);
+
+  useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
 
   useEffect(() => {
     // Hydrate from profile first (if available)
     if (profile?.preferences) {
       setDisplayName(profile.displayName || '');
-      setMotionSensitivity((profile.preferences.motionSensitivity || 0.5) * 100);
-      setAudioSensitivity((profile.preferences.audioSensitivity || 0.5) * 100);
-      setAlertVolume((profile.preferences.alertVolume || 0.7) * 100);
       setTheme(profile.preferences.theme || 'dark');
     }
 
@@ -73,14 +76,6 @@ export default function SettingsPage() {
       setBrowserPush(profile.notificationSettings.browserPush ?? true);
       setSmsEnabled(profile.notificationSettings.sms ?? false);
       setTelegramEnabled(profile.notificationSettings.telegram ?? false);
-
-      const start = profile.notificationSettings.quietHoursStart;
-      const end = profile.notificationSettings.quietHoursEnd;
-      if (start && end) {
-        setQuietHoursEnabled(true);
-        setQuietHoursStart(start);
-        setQuietHoursEnd(end);
-      }
     }
   }, [profile]);
 
@@ -116,15 +111,6 @@ export default function SettingsPage() {
       }
 
       if (parsed.preferences) {
-        if (typeof parsed.preferences.motionSensitivity === 'number') {
-          setMotionSensitivity(parsed.preferences.motionSensitivity * 100);
-        }
-        if (typeof parsed.preferences.audioSensitivity === 'number') {
-          setAudioSensitivity(parsed.preferences.audioSensitivity * 100);
-        }
-        if (typeof parsed.preferences.alertVolume === 'number') {
-          setAlertVolume(parsed.preferences.alertVolume * 100);
-        }
         if (parsed.preferences.theme) {
           setTheme(parsed.preferences.theme);
         }
@@ -139,14 +125,6 @@ export default function SettingsPage() {
         }
         if (typeof parsed.notificationSettings.telegram === 'boolean') {
           setTelegramEnabled(parsed.notificationSettings.telegram);
-        }
-
-        const start = parsed.notificationSettings.quietHoursStart;
-        const end = parsed.notificationSettings.quietHoursEnd;
-        if (start && end) {
-          setQuietHoursEnabled(true);
-          setQuietHoursStart(start);
-          setQuietHoursEnd(end);
         }
       }
     } catch {
@@ -314,6 +292,18 @@ export default function SettingsPage() {
     },
   ];
 
+  useEffect(() => {
+    setMotionSensitivity(globalSettings.motionSensitivity);
+    setAudioSensitivity(globalSettings.audioSensitivity);
+    setAlertVolume(globalSettings.alertVolume);
+  }, [globalSettings]);
+
+  useEffect(() => {
+    setQuietHoursEnabled(quietHoursSettings.enabled);
+    setQuietHoursStart(quietHoursSettings.startTime);
+    setQuietHoursEnd(quietHoursSettings.endTime);
+  }, [quietHoursSettings]);
+
   const handleSave = async () => {
     setIsSaving(true);
     setSaveMessage(null);
@@ -339,7 +329,10 @@ export default function SettingsPage() {
         },
       };
 
-      // Save locally first (always works)
+      updateGlobalSettings({ motionSensitivity, audioSensitivity, alertVolume });
+      updateQuietHoursSettings({ enabled: quietHoursEnabled, startTime: quietHoursStart, endTime: quietHoursEnd });
+
+      // Keep the account profile compatible with server preferences.
       if (typeof window !== 'undefined') {
         localStorage.setItem('safeos_user_settings', JSON.stringify(settingsData));
       }
@@ -788,14 +781,18 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-white font-medium mb-2">Data Storage</h3>
                   <p className="text-sm text-slate-400 mb-4">
-                    Your preferences and session data are stored locally in your browser using IndexedDB.
+                    Preferences use localStorage. Frames, profiles and recorded sounds use IndexedDB.
+                    Clearing local data removes all of these and the SafeOS offline cache.
                   </p>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (confirm('This will delete all local data. Are you sure?')) {
-                        localStorage.clear();
-                        indexedDB.deleteDatabase('safeos-guardian');
-                        window.location.reload();
+                        try {
+                          await clearLocalData();
+                          window.location.reload();
+                        } catch {
+                          setSaveMessage({ type: 'error', text: 'Could not clear all local data. Please try again.' });
+                        }
                       }
                     }}
                     className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg transition-colors"

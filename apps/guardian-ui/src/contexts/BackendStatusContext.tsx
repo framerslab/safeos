@@ -9,6 +9,7 @@
 
 'use client';
 
+import { getServerModelStatus } from '@/lib/server-model-status';
 import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 
 // =============================================================================
@@ -159,24 +160,14 @@ export function BackendStatusProvider({ children }: { children: React.ReactNode 
     }
   }, [config.apiUrl]);
 
-  // Check Ollama health
+  // The model service may be reachable only from the SafeOS server.
   const checkOllamaHealth = useCallback(async (): Promise<boolean> => {
-    if (!config.ollamaUrl) return false;
-
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), CONNECTION_TIMEOUT);
-
-      const response = await fetch(`${config.ollamaUrl}/api/tags`, {
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-      return response.ok;
-    } catch (error) {
+      return (await getServerModelStatus(config.apiUrl)).available;
+    } catch {
       return false;
     }
-  }, [config.ollamaUrl]);
+  }, [config.apiUrl]);
 
   // Connect WebSocket
   const connectWebSocket = useCallback(() => {

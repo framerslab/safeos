@@ -11,11 +11,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   getLocalSession,
   saveLocalSession,
-  clearLocalSession,
   cacheProfile,
   getCachedProfile,
   type LocalSession,
 } from '../lib/client-db';
+import { clearLocalData } from '../lib/local-data';
 import { getApiUrl } from '../lib/env';
 
 // =============================================================================
@@ -421,11 +421,15 @@ export const useAuthStore = create<AuthState>()(
           console.error('[Auth] Logout error:', error);
         }
 
-        // Clear local data
-        await clearLocalSession();
+        // Finish deleting this browser's account data before allowing another session.
+        // Keep the device connection so the next account can use the same server.
+        await clearLocalData({ preserveBackendConfig: true });
 
         set({
           isAuthenticated: false,
+          isLoggedIn: false,
+          user: null,
+          deviceId: null,
           isGuest: true,
           sessionToken: null,
           sessionId: null,

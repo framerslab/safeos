@@ -18,6 +18,7 @@ import { useAuthStore } from '../stores/auth-store';
 export function AuthButton() {
   const { isAuthenticated, isGuest, profile, initialize, createSession, logout } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -55,8 +56,13 @@ export function AuthButton() {
   };
 
   const handleLogout = async () => {
-    await logout();
-    setIsOpen(false);
+    setLogoutError(null);
+    try {
+      await logout();
+      setIsOpen(false);
+    } catch {
+      setLogoutError('Local data could not be cleared. Please try signing out again.');
+    }
   };
 
   // Avatar initials
@@ -66,6 +72,7 @@ export function AuthButton() {
 
   return (
     <div className="relative" ref={dropdownRef}>
+      {logoutError && <p role="alert">{logoutError}</p>}
       {/* Main Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -200,6 +207,7 @@ export function AuthButton() {
             </a>
 
             <hr className="my-2 border-slate-700" aria-hidden="true" />
+            <p className="px-3 py-2 text-xs text-slate-400">Signing out deletes this browser&apos;s saved frames, history, recordings and personal settings. The server connection is kept for the next sign-in.</p>
 
             {isGuest && (
               <div className="px-3 py-2 text-xs text-slate-500">

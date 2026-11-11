@@ -9,6 +9,7 @@
 
 'use client';
 
+import { showBrowserNotification } from '@/lib/browser-notification';
 import React, { useState, useEffect, useCallback } from 'react';
 import { IconBell, IconX, IconCheck } from './icons';
 
@@ -89,7 +90,7 @@ export function NotificationPermission() {
       
       if (result === 'granted') {
         // Show a test notification
-        new Notification('SafeOS Guardian', {
+        void showBrowserNotification('SafeOS Guardian', {
           body: 'Notifications enabled! You\'ll receive alerts here.',
           icon: '/icons/icon-192.png',
           tag: 'permission-granted',
