@@ -237,3 +237,12 @@ describe('WebSocket frame limits', () => {
     await vi.waitFor(async () => expect(await frameCount(ownStream)).toBe(1));
   });
 });
+
+describe('WebSocket analysis scenario', () => {
+  it.each(['elderly', 'pet'])('queues the %s stream scenario', async scenario => {
+    const owner = await signIn();
+    const streamId = await stream(owner, scenario);
+    frame(await connected(owner), streamId, jpeg, 100);
+    await vi.waitFor(async () => expect(await db.get('SELECT scenario FROM analysis_queue WHERE stream_id = ?', [streamId])).toEqual({ scenario }));
+  });
+});
