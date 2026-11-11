@@ -44,7 +44,7 @@ for (const action of ['verify', 'reset-password'] as const) {
     return res.type('html').send(`<!doctype html><html lang="en"><head>
       <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
       <title>${title} — SafeOS</title></head><body><main><h1>${title}</h1>
-      <form method="post" action="/api/auth/email/${action}">
+      <form method="post" action="${action}">
         <input type="hidden" name="token" value="${parsed.data}">
         ${reset ? '<label>New password <input type="password" name="newPassword" minlength="8" maxlength="1024" autocomplete="new-password" required></label>' : ''}
         <button type="submit">${title}</button>
