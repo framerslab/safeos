@@ -89,6 +89,7 @@ const SCENARIO_THRESHOLDS: Record<MonitoringScenario, AudioThresholds> = {
 };
 
 // Cry detection patterns based on frequency distribution
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- known gap, tracked in issue 2: the cry detector does not read these patterns yet
 const CRY_PATTERNS = {
   baby: {
     // Baby cries typically 250-600 Hz fundamental with harmonics
@@ -237,7 +238,6 @@ export class AudioAnalyzer {
 
     // Look for rhythmic pattern above threshold
     let highCount = 0;
-    let lowCount = 0;
     let transitions = 0;
     let lastHigh = false;
 
@@ -246,8 +246,6 @@ export class AudioAnalyzer {
 
       if (isHigh) {
         highCount++;
-      } else {
-        lowCount++;
       }
 
       if (isHigh !== lastHigh) {
@@ -282,6 +280,7 @@ export class AudioAnalyzer {
   /**
    * Check for sustained silence (potential issue with elderly/baby)
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- known gap, tracked in issue 2: the threshold is not applied yet
   detectSustainedSilence(thresholdMs: number = 60000): boolean {
     // Would need time tracking - for now just check recent samples
     const allSilent = this.recentSamples.every(

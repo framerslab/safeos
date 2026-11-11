@@ -13,7 +13,6 @@ import { cloudFallbackAnalysis } from './cloud-fallback.js';
 import type {
   MonitoringScenario,
   ConcernLevel,
-  AnalysisResult,
 } from '../../types/index.js';
 import { generateId, now } from '../../db/index.js';
 

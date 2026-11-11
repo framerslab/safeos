@@ -275,7 +275,7 @@ export default function HelpPage() {
                       <div>
                         <h3 className="text-white font-medium mb-1">Choose Your Profile</h3>
                         <p className="text-sm text-slate-400">
-                          Select what you're monitoring: pets, babies, or elderly. Each profile has optimized settings.
+                          Select what you&apos;re monitoring: pets, babies, or elderly. Each profile has optimized settings.
                         </p>
                       </div>
                     </div>
@@ -301,7 +301,7 @@ export default function HelpPage() {
                       <div>
                         <h3 className="text-white font-medium mb-1">Start Monitoring</h3>
                         <p className="text-sm text-slate-400">
-                          Click "Start Monitoring" and position your camera. The AI will begin analyzing!
+                          Click &quot;Start Monitoring&quot; and position your camera. The AI will begin analyzing!
                         </p>
                       </div>
                     </div>
@@ -428,7 +428,7 @@ export default function HelpPage() {
                     <div className="p-4 bg-slate-700/30 rounded-lg">
                       <h3 className="text-white font-medium mb-2">Camera not working</h3>
                       <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                        <li>Check that you've granted camera permissions</li>
+                        <li>Check that you&apos;ve granted camera permissions</li>
                         <li>Make sure no other app is using the camera</li>
                         <li>Try refreshing the page</li>
                         <li>Check browser camera settings</li>
@@ -449,7 +449,7 @@ export default function HelpPage() {
                       <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
                         <li>Enable browser notifications in system settings</li>
                         <li>Check Settings → Notifications in SafeOS</li>
-                        <li>Ensure you're not in Quiet Hours mode</li>
+                        <li>Ensure you&apos;re not in Quiet Hours mode</li>
                       </ul>
                     </div>
                   </div>
@@ -458,8 +458,8 @@ export default function HelpPage() {
                 <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-6">
                   <h3 className="text-amber-400 font-medium mb-2">Still having issues?</h3>
                   <p className="text-slate-300 text-sm">
-                    If you're still experiencing problems, please reach out to our support team with
-                    details about your browser, device, and the specific issue you're facing.
+                    If you&apos;re still experiencing problems, please reach out to our support team with
+                    details about your browser, device, and the specific issue you&apos;re facing.
                   </p>
                 </div>
               </div>

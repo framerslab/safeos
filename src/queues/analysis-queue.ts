@@ -250,7 +250,6 @@ export class AnalysisQueue {
 
     let result: AnalysisResult;
     let modelUsed = 'unknown';
-    let isCloudFallback = false;
 
     // Check Ollama availability
     const ollamaAvailable = await this.ollamaClient.isHealthy();
@@ -299,12 +298,10 @@ export class AnalysisQueue {
         }
       } catch (error) {
         console.error('Local analysis failed, falling back to cloud:', error);
-        isCloudFallback = true;
         result = await this.cloudAnalysis(job, frame, scenario, startTime);
       }
     } else {
       // Cloud fallback
-      isCloudFallback = true;
       result = await this.cloudAnalysis(job, frame, scenario, startTime);
     }
 
@@ -399,7 +396,7 @@ export class AnalysisQueue {
     let detectedIssues: string[] = [];
     if (issuesMatch) {
       detectedIssues = issuesMatch[1]
-        .split(/[,\n•\-]/)
+        .split(/[,\n•-]/)
         .map((s) => s.trim())
         .filter((s) => s.length > 0 && s.length < 200);
     }

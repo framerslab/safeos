@@ -87,7 +87,7 @@ export class OllamaClient {
       const healthy = response.ok;
       this.healthCache = { healthy, timestamp: Date.now() };
       return healthy;
-    } catch (error) {
+    } catch {
       this.healthCache = { healthy: false, timestamp: Date.now() };
       return false;
     }

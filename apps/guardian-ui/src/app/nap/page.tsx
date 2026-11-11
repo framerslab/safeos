@@ -297,7 +297,7 @@ export default function NapModePage() {
                             </h3>
                             <p className="text-sm text-slate-300 mb-4">
                                 Nap Mode uses <strong className="text-white">pixel detection</strong> to monitor
-                                for movement. Here's how it works:
+                                for movement. Here&apos;s how it works:
                             </p>
                             <ol className="space-y-3 text-sm text-slate-300">
                                 <li className="flex items-start gap-3">
@@ -392,7 +392,7 @@ export default function NapModePage() {
                             </div>
                             <p className="text-xs text-slate-500 mt-3 flex items-center gap-1.5">
                                 <LightbulbIcon className="w-4 h-4 text-amber-400 flex-shrink-0" aria-hidden="true" />
-                                We'll remind you when your planned nap time is up
+                                We&apos;ll remind you when your planned nap time is up
                             </p>
                         </div>
 
@@ -418,7 +418,7 @@ export default function NapModePage() {
                                 Pre-Nap Test
                             </h2>
                             <p className="text-sm text-slate-400">
-                                Let's make sure everything is working before you rest.
+                                Let&apos;s make sure everything is working before you rest.
                             </p>
                         </div>
 
@@ -582,7 +582,7 @@ function NapModeActive({ elapsedMinutes, maxMinutes, onWakeUp, motionDetected, v
                         onClick={() => setShowConfirm(true)}
                         className="w-64 h-64 rounded-full bg-gradient-to-br from-indigo-600 to-indigo-800 hover:from-indigo-500 hover:to-indigo-700 text-white font-bold text-2xl shadow-2xl shadow-indigo-500/30 transition-all active:scale-95"
                     >
-                        I'm Awake
+                        I&apos;m Awake
                     </button>
                 ) : (
                     <div className="text-center">
@@ -598,7 +598,7 @@ function NapModeActive({ elapsedMinutes, maxMinutes, onWakeUp, motionDetected, v
                                 onClick={onWakeUp}
                                 className="px-8 py-3 rounded-xl bg-emerald-600 text-white font-semibold"
                             >
-                                Yes, I'm Awake
+                                Yes, I&apos;m Awake
                             </button>
                         </div>
                     </div>

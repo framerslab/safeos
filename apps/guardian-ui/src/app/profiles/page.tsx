@@ -176,7 +176,7 @@ export default function ProfilesPage() {
           <h2 className="text-lg font-semibold text-white mb-2">What are Monitoring Profiles?</h2>
           <p className="text-slate-400">
             Profiles customize how SafeOS analyzes your camera feed. Each profile has optimized settings
-            for detecting specific situations. Choose or create a profile that matches what you're monitoring.
+            for detecting specific situations. Choose or create a profile that matches what you&apos;re monitoring.
           </p>
         </div>
 

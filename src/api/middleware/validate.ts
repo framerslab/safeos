@@ -6,7 +6,7 @@
  * @module api/middleware/validate
  */
 
-import { z, ZodSchema, ZodError } from 'zod';
+import { ZodSchema, ZodError } from 'zod';
 import { Request, Response, NextFunction } from 'express';
 
 /**

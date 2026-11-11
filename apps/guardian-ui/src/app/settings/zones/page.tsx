@@ -70,7 +70,7 @@ export default function DetectionZonesPage() {
                 <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
                     <h3 className="text-sm font-medium text-blue-300 mb-2">How to Use</h3>
                     <ul className="text-sm text-slate-400 space-y-1">
-                        <li>• Click <strong className="text-blue-300">"New Zone"</strong> then draw a rectangle on the preview</li>
+                        <li>• Click <strong className="text-blue-300">&quot;New Zone&quot;</strong> then draw a rectangle on the preview</li>
                         <li>• Click on a zone to select it for editing</li>
                         <li>• Double-click a zone name to rename it</li>
                         <li>• Disabled zones appear with dashed borders</li>

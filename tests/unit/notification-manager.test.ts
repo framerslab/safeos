@@ -6,7 +6,7 @@
  * @module tests/unit/notification-manager
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotificationManager, getNotificationManager } from '../../src/lib/alerts/notification-manager.js';
 
 // Mock external services

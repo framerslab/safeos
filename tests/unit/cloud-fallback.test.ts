@@ -29,7 +29,6 @@ vi.mock('openai', () => ({
 
 // Import after mocking
 import { cloudFallbackAnalysis, getAvailableProviders } from '../../src/lib/analysis/cloud-fallback.js';
-import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
 // =============================================================================
@@ -135,13 +134,13 @@ describe('CloudFallback', () => {
                 usage: { total_tokens: 100 },
             });
 
-            // @ts-ignore - mocked
+            // @ts-expect-error - mocked
             OpenAI.mockImplementation(() => ({
                 chat: { completions: { create: mockCreate } },
             }));
 
             // Need to reimport to get fresh clients
-            const { cloudFallbackAnalysis: freshAnalysis } = await import('../../src/lib/analysis/cloud-fallback.js');
+            await import('../../src/lib/analysis/cloud-fallback.js');
 
             // Since clients are cached, we can't easily test this without resetting module
             // So we'll test the provider detection instead which is what getAvailableProviders tests
