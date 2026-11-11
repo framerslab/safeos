@@ -33,3 +33,17 @@ it('keeps captured frames on device in local mode with a connected server', asyn
   expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalled();
   expect(BrowserSocket.instances.flatMap(s => s.sent).filter(m => m.type === 'frame')).toEqual([]);
 });
+
+it('stops camera, microphone and frame analysis when monitoring stops', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  expect(browser.video.stop).toHaveBeenCalled();
+  expect(browser.audio.stop).toHaveBeenCalled();
+  expect(browser.closeAudio).toHaveBeenCalled();
+  const reads = browser.readFrame.mock.calls.length;
+  act(() => { jest.advanceTimersByTime(2000); });
+  expect(browser.readFrame).toHaveBeenCalledTimes(reads);
+  expect(screen.queryByText('LIVE')).toBeNull();
+});
