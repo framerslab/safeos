@@ -53,6 +53,9 @@ function getStoredBackendConfig(): {
  * Static mode disables backend connections and API calls.
  */
 export function isStaticMode(): boolean {
+  // A server explicitly saved by this visitor overrides static-host defaults.
+  if (getStoredBackendConfig().apiUrl) return false;
+
   // Explicit static mode flag
   if (process.env.NEXT_PUBLIC_STATIC_MODE === 'true') {
     return true;
