@@ -7,12 +7,17 @@ import { useSecurityStore, DEFAULT_SECURITY_SETTINGS } from '../stores/security-
 import { useLostFoundStore, DEFAULT_SETTINGS as DEFAULT_LOST_FOUND_SETTINGS } from '../stores/lost-found-store';
 import { useAnimalAlertStore, DEFAULT_ANIMAL_SETTINGS } from '../stores/animal-alert-store';
 import { useSettingsStore } from '../stores/settings-store';
+import { useScheduleStore } from './schedule-manager';
+import { useThemeStore } from './theme-manager';
 import { useOnboardingStore } from '../stores/onboarding-store';
 
 export async function clearLocalData(): Promise<void> {
   // Stop producers before clearing their records and persisted state.
   getSoundManager().stopAll();
   getSoundManager().stopCustomSounds();
+  useScheduleStore.setState({ schedules: [], activeScheduleId: null, schedulingEnabled: true });
+  useThemeStore.getState().setThemeMode('system');
+  useThemeStore.getState().resetAccessibility();
   useMonitoringStore.getState().reset();
   useSecurityStore.getState().reset();
   useSecurityStore.getState().clearIntrusionHistory();
@@ -33,7 +38,7 @@ export async function clearLocalData(): Promise<void> {
   for (const storage of [localStorage, sessionStorage]) {
     const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
     for (const key of keys) {
-      if (key?.startsWith('safeos')) storage.removeItem(key);
+      if (key?.startsWith('safeos') || key === 'guardian-schedules' || key === 'guardian-theme') storage.removeItem(key);
     }
   }
 }
