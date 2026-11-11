@@ -28,14 +28,15 @@ profileRoutes.use(requireAuth);
 
 /**
  * A caller reads their own profiles and the shared built-in defaults
- * (owner_id NULL). A caller changes only their own; the operator may also
- * change the defaults.
+ * (the three known IDs with no owner). Unassigned custom rows stay hidden
+ * until an operator assigns an owner in the database.
  */
-const READABLE = '(p.owner_id = ? OR p.owner_id IS NULL)';
+const DEFAULT_IDS = "'profile-baby-default', 'profile-pet-default', 'profile-elderly-default'";
+const READABLE = `(p.owner_id = ? OR (p.owner_id IS NULL AND p.id IN (${DEFAULT_IDS})))`;
 
 function writableClause(req: Request): { sql: string; params: any[] } {
   if (req.session?.role === 'operator') {
-    return { sql: '(owner_id = ? OR owner_id IS NULL)', params: [getProfileId(req)] };
+    return { sql: `(owner_id = ? OR (owner_id IS NULL AND id IN (${DEFAULT_IDS})))`, params: [getProfileId(req)] };
   }
   return { sql: 'owner_id = ?', params: [getProfileId(req)] };
 }
