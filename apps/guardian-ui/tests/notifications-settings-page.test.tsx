@@ -159,11 +159,23 @@ describe('quiet-hours profile saves', () => {
   });
 });
 
+function renderNotificationGuidance(path: string): void {
+  const Page = require(path).default;
+  const view = render(<Page />);
+  if (path === '@/app/settings/page') {
+    // Settings links to the dedicated route; its old inline section is unreachable.
+    const link = screen.getByRole('link', { name: /^notifications$/i });
+    expect(link.getAttribute('href')).toBe('/settings/notifications');
+    view.unmount();
+    const NotificationsPage = require('@/app/settings/notifications/page').default;
+    render(<NotificationsPage />);
+  }
+}
+
 describe('personal Telegram bot guidance', () => {
   it.each(['@/app/settings/page', '@/app/settings/notifications/page', '@/app/help/integrations/telegram/page'])(
     'explains that the caller needs their own bot on %s', async path => {
-      const Page = require(path).default;
-      render(<Page />);
+      renderNotificationGuidance(path);
       expect(await screen.findByText(/Save your own Telegram bot token/i)).toBeTruthy();
       expect(screen.queryByText(/server operator only|no per-user bot tokens|every chat that registered/i)).toBeNull();
     });
@@ -171,7 +183,6 @@ describe('personal Telegram bot guidance', () => {
 
 it.each(['@/app/settings/page', '@/app/settings/notifications/page'])(
   'explains that quiet-hours alerts are not deferred on %s', async path => {
-    const Page = require(path).default;
-    render(<Page />);
+    renderNotificationGuidance(path);
     expect(await screen.findByText(/not sent later/i)).toBeTruthy();
   });
