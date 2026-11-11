@@ -4,15 +4,24 @@ import { boundary, image, startPipeline } from '../helpers/pipeline.js';
 const keys = { p256dh: 'key', auth: 'auth' };
 const endpoint = (name: string) => `https://fcm.googleapis.com/push/${name}`;
 
-it('transfers a browser subscription to its current profile', async () => {
+it('preserves a browser subscription owned by another live profile', async () => {
   const p = await startPipeline();
   try {
-    for (const owner of [p.owner, p.other]) {
-      expect((await p.api.post('/api/notifications/subscribe').set('x-session-token', owner.token)
-        .send({ subscription: { endpoint: endpoint('shared-browser'), keys } })).status).toBe(200);
-    }
-    expect((await p.api.get('/api/notifications/status').set('x-session-token', p.owner.token)).body.status.pushSubscriptions).toBe(0);
-    expect((await p.api.get('/api/notifications/status').set('x-session-token', p.other.token)).body.status.pushSubscriptions).toBe(1);
+    const subscription = { endpoint: endpoint('shared-browser'), keys };
+    await p.api.post('/api/notifications/subscribe').set('x-session-token', p.owner.token)
+      .send({ subscription }).expect(200);
+    const original = await p.db.get('SELECT * FROM push_subscriptions');
+    await p.api.post('/api/notifications/subscribe').set('x-session-token', p.other.token)
+      .send({ subscription: { ...subscription, keys: { ...keys, auth: 'other-key' } } }).expect(409);
+    expect(await p.db.get('SELECT * FROM push_subscriptions')).toEqual(original);
+    expect((await p.api.get('/api/notifications/status').set('x-session-token', p.owner.token)).body.status.pushSubscriptions).toBe(1);
+    expect((await p.api.get('/api/notifications/status').set('x-session-token', p.other.token)).body.status.pushSubscriptions).toBe(0);
+    boundary.triage.mockResolvedValue('CONCERN_LEVEL: critical');
+    boundary.analyze.mockResolvedValue('CONCERN_LEVEL: critical');
+    const ws = await p.connect();
+    await p.frame(ws, await image('retained-browser-owner'), 100);
+    await p.tick();
+    expect(boundary.push).toHaveBeenCalledWith(subscription, expect.anything());
   } finally { await p.close(); }
 });
 

@@ -158,3 +158,13 @@ describe('quiet-hours profile saves', () => {
     }
   });
 });
+
+describe('personal Telegram bot guidance', () => {
+  it.each(['@/app/settings/page', '@/app/settings/notifications/page'])(
+    'explains that the caller needs their own bot on %s', async path => {
+      const Page = require(path).default;
+      render(<Page />);
+      expect(await screen.findByText(/Save your own Telegram bot token/i)).toBeTruthy();
+      expect(screen.queryByText(/server operator only|no per-user bot tokens|every chat that registered/i)).toBeNull();
+    });
+});
