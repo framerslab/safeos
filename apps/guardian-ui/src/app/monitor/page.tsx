@@ -266,7 +266,7 @@ export default function MonitorPage() {
     (message: WSMessage) => {
       switch (message.type) {
         case 'stream-started':
-          if (!captureRequestedRef.current || !videoRef.current) break;
+          if (useSettingsStore.getState().globalSettings.processingMode === 'local' || !captureRequestedRef.current || !videoRef.current) break;
           setStreaming(true);
           setStreamId(message.payload?.streamId);
           break;
@@ -330,7 +330,7 @@ export default function MonitorPage() {
     if (!captureRequestedRef.current) return;
     setStreaming(true);
     setStreamId(`local-${Date.now()}`);
-    if (wsConnected) {
+    if (wsConnected && currentPreset.processingMode !== 'local') {
       sendMessage({
         type: 'start-stream',
         payload: { scenario: selectedScenario || scenario },
@@ -345,7 +345,8 @@ export default function MonitorPage() {
   }, []);
 
   const handleFrame = (data: { imageData: string; motionScore: number; audioLevel: number }) => {
-    if (!isStreaming) return;
+    if (!isStreaming || !captureRequestedRef.current || !wsConnected ||
+      useSettingsStore.getState().globalSettings.processingMode === 'local') return;
 
     sendMessage({
       type: 'frame',
