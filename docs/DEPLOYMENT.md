@@ -486,3 +486,11 @@ find $BACKUP_DIR -name "*.gz" -mtime +7 -delete
 - [Configuration Reference](./CONFIGURATION.md)
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Troubleshooting Guide](./TROUBLESHOOTING.md)
+
+### Session and monitoring profile upgrade
+
+Production Compose gives Caddy `172.30.0.2` on a dedicated `172.30.0.0/24` proxy network and sets `SAFEOS_TRUST_PROXY` to that address. The API also joins the service network to reach Ollama. If that subnet overlaps your infrastructure, change the proxy network subnet, Caddy address and API trust setting together. Recreate the API and Caddy after changing the network. Other reverse proxies must use explicit IP addresses in `SAFEOS_TRUST_PROXY`; the previous hop-count setting `1` now trusts no proxy.
+
+On startup, migrations create `active_monitoring_profiles` and import existing owned active choices once. Each person selects shared defaults independently; a previous global default selection cannot be attributed to a person and is not imported. Legacy custom monitoring profiles with no owner stay hidden until the operator assigns `monitoring_profiles.owner_id` to a `user_profiles.id`. Leave the three built-in default IDs unowned.
+
+Email sign-in is mounted at `/api/auth/email`. Configure Resend and `SAFEOS_API_PUBLIC_URL` (https), or `SAFEOS_DOMAIN`, before offering registration. Verification and reset links are served by the same API, so the static frontend needs no account-link pages. Accounts require email verification; guest sessions remain available without mail. Existing email accounts get a persistent profile at first successful login. Resetting a password ends the account's existing sessions. A device ID cannot restore a guest profile without its live session token.
