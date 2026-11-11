@@ -117,9 +117,8 @@ describe('authenticated notification status and server tests', () => {
     await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/notifications/status'))).toBe(true));
     expect(sessionHeader('/api/notifications/status')).toBe('session-token-for-test');
     if (path === '@/app/settings/page') {
-      fireEvent.click(screen.getByRole('button', { name: /^notifications$/i }));
-      const label = await screen.findByText('SMS provider configured');
-      expect(label.parentElement?.textContent).toContain('Yes');
+      expect(screen.getByRole('link', { name: /^notifications$/i }).getAttribute('href'))
+        .toBe('/settings/notifications');
     } else {
       expect(await screen.findByText(/Server has Twilio configured/)).toBeTruthy();
     }
