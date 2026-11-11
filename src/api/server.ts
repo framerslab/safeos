@@ -21,6 +21,7 @@ import { systemRoutes } from './routes/system';
 import { notificationRoutes } from './routes/notifications';
 import { reviewRoutes } from './routes/review';
 import { authRouter } from './routes/auth';
+import { emailAuthRouter } from './routes/email-auth';
 import { webhookRouter } from './routes/webhooks';
 import { exportRouter } from './routes/export';
 import { analyticsRoutes } from './routes/analytics';
@@ -147,6 +148,7 @@ export class SafeOSServer {
     this.app.use('/api', systemRoutes);
     this.app.use('/api/notifications', notificationRoutes);
     this.app.use('/api/review', reviewRoutes);
+    this.app.use('/api/auth/email', emailAuthRouter);
     this.app.use('/api/auth', authLimiter, authRouter);
     this.app.use('/api/webhooks', webhookRouter);
     this.app.use('/api/export', exportLimiter, exportRouter);

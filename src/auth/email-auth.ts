@@ -10,7 +10,7 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { getSafeOSDatabase, generateId, now } from '../db/index.js';
-import { sendVerificationEmail, sendPasswordResetEmail, isResendConfigured } from '../lib/alerts/email.js';
+import { sendVerificationEmail, sendPasswordResetEmail, isResendConfigured, getMailLinkBase } from '../lib/alerts/email.js';
 
 const scryptAsync = promisify(scrypt);
 
@@ -88,16 +88,11 @@ function generateToken(): string {
   return randomBytes(32).toString('hex');
 }
 
-/**
- * Build a fully-qualified URL into the PWA for transactional emails.
- * Prefers SAFEOS_PUBLIC_URL, falls back to NEXT_PUBLIC_SITE_URL, then safeos.sh.
- */
-function buildAppUrl(path: string): string {
-  const base =
-    process.env['SAFEOS_PUBLIC_URL'] ??
-    process.env['NEXT_PUBLIC_SITE_URL'] ??
-    'https://safeos.sh';
-  return `${base.replace(/\/+$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
+/** Account links are served by the API that owns the account database. */
+function buildAccountUrl(path: string): string {
+  const base = getMailLinkBase();
+  if (!base) throw new Error('Account mail requires an https API public URL');
+  return `${base}/api/auth/email/${path}`;
 }
 
 // =============================================================================
@@ -222,7 +217,7 @@ export class EmailAuthService {
     // Operators without Resend configured can re-issue verification later.
     if (isResendConfigured()) {
       try {
-        const verificationUrl = buildAppUrl(`/verify-email?token=${encodeURIComponent(verificationToken)}`);
+        const verificationUrl = buildAccountUrl(`verify?token=${encodeURIComponent(verificationToken)}`);
         await sendVerificationEmail(user.email, verificationUrl, user.displayName);
       } catch (error) {
         console.error('[EmailAuth] Failed to send verification email:', error);
@@ -277,14 +272,19 @@ export class EmailAuthService {
     // Create session token
     const sessionToken = generateToken();
 
-    // Store session
-    const sessionId = generateId();
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
-
+    // The account ID is also its stable profile ID. Existing accounts get
+    // their profile on first login; subsequent logins retain preferences.
     await this.db.run(
-      `INSERT INTO sessions (id, token, user_id, is_guest, profile_id, created_at, expires_at, last_active_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, sessionToken, row.id, 0, row.id, timestamp, expiresAt, timestamp]
+      `INSERT OR IGNORE INTO user_profiles (id, display_name, created_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [row.id, row.display_name, timestamp, timestamp]
+    );
+    const sessionId = generateId();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await this.db.run(
+      `INSERT INTO sessions (id, token, is_guest, profile_id, created_at, expires_at, last_active_at)
+       VALUES (?, ?, 0, ?, ?, ?, ?)`,
+      [sessionId, sessionToken, row.id, timestamp, expiresAt, timestamp]
     );
 
     const user = await this.getUserById(row.id);
@@ -368,7 +368,7 @@ export class EmailAuthService {
     if (isResendConfigured()) {
       try {
         const user = await this.getUserById(row.id);
-        const resetUrl = buildAppUrl(`/reset-password?token=${encodeURIComponent(resetToken)}`);
+        const resetUrl = buildAccountUrl(`reset-password?token=${encodeURIComponent(resetToken)}`);
         await sendPasswordResetEmail(email.toLowerCase(), resetUrl, user?.displayName);
       } catch (error) {
         console.error('[EmailAuth] Failed to send password reset email:', error);
@@ -407,16 +407,18 @@ export class EmailAuthService {
     const passwordHash = await hashPassword(newPassword);
     const timestamp = now();
 
-    await this.db.run(
+    const changed = await this.db.run(
       `UPDATE users SET
         password_hash = ?,
         reset_token = NULL,
         reset_token_expires = NULL,
         updated_at = ?
-       WHERE id = ?`,
-      [passwordHash, timestamp, row.id]
+       WHERE id = ? AND reset_token = ? AND julianday(reset_token_expires) > julianday(?)`,
+      [passwordHash, timestamp, row.id, token, timestamp]
     );
 
+    if (!changed.changes) return { success: false, error: 'Invalid or expired reset token' };
+    await this.logoutAll(row.id);
     const user = await this.getUserById(row.id);
 
     return {
@@ -497,7 +499,7 @@ export class EmailAuthService {
     await this.initialize();
 
     const session = await this.db.get(
-      'SELECT * FROM sessions WHERE token = ? AND expires_at > ?',
+      'SELECT * FROM sessions WHERE token = ? AND julianday(expires_at) > julianday(?)',
       [token, now()]
     );
 
@@ -511,7 +513,7 @@ export class EmailAuthService {
       [now(), session.id]
     );
 
-    return this.getUserById(session.user_id);
+    return this.getUserById(session.profile_id);
   }
 
   /**
@@ -529,7 +531,7 @@ export class EmailAuthService {
   async logoutAll(userId: string): Promise<void> {
     await this.initialize();
 
-    await this.db.run('DELETE FROM sessions WHERE user_id = ?', [userId]);
+    await this.db.run('DELETE FROM sessions WHERE profile_id = ?', [userId]);
   }
 }
 
@@ -537,32 +539,3 @@ export class EmailAuthService {
 export const emailAuthService = new EmailAuthService();
 
 export default emailAuthService;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

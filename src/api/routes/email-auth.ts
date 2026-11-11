@@ -7,19 +7,56 @@
  */
 
 import { Router } from 'express';
+import { z } from 'zod';
+import { validate } from '../middleware/validate.js';
+import { extractToken } from '../middleware/auth.js';
 import { emailAuthService } from '../../auth/email-auth.js';
 import { authLimiter, strictLimiter } from '../middleware/rate-limiter.js';
 
 export const emailAuthRouter = Router();
 
+const email = z.string().email().max(254);
+const password = z.string().min(1).max(1024);
+const tokenSchema = z.string().regex(/^[a-f0-9]{64}$/);
+const credentials = z.object({ email, password });
+
 // Apply rate limiting to auth routes
 emailAuthRouter.use(authLimiter);
+emailAuthRouter.use((_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
+
+// Links first show a form. GET never consumes a verification/reset token,
+// including when opened by a mailbox link scanner.
+for (const action of ['verify', 'reset-password'] as const) {
+  emailAuthRouter.get(`/${action}`, (req, res) => {
+    res.set({
+      'Cache-Control': 'no-store',
+      'Referrer-Policy': 'no-referrer',
+      'X-Robots-Tag': 'noindex',
+      'Content-Security-Policy': "default-src 'none'; form-action 'self'; frame-ancestors 'none'",
+    });
+    const parsed = tokenSchema.safeParse(req.query.token);
+    if (!parsed.success) return res.status(400).type('text').send('Invalid account link.');
+    const reset = action === 'reset-password';
+    const title = reset ? 'Reset your password' : 'Verify your email';
+    return res.type('html').send(`<!doctype html><html lang="en"><head>
+      <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+      <title>${title} — SafeOS</title></head><body><main><h1>${title}</h1>
+      <form method="post" action="/api/auth/email/${action}">
+        <input type="hidden" name="token" value="${parsed.data}">
+        ${reset ? '<label>New password <input type="password" name="newPassword" minlength="8" maxlength="1024" autocomplete="new-password" required></label>' : ''}
+        <button type="submit">${title}</button>
+      </form></main></body></html>`);
+  });
+}
 
 /**
  * POST /api/auth/email/register
  * Register a new user with email and password
  */
-emailAuthRouter.post('/register', async (req, res) => {
+emailAuthRouter.post('/register', validate(credentials.extend({ displayName: z.string().min(1).max(100).optional() })), async (req, res) => {
   try {
     const { email, password, displayName } = req.body;
 
@@ -61,7 +98,7 @@ emailAuthRouter.post('/register', async (req, res) => {
  * POST /api/auth/email/login
  * Login with email and password
  */
-emailAuthRouter.post('/login', async (req, res) => {
+emailAuthRouter.post('/login', validate(credentials), async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -104,7 +141,7 @@ emailAuthRouter.post('/login', async (req, res) => {
  * POST /api/auth/email/verify
  * Verify email with token
  */
-emailAuthRouter.post('/verify', async (req, res) => {
+emailAuthRouter.post('/verify', validate(z.object({ token: tokenSchema })), async (req, res) => {
   try {
     const { token } = req.body;
 
@@ -124,6 +161,9 @@ emailAuthRouter.post('/verify', async (req, res) => {
       });
     }
 
+    if (req.is('application/x-www-form-urlencoded')) {
+      return res.type('text').send('Email verified. Return to SafeOS to sign in.');
+    }
     res.json({
       message: 'Email verified successfully. You can now log in.',
       user: {
@@ -145,7 +185,7 @@ emailAuthRouter.post('/verify', async (req, res) => {
  * POST /api/auth/email/forgot-password
  * Request password reset
  */
-emailAuthRouter.post('/forgot-password', strictLimiter, async (req, res) => {
+emailAuthRouter.post('/forgot-password', strictLimiter, validate(z.object({ email })), async (req, res) => {
   try {
     const { email } = req.body;
 
@@ -175,7 +215,7 @@ emailAuthRouter.post('/forgot-password', strictLimiter, async (req, res) => {
  * POST /api/auth/email/reset-password
  * Reset password with token
  */
-emailAuthRouter.post('/reset-password', strictLimiter, async (req, res) => {
+emailAuthRouter.post('/reset-password', strictLimiter, validate(z.object({ token: tokenSchema, newPassword: password })), async (req, res) => {
   try {
     const { token, newPassword } = req.body;
 
@@ -195,6 +235,9 @@ emailAuthRouter.post('/reset-password', strictLimiter, async (req, res) => {
       });
     }
 
+    if (req.is('application/x-www-form-urlencoded')) {
+      return res.type('text').send('Password reset. Return to SafeOS to sign in.');
+    }
     res.json({
       message: 'Password reset successful. You can now log in with your new password.',
     });
@@ -211,17 +254,16 @@ emailAuthRouter.post('/reset-password', strictLimiter, async (req, res) => {
  * POST /api/auth/email/change-password
  * Change password (when logged in)
  */
-emailAuthRouter.post('/change-password', async (req, res) => {
+emailAuthRouter.post('/change-password', validate(z.object({ currentPassword: password, newPassword: password })), async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = extractToken(req);
+    if (!token) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required',
       });
     }
 
-    const token = authHeader.slice(7);
     const user = await emailAuthService.validateSession(token);
 
     if (!user) {
@@ -271,9 +313,8 @@ emailAuthRouter.post('/change-password', async (req, res) => {
  */
 emailAuthRouter.post('/logout', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      const token = authHeader.slice(7);
+    const token = extractToken(req);
+    if (token) {
       await emailAuthService.logout(token);
     }
 
@@ -295,15 +336,14 @@ emailAuthRouter.post('/logout', async (req, res) => {
  */
 emailAuthRouter.post('/logout-all', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = extractToken(req);
+    if (!token) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required',
       });
     }
 
-    const token = authHeader.slice(7);
     const user = await emailAuthService.validateSession(token);
 
     if (!user) {
@@ -333,15 +373,14 @@ emailAuthRouter.post('/logout-all', async (req, res) => {
  */
 emailAuthRouter.get('/me', async (req, res) => {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith('Bearer ')) {
+    const token = extractToken(req);
+    if (!token) {
       return res.status(401).json({
         error: 'Unauthorized',
         message: 'Authentication required',
       });
     }
 
-    const token = authHeader.slice(7);
     const user = await emailAuthService.validateSession(token);
 
     if (!user) {
@@ -372,32 +411,3 @@ emailAuthRouter.get('/me', async (req, res) => {
 });
 
 export default emailAuthRouter;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
