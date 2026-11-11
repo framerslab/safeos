@@ -284,7 +284,7 @@ This release moves Caddy onto a proxy network of its own, keeps each person's ac
 
    ```bash
    docker run --rm -it --volumes-from safeos-api alpine:3.20 \
-     sh -c 'apk add --no-cache sqlite >/dev/null && sqlite3 /app/db_data/safeos.sqlite3'
+     sh -c 'apk add --no-cache sqlite >/dev/null && sqlite3 /app/db_data/app.sqlite3'
    ```
 
    List them, then give each to the person it belongs to. A person's profile id is the `id` that `GET /api/auth/profile` returns for their session.

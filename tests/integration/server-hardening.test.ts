@@ -205,8 +205,7 @@ it('preserves the socket payload limit after restart', async () => {
   } finally { ws?.terminate(); await p.close(); }
 });
 
-it.each([['medium', '23:30', 0], ['high', '23:30', 0], ['critical', '23:30', 1], ['medium', '07:00', 1]] as const)
-('applies UTC quiet hours to %s alerts at %s', async (severity, time, calls) => {
+it.each([['medium', '23:30', 0], ['high', '23:30', 0], ['critical', '23:30', 1], ['medium', '07:00', 1]] as const)('applies UTC quiet hours to %s alerts at %s', async (severity, time, calls) => {
   const p = await startPipeline();
   try {
     vi.setSystemTime(new Date(`2026-11-11T${time}:00Z`));

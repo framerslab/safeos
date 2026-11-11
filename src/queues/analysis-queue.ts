@@ -10,7 +10,7 @@ import { getSafeOSDatabase, generateId, now } from '../db';
 import { OllamaClient } from '../lib/ollama/client';
 import { cloudFallbackAnalysis } from '../lib/analysis/cloud-fallback';
 import { ContentFilter } from '../lib/safety/content-filter';
-import { NotificationManager, type NotificationPayload } from '../lib/alerts/notification-manager';
+import { NotificationManager, isQuietHours, type NotificationPayload } from '../lib/alerts/notification-manager';
 
 // =============================================================================
 // Types
@@ -55,6 +55,10 @@ export interface QueueOptions {
 const DEFAULT_CONCURRENCY = 2;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 5000;
+const DELIVERY_COOLDOWN_MS = 5 * 60 * 1000;
+const MAX_ACTIVE_DELIVERIES = 32;
+// Bound unresolved provider work across server instances in this API process.
+let activeDeliveries = 0;
 
 // Prompts for different scenarios
 const TRIAGE_PROMPTS: Record<string, string> = {
@@ -130,6 +134,11 @@ export class AnalysisQueue {
   // ---------------------------------------------------------------------------
 
   async start(): Promise<void> {
+    if (this.isRunning) return;
+    const db = await getSafeOSDatabase();
+    // One API process owns this SQLite queue. Stable result and alert IDs make
+    // recovery safe, and the worker still enforces the frame retention cutoff.
+    await db.run("UPDATE analysis_queue SET status = 'pending' WHERE status = 'processing'");
     this.isRunning = true;
     console.log('Analysis queue started');
 
@@ -457,46 +466,61 @@ export class AnalysisQueue {
     const timestamp = now();
     const severity = result.concernLevel as NotificationPayload['severity'];
 
-    await db.run(
-      `INSERT INTO alerts 
-       (id, stream_id, alert_type, severity, message, metadata, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        alertId,
-        result.streamId,
-        'analysis',
-        severity,
-        result.description.slice(0, 500),
-        JSON.stringify({
-          analysisId: result.id,
-          detectedIssues: result.detectedIssues,
-          modelUsed: result.modelUsed,
-          isCloudFallback: result.isCloudFallback,
-        }),
-        timestamp,
-      ]
+    const owner = await db.get<{ id: string; notification_settings: string }>(
+      `SELECT p.id, p.notification_settings FROM user_profiles p
+       JOIN streams s ON s.user_id = p.id WHERE s.id = ? AND s.status = 'active'`, [result.streamId]
     );
-
+    const settings = JSON.parse(owner?.notification_settings || '{}');
+    let skipped: string | undefined = !owner ? 'inactive-stream'
+      : isQuietHours(settings, severity) ? 'quiet-hours' : undefined;
+    if (!skipped && activeDeliveries >= MAX_ACTIVE_DELIVERIES) skipped = 'capacity';
+    const reserved = !skipped;
+    if (reserved) activeDeliveries++;
+    let dispatched = false;
     try {
-      const owner = await db.get<{ id: string; notification_settings: string }>(
-        `SELECT p.id, p.notification_settings FROM user_profiles p
-         JOIN streams s ON s.user_id = p.id WHERE s.id = ?`, [result.streamId]
+      const metadata = JSON.stringify({
+        analysisId: result.id,
+        detectedIssues: result.detectedIssues,
+        modelUsed: result.modelUsed,
+        isCloudFallback: result.isCloudFallback,
+        deliveryAttempted: !skipped,
+        deliverySkipped: skipped,
+      });
+      const ranks: Record<string, number> = { info: 0, low: 1, medium: 2, high: 3, critical: 4 };
+      // The cooldown decision and its reservation are one SQLite write, so
+      // concurrent jobs cannot both claim the first attempt in the window.
+      await db.run(
+        `INSERT INTO alerts (id, stream_id, alert_type, severity, message, metadata, created_at)
+         VALUES (?, ?, ?, ?, ?,
+           CASE WHEN ? IS NULL AND EXISTS (
+             SELECT 1 FROM alerts WHERE stream_id = ? AND acknowledged = 0 AND created_at > ?
+               AND CASE severity WHEN 'critical' THEN 4 WHEN 'high' THEN 3
+                 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END >= ?
+               AND CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.deliveryAttempted') ELSE 0 END = 1
+           ) THEN json_set(?, '$.deliverySkipped', 'cooldown', '$.deliveryAttempted', 0) ELSE ? END, ?)`,
+        [alertId, result.streamId, 'analysis', severity, result.description.slice(0, 500),
+          skipped ?? null, result.streamId, new Date(Date.now() - DELIVERY_COOLDOWN_MS).toISOString(),
+          ranks[severity], metadata, metadata, timestamp]
       );
-      if (owner) {
-        const settings = JSON.parse(owner.notification_settings || '{}');
+      const saved = await db.get<{ metadata: string }>('SELECT metadata FROM alerts WHERE id = ?', [alertId]);
+      if (!saved || JSON.parse(saved.metadata).deliverySkipped || !owner) return;
+      try {
         const manager = new NotificationManager(settings, owner.id);
-        await manager.notify({
-          streamId: result.streamId,
-          alertId,
-          severity,
-          title: 'Monitoring alert',
-          message: result.description.slice(0, 500),
-          timestamp,
-        });
+        // Delivery does not occupy an analysis slot or delay server shutdown.
+        // A stalled provider keeps its reserved slot until it actually settles.
+        dispatched = true;
+        void manager.notify({
+          streamId: result.streamId, alertId, severity, title: 'Monitoring alert',
+          message: result.description.slice(0, 500), timestamp,
+        }).catch(() => {
+          console.error('Alert delivery failed');
+        }).finally(() => { activeDeliveries--; });
+      } catch {
+        // Invalid provider configuration must not retry the saved analysis.
+        console.error('Alert delivery failed');
       }
-    } catch {
-      // Delivery is best effort. Do not retry analysis and duplicate other channels.
-      console.error(`Alert delivery failed for ${alertId}`);
+    } finally {
+      if (reserved && !dispatched) activeDeliveries--;
     }
 
     console.log(`Alert created for stream ${result.streamId}: ${result.concernLevel}`);

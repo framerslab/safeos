@@ -8,6 +8,7 @@
  */
 
 import { Router } from 'express';
+import { redactNotificationSettings, mergeNotificationSettings } from '../../lib/alerts/notification-settings.js';
 import { randomUUID } from 'crypto';
 import { getSafeOSDatabase, generateId, now } from '../../db/index.js';
 import { validate } from '../middleware/validate.js';
@@ -43,7 +44,7 @@ function presentProfile(profile: UserProfileRow) {
     displayName: profile.display_name,
     avatarUrl: profile.avatar_url,
     preferences: JSON.parse(profile.preferences || '{}'),
-    notificationSettings: JSON.parse(profile.notification_settings || '{}'),
+    notificationSettings: redactNotificationSettings(JSON.parse(profile.notification_settings || '{}')),
     createdAt: profile.created_at,
     updatedAt: profile.updated_at,
   };
@@ -369,10 +370,9 @@ authRouter.patch('/profile', requireAuth, validate(UpdateUserProfileSchema), asy
         `SELECT notification_settings FROM user_profiles WHERE id = ?`,
         [profileId]
       );
-      const merged = {
-        ...JSON.parse(existing?.notification_settings || '{}'),
-        ...notificationSettings,
-      };
+      const merged = mergeNotificationSettings(
+        JSON.parse(existing?.notification_settings || '{}'), notificationSettings
+      );
       updates.push('notification_settings = ?');
       params.push(JSON.stringify(merged));
     }

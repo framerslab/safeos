@@ -117,9 +117,10 @@ export const UpdateUserProfileSchema = z.object({
       emailDigest: z.boolean().optional(),
       email: z.boolean().optional(),
       emailRecipient: z.string().email().optional(),
-      emailOverride: z.object({ apiKey: z.string().max(4096).optional(), replyTo: z.string().email().optional() }).optional(),
+      emailOverride: z.object({ hasApiKey: z.boolean().optional(), apiKey: z.string().max(4096).optional(), replyTo: z.string().email().optional() }).optional(),
       emailFromOverride: z.string().max(320).optional(),
       smsOverride: z.object({
+        hasAuthToken: z.boolean().optional(),
         accountSid: z.string().max(256).optional(),
         authToken: z.string().max(4096).optional(),
         fromNumber: z.string().regex(/^\+[1-9]\d{6,14}$/).optional(),
@@ -183,6 +184,7 @@ export const SmsConfigSchema = z.object({
 });
 
 export const UnsubscribeSchema = z.object({
+  endpoint: z.string().url().max(2048).optional(),
   userId: z.string().min(1).optional(),
 });
 

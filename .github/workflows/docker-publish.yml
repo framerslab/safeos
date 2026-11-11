@@ -53,6 +53,7 @@ jobs:
   publish:
     name: Build ${{ github.event_name == 'pull_request' && 'only' || '& push' }} (${{ matrix.image }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write

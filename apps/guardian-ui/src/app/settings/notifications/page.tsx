@@ -192,10 +192,10 @@ export default function NotificationsSettingsPage() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (backendStatus.api !== 'connected') return;
+    if (backendStatus.api !== 'connected' || !sessionToken) return;
 
     const controller = new AbortController();
-    fetch(`${backendConfig.apiUrl}/api/notifications/status`, { signal: controller.signal })
+    fetch(`${backendConfig.apiUrl}/api/notifications/status`, { signal: controller.signal, headers: { 'X-Session-Token': sessionToken || '' } })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json = await res.json();
@@ -207,7 +207,7 @@ export default function NotificationsSettingsPage() {
       });
 
     return () => controller.abort();
-  }, [backendStatus.api, backendConfig.apiUrl]);
+  }, [backendStatus.api, backendConfig.apiUrl, sessionToken]);
 
   // ---------------------------------------------------------------------------
   // Save

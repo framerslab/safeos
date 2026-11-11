@@ -112,6 +112,7 @@ export class SafeOSServer {
   private server: Server;
   private wss: WebSocketServer;
   private webSocketClosed = false;
+  private starting = false;
   private clients: Map<string, WSClient> = new Map();
   private frameAllowances = new Map<string, { count: number; resetAt: number }>();
   private analysisQueue: AnalysisQueue | null = null;
@@ -348,7 +349,7 @@ export class SafeOSServer {
   private async ownsStream(client: WSClient, streamId: unknown): Promise<boolean> {
     if (!client.profileId || typeof streamId !== 'string' || !streamId) return false;
     const db = await getSafeOSDatabase();
-    return !!await db.get('SELECT id FROM streams WHERE id = ? AND user_id = ?', [streamId, client.profileId]);
+    return !!await db.get("SELECT id FROM streams WHERE id = ? AND user_id = ? AND status = 'active'", [streamId, client.profileId]);
   }
 
   private async handleWSMessage(client: WSClient, message: WSMessage): Promise<void> {
@@ -503,7 +504,7 @@ export class SafeOSServer {
     // Store frame in buffer
     const db = await getSafeOSDatabase();
     const stream = await db.get<{ scenario: 'baby' | 'pet' | 'elderly' }>(
-      'SELECT scenario FROM streams WHERE id = ? AND user_id = ?', [streamId, client.profileId]
+      "SELECT scenario FROM streams WHERE id = ? AND user_id = ? AND status = 'active'", [streamId, client.profileId]
     );
     if (!stream) {
       this.streamForbidden(client);
@@ -617,9 +618,11 @@ export class SafeOSServer {
   // ---------------------------------------------------------------------------
 
   async start(): Promise<void> {
+    if (this.starting || this.server.listening) throw new Error('Server is already started');
+    this.starting = true;
     try {
       if (this.webSocketClosed) {
-        this.wss = new WebSocketServer({ server: this.server });
+        this.wss = new WebSocketServer({ server: this.server, maxPayload: MAX_WS_PAYLOAD });
         this.webSocketClosed = false;
         this.setupWebSocket();
       }
@@ -686,6 +689,8 @@ export class SafeOSServer {
     } catch (error) {
       await this.stopScheduledWork();
       throw error;
+    } finally {
+      this.starting = false;
     }
   }
 

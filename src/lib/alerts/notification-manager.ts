@@ -37,6 +37,8 @@ export interface NotificationConfig {
   /** Owner-supplied bot token; server bot registrations have no verified recipient. */
   telegramBotToken?: string;
   emailRecipient?: string;
+  quietHoursStart?: string | null;
+  quietHoursEnd?: string | null;
   /** Optional per-user override (BYO Resend API key). Falls back to server env. */
   emailOverride?: Partial<EmailConfig>;
   /** Optional per-user "From" address override. */
@@ -69,6 +71,22 @@ const SEVERITY_CHANNELS: Record<string, string[]> = {
 // NotificationManager Class
 // =============================================================================
 
+/** Server quiet hours use UTC; critical alerts always bypass them. */
+export function isQuietHours(config: Partial<NotificationConfig>, severity: NotificationPayload['severity']): boolean {
+  if (severity === 'critical') return false;
+  const parse = (value: string | null | undefined): number | null => {
+    if (!value || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
+    const [hours, minutes] = value.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+  const start = parse(config.quietHoursStart);
+  const end = parse(config.quietHoursEnd);
+  if (start === null || end === null || start === end) return false;
+  const clock = new Date();
+  const current = clock.getUTCHours() * 60 + clock.getUTCMinutes();
+  return start < end ? current >= start && current < end : current >= start || current < end;
+}
+
 class NotificationSkippedError extends Error {}
 
 export class NotificationManager {
@@ -85,6 +103,8 @@ export class NotificationManager {
       telegramChatId: config.telegramChatId,
       telegramBotToken: config.telegramBotToken,
       emailRecipient: config.emailRecipient,
+      quietHoursStart: config.quietHoursStart,
+      quietHoursEnd: config.quietHoursEnd,
       emailOverride: config.emailOverride,
       emailFromOverride: config.emailFromOverride,
       smsOverride: config.smsOverride,
@@ -104,6 +124,9 @@ export class NotificationManager {
    */
   async notify(payload: NotificationPayload): Promise<NotificationResult[]> {
     const channels = SEVERITY_CHANNELS[payload.severity] || ['browser'];
+    if (isQuietHours(this.config, payload.severity)) {
+      return channels.map(channel => ({ channel, success: false, skipped: true, error: 'Quiet hours' }));
+    }
     // Start channels independently so a slow or failed provider cannot hold up another.
     return Promise.all(channels.map(async (channel): Promise<NotificationResult> => {
       try {

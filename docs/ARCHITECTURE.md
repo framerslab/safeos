@@ -465,7 +465,10 @@ that stream. New jobs require a frame ID; legacy jobs without one fail explicitl
 with a fixed diagnostic. When no result was saved and retention has removed the
 frame or it is too old, the worker completes without an analysis or alert. It
 never substitutes a later image. Startup adds the column to existing
-databases without removing queued rows.
+databases without removing queued rows. On worker startup, interrupted
+`processing` rows return to `pending`. Recovery reuses saved results and alert
+IDs and applies the same ten-minute frame cutoff. Only one API process may own
+this SQLite queue.
 
 
 ### Alert dispatch
@@ -475,7 +478,7 @@ analysis result and a stable derived alert ID, so retrying completion cannot
 insert another result or resend the saved alert. A retry reuses an already
 persisted result before reading the frame or calling a model, and finishes
 creating its alert if that insertion previously failed. After inserting a new alert it
-loads the stream owner's notification settings and dispatches through that
+loads an active stream owner's notification settings and dispatches through that
 owner's severity-eligible channels (SMS for high/critical; push, Telegram and
 email from medium). Push subscriptions and Telegram chats are read from their
 owner-scoped SQLite tables. Push destinations are checked at registration and
@@ -487,5 +490,10 @@ registrations cannot receive push. Server SMS
 requires the owner's verified phone, server email requires an operator owner, and
 server-bot Telegram is skipped until recipient verification exists. Personal
 provider credentials remain available. Channel attempts start concurrently and report their
-own failures; they do not trigger analysis retries. See the API delivery settings
+own failures; they do not trigger analysis retries. Alert insertion atomically
+records a five-minute cooldown against unacknowledged attempts of the same or
+higher severity; escalation bypasses that cooldown. Quiet hours use UTC and
+suppress all non-critical server channels. Suppression is recorded on the saved
+alert. Dispatch runs outside analysis slots with a process-wide cap of 32
+unsettled deliveries, and shutdown does not wait on providers. See the API delivery settings
 for configuration and the best-effort delivery limitation.

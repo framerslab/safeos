@@ -7,6 +7,7 @@
  */
 
 import { Router } from 'express';
+import { redactNotificationSettings } from '../../lib/alerts/notification-settings.js';
 import { getSafeOSDatabase } from '../../db/index.js';
 import { validate } from '../middleware/validate.js';
 import { findLiveSession } from '../middleware/auth.js';
@@ -302,7 +303,7 @@ exportRouter.get('/profile', async (req, res) => {
       return unauthorized(res, 'Invalid session');
     }
 
-    const profile = await db.get(
+    const profile = await db.get<{ notification_settings: string }>(
       `SELECT * FROM user_profiles WHERE id = ?`,
       [session.profile_id]
     );
@@ -327,7 +328,7 @@ exportRouter.get('/profile', async (req, res) => {
     res.json({
       success: true,
       data: {
-        profile,
+        profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
         monitoringProfiles,
         notifications: {
           pushSubscriptions,
@@ -364,7 +365,7 @@ exportRouter.get('/all', async (req, res) => {
     }
 
     // Gather all user data
-    const profile = await db.get(
+    const profile = await db.get<{ notification_settings: string }>(
       `SELECT * FROM user_profiles WHERE id = ?`,
       [session.profile_id]
     );
@@ -399,7 +400,7 @@ exportRouter.get('/all', async (req, res) => {
     const exportData = {
       exportedAt: new Date().toISOString(),
       exportType: 'full_data_export',
-      profile,
+      profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
       sessions,
       streams,
       alerts,

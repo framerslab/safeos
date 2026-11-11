@@ -397,7 +397,7 @@ Store a Web Push subscription for the signed-in profile. Registration returns `4
 ```
 
 #### DELETE /api/notifications/subscribe
-Unregister a Web Push subscription.
+Remove the `endpoint` supplied in the JSON body for the signed-in profile. With an empty body, remove only registrations belonging to the calling session. Other devices keep their registrations.
 
 #### POST /api/notifications/telegram/register
 Store a Telegram chat ID for the signed-in profile. Registration does not verify ownership of the chat. The analysis worker sends only when that owner's Telegram preference and personal `telegramBotToken` are set; it skips the server bot because chat verification is unavailable.
@@ -602,6 +602,8 @@ signalling. A missing or unowned stream receives an `error` message with
 {"type":"join_stream","streamId":"stream-uuid"}
 ```
 
+Only active streams can be joined, receive frames/audio or relay signalling. Paused, ended and banned streams are unavailable, including to their owner.
+
 Joining receives `metrics` and `audio_level` events for that stream. Send
 `{"type":"leave_stream"}` to stop receiving them. `offer`, `answer` and
 `ice-candidate` messages must name `streamId` and `payload.targetPeerId`;
@@ -790,8 +792,12 @@ Personal credentials are supported in `notificationSettings`:
   server mail configuration must supply the fallback; otherwise delivery is skipped.
 - `telegramBotToken`: a personal bot token, used with the owner's registered chats.
 
-The same profile route saves these credentials. Treat access to the profile and
-database as access to them. Clear `emailOverride` or `smsOverride` with `{}` and
+The same profile route saves these credentials, but they are write-only. Profile,
+session and data-export responses omit `smsOverride.authToken`,
+`emailOverride.apiKey` and `telegramBotToken`. They return `hasAuthToken` and
+`hasApiKey` inside the corresponding override and `hasBotToken` alongside them.
+Saving these presence flags back preserves the omitted credentials. Database
+access still exposes the stored secrets. Clear `emailOverride` or `smsOverride` with `{}` and
 `telegramBotToken` with an empty string. A personal key or complete SMS override
 does not use the server account's recipient authorization. Email suppression
 still applies. Unauthorized channels are skipped with one fixed log line naming
@@ -807,12 +813,31 @@ push registrations. Expired sessions cannot receive push. Each profile may store
 at most 32 endpoints (a further new endpoint returns `409`); refreshing one at
 the limit is allowed. Endpoint, public key and auth key lengths are limited to
 2048, 256 and 128 characters. DNS validation has a two-second deadline. Legacy
-push rows without a session binding must be registered again. Push unsubscribe removes that owner's registrations; Telegram
+push rows without a session binding must be registered again. Push unsubscribe removes a named endpoint for that owner, or only the calling session's registrations when no endpoint is supplied; Telegram
 unregister removes only the named chat for that owner. Status counts are scoped
 to the caller. Existing in-memory registrations must be registered again once
 when upgrading.
 
-Each new alert starts its channels independently. One provider failure does not
+Alerts for inactive streams are saved without dispatch. For an active stream,
+a previous unacknowledged delivery attempt of the same or higher severity
+suppresses another attempt for five minutes. Higher severity can be delivered
+immediately. All alert rows remain available; skipped rows carry
+`metadata.deliverySkipped` (`cooldown`, `quiet-hours`, `inactive-stream` or
+`capacity`). `deliveryAttempted` records an attempt, not confirmed receipt.
+
+The server interprets `quietHoursStart` and `quietHoursEnd` as `HH:mm` in UTC.
+A window includes its start and excludes its end; overnight windows work too.
+Missing, invalid or equal times disable the window. Medium and high alerts are
+saved without dispatch during it; critical alerts always bypass quiet hours.
+Browser sounds continue to use the device's local time.
+
+Delivery runs outside the analysis worker slots. At most 32 alert deliveries
+may remain in flight across this API process. At capacity, new alerts are saved
+with `deliverySkipped: "capacity"`; they are not retried later. A stalled provider
+keeps its slot until it settles, so it cannot create unbounded background work.
+Server shutdown does not wait for providers and may interrupt pending delivery.
+
+Each admitted alert starts its channels independently. One provider failure does not
 prevent the others from receiving an attempt, and an analysis retry does not
 resend an existing alert. This is one best-effort attempt per channel, not a
 retrying delivery outbox: a process crash between saving an alert and sending it

@@ -32,7 +32,7 @@ interface SettingsSection {
 // =============================================================================
 
 export default function SettingsPage() {
-  const { profile, updateProfile } = useAuthStore();
+  const { profile, updateProfile, sessionToken } = useAuthStore();
   const { globalSettings, quietHoursSettings, updateGlobalSettings, updateQuietHoursSettings } = useSettingsStore();
   const { status: backendStatus, config: backendConfig } = useBackendStatus();
   const [activeSection, setActiveSection] = useState('general');
@@ -135,7 +135,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    if (backendStatus.api !== 'connected' || !backendConfig.apiUrl) {
+    if (backendStatus.api !== 'connected' || !backendConfig.apiUrl || !sessionToken) {
       setNotificationServerStatus(null);
       setNotificationServerStatusLoading(false);
       setNotificationServerStatusError(null);
@@ -146,7 +146,7 @@ export default function SettingsPage() {
     setNotificationServerStatusLoading(true);
     setNotificationServerStatusError(null);
 
-    fetch(`${backendConfig.apiUrl}/api/notifications/status`, { signal: controller.signal })
+    fetch(`${backendConfig.apiUrl}/api/notifications/status`, { signal: controller.signal, headers: { 'X-Session-Token': sessionToken || '' } })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
@@ -180,7 +180,7 @@ export default function SettingsPage() {
       .finally(() => setNotificationServerStatusLoading(false));
 
     return () => controller.abort();
-  }, [backendStatus.api, backendConfig.apiUrl]);
+  }, [backendStatus.api, backendConfig.apiUrl, sessionToken]);
 
   const openMonitoringServerSettings = () => {
     if (typeof window !== 'undefined') {

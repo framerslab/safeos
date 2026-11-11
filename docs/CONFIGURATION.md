@@ -323,3 +323,20 @@ profile. A browser endpoint transfers to the latest registering profile/session,
 and logout revokes that session's registrations. Legacy unbound rows must be
 registered again. Personal-key mail needs an explicit sender or a complete server
 mail configuration to supply the fallback sender.
+
+
+### Alert delivery limits and quiet hours
+
+The server sends only for an active stream. It saves each alert while limiting
+repeated external delivery to one attempt per stream and severity within five
+minutes of an unacknowledged same-or-higher severity attempt. Escalation is
+immediate. The per-process delivery cap is 32 unsettled alerts; capacity skips
+are recorded in alert metadata and are not queued for a later retry. Slow
+providers do not occupy analysis workers or delay server shutdown.
+
+Profile `quietHoursStart` and `quietHoursEnd` use `HH:mm` in UTC on the server,
+including overnight windows. The start is inclusive and the end exclusive;
+missing, invalid or equal times disable quiet hours. Critical alerts bypass the
+window; medium and high alerts remain saved but are not dispatched. Browser
+sounds use the device's local clock. Provider credentials saved with the profile
+are write-only in API and export responses; presence flags indicate which are set.

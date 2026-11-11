@@ -84,7 +84,14 @@ notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (r
 notificationRoutes.delete('/subscribe', validate(UnsubscribeSchema), async (req: Request, res: Response) => {
   try {
     const db = await getSafeOSDatabase();
-    await db.run('DELETE FROM push_subscriptions WHERE profile_id = ?', [getProfileId(req)]);
+    const { endpoint } = req.body;
+    if (endpoint) {
+      await db.run('DELETE FROM push_subscriptions WHERE profile_id = ? AND endpoint = ?',
+        [getProfileId(req), new URL(endpoint).href]);
+    } else {
+      await db.run('DELETE FROM push_subscriptions WHERE profile_id = ? AND session_id = ?',
+        [getProfileId(req), req.session!.id]);
+    }
 
     res.json({ success: true });
   } catch (error) {
