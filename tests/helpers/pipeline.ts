@@ -2,6 +2,7 @@ import { vi, expect } from 'vitest';
 import request from 'supertest';
 import WebSocket from 'ws';
 import { once } from 'events';
+import { setTimeout as realSetTimeout } from 'node:timers';
 import sharp from 'sharp';
 import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync, mkdirSync } from 'fs';
@@ -77,7 +78,7 @@ vi.mock('@anthropic-ai/sdk', () => ({ default: class {
 export async function until(check: () => Promise<boolean>): Promise<void> {
   for (let attempt = 0; attempt < 100; attempt++) {
     if (await check()) return;
-    await new Promise((resolve) => setTimeout(resolve, 10));
+    await new Promise((resolve) => realSetTimeout(resolve, 10));
   }
   throw new Error('Pipeline did not reach the expected state');
 }
@@ -88,7 +89,7 @@ export async function image(label: string): Promise<string> {
     .png().toBuffer()).toString('base64');
 }
 
-export async function startPipeline() {
+export async function startPipeline(options: { fakeTimeouts?: boolean } = {}) {
   vi.stubEnv('SAFEOS_PORT', '0');
   vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-token');
   vi.stubEnv('OPENROUTER_API_KEY', '');
@@ -110,7 +111,7 @@ export async function startPipeline() {
   const dir = mkdtempSync(join(tmpdir(), 'safeos-pipeline-'));
   mkdirSync(join(dir, 'db_data'));
   providers.db = await createDatabase({ file: join(dir, 'db_data/app.sqlite3'), priority: ['better-sqlite3'] } as any);
-  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+  vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval', ...(options.fakeTimeouts ? ['setTimeout', 'clearTimeout'] as const : [])] });
   const { SafeOSServer } = await import('../../src/api/server.js');
   const service = new SafeOSServer();
   await service.start();
