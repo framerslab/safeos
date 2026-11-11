@@ -450,6 +450,13 @@ export class SafeOSServer {
 
     // Store frame in buffer
     const db = await getSafeOSDatabase();
+    const stream = await db.get<{ scenario: 'baby' | 'pet' | 'elderly' }>(
+      'SELECT scenario FROM streams WHERE id = ? AND user_id = ?', [streamId, client.profileId]
+    );
+    if (!stream) {
+      this.streamForbidden(client);
+      return;
+    }
     const frameId = generateId();
     await db.run(
       `INSERT INTO frame_buffer (id, stream_id, frame_data, motion_score, audio_level, created_at)
@@ -470,7 +477,7 @@ export class SafeOSServer {
           imageData,
           motionScore: motionScore || 0,
           audioLevel: audioLevel || 0,
-          scenario: 'baby', // TODO: Get from stream
+          scenario: stream.scenario,
           priority: (motionScore || 0) > 50 ? 2 : 1,
           status: 'pending',
           createdAt: now(),
