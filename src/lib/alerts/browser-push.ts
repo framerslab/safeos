@@ -69,8 +69,7 @@ export async function sendBrowserPushNotification(
   setupVapid();
 
   if (!vapidConfigured) {
-    console.warn('VAPID not configured, skipping push notification');
-    return;
+    throw new Error('VAPID not configured');
   }
 
   const pushPayload = JSON.stringify({

@@ -484,11 +484,12 @@ export class AnalysisQueue {
         modelUsed: result.modelUsed,
         isCloudFallback: result.isCloudFallback,
         deliveryAttempted: !skipped,
+        deliverySucceeded: false,
         deliverySkipped: skipped,
       });
       const ranks: Record<string, number> = { info: 0, low: 1, medium: 2, high: 3, critical: 4 };
-      // The cooldown decision and its reservation are one SQLite write, so
-      // concurrent jobs cannot both claim the first attempt in the window.
+      // Only a completed successful delivery starts cooldown. Pending or
+      // failed attempts must not suppress a later alert.
       await db.run(
         `INSERT INTO alerts (id, stream_id, alert_type, severity, message, metadata, created_at)
          VALUES (?, ?, ?, ?, ?,
@@ -496,7 +497,7 @@ export class AnalysisQueue {
              SELECT 1 FROM alerts WHERE stream_id = ? AND acknowledged = 0 AND created_at > ?
                AND CASE severity WHEN 'critical' THEN 4 WHEN 'high' THEN 3
                  WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END >= ?
-               AND CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.deliveryAttempted') ELSE 0 END = 1
+               AND CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.deliverySucceeded') ELSE 0 END = 1
            ) THEN json_set(?, '$.deliverySkipped', 'cooldown', '$.deliveryAttempted', 0) ELSE ? END, ?)`,
         [alertId, result.streamId, 'analysis', severity, result.description.slice(0, 500),
           skipped ?? null, result.streamId, new Date(Date.now() - DELIVERY_COOLDOWN_MS).toISOString(),
@@ -512,11 +513,22 @@ export class AnalysisQueue {
         void manager.notify({
           streamId: result.streamId, alertId, severity, title: 'Monitoring alert',
           message: result.description.slice(0, 500), timestamp,
-        }, true).catch(() => {
-          console.error('Alert delivery failed');
+        }, true).then(async results => {
+          const succeeded = results.some(channel => channel.success);
+          await db.run(
+            `UPDATE alerts SET metadata = json_set(metadata, '$.deliverySucceeded', json(?),
+             '$.deliveryFailed', json(?), '$.deliveryResults', json(?)) WHERE id = ?`,
+            [JSON.stringify(succeeded), JSON.stringify(!succeeded), JSON.stringify(results.map(channel => ({
+              channel: channel.channel, success: channel.success, skipped: channel.skipped ?? false,
+              timedOut: channel.error === 'timeout',
+            }))), alertId]
+          );
+        }).catch(() => {
+          console.error('Alert delivery outcome could not be saved');
         }).finally(() => { activeDeliveries--; });
       } catch {
         // Invalid provider configuration must not retry the saved analysis.
+        await db.run(`UPDATE alerts SET metadata = json_set(metadata, '$.deliveryFailed', json('true')) WHERE id = ?`, [alertId]);
         console.error('Alert delivery failed');
       }
     } finally {

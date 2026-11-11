@@ -328,7 +328,7 @@ it.each(['disabled', 'failed', 'no-destinations'])('retries after nobody receive
       .send({ notificationSettings: { browserPush: false, telegram: false } }).expect(200);
     if (mode === 'no-destinations') {
       await p.api.delete('/api/notifications/subscribe').set('x-session-token', p.owner.token).send({}).expect(200);
-      await p.api.delete('/api/notifications/telegram/unregister').set('x-session-token', p.owner.token)
+      await p.api.delete('/api/notifications/telegram/register').set('x-session-token', p.owner.token)
         .send({ chatId: '12345' }).expect(200);
     }
     for (const sender of [boundary.sms, boundary.email, boundary.push, boundary.telegram]) {

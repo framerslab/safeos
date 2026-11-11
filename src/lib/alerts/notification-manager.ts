@@ -219,7 +219,7 @@ export class NotificationManager {
    * as skipped.
    */
   private async sendEmail(payload: NotificationPayload): Promise<void> {
-    if (!this.config.email || !this.config.emailRecipient) return;
+    if (!this.config.email || !this.config.emailRecipient) throw new NotificationSkippedError('email is disabled or has no recipient');
 
     const hasUserKey = !!this.config.emailOverride?.apiKey;
     if (hasUserKey && !this.config.emailFromOverride?.trim() &&
@@ -227,8 +227,7 @@ export class NotificationManager {
       throw new NotificationSkippedError('personal mail requires a sender or complete server mail configuration');
     }
     if (!hasUserKey && !isResendConfigured()) {
-      console.warn('[NotificationManager] email channel skipped: email is not configured (RESEND_API_KEY, EMAIL_FROM and an https SAFEOS_API_PUBLIC_URL)');
-      return;
+      throw new NotificationSkippedError('email is not configured');
     }
 
     if (!hasUserKey) {
@@ -260,11 +259,13 @@ export class NotificationManager {
    * Send browser push notifications
    */
   private async sendBrowserPush(payload: NotificationPayload): Promise<void> {
-    if (!this.config.browserPush) return;
+    if (!this.config.browserPush) throw new NotificationSkippedError('browser push is disabled');
 
     const subscriptions = await getPushSubscriptions(this.profileId);
 
-    for (const subscription of subscriptions.values()) {
+    if (subscriptions.size === 0) throw new NotificationSkippedError('no browser subscriptions');
+    let delivered = false;
+    await Promise.all(Array.from(subscriptions.values()).map(async subscription => {
       try {
         await sendBrowserPushNotification(subscription, {
           title: payload.title,
@@ -277,30 +278,36 @@ export class NotificationManager {
             severity: payload.severity,
           },
         });
+        delivered = true;
       } catch {
         console.warn('[NotificationManager] browser channel skipped: destination rejected or delivery failed');
       }
-    }
+    }));
+    if (!delivered) throw new Error('No browser destination accepted delivery');
   }
 
   /**
    * Send Telegram notifications
    */
   private async sendTelegram(payload: NotificationPayload): Promise<void> {
-    if (!this.config.telegram) return;
+    if (!this.config.telegram) throw new NotificationSkippedError('telegram is disabled');
     if (!this.config.telegramBotToken || !this.telegramService) {
       throw new NotificationSkippedError('recipient verification is unavailable for the server bot');
     }
 
     const chatIds = await getTelegramChatIds(this.profileId);
 
-    for (const chatId of chatIds) {
+    if (chatIds.size === 0) throw new NotificationSkippedError('no telegram destinations');
+    let delivered = false;
+    await Promise.all(Array.from(chatIds).map(async chatId => {
       try {
-        await this.telegramService.sendAlert(chatId, payload);
+        await this.telegramService!.sendAlert(chatId, payload);
+        delivered = true;
       } catch {
         console.warn('[NotificationManager] telegram channel skipped: delivery failed');
       }
-    }
+    }));
+    if (!delivered) throw new Error('No telegram destination accepted delivery');
   }
 
   /**
@@ -314,7 +321,7 @@ export class NotificationManager {
    *  4. Server credentials require a verified phone belonging to the alert owner.
    */
   private async sendSms(payload: NotificationPayload): Promise<void> {
-    if (!this.config.sms || !this.config.smsNumber) return;
+    if (!this.config.sms || !this.config.smsNumber) throw new NotificationSkippedError('sms is disabled or has no recipient');
 
     const override = this.config.smsOverride;
     const hasCompleteOverride = !!(
@@ -323,8 +330,7 @@ export class NotificationManager {
       override?.fromNumber
     );
     if (!hasCompleteOverride && !isTwilioConfigured()) {
-      console.warn('[NotificationManager] sms channel skipped: no Twilio credentials configured');
-      return;
+      throw new NotificationSkippedError('no Twilio credentials configured');
     }
 
     if (!hasCompleteOverride) {
