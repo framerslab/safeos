@@ -8,6 +8,7 @@
  * Web Push subscriptions + a server-side sender and are not enabled by default.
  */
 
+import { showBrowserNotification } from './browser-notification';
 import type { Alert } from '../components/AlertPanel';
 
 // =============================================================================
@@ -117,7 +118,7 @@ class NotificationManager {
     options: NotificationOptions = {},
     callbacks: NotificationCallbacks = {}
   ): Promise<Notification | null> {
-    if (!this.isSupported || this.permission !== 'granted') {
+    if (!this.isSupported || Notification.permission !== 'granted') {
       console.warn('Notifications not permitted');
       return null;
     }
@@ -143,7 +144,8 @@ class NotificationManager {
     }
 
     try {
-      const notification = new Notification(title, notificationOptions);
+      const notification = await showBrowserNotification(title, notificationOptions);
+      if (!notification) return null;
 
       // Store active notification
       if (options.tag) {
