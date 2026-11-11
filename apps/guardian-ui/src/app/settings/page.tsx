@@ -32,7 +32,7 @@ interface SettingsSection {
 
 export default function SettingsPage() {
   const { profile, updateProfile } = useAuthStore();
-  const { globalSettings, updateGlobalSettings, updateQuietHoursSettings } = useSettingsStore();
+  const { globalSettings, quietHoursSettings, updateGlobalSettings, updateQuietHoursSettings } = useSettingsStore();
   const { status: backendStatus, config: backendConfig } = useBackendStatus();
   const [activeSection, setActiveSection] = useState('general');
   const [isSaving, setIsSaving] = useState(false);
@@ -58,9 +58,9 @@ export default function SettingsPage() {
   const [browserPush, setBrowserPush] = useState(true);
   const [smsEnabled, setSmsEnabled] = useState(false);
   const [telegramEnabled, setTelegramEnabled] = useState(false);
-  const [quietHoursEnabled, setQuietHoursEnabled] = useState(false);
-  const [quietHoursStart, setQuietHoursStart] = useState('22:00');
-  const [quietHoursEnd, setQuietHoursEnd] = useState('07:00');
+  const [quietHoursEnabled, setQuietHoursEnabled] = useState(quietHoursSettings.enabled);
+  const [quietHoursStart, setQuietHoursStart] = useState(quietHoursSettings.startTime);
+  const [quietHoursEnd, setQuietHoursEnd] = useState(quietHoursSettings.endTime);
 
   useEffect(() => {
     // Hydrate from profile first (if available)
@@ -74,13 +74,7 @@ export default function SettingsPage() {
       setSmsEnabled(profile.notificationSettings.sms ?? false);
       setTelegramEnabled(profile.notificationSettings.telegram ?? false);
 
-      const start = profile.notificationSettings.quietHoursStart;
-      const end = profile.notificationSettings.quietHoursEnd;
-      if (start && end) {
-        setQuietHoursEnabled(true);
-        setQuietHoursStart(start);
-        setQuietHoursEnd(end);
-      }
+
     }
   }, [profile]);
 
@@ -132,13 +126,7 @@ export default function SettingsPage() {
           setTelegramEnabled(parsed.notificationSettings.telegram);
         }
 
-        const start = parsed.notificationSettings.quietHoursStart;
-        const end = parsed.notificationSettings.quietHoursEnd;
-        if (start && end) {
-          setQuietHoursEnabled(true);
-          setQuietHoursStart(start);
-          setQuietHoursEnd(end);
-        }
+
       }
     } catch {
       // Ignore parse errors
@@ -310,6 +298,12 @@ export default function SettingsPage() {
     setAudioSensitivity(globalSettings.audioSensitivity);
     setAlertVolume(globalSettings.alertVolume);
   }, [globalSettings]);
+
+  useEffect(() => {
+    setQuietHoursEnabled(quietHoursSettings.enabled);
+    setQuietHoursStart(quietHoursSettings.startTime);
+    setQuietHoursEnd(quietHoursSettings.endTime);
+  }, [quietHoursSettings]);
 
   const handleSave = async () => {
     setIsSaving(true);
