@@ -388,7 +388,7 @@ Send a test notification (simulated in the default implementation).
 ```
 
 #### POST /api/notifications/test-sms
-Send a real test text through Twilio. **Signed in.** On the server's Twilio account the caller may text only a number verified on their own profile; the operator may text any number. With their own Twilio credentials in the body (`twilioAccountSid`, `twilioAuthToken`, `twilioFromNumber`) a signed-in caller may text any number on that account.
+Send a real test text through Twilio. **Signed in.** On the server's Twilio account the caller may text only a number verified on their own profile (a `phone_numbers` row with `verified = 1`); the operator may text any number. No route verifies a number yet, so on the server's account this is the operator's route in practice. With their own Twilio credentials in the body (`twilioAccountSid`, `twilioAuthToken`, `twilioFromNumber`) a signed-in caller may text any number on that account.
 
 **Responses:** `200` sent; `400` invalid number or Twilio not configured; `401` no session; `403` not the caller's verified number.
 
@@ -532,10 +532,10 @@ Connect to `ws://localhost:3001` for real-time frame submission and alerts.
 
 ### Connection
 
-Include your session token as a query parameter:
+The WebSocket reads no session token today: it is open to any client, and its sign-in is separate work. The HTTP rule above (no token in a query string) applies to it too once it gains one.
 
 ```
-ws://localhost:3001?token=your-session-token
+ws://localhost:3001
 ```
 
 ### Client → Server Messages
