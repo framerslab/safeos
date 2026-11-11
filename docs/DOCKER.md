@@ -5,7 +5,7 @@ starts Ollama, downloads and caches the vision models, then starts the API and U
 in dependency order.
 
 ```bash
-cd packages/safeos
+cd safeos
 cp .env.example .env        # optional: fill in only the keys you want
 docker compose up -d --build
 ```
@@ -22,10 +22,10 @@ Then open:
 ## Run from prebuilt images (no build)
 
 To run SafeOS without cloning the repo or building anything, use the published
-GHCR images. This pulls `ghcr.io/framersai/safeos-api` and `…/safeos-ui`:
+GHCR images. This pulls `ghcr.io/framerslab/safeos-api` and `…/safeos-ui`:
 
 ```bash
-curl -O https://raw.githubusercontent.com/framersai/safeos/master/docker-compose.ghcr.yml
+curl -O https://raw.githubusercontent.com/framerslab/safeos/master/docker-compose.ghcr.yml
 docker compose -f docker-compose.ghcr.yml up -d
 ```
 

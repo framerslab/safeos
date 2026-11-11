@@ -7,7 +7,7 @@ This guide covers local development setup, testing, code style, and contribution
 ## Prerequisites
 
 - **Node.js** 20+ (LTS recommended)
-- **pnpm** 8+ (package manager)
+- **npm** 10+ (package manager)
 - **Ollama** (optional, for LLM-enhanced analysis)
 
 ---
@@ -17,30 +17,29 @@ This guide covers local development setup, testing, code style, and contribution
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/supercloud/safeos.git
+git clone https://github.com/framerslab/safeos.git
 cd safeos
 ```
 
 ### 2. Install Dependencies
 
 ```bash
-# From monorepo root
-pnpm install
+# API and tooling, from the repository root
+npm install --legacy-peer-deps
 
-# Or from safeos package
-cd packages/safeos
-pnpm install
+# The web app has its own lockfile
+(cd apps/guardian-ui && npm ci)
 ```
 
 ### 3. Start Development Servers
 
 ```bash
 # Start both API and UI
-pnpm dev
+npm run dev
 
 # Or separately:
-pnpm run api   # API on port 3001
-pnpm run ui    # UI on port 3000
+npm run api   # API on port 3001
+npm run ui    # UI on port 3000
 ```
 
 ### 4. (Optional) Setup Ollama
@@ -62,7 +61,7 @@ ollama pull llava:7b
 ## Project Structure
 
 ```
-packages/safeos/
+safeos/
 ├── src/                    # Backend source code
 │   ├── api/                # Express API
 │   ├── db/                 # Database layer
@@ -86,17 +85,17 @@ packages/safeos/
 
 | Script | Description |
 |--------|-------------|
-| `pnpm dev` | Start API + UI in development mode |
-| `pnpm run api` | Start API server only |
-| `pnpm run ui` | Start UI dev server only |
-| `pnpm build` | Build both API and UI |
-| `pnpm test` | Run all tests |
-| `pnpm test:watch` | Run tests in watch mode |
-| `pnpm test:coverage` | Run tests with coverage |
-| `pnpm lint` | Run ESLint |
-| `pnpm typecheck` | Run TypeScript type checking |
-| `pnpm ollama:check` | Verify Ollama connection |
-| `pnpm ollama:pull` | Pull required Ollama models |
+| `npm run dev` | Start API + UI in development mode |
+| `npm run api` | Start API server only |
+| `npm run ui` | Start UI dev server only |
+| `npm run build` | Build both API and UI |
+| `npm test` | Run all tests |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run test:coverage` | Run tests with coverage |
+| `npm run lint` | Run ESLint |
+| `npm run typecheck` | Run TypeScript type checking |
+| `npm run ollama:check` | Verify Ollama connection |
+| `npm run ollama:pull` | Pull required Ollama models |
 
 ---
 
@@ -106,16 +105,16 @@ packages/safeos/
 
 ```bash
 # Run all tests
-pnpm test
+npm test
 
 # Run specific test file
-pnpm test tests/unit/frame-analyzer.test.ts
+npm test tests/unit/frame-analyzer.test.ts
 
 # Run with coverage
-pnpm test:coverage
+npm run test:coverage
 
 # Watch mode (re-runs on file changes)
-pnpm test:watch
+npm run test:watch
 ```
 
 ### Test Structure
@@ -314,9 +313,9 @@ export const ExampleQuerySchema = z.object({
 
 Before submitting a PR, ensure:
 
-- [ ] All tests pass (`pnpm test`)
-- [ ] TypeScript compiles without errors (`pnpm typecheck`)
-- [ ] Linting passes (`pnpm lint`)
+- [ ] All tests pass (`npm test`)
+- [ ] TypeScript compiles without errors (`npm run typecheck`)
+- [ ] Linting passes (`npm run lint`)
 - [ ] New features have tests
 - [ ] API changes are documented
 - [ ] No hardcoded secrets or credentials
@@ -334,7 +333,7 @@ Before submitting a PR, ensure:
 
 ```bash
 # Enable debug logging
-DEBUG=safeos:* pnpm run api
+DEBUG=safeos:* npm run api
 
 # Check database contents
 sqlite3 db_data/safeos.sqlite3 ".tables"

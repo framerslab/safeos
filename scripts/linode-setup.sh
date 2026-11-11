@@ -15,10 +15,10 @@
 # - Linode 16GB ($96/mo) - Better for LLaVA 7B
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/framersai/safeos/main/scripts/linode-setup.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/framerslab/safeos/master/scripts/linode-setup.sh | bash
 #
 #   OR manually:
-#   wget https://raw.githubusercontent.com/framersai/safeos/main/scripts/linode-setup.sh
+#   wget https://raw.githubusercontent.com/framerslab/safeos/master/scripts/linode-setup.sh
 #   chmod +x linode-setup.sh
 #   ./linode-setup.sh
 #
@@ -43,7 +43,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 # =============================================================================
 
 SAFEOS_DIR="/opt/safeos"
-SAFEOS_REPO="https://github.com/framersai/safeos.git"
+SAFEOS_REPO="https://github.com/framerslab/safeos.git"
 SAFEOS_BRANCH="main"
 
 # =============================================================================

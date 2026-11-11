@@ -13,7 +13,7 @@
 
   [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
   [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
-  [![codecov](https://codecov.io/gh/framersai/safeos/branch/master/graph/badge.svg)](https://codecov.io/gh/framersai/safeos)
+  [![codecov](https://codecov.io/gh/framerslab/safeos/branch/master/graph/badge.svg)](https://codecov.io/gh/framerslab/safeos)
   [![PWA](https://img.shields.io/badge/PWA-installable-emerald.svg)](https://web.dev/articles/progressive-web-apps)
   [![Frame](https://img.shields.io/badge/By-Frame-emerald.svg)](https://frame.dev)
 </div>
@@ -28,9 +28,9 @@ SafeOS Guardian is a **supplemental experimental tool**. It does not replace car
 
 ## What it is
 
-SafeOS Guardian is a Progressive Web App that turns any device with a camera and microphone into a deep-learning monitoring station. It loads [TensorFlow.js](https://www.tensorflow.org/js) and [Transformers.js](https://huggingface.co/docs/transformers.js) into the browser, runs every model on-device, and raises severity-tiered alerts when something matches. No frames leave the device. No telemetry. No account required for the local-only flow.
+SafeOS Guardian is a Progressive Web App that turns any device with a camera and microphone into a deep-learning monitoring station. It compares video frames and sound levels in the browser, runs the [TensorFlow.js](https://www.tensorflow.org/js) COCO-SSD model on-device in its Security and Wildlife modes, and raises severity-tiered alerts. In the browser-only setup no frames leave the device, the app loads no analytics or tracking script, and no account is needed.
 
-Once the models have cached after first load, the entire detection pipeline runs offline.
+The service worker keeps a copy of each page you open, so a loaded monitor keeps running offline. COCO-SSD downloads from Google's model storage and needs a connection to load.
 
 ## Quickstart
 
@@ -38,17 +38,17 @@ Once the models have cached after first load, the entire detection pipeline runs
 
 ```bash
 # downloads ONLY the compose file (the run recipe, ~120 lines of YAML — not source code)
-curl -O https://raw.githubusercontent.com/framersai/safeos/master/docker-compose.ghcr.yml
+curl -O https://raw.githubusercontent.com/framerslab/safeos/master/docker-compose.ghcr.yml
 docker compose -f docker-compose.ghcr.yml up -d
 ```
 
-`docker compose` then pulls the prebuilt images `ghcr.io/framersai/safeos-api` and `…/safeos-ui` (nothing is compiled locally), downloads and caches the Ollama vision models, and starts everything. UI at <http://localhost:3000>, API at <http://localhost:3001>.
+`docker compose` then pulls the prebuilt images `ghcr.io/framerslab/safeos-api` and `…/safeos-ui` (nothing is compiled locally), downloads and caches the Ollama vision models, and starts everything. UI at <http://localhost:3000>, API at <http://localhost:3001>.
 
 Or pull the images straight from the registry with the Docker CLI:
 
 ```bash
-docker pull ghcr.io/framersai/safeos-api:latest
-docker pull ghcr.io/framersai/safeos-ui:latest
+docker pull ghcr.io/framerslab/safeos-api:latest
+docker pull ghcr.io/framerslab/safeos-ui:latest
 ```
 
 The two images run together: `safeos-ui` is the interface you open, `safeos-api` is the backend it talks to for notifications and the local-AI bridge. The compose starts both, plus Ollama, and wires them on one network. (`docker run … safeos-api` on its own gives you just the headless API.)
@@ -58,7 +58,7 @@ The two images run together: `safeos-ui` is the interface you open, `safeos-api`
 **Build from source instead:**
 
 ```bash
-git clone https://github.com/framersai/safeos.git
+git clone https://github.com/framerslab/safeos.git
 cd safeos
 cp .env.example .env            # optional — add only the keys you want
 docker compose up -d --build
@@ -70,11 +70,11 @@ NVIDIA GPU: add `-f docker-compose.gpu.yml` to either command. Full reference an
 
 ```bash
 cd apps/guardian-ui
-pnpm install
-pnpm dev                        # http://localhost:3000
+npm ci
+npm run dev                        # http://localhost:3000
 ```
 
-Models download on first use, then run entirely offline.
+COCO-SSD downloads on first use of Security or Wildlife mode.
 
 ## Part of the Frame ecosystem
 
@@ -85,17 +85,17 @@ If you want to dig deeper:
 - [Frame](https://frame.dev) — the company building local-first AI runtimes
 - [AgentOS](https://agentos.sh) — the agent framework, currently scoring [85.6% on LongMemEval-S](https://agentos.sh/en/blog/agentos-memory-sota-longmemeval/) with built-in PII redaction and configurable guardrails
 - [Paracosm](https://paracosm.agentos.sh) — agent swarm simulation with [citation-verified events](https://docs.agentos.sh/features/citation-verification)
-- [github.com/framersai](https://github.com/framersai) — all the open-source repos
+- [github.com/framerslab](https://github.com/framerslab) — all the open-source repos
 
 ## Use cases
 
 | Scenario | What SafeOS Guardian does |
 |---|---|
 | **Pet monitoring** | Eating, bathroom, distress, prolonged stillness, off-limits intrusion. |
-| **Baby & toddler** | Crying, sustained motion, breathing anomalies, falls, in-frame hazards. |
-| **Elder care** | Falls, confusion, prolonged inactivity, distress, wandering out of frame. |
+| **Baby & toddler** | Sustained motion, small movements, loud sound, and inactivity. |
+| **Elder care** | Prolonged inactivity, motion, and loud sound. |
 | **Lost & Found** | Match a missing pet or person against 1–5 reference photos via color + edge fingerprints. |
-| **Wildlife & outdoor** | Backyard trail-cam, livestock, predator detection. Runs offline on cheap hardware. |
+| **Wildlife & outdoor** | Backyard trail-cam, livestock, and animal detection with COCO-SSD. |
 | **Authority / emergency** | At-risk areas or shelters; severity-routed alerts via the optional server. |
 | **Small-business security** | Perimeter watch, after-hours intrusion, customer-traffic counts. Escalating push + audio. |
 | **Personal safety** | Lone-worker check-ins; doorbell detection for d/Deaf households; live-in caregiving. |
@@ -104,33 +104,33 @@ SafeOS is a **supplemental** tool. It augments human attention; it does not repl
 
 ## Architecture
 
-![SafeOS Guardian architecture — browser inference pipeline plus optional API server](https://raw.githubusercontent.com/framersai/safeos/master/apps/guardian-ui/public/diagrams/how-it-works.svg)
+![SafeOS Guardian architecture — browser inference pipeline plus optional API server](https://raw.githubusercontent.com/framerslab/safeos/master/apps/guardian-ui/public/diagrams/how-it-works.svg)
 
 The solid path runs entirely in the browser, offline, after first load. The dashed path engages only when you deploy the optional API server and opt into individual integrations.
 
 ## How the deep learning runs in your browser
 
-1. **First load.** The Next.js app shell loads from any static host (GitHub Pages, Vercel, Netlify, Cloudflare Pages). The service worker caches the shell, fonts, and JS chunks on first visit.
-2. **Model fetch.** TensorFlow.js downloads the COCO-SSD weights (~5 MB, quantized) from the [`tfjs-models` CDN](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) when you open the monitor view. The service worker caches the response via the Cache Storage API; subsequent loads serve from cache.
-3. **Backend selection.** TF.js auto-selects the fastest available backend: [WebGPU](https://www.w3.org/TR/webgpu/) where supported, [WebGL](https://www.khronos.org/webgl/) otherwise, WASM SIMD as a fallback. Laptops hit 20–30 FPS on WebGL; mobile lands at 10–15 FPS.
+1. **First load.** The Next.js app shell loads from any static host (GitHub Pages, Vercel, Netlify, Cloudflare Pages). The service worker registers after the first page loads, stores the main pages, and keeps a copy of each page and script fetched after that.
+2. **Model fetch.** TensorFlow.js downloads the COCO-SSD `lite_mobilenet_v2` weights (18.0 MB) from Google's [`tfjs-models`](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) storage when you open Security or Wildlife mode. The service worker stores same-origin responses only, so the model comes from the browser's HTTP cache or the network.
+3. **Backend.** SafeOS sets TF.js to the [WebGL](https://www.khronos.org/webgl/) backend (`tf.setBackend('webgl')`).
 4. **Per-frame screening.** A `setInterval` loop at 200 ms samples the `<video>` element into a hidden `<canvas>`, runs pixel-diff motion detection and an FFT pass over the Web Audio `AnalyserNode`, and tracks pixel-change counts. Cheap enough to run continuously without a GPU context. Code: [`apps/guardian-ui/src/components/CameraFeed.tsx`](apps/guardian-ui/src/components/CameraFeed.tsx).
-5. **Gated inference.** When motion, audio, or pixel-change crosses the per-scenario threshold, the frame is handed to TF.js. COCO-SSD's `model.detect()` returns bounding boxes, class labels, and confidence. The model can sustain 10–30 FPS, but the pipeline only invokes it on triggered frames: typically a fraction of a Hz outside sustained activity. Gate: [`apps/guardian-ui/src/lib/person-detection.ts`](apps/guardian-ui/src/lib/person-detection.ts).
-6. **Tie-breaker pass.** When COCO-SSD's top prediction sits below threshold, the frame routes to a quantized ViT-base (~89 MB, [Xenova/vit-base-patch16-224](https://huggingface.co/Xenova/vit-base-patch16-224)) under Transformers.js. Heavier, but better at fine-grained scene labeling. Secondary check, not primary path.
-7. **Audio parallel path.** The Web Audio API's [`AnalyserNode`](https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode) samples FFT bins from the microphone every ~100 ms; thresholds detect cry/distress, glass break, sustained silence. No model needed.
+5. **Gated inference.** In Security mode, when motion crosses the threshold the frame is handed to TF.js; COCO-SSD's `model.detect()` returns bounding boxes, class labels, and confidence, at most once every 500 ms. The monitor page runs no model. Gate: [`apps/guardian-ui/src/lib/person-detection.ts`](apps/guardian-ui/src/lib/person-detection.ts).
+6. **Scene classifier download.** Settings → Models can download a quantized ViT-base (88.3 MB, [Xenova/vit-base-patch16-224](https://huggingface.co/Xenova/vit-base-patch16-224)) for Transformers.js. No monitoring mode calls it.
+7. **Audio parallel path.** The Web Audio API's [`AnalyserNode`](https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode) samples FFT bins from the microphone every ~100 ms; a loudness threshold raises the sound alert, and a crying pattern shows in the camera overlay without raising an alert of its own. No model needed.
 8. **Lost & Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), and an 8×8 Sobel edge grid. The matcher samples the live feed at 1–2 FPS and compares by cosine similarity. Under 1 KB per photo. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
 9. **Alert engine.** Matches feed a severity router (info / low / medium / high / critical). Each severity has its own escalation: volume-ramping local audio, browser push, optional fan-out to email / SMS / Telegram via the API server.
-10. **Storage stays local.** Settings, alert history, and fingerprints persist in [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API). The rolling video buffer keeps only the last 5–10 minutes in memory; older frames overwrite.
+10. **Storage stays local.** Settings persist in local storage; fingerprints and saved frames persist in [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API). Monitor-page alerts are kept in memory and clear on reload. The rolling video buffer keeps only the last 5–10 minutes in memory; older frames overwrite.
 
 The optional API server (`src/`) only enters the picture when you opt into fan-out channels (Resend, Twilio, Telegram), multi-device WebSocket sync, or a bridge to a local [Ollama](https://ollama.com) install for richer scene reasoning.
 
 ## Models
 
-Every model runs client-side. Sizes are quantized model weights served from a CDN and cached by the service worker on first load.
+Every model runs client-side. Sizes are the download sizes measured on 11 Nov 2026.
 
 | Job | Model | Framework | Size | Source |
 |---|---|---|---|---|
-| Object detection (motion-gated; 10–30 FPS when firing) | COCO-SSD (MobileNetV2 backbone) | [TensorFlow.js Models](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) | ~5 MB | tfjs-models |
-| Scene classification fallback | `Xenova/vit-base-patch16-224` | [Transformers.js](https://github.com/huggingface/transformers.js) | ~89 MB | [Hugging Face](https://huggingface.co/Xenova/vit-base-patch16-224) |
+| Object detection (Security and Wildlife modes) | COCO-SSD (`lite_mobilenet_v2`) | [TensorFlow.js Models](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) | 18.0 MB | tfjs-models |
+| Scene classification (downloadable, not called by any mode) | `Xenova/vit-base-patch16-224` | [Transformers.js](https://github.com/huggingface/transformers.js) | 88.3 MB | [Hugging Face](https://huggingface.co/Xenova/vit-base-patch16-224) |
 | Audio analysis | FFT bins via [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) | native | 0 KB | MDN |
 | Visual fingerprinting | Color histograms + Sobel edges | hand-rolled | < 1 KB / photo | [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts) |
 
@@ -192,26 +192,27 @@ Every mail the API server sends (alerts, the settings test message, account veri
 
 - **Rolling buffer.** Camera frames live in memory for 5–10 minutes, then overwrite.
 - **No cloud uploads** in PWA-only mode. Period.
-- **No telemetry.** No analytics SDK, no model-improvement uploads, no Sentry beacon.
-- **IndexedDB only.** Settings, alert history, and reference photos stay in [browser-local storage](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API).
+- **No telemetry.** The app loads no analytics or tracking script and uploads nothing for model training.
+- **Browser storage only.** Settings, saved frames, and reference photos stay in [browser-local storage](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API).
 - **Optional integrations are opt-in.** Twilio, Telegram, Ollama, and cloud fallback fire only when you configure them.
 
 ## Running from source
 
-The Quickstart above is the fast path. To run the pieces directly with pnpm:
+The Quickstart above is the fast path. To run the pieces directly with npm:
 
 ```bash
-pnpm install
-pnpm dev          # API (3001) + UI (3000) together
+npm install --legacy-peer-deps
+(cd apps/guardian-ui && npm ci)
+npm run dev          # API (3001) + UI (3000) together
 # or run them separately:
-pnpm run api      # API on 3001
-pnpm run ui       # UI on 3000
+npm run api      # API on 3001
+npm run ui       # UI on 3000
 ```
 
 Static PWA build — deploy `apps/guardian-ui/out` to any CDN:
 
 ```bash
-pnpm build:ui     # writes apps/guardian-ui/out
+npm run build:ui     # writes apps/guardian-ui/out
 ```
 
 Local LLM (optional) — point `OLLAMA_HOST` at your install:
@@ -258,7 +259,7 @@ Sensitivity thresholds live in [`src/lib/analysis/profiles/`](src/lib/analysis/p
 ## Project layout
 
 ```
-packages/safeos/
+safeos/
 ├── apps/guardian-ui/        # Next.js PWA — runs the models in your browser
 │   └── src/
 │       ├── app/             # Routes (dashboard, monitor, history, settings)
@@ -286,9 +287,9 @@ packages/safeos/
 ## Testing
 
 ```bash
-pnpm test            # all tests
-pnpm test:coverage   # with coverage
-pnpm test:watch      # watch mode
+npm test            # API tests (vitest)
+npm run test:coverage   # with coverage
+npm run test:watch      # watch mode
 ```
 
 ## Deployment
@@ -326,7 +327,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md). The four ground rules:
 
 ## License
 
-MIT. Part of [Frame](https://frame.dev)'s 10% for Humanity initiative — this service stays free, forever.
+MIT. Built by [Frame](https://frame.dev) (Framers Lab, Inc.). Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
 
 ## Acknowledgments
 
