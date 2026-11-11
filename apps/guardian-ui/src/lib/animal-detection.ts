@@ -7,6 +7,8 @@
  * @module lib/animal-detection
  */
 
+import { loadDetectionModel } from './detection-model';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -154,18 +156,7 @@ export async function loadAnimalDetectionModel(): Promise<CocoSsdModel> {
   modelLoadError = null;
   modelLoading = (async () => {
     try {
-      const tf = await import('@tensorflow/tfjs');
-      const cocoSsd = await import('@tensorflow-models/coco-ssd');
-      
-      await tf.setBackend('webgl');
-      await tf.ready();
-      
-      console.log('[AnimalDetection] Loading COCO-SSD model...');
-      const loadedModel = await cocoSsd.load({
-        base: 'lite_mobilenet_v2',
-      });
-      
-      console.log('[AnimalDetection] Model loaded successfully');
+      const loadedModel = await loadDetectionModel();
       model = loadedModel;
       return loadedModel;
     } catch (error) {

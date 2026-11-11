@@ -29,7 +29,7 @@ export function ModelDownloadProgress({ onReady, onError, compact, className = '
       {!setupComplete ? (
         <Link href="/setup/" className="mt-4 inline-block text-emerald-400 underline">Complete setup before downloading</Link>
       ) : status === 'ready' ? (
-        <p role="status" className="mt-3 text-emerald-400">Detection model ready.</p>
+        <p role="status" className="mt-3 text-emerald-400">Detection model ready. Saved for offline use unless browser storage is cleared or evicted.</p>
       ) : status === 'loading' ? (
         <p role="status" className="mt-3 text-slate-300">Downloading and loading detection model…</p>
       ) : (

@@ -24,6 +24,7 @@ import {
 
 // Mock TensorFlow.js and COCO-SSD
 jest.mock('@tensorflow/tfjs', () => ({
+  io: { registerLoadRouter: jest.fn() },
   setBackend: jest.fn().mockResolvedValue(undefined as never),
   ready: jest.fn().mockResolvedValue(undefined as never),
 }));
