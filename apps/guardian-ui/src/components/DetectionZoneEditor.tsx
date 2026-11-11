@@ -435,7 +435,7 @@ export function DetectionZoneEditor({
                     <div className="space-y-2">
                         <h4 className="text-sm font-medium text-slate-300">Detection Zones</h4>
                         {detectionZones.length === 0 ? (
-                            <p className="text-sm text-slate-500">No zones defined. Click "New Zone" to draw one.</p>
+                            <p className="text-sm text-slate-500">No zones defined. Click &quot;New Zone&quot; to draw one.</p>
                         ) : (
                             <div className="space-y-1">
                                 {detectionZones.map((zone) => (
@@ -605,7 +605,7 @@ function ZoneSensitivityPanel({ zone, onUpdate }: ZoneSensitivityPanelProps) {
                 )}
             </div>
             <p className="text-xs text-slate-500">
-                Override global settings for "{zone.name}". Leave empty to use global values.
+                Override global settings for &quot;{zone.name}&quot;. Leave empty to use global values.
             </p>
 
             {/* Motion Sensitivity */}

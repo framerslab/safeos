@@ -9,7 +9,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   AlertEscalationManager,
-  ESCALATION_LEVELS,
 } from '../../src/lib/alerts/escalation.js';
 
 // =============================================================================
