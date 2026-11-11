@@ -34,7 +34,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /settings/ /help/
+  DEFAULT_ROUTES: / /monitor/ /settings/ /help/ /security/ /wildlife/ /settings/models/
 
 jobs:
   pictures:
