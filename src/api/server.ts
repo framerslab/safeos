@@ -298,7 +298,25 @@ export class SafeOSServer {
     return false;
   }
 
+  private streamForbidden(client: WSClient): void {
+    this.sendToClient(client, {
+      type: 'error', payload: { code: 'STREAM_FORBIDDEN', message: 'Stream unavailable' },
+    });
+  }
+
+  private async ownsStream(client: WSClient, streamId: unknown): Promise<boolean> {
+    if (!client.profileId || typeof streamId !== 'string' || !streamId) return false;
+    const db = await getSafeOSDatabase();
+    return !!await db.get('SELECT id FROM streams WHERE id = ? AND user_id = ?', [streamId, client.profileId]);
+  }
+
   private async handleWSMessage(client: WSClient, message: WSMessage): Promise<void> {
+    if (['join_stream', 'frame', 'audio_level', 'offer', 'answer', 'ice-candidate'].includes(message.type)) {
+      if (!await this.ownsStream(client, message.streamId)) {
+        this.streamForbidden(client);
+        return;
+      }
+    }
     switch (message.type) {
       case 'ping':
         this.sendToClient(client, { type: 'pong' });
@@ -312,6 +330,10 @@ export class SafeOSServer {
 
       case 'subscribe':
         if (message.channel) {
+          if (message.channel.startsWith('stream:') && !await this.ownsStream(client, message.channel.slice(7))) {
+            this.streamForbidden(client);
+            return;
+          }
           client.subscriptions.add(message.channel);
           console.log(`Client ${client.id} subscribed to ${message.channel}`);
         }
@@ -346,7 +368,7 @@ export class SafeOSServer {
       case 'offer':
       case 'answer':
       case 'ice-candidate':
-        this.handleSignaling(client, message);
+        await this.handleSignaling(client, message);
         break;
 
       default:
@@ -433,26 +455,18 @@ export class SafeOSServer {
     });
   }
 
-  private handleSignaling(client: WSClient, message: WSMessage): void {
-    const { type, payload } = message;
-    const targetPeerId = payload?.targetPeerId;
-
-    if (!targetPeerId) return;
-
-    // Find target client and forward message
-    const targetClient = Array.from(this.clients.values()).find(
-      (c) => c.id === targetPeerId
-    );
-
-    if (targetClient && targetClient.ws.readyState === WebSocket.OPEN) {
-      this.sendToClient(targetClient, {
-        type,
-        payload: {
-          ...payload,
-          peerId: client.id,
-        },
-      });
+  private async handleSignaling(client: WSClient, message: WSMessage): Promise<void> {
+    const { type, streamId, payload } = message;
+    const targetClient = this.clients.get(payload?.targetPeerId);
+    if (!streamId || client.streamId !== streamId || !targetClient
+        || targetClient.streamId !== streamId || targetClient.profileId !== client.profileId
+        || !await this.validateClientSession(targetClient)) {
+      this.streamForbidden(client);
+      return;
     }
+    this.sendToClient(targetClient, {
+      type, streamId, payload: { ...payload, peerId: client.id },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -476,9 +490,18 @@ export class SafeOSServer {
   public broadcastToStream(streamId: string, message: WSMessage): void {
     this.clients.forEach((client) => {
       if (client.streamId === streamId) {
-        this.sendToClient(client, message);
+        void this.sendStreamMessage(client, streamId, message);
       }
     });
+  }
+
+  private async sendStreamMessage(client: WSClient, streamId: string, message: WSMessage): Promise<void> {
+    try {
+      if (await this.validateClientSession(client) && await this.ownsStream(client, streamId)
+          && client.streamId === streamId) this.sendToClient(client, message);
+    } catch {
+      client.ws.close(1011, 'Stream unavailable');
+    }
   }
 
   public broadcastToAll(message: WSMessage): void {
