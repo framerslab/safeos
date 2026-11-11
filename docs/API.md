@@ -429,6 +429,8 @@ The request log prints `[token]` in place of the token.
 
 ### Webhooks
 
+All webhook routes: **signed in** with the `X-Session-Token` header, the caller's own webhooks only. An expired session gets `401`.
+
 #### GET /api/webhooks
 List registered webhooks.
 
@@ -671,6 +673,7 @@ All errors follow this format:
 | Endpoint | Limit |
 |----------|-------|
 | General API | 100 req/min per client address |
+| Sign-in (`/api/auth`) | 5 failed req/min per client address; a successful request is not counted |
 | Analysis submission | 30 req/min |
 | Webhook triggers | 60 req/min |
 

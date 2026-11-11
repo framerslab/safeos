@@ -296,6 +296,26 @@ export async function runMigrations(db: Database): Promise<void> {
     )
   `);
 
+  // Create webhooks table (the /api/webhooks routes and their delivery)
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS webhooks (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      secret TEXT NOT NULL,
+      events TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      failure_count INTEGER NOT NULL DEFAULT 0,
+      last_triggered TEXT,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (profile_id) REFERENCES user_profiles(id)
+    )
+  `);
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_webhooks_profile_id ON webhooks(profile_id)
+  `);
+
   // Roles: 'user' (everyone), 'reviewer' (reads and acts on content flags),
   // 'operator' (runs the deployment). The operator grants a role with
   // UPDATE user_profiles SET role = 'reviewer' WHERE id = '<profile id>'.
