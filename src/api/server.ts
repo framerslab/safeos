@@ -73,6 +73,8 @@ const MAX_FRAME_BYTES = 2 * 1024 * 1024;
 const MAX_FRAME_PIXELS = 16_000_000;
 const MAX_WS_PAYLOAD = 3 * 1024 * 1024;
 const MAX_PENDING_MESSAGES = 32;
+const MAX_CHANNEL_LENGTH = 128;
+const MAX_SUBSCRIPTIONS = 32;
 const MAX_CONCURRENT_FRAME_DECODES = 2;
 // Shared by every socket and server instance in this process.
 let activeFrameDecodes = 0;
@@ -233,7 +235,7 @@ export class SafeOSServer {
             return;
           }
           if (await this.validateClientSession(client)) await this.handleWSMessage(client, message);
-        }).catch(() => ws.close(1011, 'Unable to process message')).finally(() => { queuedMessages--; });
+        }).catch(error => this.closeInternalError(client, error)).finally(() => { queuedMessages--; });
       });
       ws.on('close', () => {
         clearTimeout(client.authTimer);
@@ -305,10 +307,19 @@ export class SafeOSServer {
         return true;
       }
       client.ws.close(1008, 'Invalid or expired session');
-    } catch {
-      client.ws.close(1011, 'Unable to validate session');
+    } catch (error) {
+      this.closeInternalError(client, error);
     }
     return false;
+  }
+
+  private closeInternalError(client: WSClient, error: unknown): void {
+    // Concurrent work may fail after the first close; report that close once.
+    if (client.ws.readyState !== WebSocket.OPEN) return;
+    const name = error instanceof Error && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(error.name)
+      ? error.name : 'Error';
+    console.error('[WebSocket] Internal error', name);
+    client.ws.close(1011, 'Internal error');
   }
 
   private streamForbidden(client: WSClient): void {
@@ -342,14 +353,25 @@ export class SafeOSServer {
         break;
 
       case 'subscribe':
-        if (message.channel) {
-          if (message.channel.startsWith('stream:') && !await this.ownsStream(client, message.channel.slice(7))) {
-            this.streamForbidden(client);
-            return;
-          }
-          client.subscriptions.add(message.channel);
-          console.log(`Client ${client.id} subscribed to ${message.channel}`);
+        if (typeof message.channel !== 'string' || message.channel.length > MAX_CHANNEL_LENGTH
+            || !/^[A-Za-z0-9:_-]+$/.test(message.channel)) {
+          this.sendToClient(client, {
+            type: 'error', payload: { code: 'INVALID_CHANNEL', message: 'Use 1–128 letters, digits, colons, underscores or hyphens' },
+          });
+          return;
         }
+        if (message.channel.startsWith('stream:') && !await this.ownsStream(client, message.channel.slice(7))) {
+          this.streamForbidden(client);
+          return;
+        }
+        if (!client.subscriptions.has(message.channel) && client.subscriptions.size >= MAX_SUBSCRIPTIONS) {
+          this.sendToClient(client, {
+            type: 'error', payload: { code: 'SUBSCRIPTION_LIMIT', message: 'Maximum 32 subscriptions per connection' },
+          });
+          return;
+        }
+        client.subscriptions.add(message.channel);
+        console.log('[WebSocket] Channel subscribed');
         break;
 
       case 'unsubscribe':
@@ -385,7 +407,7 @@ export class SafeOSServer {
         break;
 
       default:
-        console.log(`Unknown message type: ${message.type}`);
+        console.log('[WebSocket] Unknown message type');
     }
   }
 
@@ -562,8 +584,8 @@ export class SafeOSServer {
     try {
       if (await this.validateClientSession(client) && await this.ownsStream(client, streamId)
           && client.streamId === streamId) this.sendToClient(client, message);
-    } catch {
-      client.ws.close(1011, 'Stream unavailable');
+    } catch (error) {
+      this.closeInternalError(client, error);
     }
   }
 

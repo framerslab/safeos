@@ -546,9 +546,12 @@ Wait for `{"type":"connected","payload":{"clientId":"peer-id"}}` before
 sending application messages. Missing, unknown, revoked or expired sessions
 close with code `1008`; session checks also run on each message and heartbeat.
 Tokens in URLs are not accepted. The browser client uses the current sign-in
-session; an offline-only session cannot authenticate to the server. The socket
-hook initializes a session on a fresh monitoring visit. Logout and session
-changes cancel old retries and detach the old socket's event handlers.
+session. The hook and client class do not open sockets for tokens beginning
+with `local-` or `offline-`. After a `1008` close they stop retrying that
+session, including explicit reconnect attempts, until the session changes.
+The socket hook initializes a session on a fresh monitoring visit. Logout and
+session changes cancel old retries and detach the old socket's event handlers.
+Updating hook callbacks does not reconnect the socket.
 
 ### Stream ownership
 
@@ -609,7 +612,8 @@ analysis using the stream's saved `pet`, `baby` or `elderly` scenario.
 
 Respond to server `ping` messages with `{"type":"pong"}`. The server also
 answers client `ping` messages with `pong`. Heartbeats run every 30 seconds;
-a connection closes after more than three missed responses.
+a connection closes after more than three missed responses. Both browser
+clients answer server pings automatically after sign-in.
 
 ### Errors and events
 
@@ -622,7 +626,16 @@ Errors use this envelope:
 Stream metrics use `{"type":"metrics","streamId":"...","payload":{"motionScore":15,"audioLevel":8}}`.
 Messages from the server include a millisecond `timestamp`. Channel
 `subscribe` and `unsubscribe` messages accept a `channel` field; subscribing
-to `stream:<id>` requires ownership too. The current worker does not send
+to `stream:<id>` requires ownership too. Channel names must contain 1–128
+ASCII letters, digits, colons, underscores or hyphens. Each connection holds
+at most 32 distinct subscriptions. Invalid names receive `INVALID_CHANNEL`;
+additional subscriptions receive `SUBSCRIPTION_LIMIT`. Subscribing again to
+an existing channel uses no extra slot; unsubscribing frees a slot.
+Subscription and unknown-message log lines do not include the supplied value.
+An internal failure closes the socket with `1011` and logs one fixed diagnostic
+with the error name, without the error message, session or client data.
+
+The current worker does not send
 alert or analysis-result events over this socket; use the HTTP routes to
 read those records and acknowledge alerts.
 

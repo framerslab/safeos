@@ -64,6 +64,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
   const sessionToken = useAuthStore(state => state.sessionToken);
   const authenticatedRef = useRef(false);
+  const refusedTokenRef = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
@@ -71,6 +72,12 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WSMessage | null>(null);
+
+  // A policy refusal stays blocked until the session changes.
+  useEffect(() => {
+    refusedTokenRef.current = null;
+    reconnectAttemptsRef.current = 0;
+  }, [sessionToken]);
 
   // A direct monitor visit may not render the separate sign-in control.
   useEffect(() => {
@@ -91,7 +98,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
     // A retry must read the current session, never a captured credential.
     const token = useAuthStore.getState().sessionToken;
-    if (!url || !token) return;
+    if (!url || !token || /^(local-|offline-)/.test(token) || refusedTokenRef.current === token) return;
     if (url.startsWith('ws://localhost') || url.startsWith('wss://localhost')) {
       if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
@@ -114,6 +121,9 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         if (!isCurrent()) return;
         try {
           const message: WSMessage = JSON.parse(event.data);
+          if (message.type === 'ping' && authenticatedRef.current && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong' }));
+          }
           if (message.type === 'connected') {
             authenticatedRef.current = true;
             setIsConnected(true);
@@ -131,8 +141,9 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (wsRef.current !== ws) return;
+        if (event?.code === 1008) refusedTokenRef.current = token;
         wsRef.current = null;
         authenticatedRef.current = false;
         setIsConnected(false);
@@ -141,7 +152,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
           clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
         }
-        if (useAuthStore.getState().sessionToken === token && reconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        if (refusedTokenRef.current !== token && useAuthStore.getState().sessionToken === token && reconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current++;
           const delay = reconnectDelay * Math.pow(1.5, reconnectAttemptsRef.current - 1);
           reconnectTimeoutRef.current = setTimeout(() => {
@@ -256,6 +267,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private authenticated = false;
+  private refusedToken: string | null = null;
   private url: string;
   private reconnectAttempts = 0;
   private maxReconnectAttempts: number;
@@ -289,7 +301,8 @@ export class WebSocketClient {
 
     // Don't attempt connection with empty URL
     const token = useAuthStore.getState().sessionToken;
-    if (!this.url || !token) return;
+    if (!this.url || !token || /^(local-|offline-)/.test(token) || this.refusedToken === token) return;
+    this.refusedToken = null;
 
     // Only connect to localhost when actually running locally
     if (this.url.startsWith('ws://localhost') || this.url.startsWith('wss://localhost')) {
@@ -312,6 +325,7 @@ export class WebSocketClient {
     this.ws.onmessage = (event) => {
       try {
         const message: WSMessage = JSON.parse(event.data);
+        if (message.type === 'ping') this.send({ type: 'pong' });
         if (message.type === 'connected') {
           this.authenticated = true;
           this.reconnectAttempts = 0;
@@ -325,7 +339,8 @@ export class WebSocketClient {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event) => {
+      if (event.code === 1008) this.refusedToken = token;
       this.authenticated = false;
       this.onDisconnectCallback?.();
 
@@ -334,7 +349,8 @@ export class WebSocketClient {
         this.heartbeatInterval = null;
       }
 
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      if (this.refusedToken !== token && useAuthStore.getState().sessionToken === token
+          && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++;
         const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
         this.reconnectTimeout = setTimeout(() => this.connect(), Math.min(delay, 30000));
