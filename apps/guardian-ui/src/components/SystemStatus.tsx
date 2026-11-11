@@ -37,7 +37,6 @@ interface SystemStats {
 interface OllamaModel {
   name: string;
   size: string;
-  loaded: boolean;
 }
 
 interface SystemStatusProps {
@@ -68,7 +67,7 @@ export function SystemStatus({ stats }: SystemStatusProps) {
     getServerModelStatus(backendConfig.apiUrl)
       .then((status) => {
         if (!cancelled) setModels(status.models.map((model) => ({
-          name: model.name, size: model.size || '—', loaded: false,
+          name: model.name, size: model.size || '—',
         })));
       })
       .catch(() => { if (!cancelled) setModels([]); })
@@ -182,11 +181,7 @@ export function SystemStatus({ stats }: SystemStatusProps) {
                     <span className="text-slate-300">{model.name}</span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-slate-500">{model.size}</span>
-                      <div
-                        className={`w-2 h-2 rounded-full ${
-                          model.loaded ? 'bg-emerald-500' : 'bg-slate-600'
-                        }`}
-                      />
+                      <span className="text-xs text-slate-500">Installed; running state unavailable</span>
                     </div>
                   </div>
                 ))}
