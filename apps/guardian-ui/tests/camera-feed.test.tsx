@@ -32,3 +32,15 @@ it.each(['end', 'mute'] as const)('removes LIVE and releases capture when the vi
   expect(error).toHaveBeenCalledWith(expect.any(Error));
   expect(browser.audio.stop).toHaveBeenCalled();
 });
+
+
+it.each(['mute', 'end'] as const)('keeps video monitoring while reporting microphone %s', async (event) => {
+  const error = jest.fn();
+  render(<CameraFeed onError={error} />);
+  await act(async () => {});
+  act(() => browser.audio[event]());
+  expect(screen.getByText('LIVE')).toBeTruthy();
+  expect(screen.getByText('Microphone unavailable. Video monitoring continues.')).toBeTruthy();
+  expect(browser.video.stop).not.toHaveBeenCalled();
+  expect(error).not.toHaveBeenCalled();
+});

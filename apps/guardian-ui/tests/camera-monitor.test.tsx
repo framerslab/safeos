@@ -7,12 +7,14 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { BrowserSocket, installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
+const mockBackendConfig = { wsUrl: 'wss://monitor.example.test' };
 jest.mock('@/contexts/BackendStatusContext', () => ({
-  useBackendStatus: () => ({ config: { wsUrl: 'wss://monitor.example.test' } }),
+  useBackendStatus: () => ({ config: mockBackendConfig }),
 }));
 
 let browser: ReturnType<typeof installCameraBrowser>;
 beforeEach(() => {
+  mockBackendConfig.wsUrl = 'wss://monitor.example.test';
   jest.useFakeTimers();
   localStorage.clear();
   useMonitoringStore.getState().reset();
@@ -103,4 +105,37 @@ it('does not claim normal monitoring in the empty alert panel before camera star
   expect(screen.queryByText('Monitoring is running normally')).toBeNull();
   expect(screen.getByText('Monitoring is inactive')).toBeTruthy();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
+});
+
+
+it('starts server analysis when the connection arrives after camera startup', async () => {
+  useSettingsStore.getState().updateGlobalSettings({ processingMode: 'hybrid' });
+  render(<MonitorPage />);
+  await startMonitoring();
+  const socket = BrowserSocket.instances.at(-1)!;
+  expect(socket.sent.filter(m => m.type === 'start-stream')).toHaveLength(0);
+  act(() => socket.onopen?.());
+  expect(socket.sent.filter(m => m.type === 'start-stream')).toHaveLength(1);
+  act(() => { socket.readyState = 3; socket.onclose?.(); jest.advanceTimersByTime(3000); });
+  const replacement = BrowserSocket.instances.at(-1)!;
+  act(() => replacement.onopen?.());
+  expect(replacement.sent.filter(m => m.type === 'start-stream')).toHaveLength(1);
+});
+
+it('clears global connection status while replacing the configured server', async () => {
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  act(() => BrowserSocket.instances.at(-1)!.onopen?.());
+  expect(useMonitoringStore.getState().isConnected).toBe(true);
+  mockBackendConfig.wsUrl = 'wss://replacement.example.test';
+  view.rerender(<MonitorPage />);
+  expect(useMonitoringStore.getState().isConnected).toBe(false);
+});
+
+it('shows a useful error when the selected camera fails with an empty browser message', async () => {
+  browser.getUserMedia.mockRejectedValue(new DOMException('', 'OverconstrainedError'));
+  render(<MonitorPage />);
+  await startMonitoring();
+  expect(screen.getByText('The selected camera is unavailable. Choose another camera.')).toBeTruthy();
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
 });
