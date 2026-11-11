@@ -21,6 +21,7 @@ import { sendTestSms, isTwilioConfigured } from '../../lib/alerts/twilio.js';
 import { strictLimiter } from '../middleware/rate-limiter.js';
 import { requireAuth, getProfileId } from '../middleware/auth.js';
 import { getSafeOSDatabase, now } from '../../db/index.js';
+import { resolvePushDestination, PushDestinationError } from '../../lib/alerts/push-destination.js';
 
 // =============================================================================
 // Router
@@ -45,6 +46,8 @@ function registrationId(profileId: string, address: string): string {
 notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (req: Request, res: Response) => {
   try {
     const { subscription } = req.body;
+    const destination = await resolvePushDestination(subscription.endpoint);
+    subscription.endpoint = destination.url.href;
     const profileId = getProfileId(req);
     const id = registrationId(profileId, subscription.endpoint);
     const db = await getSafeOSDatabase();
@@ -56,6 +59,10 @@ notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (r
 
     res.json({ success: true, id });
   } catch (error) {
+    if (error instanceof PushDestinationError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error('Failed to subscribe:', error);
     res.status(500).json({ error: 'Failed to subscribe' });
   }

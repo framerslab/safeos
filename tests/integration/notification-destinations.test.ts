@@ -145,3 +145,38 @@ it('allows server mail for a stored operator owner', async () => {
     expect(boundary.email).toHaveBeenCalledTimes(1);
   } finally { await p.close(); }
 });
+
+it('does not follow a redirect returned by the push provider', async () => {
+  const p = await startPipeline();
+  const https = (await import('node:https')).default;
+  const { EventEmitter } = await import('node:events');
+  const { createECDH, randomBytes } = await import('node:crypto');
+  const actual = await vi.importActual<typeof import('web-push')>('web-push');
+  const request = vi.spyOn(https, 'request').mockImplementation(((_options: unknown, respond: (response: any) => void) => {
+    const req = new EventEmitter() as any;
+    req.write = () => true;
+    req.end = () => {
+      const response = Object.assign(new EventEmitter(), {
+        statusCode: 302, headers: { location: 'https://127.0.0.1/redirect-target' },
+      });
+      respond(response);
+      queueMicrotask(() => response.emit('end'));
+    };
+    return req;
+  }) as any);
+  try {
+    boundary.realPush = true;
+    boundary.webPush.mockImplementation(actual.default.sendNotification);
+    const clientKey = createECDH('prime256v1');
+    clientKey.generateKeys();
+    const subscription = {
+      endpoint: 'https://fcm.googleapis.com/push/redirect',
+      keys: { p256dh: clientKey.getPublicKey().toString('base64url'), auth: randomBytes(16).toString('base64url') },
+    };
+    expect((await p.api.post('/api/notifications/subscribe').set('x-session-token', p.owner.token)
+      .send({ subscription })).status).toBe(200);
+    await alert(p);
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0][0]).toMatchObject({ hostname: 'fcm.googleapis.com', path: '/push/redirect' });
+  } finally { request.mockRestore(); await p.close(); }
+});
