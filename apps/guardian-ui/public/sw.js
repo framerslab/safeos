@@ -6,9 +6,18 @@
 
 // The static-export build prepends the complete, content-versioned asset list.
 const manifest = self.__SAFEOS_PRECACHE;
+// Without that list (next dev, or a build that skipped the postbuild step) the
+// worker stores nothing and leaves every request to the network. It takes over
+// at once, so a worker an earlier build left on this origin stops serving its
+// cached pages.
+const UNBUILT = !manifest;
 const CACHE_NAME = `safeos-shell-${manifest?.version || 'unbuilt'}`;
 
 self.addEventListener('install', (event) => {
+  if (UNBUILT) {
+    self.skipWaiting();
+    return;
+  }
   event.waitUntil((async () => {
     if (!manifest?.urls?.length) throw new Error('Offline asset manifest is missing.');
     const cache = await caches.open(CACHE_NAME);
@@ -29,6 +38,7 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (UNBUILT) return;
   const { request } = event;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== location.origin) return;
@@ -38,7 +48,10 @@ self.addEventListener('fetch', (event) => {
     const cache = await caches.open(CACHE_NAME);
     // Use this build's files together. Never replace old HTML with new HTML
     // while leaving its scripts behind, and never mix model and page caches.
-    const cached = await cache.match(request);
+    // The router asks for route data as index.txt?_rsc=<id>; a static host
+    // ignores the query, so the installed file is the same response.
+    const cached = await cache.match(request) ||
+      (url.pathname.endsWith('.txt') ? await cache.match(url.origin + url.pathname) : undefined);
     if (cached) return cached;
     try {
       return await fetch(request);

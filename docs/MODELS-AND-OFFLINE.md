@@ -21,13 +21,20 @@ button works the same way.
 Offline starts require two completed preparations:
 
 1. The service worker installs the exported HTML and all generated scripts,
-   styles, fonts and route data. The postbuild script derives the list and cache
-   version from the actual output. Installation fails if an asset cannot be saved.
+   styles, fonts, route data and the images pages show (logo, favicons, logos,
+   diagrams). The postbuild script derives the list and cache version from the
+   actual output. Installation fails if an asset cannot be saved. Route data the
+   router requests with a query (`index.txt?_rsc=...`) is served from the
+   installed copy. Alert sounds are not installed: audio is fetched with Range
+   requests, which the worker leaves to the network.
 2. For person or animal detection, the agreed model download must finish. The
    model cache is separate from app caches and survives app updates.
 
 A worker serves one build consistently. A newer worker waits for tabs using the
 previous worker to close before activating and deleting the old app cache.
+The worker file served before the postbuild step (`next dev`) carries no list:
+it stores nothing, leaves every request to the network, and replaces a worker an
+earlier build left on the same origin at once.
 Model and unrelated caches are preserved. Browser storage can be cleared or
 evicted; reconnect to restore missing app files or model weights. Server
 integrations require a connection even when the app and model are saved.
