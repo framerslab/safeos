@@ -127,3 +127,64 @@ describe('WebSocket sessions', () => {
     expect(await frameCount(streamId)).toBe(0);
   });
 });
+
+describe('WebSocket stream ownership', () => {
+  it('refuses another owner joining a stream and receiving its metrics', async () => {
+    const owner = await signIn();
+    const outsider = await signIn();
+    const streamId = await stream(owner);
+    const viewer = await connected(outsider);
+    await joinStream(viewer, streamId);
+    expect(viewer.messages).toContainEqual(expect.objectContaining({ type: 'error', payload: expect.objectContaining({ code: 'STREAM_FORBIDDEN' }) }));
+    api.broadcastToStream(streamId, { type: 'metrics', payload: { motionScore: 7 } });
+    await settle(viewer);
+    expect(viewer.messages.some(m => m.type === 'metrics')).toBe(false);
+  });
+
+  it.each(['frame', 'audio_level'])('refuses another owner sending %s without joining', async type => {
+    const owner = await signIn();
+    const outsider = await signIn();
+    const streamId = await stream(owner);
+    const viewer = await connected(owner);
+    await joinStream(viewer, streamId);
+    const sender = await connected(outsider);
+    send(sender, { type, streamId, payload: { imageData: jpeg, motionScore: 100, level: 90 } });
+    await vi.waitFor(() => expect(sender.messages).toContainEqual(expect.objectContaining({ type: 'error', payload: expect.objectContaining({ code: 'STREAM_FORBIDDEN' }) })));
+    await settle(viewer);
+    expect(await frameCount(streamId)).toBe(0);
+    expect(await db.get('SELECT id FROM analysis_queue WHERE stream_id = ?', [streamId])).toBeFalsy();
+    expect(viewer.messages.some(m => m.type === 'metrics' || m.type === 'audio_level')).toBe(false);
+  });
+
+  it.each(['offer', 'answer', 'ice-candidate'])('restricts %s to peers joined to the same owned stream', async type => {
+    const owner = await signIn();
+    const outsider = await signIn();
+    const streamId = await stream(owner);
+    const otherStream = await stream(outsider);
+    const target = await connected(owner);
+    await joinStream(target, streamId);
+    const sender = await connected(outsider);
+    await joinStream(sender, otherStream);
+    send(sender, { type, streamId: otherStream, payload: { targetPeerId: target.id, sdp: 'test' } });
+    await vi.waitFor(() => expect(sender.messages).toContainEqual(expect.objectContaining({ type: 'error', payload: expect.objectContaining({ code: 'STREAM_FORBIDDEN' }) })));
+    await settle(target);
+    expect(target.messages.some(m => m.type === type)).toBe(false);
+  });
+
+  it('keeps owner frames, audio and same-stream signalling working', async () => {
+    const owner = await signIn();
+    const streamId = await stream(owner);
+    const sender = await connected(owner);
+    const viewer = await connected(owner);
+    await joinStream(sender, streamId);
+    await joinStream(viewer, streamId);
+    frame(sender, streamId);
+    await vi.waitFor(async () => expect(await frameCount(streamId)).toBe(1));
+    send(sender, { type: 'audio_level', streamId, payload: { level: 12 } });
+    for (const type of ['offer', 'answer', 'ice-candidate']) {
+      send(sender, { type, streamId, payload: { targetPeerId: viewer.id, sdp: 'test' } });
+      await vi.waitFor(() => expect(viewer.messages.some(m => m.type === type && m.payload.peerId === sender.id)).toBe(true));
+    }
+    expect(viewer.messages.some(m => m.type === 'audio_level' && m.payload.level === 12)).toBe(true);
+  });
+});
