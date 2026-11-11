@@ -24,9 +24,9 @@ it('opens shortcut help from a focused button and closes it with Escape', async 
   const button = screen.getByRole('button', { name: 'Keep focus' });
   button.focus();
   fireEvent.keyDown(button, { key: '?', bubbles: true });
-  expect(await screen.findByRole('dialog')).toBeTruthy();
+  expect(await screen.findByRole('heading', { name: 'Keyboard Shortcuts' })).toBeTruthy();
   const close = screen.getByRole('button', { name: /close/i });
   close.focus();
   fireEvent.keyDown(close, { key: 'Escape', bubbles: true });
-  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Keyboard Shortcuts' })).toBeNull();
 });
