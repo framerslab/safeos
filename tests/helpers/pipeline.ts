@@ -10,6 +10,10 @@ import { createDatabase } from '@framers/sql-storage-adapter';
 const providers = vi.hoisted(() => ({
   db: null as any,
   healthy: vi.fn(),
+  models: vi.fn(),
+  lookup: vi.fn(),
+  webPush: vi.fn(),
+  realPush: false,
   triage: vi.fn(),
   analyze: vi.fn(),
   push: vi.fn(),
@@ -31,12 +35,21 @@ vi.mock('../../src/lib/ollama/client.js', async (original) => {
   const actual = await original<typeof import('../../src/lib/ollama/client.js')>();
   return { ...actual, OllamaClient: class extends actual.OllamaClient {
     isHealthy = providers.healthy;
-    ensureModels = vi.fn().mockResolvedValue(undefined);
+    ensureModels = providers.models;
     triage = providers.triage;
     analyze = providers.analyze;
   } };
 });
-vi.mock('../../src/lib/alerts/browser-push.js', () => ({ sendBrowserPushNotification: providers.push }));
+vi.mock('../../src/lib/alerts/browser-push.js', async (original) => {
+  const actual = await original<typeof import('../../src/lib/alerts/browser-push.js')>();
+  return { ...actual, sendBrowserPushNotification: (...args: Parameters<typeof actual.sendBrowserPushNotification>) =>
+    providers.realPush ? actual.sendBrowserPushNotification(...args) : providers.push(...args) };
+});
+vi.mock('node:dns/promises', () => ({ lookup: providers.lookup }));
+vi.mock('web-push', async (original) => {
+  const actual = await original<typeof import('web-push')>();
+  return { default: { ...actual.default, sendNotification: providers.webPush } };
+});
 vi.mock('../../src/lib/alerts/twilio.js', async (original) => ({
   ...await original<typeof import('../../src/lib/alerts/twilio.js')>(),
   isTwilioConfigured: () => true, sendAlertSms: providers.sms,
@@ -72,6 +85,14 @@ export async function startPipeline() {
   vi.stubEnv('OPENROUTER_API_KEY', '');
   vi.stubEnv('OPENAI_API_KEY', '');
   vi.stubEnv('ANTHROPIC_API_KEY', '');
+  const webpush = await import('web-push');
+  const vapid = webpush.default.generateVAPIDKeys();
+  vi.stubEnv('VAPID_PUBLIC_KEY', vapid.publicKey);
+  vi.stubEnv('VAPID_PRIVATE_KEY', vapid.privateKey);
+  providers.realPush = false;
+  providers.lookup.mockReset().mockResolvedValue([{ address: '142.250.1.1', family: 4 }]);
+  providers.webPush.mockReset().mockResolvedValue({ statusCode: 201 });
+  providers.models.mockReset().mockResolvedValue(undefined);
   providers.healthy.mockReset().mockResolvedValue(true);
   providers.triage.mockReset().mockResolvedValue('CONCERN_LEVEL: none');
   providers.analyze.mockReset().mockResolvedValue('TIER: 0');
