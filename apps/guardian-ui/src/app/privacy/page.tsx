@@ -136,7 +136,7 @@ export default function PrivacyPage() {
                 <strong className="text-white">Data Storage:</strong> Your preferences are stored in
                 your browser&apos;s local storage. Saved frames from Security, Lost &amp; Found, and
                 Wildlife, and your reference photos, are stored in IndexedDB. Alerts on the monitor
-                page are kept in memory and clear when you reload. Clearing your browser data removes
+                page are saved in IndexedDB and restored in History after a reload. Clearing your browser data removes
                 everything. Clear All Local Data also removes recorded sounds and the offline cache.
                 Signing out clears local records before another account can use the browser.
               </p>
