@@ -57,3 +57,13 @@ it.each(['NotAllowedError', 'NotFoundError'])('does not claim monitoring when ca
   expect(screen.queryByRole('button', { name: 'Stop Monitoring' })).toBeNull();
   expect(screen.getByText('Camera unavailable')).toBeTruthy();
 });
+
+it('ends monitoring when its camera is unplugged', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  act(() => browser.video.end());
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(screen.queryByText('LIVE')).toBeNull();
+  expect(screen.getByText(/camera.*(lost|ended|disconnected)/i)).toBeTruthy();
+});

@@ -21,3 +21,14 @@ it.each(['disabled', 'unmounted'])('releases a late permission result after capt
   expect(ready.mock.calls.filter(([video]) => video !== null)).toEqual([]);
   expect(screen.queryByText('LIVE')).toBeNull();
 });
+
+it.each(['end', 'mute'] as const)('removes LIVE and releases capture when the video track signals %s', async (event) => {
+  const error = jest.fn();
+  render(<CameraFeed onError={error} />);
+  await act(async () => {});
+  expect(screen.getByText('LIVE')).toBeTruthy();
+  act(() => browser.video[event]());
+  expect(screen.queryByText('LIVE')).toBeNull();
+  expect(error).toHaveBeenCalledWith(expect.any(Error));
+  expect(browser.audio.stop).toHaveBeenCalled();
+});
