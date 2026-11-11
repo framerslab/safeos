@@ -41,3 +41,11 @@ it('installs the images the exported pages and notifications show', () => {
   ]));
   expect(urls).not.toContain('/sw.js');
 });
+
+it('assigns different cache versions to distinct exported file contents', () => {
+  const shared = { 'out/_next/static/chunks/main.js': '' };
+  const first = generate({ ...shared, 'out/index.html': '<html/>index.txt', 'out/index.txt': '' });
+  const second = generate({ ...shared, 'out/index.html': '<html/>', 'out/index.txt': 'index.txt' });
+  expect(first.urls).toEqual(second.urls);
+  expect(first.version).not.toBe(second.version);
+});
