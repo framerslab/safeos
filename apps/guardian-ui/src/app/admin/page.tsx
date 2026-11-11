@@ -10,6 +10,8 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { getApiUrl } from '@/lib/env';
+import { useAuthStore } from '@/stores/auth-store';
 import { IconCamera, IconLock, IconCheck } from '../../components/icons';
 
 // =============================================================================
@@ -93,8 +95,8 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     try {
       const [statusRes, flagsRes] = await Promise.all([
-        fetch('/api/status'),
-        fetch('/api/review/flags?limit=20'),
+        fetch(`${getApiUrl()}/api/status`, { headers: { 'X-Session-Token': useAuthStore.getState().sessionToken || '' } }),
+        fetch(`${getApiUrl()}/api/review/flags?limit=20`, { headers: { 'X-Session-Token': useAuthStore.getState().sessionToken || '' } }),
       ]);
 
       if (statusRes.ok) {
@@ -115,7 +117,7 @@ export default function AdminDashboard() {
 
       if (flagsRes.ok) {
         const flagsData = await flagsRes.json();
-        setFlags(flagsData.data || []);
+        setFlags(flagsData.flags || []);
       }
 
       // Mock activities for now
@@ -134,9 +136,9 @@ export default function AdminDashboard() {
   const handleFlagAction = async (flagId: string, action: 'approve' | 'reject' | 'escalate') => {
     setReviewError(null);
     try {
-      const response = await fetch(`/api/review/flags/${flagId}/action`, {
+      const response = await fetch(`${getApiUrl()}/api/review/flags/${flagId}/action`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': useAuthStore.getState().sessionToken || '' },
         body: JSON.stringify({ action: { approve: 'approved', reject: 'rejected', escalate: 'escalated' }[action] }),
       });
       if (!response.ok) throw new Error('Review action was not accepted. Please try again.');
