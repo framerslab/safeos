@@ -371,3 +371,24 @@ it.each(['push', 'telegram'] as const)('starts cooldown when at least one %s des
     expect(rows.filter((row: any) => JSON.parse(row.metadata).deliverySkipped === 'cooldown')).toHaveLength(1);
   } finally { await p.close(); }
 });
+
+it('retains a successful destination when another destination reaches its deadline', async () => {
+  const p = await startPipeline({ fakeTimeouts: true });
+  try {
+    await channels(p); concern('critical');
+    await p.api.post('/api/notifications/subscribe').set('x-session-token', p.owner.token)
+      .send({ subscription: { endpoint: 'https://fcm.googleapis.com/push/stalled', keys: { p256dh: 'key', auth: 'auth' } } }).expect(200);
+    for (const sender of [boundary.sms, boundary.email, boundary.telegram]) sender.mockRejectedValue(new Error('Unavailable'));
+    boundary.push.mockImplementation(() => new Promise(() => {})).mockResolvedValueOnce(undefined);
+    await delivered(p, 'one-destination-accepted');
+    await p.tick(15000);
+    const metadata = JSON.parse((await p.db.get('SELECT metadata FROM alerts')).metadata);
+    expect(metadata.deliverySucceeded).toBe(true);
+    expect(metadata.deliveryResults).toContainEqual({ channel: 'browser', success: false,
+      delivered: true, skipped: false, timedOut: true });
+    expect((await (p.service as any).analysisQueue.getStats()).deliveriesInFlight).toBe(0);
+    await p.tick(3 * 60 * 1000);
+    await delivered(p, 'after-partial-timeout');
+    expect(boundary.sms).toHaveBeenCalledTimes(1);
+  } finally { await p.tick(15000); await p.close(); }
+});
