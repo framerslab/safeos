@@ -104,6 +104,7 @@ export function CameraFeed({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const requestRef = useRef(0);
+  const removeTrackListenersRef = useRef<(() => void) | null>(null);
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
   const pixelEngineRef = useRef<PixelDetectionEngine | null>(null);
@@ -198,6 +199,8 @@ export function CameraFeed({
   // Invalidating a request also covers permission prompts and pending video.play().
   const stopCamera = useCallback(() => {
     requestRef.current++;
+    removeTrackListenersRef.current?.();
+    removeTrackListenersRef.current = null;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -248,6 +251,28 @@ export function CameraFeed({
         return;
       }
       streamRef.current = acquired;
+      const tracks = acquired.getTracks();
+      const lost = () => {
+        if (!isCurrent()) return;
+        stopCamera();
+        const error = new Error('Camera connection lost. Check the device and start monitoring again.');
+        setError(error.message);
+        onErrorRef.current?.(error);
+      };
+      for (const track of tracks) {
+        track.addEventListener('ended', lost);
+        track.addEventListener('mute', lost);
+      }
+      removeTrackListenersRef.current = () => {
+        for (const track of tracks) {
+          track.removeEventListener('ended', lost);
+          track.removeEventListener('mute', lost);
+        }
+      };
+      if (!acquired.getVideoTracks().length || tracks.some(track => track.readyState === 'ended' || track.muted)) {
+        lost();
+        return;
+      }
       const video = videoRef.current;
       if (!video) throw new Error('Camera preview is unavailable');
       video.srcObject = acquired;
