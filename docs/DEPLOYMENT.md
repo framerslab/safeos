@@ -582,7 +582,7 @@ docker run --rm \
     apk add --no-cache sqlite >/dev/null
     test -f /backup/safeos.sqlite3
     test "$(sqlite3 /backup/safeos.sqlite3 "PRAGMA integrity_check;")" = ok
-    rollback=$(mktemp /backup/before-restore.XXXXXX.tar)
+    rollback=$(mktemp /backup/before-restore.XXXXXX)
     tar -C /data -cf "$rollback" .
     chmod 600 "$rollback"
     sqlite3 /data/app.sqlite3 ".restore /backup/safeos.sqlite3"

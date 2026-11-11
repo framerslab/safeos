@@ -469,8 +469,9 @@ including frames from ended streams. The cutoff is ten minutes old; deletion
 runs on the next sweep (normally within one second), independently of new writes.
 Shutdown and failed startup stop the retention and heartbeat timers and wait for
 an active sweep. Cleanup errors log one fixed line and a known error class name,
-without messages, stacks or stored values; later sweeps still run. A stopped server cannot
-run cleanup; startup removes expired rows before accepting uploads. This is
+without messages, stacks or stored values; later sweeps still run. An initial
+cleanup failure rejects startup with a fixed message after logging once. A stopped
+server cannot run cleanup; startup removes expired rows before accepting uploads. This is
 logical deletion of rows, not a promise of forensic erasure from SQLite pages or
 backups. Keep backups protected and expire them separately.
 

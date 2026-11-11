@@ -79,6 +79,20 @@ function parseTrustProxyHops(value: string | undefined): number {
   return parseInt(value.trim(), 10);
 }
 
+class FrameRetentionCleanupError extends Error {}
+
+async function cleanupRetainedFrames(db: Parameters<typeof cleanupOldFrames>[0]): Promise<void> {
+  try {
+    await cleanupOldFrames(db);
+  } catch (error: unknown) {
+    // Database messages and stacks may include stored values. Do not retain the cause.
+    const names = ['Error', 'TypeError', 'RangeError', 'SyntaxError', 'ReferenceError', 'URIError', 'EvalError', 'AggregateError', 'SqliteError'];
+    const name = error instanceof Error && names.includes(error.name) ? error.name : 'Error';
+    console.error(`Frame retention cleanup failed (${name})`);
+    throw new FrameRetentionCleanupError('Frame retention cleanup failed');
+  }
+}
+
 // =============================================================================
 // Server Class
 // =============================================================================
@@ -471,15 +485,12 @@ export class SafeOSServer {
       console.log('Database initialized');
 
       // Retention must keep running even when every camera stops uploading.
-      await cleanupOldFrames(db);
+      await cleanupRetainedFrames(db);
       this.frameCleanupInterval = setInterval(() => {
         if (this.frameCleanup) return this.frameCleanup;
-        this.frameCleanup = cleanupOldFrames(db)
-          .catch((error: unknown) => {
-            // Error messages and stacks may contain SQL values. Only emit a known class name.
-            const names = ['Error', 'TypeError', 'RangeError', 'SyntaxError', 'ReferenceError', 'URIError', 'EvalError', 'AggregateError', 'SqliteError'];
-            const name = error instanceof Error && names.includes(error.name) ? error.name : 'Error';
-            console.error(`Frame retention cleanup failed (${name})`);
+        this.frameCleanup = cleanupRetainedFrames(db)
+          .catch(() => {
+            // Already reported safely; allow the next scheduled sweep to retry.
           })
           .finally(() => { this.frameCleanup = null; });
         return this.frameCleanup;
@@ -575,7 +586,9 @@ const isMainModule = import.meta.url === `file://${process.argv[1]}`;
 if (isMainModule) {
   const server = new SafeOSServer();
   server.start().catch((err) => {
-    console.error('Failed to start server:', err);
+    if (!(err instanceof FrameRetentionCleanupError)) {
+      console.error('Failed to start server:', err);
+    }
     process.exit(1);
   });
 
