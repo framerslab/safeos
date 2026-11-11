@@ -35,3 +35,6 @@ try {
     if (err.code !== 'ERR_SERVER_NOT_RUNNING') throw err;
   });
 }
+// The imported rate limiters keep cleanup timers alive after the HTTP listener
+// closes. This one-shot capture has finished writing every image at this point.
+process.exit(0);
