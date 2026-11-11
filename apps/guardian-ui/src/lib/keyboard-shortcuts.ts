@@ -116,6 +116,8 @@ class KeyboardManager {
 
     // Don't trigger shortcuts when typing in inputs
     const target = e.target as HTMLElement;
+    // Let native controls and accessible widgets handle their own keys.
+    if (target.closest?.('button, a[href], [role="button"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="slider"], [contenteditable="true"]')) return;
     if (
       target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
@@ -233,6 +235,8 @@ export function useShortcutsHelp() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
+    // Let native controls and accessible widgets handle their own keys.
+    if (target.closest?.('button, a[href], [role="button"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="slider"], [contenteditable="true"]')) return;
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
