@@ -44,7 +44,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 SAFEOS_DIR="/opt/safeos"
 SAFEOS_REPO="https://github.com/framerslab/safeos.git"
-SAFEOS_BRANCH="main"
+SAFEOS_BRANCH="${SAFEOS_BRANCH:-master}"
 
 # =============================================================================
 # Pre-flight Checks

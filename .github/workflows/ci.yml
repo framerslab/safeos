@@ -171,7 +171,7 @@ jobs:
         run: npx jest --ci
 
   # ---------------------------------------------------------------------------
-  # Compose files: only the reverse proxy publishes a port on every interface.
+  # Compose files: only the reverse proxy publishes a port beyond loopback.
   # Docker's published ports bypass the host firewall, so Ollama, Redis and the
   # API bind 127.0.0.1 or stay on the compose network.
   # ---------------------------------------------------------------------------

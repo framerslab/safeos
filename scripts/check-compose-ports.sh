@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Fails when a compose service other than the reverse proxy publishes a port
-# on every interface of the host.
+# on any address but loopback (127.0.0.0/8 or ::1): on every interface, or on
+# one of the host's own addresses, which other machines can also reach.
 #
 # Docker publishes a port on all interfaces unless the mapping names a host
 # address, and it does so ahead of the host firewall (ufw and the like), so a
 # published Ollama, Redis or API is reachable from any network the host is on.
-# Only the proxy may do that; everything else binds 127.0.0.1 or is reached
-# over the compose network.
+# Only the proxy may publish beyond the machine; everything else binds
+# 127.0.0.1 or is reached over the compose network.
 #
 # Every docker-compose*.yml and compose*.yml in the repository is resolved with
 # `docker compose config`, with every profile switched on. A file that does not
@@ -20,7 +21,7 @@ set -euo pipefail
 root="${1:-.}"
 cd "$root" || exit 1
 
-# Services allowed to publish on every interface.
+# Services allowed to publish beyond the machine.
 PROXY_SERVICES="caddy"
 
 # scripts/testdata holds the check's own fixtures, which CI runs separately.
@@ -56,9 +57,12 @@ offenders() {
     | .key as $svc
     | (
         (.value.ports // [])[]
-        | select((.host_ip // "") as $ip
-                 | $ip == "" or $ip == "0.0.0.0" or $ip == "::" or $ip == "[::]")
-        | "\($svc) publishes \(.published // .target) -> \(.target) on every interface (host_ip \"\(.host_ip // "")\")"
+        | (.host_ip // "") as $ip
+        | select(($ip | test("^127\\.") or . == "::1" or . == "[::1]") | not)
+        | if $ip == "" or $ip == "0.0.0.0" or $ip == "::" or $ip == "[::]"
+          then "\($svc) publishes \(.published // .target) -> \(.target) on every interface (host_ip \"\($ip)\")"
+          else "\($svc) publishes \(.published // .target) -> \(.target) on \($ip), which is not a loopback address"
+          end
       ),
       (
         select(.value.network_mode == "host")

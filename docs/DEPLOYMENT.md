@@ -6,7 +6,7 @@
 - **Try the whole stack on one computer**: go to [One machine with Docker Compose](#one-machine-with-docker-compose).
 - **Host only the web app** (no server; detection runs in the browser): go to [Option A: Static PWA Deployment](#option-a-static-pwa-deployment-recommended).
 
-Every compose file in this repository publishes ports beyond the machine itself only through the Caddy reverse proxy in `docker-compose.prod.yml`. Ollama, Redis and the API are published on `127.0.0.1` or not at all, and CI fails a change that publishes them on every interface. Read [Before you open Ollama to another machine](#before-you-open-ollama-to-another-machine) before changing that.
+Every compose file in this repository publishes ports beyond the machine itself only through the Caddy reverse proxy in `docker-compose.prod.yml`. Ollama, Redis and the API are published on `127.0.0.1` or not at all, and CI fails a change that publishes them anywhere but on loopback. Read [Before you open Ollama to another machine](#before-you-open-ollama-to-another-machine) before changing that.
 
 ---
 
@@ -149,7 +149,7 @@ sudo ufw allow 443/tcp
 sudo ufw enable
 ```
 
-Docker publishes container ports ahead of ufw's rules (Docker's documentation: "traffic to and from that container gets diverted before it goes through the ufw firewall settings", <https://docs.docker.com/engine/network/packet-filtering-firewalls/>). ufw therefore cannot close a port that a compose file publishes. That is why only Caddy publishes ports in `docker-compose.prod.yml`, and why CI rejects a compose file in which any other service publishes a port on every interface.
+Docker publishes container ports ahead of ufw's rules (Docker's documentation: "traffic to and from that container gets diverted before it goes through the ufw firewall settings", <https://docs.docker.com/engine/network/packet-filtering-firewalls/>). ufw therefore cannot close a port that a compose file publishes. That is why only Caddy publishes ports in `docker-compose.prod.yml`, and why CI rejects a compose file in which any other service publishes a port beyond loopback.
 
 #### 3. Check the repository out
 
@@ -169,7 +169,7 @@ Edit `.env`. Docker Compose reads it from the project folder when it starts the 
 | Variable | Set it to |
 |---|---|
 | `SAFEOS_DOMAIN` | The name from step 1, without `https://`, for example `safeos-api.example.com`. Caddy serves this name, and the API builds the unsubscribe links in its mail from it. Leaving the placeholder `safeos-api.yourdomain.com` means no certificate and no mail. |
-| `CORS_ORIGIN` | The origin the web app is opened from: `https://safeos.sh` for the public app, or your own static host from Option A. Caddy sends it as `Access-Control-Allow-Origin`. |
+| `CORS_ORIGIN` | The origin you serve the web app from (see [Connect the web app](#connect-the-web-app)), for example `https://safeos.example.com`. Caddy sends it as `Access-Control-Allow-Origin`. |
 | `OLLAMA_MODELS` | The models to download on first start. The default `moondream llava:7b` is about 6 GB. |
 | Alert keys (optional) | `RESEND_API_KEY`, `EMAIL_FROM`, `TWILIO_*`, `TELEGRAM_BOT_TOKEN`, `VAPID_*`: see [CONFIGURATION.md](./CONFIGURATION.md). |
 
@@ -210,7 +210,19 @@ curl --max-time 5 http://safeos-api.example.com:3001/health
 curl --max-time 5 http://safeos-api.example.com:11434/api/version
 ```
 
-Then, in the web app, open Settings and enter `https://safeos-api.example.com` as the API URL.
+#### Connect the web app
+
+The web app decides at load time whether it may use a server. The copy on safeos.sh, and any copy served from a `*.github.io`, `*.pages.dev`, `*.netlify.app` or `*.vercel.app` address, runs in browser-only mode and ignores a server URL entered in Settings. To use your server, serve your own build of the web app from a domain of your own:
+
+```bash
+cd apps/guardian-ui
+npm ci
+NEXT_PUBLIC_API_URL=https://safeos-api.example.com \
+NEXT_PUBLIC_WS_URL=wss://safeos-api.example.com \
+npm run build
+```
+
+Serve the resulting `out/` folder from that domain (for example `safeos.example.com`; see [Any Static Host](#any-static-host)), and set `CORS_ORIGIN` in step 4 to it. Leave `NEXT_PUBLIC_STATIC_MODE` unset. That build uses your server. Settings reports semantic analysis (Ollama) as unavailable, because that status is checked from the browser and Ollama is not published; do not publish Ollama to change that (see below).
 
 #### Updating
 
@@ -341,11 +353,11 @@ Ollama's API has no authentication. Anyone who can reach its port can list, down
 
 If another machine must use your Ollama, protect it first:
 
-- Keep it off the public internet. Reach it over a private network or VPN (WireGuard, Tailscale), and publish it only on that network's address, for example `"10.0.0.5:11434:11434"`, never `"11434:11434"`.
+- Keep it bound to `127.0.0.1` and reach it from the other machine through an SSH tunnel (`ssh -N -L 11434:127.0.0.1:11434 you@server`) or a VPN such as WireGuard or Tailscale. Never publish it as `"11434:11434"` or on one of the server's own addresses.
 - Or put it behind a reverse proxy that requires authentication over HTTPS, and publish only the proxy.
-- Allow only the client machine's address through the firewall, and remember that a Docker-published port is not covered by ufw.
+- On a native install without Docker, allow only the client machine's address through the firewall. A Docker-published port is not covered by ufw.
 
-The compose check in CI fails any compose file in which a service other than the proxy publishes a port on every interface.
+The compose check in CI fails any compose file in this repository in which a service other than the proxy publishes a port on anything but a loopback address (`127.0.0.0/8` or `::1`).
 
 ---
 
