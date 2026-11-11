@@ -169,3 +169,21 @@ jobs:
 
       - name: Run Jest
         run: npx jest --ci
+
+  # ---------------------------------------------------------------------------
+  # Compose files: only the reverse proxy publishes a port on every interface.
+  # Docker's published ports bypass the host firewall, so Ollama, Redis and the
+  # API bind 127.0.0.1 or stay on the compose network.
+  # ---------------------------------------------------------------------------
+  compose-ports:
+    name: Compose ports
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve every compose file and check its published ports
+        run: |
+          docker compose version
+          bash scripts/check-compose-ports.sh .
