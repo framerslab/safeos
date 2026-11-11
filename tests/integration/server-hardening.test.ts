@@ -1,4 +1,7 @@
-import { it, expect, vi } from 'vitest';
+import { it, expect, vi, beforeEach } from 'vitest';
+
+// Each case owns a fresh server and its module-scoped HTTP rate-limit stores.
+beforeEach(() => vi.resetModules());
 import { once } from 'node:events';
 import WebSocket from 'ws';
 import { boundary, image, startPipeline, until } from '../helpers/pipeline.js';
@@ -236,9 +239,9 @@ it('delivers critical alerts beyond capacity and releases stalled channels after
       ws.send(JSON.stringify({ type: 'frame', streamId: stream,
         payload: { imageData: await image(`deadline-${i}`), motionScore: 100 } }));
       await until(async () => (await p.db.get('SELECT COUNT(*) AS n FROM analysis_queue')).n === i + 1);
+      // Process in arrival order without advancing provider deadline timers.
+      await queue.processJobs();
     }
-    // Exercise the actual worker at a fixed clock so all 33 calls overlap.
-    for (let i = 0; i < 33; i++) await queue.processJobs();
     expect(boundary.push).toHaveBeenCalledTimes(33);
     expect(boundary.sms).toHaveBeenCalledTimes(33);
     expect(boundary.push.mock.calls[32][1].data.streamId).toBe(streams[32]);
