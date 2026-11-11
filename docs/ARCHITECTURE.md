@@ -492,8 +492,11 @@ server-bot Telegram is skipped until recipient verification exists. Personal
 provider credentials remain available. Channel attempts start concurrently and report their
 own failures; they do not trigger analysis retries. Alert insertion atomically
 records a five-minute cooldown against unacknowledged attempts of the same or
-higher severity; escalation bypasses that cooldown. Quiet hours use UTC and
-suppress all non-critical server channels. Suppression is recorded on the saved
-alert. Dispatch runs outside analysis slots with a process-wide cap of 32
-unsettled deliveries, and shutdown does not wait on providers. See the API delivery settings
+higher severity that reached at least one channel; escalation bypasses that
+cooldown. Quiet hours hold low and medium alerts in the saved local time zone
+and on selected weekdays. High and critical alerts always bypass quiet hours.
+Legacy windows without a time zone hold nothing and produce a fixed log message.
+Dispatch runs outside analysis slots with a 15-second deadline per channel.
+Critical alerts bypass the 32-delivery capacity check, and shutdown does not wait
+on providers. Skips and settled delivery outcomes are recorded on each alert. See the API delivery settings
 for configuration and the best-effort delivery limitation.

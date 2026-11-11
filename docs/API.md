@@ -819,11 +819,16 @@ to the caller. Existing in-memory registrations must be registered again once
 when upgrading.
 
 Alerts for inactive streams are saved without dispatch. For an active stream,
-a previous unacknowledged delivery attempt of the same or higher severity
+a previous unacknowledged successful delivery of the same or higher severity
 suppresses another attempt for five minutes. Higher severity can be delivered
 immediately. All alert rows remain available; skipped rows carry
 `metadata.deliverySkipped` (`cooldown`, `quiet-hours`, `inactive-stream` or
 `capacity`). `deliveryAttempted` records an attempt, not confirmed receipt.
+`deliverySucceeded` records whether any channel accepted delivery, and
+`deliveryFailed` records a settled attempt with no success. `deliveryResults`
+records each channel's success, skip and timeout flags without provider error
+text. Failed or pending attempts do not start cooldown. Older rows without a
+successful outcome do not suppress delivery.
 
 Quiet hours hold low and medium server alerts only. High and critical alerts
 always bypass the window. Settings saves the browser's IANA time zone as
@@ -836,10 +841,12 @@ profile with a window but no saved time zone holds nothing; the server logs
 one fixed message without personal data explaining why. Saving settings adds
 the zone and days. Browser sound settings continue to use the device clock.
 
-Delivery runs outside the analysis worker slots. At most 32 alert deliveries
-may remain in flight across this API process. At capacity, new alerts are saved
-with `deliverySkipped: "capacity"`; they are not retried later. A stalled provider
-keeps its slot until it settles, so it cannot create unbounded background work.
+Delivery runs outside the analysis worker slots. Non-critical alerts are saved
+with `deliverySkipped: "capacity"` when 32 deliveries are in flight; they are not
+retried later. Critical alerts always bypass this capacity check. Every channel
+has a 15-second deadline and reports timeout as failure, freeing the delivery
+slot when all channel results settle. Mail and SMS requests also have 15-second
+request timeouts; browser destinations are attempted concurrently.
 Server shutdown does not wait for providers and may interrupt pending delivery.
 
 Each admitted alert starts its channels independently. One provider failure does not

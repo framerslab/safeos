@@ -328,11 +328,14 @@ mail configuration to supply the fallback sender.
 ### Alert delivery limits and quiet hours
 
 The server sends only for an active stream. It saves each alert while limiting
-repeated external delivery to one attempt per stream and severity within five
-minutes of an unacknowledged same-or-higher severity attempt. Escalation is
-immediate. The per-process delivery cap is 32 unsettled alerts; capacity skips
-are recorded in alert metadata and are not queued for a later retry. Slow
-providers do not occupy analysis workers or delay server shutdown.
+repeated external delivery within five minutes of an unacknowledged successful
+delivery of the same or higher severity. Failed and pending attempts do not
+start cooldown. Escalation is
+immediate. Non-critical alerts skip delivery when 32 deliveries are in flight;
+critical alerts always bypass capacity. Capacity skips are recorded in alert
+metadata and are not queued for a later retry. Every channel has a 15-second
+deadline, and mail and SMS clients also have request timeouts. Slow providers
+do not occupy analysis workers or delay server shutdown.
 
 Quiet hours hold low and medium server alerts only. High and critical alerts
 always bypass the window. Settings saves the browser's IANA time zone as

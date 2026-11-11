@@ -5,10 +5,8 @@
 # PNG files are uploaded as the run's "pictures" artifact. Pull requests also
 # capture the base commit with the same routes as "pictures-before".
 #
-# Start it by hand (Actions > Pictures > Run workflow: a ref and a list of
-# routes), or add the label "pictures" to a pull request: it then runs on the
-# labelling and on every later push to that pull request, with the default
-# routes.
+# Pull request updates capture both versions automatically so changed screens
+# have before and after pictures. Workflow dispatch remains available for other refs.
 
 name: Pictures
 
@@ -44,7 +42,6 @@ jobs:
       fail-fast: false
       matrix:
         version: ${{ fromJSON(github.event_name == 'pull_request' && '["after","before"]' || '["after"]') }}
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'pictures')
     runs-on: ubuntu-latest
     defaults:
       run:

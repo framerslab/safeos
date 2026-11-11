@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Socket frames and queued delivery require an active owned stream; restarting the API retains the socket payload limit, and repeated startup leaves live work intact.
-- Alert delivery has a five-minute cooldown with escalation, respects UTC quiet hours except for critical alerts, and runs outside analysis slots with a cap of 32 unsettled deliveries.
+- Alert delivery starts a five-minute cooldown only after a channel succeeds. Each channel has a 15-second deadline; critical alerts bypass the 32-delivery capacity check. Quiet hours hold low and medium alerts in the saved local time zone and chosen days; high and critical alerts always go out.
+- Only reviewers and operators can change a banned stream status.
 - Startup recovers interrupted analysis jobs without duplicating saved results or alerts.
 - Provider secrets are write-only in profile, session and export responses. Push unsubscribe preserves other devices, and notification settings requests carry the session token.
 - The legacy-profile upgrade command opens `app.sqlite3`, matching the adapter. Image jobs stop after 30 minutes.
