@@ -17,7 +17,7 @@ import type { BackendStatusContextValue } from '@/contexts/BackendStatusContext'
 // jest.mock below is hoisted above this import, so the panel reads the mocked context.
 import { BackendSettings } from '@/components/BackendSettings';
 
-const contextValue: BackendStatusContextValue = {
+const mockContextValue: BackendStatusContextValue = {
   status: {
     api: 'disconnected',
     websocket: 'disconnected',
@@ -37,7 +37,7 @@ const contextValue: BackendStatusContextValue = {
 };
 
 jest.mock('@/contexts/BackendStatusContext', () => ({
-  useBackendStatus: () => contextValue,
+  useBackendStatus: () => mockContextValue,
 }));
 
 // "| bash", "| sh", "| sudo bash", "| zsh" and the like.
