@@ -59,6 +59,16 @@ export interface AuthResult {
 const SALT_LENGTH = 16;
 const KEY_LENGTH = 64;
 
+/** The same policy applies whenever an account password is set. */
+function passwordPolicyError(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (password.length > 1024) return 'Password must be at most 1024 characters';
+  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
+  if (!/[a-z]/.test(password)) return 'Password must contain at least one lowercase letter';
+  if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
+  return null;
+}
+
 /**
  * Hash a password using scrypt
  */
@@ -149,22 +159,8 @@ export class EmailAuthService {
       return { success: false, error: 'Invalid email format' };
     }
 
-    // Validate password strength
-    if (password.length < 8) {
-      return { success: false, error: 'Password must be at least 8 characters' };
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      return { success: false, error: 'Password must contain at least one uppercase letter' };
-    }
-
-    if (!/[a-z]/.test(password)) {
-      return { success: false, error: 'Password must contain at least one lowercase letter' };
-    }
-
-    if (!/[0-9]/.test(password)) {
-      return { success: false, error: 'Password must contain at least one number' };
-    }
+    const policyError = passwordPolicyError(password);
+    if (policyError) return { success: false, error: policyError };
 
     // Check if email already exists
     const existing = await this.db.get(
@@ -399,10 +395,8 @@ export class EmailAuthService {
       return { success: false, error: 'Reset token has expired' };
     }
 
-    // Validate new password
-    if (newPassword.length < 8) {
-      return { success: false, error: 'Password must be at least 8 characters' };
-    }
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) return { success: false, error: policyError };
 
     const passwordHash = await hashPassword(newPassword);
     const timestamp = now();
@@ -452,9 +446,8 @@ export class EmailAuthService {
       return { success: false, error: 'Current password is incorrect' };
     }
 
-    if (newPassword.length < 8) {
-      return { success: false, error: 'New password must be at least 8 characters' };
-    }
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) return { success: false, error: policyError };
 
     const passwordHash = await hashPassword(newPassword);
 
