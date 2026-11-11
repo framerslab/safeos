@@ -19,6 +19,7 @@ const providers = vi.hoisted(() => ({
   push: vi.fn(),
   sms: vi.fn(),
   email: vi.fn(),
+  emailConfigured: true,
   telegram: vi.fn(),
   openai: vi.fn(),
   openrouter: vi.fn(),
@@ -56,7 +57,7 @@ vi.mock('../../src/lib/alerts/twilio.js', async (original) => ({
 }));
 vi.mock('../../src/lib/alerts/email.js', async (original) => ({
   ...await original<typeof import('../../src/lib/alerts/email.js')>(),
-  isResendConfigured: () => true, sendAlertEmail: providers.email,
+  isResendConfigured: () => providers.emailConfigured, sendAlertEmail: providers.email,
 }));
 vi.mock('../../src/lib/alerts/telegram.js', () => ({
   TelegramBotService: class { sendAlert = providers.telegram; },
@@ -90,6 +91,7 @@ export async function startPipeline() {
   vi.stubEnv('VAPID_PUBLIC_KEY', vapid.publicKey);
   vi.stubEnv('VAPID_PRIVATE_KEY', vapid.privateKey);
   providers.realPush = false;
+  providers.emailConfigured = true;
   providers.lookup.mockReset().mockResolvedValue([{ address: '142.250.1.1', family: 4 }]);
   providers.webPush.mockReset().mockResolvedValue({ statusCode: 201 });
   providers.models.mockReset().mockResolvedValue(undefined);

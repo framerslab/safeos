@@ -1,5 +1,7 @@
 import { it, expect, vi } from 'vitest';
 import { boundary, startPipeline } from '../helpers/pipeline.js';
+import WebSocket from 'ws';
+import { once } from 'node:events';
 
 it('releases scheduled work when model initialization rejects an imported server start', async () => {
   const p = await startPipeline();
@@ -90,6 +92,23 @@ it('releases scheduled work when the listen port is already in use', async () =>
   } finally {
     clearTimeout(deadline);
     await service.stop().catch(() => {}); // This instance never acquired a listening socket.
+    await p.close();
+  }
+});
+
+it('accepts camera frames after the same server instance stops and starts', async () => {
+  const p = await startPipeline();
+  let ws: WebSocket | undefined;
+  try {
+    await p.service.stop();
+    await p.service.start();
+    const port = (p.service as any).server.address().port;
+    ws = new WebSocket(`ws://127.0.0.1:${port}`, { handshakeTimeout: 1000 });
+    await once(ws, 'open');
+    const frameId = await p.frame(ws, 'after-restart');
+    expect(await p.db.get('SELECT id FROM frame_buffer WHERE id = ?', [frameId])).toBeTruthy();
+  } finally {
+    if (ws && ws.readyState !== WebSocket.CLOSED) { ws.close(); await once(ws, 'close'); }
     await p.close();
   }
 });
