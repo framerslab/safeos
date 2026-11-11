@@ -118,6 +118,7 @@ export default function MonitorPage() {
 
   const [captureRequested, setCaptureRequested] = useState(false);
   const captureRequestedRef = useRef(false);
+  const serverRequestedRef = useRef(false);
   const [showLostFoundPanel, setShowLostFoundPanel] = useState(false);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
 
@@ -275,10 +276,8 @@ export default function MonitorPage() {
           setStreamId(message.payload?.streamId);
           break;
         case 'stream-stopped':
-          captureRequestedRef.current = false;
-          setCaptureRequested(false);
-          setStreaming(false);
-          setStreamId(null);
+          // Server acknowledgements do not own the local camera request.
+          setStreamId(captureRequestedRef.current ? `local-${Date.now()}` : null);
           break;
         case 'alert':
           addAlert({
@@ -323,7 +322,8 @@ export default function MonitorPage() {
     setCaptureRequested(false);
     setStreaming(false);
     setStreamId(null);
-    if (wsConnected) sendMessage({ type: 'stop-stream' });
+    if (serverRequestedRef.current) sendMessage({ type: 'stop-stream' });
+    serverRequestedRef.current = false;
   };
 
   const handleVideoReady = (video: HTMLVideoElement | null) => {
@@ -336,13 +336,17 @@ export default function MonitorPage() {
     if (!captureRequestedRef.current) return;
     setStreaming(true);
     setStreamId(`local-${Date.now()}`);
-    if (wsConnected && currentPreset.processingMode !== 'local') {
-      sendMessage({
-        type: 'start-stream',
-        payload: { scenario: selectedScenario || scenario },
-      });
-    }
   };
+
+  useEffect(() => {
+    if (!isStreaming || !wsConnected || currentPreset.processingMode === 'local') return;
+    serverRequestedRef.current = true;
+    sendMessage({ type: 'start-stream', payload: { scenario: selectedScenario || scenario } });
+    return () => {
+      if (serverRequestedRef.current) sendMessage({ type: 'stop-stream' });
+      serverRequestedRef.current = false;
+    };
+  }, [isStreaming, wsConnected, currentPreset.processingMode, selectedScenario, scenario, sendMessage]);
 
   useEffect(() => () => {
     captureRequestedRef.current = false;
@@ -351,7 +355,7 @@ export default function MonitorPage() {
   }, []);
 
   const handleFrame = (data: { imageData: string; motionScore: number; audioLevel: number }) => {
-    if (!isStreaming || !captureRequestedRef.current || !wsConnected ||
+    if (!isStreaming || !captureRequestedRef.current || !serverRequestedRef.current || !wsConnected ||
       useSettingsStore.getState().globalSettings.processingMode === 'local') return;
 
     sendMessage({

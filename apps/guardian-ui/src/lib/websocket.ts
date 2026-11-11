@@ -178,6 +178,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       ws.close();
     }
     setIsConnected(false);
+    callbacksRef.current.onDisconnect?.();
   }, []);
 
   // Send message
