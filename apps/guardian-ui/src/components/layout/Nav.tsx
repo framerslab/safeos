@@ -54,53 +54,6 @@ const navLinks: NavLink[] = [
 // =============================================================================
 
 const GITHUB_REPO = 'framerslab/safeos';
-const STAR_CACHE_KEY = 'safeos_github_stars';
-const STAR_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
-
-function formatStars(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}k`;
-  return String(n);
-}
-
-function useGitHubStars(): number | null {
-  const [stars, setStars] = useState<number | null>(() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = localStorage.getItem(STAR_CACHE_KEY);
-      if (!raw) return null;
-      const { count, fetchedAt } = JSON.parse(raw);
-      if (Date.now() - fetchedAt > STAR_CACHE_TTL_MS) return null;
-      return typeof count === 'number' ? count : null;
-    } catch {
-      return null;
-    }
-  });
-
-  useEffect(() => {
-    if (stars !== null) return;
-    const controller = new AbortController();
-    fetch(`https://api.github.com/repos/${GITHUB_REPO}`, { signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const count = data?.stargazers_count;
-        if (typeof count === 'number') {
-          setStars(count);
-          try {
-            localStorage.setItem(STAR_CACHE_KEY, JSON.stringify({ count, fetchedAt: Date.now() }));
-          } catch {
-            /* localStorage may be unavailable in private mode */
-          }
-        }
-      })
-      .catch(() => {
-        /* network or rate-limit failure — fall back to no count */
-      });
-    return () => controller.abort();
-  }, [stars]);
-
-  return stars;
-}
-
 function GitHubIcon({ size = 18, className = '' }: { size?: number; className?: string }) {
   return (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" className={className} aria-hidden="true">
@@ -127,7 +80,6 @@ export function Nav() {
   const [mounted, setMounted] = useState(false);
   const { isDark, toggleTheme } = useTheme();
   const { toggle: toggleHelp } = useShortcutsHelp();
-  const stars = useGitHubStars();
 
   // Prevent hydration mismatch by rendering placeholder during SSR
   useEffect(() => {
@@ -214,7 +166,7 @@ export function Nav() {
 
         {/* Right Side Actions */}
         <div className="flex items-center gap-2">
-          {/* GitHub repo + star count - Desktop */}
+          {/* GitHub repository - Desktop */}
           <a
             href={`https://github.com/${GITHUB_REPO}`}
             target="_blank"
@@ -228,7 +180,7 @@ export function Nav() {
             </span>
             <span className="flex items-center gap-1 px-3 text-xs font-medium border-l border-white/10 text-zinc-300 group-hover:text-white group-hover:bg-emerald-500/10">
               <StarIcon size={12} className="text-amber-400" />
-              {stars !== null ? formatStars(stars) : <span className="opacity-50">Star</span>}
+              Star
             </span>
           </a>
 
@@ -365,7 +317,7 @@ export function Nav() {
             </button>
           </div>
 
-          {/* GitHub repo + star count - Mobile */}
+          {/* GitHub repository - Mobile */}
           <div className="border-t border-white/5 mt-3 pt-3">
             <a
               href={`https://github.com/${GITHUB_REPO}`}
@@ -381,7 +333,7 @@ export function Nav() {
               </span>
               <span className="inline-flex items-center gap-1 px-2 py-1 rounded border border-white/10 text-xs text-zinc-300">
                 <StarIcon size={12} className="text-amber-400" />
-                {stars !== null ? formatStars(stars) : 'Star'}
+                Star
               </span>
             </a>
           </div>

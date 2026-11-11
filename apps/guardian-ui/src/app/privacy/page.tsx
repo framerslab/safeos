@@ -143,8 +143,8 @@ export default function PrivacyPage() {
                 <strong className="text-white">AI Processing:</strong> When you use AI features, 
                 processing happens either in your browser (TensorFlow.js) or via your local Ollama 
                 installation. We do not provide cloud AI services. Security and Wildlife download
-                the COCO-SSD model from Google&apos;s servers, and the navigation bar asks GitHub&apos;s
-                API for the project&apos;s star count, so those two services see your IP address.
+                the COCO-SSD model from Google&apos;s servers, which see your IP address.
+                The GitHub link makes no request until you open it.
               </p>
               <p>
                 <strong className="text-white">Service Worker:</strong> We use a service worker 
