@@ -10,6 +10,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useSettingsStore } from '@/stores/settings-store';
 import { useAuthStore } from '../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import { clearLocalData } from '@/lib/local-data';
@@ -31,6 +32,7 @@ interface SettingsSection {
 
 export default function SettingsPage() {
   const { profile, updateProfile } = useAuthStore();
+  const { globalSettings, updateGlobalSettings, updateQuietHoursSettings } = useSettingsStore();
   const { status: backendStatus, config: backendConfig } = useBackendStatus();
   const [activeSection, setActiveSection] = useState('general');
   const [isSaving, setIsSaving] = useState(false);
@@ -47,9 +49,9 @@ export default function SettingsPage() {
 
   // Form state
   const [displayName, setDisplayName] = useState(profile?.displayName || '');
-  const [motionSensitivity, setMotionSensitivity] = useState(50);
-  const [audioSensitivity, setAudioSensitivity] = useState(50);
-  const [alertVolume, setAlertVolume] = useState(70);
+  const [motionSensitivity, setMotionSensitivity] = useState(globalSettings.motionSensitivity);
+  const [audioSensitivity, setAudioSensitivity] = useState(globalSettings.audioSensitivity);
+  const [alertVolume, setAlertVolume] = useState(globalSettings.alertVolume);
   const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark');
 
   // Notification settings
@@ -64,9 +66,6 @@ export default function SettingsPage() {
     // Hydrate from profile first (if available)
     if (profile?.preferences) {
       setDisplayName(profile.displayName || '');
-      setMotionSensitivity((profile.preferences.motionSensitivity || 0.5) * 100);
-      setAudioSensitivity((profile.preferences.audioSensitivity || 0.5) * 100);
-      setAlertVolume((profile.preferences.alertVolume || 0.7) * 100);
       setTheme(profile.preferences.theme || 'dark');
     }
 
@@ -117,15 +116,6 @@ export default function SettingsPage() {
       }
 
       if (parsed.preferences) {
-        if (typeof parsed.preferences.motionSensitivity === 'number') {
-          setMotionSensitivity(parsed.preferences.motionSensitivity * 100);
-        }
-        if (typeof parsed.preferences.audioSensitivity === 'number') {
-          setAudioSensitivity(parsed.preferences.audioSensitivity * 100);
-        }
-        if (typeof parsed.preferences.alertVolume === 'number') {
-          setAlertVolume(parsed.preferences.alertVolume * 100);
-        }
         if (parsed.preferences.theme) {
           setTheme(parsed.preferences.theme);
         }
@@ -315,6 +305,12 @@ export default function SettingsPage() {
     },
   ];
 
+  useEffect(() => {
+    setMotionSensitivity(globalSettings.motionSensitivity);
+    setAudioSensitivity(globalSettings.audioSensitivity);
+    setAlertVolume(globalSettings.alertVolume);
+  }, [globalSettings]);
+
   const handleSave = async () => {
     setIsSaving(true);
     setSaveMessage(null);
@@ -340,7 +336,10 @@ export default function SettingsPage() {
         },
       };
 
-      // Save locally first (always works)
+      updateGlobalSettings({ motionSensitivity, audioSensitivity, alertVolume });
+      updateQuietHoursSettings({ enabled: quietHoursEnabled, startTime: quietHoursStart, endTime: quietHoursEnd });
+
+      // Keep the account profile compatible with server preferences.
       if (typeof window !== 'undefined') {
         localStorage.setItem('safeos_user_settings', JSON.stringify(settingsData));
       }
