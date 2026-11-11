@@ -57,7 +57,7 @@ const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 5000;
 const DELIVERY_COOLDOWN_MS = 5 * 60 * 1000;
 const MAX_ACTIVE_DELIVERIES = 32;
-// Bound unresolved provider work across server instances in this API process.
+// Track deliveries across server instances in this API process; critical alerts bypass the cap.
 let activeDeliveries = 0;
 
 // Prompts for different scenarios
@@ -473,7 +473,7 @@ export class AnalysisQueue {
     const settings = JSON.parse(owner?.notification_settings || '{}');
     let skipped: string | undefined = !owner ? 'inactive-stream'
       : isQuietHours(settings, severity) ? 'quiet-hours' : undefined;
-    if (!skipped && activeDeliveries >= MAX_ACTIVE_DELIVERIES) skipped = 'capacity';
+    if (!skipped && severity !== 'critical' && activeDeliveries >= MAX_ACTIVE_DELIVERIES) skipped = 'capacity';
     const reserved = !skipped;
     if (reserved) activeDeliveries++;
     let dispatched = false;
@@ -507,7 +507,7 @@ export class AnalysisQueue {
       try {
         const manager = new NotificationManager(settings, owner.id);
         // Delivery does not occupy an analysis slot or delay server shutdown.
-        // A stalled provider keeps its reserved slot until it actually settles.
+        // Each channel settles within its deadline, releasing this slot.
         dispatched = true;
         void manager.notify({
           streamId: result.streamId, alertId, severity, title: 'Monitoring alert',
@@ -535,6 +535,7 @@ export class AnalysisQueue {
     processing: number;
     completed: number;
     failed: number;
+    deliveriesInFlight: number;
   }> {
     const db = await getSafeOSDatabase();
 
@@ -552,6 +553,7 @@ export class AnalysisQueue {
     );
 
     return {
+      deliveriesInFlight: activeDeliveries,
       pending: pending?.count || 0,
       processing: processing?.count || 0,
       completed: completed?.count || 0,

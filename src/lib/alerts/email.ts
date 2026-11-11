@@ -114,12 +114,25 @@ export function isResendConfigured(): boolean {
 // Client cache (one client per API key)
 // =============================================================================
 
+// Apply the deadline at the HTTP boundary, including response body reads.
+class TimedResend extends Resend {
+  override async fetchRequest<T>(path: string, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+      return await super.fetchRequest<T>(path, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
+
 const clientCache = new Map<string, Resend>();
 
 function getClient(apiKey: string): Resend {
   let client = clientCache.get(apiKey);
   if (!client) {
-    client = new Resend(apiKey);
+    client = new TimedResend(apiKey);
     clientCache.set(apiKey, client);
   }
   return client;

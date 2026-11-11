@@ -129,8 +129,14 @@ export class NotificationManager {
     }
     // Start channels independently so a slow or failed provider cannot hold up another.
     return Promise.all(channels.map(async (channel): Promise<NotificationResult> => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
       try {
-        await this.sendToChannel(channel, payload);
+        await Promise.race([
+          this.sendToChannel(channel, payload),
+          new Promise<never>((_resolve, reject) => {
+            timer = setTimeout(() => reject(new Error('timeout')), 15000);
+          }),
+        ]);
         return { channel, success: true };
       } catch (error) {
         if (error instanceof NotificationSkippedError) {
@@ -147,6 +153,8 @@ export class NotificationManager {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
         };
+      } finally {
+        clearTimeout(timer);
       }
     }));
   }

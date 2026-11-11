@@ -55,7 +55,7 @@ function getClient(accountSid: string, authToken: string): twilio.Twilio {
   const cacheKey = `${accountSid}:${authToken}`;
   let client = clientCache.get(cacheKey);
   if (!client) {
-    client = twilio(accountSid, authToken);
+    client = twilio(accountSid, authToken, { timeout: 15000 });
     clientCache.set(cacheKey, client);
   }
   return client;
