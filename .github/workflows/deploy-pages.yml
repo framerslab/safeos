@@ -66,6 +66,12 @@ jobs:
           NEXT_PUBLIC_API_URL: ''
           NEXT_PUBLIC_WS_URL: ''
 
+      - name: Install Chromium for offline regression
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify an unopened route starts offline
+        run: node scripts/check-offline-start.mjs
+
       - name: Add .nojekyll file
         run: touch out/.nojekyll
 

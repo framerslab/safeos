@@ -54,7 +54,8 @@ export function prepareBrowser() {
       const handlers = io.getLoadHandlers(modelUrl);
       if (handlers.length !== 1) throw new Error('Expected one model IO handler');
       const artifacts = await handlers[0].load();
-      if (!artifacts.weightData.byteLength) throw new Error('Missing weights');
+      const buffers = Array.isArray(artifacts.weightData) ? artifacts.weightData : [artifacts.weightData];
+      if (!buffers.reduce((bytes: number, buffer: ArrayBuffer) => bytes + buffer.byteLength, 0)) throw new Error('Missing weights');
       return { detect: jest.fn().mockResolvedValue([]), dispose: jest.fn() };
     }),
   }));
