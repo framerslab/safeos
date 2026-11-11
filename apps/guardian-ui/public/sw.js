@@ -4,120 +4,65 @@
  * Enables offline functionality and push notifications.
  */
 
-const CACHE_NAME = 'safeos-v2';
-const STATIC_ASSETS = [
-  '/',
-  '/monitor/',
-  '/setup/',
-  '/settings/',
-  '/history/',
-  '/profiles/',
-  '/tutorial/',
-  '/tutorials/',
-  '/faq/',
-  '/help/',
-  '/lost-found/',
-  '/security/',
-  '/wildlife/',
-  '/manifest.json',
-  '/offline.html',
-];
+// The static-export build prepends the complete, content-versioned asset list.
+const manifest = self.__SAFEOS_PRECACHE;
+// Without that list (next dev, or a build that skipped the postbuild step) the
+// worker stores nothing and leaves every request to the network. It takes over
+// at once, so a worker an earlier build left on this origin stops serving its
+// cached pages.
+const UNBUILT = !manifest;
+const CACHE_NAME = `safeos-shell-${manifest?.version || 'unbuilt'}`;
 
-// Install event - cache static assets
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker...');
-  
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
-    })
-  );
-  
-  // Activate immediately
-  self.skipWaiting();
+  if (UNBUILT) {
+    self.skipWaiting();
+    return;
+  }
+  event.waitUntil((async () => {
+    if (!manifest?.urls?.length) throw new Error('Offline asset manifest is missing.');
+    const cache = await caches.open(CACHE_NAME);
+    // Installation succeeds only when HTML, scripts, styles and lazy chunks exist.
+    await cache.addAll(manifest.urls);
+  })());
+  // Let an existing worker finish serving its build until its tabs close.
 });
 
-// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...');
-  
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames
-          .filter((name) => name !== CACHE_NAME)
-          .map((name) => {
-            console.log('[SW] Deleting old cache:', name);
-            return caches.delete(name);
-          })
-      );
-    })
-  );
-  
-  // Take control of all pages immediately
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.all(names
+      .filter(name => (name.startsWith('safeos-shell-') || /^safeos-v\d+$/.test(name)) && name !== CACHE_NAME)
+      .map(name => caches.delete(name)));
+    await self.clients.claim();
+  })());
 });
 
-// Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+  if (UNBUILT) return;
   const { request } = event;
   const url = new URL(request.url);
+  if (request.method !== 'GET' || url.origin !== location.origin) return;
+  if (url.pathname.startsWith('/api/') || request.headers.get('Range')) return;
 
-  // Skip non-GET requests
-  if (request.method !== 'GET') return;
-
-  // Skip API requests (they should always be fresh)
-  if (url.pathname.startsWith('/api/')) return;
-
-  // Skip WebSocket connections
-  if (url.protocol === 'ws:' || url.protocol === 'wss:') return;
-
-  // Skip range requests (partial content - cannot be cached)
-  if (request.headers.get('Range')) return;
-
-  // Skip media files that might trigger range requests
-  const ext = url.pathname.split('.').pop()?.toLowerCase();
-  if (['mp4', 'webm', 'mp3', 'wav', 'ogg', 'avi', 'mov'].includes(ext)) return;
-  
-  event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        // Return cached version, but update cache in background
-        event.waitUntil(
-          fetch(request).then((networkResponse) => {
-            // Only cache full responses (status 200), not partial (206)
-            if (networkResponse.ok && networkResponse.status === 200) {
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, networkResponse);
-              });
-            }
-          }).catch(() => {
-            // Network failed, that's okay - we have the cache
-          })
-        );
-        return cachedResponse;
+  event.respondWith((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    // Use this build's files together. Never replace old HTML with new HTML
+    // while leaving its scripts behind, and never mix model and page caches.
+    // The router asks for route data as index.txt?_rsc=<id>; a static host
+    // ignores the query, so the installed file is the same response.
+    const cached = await cache.match(request) ||
+      (url.pathname.endsWith('.txt') ? await cache.match(url.origin + url.pathname) : undefined);
+    if (cached) return cached;
+    try {
+      return await fetch(request);
+    } catch {
+      if (request.mode === 'navigate') {
+        const fallback = await cache.match('/offline.html');
+        if (fallback) return fallback;
       }
-
-      // Not in cache, fetch from network
-      return fetch(request).then((networkResponse) => {
-        // Cache successful full responses only (not partial 206)
-        if (networkResponse.ok && networkResponse.status === 200 && url.origin === location.origin) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseToCache);
-          });
-        }
-        return networkResponse;
-      }).catch(() => {
-        // Network failed and not in cache - show offline page
-        if (request.mode === 'navigate') {
-          return caches.match('/offline.html');
-        }
-        return new Response('Offline', { status: 503 });
-      });
-    })
-  );
+      return new Response('Offline', { status: 503 });
+    }
+  })());
 });
 
 // Push notification event
@@ -245,31 +190,3 @@ async function checkSystemStatus() {
 }
 
 console.log('[SW] Service worker loaded');
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

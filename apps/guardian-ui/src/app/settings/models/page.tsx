@@ -2,7 +2,7 @@
  * AI Models Settings Page
  *
  * Configure AI processing modes, view model status, and manage
- * both local Ollama models and browser-based Transformers.js models.
+ * both local Ollama models and browser-based COCO-SSD detection.
  *
  * @module app/settings/models/page
  */
@@ -241,8 +241,8 @@ export default function AIModelsPage() {
                 <section className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
                     <h2 className="text-lg font-semibold text-white mb-4">Browser AI Model</h2>
                     <p className="text-sm text-slate-400 mb-4">
-                        Download the Transformers.js model for in-browser scene analysis.
-                        Works offline after first download.
+                        Download the shared person and animal detection model used by Security and Wildlife.
+                        Once saved, it can load offline while browser storage is retained.
                     </p>
                     <ModelDownloadProgress />
                 </section>

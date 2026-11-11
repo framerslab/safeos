@@ -165,4 +165,9 @@ describe('storage and network statements', () => {
   it('no page says nothing goes anywhere: the model download and the star count reach Google and GitHub', () => {
     expect(filesMatching(PAGES, /nothing is sent anywhere|nowhere else|Nothing is sent to remote servers/i)).toEqual([]);
   });
+
+  it('the home page diagram routes no low-confidence detection anywhere: no mode has a second model', () => {
+    const svg = fs.readFileSync(path.join(APP_ROOT, 'public', 'diagrams', 'how-it-works.svg'), 'utf8');
+    expect(svg).not.toMatch(/low-conf/i);
+  });
 });

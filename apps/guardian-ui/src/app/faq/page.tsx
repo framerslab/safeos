@@ -50,7 +50,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'Does it work offline?',
-        answer: 'Partly. Motion, pixel, and sound alerts run on your device and need no server. The service worker keeps a copy of the pages you have opened, so a monitor page you loaded online opens again without a connection. Person detection (Security) and animal detection (Wildlife) download their model from Google\'s servers, so they need a connection to load it. You can also install SafeOS as a Progressive Web App (PWA).',
+        answer: 'Yes, after preparation. Wait for the service worker to finish installing the app files while online. Motion, pixel, and sound alerts need no model. For Security and Wildlife, complete setup and choose Download detection model to save about 19 MB from Google model storage. Both pages reuse that model offline. Browser storage must be retained; clearing or evicting it requires another online download. Server integrations still need a connection.',
       },
       {
         question: 'What browsers are supported?',
@@ -80,11 +80,11 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'Can I use this without any internet connection?',
-        answer: 'Partly. Motion, pixel, and sound alerts run on your device and need no server. The service worker keeps a copy of the pages you have opened, so a monitor page you loaded online opens again without a connection. Person detection (Security) and animal detection (Wildlife) download their model from Google\'s servers, so they need a connection to load it. Email, text, and Telegram alerts need your own server and a connection.',
+        answer: 'Yes, after preparation online. Wait for the service worker to install the exported pages and their scripts, including pages you have not opened. Motion, pixel, and sound alerts need no model. For Security and Wildlife, complete setup and agree to download and save the detection model; both modes can then load it offline. Clearing or evicting browser storage requires another online download. Email, text, and Telegram alerts need your own server and a connection.',
       },
       {
         question: 'What data is collected by SafeOS Guardian?',
-        answer: 'We collect no personal data, and the app loads no analytics or tracking script. Your settings stay in your browser. Saved frames from Security, Lost & Found, and Wildlife are kept in your browser\'s IndexedDB. Alerts from the monitor page are kept in memory and clear when you reload. Nothing is sent to us.',
+        answer: 'We collect no personal data, and the app loads no analytics or tracking script. Your settings stay in your browser. Saved frames from Security, Lost & Found, and Wildlife are kept in your browser\'s IndexedDB. Monitor alerts persist in IndexedDB, reload in History, and remain in history after acknowledgement. Nothing is sent to us.',
       },
     ],
   },

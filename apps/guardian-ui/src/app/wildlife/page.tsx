@@ -12,6 +12,8 @@
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { ModelDownloadProgress } from '@/components/ModelDownloadProgress';
+import { useDetectionModel } from '@/lib/detection-model';
 import { CameraFeed } from '../../components/CameraFeed';
 import {
   IconShield,
@@ -184,7 +186,9 @@ export default function WildlifePage() {
     getDangerousCount,
   } = useAnimalAlertStore();
 
-  const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const download = useDetectionModel();
+  const [detectorReady, setDetectorReady] = useState(false);
+  const modelStatus = !download.setupComplete ? 'idle' : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
   const [showSettings, setShowSettings] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [flashColor, setFlashColor] = useState('#ef4444');
@@ -212,23 +216,21 @@ export default function WildlifePage() {
     settings.captureFrames,
   ]);
 
-  // Initialize detector
+  // Initialize frame processing only after the agreed model is ready.
   useEffect(() => {
-    const init = async () => {
-      try {
-        await detectorRef.current.initialize();
-        setModelStatus('ready');
-      } catch (error) {
-        console.error('[WildlifePage] Failed to initialize detector:', error);
-        setModelStatus('error');
-      }
-    };
-    init();
-
+    if (download.status !== 'ready' || !download.setupComplete) return;
+    let cancelled = false;
+    const detector = detectorRef.current;
+    void detector.initialize().then(() => {
+      if (!cancelled) setDetectorReady(true);
+    }).catch(() => {
+      if (!cancelled) setDetectorReady(false);
+    });
     return () => {
-      detectorRef.current.dispose();
+      cancelled = true;
+      detector.dispose();
     };
-  }, []);
+  }, [download.status, download.setupComplete]);
 
   // Initialize TTS
   useEffect(() => {
@@ -299,7 +301,7 @@ export default function WildlifePage() {
 
   // Detection loop (processes the camera's <video> directly)
   useEffect(() => {
-    if (!isMonitoring) return;
+    if (!isMonitoring || modelStatus !== 'ready') return;
 
     const intervalMs = 1000;
     let cancelled = false;
@@ -325,7 +327,7 @@ export default function WildlifePage() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [isMonitoring, handleDetections]);
+  }, [isMonitoring, modelStatus, handleDetections]);
 
   const toggleMonitoring = () => {
     if (isMonitoring) {
@@ -370,7 +372,7 @@ export default function WildlifePage() {
                     : 'bg-red-500/20 text-red-400'
                 }`}
               >
-                AI: {modelStatus === 'ready' ? 'Ready' : modelStatus === 'loading' ? 'Loading...' : 'Error'}
+                AI: {modelStatus === 'ready' ? 'Ready' : modelStatus === 'loading' ? 'Loading...' : modelStatus === 'error' ? 'Error' : 'Not downloaded'}
               </div>
 
               {/* Settings Toggle */}
@@ -389,6 +391,7 @@ export default function WildlifePage() {
               {/* Start/Stop Button */}
               <button
                 onClick={toggleMonitoring}
+                disabled={!isMonitoring && modelStatus !== 'ready'}
                 className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                   isMonitoring
                     ? 'bg-red-600 hover:bg-red-700 text-white'
@@ -404,6 +407,7 @@ export default function WildlifePage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <ModelDownloadProgress className="mb-6" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Camera Feed */}
           <div className="lg:col-span-2 space-y-4">
@@ -422,7 +426,7 @@ export default function WildlifePage() {
               </div>
               <CameraFeed
                 scenario="pet"
-                enabled={isMonitoring}
+                enabled={isMonitoring && modelStatus === 'ready'}
                 showDebug={true}
                 audioEnabled={false}
                 onVideoReady={(video) => {

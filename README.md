@@ -32,7 +32,7 @@ SafeOS Guardian is a Progressive Web App that turns any device with a camera and
 
 Choose a camera on Setup or Monitor; the choice is remembered in this browser. Monitor requests capture only when you start it, releases capture when you stop, and reports camera failures. Local processing sends no camera frames to a connected server. Monitor alerts persist in IndexedDB and reload in History. See [Camera monitoring](docs/MONITORING.md).
 
-The service worker keeps a copy of each page you open, so a loaded monitor keeps running offline. COCO-SSD downloads from Google's model storage and needs a connection to load.
+After the service worker finishes installing, the exported pages and their scripts are available offline, including pages not yet opened. Complete setup and choose **Download detection model** on Security, Wildlife, or Settings → Models to save COCO-SSD for offline use. Initial installation and model download need a connection; clearing or evicting browser storage removes those copies.
 
 ## Quickstart
 
@@ -108,16 +108,16 @@ SafeOS is a **supplemental** tool. It augments human attention; it does not repl
 
 ![SafeOS Guardian architecture — browser inference pipeline plus optional API server](https://raw.githubusercontent.com/framerslab/safeos/master/apps/guardian-ui/public/diagrams/how-it-works.svg)
 
-The solid path runs entirely in the browser, offline, after first load. The dashed path engages only when you deploy the optional API server and opt into individual integrations.
+The solid path runs in the browser; offline starts require completed app installation and, for detection, a saved model. The dashed path engages only when you deploy the optional API server and opt into individual integrations.
 
 ## How the deep learning runs in your browser
 
-1. **First load.** The Next.js app shell loads from any static host (GitHub Pages, Vercel, Netlify, Cloudflare Pages). The service worker registers after the first page loads, stores the main pages, and keeps a copy of each page and script fetched after that.
-2. **Model fetch.** TensorFlow.js downloads the COCO-SSD `lite_mobilenet_v2` weights (18.0 MB) from Google's [`tfjs-models`](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) storage when you open Security or Wildlife mode. The service worker stores same-origin responses only, so the model comes from the browser's HTTP cache or the network.
+1. **First load.** The Next.js app shell loads from any static host (GitHub Pages, Vercel, Netlify, Cloudflare Pages). The service worker registers after the first page loads and installs a build-specific set of HTML, scripts (including lazy chunks), styles, fonts, and the images the pages show. A new build activates after tabs using the previous worker close.
+2. **Model fetch.** After setup and explicit agreement, TensorFlow.js downloads COCO-SSD `lite_mobilenet_v2` from Google's [`tfjs-models`](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) storage (about 19 MB including the manifest). One shared loader saves the manifest and every weight shard in Cache Storage and reuses them offline. Failed attempts can be retried without reloading the page.
 3. **Backend.** SafeOS sets TF.js to the [WebGL](https://www.khronos.org/webgl/) backend (`tf.setBackend('webgl')`).
 4. **Per-frame screening.** A `setInterval` loop at 200 ms samples the `<video>` element into a hidden `<canvas>`, runs pixel-diff motion detection and an FFT pass over the Web Audio `AnalyserNode`, and tracks pixel-change counts. Cheap enough to run continuously without a GPU context. Code: [`apps/guardian-ui/src/components/CameraFeed.tsx`](apps/guardian-ui/src/components/CameraFeed.tsx).
 5. **Gated inference.** In Security mode, when motion crosses the threshold the frame is handed to TF.js; COCO-SSD's `model.detect()` returns bounding boxes, class labels, and confidence, at most once every 500 ms. The monitor page runs no model. Gate: [`apps/guardian-ui/src/lib/person-detection.ts`](apps/guardian-ui/src/lib/person-detection.ts).
-6. **Scene classifier download.** Settings → Models can download a quantized ViT-base (88.3 MB, [Xenova/vit-base-patch16-224](https://huggingface.co/Xenova/vit-base-patch16-224)) for Transformers.js. No monitoring mode calls it.
+6. **Model settings.** Settings → Models downloads the same COCO-SSD model used by Security and Wildlife. It offers no separate scene classifier download.
 7. **Audio parallel path.** The Web Audio API's [`AnalyserNode`](https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode) samples FFT bins from the microphone every ~100 ms; a loudness threshold raises the sound alert, and a crying pattern shows in the camera overlay without raising an alert of its own. No model needed.
 8. **Lost & Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), and an 8×8 Sobel edge grid. The matcher samples the live feed at 1–2 FPS and compares by cosine similarity. Under 1 KB per photo. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
 9. **Alert engine.** Matches feed a severity router (info / low / medium / high / critical). Each severity has its own escalation: volume-ramping local audio, browser push, optional fan-out to email / SMS / Telegram via the API server.
@@ -132,7 +132,6 @@ Every model runs client-side. Sizes are the download sizes measured on 11 Nov 20
 | Job | Model | Framework | Size | Source |
 |---|---|---|---|---|
 | Object detection (Security and Wildlife modes) | COCO-SSD (`lite_mobilenet_v2`) | [TensorFlow.js Models](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) | 18.0 MB | tfjs-models |
-| Scene classification (downloadable, not called by any mode) | `Xenova/vit-base-patch16-224` | [Transformers.js](https://github.com/huggingface/transformers.js) | 88.3 MB | [Hugging Face](https://huggingface.co/Xenova/vit-base-patch16-224) |
 | Audio analysis | FFT bins via [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) | native | 0 KB | MDN |
 | Visual fingerprinting | Color histograms + Sobel edges | hand-rolled | < 1 KB / photo | [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts) |
 
@@ -336,7 +335,6 @@ MIT. Built by [Frame](https://frame.dev) (Framers Lab, Inc.). Frame puts some of
 ## Acknowledgments
 
 - [TensorFlow.js](https://www.tensorflow.org/js) and the [`tfjs-models`](https://github.com/tensorflow/tfjs-models) team for the COCO-SSD port.
-- [Hugging Face](https://huggingface.co) and [Xenova](https://huggingface.co/Xenova) for Transformers.js and the quantized ViT weights.
 - [Ollama](https://ollama.com) for making local vision models trivial to run.
 - [Resend](https://resend.com) for transactional + alert email with a generous free tier.
 - The Frame team and the people on Discord who keep stress-testing this thing.
