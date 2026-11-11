@@ -41,7 +41,7 @@ Complete reference for all configuration options, environment variables, and thr
 
 | Variable | Description |
 |----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather |
+| `TELEGRAM_BOT_TOKEN` | Legacy server bot; queued alerts require a personal token saved in the profile |
 
 #### Email (Resend)
 
@@ -239,7 +239,7 @@ TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
 TWILIO_FROM_NUMBER=+1...
 
-# Telegram Notifications (optional)
+# Legacy server bot (queued alerts use each profile’s personal bot token)
 TELEGRAM_BOT_TOKEN=...
 
 # Email via Resend (optional)
@@ -318,9 +318,13 @@ Telegram bot tokens may be saved through the profile route; see API.md for
 field names. Registering a profile or enabling a channel does not authorize a
 recipient. Skips log the channel and a fixed reason without the recipient.
 
-Push registration requires an active session and is limited to 32 endpoints per
-profile. A browser endpoint transfers to the latest registering profile/session,
-and logout revokes that session's registrations. Legacy unbound rows must be
+Push registration requires an active session and is limited to 32 live-session
+endpoints per profile. A profile may refresh its own registration; another
+profile can claim it only when its owning session is no longer live. A conflict
+returns `409` without changing the row. Sign-out, sign-out everywhere, password
+reset and expired-session cleanup remove registrations for the sessions they
+revoke. Inactive rows do not consume the limit. Status reports Telegram as
+available only when the caller has saved a personal bot token. Legacy unbound rows must be
 registered again. Personal-key mail needs an explicit sender or a complete server
 mail configuration to supply the fallback sender.
 
@@ -337,7 +341,8 @@ metadata and are not queued for a later retry. Every channel has a 15-second
 deadline, and mail and SMS clients also have request timeouts. Slow providers
 do not occupy analysis workers or delay server shutdown.
 
-Quiet hours hold low and medium server alerts only. High and critical alerts
+Quiet hours skip channel delivery for low and medium server alerts. Those alerts
+remain in the app and are not sent later. High and critical alerts
 always bypass the window. Settings saves the browser's IANA time zone as
 `quietHoursTimeZone`, the chosen local weekdays as `quietHoursDays` (Sunday = 0),
 and `quietHoursStart` / `quietHoursEnd` as `HH:mm`. The current local weekday

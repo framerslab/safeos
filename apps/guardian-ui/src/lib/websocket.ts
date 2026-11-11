@@ -42,6 +42,11 @@ const DEFAULT_RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const HEARTBEAT_INTERVAL = 30000;
 
+function rejectsSession(event: CloseEvent): boolean {
+  return event?.code === 1008 &&
+    (event.reason === 'Invalid session' || event.reason === 'Invalid or expired session');
+}
+
 // =============================================================================
 // useWebSocket Hook
 // =============================================================================
@@ -73,7 +78,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WSMessage | null>(null);
 
-  // A policy refusal stays blocked until the session changes.
+  // A rejected credential stays blocked until the session changes.
   useEffect(() => {
     refusedTokenRef.current = null;
     reconnectAttemptsRef.current = 0;
@@ -143,7 +148,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
       ws.onclose = (event) => {
         if (wsRef.current !== ws) return;
-        if (event?.code === 1008) refusedTokenRef.current = token;
+        if (rejectsSession(event)) refusedTokenRef.current = token;
         wsRef.current = null;
         authenticatedRef.current = false;
         setIsConnected(false);
@@ -297,7 +302,7 @@ export class WebSocketClient {
       return;
     }
 
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
 
     // Don't attempt connection with empty URL
     const token = useAuthStore.getState().sessionToken;
@@ -315,14 +320,22 @@ export class WebSocketClient {
       }
     }
 
-    this.ws = new WebSocket(this.url);
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    const ws = new WebSocket(this.url);
+    this.ws = ws;
+    this.authenticated = false;
+    const isCurrent = () => this.ws === ws && useAuthStore.getState().sessionToken === token;
 
-    this.ws.onopen = () => {
-      this.authenticated = false;
-      this.ws?.send(JSON.stringify({ type: 'authenticate', payload: { token } }));
+    ws.onopen = () => {
+      if (!isCurrent()) { ws.close(); return; }
+      ws.send(JSON.stringify({ type: 'authenticate', payload: { token } }));
     };
 
-    this.ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (!isCurrent()) return;
       try {
         const message: WSMessage = JSON.parse(event.data);
         if (message.type === 'ping') this.send({ type: 'pong' });
@@ -330,7 +343,9 @@ export class WebSocketClient {
           this.authenticated = true;
           this.reconnectAttempts = 0;
           if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
-          this.heartbeatInterval = setInterval(() => this.send({ type: 'ping' }), HEARTBEAT_INTERVAL);
+          this.heartbeatInterval = setInterval(() => {
+            if (isCurrent()) this.send({ type: 'ping' });
+          }, HEARTBEAT_INTERVAL);
           this.onConnectCallback?.();
         }
         this.onMessageCallback?.(message);
@@ -339,8 +354,10 @@ export class WebSocketClient {
       }
     };
 
-    this.ws.onclose = (event) => {
-      if (event.code === 1008) this.refusedToken = token;
+    ws.onclose = (event) => {
+      if (this.ws !== ws) return;
+      if (rejectsSession(event)) this.refusedToken = token;
+      this.ws = null;
       this.authenticated = false;
       this.onDisconnectCallback?.();
 
@@ -353,25 +370,36 @@ export class WebSocketClient {
           && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++;
         const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
-        this.reconnectTimeout = setTimeout(() => this.connect(), Math.min(delay, 30000));
+        this.reconnectTimeout = setTimeout(() => {
+          this.reconnectTimeout = null;
+          if (useAuthStore.getState().sessionToken === token && !this.ws) this.connect();
+        }, Math.min(delay, 30000));
       }
     };
 
-    this.ws.onerror = (error) => {
-      this.onErrorCallback?.(error);
+    ws.onerror = (error) => {
+      if (isCurrent()) this.onErrorCallback?.(error);
     };
   }
 
   disconnect(): void {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    const ws = this.ws;
+    this.ws = null;
+    this.authenticated = false;
+    if (ws) {
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onclose = null;
+      ws.onerror = () => {};
+      ws.close();
     }
   }
 

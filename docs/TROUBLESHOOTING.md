@@ -70,8 +70,9 @@ ls -la db_data/app.sqlite3
 A `1008` close requires a live session: authenticate in the first message
 within five seconds, or use a session header in a native client. Wait for
 `connected` before sending stream traffic. Browser clients skip local/offline
-tokens and stop retries after `1008` until the session changes. Obtain a new
-server session before reconnecting. A `1011` close writes one server diagnostic
+tokens. A `1008` close identifying an invalid or expired session stops retries
+until the session changes; obtain a new server session in that case.
+Authentication deadlines and pending-message limits retry with backoff. A `1011` close writes one server diagnostic
 with the error name only; check database availability. Both browser clients
 answer server heartbeat pings automatically.
 See [WebSocket API](API.md#websocket-api).

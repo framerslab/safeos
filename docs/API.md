@@ -413,7 +413,7 @@ Store a Telegram chat ID for the signed-in profile. Registration does not verify
 Unregister a Telegram chat ID.
 
 #### GET /api/notifications/status
-Check server channel availability and the signed-in profile's registration counts.
+Check channel configuration and the signed-in profile's registration counts. `telegramEnabled` is true only when the caller has saved a personal `telegramBotToken`; the server token does not enable queued alert delivery.
 
 #### POST /api/notifications/test
 Send a test notification (simulated in the default implementation).
@@ -586,8 +586,11 @@ sending application messages. Missing, unknown, revoked or expired sessions
 close with code `1008`; session checks also run on each message and heartbeat.
 Tokens in URLs are not accepted. The browser client uses the current sign-in
 session. The hook and client class do not open sockets for tokens beginning
-with `local-` or `offline-`. After a `1008` close they stop retrying that
-session, including explicit reconnect attempts, until the session changes.
+with `local-` or `offline-`. A `1008` close with `Invalid session` or
+`Invalid or expired session` stops retries for that credential, including
+explicit attempts, until the session changes. Authentication deadlines and
+pending-message limits retry with backoff. Duplicate connect calls share the
+opening socket, and events from replaced sockets cannot alter the current one.
 The socket hook initializes a session on a fresh monitoring visit. Logout and
 session changes cancel old retries and detach the old socket's event handlers.
 Updating hook callbacks does not reconnect the socket.
@@ -808,9 +811,15 @@ All `/api/notifications` routes require a session. Push and Telegram registratio
 are stored in SQLite under that session's profile and survive restarts. A caller's
 `userId` field cannot select a different owner. Re-registering an endpoint or chat
 is idempotent. A push endpoint belongs to one current profile and session;
-registering it again transfers ownership. Signing out revokes only that session's
-push registrations. Expired sessions cannot receive push. Each profile may store
-at most 32 endpoints (a further new endpoint returns `409`); refreshing one at
+the same profile may refresh it. A different profile receives `409` while the
+registration's owning session is live, leaving that registration unchanged.
+A registration without a live owning session may be claimed by the next caller.
+Signing out removes that session's push registrations; signing out everywhere
+or resetting the password removes registrations for all revoked sessions.
+Expired-session cleanup also removes that session's registrations. Expired
+sessions cannot receive push. Each profile may have at most 32 endpoints bound
+to live sessions; inactive rows do not count. A further new endpoint returns
+`409`; refreshing one at
 the limit is allowed. Endpoint, public key and auth key lengths are limited to
 2048, 256 and 128 characters. DNS validation has a two-second deadline. Legacy
 push rows without a session binding must be registered again. Push unsubscribe removes a named endpoint for that owner, or only the calling session's registrations when no endpoint is supplied; Telegram
@@ -831,7 +840,8 @@ error text. A destination accepted before another times out still counts as
 delivered, while the channel also reports its timeout. Failed or pending attempts do not start cooldown. Older rows without a
 successful outcome do not suppress delivery.
 
-Quiet hours hold low and medium server alerts only. High and critical alerts
+Quiet hours skip channel delivery for low and medium server alerts. Those alerts
+remain in the app and are not sent later. High and critical alerts
 always bypass the window. Settings saves the browser's IANA time zone as
 `quietHoursTimeZone`, the chosen local weekdays as `quietHoursDays` (Sunday = 0),
 and `quietHoursStart` / `quietHoursEnd` as `HH:mm`. The current local weekday

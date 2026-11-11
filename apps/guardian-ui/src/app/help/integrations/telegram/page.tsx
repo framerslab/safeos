@@ -1,7 +1,7 @@
 /**
  * Telegram Integration Help
  *
- * Server-operator setup for Telegram bot alerts.
+ * Personal bot setup for Telegram alerts.
  *
  * @module app/help/integrations/telegram/page
  */
@@ -13,7 +13,7 @@ import { IconMessageSquare, IconExternalLink } from '@/components/icons';
 
 export const metadata: Metadata = {
   title: 'Telegram setup',
-  description: 'Configure a Telegram bot for SafeOS Guardian alert fan-out.',
+  description: 'Configure your own Telegram bot for SafeOS Guardian alerts.',
 };
 
 export default function TelegramHelpPage() {
@@ -38,14 +38,14 @@ export default function TelegramHelpPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-white">Telegram bot setup</h1>
           </div>
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-            Telegram is the cheapest channel — free and unlimited. Each user registers their chat
-            with your SafeOS bot, then receives alerts at <strong>medium</strong> severity and
-            above.
+            Save your own Telegram bot token in your SafeOS profile. Your bot delivers alerts
+            to your registered chats at <strong>medium</strong> severity and above.
+            The shared server bot does not deliver these alerts.
           </p>
         </header>
 
         <section className="mb-5 p-5 bg-slate-800/40 border border-slate-700/50 rounded-xl">
-          <h2 className="text-base sm:text-lg font-semibold text-white mb-3">Setup (server operator)</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-white mb-3">Create your bot</h2>
           <ol className="list-decimal list-inside text-sm text-slate-300 space-y-2 leading-relaxed">
             <li>
               Open Telegram and message{' '}
@@ -63,22 +63,23 @@ export default function TelegramHelpPage() {
             <li>Choose a display name and a username ending in <code>_bot</code>.</li>
             <li>BotFather replies with an HTTP API token — copy it.</li>
             <li>
-              Add it to your API server&apos;s <code className="px-1 py-0.5 bg-slate-900 rounded">.env</code>:
+              Keep the token private. Save it as <code>notificationSettings.telegramBotToken</code>
+              {' '}through the authenticated <code>PATCH /api/auth/profile</code> route.
             </li>
           </ol>
-          <pre className="mt-3 text-xs bg-slate-950 border border-slate-800 rounded p-3 overflow-x-auto text-slate-300">
-{`TELEGRAM_BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrSTUvwxYZ`}
-          </pre>
-          <p className="text-xs text-slate-400 mt-2">Restart the API server for the change to take effect.</p>
+          <p className="text-xs text-slate-400 mt-2">
+            The API stores the token without returning it in profile responses. Clear it by saving an empty string.
+          </p>
         </section>
 
         <section className="mb-5 p-5 bg-slate-800/40 border border-slate-700/50 rounded-xl">
-          <h2 className="text-base sm:text-lg font-semibold text-white mb-3">Setup (each recipient)</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-white mb-3">Register your chat</h2>
           <ol className="list-decimal list-inside text-sm text-slate-300 space-y-2 leading-relaxed">
             <li>Search for your bot by username in Telegram and tap <strong>Start</strong>.</li>
             <li>
-              Send <code>/register</code>. The bot replies with a confirmation; the chat ID is now
-              registered with your SafeOS server.
+              Use your bot to find your chat ID, then save it with the authenticated
+              {' '}<code>POST /api/notifications/telegram/register</code> route as <code>chatId</code>.
+              Each chat belongs to your signed-in profile.
             </li>
             <li>
               Toggle <strong>Send Telegram alerts</strong> in{' '}
@@ -87,7 +88,7 @@ export default function TelegramHelpPage() {
               </Link>
               .
             </li>
-            <li>Run a medium-severity test alert to verify.</li>
+            <li>Confirm delivery with a monitoring alert at medium severity or above.</li>
           </ol>
         </section>
 

@@ -51,19 +51,29 @@ notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (r
     const profileId = getProfileId(req);
     const id = registrationId(profileId, subscription.endpoint);
     const db = await getSafeOSDatabase();
+    const timestamp = now();
     const saved = await db.get(
       `INSERT INTO push_subscriptions (id, profile_id, session_id, endpoint, keys_json, created_at)
        SELECT ?, ?, ?, ?, ?, ?
-       WHERE EXISTS (SELECT 1 FROM push_subscriptions WHERE endpoint = ? AND profile_id = ?)
-          OR (SELECT COUNT(*) FROM push_subscriptions WHERE profile_id = ?) < 32
+       WHERE EXISTS (SELECT 1 FROM push_subscriptions p
+                     JOIN sessions s ON s.id = p.session_id AND s.profile_id = p.profile_id
+                     WHERE p.endpoint = ? AND p.profile_id = ? AND julianday(s.expires_at) > julianday(?))
+          OR (SELECT COUNT(*) FROM push_subscriptions p
+              JOIN sessions s ON s.id = p.session_id AND s.profile_id = p.profile_id
+              WHERE p.profile_id = ? AND julianday(s.expires_at) > julianday(?)) < 32
        ON CONFLICT(endpoint) DO UPDATE SET id = excluded.id, profile_id = excluded.profile_id,
          session_id = excluded.session_id, keys_json = excluded.keys_json, created_at = excluded.created_at
+       WHERE push_subscriptions.profile_id = excluded.profile_id
+          OR NOT EXISTS (SELECT 1 FROM sessions s
+                         WHERE s.id = push_subscriptions.session_id
+                           AND s.profile_id = push_subscriptions.profile_id
+                           AND julianday(s.expires_at) > julianday(?))
        RETURNING id`,
-      [id, profileId, req.session!.id, subscription.endpoint, JSON.stringify(subscription.keys), now(),
-        subscription.endpoint, profileId, profileId]
+      [id, profileId, req.session!.id, subscription.endpoint, JSON.stringify(subscription.keys), timestamp,
+        subscription.endpoint, profileId, timestamp, profileId, timestamp, timestamp]
     );
     if (!saved) {
-      res.status(409).json({ error: 'Push subscription limit reached' });
+      res.status(409).json({ error: 'Push registration conflicts with an active owner or the subscription limit' });
       return;
     }
 
@@ -141,20 +151,24 @@ notificationRoutes.delete('/telegram/register', validate(TelegramUnregisterSchem
 });
 
 /**
- * GET /api/notifications/status - Report which server-side notification
- * channels are configured. UI uses this to show "configured: yes/no" rows.
+ * GET /api/notifications/status - Report channel configuration for the caller.
  */
 notificationRoutes.get('/status', async (req: Request, res: Response) => {
   try {
     const profileId = getProfileId(req);
     const subscriptions = await getPushSubscriptions(profileId);
     const chats = await getTelegramChatIds(profileId);
+    const db = await getSafeOSDatabase();
+    const profile = await db.get<{ notification_settings: string }>(
+      'SELECT notification_settings FROM user_profiles WHERE id = ?', [profileId]
+    );
+    const settings = JSON.parse(profile?.notification_settings || '{}');
     res.json({
       status: {
         pushSubscriptions: subscriptions.size,
         telegramChats: chats.size,
         smsEnabled: !!process.env['TWILIO_ACCOUNT_SID'],
-        telegramEnabled: !!process.env['TELEGRAM_BOT_TOKEN'],
+        telegramEnabled: !!settings.telegramBotToken,
         emailEnabled: isResendConfigured(),
       },
     });

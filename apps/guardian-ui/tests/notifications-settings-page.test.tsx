@@ -153,7 +153,7 @@ describe('quiet-hours profile saves', () => {
       }) })
     ));
     if (path.endsWith('notifications/page')) {
-      expect(screen.getByText(/holds low and medium alerts on the server/i)).toBeTruthy();
+      expect(screen.getByText(/skips delivery of low and medium alerts on the server/i)).toBeTruthy();
       expect(screen.getByText(/high and critical alerts are always sent/i)).toBeTruthy();
     }
   });

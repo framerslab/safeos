@@ -142,10 +142,20 @@ export async function startPipeline(options: { fakeTimeouts?: boolean } = {}) {
     return ws;
   }
   async function frame(ws: WebSocket, imageData: string, motionScore = 0) {
+    const matchingFrames = () => providers.db.all(
+      'SELECT id FROM frame_buffer WHERE stream_id = ? AND frame_data = ?', [streamId, imageData]
+    ) as Promise<{ id: string }[]>;
+    const previousIds = new Set((await matchingFrames()).map(row => row.id));
     ws.send(JSON.stringify({ type: 'frame', streamId, payload: { imageData, motionScore, audioLevel: 0 } }));
-    await until(async () => !!await providers.db.get('SELECT id FROM frame_buffer WHERE frame_data = ?', [imageData]));
-    if (motionScore >= 10) await until(async () => !!await providers.db.get("SELECT id FROM analysis_queue WHERE status = 'pending'"));
-    return (await providers.db.get('SELECT id FROM frame_buffer WHERE frame_data = ?', [imageData])).id as string;
+    let frameId: string | undefined;
+    await until(async () => {
+      frameId = (await matchingFrames()).find(row => !previousIds.has(row.id))?.id;
+      return !!frameId;
+    });
+    if (motionScore >= 10) await until(async () => !!await providers.db.get(
+      "SELECT id FROM analysis_queue WHERE frame_id = ? AND status = 'pending'", [frameId]
+    ));
+    return frameId!;
   }
   async function tick(ms = 1000) { await vi.advanceTimersByTimeAsync(ms); }
   async function close() {

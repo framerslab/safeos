@@ -563,7 +563,7 @@ export default function SettingsPage() {
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span>Telegram bot configured</span>
+                            <span>Your Telegram bot configured</span>
                             <span className={`px-2 py-0.5 rounded-full ${notificationServerStatus.telegramEnabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700/40 text-slate-300'}`}>
                               {notificationServerStatus.telegramEnabled ? 'Yes' : 'No'}
                             </span>
@@ -650,7 +650,7 @@ export default function SettingsPage() {
                     </div>
                   </label>
 
-                  <label className="flex items-center gap-3 cursor-pointer" title="Requires a monitoring server (API) + Telegram bot credentials.">
+                  <label className="flex items-center gap-3 cursor-pointer" title="Requires a monitoring server (API) and your own Telegram bot token.">
                     <input
                       type="checkbox"
                       checked={telegramEnabled}
@@ -667,14 +667,14 @@ export default function SettingsPage() {
                           notificationServerStatusLoading ? (
                             'Checking monitoring server configuration…'
                           ) : notificationServerStatus && !notificationServerStatus.telegramEnabled ? (
-                            'Monitoring server online, but Telegram bot credentials are not configured yet.'
+                            'Save your own Telegram bot token in your profile to enable alerts.'
                           ) : notificationServerStatus && notificationServerStatus.telegramEnabled ? (
-                            'Monitoring server is configured for Telegram delivery.'
+                            'Your saved Telegram bot is available for your registered chats.'
                           ) : (
-                            'Requires bot credentials on your monitoring server (bot token + chat ID).'
+                            'Requires your own Telegram bot token saved in your profile and a registered chat.'
                           )
                         ) : (
-                          'Saved locally; activates when a monitoring server + bot credentials are configured.'
+                          'Saved locally; alerts require an online monitoring server and your own Telegram bot token.'
                         )}
                       </p>
                     </div>
@@ -693,7 +693,7 @@ export default function SettingsPage() {
                     />
                     <div>
                       <p className="text-white">Quiet Hours</p>
-                      <p className="text-xs text-slate-500">Holds low and medium alerts on the server during your selected local times and days. High and critical alerts are always sent.</p>
+                      <p className="text-xs text-slate-500">Skips delivery of low and medium alerts on the server during your selected local times and days. They remain in the app and are not sent later. High and critical alerts are always sent.</p>
                     </div>
                   </label>
 

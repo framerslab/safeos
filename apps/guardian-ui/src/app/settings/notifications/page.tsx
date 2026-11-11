@@ -51,7 +51,7 @@ interface NotificationsSettings {
   smsAccountSid: string;
   smsAuthToken: string;
   smsFromNumber: string;
-  /** Telegram is server-managed — no per-user bot tokens. */
+  /** Telegram delivery requires the signed-in person’s own bot token. */
   telegramEnabled: boolean;
   /** Quiet hours (24h HH:MM). */
   quietHoursEnabled: boolean;
@@ -860,18 +860,18 @@ export default function NotificationsSettingsPage() {
         <Section
           icon={<IconMessageSquare size={18} />}
           title="Telegram alerts"
-          subtitle="Configured by the server operator only — no per-user bot tokens."
+          subtitle="Use your own Telegram bot for your registered chats."
         >
           <Toggle
             label="Send Telegram alerts"
-            description="Server delivers to every chat that registered with the SafeOS bot."
+            description="Delivers through your saved bot token to chats registered to your profile."
             checked={settings.telegramEnabled}
             onChange={(v) => update('telegramEnabled', v)}
             disabled={!apiOnline || !serverStatus?.telegramEnabled}
           />
           {apiOnline && serverStatus && !serverStatus.telegramEnabled && (
             <p className="mt-2 text-xs text-slate-400">
-              Your monitoring server has no Telegram bot token set. See{' '}
+              Save your own Telegram bot token in your profile to enable alerts. See{' '}
               <Link href="/help/integrations/telegram" className="text-emerald-300 underline-offset-2 hover:underline">
                 Telegram setup
               </Link>
@@ -884,7 +884,7 @@ export default function NotificationsSettingsPage() {
         <Section icon={<IconShield size={18} />} title="Quiet hours" subtitle="Use the same quiet hours as monitoring and sound settings.">
           <Toggle
             label="Enable quiet hours"
-            description="Holds low and medium alerts on the server during your selected local times and days. High and critical alerts are always sent."
+            description="Skips delivery of low and medium alerts on the server during your selected local times and days. They remain in the app and are not sent later. High and critical alerts are always sent."
             checked={settings.quietHoursEnabled}
             onChange={(v) => update('quietHoursEnabled', v)}
           />

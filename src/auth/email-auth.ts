@@ -509,6 +509,9 @@ export class EmailAuthService {
   async logout(token: string): Promise<void> {
     await this.initialize();
 
+    await this.db.run(
+      'DELETE FROM push_subscriptions WHERE session_id IN (SELECT id FROM sessions WHERE token = ?)', [token]
+    );
     await this.db.run('DELETE FROM sessions WHERE token = ?', [token]);
   }
 
@@ -518,6 +521,9 @@ export class EmailAuthService {
   async logoutAll(userId: string): Promise<void> {
     await this.initialize();
 
+    await this.db.run(
+      'DELETE FROM push_subscriptions WHERE session_id IN (SELECT id FROM sessions WHERE profile_id = ?)', [userId]
+    );
     await this.db.run('DELETE FROM sessions WHERE profile_id = ?', [userId]);
   }
 }

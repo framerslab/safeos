@@ -483,9 +483,11 @@ owner's severity-eligible channels (SMS for high/critical; push, Telegram and
 email from medium). Push subscriptions and Telegram chats are read from their
 owner-scoped SQLite tables. Push destinations are checked at registration and
 delivery, including public DNS resolution with a two-second deadline, pinned to
-the connection. Push registration transfers the endpoint to its current profile
-and session, caps each profile at 32 subscriptions and bounds key sizes. Logout
-revokes only the current session registrations; expired and legacy unbound
+the connection. Push registration preserves an endpoint's live owner; only that
+profile may update it until the owning session ends. Registration limits count
+at most 32 live-session endpoints per profile and bound key sizes. Session
+removal also deletes its push registrations, including sign-out, sign-out
+everywhere, password reset and expired-session cleanup. Expired and legacy unbound
 registrations cannot receive push. Server SMS
 requires the owner's verified phone, server email requires an operator owner, and
 server-bot Telegram is skipped until recipient verification exists. Personal
@@ -493,8 +495,8 @@ provider credentials remain available. Channel attempts start concurrently and r
 own failures; they do not trigger analysis retries. Alert insertion atomically
 records a five-minute cooldown against unacknowledged attempts of the same or
 higher severity that reached at least one channel; escalation bypasses that
-cooldown. Quiet hours hold low and medium alerts in the saved local time zone
-and on selected weekdays. High and critical alerts always bypass quiet hours.
+cooldown. Quiet hours skip low and medium delivery in the saved local time zone
+and on selected weekdays. Alerts remain in the app and are not sent later. High and critical alerts always bypass quiet hours.
 Legacy windows without a time zone hold nothing and produce a fixed log message.
 Dispatch runs outside analysis slots with a 15-second deadline per channel.
 Critical alerts bypass the 32-delivery capacity check, and shutdown does not wait

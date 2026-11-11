@@ -92,7 +92,8 @@ export const requireAuth: RequestHandler = async (
     // Check expiration
     const expiresAt = new Date(session.expires_at);
     if (expiresAt < new Date()) {
-      // Clean up expired session
+      // Revoke registrations before removing their session binding.
+      await db.run('DELETE FROM push_subscriptions WHERE session_id = ?', [session.id]);
       await db.run(`DELETE FROM sessions WHERE id = ?`, [session.id]);
 
       res.status(401).json({

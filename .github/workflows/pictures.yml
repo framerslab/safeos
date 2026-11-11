@@ -33,7 +33,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /security/ /wildlife/
+  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/
 
 jobs:
   pictures:
