@@ -55,7 +55,7 @@ export function installCameraBrowser() {
   });
   jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((() => ({
     drawImage: jest.fn(), getImageData: readFrame,
-  })) as typeof HTMLCanvasElement.prototype.getContext);
+  })) as unknown as typeof HTMLCanvasElement.prototype.getContext);
   jest.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,frame');
   const closeAudio = jest.fn().mockResolvedValue(undefined);
   class BrowserAudioContext {
