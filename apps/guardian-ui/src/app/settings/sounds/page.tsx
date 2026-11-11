@@ -259,7 +259,7 @@ export default function SoundsSettingsPage() {
                   Pet Recall
                 </span>
                 <p className="text-xs text-slate-400 mt-1">
-                  Record "Come home Buddy!" to play when your dog is detected outdoors
+                  Record &quot;Come home Buddy!&quot; to play when your dog is detected outdoors
                 </p>
               </div>
               <div className="p-2 bg-slate-800/50 rounded-lg">

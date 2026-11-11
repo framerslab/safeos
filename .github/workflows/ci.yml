@@ -1,20 +1,36 @@
-# SafeOS Guardian - CI/CD Pipeline
-# Runs on push to main/master and pull requests
+# SafeOS Guardian - checks
+#
+# Runs every suite and check on each pull request and on each push to master.
+# Any failure fails the run: nothing here is allowed to print an error and
+# carry on. This workflow builds and tests only. GitHub Pages is deployed by
+# deploy-pages.yml and the container images are published by
+# docker-publish.yml; the static export is built on every pull request by
+# deploy-pages.yml's build job. See docs/DEVELOPMENT.md.
 
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [master]
   pull_request:
-    branches: [main, master]
+    branches: [master]
+
+permissions:
+  contents: read
+
+# A newer push to a pull request cancels that pull request's older run. Every
+# other run (each master commit) has a group of its own, so none is cancelled
+# or dropped from the queue: each master commit is checked to the end.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # =============================================================================
-  # Lint & Type Check
-  # =============================================================================
-  lint:
-    name: Lint & Type Check
+  # ---------------------------------------------------------------------------
+  # Server: type check and lint
+  # ---------------------------------------------------------------------------
+  server-checks:
+    name: Server type check and lint
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -29,16 +45,16 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Type check
-        run: npx tsc --noEmit || echo "Type errors found (non-blocking)"
+        run: npm run typecheck
 
       - name: Lint
-        run: npm run lint || echo "No lint script"
+        run: npm run lint
 
-  # =============================================================================
-  # Unit Tests
-  # =============================================================================
-  test:
-    name: Unit Tests
+  # ---------------------------------------------------------------------------
+  # Server: tests with coverage
+  # ---------------------------------------------------------------------------
+  server-tests:
+    name: Server tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -55,7 +71,19 @@ jobs:
       - name: Run tests with coverage
         run: npm test -- --coverage
 
+      - name: Upload coverage summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-coverage
+          path: |
+            coverage/coverage-summary.json
+            coverage/lcov.info
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Upload coverage to Codecov
+        if: success()
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -63,13 +91,12 @@ jobs:
           flags: safeos
           fail_ci_if_error: false
 
-  # =============================================================================
-  # Build Backend
-  # =============================================================================
-  build-backend:
-    name: Build Backend
+  # ---------------------------------------------------------------------------
+  # Server: compile
+  # ---------------------------------------------------------------------------
+  server-build:
+    name: Server build
     runs-on: ubuntu-latest
-    needs: [lint, test]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -83,22 +110,14 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Build
-        run: npx tsc -p tsconfig.json
+        run: npm run build
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: backend-dist
-          path: dist
-          retention-days: 7
-
-  # =============================================================================
-  # Build Frontend
-  # =============================================================================
-  build-frontend:
-    name: Build Frontend
+  # ---------------------------------------------------------------------------
+  # Web app: type check, lint and Jest tests
+  # ---------------------------------------------------------------------------
+  web-checks:
+    name: Web app type check and lint
     runs-on: ubuntu-latest
-    needs: [lint]
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -110,83 +129,30 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/guardian-ui/package-lock.json
 
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: npm ci
 
-      - name: Build
-        run: npm run build
-        env:
-          NEXT_PUBLIC_API_URL: https://api.safeos.dev
-          NEXT_PUBLIC_WS_URL: wss://api.safeos.dev
+      - name: Type check
+        run: npx tsc --noEmit
 
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: apps/guardian-ui/.next
-          retention-days: 7
+      # The lockfile carries no ESLint, so the job adds the two packages that
+      # `next lint` needs, pinned to the Next.js version in the lockfile,
+      # without changing package.json or the lockfile.
+      - name: Install ESLint for next lint
+        run: npm install --no-save eslint@8.57.1 eslint-config-next@14.2.35
 
-  # =============================================================================
-  # Docker Build
-  # =============================================================================
-  docker:
-    name: Docker Build
+      - name: Lint
+        run: npx next lint
+
+  web-tests:
+    name: Web app tests
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push API
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          target: backend
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/safeos-api:latest
-            ghcr.io/${{ github.repository_owner }}/safeos-api:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push UI
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          target: frontend
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository_owner }}/safeos-ui:latest
-            ghcr.io/${{ github.repository_owner }}/safeos-ui:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # =============================================================================
-  # Deploy to GitHub Pages (Frontend Only)
-  # =============================================================================
-  deploy-pages:
-    name: Deploy to GitHub Pages
-    runs-on: ubuntu-latest
-    needs: [build-frontend]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+    defaults:
+      run:
+        working-directory: apps/guardian-ui
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -195,26 +161,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/guardian-ui/package-lock.json
 
-      - name: Install frontend dependencies
-        run: npm install --legacy-peer-deps
-        working-directory: apps/guardian-ui
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Build static export
-        run: npm run build
-        working-directory: apps/guardian-ui
-        env:
-          NEXT_PUBLIC_API_URL: https://api.safeos.dev
-          NEXT_PUBLIC_WS_URL: wss://api.safeos.dev
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: apps/guardian-ui/out
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Run Jest
+        run: npx jest --ci

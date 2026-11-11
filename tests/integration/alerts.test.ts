@@ -7,7 +7,7 @@
  */
 
 // Skip: Router export issues - needs investigation
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 describe.skip('Alerts API Integration (skipped - router export issue)', () => {
   it('placeholder', () => {

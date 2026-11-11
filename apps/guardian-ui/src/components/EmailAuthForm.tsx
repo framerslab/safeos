@@ -289,7 +289,7 @@ export function EmailAuthForm({ onSuccess, onCancel, initialMode = 'login' }: Em
         <div className="text-center text-sm text-slate-400">
           {mode === 'login' && (
             <>
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <button
                 type="button"
                 onClick={() => {

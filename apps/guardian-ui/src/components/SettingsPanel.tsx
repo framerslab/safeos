@@ -367,7 +367,7 @@ export function SettingsPanel() {
                 <li>• Video frames are processed locally and discarded</li>
                 <li>• Only 5-10 minutes of data in rolling buffer</li>
                 <li>• No cloud storage of video or audio</li>
-                <li>• All data stored in your browser's IndexedDB</li>
+                <li>• All data stored in your browser&apos;s IndexedDB</li>
               </ul>
             </div>
 

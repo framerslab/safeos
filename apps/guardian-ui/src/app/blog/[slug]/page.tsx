@@ -100,9 +100,9 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
-          <div className="text-emerald-400">const FRAME_INTERVAL = 1000;<span className="text-slate-500"> // gated frame capture</span></div>
-          <div className="text-emerald-400">const MOTION_INTERVAL = 200;<span className="text-slate-500"> // pixel-diff every 200ms</span></div>
-          <div className="text-emerald-400">const AUDIO_INTERVAL = 100;<span className="text-slate-500"> // FFT every 100ms</span></div>
+          <div className="text-emerald-400">const FRAME_INTERVAL = 1000;<span className="text-slate-500">{' // gated frame capture'}</span></div>
+          <div className="text-emerald-400">const MOTION_INTERVAL = 200;<span className="text-slate-500">{' // pixel-diff every 200ms'}</span></div>
+          <div className="text-emerald-400">const AUDIO_INTERVAL = 100;<span className="text-slate-500">{' // FFT every 100ms'}</span></div>
         </div>
 
         <h2>The gate</h2>

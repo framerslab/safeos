@@ -6,7 +6,7 @@
  * @module tests/integration/api.test
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // Mock the database before importing server
 vi.mock('../../src/db', () => ({
