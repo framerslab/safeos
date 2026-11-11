@@ -56,7 +56,7 @@ for (const action of ['verify', 'reset-password'] as const) {
  * POST /api/auth/email/register
  * Register a new user with email and password
  */
-emailAuthRouter.post('/register', validate(credentials.extend({ displayName: z.string().min(1).max(100).optional() })), async (req, res) => {
+emailAuthRouter.post('/register', validate(credentials.extend({ displayName: z.string().max(100).transform((value) => value.trim()).optional() })), async (req, res) => {
   try {
     const { email, password, displayName } = req.body;
 

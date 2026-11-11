@@ -196,7 +196,7 @@ export class EmailAuthService {
         userId,
         email.toLowerCase(),
         passwordHash,
-        displayName || email.split('@')[0],
+        displayName?.trim() || email.split('@')[0],
         0, // Not verified
         verificationToken,
         verificationExpires,
