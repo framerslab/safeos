@@ -269,7 +269,7 @@ This release moves Caddy onto a proxy network of its own, keeps each person's ac
    ${EDITOR:-vi} docker-compose.prod.yml
    ```
 
-3. **Pull and recreate the API and Caddy.** Remove the old Compose containers and networks, keeping named volumes, then recreate the stack. This also replaces an existing proxy network whose allocation range has changed. On first start the API copies each person's own active monitoring profile into the new per-person table:
+3. **Recreate the API and Caddy.** Remove the old Compose containers and networks, keeping named volumes, then recreate the stack. This also replaces an existing proxy network whose allocation range has changed. On first start the API copies each person's own active monitoring profile into the new per-person table:
 
    ```bash
    docker compose -f docker-compose.prod.yml down
