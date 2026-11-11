@@ -68,6 +68,9 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Install SQLite CLI for backup and restore tests
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
       - name: Run tests with coverage
         run: npm test -- --coverage
 
