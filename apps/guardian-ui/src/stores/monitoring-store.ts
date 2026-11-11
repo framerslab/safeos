@@ -8,7 +8,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { cacheAlert, getCachedAlerts, deleteCachedAlert, clearCachedAlerts } from '../lib/client-db';
+import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts } from '../lib/client-db';
 
 // =============================================================================
 // Types
@@ -130,7 +130,7 @@ function writeAlerts(write: () => Promise<void>) {
   });
 }
 function saveAlert(alert: Alert) {
-  return cacheAlert({ ...alert, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
+  return cacheAlert({ ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
 }
 
 export const useMonitoringStore = create<MonitoringState>()(
@@ -176,7 +176,7 @@ export const useMonitoringStore = create<MonitoringState>()(
 
       removeAlert: (id) => {
         set((state) => ({ alerts: state.alerts.filter(a => a.id !== id) }));
-        writeAlerts(() => deleteCachedAlert(id));
+        writeAlerts(() => deleteCachedMonitoringAlert(id));
       },
 
       acknowledgeAlert: (id) => {
@@ -187,13 +187,13 @@ export const useMonitoringStore = create<MonitoringState>()(
 
       clearAlerts: () => {
         set({ alerts: [] });
-        writeAlerts(clearCachedAlerts);
+        writeAlerts(clearCachedMonitoringAlerts);
       },
 
       hydrateAlerts: async () => {
         await alertWrites;
         const revision = alertRevision;
-        const saved: Alert[] = await getCachedAlerts();
+        const saved: Alert[] = await getCachedMonitoringAlerts();
         if (revision !== alertRevision) return get().hydrateAlerts();
         set((state) => ({
           alerts: Array.from(new Map([...saved, ...state.alerts].map(a => [a.id, a])).values())
@@ -279,7 +279,7 @@ export const useMonitoringStore = create<MonitoringState>()(
       },
 
       reset: () => {
-        writeAlerts(clearCachedAlerts);
+        writeAlerts(clearCachedMonitoringAlerts);
         set({
           isConnected: false,
           isStreaming: false,

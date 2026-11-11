@@ -55,6 +55,10 @@ interface SafeOSDB extends DBSchema {
     key: string;
     value: {
       id: string;
+      monitoring?: boolean;
+      alertType?: string;
+      thumbnailUrl?: string;
+      timestamp?: string;
       streamId: string;
       severity: string;
       message: string;
@@ -482,8 +486,13 @@ export async function getCachedStreams(): Promise<any[]> {
 export async function cacheAlert(alert: any): Promise<void> {
   try {
     const db = await getDB();
-    await db.put('alert_cache', {
+    const tx = db.transaction('alert_cache', 'readwrite');
+    await tx.store.put({
       id: alert.id,
+      monitoring: alert.monitoring === true,
+      alertType: alert.alertType,
+      thumbnailUrl: alert.thumbnailUrl,
+      timestamp: alert.timestamp,
       streamId: alert.streamId,
       severity: alert.severity,
       message: alert.message,
@@ -493,6 +502,12 @@ export async function cacheAlert(alert: any): Promise<void> {
       createdAt: alert.createdAt,
       syncedAt: new Date().toISOString(),
     });
+    if (alert.monitoring === true) {
+      const owned = (await tx.store.getAll()).filter(record => record.monitoring === true)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      for (const stale of owned.slice(100)) await tx.store.delete(stale.id);
+    }
+    await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to cache alert:', error);
   }
@@ -513,15 +528,32 @@ export async function getCachedAlerts(streamId?: string): Promise<any[]> {
   }
 }
 
-/** Remove dismissed monitoring alerts from the same cache used by History. */
-export async function deleteCachedAlert(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('alert_cache', id);
+/** Monitoring owns only marked records; engine and sync alerts share this cache. */
+export async function getCachedMonitoringAlerts(): Promise<any[]> {
+  try {
+    const db = await getDB();
+    return (await db.getAll('alert_cache')).filter(alert => alert.monitoring === true)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100);
+  } catch {
+    return [];
+  }
 }
 
-export async function clearCachedAlerts(): Promise<void> {
+export async function deleteCachedMonitoringAlert(id: string): Promise<void> {
   const db = await getDB();
-  await db.clear('alert_cache');
+  const tx = db.transaction('alert_cache', 'readwrite');
+  const alert = await tx.store.get(id);
+  if (alert?.monitoring) await tx.store.delete(id);
+  await tx.done;
+}
+
+export async function clearCachedMonitoringAlerts(): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('alert_cache', 'readwrite');
+  for (const alert of await tx.store.getAll()) {
+    if (alert.monitoring) await tx.store.delete(alert.id);
+  }
+  await tx.done;
 }
 
 // =============================================================================

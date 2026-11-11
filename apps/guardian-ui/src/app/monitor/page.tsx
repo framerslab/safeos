@@ -284,6 +284,8 @@ export default function MonitorPage() {
           addAlert({
             id: message.payload?.id || Date.now().toString(),
             streamId: message.payload?.streamId || '',
+            alertType: message.payload?.alertType,
+            thumbnailUrl: message.payload?.thumbnailUrl,
             severity: message.payload?.severity || 'medium',
             message: message.payload?.message || 'Alert detected',
             timestamp: message.payload?.timestamp || new Date().toISOString(),
