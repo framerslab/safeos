@@ -219,3 +219,17 @@ describe('consistent password replacement rules', () => {
     expect((await call('post', '/api/auth/email/login').send({ email, password: 'ChangedPassword456' })).status).toBe(200);
   });
 });
+
+describe('registration privacy', () => {
+  it('returns the same public response for new and existing addresses', async () => {
+    const body = { email: 'registration-privacy@example.com', password: 'GoodPassword123', displayName: 'Original' };
+    const fresh = await call('post', '/api/auth/email/register').send(body);
+    expect(fresh.status).toBe(201);
+    const before = await db.get('SELECT * FROM users WHERE email = ?', [body.email]);
+    const duplicate = await call('post', '/api/auth/email/register').send({ ...body, password: 'DifferentPassword456', displayName: 'Replacement' });
+    expect(duplicate.status).toBe(fresh.status);
+    expect(duplicate.body).toEqual(fresh.body);
+    expect(duplicate.body).not.toHaveProperty('user');
+    expect(await db.get('SELECT * FROM users WHERE email = ?', [body.email])).toEqual(before);
+  });
+});
