@@ -467,7 +467,9 @@ HTTP API:
 The optional API server deletes frame-buffer rows at startup and every second,
 including frames from ended streams. The cutoff is ten minutes old; deletion
 runs on the next sweep (normally within one second), independently of new writes.
-Shutdown stops the timer and waits for an active sweep. A stopped server cannot
+Shutdown and failed startup stop the retention and heartbeat timers and wait for
+an active sweep. Cleanup errors log one fixed line and a known error class name,
+without messages, stacks or stored values; later sweeps still run. A stopped server cannot
 run cleanup; startup removes expired rows before accepting uploads. This is
 logical deletion of rows, not a promise of forensic erasure from SQLite pages or
 backups. Keep backups protected and expire them separately.
@@ -490,6 +492,10 @@ insert another result or resend the saved alert. After inserting a new alert it
 loads the stream owner's notification settings and dispatches through that
 owner's severity-eligible channels (SMS for high/critical; push, Telegram and
 email from medium). Push subscriptions and Telegram chats are read from their
-owner-scoped SQLite tables. Channel attempts start concurrently and report their
+owner-scoped SQLite tables. Push destinations are checked at registration and
+delivery, including public DNS resolution pinned to the connection. Server SMS
+requires the owner's verified phone, server email requires an operator owner, and
+server-bot Telegram is skipped until recipient verification exists. Personal
+provider credentials remain available. Channel attempts start concurrently and report their
 own failures; they do not trigger analysis retries. See the API delivery settings
 for configuration and the best-effort delivery limitation.

@@ -347,7 +347,7 @@ These routes require a session and manage notification configuration for deploym
 Some endpoints may store configuration only and do not send messages by default.
 
 #### POST /api/notifications/subscribe
-Store a Web Push subscription for the signed-in profile. The analysis worker uses it when that owner's browser-push preference is enabled.
+Store a Web Push subscription for the signed-in profile. Registration returns `400` unless the endpoint is HTTPS on a documented push service, uses the default port, and resolves only to public addresses. Delivery repeats these checks for stored rows and never follows redirects. See the provider list in CONFIGURATION.md. The analysis worker uses it when that owner's browser-push preference is enabled.
 
 **Request:**
 ```json
@@ -361,7 +361,7 @@ Store a Web Push subscription for the signed-in profile. The analysis worker use
 Unregister a Web Push subscription.
 
 #### POST /api/notifications/telegram/register
-Store a Telegram chat ID for the signed-in profile. The analysis worker uses it when that owner's Telegram preference is enabled.
+Store a Telegram chat ID for the signed-in profile. Registration does not verify ownership of the chat. The analysis worker sends only when that owner's Telegram preference and personal `telegramBotToken` are set; it skips the server bot because chat verification is unavailable.
 
 **Request:**
 ```json
@@ -736,10 +736,29 @@ from medium severity. Set preferences with
 }
 ```
 
-Email uses `email`, not the legacy `emailDigest` preference. SMS and email require
-a recipient as well as the opt-in flag and configured server credentials.
-Browser push requires VAPID configuration and a subscription; Telegram requires
-a bot token and a registered chat. Delivery still honors email suppression.
+Email uses `email`, not the legacy `emailDigest` preference. Each channel requires
+its opt-in flag. Server SMS requires a matching `phone_numbers` row with
+`verified = 1` for the alert owner, including operator-owned alerts. Unlike the
+interactive test route, queued SMS has no operator bypass. Server email is
+operator-only, matching the test-mail route: profiles have no verified email
+field. Other owners must supply their own Resend key. Server-bot Telegram is
+skipped because chat registration does not establish recipient ownership.
+
+Personal credentials are supported in `notificationSettings`:
+
+- `smsOverride`: `accountSid`, `authToken`, and `fromNumber` (all required for a
+  personal account; a partial override never changes the server sender).
+- `emailOverride`: `apiKey`, with optional `replyTo`; `emailFromOverride` may
+  specify a sender verified in that account.
+- `telegramBotToken`: a personal bot token, used with the owner's registered chats.
+
+The same profile route saves these credentials. Treat access to the profile and
+database as access to them. Clear `emailOverride` or `smsOverride` with `{}` and
+`telegramBotToken` with an empty string. A personal key or complete SMS override
+does not use the server account's recipient authorization. Email suppression
+still applies. Unauthorized channels are skipped with one fixed log line naming
+the channel and reason, without the recipient. Browser push requires VAPID
+configuration and a permitted subscription destination.
 
 All `/api/notifications` routes require a session. Push and Telegram registrations
 are stored in SQLite under that session's profile and survive restarts. A caller's

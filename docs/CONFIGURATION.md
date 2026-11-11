@@ -272,3 +272,36 @@ Model defaults and prices change; check the linked catalog before deployment.
 CI checks request construction through the worker with provider stubs; it does
 not spend credits or assert live account access. The newer OpenAI model has a
 higher published token price than the former default.
+
+
+### Push destination policy
+
+Registration and delivery accept HTTPS on port 443 only. The following vendor
+pages were checked on 11 November 2026. These are service hosts, not arbitrary
+notification destinations; subscription paths and queries remain opaque.
+
+| Service | Allowed host | Vendor documentation |
+|---------|--------------|----------------------|
+| Chrome and other FCM browsers | `fcm.googleapis.com` | [Configure your Network for FCM](https://firebase.google.com/docs/cloud-messaging/network-configuration) |
+| Firefox | `updates.push.services.mozilla.com` | [Mozilla Autopush: HTTP Endpoints for Notifications](https://mozilla-services.github.io/autopush-rs/http.html) |
+| Safari | subdomains of `push.apple.com` | [Sending web push notifications in web apps and browsers](https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers) |
+| Edge / Windows Notification Service | subdomains of `notify.windows.com` | [Windows Push Notification Services overview](https://learn.microsoft.com/en-us/windows/apps/develop/notifications/push-notifications/wns-overview) and [Re-engage users with push messages](https://learn.microsoft.com/en-us/microsoft-edge/progressive-web-apps/how-to/push) |
+
+Other hosts, IP literals, credentials in URLs, fragments, non-default ports,
+and private, loopback or link-local DNS answers are refused. DNS failure also
+refuses registration or skips delivery. Delivery resolves again and pins the
+checked public address for the TLS connection, retaining hostname verification.
+Redirects are not followed. Legacy rows receive the same checks. The legacy
+`android.googleapis.com` endpoint and Mozilla development/staging hosts are
+excluded; they were not confirmed as current production endpoints in these
+vendor references.
+
+### Server-funded alert recipients
+
+Server SMS uses only the owner's verified `phone_numbers` row. Server email is
+reserved for an operator owner because profiles do not have verified email
+addresses. Registering a Telegram chat is not verification, so queued alerts
+skip the server bot. Personal Resend keys, complete Twilio credentials and
+Telegram bot tokens may be saved through the profile route; see API.md for
+field names. Registering a profile or enabling a channel does not authorize a
+recipient. Skips log the channel and a fixed reason without the recipient.

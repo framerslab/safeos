@@ -502,11 +502,108 @@ Verify `/health`, sign in, and check a known stream through `/api/streams` befor
 retiring the rollback copy. CI creates a stream through HTTP, executes these
 backup commands, restores into a fresh file and reads the stream through HTTP.
 
+### Docker named-volume backup and restore
+
+Run these commands in Bash from the directory containing the Compose files.
+Select the same setup and project options used to create the running API:
+
+```bash
+# Local build:
+SAFEOS_COMPOSE=(docker compose -f docker-compose.yml)
+# Prebuilt images: use this instead of the line above.
+# SAFEOS_COMPOSE=(docker compose -f docker-compose.ghcr.yml)
+# Production: use this instead.
+# SAFEOS_COMPOSE=(docker compose -f docker-compose.prod.yml)
+# Local build with the GPU override: use this instead.
+# SAFEOS_COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.gpu.yml)
+# Prebuilt images with the GPU override: use this instead.
+# SAFEOS_COMPOSE=(docker compose -f docker-compose.ghcr.yml -f docker-compose.gpu.yml)
+```
+
+Each base file mounts the `safeos-data` volume at `/app/db_data`. The local and
+prebuilt files declare project name `safeos`, so their default volume name is
+`safeos_safeos-data`. Production uses Compose's project name (normally the
+checkout directory name), giving `<project>_safeos-data`. A `-p` option or
+`COMPOSE_PROJECT_NAME` changes that prefix. Include any original `-p` option in
+`SAFEOS_COMPOSE`. The GPU override only changes Ollama's devices.
+
+Read the actual volume name from the selected API container. This also handles
+custom project names and refuses to create a new, empty source volume:
+
+```bash
+set -eu
+SAFEOS_API_CONTAINER=$("${SAFEOS_COMPOSE[@]}" ps -aq api)
+test -n "$SAFEOS_API_CONTAINER"
+SAFEOS_DATA_VOLUME=$(docker inspect "$SAFEOS_API_CONTAINER" --format '{{range .Mounts}}{{if eq .Destination "/app/db_data"}}{{.Name}}{{end}}{{end}}')
+test -n "$SAFEOS_DATA_VOLUME"
+docker volume inspect "$SAFEOS_DATA_VOLUME" >/dev/null
+mkdir -p backup
+SAFEOS_BACKUP_DIR=$(cd backup && pwd)
+```
+
+The backend Dockerfile uses `/app` as its working directory and installs the
+SQLite runtime libraries, but not the `sqlite3` CLI. A temporary Alpine helper
+installs the CLI and mounts the existing volume. The database in that volume is
+`app.sqlite3`, despite the unused `SAFEOS_DB_PATH` setting in Compose.
+
+For backup, stop the selected API, make a consistent SQLite snapshot, then
+restart that API. Ollama and the UI can stay running. The helper needs network
+access to install SQLite. If any command fails, leave the API stopped until the
+failure is understood.
+
+```bash
+"${SAFEOS_COMPOSE[@]}" stop api
+docker run --rm \
+  --mount "type=volume,src=$SAFEOS_DATA_VOLUME,dst=/data" \
+  --mount "type=bind,src=$SAFEOS_BACKUP_DIR,dst=/backup" \
+  alpine:3 sh -eu -c '
+    apk add --no-cache sqlite >/dev/null
+    test -f /data/app.sqlite3
+    test ! -e /backup/safeos.sqlite3
+    sqlite3 /data/app.sqlite3 ".backup /backup/safeos.sqlite3"
+    test "$(sqlite3 /backup/safeos.sqlite3 "PRAGMA integrity_check;")" = ok
+    chmod 600 /backup/safeos.sqlite3
+  '
+"${SAFEOS_COMPOSE[@]}" start api
+```
+
+Move the previous `backup/safeos.sqlite3` to a dated, protected location before
+the next backup. To restore, select the same Compose setup and resolve its volume
+as above. Place the chosen snapshot at `backup/safeos.sqlite3`. The following
+preserves the stopped volume, including any WAL sidecars, in a unique rollback
+archive before restoring. It refuses a missing or invalid snapshot.
+
+```bash
+"${SAFEOS_COMPOSE[@]}" stop api
+docker run --rm \
+  --mount "type=volume,src=$SAFEOS_DATA_VOLUME,dst=/data" \
+  --mount "type=bind,src=$SAFEOS_BACKUP_DIR,dst=/backup" \
+  alpine:3 sh -eu -c '
+    apk add --no-cache sqlite >/dev/null
+    test -f /backup/safeos.sqlite3
+    test "$(sqlite3 /backup/safeos.sqlite3 "PRAGMA integrity_check;")" = ok
+    rollback=$(mktemp /backup/before-restore.XXXXXX.tar)
+    tar -C /data -cf "$rollback" .
+    chmod 600 "$rollback"
+    sqlite3 /data/app.sqlite3 ".restore /backup/safeos.sqlite3"
+    test "$(sqlite3 /data/app.sqlite3 "PRAGMA integrity_check;")" = ok
+  '
+"${SAFEOS_COMPOSE[@]}" start api
+"${SAFEOS_COMPOSE[@]}" exec -T api wget -q -O - http://localhost:3001/health
+```
+
+The supplied backend runs as root, matching the helper's file ownership. If you
+have customized the API user, restore that user's ownership before restarting.
+Check a known stream through the API before removing the rollback archive.
+These Docker commands were traced against all Compose files and the Dockerfile;
+they have not been run, and CI does not execute them. The separate host SQLite
+backup/restore commands above are exercised in CI.
+
 ### Automated Backup Script
 
 For the systemd installation, run as a user with access to both directories.
-Install `sqlite3` on the host first. For containers, adjust `SOURCE_DB` to the
-mounted volume's actual path on the host.
+Install `sqlite3` on the host first. For containers, use the named-volume
+procedure above instead of this host-path script.
 
 ```bash
 #!/bin/bash
