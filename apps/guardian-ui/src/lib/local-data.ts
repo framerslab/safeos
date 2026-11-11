@@ -1,0 +1,38 @@
+/** Local data shared by the privacy controls and account sign-out. */
+import { clearClientData } from './client-db';
+import { clearCustomSounds } from './custom-sounds-db';
+import { getSoundManager } from './sound-manager';
+import { useMonitoringStore } from '../stores/monitoring-store';
+import { useSecurityStore } from '../stores/security-store';
+import { useLostFoundStore } from '../stores/lost-found-store';
+import { useAnimalAlertStore } from '../stores/animal-alert-store';
+import { useSettingsStore } from '../stores/settings-store';
+import { useOnboardingStore } from '../stores/onboarding-store';
+
+export async function clearLocalData(): Promise<void> {
+  // Stop producers before clearing their records and persisted state.
+  getSoundManager().stopAll();
+  getSoundManager().stopCustomSounds();
+  useMonitoringStore.getState().reset();
+  useSecurityStore.getState().reset();
+  useSecurityStore.getState().clearIntrusionHistory();
+  useSecurityStore.setState({ totalIntrusionEvents: 0, lastIntrusionTime: null });
+  useLostFoundStore.getState().reset();
+  useLostFoundStore.setState({ subjects: [] });
+  useAnimalAlertStore.getState().reset();
+  useAnimalAlertStore.getState().clearHistory();
+  useSettingsStore.getState().resetToDefaults();
+  useOnboardingStore.getState().reset();
+
+  await Promise.all([clearClientData(), clearCustomSounds()]);
+  if ('caches' in window) {
+    const names = await caches.keys();
+    await Promise.all(names.filter((name) => name.startsWith('safeos')).map((name) => caches.delete(name)));
+  }
+  for (const storage of [localStorage, sessionStorage]) {
+    const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
+    for (const key of keys) {
+      if (key?.startsWith('safeos')) storage.removeItem(key);
+    }
+  }
+}

@@ -1695,3 +1695,12 @@ export async function getAnimalDetectionStats(): Promise<{
     };
   }
 }
+
+/** Clear every local record in one transaction, including frames and profiles. */
+export async function clearClientData(): Promise<void> {
+  const db = await getDB();
+  const names = Array.from(db.objectStoreNames);
+  const tx = db.transaction(names, 'readwrite');
+  await Promise.all(names.map((name) => tx.objectStore(name).clear()));
+  await tx.done;
+}

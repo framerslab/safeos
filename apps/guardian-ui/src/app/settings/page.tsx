@@ -12,6 +12,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuthStore } from '../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
+import { clearLocalData } from '@/lib/local-data';
 import { FeatureDisabledBadge } from '@/components/StatusBanner';
 
 // =============================================================================
@@ -788,14 +789,18 @@ export default function SettingsPage() {
                 <div>
                   <h3 className="text-white font-medium mb-2">Data Storage</h3>
                   <p className="text-sm text-slate-400 mb-4">
-                    Your preferences and session data are stored locally in your browser using IndexedDB.
+                    Preferences use localStorage. Frames, profiles and recorded sounds use IndexedDB.
+                    Clearing local data removes all of these and the SafeOS offline cache.
                   </p>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       if (confirm('This will delete all local data. Are you sure?')) {
-                        localStorage.clear();
-                        indexedDB.deleteDatabase('safeos-guardian');
-                        window.location.reload();
+                        try {
+                          await clearLocalData();
+                          window.location.reload();
+                        } catch {
+                          setSaveMessage({ type: 'error', text: 'Could not clear all local data. Please try again.' });
+                        }
                       }
                     }}
                     className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 rounded-lg transition-colors"
