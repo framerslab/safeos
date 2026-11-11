@@ -98,7 +98,9 @@ Complete reference for all configuration options, environment variables, and thr
 |-----------|-------|-------------|
 | `BUFFER_MINUTES` | 10 | Rolling buffer duration for privacy |
 
-Frames older than this are automatically cleaned up for privacy compliance.
+The server removes expired frame-buffer rows on startup and every second, even
+without new uploads. Deletion runs on the next sweep after the ten-minute
+cutoff. It does not erase historical backups or guarantee forensic erasure.
 
 ### Supported Scenarios
 

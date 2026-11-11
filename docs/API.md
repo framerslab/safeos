@@ -341,13 +341,13 @@ Delete one of the caller's profiles.
 
 ### Notifications
 
-These routes manage notification configuration for deployments that run the optional SafeOS API server.
+These routes require a session and manage notification configuration for deployments that run the optional SafeOS API server.
 
 **Important:** remote delivery channels (Web Push / SMS / Telegram / Email) require additional setup and provider credentials.
 Some endpoints may store configuration only and do not send messages by default.
 
 #### POST /api/notifications/subscribe
-Register a Web Push subscription (storage-only in the default implementation).
+Store a Web Push subscription for the signed-in profile. The analysis worker uses it when that owner's browser-push preference is enabled.
 
 **Request:**
 ```json
@@ -361,7 +361,7 @@ Register a Web Push subscription (storage-only in the default implementation).
 Unregister a Web Push subscription.
 
 #### POST /api/notifications/telegram/register
-Register a Telegram chat ID (storage-only in the default implementation).
+Store a Telegram chat ID for the signed-in profile. The analysis worker uses it when that owner's Telegram preference is enabled.
 
 **Request:**
 ```json
@@ -374,7 +374,7 @@ Register a Telegram chat ID (storage-only in the default implementation).
 Unregister a Telegram chat ID.
 
 #### GET /api/notifications/status
-Check which notification channels are configured/enabled on the server.
+Check server channel availability and the signed-in profile's registration counts.
 
 #### POST /api/notifications/test
 Send a test notification (simulated in the default implementation).
