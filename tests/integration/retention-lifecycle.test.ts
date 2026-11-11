@@ -67,3 +67,29 @@ it('reports an initial retention failure once without exposing stored values to 
     await p.close();
   }
 });
+
+it('releases scheduled work when the listen port is already in use', async () => {
+  const p = await startPipeline();
+  const { SafeOSServer } = await import('../../src/api/server.js');
+  const service = new SafeOSServer();
+  const http = (service as any).server;
+  const occupiedPort = (p.service as any).server.address().port;
+  const listen = http.listen.bind(http);
+  // Keep a real HTTP bind while directing this instance to the occupied port.
+  vi.spyOn(http, 'listen').mockImplementation((_port, ready) => listen(occupiedPort, ready));
+  let deadline: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const failure = await Promise.race([
+      service.start().then(() => undefined, (error: NodeJS.ErrnoException) => error),
+      new Promise<undefined>((resolve) => { deadline = setTimeout(() => resolve(undefined), 1000); }),
+    ]);
+    expect.soft(failure?.code).toBe('EADDRINUSE');
+    // Only the original server's heartbeat, retention and queue intervals remain.
+    expect.soft(vi.getTimerCount()).toBe(3);
+    expect((await p.api.get('/health')).status).toBe(200);
+  } finally {
+    clearTimeout(deadline);
+    await service.stop().catch(() => {}); // This instance never acquired a listening socket.
+    await p.close();
+  }
+});
