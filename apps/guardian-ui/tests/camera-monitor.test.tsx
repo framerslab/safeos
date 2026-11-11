@@ -96,3 +96,11 @@ it('keeps the monitor socket across metric renders and closes it without reconne
   act(() => { socket.onclose?.(); jest.advanceTimersByTime(30000); });
   expect(BrowserSocket.instances).toHaveLength(count);
 });
+
+it('does not claim normal monitoring in the empty alert panel before camera startup', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.queryByText('Monitoring is running normally')).toBeNull();
+  expect(screen.getByText('Monitoring is inactive')).toBeTruthy();
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+});
