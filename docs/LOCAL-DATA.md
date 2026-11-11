@@ -17,7 +17,9 @@ error and can be retried.
 **Log Out** and **Clear Session** clear personal data before completing
 sign-out. They retain the device's server connection so the next account can
 sign in to the same server. Clear All Local Data also removes that connection. Saved frames, history, subjects, sounds and settings do not carry over
-to the next person using that browser. Export anything you want to keep first.
+to the next person using that browser. Both actions also remove the dashboard
+onboarding completion record so the next person sees its introduction and safety
+disclaimer. Export anything you want to keep first.
 This removes local copies; it does not delete records held by a connected server.
 
 ## Saved preferences

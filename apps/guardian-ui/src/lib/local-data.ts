@@ -12,6 +12,9 @@ import { useScheduleStore } from './schedule-manager';
 import { useThemeStore } from './theme-manager';
 import { useOnboardingStore } from '../stores/onboarding-store';
 
+/** Browser keys written without the safeos prefix. */
+const GUARDIAN_KEYS = ['guardian-schedules', 'guardian-theme', 'guardian-onboarding-complete'];
+
 export async function clearLocalData(options: { preserveBackendConfig?: boolean } = {}): Promise<void> {
   invalidatePendingLocalData();
   // Stop producers before clearing their records and persisted state.
@@ -40,8 +43,8 @@ export async function clearLocalData(options: { preserveBackendConfig?: boolean 
   for (const storage of [localStorage, sessionStorage]) {
     const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
     for (const key of keys) {
-      if (options.preserveBackendConfig && key === 'safeos_backend_config') continue;
-      if (key?.startsWith('safeos') || key === 'guardian-schedules' || key === 'guardian-theme') storage.removeItem(key);
+      if (!key || (options.preserveBackendConfig && key === 'safeos_backend_config')) continue;
+      if (key.startsWith('safeos') || GUARDIAN_KEYS.includes(key)) storage.removeItem(key);
     }
   }
 }
