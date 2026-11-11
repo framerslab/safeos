@@ -67,6 +67,13 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WSMessage | null>(null);
 
+  // A direct monitor visit may not render the separate sign-in control.
+  useEffect(() => {
+    if (!url || isStaticMode()) return;
+    const auth = useAuthStore.getState();
+    if (!auth.isInitialized && !auth.isLoading) void auth.initialize();
+  }, [url]);
+
   // Connect to WebSocket
   const connect = useCallback(() => {
     // Skip WebSocket connection in static mode (GitHub Pages deployment)
