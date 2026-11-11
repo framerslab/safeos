@@ -2,7 +2,8 @@
 #
 # Builds the static site, serves it inside the job and captures each route at
 # 390 and 1280 pixels wide in the light and the dark look with Playwright. The
-# PNG files are uploaded as the run's "pictures" artifact.
+# PNG files are uploaded as the run's "pictures" artifact. Pull requests also
+# capture the base commit with the same routes as "pictures-before".
 #
 # Start it by hand (Actions > Pictures > Run workflow: a ref and a list of
 # routes), or add the label "pictures" to a pull request: it then runs on the
@@ -34,11 +35,15 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /setup/ /settings/ /help/ /security/ /wildlife/ /settings/models/
+  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /security/ /wildlife/
 
 jobs:
   pictures:
-    name: Capture pictures
+    name: ${{ matrix.version == 'before' && 'Capture before pictures' || 'Capture pictures' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(github.event_name == 'pull_request' && '["after","before"]' || '["after"]') }}
     if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'pictures')
     runs-on: ubuntu-latest
     defaults:
@@ -48,7 +53,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.ref || '' }}
+          ref: ${{ matrix.version == 'before' && github.event.pull_request.base.sha || (github.event_name == 'workflow_dispatch' && inputs.ref || '') }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -68,7 +73,9 @@ jobs:
           NEXT_PUBLIC_WS_URL: ''
 
       - name: Install Chromium for Playwright
-        run: npx playwright install --with-deps chromium
+        # The Ubuntu runner already supplies the shared browser libraries.
+        # Install the pinned browser without an unrelated apt/font refresh.
+        run: npx playwright install chromium
 
       - name: Serve the site and capture
         env:
@@ -89,7 +96,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pictures
+          name: ${{ matrix.version == 'before' && 'pictures-before' || 'pictures' }}
           path: ${{ runner.temp }}/pictures/*.png
           if-no-files-found: error
           retention-days: 14

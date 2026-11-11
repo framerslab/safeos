@@ -60,6 +60,7 @@ export default function NapModePage() {
 
     const { activateSleepMode, deactivateSleepMode, globalSettings } = useSettingsStore();
     const soundManager = useSoundManager();
+    const { stopAll, play } = soundManager;
 
     useEffect(() => {
         setMounted(true);
@@ -72,9 +73,9 @@ export default function NapModePage() {
                 cancelAnimationFrame(animationRef.current);
             }
             // Stop any playing test sounds
-            soundManager.stopAll();
+            stopAll();
         };
-    }, [soundManager]);
+    }, [stopAll]);
 
     // Elapsed time counter when nap is active
     useEffect(() => {
@@ -86,12 +87,12 @@ export default function NapModePage() {
 
             // Warning at max duration
             if (elapsed >= napDuration) {
-                soundManager.play('warning');
+                play('warning');
             }
         }, 30000);
 
         return () => clearInterval(interval);
-    }, [step, napStartTime, napDuration, soundManager]);
+    }, [step, napStartTime, napDuration, play]);
 
     if (!mounted) {
         return <LoadingScreen />;
@@ -208,7 +209,7 @@ export default function NapModePage() {
             soundManager.stop(testSoundId);
             setTestSoundId(null);
         }
-        soundManager.stopAll(); // Ensure no sounds are playing
+        stopAll(); // Ensure no sounds are playing
 
         activateSleepMode('infant_sleep');
         soundManager.updateVolume(1); // Ensure max volume

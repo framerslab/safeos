@@ -370,3 +370,15 @@ export const TRIGGER_DESCRIPTIONS: Record<SoundTrigger, { label: string; descrip
 };
 
 // Note: CustomSound is already exported from interface definition above
+
+/** Remove uploaded and recorded audio, waiting for the transaction to commit. */
+export async function clearCustomSounds(): Promise<void> {
+  const db = await openDatabase();
+  await new Promise<void>((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, 'readwrite');
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error('Could not clear recordings'));
+    transaction.onabort = () => reject(transaction.error || new Error('Recording deletion aborted'));
+    transaction.objectStore(STORE_NAME).clear();
+  });
+}

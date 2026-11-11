@@ -7,6 +7,7 @@
  * @module lib/client-db
  */
 
+import { getLocalDataGeneration, isCurrentLocalData } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
 // =============================================================================
@@ -830,12 +831,14 @@ export interface MatchFrameDB {
   exported: boolean;
 }
 
-export async function saveMatchFrame(frame: MatchFrameDB): Promise<void> {
+export async function saveMatchFrame(frame: MatchFrameDB, generation = getLocalDataGeneration()): Promise<void> {
   try {
     const db = await getDB();
+    if (!isCurrentLocalData(generation)) return;
     await db.put('match_frame', frame);
     
     // Update subject match count
+    if (!isCurrentLocalData(generation)) return;
     await updateSubjectMatchCount(frame.subjectId, 1);
     
     // Enforce max limit
@@ -1737,4 +1740,13 @@ export async function getAnimalDetectionStats(): Promise<{
       dangerous: 0,
     };
   }
+}
+
+/** Clear every local record in one transaction, including frames and profiles. */
+export async function clearClientData(): Promise<void> {
+  const db = await getDB();
+  const names = Array.from(db.objectStoreNames);
+  const tx = db.transaction(names, 'readwrite');
+  await Promise.all(names.map((name) => tx.objectStore(name).clear()));
+  await tx.done;
 }

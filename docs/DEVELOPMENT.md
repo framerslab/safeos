@@ -367,9 +367,16 @@ route in Chromium with Playwright at 390 and 1280 pixels wide, in the light and
 the dark look, and uploads the full-page PNG files as the run's `pictures`
 artifact (`<route>-<width>-<look>.png`).
 
+Pull-request picture runs also capture the base commit with the same routes,
+widths and looks. The `pictures` artifact contains the proposed change and
+`pictures-before` contains the base, so visible changes can be compared without
+a separate manual workflow run. Camera-dependent and authenticated states still
+need to be identified separately in the pull request.
+
 - On a pull request: add the label `pictures`. It runs on the labelling and on
-  every later push to that pull request, for `/`, `/monitor/`, `/settings/` and
-  `/help/`.
+  every later push to that pull request, for the routes in `DEFAULT_ROUTES`
+  (home, monitoring, setup, dashboard, settings, notifications, models, nap,
+  admin, privacy, FAQ and help).
 - By hand: Actions, Pictures, Run workflow. Give a branch, tag or commit and the
   routes separated by spaces (for example `/ /about/ /faq/`).
 - The capture script is `apps/guardian-ui/scripts/capture-pictures.mjs`; with

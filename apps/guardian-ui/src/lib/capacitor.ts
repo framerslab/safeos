@@ -10,6 +10,8 @@
 // Types
 // =============================================================================
 
+import { showBrowserNotification } from './browser-notification';
+
 export interface PlatformInfo {
   platform: 'ios' | 'android' | 'web';
   isNative: boolean;
@@ -226,7 +228,7 @@ export async function showLocalNotification(notification: LocalNotification): Pr
   if (!isNativeApp()) {
     // Fallback to web notification
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification(notification.title, { body: notification.body });
+      void showBrowserNotification(notification.title, { body: notification.body });
     }
     return;
   }

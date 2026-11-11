@@ -117,13 +117,16 @@ self.addEventListener('notificationclick', (event) => {
   
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Check if there's already a SafeOS tab open
-      for (const client of windowClients) {
-        if (client.url.includes(self.location.origin)) {
-          client.focus();
-          client.navigate(urlToOpen);
-          return;
+      const sameOriginClients = windowClients.filter(
+        (client) => new URL(client.url).origin === self.location.origin
+      );
+      const client = sameOriginClients.find((candidate) => candidate.url === urlToOpen) || sameOriginClients[0];
+      if (client) {
+        // Local alerts should not reload a page that may be using a camera.
+        if (!event.notification.data?.focusOnly && new URL(urlToOpen, self.location.origin).href !== client.url) {
+          return client.navigate(urlToOpen).then(() => client.focus());
         }
+        return client.focus();
       }
       // No existing tab, open a new one
       return clients.openWindow(urlToOpen);
