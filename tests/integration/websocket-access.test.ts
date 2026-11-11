@@ -366,8 +366,12 @@ describe('WebSocket server log', () => {
   it.each([
     ['session check', 'FROM sessions', { type: 'ping' }],
     ['message handling', 'FROM streams', { type: 'join_stream', streamId: 'any-stream' }],
-  ])('writes one line when the %s fails on the database', async (_name, failingQuery, message) => {
-    const peer = await connected(await signIn());
+    ['stream broadcast', 'FROM streams', { type: 'metrics' }],
+  ])('writes one line when the %s fails on the database', async (name, failingQuery, message) => {
+    const owner = await signIn();
+    const peer = await connected(owner);
+    const streamId = name === 'stream broadcast' ? await stream(owner) : undefined;
+    if (streamId) await joinStream(peer, streamId);
     const real = dbRef.current;
     const failure = new TypeError('database unavailable');
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -384,7 +388,8 @@ describe('WebSocket server log', () => {
       },
     });
     try {
-      send(peer, message);
+      if (streamId) api.broadcastToStream(streamId, message);
+      else send(peer, message);
       await vi.waitFor(() => expect(code).toBe(1011));
       const lines = error.mock.calls.filter(([line]) => String(line).startsWith('[WebSocket]'));
       expect(lines).toEqual([['[WebSocket] Internal error', 'TypeError']]);

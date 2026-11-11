@@ -173,3 +173,20 @@ it('the client class waits for a changed session after a policy refusal', async 
   await waitFor(() => expect(client.isConnected()).toBe(true));
   expect(tokens).toEqual(['refused-session', 'replacement-session']);
 });
+
+
+it('keeps one signed-in socket across callback changes and calls the latest handler', async () => {
+  useAuthStore.setState({ sessionToken: 'live-session', isInitialized: true });
+  const first = jest.fn();
+  const latest = jest.fn();
+  const { result, rerender } = renderHook(({ onMessage }) => useWebSocket(url, { ...options, onMessage }), {
+    initialProps: { onMessage: first },
+  });
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  rerender({ onMessage: latest });
+  for (const peer of server.clients) peer.send(JSON.stringify({ type: 'metrics' }));
+  await waitFor(() => expect(latest).toHaveBeenCalledWith({ type: 'metrics' }));
+  expect(first).not.toHaveBeenCalledWith({ type: 'metrics' });
+  expect(clients).toHaveLength(1);
+  expect(tokens).toEqual(['live-session']);
+});
