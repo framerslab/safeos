@@ -279,3 +279,42 @@ it.each([
       '[NotificationManager] Quiet hours were not applied: no saved time zone')).toHaveLength(1);
   } finally { log.mockRestore(); await p.close(); }
 });
+
+
+it.each(['patch', 'delete'] as const)('preserves a reviewed ban on an owner %s and refuses subsequent socket frames', async method => {
+  const p = await startPipeline();
+  try {
+    const ws = await p.connect();
+    await p.db.run("UPDATE user_profiles SET role = 'reviewer' WHERE id = ?", [p.other.id]);
+    await p.db.run(`INSERT INTO content_flags (id, stream_id, category, tier, reason, status, created_at)
+      VALUES ('ban-flag', ?, 'privacy', 2, 'Needs review', 'pending', ?)`, [p.streamId, new Date().toISOString()]);
+    await p.api.post('/api/review/flags/ban-flag/action').set('x-session-token', p.other.token)
+      .send({ action: 'banned' }).expect(200);
+    await p.api[method](`/api/streams/${p.streamId}`).set('x-session-token', p.owner.token)
+      .send(method === 'patch' ? { status: 'active' } : {}).expect(403);
+    expect((await p.db.get('SELECT status FROM streams WHERE id = ?', [p.streamId])).status).toBe('banned');
+    const messages: any[] = [];
+    ws.on('message', raw => messages.push(JSON.parse(raw.toString())));
+    ws.send(JSON.stringify({ type: 'frame', streamId: p.streamId,
+      payload: { imageData: await image('reviewed-ban'), motionScore: 100 } }));
+    await until(async () => messages.some(message => message.payload?.code === 'STREAM_FORBIDDEN'));
+    expect(await p.db.get('SELECT id FROM frame_buffer')).toBeFalsy();
+    expect(await p.db.get('SELECT id FROM analysis_queue')).toBeFalsy();
+  } finally { await p.close(); }
+});
+
+it('reserves the banned status for reviewers and operators', async () => {
+  const p = await startPipeline();
+  try {
+    await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.owner.token)
+      .send({ status: 'banned' }).expect(403);
+    expect((await p.db.get('SELECT status FROM streams WHERE id = ?', [p.streamId])).status).toBe('active');
+    for (const role of ['reviewer', 'operator']) {
+      await p.db.run('UPDATE user_profiles SET role = ? WHERE id = ?', [role, p.owner.id]);
+      await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.owner.token)
+        .send({ status: 'banned' }).expect(200);
+      await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.owner.token)
+        .send({ status: 'active' }).expect(200);
+    }
+  } finally { await p.close(); }
+});
