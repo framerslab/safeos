@@ -67,6 +67,10 @@ ls -la db_data/safeos.sqlite3
 
 **Solutions:**
 
+A `1008` close requires a live session: authenticate in the first message
+within five seconds, or use a session header in a native client. Wait for
+`connected` before sending stream traffic. See [WebSocket API](API.md#websocket-api).
+
 1. **Check API server is running:**
    ```bash
    curl http://localhost:3001/health
@@ -160,7 +164,9 @@ ls -la db_data/safeos.sqlite3
 
 1. **Reduce frame rate:**
    - In settings, lower motion detection frequency
-   - Current limit: 30 frames/minute
+   - Current limit: 30 frame attempts/minute per profile, shared across connections
+   - Reconnecting does not reset the 60-second window
+   - Images must decode as JPEG, PNG or WebP within 2 MiB and 16 megapixels
 
 2. **Use lighter AI models:**
    - Browser-only mode uses TensorFlow.js (lighter)

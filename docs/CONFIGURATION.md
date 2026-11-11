@@ -68,10 +68,18 @@ Complete reference for all configuration options, environment variables, and thr
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| `MAX_FRAMES_PER_MINUTE` | 30 | Maximum frames a client can submit per minute |
-| `FRAME_WINDOW_MS` | 60000 | Time window for rate limiting (1 minute) |
+| `MAX_FRAMES_PER_MINUTE` | 30 | Frame attempts per profile across all connections and sessions |
+| `FRAME_WINDOW_MS` | 60000 | Time window for rate limiting (1 minute); reconnects retain it |
+| `MAX_FRAME_BYTES` | 2097152 | Image bytes before base64 encoding (2 MiB) |
+| `MAX_FRAME_PIXELS` | 16000000 | Maximum decoded image pixels |
+| `MAX_WS_PAYLOAD` | 3145728 | Maximum complete WebSocket message bytes (3 MiB) |
+| `MAX_PENDING_MESSAGES` | 32 | Maximum pending messages per connection |
 | `WS_HEARTBEAT_INTERVAL` | 30000 | Heartbeat ping interval (30 seconds) |
 | `MAX_MISSED_HEARTBEATS` | 3 | Disconnect after 3 missed heartbeats |
+
+The frame allowance is held per API process and resets on restart. Images must
+fully decode as single JPEG, PNG or WebP images; invalid attempts consume the
+allowance. See [WebSocket API](API.md#websocket-api) for authentication and errors.
 
 ### Analysis Queue
 
