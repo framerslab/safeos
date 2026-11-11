@@ -7,6 +7,8 @@
  * Clear, functional layout. No decorative elements.
  */
 
+import { CameraPicker } from '../../components/CameraPicker';
+import { useCameraStore } from '../../stores/camera-store';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboardingStore, canSkipOnboarding } from '../../stores/onboarding-store';
@@ -42,8 +44,10 @@ const STEPS: Step[] = ['welcome', 'disclaimer', 'scenario', 'permissions', 'noti
 export default function SetupPage() {
   const router = useRouter();
   const onboarding = useOnboardingStore();
+  const deviceId = useCameraStore(state => state.deviceId);
   const [currentStep, setCurrentStep] = useState<Step>('welcome');
   const [permissionStatus, setPermissionStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
+  const [permissionError, setPermissionError] = useState<string | null>(null);
 
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
@@ -70,17 +74,32 @@ export default function SetupPage() {
   };
 
   const requestPermissions = async () => {
+    setPermissionError(null);
+    setPermissionStatus('pending');
+    const video = deviceId ? { deviceId: { exact: deviceId } } : true;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
+      let microphone = true;
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
+      } catch (error) {
+        // A camera without a microphone is enough to monitor video.
+        if (!(error instanceof Error) || error.name !== 'NotFoundError') throw error;
+        stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+        microphone = false;
+      }
       stream.getTracks().forEach((track) => track.stop());
       setPermissionStatus('granted');
       onboarding.setCameraPermission(true);
-      onboarding.setMicrophonePermission(true);
+      onboarding.setMicrophonePermission(microphone && stream.getAudioTracks().length > 0);
     } catch (error) {
-      setPermissionStatus('denied');
+      const name = error instanceof Error ? error.name : '';
+      const denied = name === 'NotAllowedError' || name === 'SecurityError';
+      setPermissionStatus(denied ? 'denied' : 'pending');
+      setPermissionError(name === 'OverconstrainedError' || name === 'NotFoundError'
+        ? 'The selected camera is unavailable. Choose another camera.'
+        : denied ? 'Permission denied. Please enable camera/microphone access in your browser settings.'
+          : 'Unable to access the camera or microphone. Check the device and try again.');
     }
   };
 
@@ -154,6 +173,7 @@ export default function SetupPage() {
           {currentStep === 'permissions' && (
             <PermissionsStep
               status={permissionStatus}
+              errorMessage={permissionError}
               onRequest={requestPermissions}
               onContinue={goNext}
               onBack={goBack}
@@ -384,11 +404,13 @@ function ScenarioStep({
 
 function PermissionsStep({
   status,
+  errorMessage,
   onRequest,
   onContinue,
   onBack,
 }: {
   status: 'pending' | 'granted' | 'denied';
+  errorMessage: string | null;
   onRequest: () => void;
   onContinue: () => void;
   onBack: () => void;
@@ -407,6 +429,8 @@ function PermissionsStep({
           All processing happens locally on your device.
         </p>
 
+        <CameraPicker refreshKey={status === 'granted'} />
+
         {/* Permission Items */}
         <div className="space-y-3">
           <PermissionItem
@@ -423,10 +447,10 @@ function PermissionsStep({
           />
         </div>
 
-        {status === 'denied' && (
+        {errorMessage && (
           <div className="p-3 rounded bg-[var(--color-alert-critical)]/10 border border-[var(--color-alert-critical)]/30">
             <p className="text-sm text-[var(--color-alert-critical)]">
-              Permission denied. Please enable camera/microphone access in your browser settings.
+              {errorMessage}
             </p>
           </div>
         )}
