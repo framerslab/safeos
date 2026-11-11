@@ -22,9 +22,9 @@ SafeOS Guardian operates in two modes:
 |  +--------v---------------------v--------------------------------+|
 |  |                    Browser AI Engine                          ||
 |  |  +------------------+  +------------------------------------+ ||
-|  |  | TensorFlow.js    |  | Transformers.js                    | ||
-|  |  | COCO-SSD         |  | ViT (fallback)                     | ||
-|  |  | (detection)      |  | (classification)                   | ||
+|  |  | TensorFlow.js    |  | Cache Storage                      | ||
+|  |  | COCO-SSD         |  | Shared detection weights           | ||
+|  |  | (detection)      |  | (after download agreement)         | ||
 |  |  +------------------+  +------------------------------------+ ||
 |  +---------------------------------------------------------------+|
 |                                                                   |
@@ -35,7 +35,7 @@ SafeOS Guardian operates in two modes:
 +------------------------------------------------------------------+
 
 Deploy to: GitHub Pages, Vercel, Netlify, any static host
-Works offline on pages already opened; COCO-SSD needs a connection to load
+Offline starts need completed app installation and a saved detection model
 ```
 
 ### Mode 2: Full Stack (Optional Server)
@@ -405,9 +405,9 @@ HTTP API:
 ┌─────────────────────────────────────────────────────────────┐
 │                    Tier 1: Browser (Free)                    │
 │  ┌─────────────────┐  ┌─────────────────────────────────┐   │
-│  │ TensorFlow.js   │  │ Transformers.js                 │   │
-│  │ COCO-SSD (18MB) │  │ ViT-base (88MB)                 │   │
-│  │ Real-time       │  │ Scene classification fallback   │   │
+│  │ TensorFlow.js   │  │ Cache Storage                   │   │
+│  │ COCO-SSD (18MB) │  │ Shared COCO-SSD weights         │   │
+│  │ Real-time       │  │ Saved after explicit agreement  │   │
 │  └─────────────────┘  └─────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
                               │

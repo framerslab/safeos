@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals
 
 // Mock TensorFlow and COCO-SSD before importing
 jest.mock('@tensorflow/tfjs', () => ({
+  io: { registerLoadRouter: jest.fn() },
   setBackend: jest.fn().mockResolvedValue(undefined as never),
   ready: jest.fn().mockResolvedValue(undefined as never),
 }));
