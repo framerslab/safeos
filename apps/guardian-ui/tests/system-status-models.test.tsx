@@ -14,3 +14,11 @@ it('describes installed models without inventing their running state', async () 
   await screen.findByText('moondream');
   expect(screen.getByText('Installed; running state unavailable')).toBeTruthy();
 });
+
+it('shows an empty model list as connected without a browser model address', async () => {
+  global.fetch = jest.fn(async () => ({ ok: true, json: async () => ({ ollama: { available: true, models: [] } }) } as Response));
+  render(<SystemStatus stats={stats} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Expand system details' }));
+  expect(await screen.findByText('No models installed')).toBeTruthy();
+  expect(screen.queryByText('Ollama is offline')).toBeNull();
+});
