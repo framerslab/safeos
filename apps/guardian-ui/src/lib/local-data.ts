@@ -11,7 +11,7 @@ import { useScheduleStore } from './schedule-manager';
 import { useThemeStore } from './theme-manager';
 import { useOnboardingStore } from '../stores/onboarding-store';
 
-export async function clearLocalData(): Promise<void> {
+export async function clearLocalData(options: { preserveBackendConfig?: boolean } = {}): Promise<void> {
   // Stop producers before clearing their records and persisted state.
   getSoundManager().stopAll();
   getSoundManager().stopCustomSounds();
@@ -38,6 +38,7 @@ export async function clearLocalData(): Promise<void> {
   for (const storage of [localStorage, sessionStorage]) {
     const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
     for (const key of keys) {
+      if (options.preserveBackendConfig && key === 'safeos_backend_config') continue;
       if (key?.startsWith('safeos') || key === 'guardian-schedules' || key === 'guardian-theme') storage.removeItem(key);
     }
   }

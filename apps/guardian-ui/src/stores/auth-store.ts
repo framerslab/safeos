@@ -422,7 +422,8 @@ export const useAuthStore = create<AuthState>()(
         }
 
         // Finish deleting this browser's account data before allowing another session.
-        await clearLocalData();
+        // Keep the device connection so the next account can use the same server.
+        await clearLocalData({ preserveBackendConfig: true });
 
         set({
           isAuthenticated: false,
