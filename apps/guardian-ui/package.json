@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "postbuild": "node scripts/generate-offline-manifest.mjs",
     "start": "next start",
     "lint": "next lint",
     "test": "jest",
