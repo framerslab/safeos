@@ -67,3 +67,20 @@ it('ends monitoring when its camera is unplugged', async () => {
   expect(screen.queryByText('LIVE')).toBeNull();
   expect(screen.getByText(/camera.*(lost|ended|disconnected)/i)).toBeTruthy();
 });
+
+it('uses the selected camera and remembers it when the monitor reopens', async () => {
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  const picker = screen.getByRole('combobox', { name: 'Camera' });
+  expect(screen.getByRole('option', { name: 'USB camera' })).toBeTruthy();
+  fireEvent.change(picker, { target: { value: 'usb' } });
+  await startMonitoring();
+  expect(browser.getUserMedia).toHaveBeenLastCalledWith(expect.objectContaining({
+    video: expect.objectContaining({ deviceId: { exact: 'usb' } }),
+  }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  view.unmount();
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect((screen.getByRole('combobox', { name: 'Camera' }) as HTMLSelectElement).value).toBe('usb');
+});
