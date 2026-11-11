@@ -19,16 +19,16 @@ import { IconCamera, IconLock, IconCheck } from '../../components/icons';
 // =============================================================================
 
 interface SystemMetrics {
-  uptime: number;
-  totalStreams: number;
-  activeStreams: number;
-  totalAlerts: number;
-  pendingReviews: number;
-  analysisToday: number;
-  cloudFallbackRate: number;
-  avgResponseTime: number;
-  memoryUsage: number;
-  cpuUsage: number;
+  uptime: number | null;
+  totalStreams: number | null;
+  activeStreams: number | null;
+  totalAlerts: number | null;
+  pendingReviews: number | null;
+  analysisToday: number | null;
+  cloudFallbackRate: number | null;
+  avgResponseTime: number | null;
+  memoryUsage: number | null;
+  cpuUsage: number | null;
 }
 
 interface ContentFlag {
@@ -102,16 +102,16 @@ export default function AdminDashboard() {
       if (statusRes.ok) {
         const status = await statusRes.json();
         setMetrics({
-          uptime: status.uptime || 0,
-          totalStreams: status.stats?.totalStreams || 0,
-          activeStreams: status.stats?.activeStreams || 0,
-          totalAlerts: status.stats?.totalAlerts || 0,
-          pendingReviews: status.stats?.pendingReviews || 0,
-          analysisToday: status.stats?.analysisToday || 0,
-          cloudFallbackRate: status.stats?.cloudFallbackRate || 0,
-          avgResponseTime: status.stats?.avgResponseTime || 0,
-          memoryUsage: status.stats?.memoryUsage || 0,
-          cpuUsage: status.stats?.cpuUsage || 0,
+          uptime: status.uptime ?? null,
+          totalStreams: status.stats?.totalStreams ?? null,
+          activeStreams: status.stats?.activeStreams ?? null,
+          totalAlerts: status.stats?.totalAlerts ?? null,
+          pendingReviews: status.stats?.pendingReviews ?? null,
+          analysisToday: status.stats?.analysisToday ?? null,
+          cloudFallbackRate: status.stats?.cloudFallbackRate ?? null,
+          avgResponseTime: status.stats?.avgResponseTime ?? null,
+          memoryUsage: status.stats?.memoryUsage ?? null,
+          cpuUsage: status.stats?.cpuUsage ?? null,
         });
       }
 
@@ -214,7 +214,7 @@ export default function AdminDashboard() {
 
             <div className="flex items-center gap-4">
               {/* Pending Reviews Badge */}
-              {metrics && metrics.pendingReviews > 0 && (
+              {metrics && (metrics.pendingReviews ?? 0) > 0 && (
                 <div className="px-3 py-1.5 bg-orange-500/20 border border-orange-500/30 rounded-lg">
                   <span className="text-orange-400 text-sm font-medium">
                     {metrics.pendingReviews} pending reviews
@@ -249,7 +249,7 @@ export default function AdminDashboard() {
                   >
                     <span>{tab.icon}</span>
                     <span>{tab.label}</span>
-                    {tab.id === 'reviews' && metrics && metrics.pendingReviews > 0 && (
+                    {tab.id === 'reviews' && metrics && (metrics.pendingReviews ?? 0) > 0 && (
                       <span className="ml-auto bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">
                         {metrics.pendingReviews}
                       </span>
@@ -292,7 +292,7 @@ export default function AdminDashboard() {
 function OverviewTab({ metrics, activities }: { metrics: SystemMetrics | null; activities: RecentActivity[] }) {
   if (!metrics) return null;
 
-  const stats: Array<{ label: string; value: number; icon: React.ReactNode; color: string }> = [
+  const stats: Array<{ label: string; value: number | null; icon: React.ReactNode; color: string }> = [
     { label: 'Active Streams', value: metrics.activeStreams, icon: (
       <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M23 7l-7 5 7 5V7z" />
@@ -330,7 +330,7 @@ function OverviewTab({ metrics, activities }: { metrics: SystemMetrics | null; a
                 {stat.icon}
               </div>
               <div>
-                <p className="text-3xl font-bold text-white">{stat.value}</p>
+                <p className="text-3xl font-bold text-white">{stat.value ?? 'Unavailable'}</p>
                 <p className="text-sm text-slate-400">{stat.label}</p>
               </div>
             </div>
@@ -346,7 +346,7 @@ function OverviewTab({ metrics, activities }: { metrics: SystemMetrics | null; a
           <div className="space-y-4">
             <ProgressBar label="CPU Usage" value={metrics.cpuUsage} max={100} unit="%" />
             <ProgressBar label="Memory" value={metrics.memoryUsage} max={100} unit="%" />
-            <ProgressBar label="Cloud Fallback" value={metrics.cloudFallbackRate} max={100} unit="%" warning={metrics.cloudFallbackRate > 20} />
+            <ProgressBar label="Cloud Fallback" value={metrics.cloudFallbackRate} max={100} unit="%" warning={(metrics.cloudFallbackRate ?? 0) > 20} />
             <ProgressBar label="Avg Response" value={metrics.avgResponseTime} max={5000} unit="ms" />
           </div>
         </div>
@@ -376,11 +376,11 @@ function OverviewTab({ metrics, activities }: { metrics: SystemMetrics | null; a
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-white font-semibold">System Uptime</h3>
-            <p className="text-3xl font-bold text-emerald-400 mt-2">{formatUptime(metrics.uptime)}</p>
+            <p className="text-3xl font-bold text-emerald-400 mt-2">{metrics.uptime === null ? 'Unavailable' : formatUptime(metrics.uptime)}</p>
           </div>
           <div className="text-right">
             <p className="text-sm text-slate-400">Last restart</p>
-            <p className="text-sm text-slate-300">{new Date(Date.now() - metrics.uptime * 1000).toLocaleString()}</p>
+            <p className="text-sm text-slate-300">{metrics.uptime === null ? 'Unavailable' : new Date(Date.now() - metrics.uptime * 1000).toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -1145,15 +1145,15 @@ function LoadingState() {
   );
 }
 
-function ProgressBar({ label, value, max, unit, warning = false }: { label: string; value: number; max: number; unit: string; warning?: boolean }) {
-  const percentage = Math.min((value / max) * 100, 100);
+function ProgressBar({ label, value, max, unit, warning = false }: { label: string; value: number | null; max: number; unit: string; warning?: boolean }) {
+  const percentage = value === null ? 0 : Math.min((value / max) * 100, 100);
   const color = warning || percentage > 80 ? 'bg-red-500' : percentage > 60 ? 'bg-yellow-500' : 'bg-emerald-500';
 
   return (
     <div>
       <div className="flex items-center justify-between text-sm mb-1">
         <span className="text-slate-400">{label}</span>
-        <span className="text-slate-300">{typeof value === 'number' ? value.toFixed(1) : value}{unit}</span>
+        <span className="text-slate-300">{value === null ? 'Unavailable' : `${value.toFixed(1)}${unit}`}</span>
       </div>
       <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
         <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${percentage}%` }} />
