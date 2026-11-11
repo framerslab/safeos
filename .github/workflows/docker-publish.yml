@@ -5,8 +5,9 @@
 #   ghcr.io/<owner>/safeos-api  (the server)
 #   ghcr.io/<owner>/safeos-ui   (the web app's static export behind nginx)
 # for linux/amd64 and linux/arm64, so a 64-bit Raspberry Pi pulls the same
-# tags as a PC. On a pull request that changes the Dockerfile, its inputs or
-# this workflow, it builds both images for both platforms without pushing.
+# tags as a PC. On a pull request that changes the Dockerfile, this workflow or
+# anything else copied into the images, it builds both images for both
+# platforms without pushing.
 #
 # Auth uses the built-in GITHUB_TOKEN (no extra secret).
 
@@ -20,19 +21,27 @@ on:
       - 'docs/**'
   pull_request:
     branches: [master]
+    # Everything the Dockerfile copies into an image. The web app's tests, e2e
+    # specs and Markdown are left out: they do not change what either image
+    # builds.
     paths:
       - 'Dockerfile'
       - '.dockerignore'
       - 'docker/**'
       - 'package.json'
-      - 'apps/guardian-ui/package.json'
-      - 'apps/guardian-ui/package-lock.json'
-      - 'apps/guardian-ui/next.config.js'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'src/**'
+      - 'apps/guardian-ui/**'
+      - '!apps/guardian-ui/tests/**'
+      - '!apps/guardian-ui/e2e/**'
+      - '!apps/guardian-ui/**/*.md'
       - '.github/workflows/docker-publish.yml'
   workflow_dispatch:
 
-# Publishes run one at a time and are never cancelled. A pull request's newer
-# push cancels its older build.
+# Publishes run one at a time and a running one is never cancelled; while one
+# runs, GitHub keeps only the newest waiting publish, so `latest` goes straight
+# to the newest commit. A pull request's newer push cancels its older build.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('images-pr-{0}', github.event.pull_request.number) || 'images-publish' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

@@ -18,10 +18,11 @@ on:
 permissions:
   contents: read
 
-# A newer push to a pull request cancels that pull request's older run. Runs on
-# master are never cancelled: each master commit is checked to the end.
+# A newer push to a pull request cancels that pull request's older run. Every
+# other run (each master commit) has a group of its own, so none is cancelled
+# or dropped from the queue: each master commit is checked to the end.
 concurrency:
-  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

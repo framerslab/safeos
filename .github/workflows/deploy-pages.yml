@@ -28,8 +28,10 @@ permissions:
   id-token: write
 
 # A pull request's newer push cancels that pull request's older build. Deploys
-# (master pushes and manual runs) share one group, run one at a time and are
-# never cancelled, so a pull request can never cancel a deploy.
+# (master pushes and manual runs) share one group and run one at a time; a
+# running deploy is never cancelled, and a pull request can never cancel one.
+# While a deploy runs, GitHub keeps only the newest waiting deploy, so the site
+# goes straight to the newest commit.
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('pages-pr-{0}', github.event.pull_request.number) || 'pages-deploy' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

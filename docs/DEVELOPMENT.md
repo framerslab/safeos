@@ -30,7 +30,11 @@ npm install --legacy-peer-deps
 # Web app
 cd apps/guardian-ui
 npm ci
+cd ../..
 ```
+
+Commands below run from the repository root unless they start with
+`cd apps/guardian-ui`.
 
 ### 3. Start Development Servers
 
@@ -106,7 +110,7 @@ Repository root (the server):
 | Script | Description |
 |--------|-------------|
 | `npm test` | Run the web app's Jest suite (`apps/guardian-ui/tests`) |
-| `npm run lint` | Run `next lint` (`.eslintrc.json`; needs `eslint@8` and `eslint-config-next@14`, which CI installs without saving) |
+| `npm run lint` | Run `next lint` (`.eslintrc.json`). The lockfile carries no ESLint, so first run `npm install --no-save eslint@8.57.1 eslint-config-next@14.2.35`, the same command CI runs |
 | `npx tsc --noEmit` | Type check the web app |
 | `npm run build` | Build the static export into `out/` |
 
@@ -130,7 +134,7 @@ npm run test:coverage
 npm run test:watch
 
 # Web app tests
-cd apps/guardian-ui && npm test
+cd apps/guardian-ui && npm test && cd ../..
 ```
 
 A test that fails on master for a reason not yet fixed is marked with the
@@ -345,12 +349,15 @@ prints an error and carries on.
 | `ci.yml` | Web app type check and lint | `tsc --noEmit` and `next lint` pass for `apps/guardian-ui` |
 | `ci.yml` | Web app tests | The web app's Jest suite passes |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
-| `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or its inputs it builds both platforms without pushing. This is the only workflow that publishes images |
+| `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
 | `pictures.yml` | Capture pictures | Screenshots of the web app (see below); runs only when asked |
 
 Concurrency: a newer push to a pull request cancels that pull request's older
-runs. Runs on `master` (checks, the Pages deploy, the image publish) run one at
-a time and are never cancelled, and a pull request never cancels them.
+runs, and a pull request never cancels a run on `master`. On `master`, every
+commit's checks run to the end (each run has its own group). The Pages deploy
+and the image publish run one at a time and a running one is never cancelled;
+while one runs, only the newest waiting one is kept, so when several commits
+land at once the site and the `latest` images go straight to the newest.
 
 ### Pictures
 
