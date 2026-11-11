@@ -7,6 +7,7 @@ export class BrowserTrack extends EventTarget {
   stop = jest.fn(() => { this.readyState = 'ended'; });
   end() { this.readyState = 'ended'; this.dispatchEvent(new Event('ended')); }
   mute() { this.muted = true; this.dispatchEvent(new Event('mute')); }
+  unmute() { this.muted = false; this.dispatchEvent(new Event('unmute')); }
 }
 
 export class BrowserSocket {

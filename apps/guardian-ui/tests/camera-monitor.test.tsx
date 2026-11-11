@@ -70,6 +70,20 @@ it('ends monitoring when its camera is unplugged', async () => {
   expect(screen.getByText(/camera.*(lost|ended|disconnected)/i)).toBeTruthy();
 });
 
+it('keeps monitoring requested while the camera is muted and resumes on unmute', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  act(() => browser.video.mute());
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(screen.queryByText('LIVE')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+  act(() => browser.video.unmute());
+  expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  expect(screen.getByText('LIVE')).toBeTruthy();
+});
+
 it('uses the selected camera and remembers it when the monitor reopens', async () => {
   const view = render(<MonitorPage />);
   await act(async () => {});

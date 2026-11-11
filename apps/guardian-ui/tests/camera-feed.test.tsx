@@ -22,15 +22,49 @@ it.each(['disabled', 'unmounted'])('releases a late permission result after capt
   expect(screen.queryByText('LIVE')).toBeNull();
 });
 
-it.each(['end', 'mute'] as const)('removes LIVE and releases capture when the video track signals %s', async (event) => {
+it('removes LIVE and releases capture when the video track ends', async () => {
   const error = jest.fn();
   render(<CameraFeed onError={error} />);
   await act(async () => {});
   expect(screen.getByText('LIVE')).toBeTruthy();
-  act(() => browser.video[event]());
+  act(() => browser.video.end());
   expect(screen.queryByText('LIVE')).toBeNull();
   expect(error).toHaveBeenCalledWith(expect.any(Error));
   expect(browser.audio.stop).toHaveBeenCalled();
+});
+
+it('removes LIVE while the video track is muted and resumes when it unmutes', async () => {
+  const error = jest.fn();
+  const ready = jest.fn();
+  render(<CameraFeed onError={error} onVideoReady={ready} />);
+  await act(async () => {});
+  act(() => browser.video.mute());
+  expect(screen.queryByText('LIVE')).toBeNull();
+  expect(screen.getByText(/Camera paused/)).toBeTruthy();
+  expect(ready).toHaveBeenLastCalledWith(null);
+  expect(browser.video.stop).not.toHaveBeenCalled();
+  expect(error).not.toHaveBeenCalled();
+  act(() => browser.video.unmute());
+  expect(screen.getByText('LIVE')).toBeTruthy();
+  expect(screen.queryByText(/Camera paused/)).toBeNull();
+  expect(ready).toHaveBeenLastCalledWith(expect.any(HTMLVideoElement));
+});
+
+it('monitors video alone when the device has no microphone', async () => {
+  const videoOnly = {
+    getTracks: () => [browser.video],
+    getVideoTracks: () => [browser.video],
+    getAudioTracks: () => [],
+  } as unknown as MediaStream;
+  browser.getUserMedia.mockImplementation(async (constraints: MediaStreamConstraints) => {
+    if (constraints.audio) throw new DOMException('Requested device not found', 'NotFoundError');
+    return videoOnly;
+  });
+  const error = jest.fn();
+  render(<CameraFeed onError={error} />);
+  expect(await screen.findByText('LIVE')).toBeTruthy();
+  expect(screen.getByText('Microphone unavailable. Video monitoring continues.')).toBeTruthy();
+  expect(error).not.toHaveBeenCalled();
 });
 
 
