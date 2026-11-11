@@ -112,7 +112,10 @@ function loadFromStorage(): NotificationsSettings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
     const parsed = JSON.parse(raw);
-    return { ...DEFAULTS, ...parsed };
+    const settings = { ...DEFAULTS, ...parsed, emailResendApiKey: '', smsAuthToken: '' };
+    // Remove credentials saved by older versions as soon as this page opens.
+    saveToStorage(settings);
+    return settings;
   } catch {
     return DEFAULTS;
   }
@@ -121,7 +124,8 @@ function loadFromStorage(): NotificationsSettings {
 function saveToStorage(settings: NotificationsSettings): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    const { emailResendApiKey, smsAuthToken, ...preferences } = settings;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
   } catch (error) {
     console.error('[Notifications] failed to persist settings:', error);
   }
@@ -383,6 +387,15 @@ export default function NotificationsSettingsPage() {
             {saveMessage.text}
           </div>
         )}
+
+        <div className="mb-6 p-4 text-sm text-slate-300 border border-slate-700 rounded-lg">
+          <p>Provider secrets stay in memory while this page is open. They are not saved in browser storage.
+            Enter them again after leaving this page. Test messages send them to your configured SafeOS server.</p>
+          <button type="button" className="mt-2 underline" onClick={() => {
+            update('emailResendApiKey', '');
+            update('smsAuthToken', '');
+          }}>Clear provider secrets</button>
+        </div>
 
         {/* Backend status banner */}
         {!apiOnline && (
