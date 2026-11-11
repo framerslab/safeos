@@ -1,0 +1,155 @@
+/** @jest-environment jsdom */
+import React from 'react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import MonitorPage from '@/app/monitor/page';
+import { useMonitoringStore } from '@/stores/monitoring-store';
+import { useSettingsStore } from '@/stores/settings-store';
+import { BrowserSocket, installCameraBrowser, startMonitoring } from './helpers/camera-browser';
+
+jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
+const mockBackendConfig = { wsUrl: 'wss://monitor.example.test' };
+jest.mock('@/contexts/BackendStatusContext', () => ({
+  useBackendStatus: () => ({ config: mockBackendConfig }),
+}));
+
+let browser: ReturnType<typeof installCameraBrowser>;
+beforeEach(() => {
+  mockBackendConfig.wsUrl = 'wss://monitor.example.test';
+  jest.useFakeTimers();
+  localStorage.clear();
+  useMonitoringStore.getState().reset();
+  useSettingsStore.setState({ globalMute: true });
+  useSettingsStore.getState().updateGlobalSettings({ processingMode: 'local', analysisInterval: 1 });
+  browser = installCameraBrowser();
+});
+afterEach(() => { cleanup(); jest.useRealTimers(); jest.restoreAllMocks(); });
+
+it('keeps captured frames on device in local mode with a connected server', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  act(() => BrowserSocket.instances.at(-1)!.onopen?.());
+  await startMonitoring();
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'stream-started', payload: { streamId: 'server' } }));
+  await act(async () => { jest.advanceTimersByTime(1500); });
+  expect(browser.readFrame).toHaveBeenCalled();
+  expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalled();
+  expect(BrowserSocket.instances.flatMap(s => s.sent).filter(m => m.type === 'frame')).toEqual([]);
+});
+
+it('stops camera, microphone and frame analysis when monitoring stops', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  expect(browser.video.stop).toHaveBeenCalled();
+  expect(browser.audio.stop).toHaveBeenCalled();
+  expect(browser.closeAudio).toHaveBeenCalled();
+  const reads = browser.readFrame.mock.calls.length;
+  act(() => { jest.advanceTimersByTime(2000); });
+  expect(browser.readFrame).toHaveBeenCalledTimes(reads);
+  expect(screen.queryByText('LIVE')).toBeNull();
+});
+
+it.each(['NotAllowedError', 'NotFoundError'])('does not claim monitoring when camera acquisition fails with %s', async (name) => {
+  browser.getUserMedia.mockRejectedValue(new DOMException('Camera unavailable', name));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(screen.queryByRole('button', { name: 'Stop Monitoring' })).toBeNull();
+  expect(screen.getByText('Camera unavailable')).toBeTruthy();
+});
+
+it('ends monitoring when its camera is unplugged', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  act(() => browser.video.end());
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(screen.queryByText('LIVE')).toBeNull();
+  expect(screen.getByText(/camera.*(lost|ended|disconnected)/i)).toBeTruthy();
+});
+
+it('keeps monitoring requested while the camera is muted and resumes on unmute', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  act(() => browser.video.mute());
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(screen.queryByText('LIVE')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+  act(() => browser.video.unmute());
+  expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  expect(screen.getByText('LIVE')).toBeTruthy();
+});
+
+it('uses the selected camera and remembers it when the monitor reopens', async () => {
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  const picker = screen.getByRole('combobox', { name: 'Camera' });
+  expect(screen.getByRole('option', { name: 'USB camera' })).toBeTruthy();
+  fireEvent.change(picker, { target: { value: 'usb' } });
+  await startMonitoring();
+  expect(browser.getUserMedia).toHaveBeenLastCalledWith(expect.objectContaining({
+    video: expect.objectContaining({ deviceId: { exact: 'usb' } }),
+  }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  view.unmount();
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect((screen.getByRole('combobox', { name: 'Camera' }) as HTMLSelectElement).value).toBe('usb');
+});
+
+it('keeps the monitor socket across metric renders and closes it without reconnecting on unmount', async () => {
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  const count = BrowserSocket.instances.length;
+  act(() => useMonitoringStore.getState().setMotionScore(42));
+  expect(BrowserSocket.instances).toHaveLength(count);
+  const socket = BrowserSocket.instances.at(-1)!;
+  view.unmount();
+  act(() => { socket.onclose?.(); jest.advanceTimersByTime(30000); });
+  expect(BrowserSocket.instances).toHaveLength(count);
+});
+
+it('does not claim normal monitoring in the empty alert panel before camera startup', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.queryByText('Monitoring is running normally')).toBeNull();
+  expect(screen.getByText('Monitoring is inactive')).toBeTruthy();
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+});
+
+
+it('starts server analysis when the connection arrives after camera startup', async () => {
+  useSettingsStore.getState().updateGlobalSettings({ processingMode: 'hybrid' });
+  render(<MonitorPage />);
+  await startMonitoring();
+  const socket = BrowserSocket.instances.at(-1)!;
+  expect(socket.sent.filter(m => m.type === 'start-stream')).toHaveLength(0);
+  act(() => socket.onopen?.());
+  expect(socket.sent.filter(m => m.type === 'start-stream')).toHaveLength(1);
+  act(() => { socket.readyState = 3; socket.onclose?.(); jest.advanceTimersByTime(3000); });
+  const replacement = BrowserSocket.instances.at(-1)!;
+  act(() => replacement.onopen?.());
+  expect(replacement.sent.filter(m => m.type === 'start-stream')).toHaveLength(1);
+});
+
+it('clears global connection status while replacing the configured server', async () => {
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  act(() => BrowserSocket.instances.at(-1)!.onopen?.());
+  expect(useMonitoringStore.getState().isConnected).toBe(true);
+  mockBackendConfig.wsUrl = 'wss://replacement.example.test';
+  view.rerender(<MonitorPage />);
+  expect(useMonitoringStore.getState().isConnected).toBe(false);
+});
+
+it('shows a useful error when the selected camera fails with an empty browser message', async () => {
+  browser.getUserMedia.mockRejectedValue(new DOMException('', 'OverconstrainedError'));
+  render(<MonitorPage />);
+  await startMonitoring();
+  expect(screen.getByText('The selected camera is unavailable. Choose another camera.')).toBeTruthy();
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+});
