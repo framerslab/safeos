@@ -82,6 +82,7 @@ export default function AdminDashboard() {
   const [flags, setFlags] = useState<ContentFlag[]>([]);
   const [activities, setActivities] = useState<RecentActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchData();
@@ -131,14 +132,17 @@ export default function AdminDashboard() {
   };
 
   const handleFlagAction = async (flagId: string, action: 'approve' | 'reject' | 'escalate') => {
+    setReviewError(null);
     try {
-      await fetch(`/api/review/flags/${flagId}/action`, {
+      const response = await fetch(`/api/review/flags/${flagId}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action: { approve: 'approved', reject: 'rejected', escalate: 'escalated' }[action] }),
       });
-      fetchData();
+      if (!response.ok) throw new Error('Review action was not accepted. Please try again.');
+      await fetchData();
     } catch (error) {
+      setReviewError(error instanceof Error ? error.message : 'Could not save review action.');
       console.error('Failed to action flag:', error);
     }
   };
@@ -186,6 +190,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {reviewError && <p role="alert" className="p-4 text-red-400">{reviewError}</p>}
       {/* Header */}
       <header className="border-b border-slate-700/50 bg-slate-800/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
