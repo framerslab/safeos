@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
+import express from 'express';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -231,5 +232,28 @@ describe('registration privacy', () => {
     expect(duplicate.body).toEqual(fresh.body);
     expect(duplicate.body).not.toHaveProperty('user');
     expect(await db.get('SELECT * FROM users WHERE email = ?', [body.email])).toEqual(before);
+  });
+});
+
+describe('account forms behind a URL prefix', () => {
+  it.each(['verify', 'reset-password'])('submits %s within the deployed prefix', async (action) => {
+    const { emailAuthService } = await import('../../src/auth/email-auth.js');
+    const email = `prefix-${action}@example.com`;
+    await emailAuthService.register({ email, password: 'GoodPassword123' });
+    if (action === 'reset-password') await emailAuthService.requestPasswordReset(email);
+    const row = await db.get('SELECT verification_token, reset_token FROM users WHERE email = ?', [email]);
+    const token = action === 'verify' ? row.verification_token : row.reset_token;
+    const gateway = express();
+    gateway.use('/safeos', app);
+    const pageUrl = new URL(`https://api.example.com/safeos/api/auth/email/${action}?token=${token}`);
+    const page = await request(gateway).get(pageUrl.pathname + pageUrl.search).set('X-Forwarded-For', `198.51.100.${++client}`);
+    expect(page.status).toBe(200);
+    const actionValue = page.text.match(/<form[^>]*action="([^"]*)"/)![1];
+    const target = new URL(actionValue, pageUrl);
+    const response = await request(gateway).post(target.pathname + target.search)
+      .set('X-Forwarded-For', `198.51.100.${++client}`).type('form')
+      .send(action === 'verify' ? { token } : { token, newPassword: 'ChangedPassword456' });
+    expect(response.status).toBe(200);
+    expect(response.text).toContain(action === 'verify' ? 'Email verified.' : 'Password reset.');
   });
 });
