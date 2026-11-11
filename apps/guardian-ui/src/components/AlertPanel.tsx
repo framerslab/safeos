@@ -453,6 +453,7 @@ function AcknowledgedSection({ alerts }: AcknowledgedSectionProps) {
 }
 
 function EmptyState() {
+  const isStreaming = useMonitoringStore(state => state.isStreaming);
   return (
     <div className="p-8 text-center">
       <div className="w-12 h-12 rounded-full bg-slate-700/50 flex items-center justify-center mx-auto mb-3">
@@ -460,7 +461,7 @@ function EmptyState() {
       </div>
       <p className="text-slate-400 text-sm">No active alerts</p>
       <p className="text-slate-500 text-xs mt-1">
-        Monitoring is running normally
+        {isStreaming ? 'Monitoring is running normally' : 'Monitoring is inactive'}
       </p>
     </div>
   );
