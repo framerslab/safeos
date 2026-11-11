@@ -257,3 +257,28 @@ describe('account forms behind a URL prefix', () => {
     expect(response.text).toContain(action === 'verify' ? 'Email verified.' : 'Password reset.');
   });
 });
+
+describe('guest session rotation', () => {
+  it('replaces the presented token and refuses replay', async () => {
+    const deviceId = 'rotate-device';
+    const original = await guest(deviceId);
+    const resumed = await call('post', '/api/auth/session', original.token).send({ deviceId });
+    expect(resumed.status).toBe(201);
+    expect((await call('get', '/api/auth/session', original.token)).status).toBe(401);
+    expect((await call('post', '/api/auth/session', original.token).send({ deviceId })).status).toBe(401);
+    expect((await call('get', '/api/auth/session', resumed.body.data.token)).body.data.profile.id).toBe(original.profile.id);
+  });
+
+  it('allows only one concurrent rotation of the same proof', async () => {
+    const deviceId = 'concurrent-rotate-device';
+    const original = await guest(deviceId);
+    const results = await Promise.all([
+      call('post', '/api/auth/session', original.token).send({ deviceId }),
+      call('post', '/api/auth/session', original.token).send({ deviceId }),
+    ]);
+    expect(results.map((r) => r.status).sort()).toEqual([201, 401]);
+    const sessions = await db.all('SELECT token FROM sessions WHERE profile_id = ?', [original.profile.id]);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].token).toBe(results.find((r) => r.status === 201)!.body.data.token);
+  });
+});
