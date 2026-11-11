@@ -83,11 +83,17 @@ Select what you're monitoring:
 | 👶 **Baby** | Infants, toddlers | Crying, movement, breathing, safety |
 | 👴 **Elderly** | Seniors, dementia patients | Falls, confusion, prolonged stillness |
 
-#### Step 3: Allow Camera & Microphone
+#### Step 3: Choose a Camera and Allow Access
 
-Click "Start Monitoring" and allow browser permissions:
-- **Camera**: Required for visual monitoring
-- **Microphone**: Optional but recommended for audio alerts
+Choose **Camera** on Setup or Monitor; the choice is saved in this browser. Click
+**Start Monitoring** and allow camera and microphone access. Monitoring becomes
+active when the camera is ready. **Cancel Starting** cancels a pending request;
+**Stop Monitoring** releases the camera and microphone. A camera error or lost
+capture leaves monitoring inactive.
+
+The **Local** processing mode sends no camera frames to a connected server. Alerts
+survive reload in **History → Local Timeline** when browser storage is available.
+See [Camera monitoring](MONITORING.md) for camera choice and lifecycle details.
 
 #### Step 4: Position Your Camera
 
