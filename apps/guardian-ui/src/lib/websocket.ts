@@ -76,38 +76,32 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
   // Connect to WebSocket
   const connect = useCallback(() => {
-    // Skip WebSocket connection in static mode (GitHub Pages deployment)
-    if (isStaticMode()) {
-      console.log('[WebSocket] Skipping connection in static mode');
-      return;
-    }
+    if (isStaticMode()) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return;
 
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
-
-    // Don't attempt connection with empty URL
-    if (!url || !sessionToken) return;
-
-    // Only connect to localhost when actually running locally
+    // A retry must read the current session, never a captured credential.
+    const token = useAuthStore.getState().sessionToken;
+    if (!url || !token) return;
     if (url.startsWith('ws://localhost') || url.startsWith('wss://localhost')) {
       if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
-        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-          console.log('[WebSocket] Skipping localhost connection from remote host');
-          return;
-        }
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1') return;
       }
     }
 
     try {
       const ws = new WebSocket(url);
       wsRef.current = ws;
+      authenticatedRef.current = false;
+      const isCurrent = () => wsRef.current === ws && useAuthStore.getState().sessionToken === token;
 
       ws.onopen = () => {
-        authenticatedRef.current = false;
-        ws.send(JSON.stringify({ type: 'authenticate', payload: { token: sessionToken } }));
+        if (!isCurrent()) { ws.close(); return; }
+        ws.send(JSON.stringify({ type: 'authenticate', payload: { token } }));
       };
 
       ws.onmessage = (event) => {
+        if (!isCurrent()) return;
         try {
           const message: WSMessage = JSON.parse(event.data);
           if (message.type === 'connected') {
@@ -116,7 +110,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
             reconnectAttemptsRef.current = 0;
             if (heartbeatRef.current) clearInterval(heartbeatRef.current);
             heartbeatRef.current = setInterval(() => {
-              if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+              if (isCurrent() && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
             }, HEARTBEAT_INTERVAL);
             onConnect?.();
           }
@@ -128,43 +122,49 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       };
 
       ws.onclose = () => {
+        if (wsRef.current !== ws) return;
+        wsRef.current = null;
         authenticatedRef.current = false;
         setIsConnected(false);
         onDisconnect?.();
-
-        // Clear heartbeat
         if (heartbeatRef.current) {
           clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
         }
-
-        // Attempt reconnect
-        if (reconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        if (useAuthStore.getState().sessionToken === token && reconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current++;
           const delay = reconnectDelay * Math.pow(1.5, reconnectAttemptsRef.current - 1);
-          reconnectTimeoutRef.current = setTimeout(connect, Math.min(delay, 30000));
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            if (useAuthStore.getState().sessionToken === token && !wsRef.current) connect();
+          }, Math.min(delay, 30000));
         }
       };
-
-      ws.onerror = (error) => {
-        onError?.(error);
-      };
+      ws.onerror = (error) => { if (isCurrent()) onError?.(error); };
     } catch (err) {
       console.error('WebSocket connection error:', err);
     }
-  }, [url, sessionToken, onConnect, onDisconnect, onMessage, onError, reconnect, reconnectDelay, maxReconnectAttempts]);
+  }, [url, onConnect, onDisconnect, onMessage, onError, reconnect, reconnectDelay, maxReconnectAttempts]);
 
-  // Disconnect from WebSocket
+  // Detach before closing: a late event must not affect a newer connection.
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
     if (heartbeatRef.current) {
       clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
     }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+    const ws = wsRef.current;
+    wsRef.current = null;
+    authenticatedRef.current = false;
+    if (ws) {
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onclose = null;
+      ws.onerror = () => {};
+      ws.close();
     }
     setIsConnected(false);
   }, []);
@@ -224,7 +224,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     return () => {
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [connect, disconnect, sessionToken]);
 
   return {
     isConnected,
