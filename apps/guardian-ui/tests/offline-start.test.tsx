@@ -68,3 +68,54 @@ it('activation preserves downloaded models and unrelated caches', async () => {
   await activation;
   expect(await cache.keys()).toEqual(expect.arrayContaining(['safeos-detection-model-v1', 'another-app']));
 });
+
+function loadWorker(cache: ReturnType<typeof prepareBrowser>['cache'], manifest?: { version: string; urls: string[] }) {
+  const listeners: Record<string, (event: any) => void> = {};
+  const self = {
+    ...(manifest ? { __SAFEOS_PRECACHE: manifest } : {}),
+    addEventListener: (name: string, callback: (event: any) => void) => { listeners[name] = callback; },
+    skipWaiting: jest.fn(), clients: { claim: jest.fn() }, location: { origin: 'http://localhost' },
+  };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/sw.js'), 'utf8'), {
+    self, caches: cache, fetch: (input: RequestInfo | URL) => globalThis.fetch(input),
+    URL, Response, Request, console, location: { origin: 'http://localhost' },
+  });
+  async function lifecycle(name: 'install' | 'activate') {
+    let pending: Promise<unknown> = Promise.resolve();
+    listeners[name]({ waitUntil: (promise: Promise<unknown>) => { pending = promise; } });
+    await pending;
+  }
+  function request(url: string, mode = 'cors') {
+    let result: Promise<Response> | null = null;
+    listeners.fetch({
+      request: { url: new URL(url, 'http://localhost').href, method: 'GET', headers: new Headers(), mode },
+      respondWith: (promise: Promise<Response>) => { result = promise; }, waitUntil: () => {},
+    });
+    return result as Promise<Response> | null;
+  }
+  return { self, lifecycle, request };
+}
+
+it('serves route data the router requests with a query from the installed build', async () => {
+  const { cache } = prepareBrowser();
+  globalThis.fetch = jest.fn(async () => new Response('route payload'));
+  const worker = loadWorker(cache, { version: 'build-a', urls: ['/security/', '/security/index.txt'] });
+  await worker.lifecycle('install');
+  globalThis.fetch = jest.fn().mockRejectedValue(new Error('Offline'));
+  const response = await worker.request('/security/index.txt?_rsc=1x2y3');
+  expect(response!.status).toBe(200);
+  expect(await response!.text()).toBe('route payload');
+});
+
+it('a worker without a build list replaces an earlier build and leaves requests to the network', async () => {
+  const { cache } = prepareBrowser();
+  const earlier = await cache.open('safeos-shell-earlier-build');
+  await earlier.put('http://localhost/', new Response('stale page'));
+  await cache.open('safeos-detection-model-v1');
+  const worker = loadWorker(cache);
+  await worker.lifecycle('install');
+  expect(worker.self.skipWaiting).toHaveBeenCalled();
+  await worker.lifecycle('activate');
+  expect(await cache.keys()).toEqual(['safeos-detection-model-v1']);
+  expect(worker.request('/', 'navigate')).toBeNull();
+});
