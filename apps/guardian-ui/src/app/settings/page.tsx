@@ -73,8 +73,6 @@ export default function SettingsPage() {
       setBrowserPush(profile.notificationSettings.browserPush ?? true);
       setSmsEnabled(profile.notificationSettings.sms ?? false);
       setTelegramEnabled(profile.notificationSettings.telegram ?? false);
-
-
     }
   }, [profile]);
 
@@ -125,8 +123,6 @@ export default function SettingsPage() {
         if (typeof parsed.notificationSettings.telegram === 'boolean') {
           setTelegramEnabled(parsed.notificationSettings.telegram);
         }
-
-
       }
     } catch {
       // Ignore parse errors
