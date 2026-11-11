@@ -31,6 +31,38 @@ it('keeps detection weights for a fresh offline page and shares them across dete
   expect(globalThis.fetch).not.toHaveBeenCalled();
 });
 
+type MemoryCaches = ReturnType<typeof prepareBrowser>['cache'];
+const storageRefusals: Array<[string, (cache: MemoryCaches) => void]> = [
+  ['has no Cache Storage', () => { Object.defineProperty(globalThis, 'caches', { configurable: true, value: undefined }); }],
+  ['refuses to open the model cache', () => {
+    Object.defineProperty(globalThis, 'caches', {
+      configurable: true,
+      value: { open: jest.fn().mockRejectedValue(new DOMException('The operation is insecure.', 'SecurityError')) },
+    });
+  }],
+  ['is over its storage quota', cache => {
+    const open = cache.open;
+    Object.assign(cache, {
+      open: async (name: string) => ({
+        ...(await open(name)),
+        put: async () => { throw new DOMException('Quota exceeded', 'QuotaExceededError'); },
+      }),
+    });
+  }],
+];
+
+it.each(storageRefusals)('loads detection from the network when the browser %s, and says it is not saved', async (_case, refuseStorage) => {
+  const { network, cache } = prepareBrowser();
+  refuseStorage(cache);
+  finishSetup();
+  const Security = require('@/app/security/page').default;
+  render(<Security />);
+  await agreeIfOffered();
+  await waitFor(() => expect(screen.getByText('AI: Ready')).toBeTruthy());
+  expect(network.mock.calls.filter(([url]) => String(url) === WEIGHT_URL)).toHaveLength(1);
+  expect(screen.getByText(/could not be saved/i)).toBeTruthy();
+});
+
 it('the offered download supplies detection rather than the unused classifier', async () => {
   prepareBrowser();
   finishSetup();
