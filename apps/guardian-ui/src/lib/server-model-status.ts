@@ -3,7 +3,7 @@ import { useAuthStore } from '../stores/auth-store';
 
 export async function getServerModelStatus(apiUrl = getApiUrl()): Promise<{
   available: boolean;
-  models: Array<{ name: string }>;
+  models: Array<{ name: string; size?: string }>;
 }> {
   if (!apiUrl) return { available: false, models: [] };
   const token = useAuthStore.getState().sessionToken;
