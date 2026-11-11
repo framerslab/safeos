@@ -15,5 +15,5 @@ it('clears microphone recordings and cached responses when clearing all local da
   fireEvent.click(screen.getByRole('button', { name: 'Privacy' }));
   fireEvent.click(screen.getByRole('button', { name: 'Clear All Local Data' }));
   await waitFor(async () => expect(await getAllCustomSounds()).toEqual([]));
-  expect([...caches]).toEqual([]);
+  await waitFor(() => expect([...caches]).toEqual([]));
 });
