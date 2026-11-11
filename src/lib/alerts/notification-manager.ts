@@ -10,6 +10,7 @@ import { TelegramBotService } from './telegram';
 import { sendAlertSms, isTwilioConfigured, type TwilioConfig } from './twilio';
 import { sendBrowserPushNotification } from './browser-push';
 import { sendAlertEmail, isResendConfigured, type EmailConfig } from './email';
+import { getSafeOSDatabase } from '../../db/index.js';
 import { getPushSubscriptions, getTelegramChatIds } from '../../api/routes/notifications';
 
 // =============================================================================
@@ -33,6 +34,8 @@ export interface NotificationConfig {
   email: boolean;
   smsNumber?: string;
   telegramChatId?: string;
+  /** Owner-supplied bot token; server bot registrations have no verified recipient. */
+  telegramBotToken?: string;
   emailRecipient?: string;
   /** Optional per-user override (BYO Resend API key). Falls back to server env. */
   emailOverride?: Partial<EmailConfig>;
@@ -45,7 +48,7 @@ export interface NotificationConfig {
 export interface NotificationResult {
   channel: string;
   success: boolean;
-  /** True when nothing was sent because the recipient turned this mail off. */
+  /** True when authorization or recipient suppression prevents delivery. */
   skipped?: boolean;
   error?: string;
 }
@@ -66,6 +69,8 @@ const SEVERITY_CHANNELS: Record<string, string[]> = {
 // NotificationManager Class
 // =============================================================================
 
+class NotificationSkippedError extends Error {}
+
 export class NotificationManager {
   private telegramService: TelegramBotService | null = null;
   private config: NotificationConfig;
@@ -78,14 +83,15 @@ export class NotificationManager {
       email: config.email ?? false,
       smsNumber: config.smsNumber,
       telegramChatId: config.telegramChatId,
+      telegramBotToken: config.telegramBotToken,
       emailRecipient: config.emailRecipient,
       emailOverride: config.emailOverride,
       emailFromOverride: config.emailFromOverride,
       smsOverride: config.smsOverride,
     };
 
-    if (this.config.telegram && process.env['TELEGRAM_BOT_TOKEN']) {
-      this.telegramService = new TelegramBotService();
+    if (this.config.telegram && this.config.telegramBotToken) {
+      this.telegramService = new TelegramBotService(this.config.telegramBotToken);
     }
   }
 
@@ -104,11 +110,15 @@ export class NotificationManager {
         await this.sendToChannel(channel, payload);
         return { channel, success: true };
       } catch (error) {
+        if (error instanceof NotificationSkippedError) {
+          console.warn(`[NotificationManager] ${channel} channel skipped: ${error.message}`);
+          return { channel, success: false, skipped: true, error: error.message };
+        }
         if (error instanceof Error && error.name === 'EmailSuppressedError') {
           console.warn(`[NotificationManager] ${channel} channel skipped: the recipient unsubscribed from this mail`);
           return { channel, success: false, skipped: true, error: error.message };
         }
-        console.error(`Failed to send ${channel} notification:`, error);
+        console.error(`[NotificationManager] ${channel} channel failed: delivery failed`);
         return {
           channel,
           success: false,
@@ -152,6 +162,7 @@ export class NotificationManager {
    *  3. Either a server `RESEND_API_KEY` exists OR the user has supplied
    *     `emailOverride.apiKey` (BYO key path).
    *
+   * Server credentials require an operator owner.
    * A recipient who unsubscribed gets nothing; `notify` reports the channel
    * as skipped.
    */
@@ -162,6 +173,15 @@ export class NotificationManager {
     if (!hasUserKey && !isResendConfigured()) {
       console.warn('[NotificationManager] email channel skipped: email is not configured (RESEND_API_KEY, EMAIL_FROM and an https SAFEOS_API_PUBLIC_URL)');
       return;
+    }
+
+    if (!hasUserKey) {
+      const owner = this.profileId
+        ? await (await getSafeOSDatabase()).get<{ role: string }>('SELECT role FROM user_profiles WHERE id = ?', [this.profileId])
+        : undefined;
+      if (owner?.role !== 'operator') {
+        throw new NotificationSkippedError('server mail requires an operator owner');
+      }
     }
 
     await sendAlertEmail(
@@ -188,7 +208,7 @@ export class NotificationManager {
 
     const subscriptions = await getPushSubscriptions(this.profileId);
 
-    for (const [userId, subscription] of subscriptions) {
+    for (const subscription of subscriptions.values()) {
       try {
         await sendBrowserPushNotification(subscription, {
           title: payload.title,
@@ -201,8 +221,8 @@ export class NotificationManager {
             severity: payload.severity,
           },
         });
-      } catch (error) {
-        console.error(`Failed to send push to ${userId}:`, error);
+      } catch {
+        console.warn('[NotificationManager] browser channel skipped: destination rejected or delivery failed');
       }
     }
   }
@@ -211,15 +231,18 @@ export class NotificationManager {
    * Send Telegram notifications
    */
   private async sendTelegram(payload: NotificationPayload): Promise<void> {
-    if (!this.config.telegram || !this.telegramService) return;
+    if (!this.config.telegram) return;
+    if (!this.config.telegramBotToken || !this.telegramService) {
+      throw new NotificationSkippedError('recipient verification is unavailable for the server bot');
+    }
 
     const chatIds = await getTelegramChatIds(this.profileId);
 
     for (const chatId of chatIds) {
       try {
         await this.telegramService.sendAlert(chatId, payload);
-      } catch (error) {
-        console.error(`Failed to send Telegram to ${chatId}:`, error);
+      } catch {
+        console.warn('[NotificationManager] telegram channel skipped: delivery failed');
       }
     }
   }
@@ -232,6 +255,7 @@ export class NotificationManager {
    *  2. `smsNumber` is set (we know where to send)
    *  3. Either server `TWILIO_*` env is configured OR the user has supplied a
    *     complete `smsOverride` (BYO Twilio path).
+   *  4. Server credentials require a verified phone belonging to the alert owner.
    */
   private async sendSms(payload: NotificationPayload): Promise<void> {
     if (!this.config.sms || !this.config.smsNumber) return;
@@ -247,6 +271,16 @@ export class NotificationManager {
       return;
     }
 
+    if (!hasCompleteOverride) {
+      const verified = this.profileId ? await (await getSafeOSDatabase()).get(
+        'SELECT id FROM phone_numbers WHERE profile_id = ? AND phone_number = ? AND verified = 1',
+        [this.profileId, this.config.smsNumber]
+      ) : undefined;
+      if (!verified) {
+        throw new NotificationSkippedError('recipient is not verified for the alert owner');
+      }
+    }
+
     // Delegate formatting + encoding-aware truncation to sendAlertSms so we
     // don't duplicate the "[SafeOS …]" tag template here and so long messages
     // get trimmed before they hit Twilio (155 char single-segment limit, or
@@ -256,7 +290,7 @@ export class NotificationManager {
       payload.severity,
       payload.title,
       payload.message,
-      { override },
+      { override: hasCompleteOverride ? override : undefined },
     );
   }
 
@@ -270,9 +304,8 @@ export class NotificationManager {
   updateConfig(config: Partial<NotificationConfig>): void {
     this.config = { ...this.config, ...config };
 
-    if (this.config.telegram && !this.telegramService && process.env['TELEGRAM_BOT_TOKEN']) {
-      this.telegramService = new TelegramBotService();
-    }
+    this.telegramService = this.config.telegram && this.config.telegramBotToken
+      ? new TelegramBotService(this.config.telegramBotToken) : null;
   }
 
   /**

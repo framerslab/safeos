@@ -203,7 +203,7 @@ describe('every mail carries an unsubscribe link and the one-click headers', () 
       browserPush: false,
       email: true,
       emailRecipient: 'parent@example.com',
-    });
+    }, 'operator-profile');
 
     const results = await manager.notify({
       streamId: 'nursery',
@@ -323,7 +323,7 @@ describe('the unsubscribe link', () => {
       browserPush: false,
       email: true,
       emailRecipient: 'olive@example.com',
-    });
+    }, 'operator-profile');
     const results = await manager.notify({
       streamId: 'kitchen',
       alertId: 'alert-2',
