@@ -16,7 +16,8 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   const cached = fakeCaches();
   const pixels = new ImageData(new Uint8ClampedArray(8 * 8 * 4).fill(255), 8, 8);
   const context = { drawImage: jest.fn(), getImageData: () => pixels, putImageData: jest.fn() };
-  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context as unknown as CanvasRenderingContext2D);
+  // getContext is overloaded; type the spy loosely so the 2D context fake fits.
+  (jest.spyOn(HTMLCanvasElement.prototype, 'getContext') as unknown as jest.SpyInstance).mockReturnValue(context);
   jest.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/jpeg;base64,AA==');
   jest.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
   jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
