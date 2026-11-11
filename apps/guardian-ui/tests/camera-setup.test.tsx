@@ -44,3 +44,23 @@ it.each(['OverconstrainedError', 'NotFoundError'])('reports missing hardware sep
   expect(screen.getByText('The selected camera is unavailable. Choose another camera.')).toBeTruthy();
   expect(screen.queryByText(/Permission denied/)).toBeNull();
 });
+
+it('lets setup continue with video alone on a device without a microphone', async () => {
+  useOnboardingStore.getState().reset();
+  const browser = installCameraBrowser();
+  browser.getUserMedia.mockImplementation(async (constraints: MediaStreamConstraints) => {
+    if (constraints.audio) throw new DOMException('Requested device not found', 'NotFoundError');
+    return browser.stream;
+  });
+  render(<SetupPage />);
+  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Grant Permissions/ }));
+  expect(await screen.findByRole('button', { name: 'Continue' })).toBeTruthy();
+  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(true);
+  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
+  expect(browser.video.stop).toHaveBeenCalled();
+});
