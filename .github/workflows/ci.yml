@@ -209,7 +209,7 @@ jobs:
   account-pictures:
     name: Account form pictures
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -221,7 +221,7 @@ jobs:
         run: |
           npm install --legacy-peer-deps
           npm install --no-save --legacy-peer-deps @playwright/test@1.56.1
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
       - name: Capture API account forms
         run: npx tsx scripts/capture-account-pictures.ts "$RUNNER_TEMP/account-pictures"
       - name: Upload account pictures

@@ -30,5 +30,8 @@ try {
 } finally {
   await browser.close();
   await new Promise<void>((resolve, reject) => server.close((err) => err ? reject(err) : resolve()));
-  await instance.stop();
+  // getApp() uses a separate listener; the instance's own HTTP server was never started.
+  await instance.stop().catch((err: NodeJS.ErrnoException) => {
+    if (err.code !== 'ERR_SERVER_NOT_RUNNING') throw err;
+  });
 }
