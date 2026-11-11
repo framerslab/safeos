@@ -254,7 +254,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
       <div>
         <h1 className="text-2xl font-bold text-white mb-2">Welcome to SafeOS Guardian</h1>
         <p className="text-slate-400 max-w-md mx-auto">
-          Free, privacy-first AI monitoring for your home. Let's set things up in just a few steps.
+          Free, privacy-first AI monitoring for your home. Let&apos;s set things up in just a few steps.
         </p>
       </div>
       <div className="flex flex-wrap justify-center gap-3">
@@ -552,9 +552,9 @@ function CompleteStep({ onComplete, onBack }: { onComplete: () => void; onBack: 
         <CheckIcon className="w-10 h-10 text-white" />
       </div>
       <div>
-        <h2 className="text-2xl font-bold text-white mb-2">You're All Set!</h2>
+        <h2 className="text-2xl font-bold text-white mb-2">You&apos;re All Set!</h2>
         <p className="text-slate-400 max-w-md mx-auto">
-          Your monitoring system is ready. Press '?' anytime to see keyboard shortcuts.
+          Your monitoring system is ready. Press &apos;?&apos; anytime to see keyboard shortcuts.
         </p>
       </div>
       <div className="flex flex-col gap-3">

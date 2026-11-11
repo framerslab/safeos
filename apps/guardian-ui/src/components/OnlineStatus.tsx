@@ -96,7 +96,7 @@ export function OnlineStatus() {
           </span>
         ) : (
           <div>
-            <span className="text-sm font-medium">You're offline</span>
+            <span className="text-sm font-medium">You&apos;re offline</span>
             {syncPending > 0 && (
               <span className="text-xs opacity-75 ml-2">
                 ({syncPending} pending)

@@ -356,7 +356,7 @@ export default function ExportPage() {
             <div>
               <h3 className="font-medium text-blue-300 mb-1">Your Data, Your Control</h3>
               <p className="text-sm text-slate-400">
-                Exports include all data associated with your account. The "Full Data Export"
+                Exports include all data associated with your account. The &quot;Full Data Export&quot;
                 option provides a complete download of all your information as required by
                 GDPR and CCPA regulations.
               </p>

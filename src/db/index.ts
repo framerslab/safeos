@@ -24,7 +24,6 @@ export interface DatabaseRow {
 // =============================================================================
 
 const BUFFER_MINUTES = 10; // Rolling buffer for privacy
-const DB_PATH = process.env['SAFEOS_DB_PATH'] || 'db_data/safeos.sqlite3';
 
 // =============================================================================
 // Hooks
