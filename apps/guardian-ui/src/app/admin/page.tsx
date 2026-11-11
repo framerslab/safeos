@@ -117,7 +117,10 @@ export default function AdminDashboard() {
 
       if (flagsRes.ok) {
         const flagsData = await flagsRes.json();
-        setFlags(flagsData.flags || []);
+        setFlags((flagsData.flags || []).map((flag: Omit<ContentFlag, 'streamId' | 'createdAt'> & {
+          stream_id: string;
+          created_at: string;
+        }) => ({ ...flag, streamId: flag.stream_id, createdAt: flag.created_at })));
       }
 
       // Mock activities for now
