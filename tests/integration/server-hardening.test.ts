@@ -306,6 +306,26 @@ it.each(['patch', 'delete'] as const)('preserves a reviewed ban on an owner %s a
   } finally { await p.close(); }
 });
 
+it.each(['reviewer', 'operator'])('allows a non-owner %s to restore a banned stream without granting owner access', async role => {
+  const p = await startPipeline();
+  try {
+    await p.db.run("UPDATE streams SET status = 'banned' WHERE id = ?", [p.streamId]);
+    await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token)
+      .send({ status: 'active' }).expect(404);
+    await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.owner.token)
+      .send({ status: 'active' }).expect(403);
+    await p.db.run('UPDATE user_profiles SET role = ? WHERE id = ?', [role, p.other.id]);
+    const restored = await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token)
+      .send({ status: 'active' }).expect(200);
+    expect(restored.body.stream).toMatchObject({ id: p.streamId, user_id: p.owner.id, status: 'active' });
+    await p.api.get(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token).expect(404);
+    await p.api.delete(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token).expect(404);
+    const ws = await p.connect();
+    const frameId = await p.frame(ws, await image(`restored-${role}`));
+    expect(await p.db.get('SELECT id FROM frame_buffer WHERE id = ?', [frameId])).toBeTruthy();
+  } finally { await p.close(); }
+});
+
 it('reserves the banned status for reviewers and operators', async () => {
   const p = await startPipeline();
   try {
