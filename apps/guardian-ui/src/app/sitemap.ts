@@ -5,6 +5,7 @@
  */
 
 import { MetadataRoute } from 'next';
+import { generateStaticParams as blogPostParams } from './blog/[slug]/page';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://safeos.sh').replace(/\/+$/, '');
@@ -29,13 +30,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: '/blog', changeFrequency: 'weekly', priority: 0.8 },
     { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
     { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
+    { path: '/donate', changeFrequency: 'yearly', priority: 0.4 },
+    { path: '/help/integrations', changeFrequency: 'monthly', priority: 0.5 },
   ];
 
-  const blogSlugs = [
-    'why-we-built-safeos-guardian',
-    'how-safeos-guardian-works',
-    'inside-the-motion-gated-cv-pipeline',
-  ];
+  // Only posts the blog actually builds, so the sitemap never lists a missing page.
+  const blogSlugs = blogPostParams().map((p) => p.slug);
 
   return [
     ...staticPages.map((p) => ({

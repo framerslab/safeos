@@ -43,13 +43,13 @@ ollama pull llava:7b     # Detailed analysis (~4GB)
 
 ```bash
 # From monorepo root
-cd packages/safeos
+cd safeos
 
 # Install dependencies (first time only)
-pnpm install
+npm install
 
 # Start everything
-pnpm run dev
+npm run dev
 ```
 
 ### 4. Open the App
@@ -246,9 +246,8 @@ Access SafeOS from your phone:
 
 ## 📞 Getting Help
 
-- **GitHub Issues**: [Report bugs](https://github.com/supercloud/safeos/issues)
-- **Discussions**: [Ask questions](https://github.com/supercloud/safeos/discussions)
-- **Email**: support@supercloud.dev
+- **GitHub Issues**: [Report bugs](https://github.com/framerslab/safeos/issues)
+- **Email**: team@frame.dev
 
 ---
 

@@ -185,9 +185,9 @@ export default function AboutPage() {
               comes to the safety of their loved ones.
             </p>
             <p className="text-slate-300 leading-relaxed mb-4">
-              Unlike cloud-based solutions that store your data on remote servers, SafeOS runs entirely
-              in your browser. Your recordings, settings, and personal information never leave your device.
-              This local-first approach ensures maximum privacy while delivering powerful monitoring capabilities.
+              On safeos.sh, SafeOS runs entirely in your browser. Your recordings, settings, and personal
+              information stay on your device. If you connect a server you run yourself, camera frames and
+              alerts go to that server and nowhere else.
             </p>
             <p className="text-slate-400 leading-relaxed">
               <strong className="text-emerald-400">Important:</strong> SafeOS Guardian is a supplemental,
@@ -217,21 +217,21 @@ export default function AboutPage() {
             <ValueCard
               icon={<IconHeart size={24} />}
               title="Humanitarian Purpose"
-              description="SafeOS is built for families, not profit. We're committed to keeping essential features free for everyone."
+              description="Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work. It is free to use."
             />
             <ValueCard
               icon={<IconGlobe size={24} />}
               title="Accessible Globally"
-              description="Multi-language support and offline capabilities ensure SafeOS works for families everywhere, regardless of internet access."
+              description="SafeOS runs in any current browser with a camera, with nothing to install and no account to create."
             />
           </div>
         </section>
 
-        {/* 10% for Humanity */}
+        {/* Humanitarian work */}
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <span className="text-emerald-400">03</span>
-            10% for Humanity
+            Humanitarian Work
           </h3>
           <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-emerald-500/30 rounded-xl">
             <div className="flex items-center gap-4 mb-4">
@@ -239,18 +239,17 @@ export default function AboutPage() {
                 <IconHeart size={24} className="text-emerald-400" />
               </div>
               <div>
-                <h4 className="font-semibold text-white">Giving Back</h4>
-                <p className="text-sm text-slate-400">A commitment to humanitarian causes</p>
+                <h4 className="font-semibold text-white">Why SafeOS exists</h4>
+                <p className="text-sm text-slate-400">Development time given to humanitarian work</p>
               </div>
             </div>
             <p className="text-slate-300 leading-relaxed mb-4">
-              If SafeOS ever generates revenue (through optional donations or premium features),
-              we pledge to donate 10% of all proceeds to humanitarian organizations focused on
-              child safety, missing persons recovery, and family welfare.
+              Frame puts some of its development resources into humanitarian work, and SafeOS is
+              part of that work: a free monitoring tool for families, pets, and the people who care
+              for them.
             </p>
             <p className="text-sm text-slate-400">
-              This commitment is permanent and will never change. We believe technology should
-              serve humanity, not exploit it.
+              A sponsorship on GitHub supports that development. It is not a tax-deductible donation.
             </p>
           </div>
         </section>
@@ -463,12 +462,12 @@ export default function AboutPage() {
               <p className="text-slate-400">
                 <strong className="text-white">GitHub:</strong>{' '}
                 <a
-                  href="https://github.com/framersai/safeos"
+                  href="https://github.com/framerslab/safeos"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-emerald-400 hover:text-emerald-300"
                 >
-                  github.com/framersai/safeos
+                  github.com/framerslab/safeos
                 </a>
               </p>
               <p className="text-slate-400">

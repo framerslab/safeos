@@ -50,8 +50,8 @@ const footerSections: FooterSection[] = [
       { href: 'https://frame.dev', label: 'Frame (frame.dev)', external: true },
       { href: 'https://agentos.sh', label: 'AgentOS', external: true },
       { href: 'https://paracosm.agentos.sh', label: 'Paracosm', external: true },
-      { href: 'https://github.com/framersai/safeos', label: 'SafeOS on GitHub', external: true },
-      { href: 'https://github.com/framersai', label: 'framersai org', external: true },
+      { href: 'https://github.com/framerslab/safeos', label: 'SafeOS on GitHub', external: true },
+      { href: 'https://github.com/framerslab', label: 'framerslab on GitHub', external: true },
       { href: 'mailto:team@frame.dev', label: 'team@frame.dev', external: true },
     ],
   },
@@ -79,11 +79,11 @@ export function Footer() {
             </div>
             <p className="text-sm leading-relaxed text-zinc-500 mb-4">
               Free AI-powered monitoring for pets, babies, and elderly care.
-              Local-first, privacy-preserving. Part of Frame&apos;s 10% for Humanity initiative.
+              Local-first, privacy-preserving. Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
             </p>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-xs font-medium text-emerald-500">
               <span className="text-sm">♥</span>
-              <span>10% for Humanity</span>
+              <span>Humanitarian work</span>
             </div>
           </div>
 

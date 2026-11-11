@@ -45,8 +45,8 @@ const termsSections: TermSection[] = [
           happens locally on your device.
         </p>
         <p>
-          This is a <strong>humanitarian project</strong>—part of Frame&apos;s 10% for
-          Humanity initiative. We provide this service at no cost, with no premium tiers,
+          This is a <strong>humanitarian project</strong>. Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
+          We provide this service at no cost, with no premium tiers,
           and no hidden monetization.
         </p>
       </div>
@@ -302,7 +302,7 @@ export default function TermsPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 mt-12">
-          Last updated: December 2024
+          Last updated: November 2026
         </div>
       </div>
     </main>

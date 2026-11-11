@@ -50,7 +50,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'Does it work offline?',
-        answer: 'Yes! SafeOS Guardian is designed to work offline. Once the app is loaded in your browser, all detection and alerting happens locally on your device. No internet connection is required for core monitoring functionality. The app can even be installed as a Progressive Web App (PWA) for offline access.',
+        answer: 'Partly. Motion, pixel, and sound alerts run on your device and need no server. The service worker keeps a copy of the pages you have opened, so a monitor page you loaded online opens again without a connection. Person detection (Security) and animal detection (Wildlife) download their model from Google\'s servers, so they need a connection to load it. You can also install SafeOS as a Progressive Web App (PWA).',
       },
       {
         question: 'What browsers are supported?',
@@ -76,15 +76,15 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How does local-first processing work?',
-        answer: 'Local-first means all computation happens on your device. When you start monitoring, TensorFlow.js (a machine learning library) runs directly in your browser. It analyzes video frames and audio samples without sending them anywhere. This approach ensures maximum privacy and eliminates the need for expensive cloud infrastructure.',
+        answer: 'Local-first means the analysis happens on your device. The monitor compares video frames and measures sound levels in your browser. Security and Wildlife modes also run a TensorFlow.js model in the browser to find people and animals. On safeos.sh nothing is sent anywhere; if you connect a server you run yourself, the monitor sends frames to that server.',
       },
       {
         question: 'Can I use this without any internet connection?',
-        answer: 'Yes! Once you\'ve loaded SafeOS Guardian in your browser (and optionally installed it as a PWA), you can use it completely offline. Motion detection, audio analysis, and alerts all work without internet. The only features requiring internet are optional cloud sync and receiving notifications on other devices.',
+        answer: 'Partly. Motion, pixel, and sound alerts run on your device and need no server. The service worker keeps a copy of the pages you have opened, so a monitor page you loaded online opens again without a connection. Person detection (Security) and animal detection (Wildlife) download their model from Google\'s servers, so they need a connection to load it. Email, text, and Telegram alerts need your own server and a connection.',
       },
       {
         question: 'What data is collected by SafeOS Guardian?',
-        answer: 'We collect zero personal data. No analytics, no tracking, no telemetry. The only data stored is your local settings (sensitivity, preferences) and alert history—all kept in your browser\'s IndexedDB, never sent to us. If you enable optional cloud sync, only encrypted metadata syncs; video/audio stays local.',
+        answer: 'We collect no personal data, and the app loads no analytics or tracking script. Your settings stay in your browser. Saved frames from Security, Lost & Found, and Wildlife are kept in your browser\'s IndexedDB. Alerts from the monitor page are kept in memory and clear when you reload. Nothing is sent to us.',
       },
     ],
   },
@@ -98,7 +98,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'What is pixel detection (nap mode)?',
-        answer: 'Pixel detection is our ultra-sensitive monitoring mode designed for sleeping babies and pets. Instead of looking for large movements, it detects tiny pixel changes (configurable from 3-10 pixels). This catches subtle breathing movements or when a sleeping child stirs, giving you peace of mind during nap time.',
+        answer: 'Pixel detection is our ultra-sensitive monitoring mode designed for sleeping babies and pets. Instead of looking for large movements, it detects tiny pixel changes (configurable from 3-10 pixels). This catches small movements, such as a sleeping child stirring.',
       },
       {
         question: 'How sensitive are the alerts?',
@@ -120,23 +120,23 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         question: 'What AI models does SafeOS Guardian use?',
-        answer: 'We use TensorFlow.js models optimized for in-browser inference. For motion detection, we use efficient frame differencing algorithms. For audio analysis (cry detection), we use frequency band analysis and pattern matching. All models are designed to run smoothly on consumer devices without requiring a GPU.',
+        answer: 'Security and Wildlife modes use COCO-SSD, a TensorFlow.js object detection model, to find people and animals. The monitor page uses no model: it compares video frames for motion and measures sound levels. Everything runs in the browser.',
       },
       {
         question: 'How does TensorFlow.js work in the browser?',
-        answer: 'TensorFlow.js is a JavaScript library that brings machine learning to the browser. It uses WebGL for GPU acceleration when available, or falls back to CPU computation. This means AI inference runs directly on your device, enabling real-time analysis without sending data to external servers.',
+        answer: 'TensorFlow.js is a JavaScript library that brings machine learning to the browser. SafeOS runs it on WebGL, which uses your graphics chip. This means AI inference runs directly on your device, enabling real-time analysis without sending data to external servers.',
       },
       {
         question: 'Can I export my data?',
-        answer: 'Yes. In offline/local mode you can download a local bundle from History → Offline Export (settings + alerts + saved frames). If you run the optional SafeOS monitoring server (API), you can also export server-side alerts/analysis/streams from the Export page. Everything remains under your control (local IndexedDB or your own server).',
+        answer: 'Yes. On the History page you can download a bundle of your settings, the alerts listed there, and saved frames. If you run the optional SafeOS server, the Export page downloads the data held on that server.',
       },
       {
-        question: 'What is the "10% for Humanity" initiative?',
-        answer: 'If SafeOS Guardian ever generates revenue through optional donations or premium features, we pledge to donate 10% to humanitarian organizations focused on child safety, missing persons recovery, and family welfare. This commitment is permanent and reflects our belief that technology should serve humanity.',
+        question: 'Who builds SafeOS, and why is it free?',
+        answer: 'Frame (Framers Lab, Inc.) builds SafeOS. Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work. GitHub sponsorships support its development; they are not tax-deductible donations.',
       },
       {
         question: 'How do I report bugs or request features?',
-        answer: 'We welcome feedback! Report bugs and request features on our GitHub repository at github.com/framersai/safeos. You can also reach the Frame.dev team directly at team@frame.dev. We actively review all submissions and prioritize based on community impact.',
+        answer: 'We welcome feedback! Report bugs and request features on our GitHub repository at github.com/framerslab/safeos. You can also reach the Frame.dev team directly at team@frame.dev. We actively review all submissions and prioritize based on community impact.',
       },
     ],
   },
@@ -324,7 +324,7 @@ export default function FAQPage() {
                 Email team@frame.dev
               </a>
               <a
-                href="https://github.com/framersai/safeos/issues"
+                href="https://github.com/framerslab/safeos/issues"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-6 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
