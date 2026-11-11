@@ -70,8 +70,8 @@ export function ModelDownloadProgress({
     }
   }, [error, onError]);
 
-  // Don't show if ready and dismissed, or if not started
-  if ((isReady && dismissed) || (progress.status === 'idle' && !autoStart)) {
+  // Keep the initial download action visible.
+  if (isReady && dismissed) {
     return null;
   }
 
