@@ -19,6 +19,10 @@ Then open:
 | API health | http://localhost:3001/health | Used by the container healthcheck |
 | Ollama | http://localhost:11434 | Local vision-model inference |
 
+These ports are published on `127.0.0.1`, so they answer on this computer only;
+Redis (the `with-redis` profile) is not published at all. To serve other
+devices, use the production file below, where only Caddy publishes ports.
+
 ## Run from prebuilt images (no build)
 
 To run SafeOS without cloning the repo or building anything, use the published
@@ -142,8 +146,9 @@ bundle at build time, so pass them as build args when the API is not on
 ## Production
 
 `docker-compose.prod.yml` fronts the API with Caddy (automatic HTTPS) and runs the
-same `ollama` + `ollama-pull` model-caching flow. Set `SAFEOS_DOMAIN` and
-`CORS_ORIGIN` in `.env`, then:
+same `ollama` + `ollama-pull` model-caching flow. Caddy is the only service with
+published ports (80 and 443); the API and Ollama stay on the compose network.
+Set `SAFEOS_DOMAIN` and `CORS_ORIGIN` in `.env`, then:
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d --build
@@ -151,9 +156,12 @@ docker compose -f docker-compose.prod.yml logs -f
 ```
 
 The production UI is published separately as a static site (GitHub Pages at
-safeos.sh). To self-host the UI alongside the API instead, run the base
-`docker-compose.yml`, which includes the nginx `ui` service, and point
-`NEXT_PUBLIC_API_URL` at the public API URL.
+safeos.sh). To self-host the UI as well, build the static export with
+`NEXT_PUBLIC_API_URL` set to the public API URL and serve it from a static host
+(Option A in [DEPLOYMENT.md](./DEPLOYMENT.md)) or from a second site in the
+`Caddyfile`. The base `docker-compose.yml` publishes its `ui` service on
+`127.0.0.1` only. The full production steps, from installing Docker to checking
+the HTTPS endpoint, are in [DEPLOYMENT.md](./DEPLOYMENT.md#production-server-with-docker-compose).
 
 ## Browser-side models
 
