@@ -569,11 +569,7 @@ export function BackendSettings({ onClose, isModal = false, className = '' }: Ba
             </p>
             <ol className="list-decimal list-inside space-y-1.5">
               <li>Create a Linode 8GB instance (~$48/month)</li>
-              <li>Run the setup script:
-                <pre className="mt-1 p-2 bg-slate-800 rounded text-[10px] overflow-x-auto">
-                  curl -fsSL https://raw.githubusercontent.com/yourusername/super-cloud-mcps/main/packages/safeos/scripts/linode-setup.sh | bash
-                </pre>
-              </li>
+              <li>Follow the deployment guide in the SafeOS repository to install and start the server with Docker Compose</li>
               <li>Point your domain to the Linode IP</li>
               <li>Enter your server URL in the field above</li>
             </ol>
@@ -587,7 +583,7 @@ export function BackendSettings({ onClose, isModal = false, className = '' }: Ba
                 Linode Signup
               </a>
               <a
-                href="https://github.com/yourusername/super-cloud-mcps/tree/main/packages/safeos"
+                href="https://github.com/framerslab/safeos/blob/master/docs/DEPLOYMENT.md"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-slate-300 transition-colors"
