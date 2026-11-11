@@ -1,7 +1,4 @@
-import { it, expect, vi, beforeEach } from 'vitest';
-
-// Each case owns a fresh server and its module-scoped HTTP rate-limit stores.
-beforeEach(() => vi.resetModules());
+import { it, expect, vi, beforeEach, describe } from 'vitest';
 import { once } from 'node:events';
 import WebSocket from 'ws';
 import { boundary, image, startPipeline, until } from '../helpers/pipeline.js';
@@ -223,6 +220,10 @@ it.each([['medium', '23:30', 0], ['high', '23:30', 1], ['critical', '23:30', 1],
 });
 
 
+describe('delivery and review regressions', () => {
+// Each new case owns a fresh server and module-scoped HTTP rate-limit stores.
+beforeEach(() => vi.resetModules());
+
 it('delivers critical alerts beyond capacity and releases stalled channels after fifteen seconds', async () => {
   const p = await startPipeline({ fakeTimeouts: true });
   const queue = (p.service as any).analysisQueue;
@@ -394,4 +395,6 @@ it('retains a successful destination when another destination reaches its deadli
     await delivered(p, 'after-partial-timeout');
     expect(boundary.sms).toHaveBeenCalledTimes(1);
   } finally { await p.tick(15000); await p.close(); }
+});
+
 });
