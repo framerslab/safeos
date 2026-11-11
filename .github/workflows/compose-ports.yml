@@ -1,0 +1,43 @@
+name: Compose ports
+
+# Only the reverse proxy may publish a port on every interface of the host.
+# Docker's published ports bypass the host firewall, so Ollama, Redis and the
+# API must bind 127.0.0.1 or stay on the compose network.
+
+on:
+  pull_request:
+    paths:
+      - '**/docker-compose*.yml'
+      - '**/docker-compose*.yaml'
+      - '**/compose*.yml'
+      - '**/compose*.yaml'
+      - 'scripts/check-compose-ports.sh'
+      - '.github/workflows/compose-ports.yml'
+  push:
+    branches: [master]
+    paths:
+      - '**/docker-compose*.yml'
+      - '**/docker-compose*.yaml'
+      - '**/compose*.yml'
+      - '**/compose*.yaml'
+      - 'scripts/check-compose-ports.sh'
+      - '.github/workflows/compose-ports.yml'
+
+concurrency:
+  group: compose-ports-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  ports:
+    name: Only the proxy publishes ports
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve every compose file and check its published ports
+        run: |
+          docker compose version
+          bash scripts/check-compose-ports.sh .
