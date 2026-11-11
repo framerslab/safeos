@@ -81,6 +81,10 @@ async function createThumbnail(frameData: string): Promise<string> {
 // =============================================================================
 
 export default function MonitorPage() {
+  useEffect(() => {
+    void useMonitoringStore.getState().hydrateAlerts();
+  }, []);
+
   const {
     isConnected,
     isStreaming,

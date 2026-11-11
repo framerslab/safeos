@@ -513,6 +513,17 @@ export async function getCachedAlerts(streamId?: string): Promise<any[]> {
   }
 }
 
+/** Remove dismissed monitoring alerts from the same cache used by History. */
+export async function deleteCachedAlert(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('alert_cache', id);
+}
+
+export async function clearCachedAlerts(): Promise<void> {
+  const db = await getDB();
+  await db.clear('alert_cache');
+}
+
 // =============================================================================
 // Offline Sync Queue
 // =============================================================================

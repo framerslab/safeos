@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { cacheAlert, getCachedAlerts, deleteCachedAlert, clearCachedAlerts } from '../lib/client-db';
 
 // =============================================================================
 // Types
@@ -84,6 +85,7 @@ export interface MonitoringState {
   removeAlert: (id: string) => void;
   acknowledgeAlert: (id: string) => void;
   clearAlerts: () => void;
+  hydrateAlerts: () => Promise<void>;
   addStream: (stream: StreamInfo) => void;
   removeStream: (id: string) => void;
   updateStream: (id: string, update: Partial<StreamInfo>) => void;
@@ -116,6 +118,20 @@ const DEFAULT_SETTINGS: MonitoringSettings = {
 // =============================================================================
 // Store
 // =============================================================================
+
+// Serialize writes so a quick acknowledge, dismiss or clear cannot be undone by
+// an earlier save that is still waiting for IndexedDB to open.
+let alertWrites: Promise<void> = Promise.resolve();
+let alertRevision = 0;
+function writeAlerts(write: () => Promise<void>) {
+  alertRevision++;
+  alertWrites = alertWrites.then(write).catch((error) => {
+    console.warn('[Monitoring] Could not save alert history:', error);
+  });
+}
+function saveAlert(alert: Alert) {
+  return cacheAlert({ ...alert, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
+}
 
 export const useMonitoringStore = create<MonitoringState>()(
   persist(
@@ -152,24 +168,39 @@ export const useMonitoringStore = create<MonitoringState>()(
 
       setHasCrying: (crying) => set({ hasCrying: crying }),
 
-      addAlert: (alert) =>
-        set((state) => ({
-          alerts: [alert, ...state.alerts].slice(0, 100), // Keep last 100
-        })),
+      addAlert: (alert) => {
+        const dated = { ...alert, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() };
+        set((state) => ({ alerts: [dated, ...state.alerts.filter(a => a.id !== dated.id)].slice(0, 100) }));
+        writeAlerts(() => saveAlert(dated));
+      },
 
-      removeAlert: (id) =>
-        set((state) => ({
-          alerts: state.alerts.filter((a) => a.id !== id),
-        })),
+      removeAlert: (id) => {
+        set((state) => ({ alerts: state.alerts.filter(a => a.id !== id) }));
+        writeAlerts(() => deleteCachedAlert(id));
+      },
 
-      acknowledgeAlert: (id) =>
-        set((state) => ({
-          alerts: state.alerts.map((a) =>
-            a.id === id ? { ...a, acknowledged: true } : a
-          ),
-        })),
+      acknowledgeAlert: (id) => {
+        set((state) => ({ alerts: state.alerts.map(a => a.id === id ? { ...a, acknowledged: true } : a) }));
+        const alert = get().alerts.find(a => a.id === id);
+        if (alert) writeAlerts(() => saveAlert(alert));
+      },
 
-      clearAlerts: () => set({ alerts: [] }),
+      clearAlerts: () => {
+        set({ alerts: [] });
+        writeAlerts(clearCachedAlerts);
+      },
+
+      hydrateAlerts: async () => {
+        await alertWrites;
+        const revision = alertRevision;
+        const saved: Alert[] = await getCachedAlerts();
+        if (revision !== alertRevision) return get().hydrateAlerts();
+        set((state) => ({
+          alerts: Array.from(new Map([...saved, ...state.alerts].map(a => [a.id, a])).values())
+            .sort((a, b) => (b.createdAt || b.timestamp || '').localeCompare(a.createdAt || a.timestamp || ''))
+            .slice(0, 100),
+        }));
+      },
 
       addStream: (stream) =>
         set((state) => ({
@@ -247,7 +278,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         return Math.max(0, sessionExpiresAt - Date.now());
       },
 
-      reset: () =>
+      reset: () => {
+        writeAlerts(clearCachedAlerts);
         set({
           isConnected: false,
           isStreaming: false,
@@ -262,7 +294,8 @@ export const useMonitoringStore = create<MonitoringState>()(
           sessionExpiresAt: null,
           sessionDurationHours: 24,
           sessionStartedAt: null,
-        }),
+        });
+      },
     }),
     {
       name: 'safeos-monitoring',
