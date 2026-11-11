@@ -54,8 +54,8 @@ it.each(['https://127.0.0.1/push', 'https://push.example.com/push'])(
     const p = await startPipeline();
     try {
       boundary.realPush = true;
-      await p.db.run('INSERT INTO push_subscriptions (id, profile_id, endpoint, keys_json, created_at) VALUES (?, ?, ?, ?, ?)',
-        ['legacy', p.owner.id, endpoint, JSON.stringify(keys), new Date().toISOString()]);
+      await p.db.run('INSERT INTO push_subscriptions (id, profile_id, session_id, endpoint, keys_json, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+        ['legacy', p.owner.id, p.owner.id, endpoint, JSON.stringify(keys), new Date().toISOString()]);
       await alert(p);
       expect(boundary.webPush).not.toHaveBeenCalled();
     } finally { await p.close(); }

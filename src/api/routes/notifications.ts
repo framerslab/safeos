@@ -51,11 +51,21 @@ notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (r
     const profileId = getProfileId(req);
     const id = registrationId(profileId, subscription.endpoint);
     const db = await getSafeOSDatabase();
-    await db.run(
-      `INSERT INTO push_subscriptions (id, profile_id, endpoint, keys_json, created_at)
-       VALUES (?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET keys_json = excluded.keys_json`,
-      [id, profileId, subscription.endpoint, JSON.stringify(subscription.keys), now()]
+    const saved = await db.get(
+      `INSERT INTO push_subscriptions (id, profile_id, session_id, endpoint, keys_json, created_at)
+       SELECT ?, ?, ?, ?, ?, ?
+       WHERE EXISTS (SELECT 1 FROM push_subscriptions WHERE endpoint = ? AND profile_id = ?)
+          OR (SELECT COUNT(*) FROM push_subscriptions WHERE profile_id = ?) < 32
+       ON CONFLICT(endpoint) DO UPDATE SET id = excluded.id, profile_id = excluded.profile_id,
+         session_id = excluded.session_id, keys_json = excluded.keys_json, created_at = excluded.created_at
+       RETURNING id`,
+      [id, profileId, req.session!.id, subscription.endpoint, JSON.stringify(subscription.keys), now(),
+        subscription.endpoint, profileId, profileId]
     );
+    if (!saved) {
+      res.status(409).json({ error: 'Push subscription limit reached' });
+      return;
+    }
 
     res.json({ success: true, id });
   } catch (error) {
@@ -340,7 +350,9 @@ export async function getPushSubscriptions(profileId?: string): Promise<Map<stri
   if (!profileId) return new Map();
   const db = await getSafeOSDatabase();
   const rows = await db.all<{ endpoint: string; keys_json: string }>(
-    'SELECT endpoint, keys_json FROM push_subscriptions WHERE profile_id = ?', [profileId]
+    `SELECT p.endpoint, p.keys_json FROM push_subscriptions p
+     JOIN sessions s ON s.id = p.session_id AND s.profile_id = p.profile_id
+     WHERE p.profile_id = ? AND s.expires_at > ? LIMIT 32`, [profileId, now()]
   );
   return new Map(rows.map((row) => [row.endpoint, { endpoint: row.endpoint, keys: JSON.parse(row.keys_json) }]));
 }

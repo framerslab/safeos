@@ -268,6 +268,13 @@ export async function runMigrations(db: Database): Promise<void> {
     )
   `);
 
+  await addColumnIfMissing(db, 'push_subscriptions', 'session_id', 'TEXT');
+  // A browser endpoint belongs to one current registration. Keep the latest
+  // legacy row; unbound registrations must be refreshed by an active session.
+  await db.exec(`DELETE FROM push_subscriptions WHERE rowid NOT IN
+    (SELECT MAX(rowid) FROM push_subscriptions GROUP BY endpoint)`);
+  await db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_push_endpoint ON push_subscriptions(endpoint)');
+
   // Create telegram_chats table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS telegram_chats (

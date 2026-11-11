@@ -101,6 +101,7 @@ export class SafeOSServer {
   private app: Express;
   private server: Server;
   private wss: WebSocketServer;
+  private webSocketClosed = false;
   private clients: Map<string, WSClient> = new Map();
   private analysisQueue: AnalysisQueue | null = null;
   private ollamaClient: OllamaClient;
@@ -478,6 +479,11 @@ export class SafeOSServer {
 
   async start(): Promise<void> {
     try {
+      if (this.webSocketClosed) {
+        this.wss = new WebSocketServer({ server: this.server });
+        this.webSocketClosed = false;
+        this.setupWebSocket();
+      }
       if (!this.heartbeatInterval) this.startHeartbeat();
       // Initialize database
       const db = await getSafeOSDatabase();
@@ -578,6 +584,7 @@ export class SafeOSServer {
     // Close server
     return new Promise((resolve, reject) => {
       this.wss.close(() => {
+        this.webSocketClosed = true;
         this.server.close((err) => {
           if (err) reject(err);
           else resolve();

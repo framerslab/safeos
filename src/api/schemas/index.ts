@@ -164,10 +164,10 @@ export const UpdateWebhookSchema = z.object({
 
 export const PushSubscriptionSchema = z.object({
   subscription: z.object({
-    endpoint: z.string().url(),
+    endpoint: z.string().url().max(2048),
     keys: z.object({
-      p256dh: z.string().min(1),
-      auth: z.string().min(1),
+      p256dh: z.string().min(1).max(256),
+      auth: z.string().min(1).max(128),
     }),
   }),
   userId: z.string().optional(),

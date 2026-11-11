@@ -749,7 +749,8 @@ Personal credentials are supported in `notificationSettings`:
 - `smsOverride`: `accountSid`, `authToken`, and `fromNumber` (all required for a
   personal account; a partial override never changes the server sender).
 - `emailOverride`: `apiKey`, with optional `replyTo`; `emailFromOverride` may
-  specify a sender verified in that account.
+  specify a sender verified in that account. Without a personal sender, complete
+  server mail configuration must supply the fallback; otherwise delivery is skipped.
 - `telegramBotToken`: a personal bot token, used with the owner's registered chats.
 
 The same profile route saves these credentials. Treat access to the profile and
@@ -763,7 +764,13 @@ configuration and a permitted subscription destination.
 All `/api/notifications` routes require a session. Push and Telegram registrations
 are stored in SQLite under that session's profile and survive restarts. A caller's
 `userId` field cannot select a different owner. Re-registering an endpoint or chat
-is idempotent. Push unsubscribe removes that owner's registrations; Telegram
+is idempotent. A push endpoint belongs to one current profile and session;
+registering it again transfers ownership. Signing out revokes only that session's
+push registrations. Expired sessions cannot receive push. Each profile may store
+at most 32 endpoints (a further new endpoint returns `409`); refreshing one at
+the limit is allowed. Endpoint, public key and auth key lengths are limited to
+2048, 256 and 128 characters. DNS validation has a two-second deadline. Legacy
+push rows without a session binding must be registered again. Push unsubscribe removes that owner's registrations; Telegram
 unregister removes only the named chat for that owner. Status counts are scoped
 to the caller. Existing in-memory registrations must be registered again once
 when upgrading.

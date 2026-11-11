@@ -469,7 +469,8 @@ including frames from ended streams. The cutoff is ten minutes old; deletion
 runs on the next sweep (normally within one second), independently of new writes.
 Shutdown and failed startup stop the retention and heartbeat timers and wait for
 an active sweep. Model initialization and listen errors reject startup after
-scheduled work stops; an occupied port does not leave cleanup running. Cleanup
+scheduled work stops; an occupied port does not leave cleanup running. Restarting
+a stopped server recreates its WebSocket listener as well as its scheduled work. Cleanup
 errors log one fixed line and a known error class name,
 without messages, stacks or stored values; later sweeps still run. An initial
 cleanup failure rejects startup with a fixed message after logging once. A stopped
@@ -481,9 +482,10 @@ backups. Keep backups protected and expire them separately.
 ### Analysis job identity
 
 Each queue row stores the triggering `frame_id`. The worker reads that frame in
-that stream, including on retry. If retention has removed it, it is too old, or a
-legacy job has no frame ID, the worker completes the job without an analysis or
-alert. It never substitutes a later image. Startup adds the column to existing
+that stream. New jobs require a frame ID; legacy jobs without one fail explicitly
+with a fixed diagnostic. When no result was saved and retention has removed the
+frame or it is too old, the worker completes without an analysis or alert. It
+never substitutes a later image. Startup adds the column to existing
 databases without removing queued rows.
 
 
@@ -491,12 +493,18 @@ databases without removing queued rows.
 
 The SQLite worker claims each pending job atomically. It uses the job ID for the
 analysis result and a stable derived alert ID, so retrying completion cannot
-insert another result or resend the saved alert. After inserting a new alert it
+insert another result or resend the saved alert. A retry reuses an already
+persisted result before reading the frame or calling a model, and finishes
+creating its alert if that insertion previously failed. After inserting a new alert it
 loads the stream owner's notification settings and dispatches through that
 owner's severity-eligible channels (SMS for high/critical; push, Telegram and
 email from medium). Push subscriptions and Telegram chats are read from their
 owner-scoped SQLite tables. Push destinations are checked at registration and
-delivery, including public DNS resolution pinned to the connection. Server SMS
+delivery, including public DNS resolution with a two-second deadline, pinned to
+the connection. Push registration transfers the endpoint to its current profile
+and session, caps each profile at 32 subscriptions and bounds key sizes. Logout
+revokes only the current session registrations; expired and legacy unbound
+registrations cannot receive push. Server SMS
 requires the owner's verified phone, server email requires an operator owner, and
 server-bot Telegram is skipped until recipient verification exists. Personal
 provider credentials remain available. Channel attempts start concurrently and report their

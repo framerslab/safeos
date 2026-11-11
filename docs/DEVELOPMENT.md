@@ -8,6 +8,8 @@ This guide covers local development setup, testing, code style, and contribution
 
 - **Node.js** 20+ (LTS recommended)
 - **npm** (comes with Node.js; CI uses npm)
+- **Bash** and the **SQLite CLI** (`sqlite3`), required by the default server test
+  suite to exercise the documented backup and recovery commands
 - **Ollama** (optional, for LLM-enhanced analysis)
 
 ---

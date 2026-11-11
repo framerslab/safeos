@@ -460,18 +460,24 @@ working directory. For the systemd unit above that is
 `/app/db_data/app.sqlite3` inside the mounted data volume. `SAFEOS_DB_PATH` is not
 read by this version of the adapter setup and does not move the database.
 
-Install the SQLite CLI. Run the following from the API working directory (or
-from a directory containing the mounted `db_data` volume). `test -f` refuses to
+Install Bash and the SQLite CLI. Run the host commands as the service user
+(`sudo -u safeos -H bash`, then `cd /opt/safeos`) or as root, with write access
+to the working directory and `db_data`. Run from the API working directory (or
+from a directory containing the mounted `db_data` volume). `test -s` refuses to
 create an empty database when the source path is wrong. SQLite's backup command
 makes a consistent snapshot even when the live database uses WAL; do not copy
 only a live database file.
 
 ```bash
 set -eu
-test -f db_data/app.sqlite3
+umask 077
+test -s db_data/app.sqlite3
 mkdir -p backup
+chmod 700 backup
+if test -e backup/safeos.sqlite3; then chmod 600 backup/safeos.sqlite3; fi
 sqlite3 db_data/app.sqlite3 ".backup 'backup/safeos.sqlite3'"
-sqlite3 backup/safeos.sqlite3 "PRAGMA integrity_check;"
+test "$(sqlite3 backup/safeos.sqlite3 'PRAGMA integrity_check;')" = ok
+chmod 600 backup/safeos.sqlite3
 ```
 
 Keep dated copies off the host and restrict access: a backup contains account
@@ -484,16 +490,27 @@ backup expiration policy and periodically exercise the restore procedure.
 Stop the API before restoring (`sudo systemctl stop safeos`, or stop the API
 container). Preserve the existing data directory as a rollback copy, including
 any `-wal` and `-shm` sidecars. Run these commands from the API working directory
-with the backup file available at `backup/safeos.sqlite3`. They also work when
-the destination database does not exist yet.
+with the backup file available at `backup/safeos.sqlite3`. The commands reject empty or unrelated snapshots before moving the existing
+database and sidecars into a private rollback directory. They restore into a
+fresh file, including when the previous database is corrupt or missing.
 
 ```bash
 set -eu
-test -f backup/safeos.sqlite3
-mkdir -p db_data
+umask 077
+test -s backup/safeos.sqlite3
+chmod 700 backup
+chmod 600 backup/safeos.sqlite3
 test "$(sqlite3 backup/safeos.sqlite3 'PRAGMA integrity_check;')" = ok
+test "$(sqlite3 backup/safeos.sqlite3 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('user_profiles','streams','alerts','analysis_queue');")" = 4
+mkdir -p db_data
+chmod 700 db_data
+rollback=$(mktemp -d backup/before-restore.XXXXXX)
+for file in app.sqlite3 app.sqlite3-wal app.sqlite3-shm; do
+  if test -e "db_data/$file"; then mv "db_data/$file" "$rollback/$file"; fi
+done
 sqlite3 db_data/app.sqlite3 ".restore 'backup/safeos.sqlite3'"
 test "$(sqlite3 db_data/app.sqlite3 'PRAGMA integrity_check;')" = ok
+chmod 600 db_data/app.sqlite3
 ```
 
 Restore ownership of `db_data` to the API service user, then start the API again.
@@ -532,12 +549,14 @@ custom project names and refuses to create a new, empty source volume:
 
 ```bash
 set -eu
+umask 077
 SAFEOS_API_CONTAINER=$("${SAFEOS_COMPOSE[@]}" ps -aq api)
 test -n "$SAFEOS_API_CONTAINER"
 SAFEOS_DATA_VOLUME=$(docker inspect "$SAFEOS_API_CONTAINER" --format '{{range .Mounts}}{{if eq .Destination "/app/db_data"}}{{.Name}}{{end}}{{end}}')
 test -n "$SAFEOS_DATA_VOLUME"
 docker volume inspect "$SAFEOS_DATA_VOLUME" >/dev/null
 mkdir -p backup
+chmod 700 backup
 SAFEOS_BACKUP_DIR=$(cd backup && pwd)
 ```
 
@@ -553,17 +572,19 @@ failure is understood.
 
 ```bash
 "${SAFEOS_COMPOSE[@]}" stop api
-docker run --rm \
+docker run --rm -i \
   --mount "type=volume,src=$SAFEOS_DATA_VOLUME,dst=/data" \
   --mount "type=bind,src=$SAFEOS_BACKUP_DIR,dst=/backup" \
-  alpine:3 sh -eu -c '
+  alpine:3 sh -eu <<'SAFEOS_SQLITE'
+    umask 077
+    chmod 700 /backup
     apk add --no-cache sqlite >/dev/null
-    test -f /data/app.sqlite3
+    test -s /data/app.sqlite3
     test ! -e /backup/safeos.sqlite3
     sqlite3 /data/app.sqlite3 ".backup /backup/safeos.sqlite3"
     test "$(sqlite3 /backup/safeos.sqlite3 "PRAGMA integrity_check;")" = ok
     chmod 600 /backup/safeos.sqlite3
-  '
+SAFEOS_SQLITE
 "${SAFEOS_COMPOSE[@]}" start api
 ```
 
@@ -571,23 +592,31 @@ Move the previous `backup/safeos.sqlite3` to a dated, protected location before
 the next backup. To restore, select the same Compose setup and resolve its volume
 as above. Place the chosen snapshot at `backup/safeos.sqlite3`. The following
 preserves the stopped volume, including any WAL sidecars, in a unique rollback
-archive before restoring. It refuses a missing or invalid snapshot.
+archive before restoring. It refuses a missing, empty, unrelated or invalid snapshot before changing the
+volume. After archiving, it removes the old database and sidecars so a damaged
+destination cannot prevent restoration into a fresh file.
 
 ```bash
 "${SAFEOS_COMPOSE[@]}" stop api
-docker run --rm \
+docker run --rm -i \
   --mount "type=volume,src=$SAFEOS_DATA_VOLUME,dst=/data" \
   --mount "type=bind,src=$SAFEOS_BACKUP_DIR,dst=/backup" \
-  alpine:3 sh -eu -c '
+  alpine:3 sh -eu <<'SAFEOS_SQLITE'
+    umask 077
+    chmod 700 /backup
     apk add --no-cache sqlite >/dev/null
-    test -f /backup/safeos.sqlite3
+    test -s /backup/safeos.sqlite3
+    chmod 600 /backup/safeos.sqlite3
     test "$(sqlite3 /backup/safeos.sqlite3 "PRAGMA integrity_check;")" = ok
+    test "$(sqlite3 /backup/safeos.sqlite3 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('user_profiles','streams','alerts','analysis_queue');")" = 4
     rollback=$(mktemp /backup/before-restore.XXXXXX)
     tar -C /data -cf "$rollback" .
     chmod 600 "$rollback"
+    rm -f /data/app.sqlite3 /data/app.sqlite3-wal /data/app.sqlite3-shm
     sqlite3 /data/app.sqlite3 ".restore /backup/safeos.sqlite3"
     test "$(sqlite3 /data/app.sqlite3 "PRAGMA integrity_check;")" = ok
-  '
+    chmod 600 /data/app.sqlite3
+SAFEOS_SQLITE
 "${SAFEOS_COMPOSE[@]}" start api
 "${SAFEOS_COMPOSE[@]}" exec -T api wget -q -O - http://localhost:3001/health
 ```
@@ -601,21 +630,32 @@ backup/restore commands above are exercised in CI.
 
 ### Automated Backup Script
 
-For the systemd installation, run as a user with access to both directories.
+For the systemd installation, provision `/backups/safeos` for the `safeos`
+service user and run as that user (or root), with write access to both directories.
+The script validates each snapshot before compression or expiration of older
+backups; a failed check leaves older copies in place.
 Install `sqlite3` on the host first. For containers, use the named-volume
 procedure above instead of this host-path script.
 
 ```bash
 #!/bin/bash
 set -eu
+umask 077
 SOURCE_DB=/opt/safeos/db_data/app.sqlite3
 BACKUP_DIR=/backups/safeos
 STAMP=$(date -u +%Y%m%d_%H%M%S)
 
-test -f "$SOURCE_DB"
+test -s "$SOURCE_DB"
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+find "$BACKUP_DIR" -type f -name 'safeos-*' -exec chmod 600 {} +
+test ! -e "$BACKUP_DIR/safeos-$STAMP.sqlite3"
+test ! -e "$BACKUP_DIR/safeos-$STAMP.sqlite3.gz"
 sqlite3 "$SOURCE_DB" ".backup '$BACKUP_DIR/safeos-$STAMP.sqlite3'"
+test "$(sqlite3 "$BACKUP_DIR/safeos-$STAMP.sqlite3" 'PRAGMA integrity_check;')" = ok
+test "$(sqlite3 "$BACKUP_DIR/safeos-$STAMP.sqlite3" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('user_profiles','streams','alerts','analysis_queue');")" = 4
 gzip "$BACKUP_DIR/safeos-$STAMP.sqlite3"
+chmod 600 "$BACKUP_DIR/safeos-$STAMP.sqlite3.gz"
 
 # Keep only the agreed seven-day backup window.
 find "$BACKUP_DIR" -name 'safeos-*.sqlite3.gz' -mtime +7 -delete

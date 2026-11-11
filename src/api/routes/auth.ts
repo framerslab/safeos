@@ -255,6 +255,10 @@ authRouter.delete('/session', async (req, res) => {
     const db = await getSafeOSDatabase();
 
     await db.run(
+      `DELETE FROM push_subscriptions WHERE session_id IN (SELECT id FROM sessions WHERE token = ?)`,
+      [token]
+    );
+    await db.run(
       `DELETE FROM sessions WHERE token = ?`,
       [token]
     );

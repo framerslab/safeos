@@ -170,6 +170,10 @@ export class NotificationManager {
     if (!this.config.email || !this.config.emailRecipient) return;
 
     const hasUserKey = !!this.config.emailOverride?.apiKey;
+    if (hasUserKey && !this.config.emailFromOverride?.trim() &&
+        !this.config.emailOverride?.from?.trim() && !isResendConfigured()) {
+      throw new NotificationSkippedError('personal mail requires a sender or complete server mail configuration');
+    }
     if (!hasUserKey && !isResendConfigured()) {
       console.warn('[NotificationManager] email channel skipped: email is not configured (RESEND_API_KEY, EMAIL_FROM and an https SAFEOS_API_PUBLIC_URL)');
       return;

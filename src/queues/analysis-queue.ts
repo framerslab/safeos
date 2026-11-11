@@ -19,7 +19,7 @@ import { NotificationManager, type NotificationPayload } from '../lib/alerts/not
 export interface AnalysisJob {
   id: string;
   streamId: string;
-  frameId?: string;
+  frameId: string;
   imageData: string;
   motionScore: number;
   audioLevel: number;
@@ -154,6 +154,7 @@ export class AnalysisQueue {
   }
 
   async enqueue(job: AnalysisJob): Promise<void> {
+    if (!job.frameId) throw new Error('Analysis jobs require a frame identity');
     const db = await getSafeOSDatabase();
 
     // Store frame data in buffer if not already there
@@ -171,7 +172,7 @@ export class AnalysisQueue {
     await db.run(
       `INSERT INTO analysis_queue (id, stream_id, frame_id, scenario, priority, status, retries, created_at)
        VALUES (?, ?, ?, ?, ?, 'pending', 0, ?)`,
-      [job.id, job.streamId, job.frameId ?? null, job.scenario, job.priority, job.createdAt]
+      [job.id, job.streamId, job.frameId, job.scenario, job.priority, job.createdAt]
     );
   }
 
@@ -197,6 +198,11 @@ export class AnalysisQueue {
     );
 
     if (!job) return;
+    if (!job.frame_id) {
+      await db.run("UPDATE analysis_queue SET status = 'failed' WHERE id = ?", [job.id]);
+      console.warn('Analysis job failed: missing frame identity');
+      return;
+    }
 
     this.activeJobs++;
 
@@ -230,6 +236,11 @@ export class AnalysisQueue {
   private async processJob(job: any): Promise<void> {
     const db = await getSafeOSDatabase();
     const startTime = Date.now();
+    const stored = await this.readStoredResult(job.id);
+    if (stored) {
+      if (['medium', 'high', 'critical'].includes(stored.concernLevel)) await this.createAlert(stored);
+      return;
+    }
 
     // Get frame data
     const frame = await db.get<any>(
@@ -337,10 +348,29 @@ export class AnalysisQueue {
       ]
     );
 
+    // Use the persisted result even if another attempt already saved it.
+    result = (await this.readStoredResult(job.id))!;
+    if (!result) throw new Error('Analysis result was not stored');
     // Create alert if concern level is medium or higher
     if (['medium', 'high', 'critical'].includes(result.concernLevel)) {
       await this.createAlert(result);
     }
+  }
+
+  private async readStoredResult(id: string): Promise<AnalysisResult | undefined> {
+    const row = await (await getSafeOSDatabase()).get<any>('SELECT * FROM analysis_results WHERE id = ?', [id]);
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      streamId: row.stream_id,
+      frameId: row.frame_id,
+      concernLevel: row.concern_level,
+      description: row.description,
+      detectedIssues: JSON.parse(row.detected_issues || '[]'),
+      processingTimeMs: row.processing_time_ms,
+      modelUsed: row.model_used,
+      isCloudFallback: !!row.is_cloud_fallback,
+    };
   }
 
   private async cloudAnalysis(

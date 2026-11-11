@@ -289,7 +289,8 @@ notification destinations; subscription paths and queries remain opaque.
 
 Other hosts, IP literals, credentials in URLs, fragments, non-default ports,
 and private, loopback or link-local DNS answers are refused. DNS failure also
-refuses registration or skips delivery. Delivery resolves again and pins the
+refuses registration or skips delivery; a two-second deadline bounds resolution.
+Delivery resolves again and pins the
 checked public address for the TLS connection, retaining hostname verification.
 Redirects are not followed. Legacy rows receive the same checks. The legacy
 `android.googleapis.com` endpoint and Mozilla development/staging hosts are
@@ -305,3 +306,9 @@ skip the server bot. Personal Resend keys, complete Twilio credentials and
 Telegram bot tokens may be saved through the profile route; see API.md for
 field names. Registering a profile or enabling a channel does not authorize a
 recipient. Skips log the channel and a fixed reason without the recipient.
+
+Push registration requires an active session and is limited to 32 endpoints per
+profile. A browser endpoint transfers to the latest registering profile/session,
+and logout revokes that session's registrations. Legacy unbound rows must be
+registered again. Personal-key mail needs an explicit sender or a complete server
+mail configuration to supply the fallback sender.

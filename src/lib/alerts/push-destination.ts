@@ -43,8 +43,17 @@ export async function resolvePushDestination(endpoint: string) {
     throw new PushDestinationError();
   }
   let addresses;
-  try { addresses = await lookup(host, { all: true, verbatim: true }); }
+  let deadline: NodeJS.Timeout | undefined;
+  try {
+    addresses = await Promise.race([
+      lookup(host, { all: true, verbatim: true }),
+      new Promise<never>((_, reject) => {
+        deadline = setTimeout(() => reject(new PushDestinationError()), 2000);
+      }),
+    ]);
+  }
   catch { throw new PushDestinationError(); }
+  finally { clearTimeout(deadline); }
   if (!addresses.length || addresses.some(({ address }) => !isPublicAddress(address))) {
     throw new PushDestinationError();
   }
