@@ -1,11 +1,13 @@
 /** @jest-environment jsdom */
 import React from 'react';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import HistoryPage from '@/app/history/page';
+import { NotificationDropdown } from '@/components/NotificationDropdown';
+import { openDB } from 'idb';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useSettingsStore } from '@/stores/settings-store';
-import { getCachedAlerts } from '@/lib/client-db';
+import { cacheAlert, getCachedAlerts } from '@/lib/client-db';
 import { BrowserSocket, installCameraBrowser } from './helpers/camera-browser';
 
 require('fake-indexeddb/auto');
@@ -17,6 +19,16 @@ jest.mock('next/navigation', () => ({ useSearchParams: () => mockParams }));
 jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ config: { wsUrl: 'wss://monitor.example.test' } }),
 }));
+beforeEach(async () => {
+  installCameraBrowser();
+  useMonitoringStore.getState().reset();
+  await useMonitoringStore.getState().hydrateAlerts();
+  const db = await openDB('safeos-guardian');
+  await db.clear('alert_cache');
+  db.close();
+  useSettingsStore.setState({ globalMute: true });
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ alerts: [] }) });
+});
 afterEach(() => { cleanup(); jest.restoreAllMocks(); });
 
 it('writes a received monitor alert to IndexedDB and restores it in History after reload', async () => {
@@ -43,4 +55,72 @@ it('writes a received monitor alert to IndexedDB and restores it in History afte
   const { fireEvent } = await import('@testing-library/react');
   fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
   expect(await screen.findByText('Camera motion recorded')).toBeTruthy();
+});
+
+
+it('does not import other alert producers into the monitoring timeline', async () => {
+  for (const severity of ['warning', 'emergency']) {
+    await cacheAlert({ id: severity, streamId: 'engine', severity,
+      message: `Engine ${severity}`, acknowledged: true, createdAt: new Date().toISOString() });
+  }
+  render(<HistoryPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
+  await waitFor(() => expect(screen.getByRole('heading', { name: 'History' })).toBeTruthy());
+  expect(useMonitoringStore.getState().alerts).toEqual([]);
+});
+
+it('clears monitoring notifications without deleting another producers cached alerts', async () => {
+  await cacheAlert({ id: 'engine-owned', streamId: 'engine', severity: 'low',
+    message: 'Engine-owned alert', acknowledged: true, createdAt: new Date().toISOString() });
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
+    id: 'monitor-owned', message: 'Monitor-owned alert', severity: 'low',
+  } }));
+  await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
+  view.unmount();
+  render(<NotificationDropdown />);
+  fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
+  fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+  await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
+  expect(await getCachedAlerts()).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'engine-owned' })]));
+  expect((await getCachedAlerts()).some(alert => alert.id === 'monitor-owned')).toBe(false);
+});
+
+it('restores alert type in the rendered History details', async () => {
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
+    id: 'typed-alert', alertType: 'motion', message: 'Typed motion alert', severity: 'low',
+  } }));
+  await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
+  view.unmount();
+  useMonitoringStore.setState({ alerts: [] });
+  render(<HistoryPage />);
+  fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
+  await screen.findByText('Typed motion alert');
+  fireEvent.click(screen.getByRole('button', { name: 'Details' }));
+  expect(screen.getByText('Alert Type:').parentElement?.textContent).toContain('motion');
+});
+
+it('bounds persisted monitoring history without pruning other alert producers', async () => {
+  await cacheAlert({ id: 'retained-engine-alert', streamId: 'engine', severity: 'low',
+    message: 'Engine record', acknowledged: true, createdAt: '2020-01-01T00:00:00.000Z' });
+  render(<MonitorPage />);
+  await act(async () => {});
+  act(() => {
+    for (let i = 0; i < 105; i++) {
+      BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
+        id: `bounded-${i}`, message: `Motion ${i}`, severity: 'low',
+        timestamp: new Date(Date.now() + i).toISOString(),
+      } });
+    }
+  });
+  await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
+  const db = await openDB('safeos-guardian');
+  expect(await db.count('alert_cache')).toBe(101);
+  expect(await db.get('alert_cache', 'retained-engine-alert')).toBeTruthy();
+  db.close();
+  expect(screen.getByText('Motion 104')).toBeTruthy();
 });
