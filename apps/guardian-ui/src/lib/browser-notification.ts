@@ -10,7 +10,10 @@ export async function showBrowserNotification(
     if ('serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.getRegistration();
       if (registration) {
-        await registration.showNotification(title, options);
+        await registration.showNotification(title, {
+          ...options,
+          data: { ...options.data, url: window.location.href, focusOnly: true },
+        });
         return null;
       }
     }
