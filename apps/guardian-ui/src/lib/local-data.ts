@@ -3,9 +3,9 @@ import { clearClientData } from './client-db';
 import { clearCustomSounds } from './custom-sounds-db';
 import { getSoundManager } from './sound-manager';
 import { useMonitoringStore } from '../stores/monitoring-store';
-import { useSecurityStore } from '../stores/security-store';
-import { useLostFoundStore } from '../stores/lost-found-store';
-import { useAnimalAlertStore } from '../stores/animal-alert-store';
+import { useSecurityStore, DEFAULT_SECURITY_SETTINGS } from '../stores/security-store';
+import { useLostFoundStore, DEFAULT_SETTINGS as DEFAULT_LOST_FOUND_SETTINGS } from '../stores/lost-found-store';
+import { useAnimalAlertStore, DEFAULT_ANIMAL_SETTINGS } from '../stores/animal-alert-store';
 import { useSettingsStore } from '../stores/settings-store';
 import { useOnboardingStore } from '../stores/onboarding-store';
 
@@ -16,11 +16,12 @@ export async function clearLocalData(): Promise<void> {
   useMonitoringStore.getState().reset();
   useSecurityStore.getState().reset();
   useSecurityStore.getState().clearIntrusionHistory();
-  useSecurityStore.setState({ totalIntrusionEvents: 0, lastIntrusionTime: null });
+  useSecurityStore.setState({ settings: DEFAULT_SECURITY_SETTINGS, totalIntrusionEvents: 0, lastIntrusionTime: null });
   useLostFoundStore.getState().reset();
-  useLostFoundStore.setState({ subjects: [] });
+  useLostFoundStore.setState({ subjects: [], settings: DEFAULT_LOST_FOUND_SETTINGS });
   useAnimalAlertStore.getState().reset();
   useAnimalAlertStore.getState().clearHistory();
+  useAnimalAlertStore.setState({ settings: DEFAULT_ANIMAL_SETTINGS });
   useSettingsStore.getState().resetToDefaults();
   useOnboardingStore.getState().reset();
 
