@@ -471,3 +471,12 @@ Shutdown stops the timer and waits for an active sweep. A stopped server cannot
 run cleanup; startup removes expired rows before accepting uploads. This is
 logical deletion of rows, not a promise of forensic erasure from SQLite pages or
 backups. Keep backups protected and expire them separately.
+
+
+### Analysis job identity
+
+Each queue row stores the triggering `frame_id`. The worker reads that frame in
+that stream, including on retry. If retention has removed it, it is too old, or a
+legacy job has no frame ID, the worker completes the job without an analysis or
+alert. It never substitutes a later image. Startup adds the column to existing
+databases without removing queued rows.

@@ -191,6 +191,9 @@ export async function runMigrations(db: Database): Promise<void> {
     )
   `);
 
+  // Existing queues predate the frame identity column.
+  await addColumnIfMissing(db, 'analysis_queue', 'frame_id', 'TEXT');
+
   // Create user_profiles table
   await db.exec(`
     CREATE TABLE IF NOT EXISTS user_profiles (

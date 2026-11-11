@@ -155,12 +155,6 @@ export class AnalysisQueue {
   async enqueue(job: AnalysisJob): Promise<void> {
     const db = await getSafeOSDatabase();
 
-    await db.run(
-      `INSERT INTO analysis_queue (id, stream_id, scenario, priority, status, retries, created_at)
-       VALUES (?, ?, ?, ?, 'pending', 0, ?)`,
-      [job.id, job.streamId, job.scenario, job.priority, job.createdAt]
-    );
-
     // Store frame data in buffer if not already there
     if (job.imageData && job.frameId) {
       const existing = await db.get('SELECT id FROM frame_buffer WHERE id = ?', [job.frameId]);
@@ -172,6 +166,12 @@ export class AnalysisQueue {
         );
       }
     }
+
+    await db.run(
+      `INSERT INTO analysis_queue (id, stream_id, frame_id, scenario, priority, status, retries, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', 0, ?)`,
+      [job.id, job.streamId, job.frameId ?? null, job.scenario, job.priority, job.createdAt]
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -236,8 +236,8 @@ export class AnalysisQueue {
 
     // Get frame data
     const frame = await db.get<any>(
-      `SELECT * FROM frame_buffer WHERE stream_id = ? ORDER BY created_at DESC LIMIT 1`,
-      [job.stream_id]
+      `SELECT * FROM frame_buffer WHERE id = ? AND stream_id = ? AND created_at > ?`,
+      [job.frame_id, job.stream_id, new Date(Date.now() - 10 * 60 * 1000).toISOString()]
     );
 
     if (!frame || !frame.frame_data) {
