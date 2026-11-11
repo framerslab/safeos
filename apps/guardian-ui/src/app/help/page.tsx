@@ -121,12 +121,12 @@ const faqs: FAQItem[] = [
   {
     category: 'general',
     question: 'What is SafeOS Guardian?',
-    answer: 'SafeOS Guardian is a free, AI-powered monitoring service for pets, babies, and elderly care. It uses your device\'s camera and microphone to detect potential issues and alert you in real-time. It\'s part of Frame\'s 10% for Humanity initiative.',
+    answer: 'SafeOS Guardian is a free, AI-powered monitoring service for pets, babies, and elderly care. It uses your device\'s camera and microphone to detect potential issues and alert you in real-time. Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.',
   },
   {
     category: 'general',
     question: 'Is SafeOS free?',
-    answer: 'Yes! SafeOS is completely free to use. We believe everyone deserves access to safety monitoring tools. The service is funded through Frame\'s humanitarian commitment.',
+    answer: 'Yes. SafeOS is free to use. Frame (Framers Lab, Inc.) pays for its development, and GitHub sponsorships support it.',
   },
   {
     category: 'general',
@@ -156,12 +156,12 @@ const faqs: FAQItem[] = [
   {
     category: 'technical',
     question: 'Why does it need camera/microphone access?',
-    answer: 'Camera access is needed to monitor visual activity. Microphone access is optional but enables audio detection (like crying or calls for help). All processing happens locally.',
+    answer: 'Camera access is needed to monitor visual activity. Microphone access enables sound-level alerts. Setup asks for both together. All processing happens in your browser.',
   },
   {
     category: 'technical',
     question: 'How does the AI work?',
-    answer: 'We use local AI models (via Ollama) for privacy-first analysis. A fast "triage" model scans frames, and a more detailed model analyzes anything flagged as potentially concerning. Cloud AI is only used as a fallback when local processing fails.',
+    answer: 'On safeos.sh, the monitor compares frames and sound levels in your browser, and Security and Wildlife modes run the COCO-SSD model in your browser. If you run the optional SafeOS server, it can also send frames to a local Ollama model, and to a cloud model you configure when the local one fails.',
   },
   {
     category: 'alerts',
@@ -474,7 +474,7 @@ export default function HelpPage() {
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <a
-                    href="https://github.com/framersai/safeos/issues"
+                    href="https://github.com/framerslab/safeos/issues"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-4 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors"

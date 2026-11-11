@@ -62,7 +62,6 @@ export const metadata: Metadata = {
     'non-cloud baby monitor',
     'baby monitor no WiFi',
     'privacy first baby monitor',
-    'elderly fall detection',
     // Primary dev-intent
     'browser AI monitoring',
     'tensorflow.js webcam',
@@ -124,9 +123,9 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'SafeOS Guardian: Free Open-Source AI Baby & Pet Monitor',
-    description: 'Browser-based AI monitor. TensorFlow.js + Transformers.js, no cloud, no subscription. Open source by Frame.',
+    description: 'Browser-based AI monitor. TensorFlow.js, no cloud, no subscription. Open source by Frame.',
     images: ['/og-image.svg'],
-    creator: '@framersai',
+    creator: '@framerslab',
   },
   
   // Robots

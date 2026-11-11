@@ -89,7 +89,7 @@ const blogContent: Record<string, BlogContent> = {
           FFT at 100 ms. Both are pure math on the CPU. No GPU context, no model loading, no
           service worker thrash. The intervals are constants in{' '}
           <a
-            href="https://github.com/framersai/safeos/blob/master/apps/guardian-ui/src/components/CameraFeed.tsx"
+            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/components/CameraFeed.tsx"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
@@ -111,7 +111,7 @@ const blogContent: Record<string, BlogContent> = {
           Object detection only runs when the screening layer says &quot;something happened.&quot; The
           gate is two lines in{' '}
           <a
-            href="https://github.com/framersai/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
+            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
@@ -221,7 +221,7 @@ const blogContent: Record<string, BlogContent> = {
           Sobel-derived edge grid. Total: under 1 KB per reference photo. The matcher samples the
           live feed at 1&ndash;2 FPS and compares each candidate frame by cosine similarity. Code:{' '}
           <a
-            href="https://github.com/framersai/safeos/blob/master/apps/guardian-ui/src/lib/visual-fingerprint.ts"
+            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/visual-fingerprint.ts"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
@@ -237,7 +237,7 @@ const blogContent: Record<string, BlogContent> = {
           you&apos;d have to keep updated. It&apos;s cheap, transparent, and runs at sample rate.
           The full Lost &amp; Found loop lives in{' '}
           <a
-            href="https://github.com/framersai/safeos/blob/master/apps/guardian-ui/src/app/monitor/page.tsx"
+            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/app/monitor/page.tsx"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
@@ -328,7 +328,7 @@ const blogContent: Record<string, BlogContent> = {
           isn&apos;t as good as a proper face-embedding model would be, but the trade-off is no
           model to keep updated and no PII leakage. Most of these are tracked in{' '}
           <a
-            href="https://github.com/framersai/safeos/issues"
+            href="https://github.com/framerslab/safeos/issues"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
@@ -342,15 +342,17 @@ const blogContent: Record<string, BlogContent> = {
           The honest version is: SafeOS is rough, occasionally inelegant, and runs on engineering
           decisions I&apos;m going to second-guess in six months. But it works, it&apos;s free,
           it&apos;s MIT-licensed, and it doesn&apos;t send your camera feed to a stranger&apos;s
-          server. If you want to read about the most consequential of those decisions &mdash; the
-          motion gate that keeps the GPU idle &mdash; the{' '}
-          <Link
-            href="/blog/inside-the-motion-gated-cv-pipeline"
+          server. The most consequential of those decisions is the motion gate that keeps the GPU
+          idle, and its code is in{' '}
+          <a
+            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
           >
-            next post
-          </Link>{' '}
-          is just about that.
+            person-detection.ts
+          </a>
+          .
         </p>
 
         <p className="text-slate-500 italic">&mdash; Johnny Dunn, Frame</p>

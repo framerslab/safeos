@@ -83,7 +83,9 @@ describe('donate page', () => {
 
   it('makes no percentage pledge and never says nonprofit or charity', () => {
     for (const text of [html, description]) {
-      expect(text).not.toMatch(/\d+\s*%/);
+      // A pledge reads "N% of ..." or "N% for ...", or donates or routes N%.
+      // The page's SVG gradient offsets and GitHub's fee note are not pledges.
+      expect(text).not.toMatch(/\d+\s*%\s+(of|for)\b|\b(donate|pledge|route)\w*\s+\d+\s*%/i);
       expect(text).not.toMatch(/\bten percent\b/i);
       expect(text).not.toMatch(/non-?profit/i);
       expect(text).not.toMatch(/\bcharit/i);
@@ -106,5 +108,29 @@ describe('the humanitarian pledge reads one way everywhere', () => {
     const funding = fs.readFileSync(path.join(REPO_ROOT, '.github', 'FUNDING.yml'), 'utf8');
     expect(funding).not.toMatch(/framersai|manicinc/);
     expect(funding).toMatch(/framerslab/);
+  });
+});
+
+describe('sitemap', () => {
+  it('lists only pages the site builds', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sitemap = require('@/app/sitemap').default as () => Array<{ url: string }>;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { generateStaticParams } = require('@/app/blog/[slug]/page') as {
+      generateStaticParams: () => Array<{ slug: string }>;
+    };
+    const builtPosts = new Set(generateStaticParams().map((p) => p.slug));
+    const missing: string[] = [];
+    for (const { url } of sitemap()) {
+      const route = new URL(url).pathname.replace(/^\/|\/$/g, '');
+      const post = route.match(/^blog\/([^/]+)$/);
+      if (post) {
+        if (!builtPosts.has(post[1])) missing.push(url);
+        continue;
+      }
+      const pageFile = path.join(APP_ROOT, 'src', 'app', route, 'page.tsx');
+      if (!fs.existsSync(pageFile)) missing.push(url);
+    }
+    expect(missing).toEqual([]);
   });
 });

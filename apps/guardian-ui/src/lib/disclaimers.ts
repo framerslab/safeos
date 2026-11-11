@@ -13,8 +13,8 @@
 export const CRITICAL_DISCLAIMER = `
 [WARNING] IMPORTANT SAFETY DISCLAIMER
 
-SafeOS Guardian is a FREE supplementary monitoring tool offered as part of 
-SuperCloud's humanitarian mission. This service is NOT a replacement for:
+SafeOS Guardian is a FREE supplementary monitoring tool built by Frame as
+part of its humanitarian work. This service is NOT a replacement for:
 
 • Direct supervision of children, infants, or toddlers
 • Professional caregiving for elderly individuals

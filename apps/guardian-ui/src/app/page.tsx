@@ -131,23 +131,22 @@ function LandingPage() {
     alternateName: ['SafeOS', 'SafeOS Guardian PWA'],
     url: SITE_URL,
     sameAs: [
-      'https://github.com/framersai/safeos',
+      'https://github.com/framerslab/safeos',
       'https://frame.dev',
       'https://agentos.sh',
     ],
     applicationCategory: 'SecurityApplication',
     applicationSubCategory: 'BabyMonitor',
     operatingSystem: 'Web (Progressive Web App)',
-    browserRequirements: 'Requires JavaScript and a modern browser with WebGL or WebGPU',
+    browserRequirements: 'Requires JavaScript and a modern browser with WebGL',
     softwareVersion: '1.0',
     license: 'https://opensource.org/license/mit/',
-    keywords: 'free baby monitor, open source baby monitor, AI pet camera no subscription, browser AI monitoring, tensorflow.js webcam, on-device computer vision PWA, non-cloud baby monitor, elderly fall detection',
+    keywords: 'free baby monitor, open source baby monitor, AI pet camera no subscription, browser AI monitoring, tensorflow.js webcam, on-device computer vision PWA, non-cloud baby monitor',
     description:
-      'Free open-source AI monitor for babies, pets, and elder care. Runs entirely in your browser via TensorFlow.js and Transformers.js. No frames uploaded, no telemetry, no subscription. Built by Frame, the team behind AgentOS.',
+      'Free open-source AI monitor for babies, pets, and elder care. Runs in your browser with TensorFlow.js. Frames stay on your device unless you connect your own server. Built by Frame, the team behind AgentOS.',
     featureList: [
       'Browser-based AI object detection (COCO-SSD)',
-      'Browser-based scene classification (ViT)',
-      'Cry / distress / silence audio detection (Web Audio FFT)',
+      'Sound-level alerts (Web Audio FFT)',
       'Lost & Found visual fingerprinting',
       'Severity-tiered alert escalation',
       'Optional Twilio SMS / Telegram / Resend email fan-out',
@@ -167,9 +166,9 @@ function LandingPage() {
         'https://frame.dev',
         'https://agentos.sh',
         'https://paracosm.agentos.sh',
-        'https://github.com/framersai',
-        'https://github.com/framersai/safeos',
-        'https://github.com/framersai/agentos',
+        'https://github.com/framerslab',
+        'https://github.com/framerslab/safeos',
+        'https://github.com/framerslab/agentos',
         'https://twitter.com/framedev',
       ],
     },
@@ -185,7 +184,7 @@ function LandingPage() {
     '@type': 'Organization',
     '@id': 'https://frame.dev/#organization',
     name: 'Frame',
-    alternateName: ['Frame Dev', 'framersai'],
+    alternateName: ['Frame Dev', 'framerslab'],
     url: 'https://frame.dev',
     description:
       'Frame builds local-first, open-source AI runtimes. SafeOS Guardian is the consumer-facing browser monitor. AgentOS is the agent runtime with cognitive memory.',
@@ -193,14 +192,13 @@ function LandingPage() {
       'https://frame.dev',
       'https://agentos.sh',
       'https://paracosm.agentos.sh',
-      'https://github.com/framersai',
-      'https://github.com/framersai/safeos',
-      'https://github.com/framersai/agentos',
+      'https://github.com/framerslab',
+      'https://github.com/framerslab/safeos',
+      'https://github.com/framerslab/agentos',
       'https://twitter.com/framedev',
     ],
     knowsAbout: [
       'TensorFlow.js',
-      'Transformers.js',
       'on-device AI',
       'local-first software',
       'agent runtimes',
@@ -278,7 +276,7 @@ function LandingPage() {
           {/* GitHub CTA - single prominent button */}
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
-              href="https://github.com/framersai/safeos"
+              href="https://github.com/framerslab/safeos"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-3 px-5 py-2.5 bg-slate-800 hover:bg-slate-700 border border-emerald-500/30 hover:border-emerald-500/60 rounded-lg transition-colors group"
@@ -371,7 +369,7 @@ function LandingPage() {
               alt="SafeOS Guardian architecture — browser inference pipeline plus optional API server"
               caption={
                 <>
-                  The solid path runs entirely in your browser, offline after first load.
+                  The solid path runs in your browser and keeps running offline once a page has loaded.
                   The dashed path engages only when you deploy the optional API server.
                 </>
               }
@@ -383,10 +381,10 @@ function LandingPage() {
               icon={IconRadar}
               title="Real-time object detection"
               tag="COCO-SSD · TensorFlow.js"
-              size="~5 MB"
-              summary="Motion-gated object detection. When the per-frame pixel-diff detects movement, COCO-SSD spots people, pets, and 80+ object classes at 10–30 FPS on consumer hardware. Idle GPU when nothing's moving."
+              size="18.0 MB of weights"
+              summary="Security mode runs COCO-SSD when the frame-difference check sees movement and counts the people in view, at most twice a second. Wildlife mode uses the same model to find animals."
               details={[
-                'Runs on TensorFlow.js with WebGL acceleration (WebGPU on supported browsers).',
+                'Runs on TensorFlow.js with the WebGL backend, which uses your graphics chip.',
                 'Bounding-box localization plus confidence scoring per class.',
                 'Frame buffer keeps the most recent 5–10 minutes; older frames are discarded automatically.',
                 'Configurable confidence thresholds per scenario (pets, baby, elderly).',
@@ -395,15 +393,14 @@ function LandingPage() {
 
             <DeepLearningCard
               icon={IconEye}
-              title="Scene classification fallback"
+              title="Scene classifier download"
               tag="ViT-base · Transformers.js"
-              size="~89 MB"
-              summary="When detection is ambiguous, a Vision Transformer cross-checks the scene to reduce false positives."
+              size="88.3 MB download"
+              summary="Settings → Models can download a Vision Transformer for in-browser scene classification. No monitoring mode calls it."
               details={[
-                'Hugging Face Xenova/vit-base-patch16-224 quantized for browser use.',
-                'Runs entirely client-side via Transformers.js — no inference API needed.',
-                'Loaded on demand and cached by the service worker after the first run.',
-                'Used as a tie-breaker, not a primary path, to keep latency low.',
+                'Hugging Face Xenova/vit-base-patch16-224, quantized for browser use.',
+                'Runs client-side through Transformers.js, with no inference API.',
+                'Transformers.js keeps the downloaded files in the browser cache.',
               ]}
             />
 
@@ -427,11 +424,11 @@ function LandingPage() {
               title="Audio distress detection"
               tag="Web Audio API"
               size="No model required"
-              summary="A FFT-based analyzer listens for crying, barking, glass breaks, and prolonged silence — entirely in the browser."
+              summary="An FFT analyzer measures sound levels in the browser and raises an alert when sound stays above your threshold."
               details={[
-                'Spectral analysis via the Web Audio API.',
-                'Configurable thresholds per scenario (infant cry, distress vocalizations, elderly fall sounds).',
-                'Optional Ollama / cloud LLM secondary classification when ambiguity is high.',
+                'Spectral analysis through the Web Audio API.',
+                'Loudness thresholds set per scenario.',
+                'A crying pattern shows in the camera overlay; it does not raise an alert on its own.',
                 'Volume-ramping escalation: starts quiet, gets louder until you acknowledge.',
               ]}
             />
@@ -440,11 +437,11 @@ function LandingPage() {
               icon={IconWifiOff}
               title="Offline-first by design"
               tag="PWA · Service worker"
-              size="Disconnect after first load"
-              summary="The whole app is a Progressive Web App. After the first visit, every model and every page is cached. Pull the WiFi and it keeps running."
+              size="Pages you have opened"
+              summary="SafeOS installs as a Progressive Web App. The service worker keeps a copy of the pages you open, so a loaded monitor keeps running without WiFi. Person and animal detection download their model from Google's servers and need a connection to load it."
               details={[
-                'Service worker caches the app shell, fonts, and model weights on first load.',
-                'Settings, alert history, and fingerprints persist locally in IndexedDB.',
+                'The service worker stores the main pages on install and each page you open after that.',
+                'Settings, Lost & Found photos, and saved frames persist in IndexedDB; monitor alerts clear on reload.',
                 'No origin server required — host the static `out/` folder on GitHub Pages, Netlify, or any CDN.',
                 'Optional API server is just that: optional. Only needed for SMS/Telegram fan-out or Ollama LLM bridging.',
               ]}
@@ -469,7 +466,7 @@ function LandingPage() {
             <p className="text-xs text-[var(--color-steel-400)]">
               Verified by reading the source —{' '}
               <a
-                href="https://github.com/framersai/safeos/tree/master/apps/guardian-ui/src/lib"
+                href="https://github.com/framerslab/safeos/tree/master/apps/guardian-ui/src/lib"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
@@ -489,12 +486,12 @@ function LandingPage() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-[var(--color-steel-100)] mb-2">
-                  Works 100% offline — server is optional
+                  Runs without a server
                 </h3>
                 <p className="text-sm text-[var(--color-steel-200)] leading-relaxed mb-3">
-                  <strong className="text-emerald-400">Full functionality with no server setup.</strong>{' '}
-                  All AI detection, local audio alerts, browser notifications, and data storage run
-                  entirely in your browser. Your data never leaves your device.
+                  <strong className="text-emerald-400">Monitoring needs no server.</strong>{' '}
+                  Detection, sound alerts, browser notifications, and storage run in your browser,
+                  and your data stays on your device. Email, text, and Telegram alerts need the optional server.
                 </p>
                 <div className="p-3 bg-slate-900/60 border border-slate-700 rounded-lg mb-3">
                   <p className="text-xs text-[var(--color-steel-300)] mb-2">
@@ -508,7 +505,7 @@ function LandingPage() {
                   </ul>
                 </div>
                 <a
-                  href="https://github.com/framersai/safeos#option-b-full-stack-advanced"
+                  href="https://github.com/framerslab/safeos#option-b-full-stack-advanced"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600/50 rounded-lg transition-colors text-sm"
@@ -608,17 +605,8 @@ function LandingPage() {
                           rounded-2xl sm:rounded-full text-emerald-400 max-w-[90vw]">
             <IconHeart size={20} className="text-red-400 flex-shrink-0" />
             <span className="text-sm font-medium">
-              Part of Frame&apos;s 10% for Humanity initiative
+              Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work
             </span>
-            <span aria-hidden="true" className="text-emerald-400/40">│</span>
-            <a
-              href="https://frame.dev/blog/ten-percent-for-humanity"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm font-medium text-emerald-400 hover:text-emerald-300 underline-offset-2 hover:underline"
-            >
-              blog post
-            </a>
           </div>
           
           <p className="text-sm text-[var(--color-steel-300)] text-center max-w-md">
