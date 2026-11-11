@@ -199,3 +199,9 @@ jobs:
           for d in scripts/testdata/compose-ports/accept-*; do
             bash scripts/check-compose-ports.sh "$d"
           done
+
+      # The API trusts X-Forwarded-For only from Caddy's fixed address on the
+      # proxy network. Start that network's services from stand-in images, in
+      # the production file's order, and check Caddy gets that address.
+      - name: Start the proxy network and check the proxy's address
+        run: bash scripts/check-compose-proxy-network.sh .
