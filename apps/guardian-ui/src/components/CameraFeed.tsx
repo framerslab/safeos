@@ -103,10 +103,14 @@ export function CameraFeed({
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const requestRef = useRef(0);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
   const pixelEngineRef = useRef<PixelDetectionEngine | null>(null);
   const lastPixelResultRef = useRef<PixelDetectionResult | null>(null);
 
   // Refs for callbacks to avoid recreating intervals
+  const onErrorRef = useRef(onError);
   const onMotionRef = useRef(onMotion);
   const onMotionZonesRef = useRef(onMotionZones);
   const onAudioRef = useRef(onAudio);
@@ -117,6 +121,7 @@ export function CameraFeed({
   const frameCaptureThresholdsRef = useRef(frameCaptureThresholds);
 
   // Keep refs up to date
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
   useEffect(() => { onMotionRef.current = onMotion; }, [onMotion]);
   useEffect(() => { onMotionZonesRef.current = onMotionZones; }, [onMotionZones]);
   useEffect(() => { onAudioRef.current = onAudio; }, [onAudio]);
@@ -190,13 +195,47 @@ export function CameraFeed({
     });
   }, [pixelEnabled, detectionZones]);
 
-  // Initialize camera
+  // Invalidating a request also covers permission prompts and pending video.play().
+  const stopCamera = useCallback(() => {
+    requestRef.current++;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    previousFrameRef.current = null;
+    lastPixelResultRef.current = null;
+    pixelEngineRef.current?.reset();
+    motionScoreRef.current = 0;
+    audioLevelRef.current = 0;
+    hasCryingRef.current = false;
+    setMotionScore(0);
+    setAudioLevel(0);
+    setHasCrying(false);
+    resetCryDetection();
+    onVideoReadyRef.current?.(null);
+    setCameraActive(false);
+    setIsLoading(false);
+  }, []);
+
   const initCamera = useCallback(async () => {
+    if (!enabledRef.current) return;
+    stopCamera();
+    const request = ++requestRef.current;
+    const isCurrent = () => requestRef.current === request && enabledRef.current;
+    let acquired: MediaStream | null = null;
     try {
       setIsLoading(true);
       setError(null);
-
-      const stream = await navigator.mediaDevices.getUserMedia({
+      acquired = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
@@ -204,63 +243,42 @@ export function CameraFeed({
         },
         audio: audioEnabled,
       });
-
-      streamRef.current = stream;
-
-      // Set up video
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        onVideoReadyRef.current?.(videoRef.current);
+      if (!isCurrent()) {
+        acquired.getTracks().forEach((track) => track.stop());
+        return;
       }
-
-      // Set up audio analysis
+      streamRef.current = acquired;
+      const video = videoRef.current;
+      if (!video) throw new Error('Camera preview is unavailable');
+      video.srcObject = acquired;
+      await video.play();
+      if (!isCurrent()) {
+        acquired.getTracks().forEach((track) => track.stop());
+        return;
+      }
       if (audioEnabled) {
         audioContextRef.current = new AudioContext();
-        const source = audioContextRef.current.createMediaStreamSource(stream);
+        const source = audioContextRef.current.createMediaStreamSource(acquired);
         analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 256;
         source.connect(analyserRef.current);
-      } else {
-        analyserRef.current = null;
-        setAudioLevel(0);
-        audioLevelRef.current = 0;
       }
-
       setCameraActive(true);
       setIsLoading(false);
+      onVideoReadyRef.current?.(video);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to access camera';
-      setError(errorMessage);
-      setIsLoading(false);
-      onError?.(err instanceof Error ? err : new Error(errorMessage));
-    }
-  }, [onError, audioEnabled]);
-
-  // Stop camera
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
-      audioContextRef.current = null;
-    }
-    // Reset cry detection buffer to prevent memory leak
-    resetCryDetection();
-    onVideoReadyRef.current?.(null);
-    setCameraActive(false);
-  }, []);
-
-  // Initialize on mount
-  useEffect(() => {
-    if (enabled) {
-      initCamera();
-    }
-    return () => {
+      if (!isCurrent()) return;
       stopCamera();
-    };
+      const error = err instanceof Error ? err : new Error('Failed to access camera');
+      setError(error.message);
+      onErrorRef.current?.(error);
+    }
+  }, [audioEnabled, stopCamera]);
+
+  useEffect(() => {
+    if (enabled) void initCamera();
+    else setIsLoading(false);
+    return stopCamera;
   }, [enabled, initCamera, stopCamera]);
 
   // Motion detection loop
@@ -443,7 +461,7 @@ export function CameraFeed({
       )}
 
       {/* Loading overlay */}
-      {isLoading && (
+      {enabled && isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-slate-600 border-t-emerald-500 rounded-full animate-spin mx-auto" />
@@ -461,12 +479,12 @@ export function CameraFeed({
             </div>
             <p className="text-red-400 mt-4 text-sm font-medium">Camera Error</p>
             <p className="text-slate-500 mt-1 text-xs max-w-xs">{error}</p>
-            <button
+            {enabled && <button
               onClick={initCamera}
               className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors"
             >
               Retry
-            </button>
+            </button>}
           </div>
         </div>
       )}
