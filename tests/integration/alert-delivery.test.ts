@@ -8,7 +8,7 @@ it('delivers each new alert once to its owner and continues after a channel fail
       expect((await p.api.post('/api/notifications/subscribe').set('x-session-token', caller.token).send({
         userId: caller.id, subscription: { endpoint: `https://push.example.com/${caller.id}`, keys: { p256dh: 'key', auth: 'auth' } },
       })).status).toBe(200);
-      expect((await p.api.post('/api/notifications/telegram/register').set('x-session-token', caller.token).send({ chatId: caller.id })).status).toBe(200);
+      expect((await p.api.post('/api/notifications/telegram/register').set('x-session-token', caller.token).send({ chatId: caller.id === p.owner.id ? '12345' : '67890' })).status).toBe(200);
     }
     boundary.triage.mockResolvedValue('CONCERN_LEVEL: critical');
     boundary.analyze.mockResolvedValue('CONCERN_LEVEL: critical\nDETECTED_ISSUES: needs attention');
@@ -24,7 +24,7 @@ it('delivers each new alert once to its owner and continues after a channel fail
     expect(boundary.push.mock.calls[0][0].endpoint).toBe(`https://push.example.com/${p.owner.id}`);
     expect(boundary.push.mock.calls[0][1].data.alertId).toBe(alertId);
     expect(boundary.telegram).toHaveBeenCalledTimes(1);
-    expect(boundary.telegram.mock.calls[0][0]).toBe(p.owner.id);
+    expect(boundary.telegram.mock.calls[0][0]).toBe('12345');
     expect(boundary.sms).toHaveBeenCalledTimes(1);
     expect(boundary.email).toHaveBeenCalledTimes(1);
     expect(boundary.email.mock.calls[0][0]).toBe(`${p.owner.id}@example.com`);
