@@ -24,8 +24,6 @@
  * See /settings/sounds to upload, record, and configure custom sounds.
  */
 
-import { useSettingsStore } from '../stores/settings-store';
-
 import {
   getCustomSoundsByTrigger,
   recordSoundPlay,
@@ -689,13 +687,6 @@ let instance: SoundManager | null = null;
 export function getSoundManager(): SoundManager {
   if (!instance) {
     instance = new SoundManager();
-    const syncSettings = () => {
-      const settings = useSettingsStore.getState();
-      instance!.setUserVolume(settings.globalSettings.alertVolume);
-      instance!.setGlobalMute(settings.globalMute);
-    };
-    syncSettings();
-    useSettingsStore.subscribe(syncSettings);
   }
   return instance;
 }
@@ -708,7 +699,7 @@ import { useEffect, useState, useCallback } from 'react';
 
 export function useSoundManager() {
   const [isInitialized, setIsInitialized] = useState(false);
-  const volume = useSettingsStore((state) => state.globalSettings.alertVolume);
+  const [volume, setVolume] = useState(70);
   const [muted, setMuted] = useState(false);
   const [emergencyMode, setEmergencyMode] = useState(false);
   
@@ -718,6 +709,7 @@ export function useSoundManager() {
     const initManager = async () => {
       await manager.initialize();
       setIsInitialized(true);
+      setVolume(manager.getUserVolume());
       setMuted(manager.isGlobalMuted());
       setEmergencyMode(manager.isEmergencyModeActive());
     };
@@ -727,7 +719,7 @@ export function useSoundManager() {
 
   const updateVolume = useCallback((newVolume: number) => {
     manager.setUserVolume(newVolume);
-    useSettingsStore.getState().updateGlobalSettings({ alertVolume: newVolume });
+    setVolume(newVolume);
   }, []);
 
   const toggleMute = useCallback(() => {
