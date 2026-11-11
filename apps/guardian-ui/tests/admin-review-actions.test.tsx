@@ -10,7 +10,7 @@ it.each([['Approve', 'approved'], ['Reject', 'rejected'], ['Escalate', 'escalate
   const requests: string[] = [];
   global.fetch = jest.fn(async (_url, init) => {
     if (init?.method === 'POST') requests.push(JSON.parse(String(init.body)).action);
-    return { ok: true, json: async () => ({ flags: [{ id: 'flag-1', streamId: 'stream-1', category: 'review', tier: 1, reason: 'Needs review', status: 'pending', createdAt: new Date().toISOString() }] }) } as Response;
+    return { ok: true, json: async () => ({ flags: [{ id: 'flag-1', stream_id: 'stream-1', category: 'review', tier: 1, reason: 'Needs review', status: 'pending', created_at: new Date().toISOString() }] }) } as Response;
   });
   render(<AdminPage />);
   fireEvent.click(await screen.findByRole('button', { name: /^reviews/i }));
