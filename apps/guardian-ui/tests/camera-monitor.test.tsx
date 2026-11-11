@@ -84,3 +84,15 @@ it('uses the selected camera and remembers it when the monitor reopens', async (
   await act(async () => {});
   expect((screen.getByRole('combobox', { name: 'Camera' }) as HTMLSelectElement).value).toBe('usb');
 });
+
+it('keeps the monitor socket across metric renders and closes it without reconnecting on unmount', async () => {
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  const count = BrowserSocket.instances.length;
+  act(() => useMonitoringStore.getState().setMotionScore(42));
+  expect(BrowserSocket.instances).toHaveLength(count);
+  const socket = BrowserSocket.instances.at(-1)!;
+  view.unmount();
+  act(() => { socket.onclose?.(); jest.advanceTimersByTime(30000); });
+  expect(BrowserSocket.instances).toHaveLength(count);
+});
