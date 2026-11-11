@@ -9,7 +9,7 @@
  * @module components/SecurityPanel
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useId } from 'react';
 import {
   IconShield,
   IconShieldCheck,
@@ -115,11 +115,15 @@ interface ArmButtonProps {
   armingTimeRemaining: number;
   onArm: () => void;
   onDisarm: () => void;
+  /** Why arming is not possible yet; disarming always stays possible. */
+  armBlockedReason?: string;
 }
 
-function ArmButton({ armingState, armingTimeRemaining, onArm, onDisarm }: ArmButtonProps) {
+function ArmButton({ armingState, armingTimeRemaining, onArm, onDisarm, armBlockedReason }: ArmButtonProps) {
   const isArmed = armingState === 'armed' || armingState === 'triggered';
   const isArming = armingState === 'arming';
+  const armBlocked = !isArmed && !isArming && Boolean(armBlockedReason);
+  const reasonId = useId();
   
   const getButtonStyle = () => {
     switch (armingState) {
@@ -154,15 +158,18 @@ function ArmButton({ armingState, armingTimeRemaining, onArm, onDisarm }: ArmBut
   const handleClick = () => {
     if (isArmed || isArming) {
       onDisarm();
-    } else {
+    } else if (!armBlocked) {
       onArm();
     }
   };
 
   return (
+    <>
     <button
       onClick={handleClick}
-      className={`w-full py-6 px-8 rounded-xl font-bold text-xl uppercase tracking-wider transition-all ${getButtonStyle()}`}
+      disabled={armBlocked}
+      aria-describedby={armBlocked ? reasonId : undefined}
+      className={`w-full py-6 px-8 rounded-xl font-bold text-xl uppercase tracking-wider transition-all disabled:cursor-not-allowed disabled:opacity-50 ${getButtonStyle()}`}
     >
       <div className="flex items-center justify-center gap-3">
         {armingState === 'triggered' ? (
@@ -175,6 +182,10 @@ function ArmButton({ armingState, armingTimeRemaining, onArm, onDisarm }: ArmBut
         {getButtonText()}
       </div>
     </button>
+    {armBlocked && (
+      <p id={reasonId} className="mt-2 text-sm text-amber-300">{armBlockedReason}</p>
+    )}
+    </>
   );
 }
 
@@ -301,9 +312,11 @@ function CustomMessageEditor({ messages, onAdd, onRemove }: CustomMessageEditorP
 interface SecurityPanelProps {
   className?: string;
   onTrigger?: () => void;
+  /** Set while the system cannot watch (for example, no detection model yet). */
+  armBlockedReason?: string;
 }
 
-export function SecurityPanel({ className = '', onTrigger }: SecurityPanelProps) {
+export function SecurityPanel({ className = '', onTrigger, armBlockedReason }: SecurityPanelProps) {
   const {
     armingState,
     settings,
@@ -397,6 +410,7 @@ export function SecurityPanel({ className = '', onTrigger }: SecurityPanelProps)
         armingTimeRemaining={armingTimeRemaining}
         onArm={arm}
         onDisarm={disarm}
+        armBlockedReason={armBlockedReason}
       />
 
       {/* Settings (disabled when armed) */}

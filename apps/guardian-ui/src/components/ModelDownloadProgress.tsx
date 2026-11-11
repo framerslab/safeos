@@ -15,7 +15,7 @@ interface ModelDownloadProgressProps {
 
 /** Download the one model used by Security and Wildlife, after agreement. */
 export function ModelDownloadProgress({ onReady, onError, compact, className = '' }: ModelDownloadProgressProps) {
-  const { status, error, setupComplete, download } = useDetectionModel();
+  const { status, error, saved, setupComplete, download } = useDetectionModel();
   useEffect(() => { if (status === 'ready') onReady?.(); }, [status, onReady]);
   useEffect(() => { if (error) onError?.(error); }, [error, onError]);
 
@@ -29,7 +29,11 @@ export function ModelDownloadProgress({ onReady, onError, compact, className = '
       {!setupComplete ? (
         <Link href="/setup/" className="mt-4 inline-block text-emerald-400 underline">Complete setup before downloading</Link>
       ) : status === 'ready' ? (
-        <p role="status" className="mt-3 text-emerald-400">Detection model ready. Saved for offline use unless browser storage is cleared or evicted.</p>
+        saved ? (
+          <p role="status" className="mt-3 text-emerald-400">Detection model ready. Saved for offline use unless browser storage is cleared or evicted.</p>
+        ) : (
+          <p role="status" className="mt-3 text-amber-300">Detection model ready. It could not be saved in this browser, so the next start downloads it again and needs a connection.</p>
+        )
       ) : status === 'loading' ? (
         <p role="status" className="mt-3 text-slate-300">Downloading and loading detection model…</p>
       ) : (

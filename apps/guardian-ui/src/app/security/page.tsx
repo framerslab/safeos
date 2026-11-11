@@ -197,6 +197,8 @@ export default function SecurityPage() {
   const download = useDetectionModel();
   const [detectorReady, setDetectorReady] = useState(false);
   const modelStatus = !download.setupComplete ? 'idle' : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
+  // Arming without a ready model would show an armed system that checks no frame.
+  const armBlockedReason = modelStatus === 'ready' ? undefined : 'Download the detection model above before arming.';
   const [lastDetection, setLastDetection] = useState<PersonDetectionResult | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -540,6 +542,7 @@ export default function SecurityPage() {
             {/* Security Panel */}
             <div>
               <SecurityPanel
+                armBlockedReason={armBlockedReason}
                 onTrigger={() => {
                   // Additional trigger handling if needed
                 }}
@@ -568,7 +571,7 @@ export default function SecurityPage() {
                 </button>
               </div>
               <div className="p-4">
-                <SecurityPanel />
+                <SecurityPanel armBlockedReason={armBlockedReason} />
               </div>
             </div>
           </div>

@@ -206,7 +206,7 @@
 
       <!-- Shared model storage -->
       <path d="M 250 88 Q 260 70 270 88" fill="none" stroke="#10b981" stroke-width="1.4" stroke-opacity="0.6" marker-end="url(#arrow-emerald)"/>
-      <text x="260" y="62" font-family="Inter, system-ui, sans-serif" font-size="9" fill="#10b981" text-anchor="middle" opacity="0.8">low-conf</text>
+      <text x="260" y="62" font-family="Inter, system-ui, sans-serif" font-size="9" fill="#10b981" text-anchor="middle" opacity="0.8">weights</text>
     </g>
 
     <!-- Pipeline → Alert engine -->

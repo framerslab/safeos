@@ -5,11 +5,13 @@ import type { ObjectDetection } from '@tensorflow-models/coco-ssd';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 export type DetectionModelStatus = 'idle' | 'loading' | 'ready' | 'error';
-const initialState = { status: 'idle' as DetectionModelStatus, error: null as string | null };
+const initialState = { status: 'idle' as DetectionModelStatus, error: null as string | null, saved: true };
 let state = initialState;
 let model: ObjectDetection | null = null;
 let loading: Promise<ObjectDetection> | null = null;
 let agreed = false;
+// Set when the browser refuses to store a model response during this load.
+let storageRefused = false;
 const MODEL_URL = 'https://storage.googleapis.com/tfjs-models/savedmodel/ssdlite_mobilenet_v2/model.json';
 const MODEL_ROUTE = 'safeos-model://coco-ssd-v1';
 const MODEL_CACHE = 'safeos-detection-model-v1';
@@ -18,7 +20,7 @@ const CONSENT_KEY = 'safeos-detection-model-consent';
 const listeners = new Set<() => void>();
 
 function update(status: DetectionModelStatus, error: string | null = null) {
-  state = { status, error };
+  state = { status, error, saved: !storageRefused };
   listeners.forEach(listener => listener());
 }
 
@@ -27,17 +29,33 @@ function subscribe(listener: () => void) {
   return () => { listeners.delete(listener); };
 }
 
+function refuseStorage(error: unknown) {
+  if (!storageRefused) console.warn('[DetectionModel] The browser did not store the model; it loads from the network each start.', error);
+  storageRefused = true;
+}
+
 // TensorFlow uses this fetch for both the manifest and every weight shard.
 // Await each write: a ready model must also be available on the next offline start.
+// A browser that has no Cache Storage or will not store the files (a private
+// window, a full quota) still gets detection from the network, and the page
+// says the model is not saved instead of reporting a failed download.
 const cachedModelFetch: typeof fetch = async (input, init) => {
-  if (typeof caches === 'undefined') throw new Error('Model storage is unavailable in this browser.');
-  const cache = await caches.open(MODEL_CACHE);
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-  const cached = await cache.match(url);
-  if (cached) return cached;
+  let cache: Cache | null = null;
+  try {
+    if (typeof caches === 'undefined') throw new Error('Cache Storage is unavailable.');
+    cache = await caches.open(MODEL_CACHE);
+    const cached = await cache.match(url);
+    if (cached) return cached;
+  } catch (error) {
+    cache = null;
+    refuseStorage(error);
+  }
   const response = await fetch(input, init);
   if (!response.ok) throw new Error(`Model download returned HTTP ${response.status}.`);
-  await cache.put(url, response.clone());
+  if (cache) {
+    try { await cache.put(url, response.clone()); } catch (error) { refuseStorage(error); }
+  }
   return response;
 };
 
@@ -45,6 +63,7 @@ const cachedModelFetch: typeof fetch = async (input, init) => {
 export function loadDetectionModel(): Promise<ObjectDetection> {
   if (model) return Promise.resolve(model);
   if (loading) return loading;
+  storageRefused = false;
   update('loading');
   loading = (async () => {
     try {

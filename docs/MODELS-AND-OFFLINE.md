@@ -9,8 +9,14 @@ The loader shares an in-progress request and a ready model between detectors.
 A failed load clears the pending promise, so **Retry model download** or a route
 return can try again. Agreement is retained locally. TensorFlow reads its manifest
 and each weight shard through a cache-backed IO handler. Each successful response
-is saved before it is returned; storage errors are shown as download failures.
-No monitoring page downloads the unused Transformers.js classifier.
+is saved before it is returned. If the browser has no Cache Storage or will not
+store a file (a private window, a full quota), the model still loads from the
+network and the page says it could not be saved, so the next start needs a
+connection. No monitoring page downloads the unused Transformers.js classifier.
+
+Security's **Arm system** button stays disabled until the model is ready, so the
+page never shows an armed system that checks no frame. Wildlife's **Start**
+button works the same way.
 
 Offline starts require two completed preparations:
 
