@@ -42,6 +42,7 @@ interface CameraFeedProps {
   onError?: (error: Error) => void;
   scenario?: 'pet' | 'baby' | 'elderly' | 'security';
   enabled?: boolean;
+  deviceId?: string;
   audioEnabled?: boolean;
   showDebug?: boolean;
   className?: string;
@@ -88,6 +89,7 @@ export function CameraFeed({
   onError,
   scenario = 'baby',
   enabled = true,
+  deviceId = '',
   audioEnabled = true,
   showDebug = false,
   className,
@@ -103,10 +105,16 @@ export function CameraFeed({
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const requestRef = useRef(0);
+  const removeTrackListenersRef = useRef<(() => void) | null>(null);
+  const enabledRef = useRef(enabled);
+  const videoPausedRef = useRef(false);
+  const videoReadyRef = useRef(false);
   const pixelEngineRef = useRef<PixelDetectionEngine | null>(null);
   const lastPixelResultRef = useRef<PixelDetectionResult | null>(null);
 
   // Refs for callbacks to avoid recreating intervals
+  const onErrorRef = useRef(onError);
   const onMotionRef = useRef(onMotion);
   const onMotionZonesRef = useRef(onMotionZones);
   const onAudioRef = useRef(onAudio);
@@ -117,6 +125,7 @@ export function CameraFeed({
   const frameCaptureThresholdsRef = useRef(frameCaptureThresholds);
 
   // Keep refs up to date
+  useEffect(() => { onErrorRef.current = onError; }, [onError]);
   useEffect(() => { onMotionRef.current = onMotion; }, [onMotion]);
   useEffect(() => { onMotionZonesRef.current = onMotionZones; }, [onMotionZones]);
   useEffect(() => { onAudioRef.current = onAudio; }, [onAudio]);
@@ -132,6 +141,8 @@ export function CameraFeed({
   const [audioLevel, setAudioLevel] = useState(0);
   const [hasCrying, setHasCrying] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [microphoneUnavailable, setMicrophoneUnavailable] = useState(false);
+  const [videoPaused, setVideoPaused] = useState(false);
   const [pixelChangePercent, setPixelChangePercent] = useState(0);
   const [pixelChangedPixels, setPixelChangedPixels] = useState(0);
   const motionScoreRef = useRef(0);
@@ -190,77 +201,177 @@ export function CameraFeed({
     });
   }, [pixelEnabled, detectionZones]);
 
-  // Initialize camera
-  const initCamera = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'environment',
-        },
-        audio: audioEnabled,
-      });
-
-      streamRef.current = stream;
-
-      // Set up video
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        onVideoReadyRef.current?.(videoRef.current);
-      }
-
-      // Set up audio analysis
-      if (audioEnabled) {
-        audioContextRef.current = new AudioContext();
-        const source = audioContextRef.current.createMediaStreamSource(stream);
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 256;
-        source.connect(analyserRef.current);
-      } else {
-        analyserRef.current = null;
-        setAudioLevel(0);
-        audioLevelRef.current = 0;
-      }
-
-      setCameraActive(true);
-      setIsLoading(false);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to access camera';
-      setError(errorMessage);
-      setIsLoading(false);
-      onError?.(err instanceof Error ? err : new Error(errorMessage));
-    }
-  }, [onError, audioEnabled]);
-
-  // Stop camera
+  // Invalidating a request also covers permission prompts and pending video.play().
   const stopCamera = useCallback(() => {
+    requestRef.current++;
+    removeTrackListenersRef.current?.();
+    removeTrackListenersRef.current = null;
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
     if (audioContextRef.current) {
-      audioContextRef.current.close();
+      void audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
     }
-    // Reset cry detection buffer to prevent memory leak
+    analyserRef.current = null;
+    previousFrameRef.current = null;
+    lastPixelResultRef.current = null;
+    pixelEngineRef.current?.reset();
+    motionScoreRef.current = 0;
+    audioLevelRef.current = 0;
+    hasCryingRef.current = false;
+    setMotionScore(0);
+    setAudioLevel(0);
+    setHasCrying(false);
     resetCryDetection();
+    videoPausedRef.current = false;
+    videoReadyRef.current = false;
     onVideoReadyRef.current?.(null);
     setCameraActive(false);
+    setMicrophoneUnavailable(false);
+    setVideoPaused(false);
+    setIsLoading(false);
   }, []);
 
-  // Initialize on mount
-  useEffect(() => {
-    if (enabled) {
-      initCamera();
-    }
-    return () => {
+  const initCamera = useCallback(async () => {
+    if (!enabledRef.current) return;
+    stopCamera();
+    const request = ++requestRef.current;
+    const isCurrent = () => requestRef.current === request && enabledRef.current;
+    let acquired: MediaStream | null = null;
+    try {
+      setIsLoading(true);
+      setError(null);
+      const constraints = (audio: boolean): MediaStreamConstraints => ({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' }),
+        },
+        audio,
+      });
+      try {
+        acquired = await navigator.mediaDevices.getUserMedia(constraints(audioEnabled));
+      } catch (err) {
+        // A camera without a microphone still monitors video; a missing camera fails again below.
+        if (!audioEnabled || !isCurrent() || !(err instanceof Error) || err.name !== 'NotFoundError') throw err;
+        acquired = await navigator.mediaDevices.getUserMedia(constraints(false));
+      }
+      if (!isCurrent()) {
+        acquired.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      streamRef.current = acquired;
+      const tracks = acquired.getVideoTracks();
+      const audioTracks = acquired.getAudioTracks();
+      const lost = () => {
+        if (!isCurrent()) return;
+        stopCamera();
+        const error = new Error('Camera connection lost. Check the device and start monitoring again.');
+        setError(error.message);
+        onErrorRef.current?.(error);
+      };
+      // A muted track is a temporary interruption: not live while it lasts, live again on unmute.
+      const paused = () => {
+        if (!isCurrent() || videoPausedRef.current) return;
+        videoPausedRef.current = true;
+        previousFrameRef.current = null;
+        setVideoPaused(true);
+        if (videoReadyRef.current) onVideoReadyRef.current?.(null);
+      };
+      const resumed = () => {
+        if (!isCurrent() || !videoPausedRef.current || tracks.some(track => track.muted)) return;
+        videoPausedRef.current = false;
+        previousFrameRef.current = null;
+        setVideoPaused(false);
+        if (videoReadyRef.current && videoRef.current) onVideoReadyRef.current?.(videoRef.current);
+      };
+      for (const track of tracks) {
+        track.addEventListener('ended', lost);
+        track.addEventListener('mute', paused);
+        track.addEventListener('unmute', resumed);
+      }
+      const audioLost = () => {
+        if (!isCurrent()) return;
+        analyserRef.current = null;
+        if (audioContextRef.current) {
+          void audioContextRef.current.close().catch(() => {});
+          audioContextRef.current = null;
+        }
+        audioLevelRef.current = 0;
+        hasCryingRef.current = false;
+        setAudioLevel(0);
+        setHasCrying(false);
+        resetCryDetection();
+        onAudioRef.current?.(0);
+        setMicrophoneUnavailable(true);
+      };
+      for (const track of audioTracks) {
+        track.addEventListener('ended', audioLost);
+        track.addEventListener('mute', audioLost);
+      }
+      removeTrackListenersRef.current = () => {
+        for (const track of audioTracks) {
+          track.removeEventListener('ended', audioLost);
+          track.removeEventListener('mute', audioLost);
+        }
+        for (const track of tracks) {
+          track.removeEventListener('ended', lost);
+          track.removeEventListener('mute', paused);
+          track.removeEventListener('unmute', resumed);
+        }
+      };
+      if (!tracks.length || tracks.some(track => track.readyState === 'ended')) {
+        lost();
+        return;
+      }
+      if (tracks.some(track => track.muted)) paused();
+      const video = videoRef.current;
+      if (!video) throw new Error('Camera preview is unavailable');
+      video.srcObject = acquired;
+      await video.play();
+      if (!isCurrent()) {
+        acquired.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const audioAvailable = audioTracks.some(track => track.readyState === 'live' && !track.muted);
+      if (audioEnabled && audioAvailable) {
+        audioContextRef.current = new AudioContext();
+        const source = audioContextRef.current.createMediaStreamSource(acquired);
+        analyserRef.current = audioContextRef.current.createAnalyser();
+        analyserRef.current.fftSize = 256;
+        source.connect(analyserRef.current);
+      } else if (audioEnabled) {
+        audioLost();
+      }
+      setCameraActive(true);
+      setIsLoading(false);
+      videoReadyRef.current = true;
+      if (!videoPausedRef.current) onVideoReadyRef.current?.(video);
+    } catch (err) {
+      if (!isCurrent()) return;
       stopCamera();
-    };
+      const message = (err instanceof Error && err.message.trim()) ||
+        (err instanceof Error && err.name === 'OverconstrainedError'
+          ? 'The selected camera is unavailable. Choose another camera.'
+          : 'Failed to access camera. Check the device and browser permissions.');
+      const error = new Error(message);
+      setError(error.message);
+      onErrorRef.current?.(error);
+    }
+  }, [audioEnabled, deviceId, stopCamera]);
+
+  useEffect(() => {
+    // Updated here rather than during render, so only committed props guard capture.
+    enabledRef.current = enabled;
+    if (enabled) void initCamera();
+    else setIsLoading(false);
+    return stopCamera;
   }, [enabled, initCamera, stopCamera]);
 
   // Motion detection loop
@@ -272,7 +383,7 @@ export function CameraFeed({
     if (!ctx) return;
 
     const interval = setInterval(() => {
-      if (!videoRef.current) return;
+      if (!videoRef.current || videoPausedRef.current) return;
 
       // Draw current frame
       canvas.width = videoRef.current.videoWidth || 640;
@@ -372,6 +483,7 @@ export function CameraFeed({
 
     const intervalMs = Math.max(250, frameIntervalMs ?? FRAME_INTERVAL);
     const interval = setInterval(() => {
+      if (videoPausedRef.current) return;
       const pixelTriggered = lastPixelResultRef.current?.changed ?? false;
       const motion = motionScoreRef.current;
       const audio = audioLevelRef.current;
@@ -443,7 +555,7 @@ export function CameraFeed({
       )}
 
       {/* Loading overlay */}
-      {isLoading && (
+      {enabled && isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
           <div className="text-center">
             <div className="w-12 h-12 border-4 border-slate-600 border-t-emerald-500 rounded-full animate-spin mx-auto" />
@@ -461,18 +573,30 @@ export function CameraFeed({
             </div>
             <p className="text-red-400 mt-4 text-sm font-medium">Camera Error</p>
             <p className="text-slate-500 mt-1 text-xs max-w-xs">{error}</p>
-            <button
+            {enabled && <button
               onClick={initCamera}
               className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm transition-colors"
             >
               Retry
-            </button>
+            </button>}
           </div>
         </div>
       )}
 
+      {cameraActive && videoPaused && !error && (
+        <p role="status" className="absolute top-4 left-4 right-4 rounded-lg bg-slate-900/90 p-3 text-sm text-amber-300">
+          Camera paused: the device is not sending video. Monitoring resumes when video returns.
+        </p>
+      )}
+
+      {cameraActive && microphoneUnavailable && (
+        <p role="status" className="absolute bottom-4 left-4 right-4 rounded-lg bg-slate-900/90 p-3 text-sm text-amber-300">
+          Microphone unavailable. Video monitoring continues.
+        </p>
+      )}
+
       {/* Status indicators */}
-      {cameraActive && !error && (
+      {cameraActive && !videoPaused && !error && (
         <>
           {/* Recording indicator */}
           <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-slate-900/60 rounded-full backdrop-blur-sm">
