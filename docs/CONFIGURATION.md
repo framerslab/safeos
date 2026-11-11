@@ -247,3 +247,26 @@ VAPID_PRIVATE_KEY=...
 - [Quick Start Guide](./QUICKSTART.md)
 - [API Documentation](./API.md)
 - [Deployment Guide](./DEPLOYMENT.md)
+
+
+### Server vision model defaults
+
+Provider catalogs checked on 11 November 2026. Local analysis continues to use
+[`moondream`](https://ollama.com/library/moondream) for triage and
+[`llava:7b`](https://ollama.com/library/llava:7b) for detailed analysis; both remain
+listed as vision models. When local analysis is unavailable, configured cloud
+providers are tried in this order:
+
+| Provider | Model | Provider reference |
+| --- | --- | --- |
+| OpenRouter | `google/gemini-2.5-flash` | [Current model catalog](https://openrouter.ai/api/v1/models) |
+| OpenAI | `gpt-5.6-terra` | [Model and supported endpoints](https://developers.openai.com/api/docs/models/gpt-5.6-terra) |
+| Anthropic | `claude-haiku-5-5` | [Current models](https://platform.claude.com/docs/en/models/overview) |
+
+These models accept image input. The OpenAI request uses
+`max_completion_tokens: 4096`, including reasoning tokens, on Chat Completions.
+The provider catalog does not guarantee that an individual account has access.
+Model defaults and prices change; check the linked catalog before deployment.
+CI checks request construction through the worker with provider stubs; it does
+not spend credits or assert live account access. The newer OpenAI model has a
+higher published token price than the former default.
