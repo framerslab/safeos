@@ -1,0 +1,6 @@
+# Ollama bound to one public address: reachable from beyond the machine.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "203.0.113.10:11434:11434"

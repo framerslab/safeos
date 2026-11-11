@@ -23,7 +23,8 @@ cd "$root" || exit 1
 # Services allowed to publish on every interface.
 PROXY_SERVICES="caddy"
 
-mapfile -t files < <(find . -path ./node_modules -prune -o -type f \
+# scripts/testdata holds the check's own fixtures, which CI runs separately.
+mapfile -t files < <(find . \( -path ./node_modules -o -path ./scripts/testdata \) -prune -o -type f \
   \( -name 'docker-compose*.yml' -o -name 'docker-compose*.yaml' \
      -o -name 'compose*.yml' -o -name 'compose*.yaml' \) -print \
   | grep -v '/node_modules/' | sed 's|^\./||' | sort)

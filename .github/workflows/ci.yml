@@ -187,3 +187,15 @@ jobs:
         run: |
           docker compose version
           bash scripts/check-compose-ports.sh .
+
+      - name: The check rejects and accepts its fixtures
+        run: |
+          for d in scripts/testdata/compose-ports/reject-*; do
+            if bash scripts/check-compose-ports.sh "$d"; then
+              echo "::error::$d passed the check but must fail it"
+              exit 1
+            fi
+          done
+          for d in scripts/testdata/compose-ports/accept-*; do
+            bash scripts/check-compose-ports.sh "$d"
+          done
