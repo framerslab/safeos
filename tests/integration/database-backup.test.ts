@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { readFileSync } from 'fs';
+import { readFileSync, unlinkSync } from 'fs';
 import { execFileSync } from 'child_process';
 import { join } from 'path';
 import { createDatabase } from '@framers/sql-storage-adapter';
@@ -15,6 +15,7 @@ it('backs up the real database and restores an HTTP-created stream with the docu
     expect(restore, 'The guide must include executable database restore commands').toBeTruthy();
     await p.service.stop();
     await p.db.close();
+    unlinkSync(join(p.dir, 'db_data/app.sqlite3'));
     execFileSync('bash', ['-e', '-c', restore!], { cwd: p.dir, stdio: 'pipe' });
     boundary.db = await createDatabase({ file: join(p.dir, 'db_data/app.sqlite3'), priority: ['better-sqlite3'] } as any);
     await p.service.start();
