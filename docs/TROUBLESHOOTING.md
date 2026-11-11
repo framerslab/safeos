@@ -245,9 +245,9 @@ ls -la db_data/app.sqlite3
    ```
 
 2. **Recover from backup:**
-   ```bash
-   cp backup/safeos-latest.sqlite3 db_data/app.sqlite3
-   ```
+   Stop the API and follow the database restore procedure in the deployment
+   guide. Preserve the existing database and any WAL sidecars for rollback;
+   use SQLite's `.restore` command with a checked backup before restarting.
 
 3. **Export and recreate:**
    ```bash
