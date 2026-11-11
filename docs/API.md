@@ -826,8 +826,9 @@ immediately. All alert rows remain available; skipped rows carry
 `capacity`). `deliveryAttempted` records an attempt, not confirmed receipt.
 `deliverySucceeded` records whether any channel accepted delivery, and
 `deliveryFailed` records a settled attempt with no success. `deliveryResults`
-records each channel's success, skip and timeout flags without provider error
-text. Failed or pending attempts do not start cooldown. Older rows without a
+records each channel's success, delivery, skip and timeout flags without provider
+error text. A destination accepted before another times out still counts as
+delivered, while the channel also reports its timeout. Failed or pending attempts do not start cooldown. Older rows without a
 successful outcome do not suppress delivery.
 
 Quiet hours hold low and medium server alerts only. High and critical alerts

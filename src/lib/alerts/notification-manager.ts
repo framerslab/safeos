@@ -53,6 +53,8 @@ export interface NotificationConfig {
 export interface NotificationResult {
   channel: string;
   success: boolean;
+  /** A destination accepted delivery before another destination timed out. */
+  delivered?: boolean;
   /** True when authorization or recipient suppression prevents delivery. */
   skipped?: boolean;
   error?: string;
@@ -151,9 +153,10 @@ export class NotificationManager {
     // Start channels independently so a slow or failed provider cannot hold up another.
     return Promise.all(channels.map(async (channel): Promise<NotificationResult> => {
       let timer: ReturnType<typeof setTimeout> | undefined;
+      let delivered = false;
       try {
         await Promise.race([
-          this.sendToChannel(channel, payload),
+          this.sendToChannel(channel, payload, () => { delivered = true; }),
           new Promise<never>((_resolve, reject) => {
             timer = setTimeout(() => reject(new Error('timeout')), 15000);
           }),
@@ -172,6 +175,7 @@ export class NotificationManager {
         return {
           channel,
           success: false,
+          ...(delivered ? { delivered: true } : {}),
           error: error instanceof Error ? error.message : 'Unknown error',
         };
       } finally {
@@ -185,20 +189,23 @@ export class NotificationManager {
    */
   private async sendToChannel(
     channel: string,
-    payload: NotificationPayload
+    payload: NotificationPayload,
+    onDelivered: () => void
   ): Promise<void> {
     switch (channel) {
       case 'browser':
-        await this.sendBrowserPush(payload);
+        await this.sendBrowserPush(payload, onDelivered);
         break;
       case 'telegram':
-        await this.sendTelegram(payload);
+        await this.sendTelegram(payload, onDelivered);
         break;
       case 'sms':
         await this.sendSms(payload);
+        onDelivered();
         break;
       case 'email':
         await this.sendEmail(payload);
+        onDelivered();
         break;
       default:
         console.warn(`Unknown notification channel: ${channel}`);
@@ -258,7 +265,7 @@ export class NotificationManager {
   /**
    * Send browser push notifications
    */
-  private async sendBrowserPush(payload: NotificationPayload): Promise<void> {
+  private async sendBrowserPush(payload: NotificationPayload, onDelivered: () => void): Promise<void> {
     if (!this.config.browserPush) throw new NotificationSkippedError('browser push is disabled');
 
     const subscriptions = await getPushSubscriptions(this.profileId);
@@ -279,6 +286,7 @@ export class NotificationManager {
           },
         });
         delivered = true;
+        onDelivered();
       } catch {
         console.warn('[NotificationManager] browser channel skipped: destination rejected or delivery failed');
       }
@@ -289,7 +297,7 @@ export class NotificationManager {
   /**
    * Send Telegram notifications
    */
-  private async sendTelegram(payload: NotificationPayload): Promise<void> {
+  private async sendTelegram(payload: NotificationPayload, onDelivered: () => void): Promise<void> {
     if (!this.config.telegram) throw new NotificationSkippedError('telegram is disabled');
     if (!this.config.telegramBotToken || !this.telegramService) {
       throw new NotificationSkippedError('recipient verification is unavailable for the server bot');
@@ -303,6 +311,7 @@ export class NotificationManager {
       try {
         await this.telegramService!.sendAlert(chatId, payload);
         delivered = true;
+        onDelivered();
       } catch {
         console.warn('[NotificationManager] telegram channel skipped: delivery failed');
       }

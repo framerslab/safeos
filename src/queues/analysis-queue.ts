@@ -514,12 +514,13 @@ export class AnalysisQueue {
           streamId: result.streamId, alertId, severity, title: 'Monitoring alert',
           message: result.description.slice(0, 500), timestamp,
         }, true).then(async results => {
-          const succeeded = results.some(channel => channel.success);
+          const succeeded = results.some(channel => channel.success || channel.delivered);
           await db.run(
             `UPDATE alerts SET metadata = json_set(metadata, '$.deliverySucceeded', json(?),
              '$.deliveryFailed', json(?), '$.deliveryResults', json(?)) WHERE id = ?`,
             [JSON.stringify(succeeded), JSON.stringify(!succeeded), JSON.stringify(results.map(channel => ({
-              channel: channel.channel, success: channel.success, skipped: channel.skipped ?? false,
+              channel: channel.channel, success: channel.success, delivered: channel.success || channel.delivered || false,
+              skipped: channel.skipped ?? false,
               timedOut: channel.error === 'timeout',
             }))), alertId]
           );
