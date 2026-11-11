@@ -337,7 +337,9 @@ signalling peers must also be joined to the same stream.
 ```
 
 Frames fully decode as JPEG, PNG or WebP before storage, with a 2 MiB byte
-limit and 16 megapixel limit. Analysis jobs use the stream's stored scenario.
+limit and 16 megapixel limit. At most two frames decode concurrently across
+the process, without returning full bitmaps to JavaScript. Analysis jobs use
+the stream's stored scenario.
 See [WebSocket API](API.md#websocket-api) for the complete wire format.
 
 ### Server -> Client Messages

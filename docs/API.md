@@ -546,7 +546,9 @@ Wait for `{"type":"connected","payload":{"clientId":"peer-id"}}` before
 sending application messages. Missing, unknown, revoked or expired sessions
 close with code `1008`; session checks also run on each message and heartbeat.
 Tokens in URLs are not accepted. The browser client uses the current sign-in
-session; an offline-only session cannot authenticate to the server.
+session; an offline-only session cannot authenticate to the server. The socket
+hook initializes a session on a fresh monitoring visit. Logout and session
+changes cancel old retries and detach the old socket's event handlers.
 
 ### Stream ownership
 
@@ -585,6 +587,10 @@ frames use plain base64. Invalid content receives `INVALID_FRAME`; images
 above the byte limit receive `FRAME_TOO_LARGE`. Rejected frames are neither
 stored nor queued. Entire WebSocket messages above **3 MiB** close with `1009`.
 A connection with more than 32 pending messages closes with `1008`.
+At most **two image decodes** run at once across the API process. While both
+slots are occupied, additional frames receive `RATE_LIMITED` and are not
+stored or queued. Decoding scans pixels without returning a full bitmap to
+JavaScript.
 
 Each profile has **30 frame attempts per 60-second window**, shared across
 its streams, sessions and concurrent connections. Invalid images count toward

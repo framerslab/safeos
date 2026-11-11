@@ -73,6 +73,9 @@ const MAX_FRAME_BYTES = 2 * 1024 * 1024;
 const MAX_FRAME_PIXELS = 16_000_000;
 const MAX_WS_PAYLOAD = 3 * 1024 * 1024;
 const MAX_PENDING_MESSAGES = 32;
+const MAX_CONCURRENT_FRAME_DECODES = 2;
+// Shared by every socket and server instance in this process.
+let activeFrameDecodes = 0;
 const MAX_MISSED_HEARTBEATS = 3; // Disconnect after 3 missed heartbeats (90 seconds)
 
 /**
@@ -433,6 +436,13 @@ export class SafeOSServer {
       this.frameError(client, 'FRAME_TOO_LARGE');
       return;
     }
+    if (activeFrameDecodes >= MAX_CONCURRENT_FRAME_DECODES) {
+      this.sendToClient(client, {
+        type: 'error', payload: { code: 'RATE_LIMITED', message: 'Frame decoder busy; retry later' },
+      });
+      return;
+    }
+    activeFrameDecodes++;
     try {
       if (bytes.toString('base64') !== imageData) throw new Error('Invalid base64');
       const image = sharp(bytes, { limitInputPixels: MAX_FRAME_PIXELS, failOn: 'warning' });
@@ -440,11 +450,14 @@ export class SafeOSServer {
       if (!['jpeg', 'png', 'webp'].includes(metadata.format || '') || (metadata.pages || 1) !== 1) {
         throw new Error('Unsupported image');
       }
-      // Metadata alone does not establish that the image is decodable.
-      await image.raw().toBuffer();
+      // Statistics scan the decoded pixels without returning a full bitmap
+      // to JavaScript. Metadata alone cannot establish image integrity.
+      await image.stats();
     } catch {
       this.frameError(client, 'INVALID_FRAME');
       return;
+    } finally {
+      activeFrameDecodes--;
     }
     if (!await this.validateClientSession(client) || !await this.ownsStream(client, streamId)) return;
 
