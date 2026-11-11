@@ -36,3 +36,15 @@ it('delivers each new alert once to its owner and continues after a channel fail
     expect((await p.api.get('/api/alerts').set('x-session-token', p.other.token)).body.alerts).toEqual([]);
   } finally { await p.close(); }
 });
+
+
+it("saves the owner's channel preferences through the profile route", async () => {
+  const p = await startPipeline();
+  try {
+    const settings = { browserPush: false, sms: true, smsNumber: '+15557654321', email: true, emailRecipient: 'new@example.com' };
+    const res = await p.api.patch('/api/auth/profile').set('x-session-token', p.owner.token).send({ notificationSettings: settings });
+    expect(res.status).toBe(200);
+    const saved = await p.db.get('SELECT notification_settings FROM user_profiles WHERE id = ?', [p.owner.id]);
+    expect(JSON.parse(saved.notification_settings)).toMatchObject(settings);
+  } finally { await p.close(); }
+});
