@@ -85,11 +85,14 @@ Select what you're monitoring:
 
 #### Step 3: Choose a Camera and Allow Access
 
-Choose **Camera** on Setup or Monitor; the choice is saved in this browser. Click
-**Start Monitoring** and allow camera and microphone access. Monitoring becomes
-active when the camera is ready. **Cancel Starting** cancels a pending request;
-**Stop Monitoring** releases the camera and microphone. A camera error or lost
-capture leaves monitoring inactive.
+Choose **Camera** in this step; the choice is saved in this browser and can be
+changed later on Monitor. Click **Grant Permissions**, allow camera and microphone
+access, then **Continue** to finish Setup. A camera without a microphone is enough.
+
+On Monitor, click **Start Monitoring**. Monitoring becomes active when the camera is
+ready. **Cancel Starting** cancels a pending request; **Stop Monitoring** releases
+the camera and microphone. A camera error or an unplugged camera leaves monitoring
+inactive; a camera that pauses its video resumes monitoring when the video returns.
 
 The **Local** processing mode sends no camera frames to a connected server. Alerts
 survive reload in **History → Local Timeline** when browser storage is available.

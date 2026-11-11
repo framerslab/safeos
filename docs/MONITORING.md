@@ -9,34 +9,44 @@ SafeOS does not silently replace an explicitly selected camera.
 Opening Monitor leaves the camera and microphone off. **Start Monitoring** requests
 access to the selected camera and microphone. The stream shows **Starting** until
 the camera preview is ready; **Cancel Starting** cancels that request. A denied or
-missing camera leaves monitoring inactive and shows the camera error.
+missing camera leaves monitoring inactive and shows the camera error. A device with
+a camera and no microphone monitors video alone and shows the microphone warning;
+Setup's **Grant Permissions** also completes with the camera alone.
 
 **Stop Monitoring**, leaving Monitor, or cancelling startup releases all acquired
 tracks and audio analysis resources. A browser permission prompt may remain open
 after cancellation, but its eventual result cannot restart capture. Changing the
 camera while monitoring releases the old feed before requesting the selected one.
 
-An ended or muted video track stops monitoring, removes **LIVE**, and reports
-lost coverage. Check the device and use **Start Monitoring** again. SafeOS does not
-automatically resume after losing video coverage. An ended or muted microphone
-stops audio analysis and shows a warning while video monitoring continues.
+An ended video track (camera unplugged, switched off or taken away by the system)
+stops monitoring, removes **LIVE**, and reports lost coverage. Check the device and
+use **Start Monitoring** again. A muted video track (the device stops sending video
+for a while) removes **LIVE**, shows **Camera paused**, sets the stream to
+**Paused** and pauses frame analysis; when the track unmutes, monitoring resumes on
+its own. An ended or muted microphone stops audio analysis and shows a warning while
+video monitoring continues.
 
 ## Processing and connection
 
 The Monitor preset's **Local** processing mode keeps camera frames on the device,
-even when a server is connected. Other processing modes may send activity-triggered
-frames to the configured server while monitoring is active. A socket connection
-alone does not mean a camera is running. Metric updates keep the same socket;
-leaving the page cancels its heartbeat and reconnect timer.
+even when a server is connected. In the other modes Monitor sends activity-triggered
+frames over the socket only while monitoring is active and video is live. The
+bundled server's socket handler accepts frames that name a stream id and carry
+`payload.imageData`; Monitor's frame messages carry neither, so the bundled server
+does not store or analyse them. A socket connection alone does not mean a camera is
+running. Metric updates keep the same socket; leaving the page cancels its heartbeat
+and reconnect timer.
 
 ## Alert history
 
 Monitor alerts are written to the existing `safeos-guardian` IndexedDB alert cache.
 Monitor and **History → Local Timeline** restore the latest 100 alerts after a
-reload. Stored monitoring history is also capped at 100 records. Acknowledgements,
-dismissals and clearing alerts update only monitoring-owned records; alerts from
-other producers in the shared database are left intact. Alert types and thumbnails
-are retained.
+reload. Stored monitoring history is also capped at 100 records. An alert
+acknowledged on Monitor stays in history marked acknowledged, also when the server
+cannot be reached. Dismissals and clearing alerts remove only monitoring-owned
+records; alerts from other producers in the shared database are left intact. Alert
+types and thumbnails are retained. A severity outside info, low, medium, high and
+critical is shown as medium (emergency as critical).
 Camera choice uses localStorage; camera streams and active monitoring state are
 never restored from storage. Browser storage must be available for history to
 survive a reload.
@@ -48,8 +58,8 @@ request generation so cleanup invalidates unfinished work. Monitor owns a separa
 capture request and reports active monitoring only after video readiness. A shared
 camera preference supplies the exact device constraint to Monitor and Setup.
 Socket callbacks use refs; connection effects depend on connection configuration.
-Server analysis starts when both video and the socket are ready, including after
-a reconnect. Setup distinguishes missing devices from denied permissions, and
+Monitor sends its start message when both video and the socket are ready,
+including after a reconnect. Setup distinguishes missing devices from denied permissions, and
 the picker keeps availability unknown while browser permissions hide device IDs.
 Alert writes are ordered, and hydration preserves newer in-memory changes.
 
