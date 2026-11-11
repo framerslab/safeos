@@ -183,3 +183,12 @@ describe('unassigned legacy monitoring profiles', () => {
     expect((await call('get', '/api/profiles/legacy-watch', other.token)).status).toBe(404);
   });
 });
+
+describe('optional registration name', () => {
+  it.each(['', '   '])('accepts a blank name from the existing form (%j)', async (displayName) => {
+    const email = `blank-${displayName.length}@example.com`;
+    const res = await call('post', '/api/auth/email/register').send({ email, password: 'GoodPassword123', displayName });
+    expect(res.status).toBe(201);
+    expect((await db.get('SELECT display_name FROM users WHERE email = ?', [email])).display_name).toBe(email.split('@')[0]);
+  });
+});
