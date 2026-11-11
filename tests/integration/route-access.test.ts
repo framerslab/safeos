@@ -423,6 +423,41 @@ describe('exports', () => {
   });
 });
 
+describe('webhooks', () => {
+  it('refuse an expired session and serve a live one', async () => {
+    const client = nextClient();
+    const created = await call('POST', '/api/webhooks', {
+      token: alice.token,
+      client,
+      body: { name: 'Nursery', url: 'https://example.com/hook', events: ['alert.created'] },
+    });
+    expect(created.status).toBe(201);
+    const hookId = ((await created.json()) as any).data.id as string;
+
+    const expired = `expired-${generateId()}`;
+    await db.run(
+      `INSERT INTO sessions (id, token, device_id, is_guest, profile_id, created_at, expires_at, last_active_at)
+       VALUES (?, ?, NULL, 1, ?, ?, ?, ?)`,
+      [generateId(), expired, alice.profileId, now(), new Date(Date.now() - 60_000).toISOString(), now()]
+    );
+    expect((await call('GET', '/api/webhooks', { token: expired, client })).status).toBe(401);
+    const createExpired = await call('POST', '/api/webhooks', {
+      token: expired,
+      client,
+      body: { name: 'Late', url: 'https://example.com/late', events: ['alert.created'] },
+    });
+    expect(createExpired.status).toBe(401);
+    expect((await call('POST', `/api/webhooks/${hookId}/test`, { token: expired, client })).status).toBe(401);
+    expect((await call('DELETE', `/api/webhooks/${hookId}`, { token: expired, client })).status).toBe(401);
+
+    const list = await call('GET', '/api/webhooks', { token: alice.token, client });
+    expect(list.status).toBe(200);
+    const ids = ((await list.json()) as any).data.map((w: { id: string }) => w.id);
+    expect(ids).toEqual([hookId]);
+    expect((await call('DELETE', `/api/webhooks/${hookId}`, { token: alice.token, client })).status).toBe(200);
+  });
+});
+
 // =============================================================================
 // 5. Where a session token may be carried
 // =============================================================================
@@ -481,6 +516,20 @@ describe('rate limiter behind the documented Caddy deployment', () => {
 
     const other = await call('POST', '/api/auth/session', { body: {}, client: b });
     expect(other.status).toBe(201);
+  });
+
+  it('counts failed sign-in requests and not successful ones', async () => {
+    const c = '203.0.113.9';
+    // More successful sign-ins than the limit of five: none of them counts.
+    for (let i = 0; i < 7; i += 1) {
+      expect((await call('POST', '/api/auth/session', { body: {}, client: c })).status).toBe(201);
+    }
+    // Five failed requests use up the allowance; the sixth is refused.
+    for (let i = 0; i < 5; i += 1) {
+      expect((await call('GET', '/api/auth/session', { client: c })).status).toBe(401);
+    }
+    expect((await call('GET', '/api/auth/session', { client: c })).status).toBe(429);
+    expect((await call('POST', '/api/auth/session', { body: {}, client: c })).status).toBe(429);
   });
 
   it('trusts exactly one proxy hop, and none unless the deployment says so', async () => {
