@@ -10,6 +10,7 @@ import { getSafeOSDatabase, generateId, now } from '../db';
 import { OllamaClient } from '../lib/ollama/client';
 import { cloudFallbackAnalysis } from '../lib/analysis/cloud-fallback';
 import { ContentFilter } from '../lib/safety/content-filter';
+import { NotificationManager, type NotificationPayload } from '../lib/alerts/notification-manager';
 
 // =============================================================================
 // Types
@@ -185,21 +186,17 @@ export class AnalysisQueue {
 
     const db = await getSafeOSDatabase();
 
-    // Get next pending job
+    // Claim atomically so overlapping worker ticks cannot analyse the same job.
     const job = await db.get<any>(
-      `SELECT * FROM analysis_queue 
-       WHERE status = 'pending' 
-       ORDER BY priority DESC, created_at ASC 
-       LIMIT 1`
+      `UPDATE analysis_queue SET status = 'processing'
+       WHERE id = (
+         SELECT id FROM analysis_queue WHERE status = 'pending'
+         ORDER BY priority DESC, created_at ASC LIMIT 1
+       ) AND status = 'pending'
+       RETURNING *`
     );
 
     if (!job) return;
-
-    // Mark as processing
-    await db.run(
-      `UPDATE analysis_queue SET status = 'processing' WHERE id = ?`,
-      [job.id]
-    );
 
     this.activeJobs++;
 
@@ -317,9 +314,12 @@ export class AnalysisQueue {
       // Flag is already created by content filter
     }
 
+    // A retry keeps the same result and alert identity.
+    result.id = job.id;
+
     // Store result
     await db.run(
-      `INSERT INTO analysis_results 
+      `INSERT OR IGNORE INTO analysis_results
        (id, stream_id, frame_id, concern_level, description, detected_issues, 
         processing_time_ms, model_used, is_cloud_fallback, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -421,21 +421,21 @@ export class AnalysisQueue {
   private async createAlert(result: AnalysisResult): Promise<void> {
     const db = await getSafeOSDatabase();
 
-    const severityMap: Record<string, string> = {
-      medium: 'medium',
-      high: 'high',
-      critical: 'critical',
-    };
+    const alertId = `alert-${result.id}`;
+    // Insertion claims the delivery attempt; retries must not resend it.
+    if (await db.get('SELECT id FROM alerts WHERE id = ?', [alertId])) return;
+    const timestamp = now();
+    const severity = result.concernLevel as NotificationPayload['severity'];
 
     await db.run(
       `INSERT INTO alerts 
        (id, stream_id, alert_type, severity, message, metadata, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        generateId(),
+        alertId,
         result.streamId,
         'analysis',
-        severityMap[result.concernLevel] || 'medium',
+        severity,
         result.description.slice(0, 500),
         JSON.stringify({
           analysisId: result.id,
@@ -443,9 +443,31 @@ export class AnalysisQueue {
           modelUsed: result.modelUsed,
           isCloudFallback: result.isCloudFallback,
         }),
-        now(),
+        timestamp,
       ]
     );
+
+    try {
+      const owner = await db.get<{ id: string; notification_settings: string }>(
+        `SELECT p.id, p.notification_settings FROM user_profiles p
+         JOIN streams s ON s.user_id = p.id WHERE s.id = ?`, [result.streamId]
+      );
+      if (owner) {
+        const settings = JSON.parse(owner.notification_settings || '{}');
+        const manager = new NotificationManager(settings, owner.id);
+        await manager.notify({
+          streamId: result.streamId,
+          alertId,
+          severity,
+          title: 'Monitoring alert',
+          message: result.description.slice(0, 500),
+          timestamp,
+        });
+      }
+    } catch {
+      // Delivery is best effort. Do not retry analysis and duplicate other channels.
+      console.error(`Alert delivery failed for ${alertId}`);
+    }
 
     console.log(`Alert created for stream ${result.streamId}: ${result.concernLevel}`);
   }

@@ -114,6 +114,9 @@ export const UpdateUserProfileSchema = z.object({
       sms: z.boolean().optional(),
       telegram: z.boolean().optional(),
       emailDigest: z.boolean().optional(),
+      email: z.boolean().optional(),
+      emailRecipient: z.string().email().optional(),
+      smsNumber: z.string().regex(/^\+[1-9]\d{6,14}$/).optional(),
       quietHoursStart: z.string().nullable().optional(),
       quietHoursEnd: z.string().nullable().optional(),
     })

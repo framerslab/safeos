@@ -11,6 +11,7 @@ import { Router } from 'express';
 import { randomUUID } from 'crypto';
 import { getSafeOSDatabase, generateId, now } from '../../db/index.js';
 import { validate } from '../middleware/validate.js';
+import { requireAuth, getProfileId } from '../middleware/auth.js';
 import { CreateSessionSchema, UpdateUserProfileSchema } from '../schemas/index.js';
 
 // =============================================================================
@@ -341,30 +342,10 @@ authRouter.get('/profile', async (req, res) => {
  * PATCH /api/auth/profile
  * Update user profile
  */
-authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res) => {
+authRouter.patch('/profile', requireAuth, validate(UpdateUserProfileSchema), async (req, res) => {
   try {
-    const token = req.headers['x-session-token'] as string;
-
-    if (!token) {
-      return res.status(401).json({
-        success: false,
-        error: 'No session token provided',
-      });
-    }
-
     const db = await getSafeOSDatabase();
-
-    const session = await db.get<Session>(
-      `SELECT * FROM sessions WHERE token = ? AND expires_at > datetime('now')`,
-      [token]
-    );
-
-    if (!session) {
-      return res.status(401).json({
-        success: false,
-        error: 'Invalid or expired session',
-      });
-    }
+    const profileId = getProfileId(req);
 
     const { displayName, preferences, notificationSettings } = req.body;
 
@@ -381,7 +362,7 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
       // Merge with existing preferences
       const existing = await db.get<any>(
         `SELECT preferences FROM user_profiles WHERE id = ?`,
-        [session.profileId]
+        [profileId]
       );
       const merged = {
         ...JSON.parse(existing?.preferences || '{}'),
@@ -395,7 +376,7 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
       // Merge with existing settings
       const existing = await db.get<any>(
         `SELECT notification_settings FROM user_profiles WHERE id = ?`,
-        [session.profileId]
+        [profileId]
       );
       const merged = {
         ...JSON.parse(existing?.notification_settings || '{}'),
@@ -408,7 +389,7 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
     if (updates.length > 0) {
       updates.push('updated_at = ?');
       params.push(now());
-      params.push(session.profileId);
+      params.push(profileId);
 
       await db.run(
         `UPDATE user_profiles SET ${updates.join(', ')} WHERE id = ?`,
@@ -419,7 +400,7 @@ authRouter.patch('/profile', validate(UpdateUserProfileSchema), async (req, res)
     // Return updated profile
     const profile = await db.get<any>(
       `SELECT * FROM user_profiles WHERE id = ?`,
-      [session.profileId]
+      [profileId]
     );
 
     res.json({

@@ -713,3 +713,43 @@ Full OpenAPI 3.0 specification available at:
 
 
 
+
+
+### Server alert delivery settings
+
+With the optional API server running, new analysis alerts of medium or greater
+severity are handed to the stream owner's enabled channels. Set preferences with
+`PATCH /api/auth/profile`, carrying `X-Session-Token` (or a Bearer token):
+
+```json
+{
+  "notificationSettings": {
+    "browserPush": true,
+    "telegram": true,
+    "sms": true,
+    "smsNumber": "+15551234567",
+    "email": true,
+    "emailRecipient": "parent@example.com"
+  }
+}
+```
+
+Email uses `email`, not the legacy `emailDigest` preference. SMS and email require
+a recipient as well as the opt-in flag and configured server credentials.
+Browser push requires VAPID configuration and a subscription; Telegram requires
+a bot token and a registered chat. Delivery still honors email suppression.
+
+All `/api/notifications` routes require a session. Push and Telegram registrations
+are stored in SQLite under that session's profile and survive restarts. A caller's
+`userId` field cannot select a different owner. Re-registering an endpoint or chat
+is idempotent. Push unsubscribe removes that owner's registrations; Telegram
+unregister removes only the named chat for that owner. Status counts are scoped
+to the caller. Existing in-memory registrations must be registered again once
+when upgrading.
+
+Each new alert starts its channels independently. One provider failure does not
+prevent the others from receiving an attempt, and an analysis retry does not
+resend an existing alert. This is one best-effort attempt per channel, not a
+retrying delivery outbox: a process crash between saving an alert and sending it
+can leave it unsent. Provider delivery itself is not guaranteed. No new alert
+WebSocket message is introduced by this change.

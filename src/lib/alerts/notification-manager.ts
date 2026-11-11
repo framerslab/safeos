@@ -57,7 +57,7 @@ export interface NotificationResult {
 const SEVERITY_CHANNELS: Record<string, string[]> = {
   info: ['browser'],
   low: ['browser'],
-  medium: ['browser', 'telegram', 'email'],
+  medium: ['browser', 'telegram', 'sms', 'email'],
   high: ['browser', 'telegram', 'sms', 'email'],
   critical: ['browser', 'telegram', 'sms', 'email'],
 };
@@ -70,7 +70,7 @@ export class NotificationManager {
   private telegramService: TelegramBotService | null = null;
   private config: NotificationConfig;
 
-  constructor(config: Partial<NotificationConfig> = {}) {
+  constructor(config: Partial<NotificationConfig> = {}, private readonly profileId?: string) {
     this.config = {
       browserPush: config.browserPush ?? true,
       sms: config.sms ?? false,
@@ -98,28 +98,24 @@ export class NotificationManager {
    */
   async notify(payload: NotificationPayload): Promise<NotificationResult[]> {
     const channels = SEVERITY_CHANNELS[payload.severity] || ['browser'];
-    const results: NotificationResult[] = [];
-
-    for (const channel of channels) {
+    // Start channels independently so a slow or failed provider cannot hold up another.
+    return Promise.all(channels.map(async (channel): Promise<NotificationResult> => {
       try {
         await this.sendToChannel(channel, payload);
-        results.push({ channel, success: true });
+        return { channel, success: true };
       } catch (error) {
         if (error instanceof Error && error.name === 'EmailSuppressedError') {
           console.warn(`[NotificationManager] ${channel} channel skipped: the recipient unsubscribed from this mail`);
-          results.push({ channel, success: false, skipped: true, error: error.message });
-          continue;
+          return { channel, success: false, skipped: true, error: error.message };
         }
         console.error(`Failed to send ${channel} notification:`, error);
-        results.push({
+        return {
           channel,
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
-        });
+        };
       }
-    }
-
-    return results;
+    }));
   }
 
   /**
@@ -190,7 +186,7 @@ export class NotificationManager {
   private async sendBrowserPush(payload: NotificationPayload): Promise<void> {
     if (!this.config.browserPush) return;
 
-    const subscriptions = getPushSubscriptions();
+    const subscriptions = await getPushSubscriptions(this.profileId);
 
     for (const [userId, subscription] of subscriptions) {
       try {
@@ -217,7 +213,7 @@ export class NotificationManager {
   private async sendTelegram(payload: NotificationPayload): Promise<void> {
     if (!this.config.telegram || !this.telegramService) return;
 
-    const chatIds = getTelegramChatIds();
+    const chatIds = await getTelegramChatIds(this.profileId);
 
     for (const chatId of chatIds) {
       try {
