@@ -188,3 +188,52 @@ describe('WebSocket stream ownership', () => {
     expect(viewer.messages.some(m => m.type === 'audio_level' && m.payload.level === 12)).toBe(true);
   });
 });
+
+describe('WebSocket frame limits', () => {
+  it.each(['not an image', 'truncated JPEG', 'over 2 MiB'])('refuses %s before storage or analysis', async kind => {
+    const owner = await signIn();
+    const streamId = await stream(owner);
+    const peer = await connected(owner);
+    const image = kind === 'not an image' ? Buffer.from('not an image').toString('base64')
+      : kind === 'truncated JPEG' ? Buffer.from(jpeg, 'base64').subarray(0, 100).toString('base64')
+      : Buffer.alloc(2 * 1024 * 1024 + 1).toString('base64');
+    frame(peer, streamId, image, 100);
+    await vi.waitFor(() => expect(peer.messages).toContainEqual(expect.objectContaining({ type: 'error', payload: expect.objectContaining({ code: kind === 'over 2 MiB' ? 'FRAME_TOO_LARGE' : 'INVALID_FRAME' }) })));
+    expect(await frameCount(streamId)).toBe(0);
+    expect(await db.get('SELECT id FROM analysis_queue WHERE stream_id = ?', [streamId])).toBeFalsy();
+  });
+
+  it('closes a 50 MiB message before storing it', async () => {
+    const owner = await signIn();
+    const streamId = await stream(owner);
+    const peer = await connected(owner);
+    let code: number | undefined;
+    peer.ws.on('close', value => { code = value; });
+    frame(peer, streamId, 'A'.repeat(50 * 1024 * 1024));
+    await vi.waitFor(() => expect(code).toBe(1009), { timeout: 5000 });
+    expect(await frameCount(streamId)).toBe(0);
+  });
+
+  it('shares the frame allowance across reconnects and concurrent sockets for the same profile', async () => {
+    const owner = await signIn();
+    const streamId = await stream(owner);
+    const first = await connected(owner);
+    const second = await connected(owner);
+    for (let i = 0; i < 30; i++) frame(i % 2 ? first : second, streamId);
+    await vi.waitFor(async () => expect(await frameCount(streamId)).toBe(30), { timeout: 5000 });
+    first.ws.terminate();
+    second.ws.terminate();
+    // A different session for the same profile must share the allowance too.
+    const token = `second-${owner.token}`;
+    await db.run(`INSERT INTO sessions (id, token, is_guest, profile_id, created_at, expires_at, last_active_at)
+      SELECT ?, ?, is_guest, profile_id, created_at, expires_at, last_active_at FROM sessions WHERE token = ?`, [token, token, owner.token]);
+    const reconnected = await connected({ ...owner, token });
+    frame(reconnected, streamId);
+    await vi.waitFor(() => expect(reconnected.messages).toContainEqual(expect.objectContaining({ type: 'error', payload: expect.objectContaining({ code: 'RATE_LIMITED' }) })));
+    expect(await frameCount(streamId)).toBe(30);
+    const independent = await signIn();
+    const ownStream = await stream(independent);
+    frame(await connected(independent), ownStream);
+    await vi.waitFor(async () => expect(await frameCount(ownStream)).toBe(1));
+  });
+});
