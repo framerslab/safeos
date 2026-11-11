@@ -17,6 +17,7 @@ vi.mock('../../src/db/index.js', async (original) => ({
 vi.mock('../../src/lib/alerts/email.js', async (original) => ({
   ...await original<typeof import('../../src/lib/alerts/email.js')>(),
   isResendConfigured: () => true,
+  getMailLinkBase: () => 'https://api.example.com',
   sendVerificationEmail: verificationMail,
   sendPasswordResetEmail: resetMail,
 }));
