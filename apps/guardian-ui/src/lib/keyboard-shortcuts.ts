@@ -116,8 +116,11 @@ class KeyboardManager {
 
     // Don't trigger shortcuts when typing in inputs
     const target = e.target as HTMLElement;
-    // Let native controls and accessible widgets handle their own keys.
-    if (target.closest?.('button, a[href], [role="button"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="slider"], [contenteditable="true"]')) return;
+    // Preserve activation and widget navigation without blocking unrelated shortcuts.
+    const control = target.closest?.('button, a[href], [role="button"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="slider"]');
+    if (control && (e.key === ' ' || e.key === 'Enter')) return;
+    if (control?.matches('[role="slider"], [role="menuitem"]') &&
+      ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) return;
     if (
       target.tagName === 'INPUT' ||
       target.tagName === 'TEXTAREA' ||
@@ -235,8 +238,7 @@ export function useShortcutsHelp() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-    // Let native controls and accessible widgets handle their own keys.
-    if (target.closest?.('button, a[href], [role="button"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="slider"], [contenteditable="true"]')) return;
+
       if (
         target.tagName === 'INPUT' ||
         target.tagName === 'TEXTAREA' ||
