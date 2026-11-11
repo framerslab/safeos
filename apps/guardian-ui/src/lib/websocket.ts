@@ -57,6 +57,11 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     maxReconnectAttempts = MAX_RECONNECT_ATTEMPTS,
   } = options;
 
+  const callbacksRef = useRef({ onMessage, onConnect, onDisconnect, onError });
+  useEffect(() => {
+    callbacksRef.current = { onMessage, onConnect, onDisconnect, onError };
+  }, [onMessage, onConnect, onDisconnect, onError]);
+
   const sessionToken = useAuthStore(state => state.sessionToken);
   const authenticatedRef = useRef(false);
   const wsRef = useRef<WebSocket | null>(null);
@@ -78,6 +83,11 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
   const connect = useCallback(() => {
     if (isStaticMode()) return;
     if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return;
+
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
 
     // A retry must read the current session, never a captured credential.
     const token = useAuthStore.getState().sessionToken;
@@ -112,10 +122,10 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
             heartbeatRef.current = setInterval(() => {
               if (isCurrent() && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
             }, HEARTBEAT_INTERVAL);
-            onConnect?.();
+            callbacksRef.current.onConnect?.();
           }
           setLastMessage(message);
-          onMessage?.(message);
+          callbacksRef.current.onMessage?.(message);
         } catch (err) {
           console.error('Failed to parse WebSocket message:', err);
         }
@@ -126,7 +136,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         wsRef.current = null;
         authenticatedRef.current = false;
         setIsConnected(false);
-        onDisconnect?.();
+        callbacksRef.current.onDisconnect?.();
         if (heartbeatRef.current) {
           clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
@@ -140,11 +150,11 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
           }, Math.min(delay, 30000));
         }
       };
-      ws.onerror = (error) => { if (isCurrent()) onError?.(error); };
+      ws.onerror = (error) => { if (isCurrent()) callbacksRef.current.onError?.(error); };
     } catch (err) {
       console.error('WebSocket connection error:', err);
     }
-  }, [url, onConnect, onDisconnect, onMessage, onError, reconnect, reconnectDelay, maxReconnectAttempts]);
+  }, [url, reconnect, reconnectDelay, maxReconnectAttempts]);
 
   // Detach before closing: a late event must not affect a newer connection.
   const disconnect = useCallback(() => {
@@ -167,6 +177,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
       ws.close();
     }
     setIsConnected(false);
+    callbacksRef.current.onDisconnect?.();
   }, []);
 
   // Send message

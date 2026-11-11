@@ -118,6 +118,10 @@ function formatDate(dateString: string): string {
 // =============================================================================
 
 export default function HistoryPage() {
+  useEffect(() => {
+    void useMonitoringStore.getState().hydrateAlerts();
+  }, []);
+
   const [viewMode, setViewMode] = useState<ViewMode>('alerts');
   const [filter, setFilter] = useState<FilterSeverity>('all');
   const [alerts, setAlerts] = useState<Alert[]>([]);
