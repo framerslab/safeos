@@ -13,6 +13,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { BackButton } from '@/components/BackButton';
+import { useSettingsStore } from '@/stores/settings-store';
+import { hydrateSavedSettings } from '@/lib/settings-hydration';
 import { useAuthStore } from '../../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import {
@@ -137,6 +139,7 @@ function saveToStorage(settings: NotificationsSettings): void {
 
 export default function NotificationsSettingsPage() {
   const { profile, updateProfile, sessionToken } = useAuthStore();
+  const { quietHoursSettings, updateQuietHoursSettings } = useSettingsStore();
   const { status: backendStatus, config: backendConfig } = useBackendStatus();
 
   const [mounted, setMounted] = useState(false);
@@ -160,23 +163,29 @@ export default function NotificationsSettingsPage() {
 
   useEffect(() => {
     setMounted(true);
-    setSettings(loadFromStorage());
+    const stored = loadFromStorage();
+    hydrateSavedSettings(profile);
+    const shared = useSettingsStore.getState().quietHoursSettings;
+    setSettings({ ...stored, quietHoursEnabled: shared.enabled, quietHoursStart: shared.startTime, quietHoursEnd: shared.endTime });
   }, []);
 
   useEffect(() => {
+    hydrateSavedSettings(profile);
     if (!profile?.notificationSettings) return;
     setSettings((prev) => ({
       ...prev,
       browserPush: profile.notificationSettings?.browserPush ?? prev.browserPush,
       smsEnabled: profile.notificationSettings?.sms ?? prev.smsEnabled,
       telegramEnabled: profile.notificationSettings?.telegram ?? prev.telegramEnabled,
-      quietHoursEnabled: !!(
-        profile.notificationSettings?.quietHoursStart && profile.notificationSettings?.quietHoursEnd
-      ),
-      quietHoursStart: profile.notificationSettings?.quietHoursStart ?? prev.quietHoursStart,
-      quietHoursEnd: profile.notificationSettings?.quietHoursEnd ?? prev.quietHoursEnd,
     }));
   }, [profile]);
+
+  // ---------------------------------------------------------------------------
+  // Keep both settings pages on the same schedule.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    setSettings((prev) => ({ ...prev, quietHoursEnabled: quietHoursSettings.enabled, quietHoursStart: quietHoursSettings.startTime, quietHoursEnd: quietHoursSettings.endTime }));
+  }, [quietHoursSettings]);
 
   // ---------------------------------------------------------------------------
   // Fetch server status
@@ -217,6 +226,7 @@ export default function NotificationsSettingsPage() {
     setSaveMessage(null);
 
     saveToStorage(settings);
+    updateQuietHoursSettings({ enabled: settings.quietHoursEnabled, startTime: settings.quietHoursStart, endTime: settings.quietHoursEnd });
 
     try {
       await updateProfile({
@@ -224,9 +234,8 @@ export default function NotificationsSettingsPage() {
           browserPush: settings.browserPush,
           sms: settings.smsEnabled,
           telegram: settings.telegramEnabled,
-          ...(settings.quietHoursEnabled
-            ? { quietHoursStart: settings.quietHoursStart, quietHoursEnd: settings.quietHoursEnd }
-            : {}),
+          quietHoursStart: settings.quietHoursEnabled ? settings.quietHoursStart : null,
+          quietHoursEnd: settings.quietHoursEnabled ? settings.quietHoursEnd : null,
         } as any,
       });
       setSaveMessage({ type: 'success', text: 'Notification settings saved.' });
@@ -240,7 +249,7 @@ export default function NotificationsSettingsPage() {
       setIsSaving(false);
       setTimeout(() => setSaveMessage(null), 4000);
     }
-  }, [settings, updateProfile]);
+  }, [settings, updateProfile, updateQuietHoursSettings]);
 
   // ---------------------------------------------------------------------------
   // Test email
@@ -870,10 +879,10 @@ export default function NotificationsSettingsPage() {
         </Section>
 
         {/* ----- Quiet hours --------------------------------------------- */}
-        <Section icon={<IconShield size={18} />} title="Quiet hours" subtitle="Suppress non-critical alerts overnight.">
+        <Section icon={<IconShield size={18} />} title="Quiet hours" subtitle="Use the same quiet hours as monitoring and sound settings.">
           <Toggle
             label="Enable quiet hours"
-            description="Critical alerts still come through. Low / medium events are batched until quiet hours end."
+            description="Applies the quiet-hours sound mode configured in alert settings. Emergency alerts remain audible."
             checked={settings.quietHoursEnabled}
             onChange={(v) => update('quietHoursEnabled', v)}
           />
