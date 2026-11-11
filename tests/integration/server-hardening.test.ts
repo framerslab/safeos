@@ -205,14 +205,14 @@ it('preserves the socket payload limit after restart', async () => {
   } finally { ws?.terminate(); await p.close(); }
 });
 
-it.each([['medium', '23:30', 0], ['high', '23:30', 0], ['critical', '23:30', 1], ['medium', '07:00', 1]] as const)('applies UTC quiet hours to %s alerts at %s', async (severity, time, calls) => {
+it.each([['medium', '23:30', 0], ['high', '23:30', 1], ['critical', '23:30', 1], ['medium', '07:00', 1]] as const)('applies saved-zone quiet hours to %s alerts at %s', async (severity, time, calls) => {
   const p = await startPipeline();
   try {
     vi.setSystemTime(new Date(`2026-11-11T${time}:00Z`));
     await p.db.run('UPDATE sessions SET expires_at = ?', ['2099-01-01T00:00:00Z']);
     await channels(p); concern(severity);
     await p.api.patch('/api/auth/profile').set('x-session-token', p.owner.token)
-      .send({ notificationSettings: { quietHoursStart: '22:00', quietHoursEnd: '07:00' } }).expect(200);
+      .send({ notificationSettings: { quietHoursStart: '22:00', quietHoursEnd: '07:00', quietHoursTimeZone: 'UTC', quietHoursDays: [3] } }).expect(200);
     await delivered(p, `quiet-${severity}`);
     expect(await p.db.all('SELECT id FROM alerts')).toHaveLength(1);
     for (const sender of [boundary.push, boundary.email, boundary.telegram]) expect(sender).toHaveBeenCalledTimes(calls);
@@ -249,4 +249,33 @@ it('delivers critical alerts beyond capacity and releases stalled channels after
     await p.tick(1);
     expect((await queue.getStats()).deliveriesInFlight).toBe(0);
   } finally { await p.tick(15000); await p.close(); }
+});
+
+
+it.each([
+  ['medium', '23:00', [3], 'America/Los_Angeles', 1],
+  ['medium', '07:00', [2], 'America/Los_Angeles', 0],
+  ['high', '07:00', [2], 'America/Los_Angeles', 1],
+  ['critical', '07:00', [2], 'America/Los_Angeles', 1],
+  ['medium', '07:00', [3], 'America/Los_Angeles', 1],
+  ['medium', '07:00', [], 'America/Los_Angeles', 1],
+  ['medium', '23:00', [3], undefined, 1],
+] as const)('uses local time and selected days for %s at %s with days %j and zone %s', async (severity, time, days, zone, calls) => {
+  const p = await startPipeline();
+  const log = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    vi.setSystemTime(new Date(`2026-11-11T${time}:00Z`));
+    await p.db.run('UPDATE sessions SET expires_at = ?', ['2099-01-01T00:00:00Z']);
+    await channels(p); concern(severity);
+    await p.api.patch('/api/auth/profile').set('x-session-token', p.owner.token)
+      .send({ notificationSettings: { quietHoursStart: '22:00', quietHoursEnd: '07:00',
+        quietHoursTimeZone: zone, quietHoursDays: days } }).expect(200);
+    await delivered(p, `local-quiet-${severity}`);
+    const alerts = await p.db.all('SELECT metadata FROM alerts');
+    expect(alerts).toHaveLength(1);
+    expect(JSON.parse(alerts[0].metadata).deliverySkipped).toBe(calls ? undefined : 'quiet-hours');
+    for (const sender of [boundary.push, boundary.email, boundary.telegram]) expect(sender).toHaveBeenCalledTimes(calls);
+    if (!zone) expect(log.mock.calls.filter(([message]) => message ===
+      '[NotificationManager] Quiet hours were not applied: no saved time zone')).toHaveLength(1);
+  } finally { log.mockRestore(); await p.close(); }
 });

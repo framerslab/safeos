@@ -31,7 +31,7 @@ jest.mock('@/stores/auth-store', () => {
   const state = {
     profile: null,
     sessionToken: 'session-token-for-test',
-    updateProfile: async () => undefined,
+    updateProfile: jest.fn(async () => undefined),
   };
   const useAuthStore = Object.assign(() => state, { getState: () => state });
   return { useAuthStore };
@@ -130,5 +130,31 @@ describe('authenticated notification status and server tests', () => {
     await press(/^test push$/i);
     await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/notifications/test'))).toBe(true));
     expect(sessionHeader('/api/notifications/test')).toBe('session-token-for-test');
+  });
+});
+
+
+describe('quiet-hours profile saves', () => {
+  it.each(['@/app/settings/page', '@/app/settings/notifications/page'])('saves the browser zone and chosen days from %s', async path => {
+    const { useSettingsStore } = require('@/stores/settings-store');
+    const { useAuthStore } = require('@/stores/auth-store');
+    useSettingsStore.getState().resetToDefaults();
+    useSettingsStore.getState().updateQuietHoursSettings({
+      enabled: true, startTime: '22:00', endTime: '07:00', days: [1, 3, 5],
+    });
+    useAuthStore.getState().updateProfile.mockClear();
+    const Page = require(path).default;
+    render(<Page />);
+    await press(/save changes/i);
+    await waitFor(() => expect(useAuthStore.getState().updateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationSettings: expect.objectContaining({
+        quietHoursStart: '22:00', quietHoursEnd: '07:00', quietHoursDays: [1, 3, 5],
+        quietHoursTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }) })
+    ));
+    if (path.endsWith('notifications/page')) {
+      expect(screen.getByText(/holds low and medium alerts on the server/i)).toBeTruthy();
+      expect(screen.getByText(/high and critical alerts are always sent/i)).toBeTruthy();
+    }
   });
 });
