@@ -618,7 +618,7 @@ describe('NotificationManager', () => {
         email: true,
         emailRecipient: 'alerts@example.com',
         emailFromOverride: 'Custom <custom@test>',
-      });
+      }, 'operator-owner');
 
       await m.notify({
         streamId: 's',
