@@ -2,7 +2,9 @@
 #
 #   docker compose -f docker-compose.ghcr.yml up -d
 #
-# UI at http://localhost:3000, API at http://localhost:3001.
+# UI at http://localhost:3000, API at http://localhost:3001, on this machine
+# only: the UI, the API and Ollama are published on 127.0.0.1.
+# To serve other machines, use docker-compose.prod.yml (docs/DEPLOYMENT.md).
 # Pin a version with SAFEOS_TAG (default: latest). NVIDIA GPU: add
 # -f docker-compose.gpu.yml. Images are published from master to
 # ghcr.io/framerslab/safeos-{api,ui} by .github/workflows/docker-publish.yml.
@@ -14,8 +16,11 @@ services:
     image: ollama/ollama:latest
     container_name: safeos-ollama
     restart: unless-stopped
+    # Published on 127.0.0.1 only, for tools on this machine
+    # (scripts/pull-ollama-models.sh). Ollama has no authentication of its own;
+    # the API reaches it at http://ollama:11434 on the compose network.
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama-models:/root/.ollama
     healthcheck:
@@ -59,7 +64,7 @@ services:
     init: true
     pull_policy: always
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       - NODE_ENV=production
       - SAFEOS_PORT=3001
@@ -109,7 +114,7 @@ services:
     restart: unless-stopped
     pull_policy: always
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       api:
         condition: service_healthy

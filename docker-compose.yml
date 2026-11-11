@@ -10,6 +10,11 @@
 # With Redis:  docker compose --profile with-redis up -d --build
 #
 # Values written as ${VAR:-default} are read from ./.env automatically.
+#
+# This stack is for one machine. The UI, the API and Ollama are published on
+# 127.0.0.1 only (open http://localhost:3000 on the same machine); Redis is
+# not published. To serve other machines, use docker-compose.prod.yml, where
+# only the Caddy proxy is published (docs/DEPLOYMENT.md).
 
 name: safeos
 
@@ -21,8 +26,11 @@ services:
     image: ollama/ollama:latest
     container_name: safeos-ollama
     restart: unless-stopped
+    # Published on 127.0.0.1 only, for tools on this machine
+    # (scripts/pull-ollama-models.sh). Ollama has no authentication of its own;
+    # the API reaches it at http://ollama:11434 on the compose network.
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama-models:/root/.ollama
     healthcheck:
@@ -75,7 +83,7 @@ services:
     restart: unless-stopped
     init: true
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       - NODE_ENV=production
       - SAFEOS_PORT=3001
@@ -136,7 +144,7 @@ services:
     container_name: safeos-ui
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       api:
         condition: service_healthy
@@ -151,8 +159,9 @@ services:
     image: redis:7-alpine
     container_name: safeos-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    # Not published: no password is set, so it stays on the compose network.
+    expose:
+      - "6379"
     command: redis-server --appendonly yes
     volumes:
       - redis-data:/data

@@ -1,0 +1,16 @@
+# The proxy on every interface, everything else on loopback or unpublished.
+services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+  api:
+    image: example/api:latest
+    ports:
+      - "127.0.0.1:3001:3001"
+      - "[::1]:3002:3002"
+  ollama:
+    image: ollama/ollama:latest
+    expose:
+      - "11434"
