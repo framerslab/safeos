@@ -236,6 +236,8 @@ export default function NotificationsSettingsPage() {
           telegram: settings.telegramEnabled,
           quietHoursStart: settings.quietHoursEnabled ? settings.quietHoursStart : null,
           quietHoursEnd: settings.quietHoursEnabled ? settings.quietHoursEnd : null,
+          quietHoursTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          quietHoursDays: quietHoursSettings.days,
         } as any,
       });
       setSaveMessage({ type: 'success', text: 'Notification settings saved.' });
@@ -249,7 +251,7 @@ export default function NotificationsSettingsPage() {
       setIsSaving(false);
       setTimeout(() => setSaveMessage(null), 4000);
     }
-  }, [settings, updateProfile, updateQuietHoursSettings]);
+  }, [settings, quietHoursSettings.days, updateProfile, updateQuietHoursSettings]);
 
   // ---------------------------------------------------------------------------
   // Test email
@@ -882,7 +884,7 @@ export default function NotificationsSettingsPage() {
         <Section icon={<IconShield size={18} />} title="Quiet hours" subtitle="Use the same quiet hours as monitoring and sound settings.">
           <Toggle
             label="Enable quiet hours"
-            description="Applies the quiet-hours sound mode configured in alert settings. Emergency alerts remain audible."
+            description="Holds low and medium alerts on the server during your selected local times and days. High and critical alerts are always sent."
             checked={settings.quietHoursEnabled}
             onChange={(v) => update('quietHoursEnabled', v)}
           />

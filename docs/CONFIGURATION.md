@@ -334,9 +334,16 @@ immediate. The per-process delivery cap is 32 unsettled alerts; capacity skips
 are recorded in alert metadata and are not queued for a later retry. Slow
 providers do not occupy analysis workers or delay server shutdown.
 
-Profile `quietHoursStart` and `quietHoursEnd` use `HH:mm` in UTC on the server,
-including overnight windows. The start is inclusive and the end exclusive;
-missing, invalid or equal times disable quiet hours. Critical alerts bypass the
-window; medium and high alerts remain saved but are not dispatched. Browser
-sounds use the device's local clock. Provider credentials saved with the profile
+Quiet hours hold low and medium server alerts only. High and critical alerts
+always bypass the window. Settings saves the browser's IANA time zone as
+`quietHoursTimeZone`, the chosen local weekdays as `quietHoursDays` (Sunday = 0),
+and `quietHoursStart` / `quietHoursEnd` as `HH:mm`. The current local weekday
+must be selected, including the after-midnight portion of an overnight window.
+The start is inclusive and the end exclusive; missing, invalid or equal times
+disable the window. Missing days or an empty day list holds nothing. A legacy
+profile with a window but no saved time zone holds nothing; the server logs
+one fixed message without personal data explaining why. Saving settings adds
+the zone and days. Browser sound settings continue to use the device clock.
+
+Provider credentials saved with the profile
 are write-only in API and export responses; presence flags indicate which are set.

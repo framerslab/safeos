@@ -512,7 +512,7 @@ export class AnalysisQueue {
         void manager.notify({
           streamId: result.streamId, alertId, severity, title: 'Monitoring alert',
           message: result.description.slice(0, 500), timestamp,
-        }).catch(() => {
+        }, true).catch(() => {
           console.error('Alert delivery failed');
         }).finally(() => { activeDeliveries--; });
       } catch {

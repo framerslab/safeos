@@ -825,11 +825,16 @@ immediately. All alert rows remain available; skipped rows carry
 `metadata.deliverySkipped` (`cooldown`, `quiet-hours`, `inactive-stream` or
 `capacity`). `deliveryAttempted` records an attempt, not confirmed receipt.
 
-The server interprets `quietHoursStart` and `quietHoursEnd` as `HH:mm` in UTC.
-A window includes its start and excludes its end; overnight windows work too.
-Missing, invalid or equal times disable the window. Medium and high alerts are
-saved without dispatch during it; critical alerts always bypass quiet hours.
-Browser sounds continue to use the device's local time.
+Quiet hours hold low and medium server alerts only. High and critical alerts
+always bypass the window. Settings saves the browser's IANA time zone as
+`quietHoursTimeZone`, the chosen local weekdays as `quietHoursDays` (Sunday = 0),
+and `quietHoursStart` / `quietHoursEnd` as `HH:mm`. The current local weekday
+must be selected, including the after-midnight portion of an overnight window.
+The start is inclusive and the end exclusive; missing, invalid or equal times
+disable the window. Missing days or an empty day list holds nothing. A legacy
+profile with a window but no saved time zone holds nothing; the server logs
+one fixed message without personal data explaining why. Saving settings adds
+the zone and days. Browser sound settings continue to use the device clock.
 
 Delivery runs outside the analysis worker slots. At most 32 alert deliveries
 may remain in flight across this API process. At capacity, new alerts are saved

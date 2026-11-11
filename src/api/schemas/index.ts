@@ -129,6 +129,11 @@ export const UpdateUserProfileSchema = z.object({
       smsNumber: z.string().regex(/^\+[1-9]\d{6,14}$/).optional(),
       quietHoursStart: z.string().nullable().optional(),
       quietHoursEnd: z.string().nullable().optional(),
+      quietHoursTimeZone: z.string().max(100).refine(value => {
+        try { new Intl.DateTimeFormat('en-US', { timeZone: value }); return true; }
+        catch { return false; }
+      }, 'Expected an IANA time zone').nullable().optional(),
+      quietHoursDays: z.array(z.number().int().min(0).max(6)).max(7).optional(),
     })
     .optional(),
 });

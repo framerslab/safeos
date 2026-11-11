@@ -47,6 +47,8 @@ export interface NotificationSettings {
   emailDigest: boolean;
   quietHoursStart: string | null;
   quietHoursEnd: string | null;
+  quietHoursTimeZone?: string | null;
+  quietHoursDays?: number[];
 }
 
 /** Session mode - 'full' when connected to backend, 'local-only' otherwise */

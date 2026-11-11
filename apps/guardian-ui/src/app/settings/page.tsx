@@ -326,6 +326,8 @@ export default function SettingsPage() {
           emailDigest: profile?.notificationSettings?.emailDigest ?? false,
           quietHoursStart: quietHoursEnabled ? quietHoursStart : null,
           quietHoursEnd: quietHoursEnabled ? quietHoursEnd : null,
+          quietHoursTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          quietHoursDays: quietHoursSettings.days,
         },
       };
 
@@ -691,7 +693,7 @@ export default function SettingsPage() {
                     />
                     <div>
                       <p className="text-white">Quiet Hours</p>
-                      <p className="text-xs text-slate-500">Mute non-critical alerts during set times</p>
+                      <p className="text-xs text-slate-500">Holds low and medium alerts on the server during your selected local times and days. High and critical alerts are always sent.</p>
                     </div>
                   </label>
 

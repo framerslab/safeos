@@ -39,6 +39,9 @@ export interface NotificationConfig {
   emailRecipient?: string;
   quietHoursStart?: string | null;
   quietHoursEnd?: string | null;
+  quietHoursTimeZone?: string | null;
+  /** Local weekdays, Sunday = 0. */
+  quietHoursDays?: number[];
   /** Optional per-user override (BYO Resend API key). Falls back to server env. */
   emailOverride?: Partial<EmailConfig>;
   /** Optional per-user "From" address override. */
@@ -71,9 +74,9 @@ const SEVERITY_CHANNELS: Record<string, string[]> = {
 // NotificationManager Class
 // =============================================================================
 
-/** Server quiet hours use UTC; critical alerts always bypass them. */
+/** Hold only low/medium alerts on selected local weekdays; urgency always wins. */
 export function isQuietHours(config: Partial<NotificationConfig>, severity: NotificationPayload['severity']): boolean {
-  if (severity === 'critical') return false;
+  if (severity !== 'low' && severity !== 'medium') return false;
   const parse = (value: string | null | undefined): number | null => {
     if (!value || !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
     const [hours, minutes] = value.split(':').map(Number);
@@ -82,8 +85,24 @@ export function isQuietHours(config: Partial<NotificationConfig>, severity: Noti
   const start = parse(config.quietHoursStart);
   const end = parse(config.quietHoursEnd);
   if (start === null || end === null || start === end) return false;
-  const clock = new Date();
-  const current = clock.getUTCHours() * 60 + clock.getUTCMinutes();
+  if (!config.quietHoursTimeZone) {
+    console.warn('[NotificationManager] Quiet hours were not applied: no saved time zone');
+    return false;
+  }
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: config.quietHoursTimeZone, hourCycle: 'h23',
+      weekday: 'short', hour: '2-digit', minute: '2-digit',
+    }).formatToParts(new Date());
+  } catch {
+    console.warn('[NotificationManager] Quiet hours were not applied: invalid saved time zone');
+    return false;
+  }
+  const value = (type: string) => parts.find(part => part.type === type)?.value;
+  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(value('weekday') ?? '');
+  if (!config.quietHoursDays?.includes(day)) return false;
+  const current = Number(value('hour')) * 60 + Number(value('minute'));
   return start < end ? current >= start && current < end : current >= start || current < end;
 }
 
@@ -105,6 +124,8 @@ export class NotificationManager {
       emailRecipient: config.emailRecipient,
       quietHoursStart: config.quietHoursStart,
       quietHoursEnd: config.quietHoursEnd,
+      quietHoursTimeZone: config.quietHoursTimeZone,
+      quietHoursDays: config.quietHoursDays,
       emailOverride: config.emailOverride,
       emailFromOverride: config.emailFromOverride,
       smsOverride: config.smsOverride,
@@ -122,9 +143,9 @@ export class NotificationManager {
   /**
    * Send notification through appropriate channels based on severity
    */
-  async notify(payload: NotificationPayload): Promise<NotificationResult[]> {
+  async notify(payload: NotificationPayload, quietHoursChecked = false): Promise<NotificationResult[]> {
     const channels = SEVERITY_CHANNELS[payload.severity] || ['browser'];
-    if (isQuietHours(this.config, payload.severity)) {
+    if (!quietHoursChecked && isQuietHours(this.config, payload.severity)) {
       return channels.map(channel => ({ channel, success: false, skipped: true, error: 'Quiet hours' }));
     }
     // Start channels independently so a slow or failed provider cannot hold up another.
