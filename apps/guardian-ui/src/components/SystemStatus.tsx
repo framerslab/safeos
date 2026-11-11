@@ -188,7 +188,7 @@ export function SystemStatus({ stats }: SystemStatusProps) {
               </div>
             ) : (
               <div className="text-sm text-slate-500">
-                {backendConfig.ollamaUrl && backendStatus.ollama === 'connected'
+                {backendConfig.apiUrl && backendStatus.ollama === 'connected'
                   ? 'No models installed'
                   : 'Ollama is offline'}
               </div>
