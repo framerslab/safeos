@@ -33,3 +33,24 @@ it.each(['clear', 'sign out'])('%s removes stored and active schedules and appea
   expect(useThemeStore.getState().themeMode).toBe('system');
   expect(useThemeStore.getState().accessibility.largeText).toBe(false);
 });
+
+it.each(['clear', 'sign out'])('%s removes the dashboard onboarding record', async (action) => {
+  localStorage.clear();
+  fakeCaches();
+  localStorage.setItem('guardian-onboarding-complete', 'true');
+  localStorage.setItem('safeos-clear-marker', 'present');
+  if (action === 'clear') {
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+    render(<SettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Privacy' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear All Local Data' }));
+  } else {
+    useAuthStore.setState({ isInitialized: true, isAuthenticated: true, isGuest: false, sessionToken: 'local-first' });
+    render(<AuthButton />);
+    fireEvent.click(screen.getByRole('button', { name: /account menu/i }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Log Out' }));
+  }
+  // The marker goes in the same pass that removes the other browser keys.
+  await waitFor(() => expect(localStorage.getItem('safeos-clear-marker')).toBeNull());
+  expect(localStorage.getItem('guardian-onboarding-complete')).toBeNull();
+});
