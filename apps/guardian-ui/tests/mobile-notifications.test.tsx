@@ -36,3 +36,31 @@ it('delivers the settings test alert through the shared notification manager', a
   await waitFor(() => expect(showNotification).toHaveBeenCalledWith('Test', expect.objectContaining({ body: 'This is a test browser notification' })));
   expect(constructor).not.toHaveBeenCalled();
 });
+
+it('focuses the alerting tab without reloading its active camera page', async () => {
+  const handlers: Record<string, (event: any) => void> = {};
+  const client = { url: 'https://guardian.example.test/monitor/', focus: jest.fn().mockResolvedValue(undefined), navigate: jest.fn() };
+  const clients = { matchAll: jest.fn().mockResolvedValue([client]), openWindow: jest.fn() };
+  const { readFileSync } = require('fs');
+  const { runInNewContext } = require('vm');
+  runInNewContext(readFileSync(require('path').join(process.cwd(), 'public/sw.js'), 'utf8'), {
+    self: { addEventListener: (name: string, handler: (event: any) => void) => { handlers[name] = handler; }, location: { origin: 'https://guardian.example.test' } },
+    clients, console, URL,
+  });
+  const constructor = jest.fn(() => { throw new TypeError('Illegal constructor'); });
+  Object.assign(constructor, { permission: 'granted' });
+  Object.defineProperty(window, 'Notification', { configurable: true, value: constructor });
+  const showNotification = jest.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { getRegistration: async () => ({ showNotification }) } });
+  render(<TestAlertsPage />);
+  fireEvent.click(await screen.findByRole('button', { name: /test notification/i }));
+  await waitFor(() => expect(showNotification).toHaveBeenCalled());
+  const options = showNotification.mock.calls[0][1];
+  expect(options.data).toEqual(expect.objectContaining({ focusOnly: true, url: window.location.href }));
+  let clicked: Promise<unknown> = Promise.resolve();
+  handlers.notificationclick({ action: '', notification: { data: options.data, close: jest.fn() }, waitUntil: (promise: Promise<unknown>) => { clicked = promise; } });
+  await clicked;
+  expect(client.focus).toHaveBeenCalled();
+  expect(client.navigate).not.toHaveBeenCalled();
+  expect(clients.openWindow).not.toHaveBeenCalled();
+});
