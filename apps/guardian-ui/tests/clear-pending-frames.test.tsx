@@ -2,6 +2,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { fakeCaches } from './helpers/browser-data';
+import { BrowserTrack } from './helpers/camera-browser';
 import MonitorPage from '@/app/monitor/page';
 import SettingsPage from '@/app/settings/page';
 import { useLostFoundStore, DEFAULT_SETTINGS } from '@/stores/lost-found-store';
@@ -23,7 +24,10 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
   Object.defineProperty(HTMLVideoElement.prototype, 'videoWidth', { configurable: true, get: () => 8 });
   Object.defineProperty(HTMLVideoElement.prototype, 'videoHeight', { configurable: true, get: () => 8 });
-  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: jest.fn().mockResolvedValue({ getTracks: () => [{ stop: jest.fn() }] }) } });
+  const videoTrack = new BrowserTrack('video');
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: jest.fn().mockResolvedValue({
+    getTracks: () => [videoTrack], getVideoTracks: () => [videoTrack], getAudioTracks: () => [],
+  }) } });
   Object.defineProperty(window, 'AudioContext', { configurable: true, value: class {
     createMediaStreamSource() { return { connect: jest.fn() }; }
     createAnalyser() { return { fftSize: 256, frequencyBinCount: 128, getByteFrequencyData: jest.fn(), context: { sampleRate: 44100 } }; }
@@ -36,6 +40,7 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   useSettingsStore.getState().updateGlobalSettings({ pixelDetectionEnabled: false });
   useLostFoundStore.setState({ isWatching: true, activeSubject: { id: 'subject', name: 'Subject', type: 'other', description: '', fingerprint, referenceImages: [], createdAt: fingerprint.createdAt, lastActiveAt: null, matchCount: 0 }, settings: { ...DEFAULT_SETTINGS, scanGridSize: 2, minConfidenceForRecord: 0, alertSound: false, alertNotification: false, adaptiveLighting: false, motionPriority: false } });
   const camera = render(<MonitorPage />);
+  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
   await waitFor(() => expect(pending.length).toBeGreaterThan(0));
   expect(pending[0].onload).toBeTruthy();
   render(<SettingsPage />);
