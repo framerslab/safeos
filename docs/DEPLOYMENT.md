@@ -20,9 +20,9 @@ The Guardian UI is a standalone Progressive Web App that requires no server.
 ### Build
 
 ```bash
-cd packages/safeos/apps/guardian-ui
-pnpm install
-pnpm build
+cd apps/guardian-ui
+npm install
+npm run build
 ```
 
 This creates a static `out/` folder ready for deployment.
@@ -45,32 +45,30 @@ This creates a static `out/` folder ready for deployment.
 name: Deploy to GitHub Pages
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 8
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
+          cache: 'npm'
+          cache-dependency-path: apps/guardian-ui/package-lock.json
 
       - name: Install & Build
         run: |
-          cd packages/safeos/apps/guardian-ui
-          pnpm install
-          pnpm build
+          cd apps/guardian-ui
+          npm ci
+          npm run build
 
       - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: packages/safeos/apps/guardian-ui/out
+          publish_dir: apps/guardian-ui/out
 ```
 
 ### Vercel
@@ -80,7 +78,7 @@ jobs:
 npm i -g vercel
 
 # Deploy
-cd packages/safeos/apps/guardian-ui
+cd apps/guardian-ui
 vercel --prod
 ```
 
@@ -95,7 +93,7 @@ Or connect your repo at [vercel.com](https://vercel.com) for automatic deploymen
 Or use CLI:
 ```bash
 npm i -g netlify-cli
-cd packages/safeos/apps/guardian-ui
+cd apps/guardian-ui
 netlify deploy --prod --dir=out
 ```
 
@@ -104,8 +102,8 @@ netlify deploy --prod --dir=out
 ```bash
 # Via Cloudflare dashboard
 # 1. Connect repo
-# 2. Build command: cd packages/safeos/apps/guardian-ui && pnpm build
-# 3. Output directory: packages/safeos/apps/guardian-ui/out
+# 2. Build command: cd apps/guardian-ui && npm run build
+# 3. Output directory: apps/guardian-ui/out
 ```
 
 ### Any Static Host
@@ -127,17 +125,18 @@ Deploy the API server for SMS/Telegram alerts, Ollama LLM, and multi-device sync
 ### Local Development
 
 ```bash
-cd packages/safeos
+# From the repository root (the folder git clone made)
 
 # Install dependencies
-pnpm install
+npm install --legacy-peer-deps
+(cd apps/guardian-ui && npm ci)
 
 # Start API + UI
-pnpm dev
+npm run dev
 
 # Or separately:
-pnpm run api  # Port 3001
-pnpm run ui   # Port 3000
+npm run api  # Port 3001
+npm run ui   # Port 3000
 ```
 
 ### Docker
@@ -148,18 +147,15 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install pnpm
-RUN npm install -g pnpm
-
 # Copy package files
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json ./
+RUN npm install --legacy-peer-deps
 
 # Copy source
 COPY . .
 
 # Build
-RUN pnpm build
+RUN npm run build
 
 EXPOSE 3001
 
@@ -221,9 +217,8 @@ volumes:
 # Install PM2
 npm install -g pm2
 
-# Build
-cd packages/safeos
-pnpm build
+# Build, from the repository root
+npm run build
 
 # Start with PM2
 pm2 start dist/index.js --name safeos-api
@@ -380,7 +375,7 @@ server {
 ### API Health Endpoint
 
 ```bash
-curl http://localhost:3001/api/health
+curl http://localhost:3001/health
 # {"status":"healthy","timestamp":"..."}
 ```
 

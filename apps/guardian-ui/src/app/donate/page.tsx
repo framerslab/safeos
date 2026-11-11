@@ -1,8 +1,9 @@
 /**
  * Donate Page
  *
- * Sponsor SafeOS Guardian via GitHub Sponsors. All sponsorship goes through
- * github.com/sponsors/manicinc (the parent agency for the framersai org).
+ * Sponsor SafeOS Guardian via GitHub Sponsors at github.com/sponsors/framerslab.
+ * A sponsorship supports development by Frame (Framers Lab, Inc.); it is not a
+ * tax-deductible donation.
  *
  * @module app/donate/page
  */
@@ -22,17 +23,16 @@ import {
 
 export const metadata: Metadata = {
   title: 'Support SafeOS',
-  description: 'Sponsor SafeOS Guardian via GitHub Sponsors. 10% of sponsorship goes to humanitarian organizations.',
+  description: 'Sponsor SafeOS Guardian development by Frame (Framers Lab, Inc.) through GitHub Sponsors.',
 };
 
 // =============================================================================
 // Constants
 // =============================================================================
 
-const SPONSOR_FRAMERSAI_URL = 'https://github.com/sponsors/framersai';
-const SPONSOR_MANICINC_URL = 'https://github.com/sponsors/manicinc';
-const GITHUB_REPO = 'https://github.com/framersai/safeos';
-const GITHUB_ISSUES = 'https://github.com/framersai/safeos/issues';
+const SPONSOR_URL = 'https://github.com/sponsors/framerslab';
+const GITHUB_REPO = 'https://github.com/framerslab/safeos';
+const GITHUB_ISSUES = 'https://github.com/framerslab/safeos/issues';
 
 // =============================================================================
 // Animated SVG Components
@@ -245,8 +245,8 @@ export default function DonatePage() {
           <h2 className="text-3xl font-bold text-white mb-4">Sponsor SafeOS Guardian</h2>
 
           <p className="text-lg text-slate-300 max-w-xl mx-auto leading-relaxed">
-            SafeOS is open source and free forever. Sponsorship pays for development time,
-            model hosting, and the bandwidth that keeps the static site live.
+            SafeOS is open source and free to use. A sponsorship pays for development time
+            on SafeOS and the hosting that keeps safeos.sh online.
           </p>
         </div>
 
@@ -255,42 +255,34 @@ export default function DonatePage() {
           <div className="text-center mb-5">
             <h3 className="text-xl font-semibold text-white mb-2">Sponsor on GitHub</h3>
             <p className="text-sm text-slate-300 max-w-md mx-auto">
-              Direct sponsorship goes to{' '}
+              A sponsorship goes to{' '}
               <a
-                href={SPONSOR_FRAMERSAI_URL}
+                href={SPONSOR_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-emerald-300 hover:text-emerald-200 underline-offset-2 hover:underline font-medium"
               >
-                framersai
+                framerslab
               </a>
-              , the org behind SafeOS, AgentOS, Paracosm, and the rest of the Frame ecosystem.
+              , the GitHub account of Frame (Framers Lab, Inc.), which builds SafeOS and AgentOS.
+              It supports development and is not a tax-deductible donation.
             </p>
           </div>
 
           <a
-            href={SPONSOR_FRAMERSAI_URL}
+            href={SPONSOR_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition-colors group mb-3"
           >
             <IconHeart size={20} className="text-white group-hover:scale-110 transition-transform" />
-            Sponsor framersai on GitHub
+            Sponsor framerslab on GitHub
             <IconExternalLink size={16} className="opacity-70" />
           </a>
 
-          <a
-            href={SPONSOR_MANICINC_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-slate-800/60 hover:bg-slate-800 border border-pink-500/30 hover:border-pink-500/50 text-pink-200 text-sm font-medium rounded-lg transition-colors"
-          >
-            Or sponsor the parent agency — manicinc
-            <IconExternalLink size={14} className="opacity-70" />
-          </a>
-
           <p className="mt-4 text-center text-xs text-slate-400">
-            One-time or recurring tiers. Anonymous sponsorship supported. No GitHub-side fees.
+            One-time or monthly. GitHub charges no fee on sponsorships from personal accounts
+            and up to 6% on sponsorships from organization accounts.
           </p>
         </div>
 
@@ -299,12 +291,12 @@ export default function DonatePage() {
           <div className="inline-flex items-center gap-2 mb-2 px-3 py-1 bg-emerald-500/15 border border-emerald-500/30 rounded-full">
             <IconShield size={14} className="text-emerald-300" />
             <span className="text-xs uppercase tracking-wider font-semibold text-emerald-300">
-              10% for Humanity
+              Humanitarian work
             </span>
           </div>
           <p className="text-slate-300 leading-relaxed">
-            Ten percent of every sponsorship is routed to humanitarian organizations focused on
-            child safety, elder care, and missing-persons recovery.
+            Frame puts some of its development resources into humanitarian work, and SafeOS is
+            part of that work.
           </p>
         </div>
 
@@ -355,7 +347,7 @@ export default function DonatePage() {
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block text-white text-sm font-medium">Star the repo on GitHub</span>
-                <span className="block text-xs text-slate-400">framersai/safeos</span>
+                <span className="block text-xs text-slate-400">framerslab/safeos</span>
               </span>
               <IconExternalLink size={14} className="text-slate-500 flex-shrink-0" />
             </a>
@@ -374,7 +366,7 @@ export default function DonatePage() {
               </span>
               <span className="flex-1 min-w-0">
                 <span className="block text-white text-sm font-medium">Report bugs &amp; request features</span>
-                <span className="block text-xs text-slate-400">github.com/framersai/safeos/issues</span>
+                <span className="block text-xs text-slate-400">github.com/framerslab/safeos/issues</span>
               </span>
               <IconExternalLink size={14} className="text-slate-500 flex-shrink-0" />
             </a>
@@ -396,9 +388,9 @@ export default function DonatePage() {
         {/* Footer note */}
         <div className="mt-12 text-center">
           <p className="text-sm text-slate-400">
-            SafeOS Guardian is and will always remain free.
+            SafeOS Guardian is free to use.
             <br />
-            Sponsorship helps us go further, faster.
+            A sponsorship pays for more development time on it.
           </p>
         </div>
 
@@ -421,30 +413,3 @@ export default function DonatePage() {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -53,7 +53,7 @@ const navLinks: NavLink[] = [
 // GitHub button
 // =============================================================================
 
-const GITHUB_REPO = 'framersai/safeos';
+const GITHUB_REPO = 'framerslab/safeos';
 const STAR_CACHE_KEY = 'safeos_github_stars';
 const STAR_CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 

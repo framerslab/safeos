@@ -30,7 +30,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconDatabase,
     title: 'Local-First Storage',
-    description: 'All your data stays on YOUR device. Video frames, settings, and alerts are stored in your browser\'s IndexedDB—never sent to any server.',
+    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. On safeos.sh nothing is sent to a server. If you connect a server you run yourself, the monitor sends camera frames to that server only.',
   },
   {
     icon: IconEye,
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
           </h2>
           <ul className="space-y-2">
             {[
-              'Your camera feed never leaves your device',
+              'On safeos.sh, your camera feed never leaves your device',
               'We store nothing on our servers',
               'No accounts, no sign-ups, no tracking',
               'All data lives in your browser',
@@ -128,18 +128,23 @@ export default function PrivacyPage() {
               <p>
                 <strong className="text-white">Camera Access:</strong> Your camera feed is processed 
                 entirely within your browser using JavaScript. Frames are analyzed locally using 
-                motion detection algorithms and (optionally) local AI models. No video ever leaves 
-                your device.
+                motion detection algorithms and, on the Security and Wildlife pages, the COCO-SSD
+                model. On safeos.sh no video leaves your device. If you connect a server you run
+                yourself, the monitor page sends camera frames to that server.
               </p>
               <p>
-                <strong className="text-white">Data Storage:</strong> All data is stored in your 
-                browser&apos;s IndexedDB. This includes captured frames, alert history, and your 
-                preferences. Clearing your browser data removes everything.
+                <strong className="text-white">Data Storage:</strong> Your preferences are stored in
+                your browser&apos;s local storage. Saved frames from Security, Lost &amp; Found, and
+                Wildlife, and your reference photos, are stored in IndexedDB. Alerts on the monitor
+                page are kept in memory and clear when you reload. Clearing your browser data removes
+                everything.
               </p>
               <p>
                 <strong className="text-white">AI Processing:</strong> When you use AI features, 
                 processing happens either in your browser (TensorFlow.js) or via your local Ollama 
-                installation. We do not provide cloud AI services.
+                installation. We do not provide cloud AI services. Security and Wildlife download
+                the COCO-SSD model from Google&apos;s servers, and the navigation bar asks GitHub&apos;s
+                API for the project&apos;s star count, so those two services see your IP address.
               </p>
               <p>
                 <strong className="text-white">Service Worker:</strong> We use a service worker 
@@ -186,8 +191,7 @@ export default function PrivacyPage() {
           </h2>
           <div className="text-slate-400 space-y-4">
             <p>
-              SafeOS Guardian is part of Frame&apos;s <strong className="text-emerald-400">10% for Humanity</strong> initiative. 
-              We dedicate 10% of our resources to building free tools that benefit humanity.
+              Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
             </p>
             <p>
               This project is open source. You can inspect our code, verify our privacy claims, 
@@ -214,7 +218,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: December 2024
+          Last updated: November 2026
         </div>
       </div>
     </main>

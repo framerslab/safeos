@@ -184,7 +184,7 @@ export default function BlogPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
-                href="https://github.com/framersai/safeos"
+                href="https://github.com/framerslab/safeos"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-6 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"

@@ -35,7 +35,7 @@
       },
       "free": {
         "title": "Always Free",
-        "description": "Part of SuperCloud's 10% for Humanity initiative. This service will never be monetized."
+        "description": "Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work. This service will never be monetized."
       }
     },
     "abusePrevention": {
@@ -435,9 +435,9 @@
       "accessibleDesc": "Multi-language support and offline capabilities for families everywhere."
     },
     "tenPercent": {
-      "title": "10% for Humanity",
+      "title": "Humanitarian work",
       "subtitle": "A commitment to humanitarian causes",
-      "text": "If SafeOS ever generates revenue, we pledge to donate 10% to humanitarian organizations focused on child safety and missing persons recovery."
+      "text": "Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work."
     },
     "technology": {
       "title": "Technology",
@@ -469,7 +469,7 @@
     "subtitle": "We're working on donation options to support SafeOS Guardian's humanitarian mission.",
     "promise": {
       "title": "Our Promise",
-      "text": "10% of all donations will go directly to humanitarian organizations focused on child safety and missing persons recovery."
+      "text": "A sponsorship pays for development time on SafeOS and the hosting that keeps safeos.sh online."
     },
     "enable": {
       "title": "What Your Support Will Enable",

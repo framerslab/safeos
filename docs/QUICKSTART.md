@@ -42,14 +42,14 @@ ollama pull llava:7b     # Detailed analysis (~4GB)
 ### 3. Start SafeOS
 
 ```bash
-# From monorepo root
-cd packages/safeos
+# From the repository root (the folder git clone made)
 
 # Install dependencies (first time only)
-pnpm install
+npm install --legacy-peer-deps
+(cd apps/guardian-ui && npm ci)
 
 # Start everything
-pnpm run dev
+npm run dev
 ```
 
 ### 4. Open the App
@@ -246,9 +246,8 @@ Access SafeOS from your phone:
 
 ## 📞 Getting Help
 
-- **GitHub Issues**: [Report bugs](https://github.com/supercloud/safeos/issues)
-- **Discussions**: [Ask questions](https://github.com/supercloud/safeos/discussions)
-- **Email**: support@supercloud.dev
+- **GitHub Issues**: [Report bugs](https://github.com/framerslab/safeos/issues)
+- **Email**: team@frame.dev
 
 ---
 

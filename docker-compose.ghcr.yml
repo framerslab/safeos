@@ -5,7 +5,7 @@
 # UI at http://localhost:3000, API at http://localhost:3001.
 # Pin a version with SAFEOS_TAG (default: latest). NVIDIA GPU: add
 # -f docker-compose.gpu.yml. Images are published from master to
-# ghcr.io/framersai/safeos-{api,ui} by .github/workflows/docker-publish.yml.
+# ghcr.io/framerslab/safeos-{api,ui} by .github/workflows/docker-publish.yml.
 
 name: safeos
 
@@ -53,7 +53,7 @@ services:
       - safeos-network
 
   api:
-    image: ${REGISTRY:-ghcr.io}/framersai/safeos-api:${SAFEOS_TAG:-latest}
+    image: ${REGISTRY:-ghcr.io}/framerslab/safeos-api:${SAFEOS_TAG:-latest}
     container_name: safeos-api
     restart: unless-stopped
     init: true
@@ -104,7 +104,7 @@ services:
       - safeos-network
 
   ui:
-    image: ${REGISTRY:-ghcr.io}/framersai/safeos-ui:${SAFEOS_TAG:-latest}
+    image: ${REGISTRY:-ghcr.io}/framerslab/safeos-ui:${SAFEOS_TAG:-latest}
     container_name: safeos-ui
     restart: unless-stopped
     pull_policy: always

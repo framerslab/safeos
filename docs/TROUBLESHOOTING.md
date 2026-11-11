@@ -10,7 +10,7 @@ Common issues and solutions for SafeOS Guardian.
 
 ```bash
 # API health
-curl http://localhost:3001/api/health
+curl http://localhost:3001/health
 
 # Ollama status
 curl http://localhost:11434/api/version
@@ -69,7 +69,7 @@ ls -la db_data/safeos.sqlite3
 
 1. **Check API server is running:**
    ```bash
-   curl http://localhost:3001/api/health
+   curl http://localhost:3001/health
    ```
 
 2. **Verify port is correct:**
@@ -223,7 +223,7 @@ ls -la db_data/safeos.sqlite3
    pm2 restart safeos-api
    # or
    pkill -f "node.*safeos"
-   pnpm run api
+   npm run api
    ```
 
 3. **Check disk space:**
@@ -256,7 +256,7 @@ ls -la db_data/safeos.sqlite3
 
    # Delete and restart (will recreate schema)
    rm db_data/safeos.sqlite3
-   pnpm run api
+   npm run api
    ```
 
 ---
@@ -393,12 +393,12 @@ ls -la db_data/safeos.sqlite3
 
 ```bash
 # API server with debug logging
-DEBUG=safeos:* pnpm run api
+DEBUG=safeos:* npm run api
 
 # Specific components
-DEBUG=safeos:analysis pnpm run api
-DEBUG=safeos:alerts pnpm run api
-DEBUG=safeos:websocket pnpm run api
+DEBUG=safeos:analysis npm run api
+DEBUG=safeos:alerts npm run api
+DEBUG=safeos:websocket npm run api
 ```
 
 ### Browser Console Logging
@@ -438,9 +438,8 @@ journalctl -u safeos -f
 
 ### Where to Get Help
 
-- **GitHub Issues:** [Report bugs](https://github.com/supercloud/safeos/issues)
-- **Discussions:** [Ask questions](https://github.com/supercloud/safeos/discussions)
-- **Email:** support@supercloud.dev
+- **GitHub Issues:** [Report bugs](https://github.com/framerslab/safeos/issues)
+- **Email:** team@frame.dev
 
 ### Reporting Bugs
 

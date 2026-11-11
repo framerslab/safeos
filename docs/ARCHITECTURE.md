@@ -35,7 +35,7 @@ SafeOS Guardian operates in two modes:
 +------------------------------------------------------------------+
 
 Deploy to: GitHub Pages, Vercel, Netlify, any static host
-Works: 100% offline after first load
+Works offline on pages already opened; COCO-SSD needs a connection to load
 ```
 
 ### Mode 2: Full Stack (Optional Server)
@@ -427,7 +427,7 @@ HTTP API:
 │                    Tier 1: Browser (Free)                    │
 │  ┌─────────────────┐  ┌─────────────────────────────────┐   │
 │  │ TensorFlow.js   │  │ Transformers.js                 │   │
-│  │ COCO-SSD (~5MB) │  │ ViT-base (~89MB)                │   │
+│  │ COCO-SSD (18MB) │  │ ViT-base (88MB)                 │   │
 │  │ Real-time       │  │ Scene classification fallback   │   │
 │  └─────────────────┘  └─────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
