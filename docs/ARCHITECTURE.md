@@ -468,7 +468,9 @@ The optional API server deletes frame-buffer rows at startup and every second,
 including frames from ended streams. The cutoff is ten minutes old; deletion
 runs on the next sweep (normally within one second), independently of new writes.
 Shutdown and failed startup stop the retention and heartbeat timers and wait for
-an active sweep. Cleanup errors log one fixed line and a known error class name,
+an active sweep. Model initialization and listen errors reject startup after
+scheduled work stops; an occupied port does not leave cleanup running. Cleanup
+errors log one fixed line and a known error class name,
 without messages, stacks or stored values; later sweeps still run. An initial
 cleanup failure rejects startup with a fixed message after logging once. A stopped
 server cannot run cleanup; startup removes expired rows before accepting uploads. This is

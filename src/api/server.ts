@@ -516,13 +516,27 @@ export class SafeOSServer {
 
       // Start server
       await new Promise<void>((resolve, reject) => {
-        this.server.once('error', reject);
-        this.server.listen(PORT, () => {
-          this.server.off('error', reject);
+        const onError = (error: Error) => {
+          removeListeners();
+          reject(error);
+        };
+        const onListening = () => {
+          removeListeners();
           console.log(`SafeOS server running on port ${PORT}`);
           console.log(`WebSocket server ready`);
           resolve();
-        });
+        };
+        const removeListeners = () => {
+          this.server.off('error', onError);
+          this.wss.off('error', onError);
+          this.server.off('listening', onListening);
+        };
+        // ws forwards HTTP listen errors; consume both events so startup can unwind.
+        this.server.once('error', onError);
+        this.wss.once('error', onError);
+        this.server.once('listening', onListening);
+        try { this.server.listen(PORT); }
+        catch (error) { removeListeners(); reject(error); }
       });
     } catch (error) {
       await this.stopScheduledWork();
