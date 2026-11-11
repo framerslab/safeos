@@ -408,8 +408,8 @@ Before submitting a PR, ensure:
 DEBUG=safeos:* npm run api
 
 # Check database contents
-sqlite3 db_data/safeos.sqlite3 ".tables"
-sqlite3 db_data/safeos.sqlite3 "SELECT * FROM streams LIMIT 5;"
+sqlite3 db_data/app.sqlite3 ".tables"
+sqlite3 db_data/app.sqlite3 "SELECT * FROM streams LIMIT 5;"
 ```
 
 ### Ollama Debugging

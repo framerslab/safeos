@@ -299,7 +299,6 @@ RestartSec=10
 StateDirectory=safeos
 Environment=NODE_ENV=production
 Environment=SAFEOS_PORT=3001
-Environment=SAFEOS_DB_PATH=/var/lib/safeos/safeos.sqlite3
 Environment=OLLAMA_HOST=http://127.0.0.1:11434
 
 [Install]
@@ -455,29 +454,79 @@ journalctl -u safeos --since "1 hour ago"
 
 ### Database Backup
 
-```bash
-# Simple copy
-cp db_data/safeos.sqlite3 backup/safeos-$(date +%Y%m%d).sqlite3
+The current adapter writes `db_data/app.sqlite3` relative to the API process's
+working directory. For the systemd unit above that is
+`/opt/safeos/db_data/app.sqlite3`; in the container it is
+`/app/db_data/app.sqlite3` inside the mounted data volume. `SAFEOS_DB_PATH` is not
+read by this version of the adapter setup and does not move the database.
 
-# With compression
-sqlite3 db_data/safeos.sqlite3 ".backup 'backup.db'"
-gzip backup.db
+Install the SQLite CLI. Run the following from the API working directory (or
+from a directory containing the mounted `db_data` volume). `test -f` refuses to
+create an empty database when the source path is wrong. SQLite's backup command
+makes a consistent snapshot even when the live database uses WAL; do not copy
+only a live database file.
+
+```bash
+set -eu
+test -f db_data/app.sqlite3
+mkdir -p backup
+sqlite3 db_data/app.sqlite3 ".backup 'backup/safeos.sqlite3'"
+sqlite3 backup/safeos.sqlite3 "PRAGMA integrity_check;"
 ```
+
+Keep dated copies off the host and restrict access: a backup contains account
+and session data and may contain frames still in the ten-minute buffer. Cleanup
+in the running API does not delete frames from old backups. Use a separate
+backup expiration policy and periodically exercise the restore procedure.
+
+### Database Restore
+
+Stop the API before restoring (`sudo systemctl stop safeos`, or stop the API
+container). Preserve the existing data directory as a rollback copy, including
+any `-wal` and `-shm` sidecars. Run these commands from the API working directory
+with the backup file available at `backup/safeos.sqlite3`. They also work when
+the destination database does not exist yet.
+
+```bash
+set -eu
+test -f backup/safeos.sqlite3
+mkdir -p db_data
+test "$(sqlite3 backup/safeos.sqlite3 'PRAGMA integrity_check;')" = ok
+sqlite3 db_data/app.sqlite3 ".restore 'backup/safeos.sqlite3'"
+test "$(sqlite3 db_data/app.sqlite3 'PRAGMA integrity_check;')" = ok
+```
+
+Restore ownership of `db_data` to the API service user, then start the API again.
+Startup runs migrations and purges expired frames before accepting traffic.
+Verify `/health`, sign in, and check a known stream through `/api/streams` before
+retiring the rollback copy. CI creates a stream through HTTP, executes these
+backup commands, restores into a fresh file and reads the stream through HTTP.
 
 ### Automated Backup Script
 
+For the systemd installation, run as a user with access to both directories.
+Install `sqlite3` on the host first. For containers, adjust `SOURCE_DB` to the
+mounted volume's actual path on the host.
+
 ```bash
 #!/bin/bash
+set -eu
+SOURCE_DB=/opt/safeos/db_data/app.sqlite3
 BACKUP_DIR=/backups/safeos
-DATE=$(date +%Y%m%d_%H%M%S)
+STAMP=$(date -u +%Y%m%d_%H%M%S)
 
-mkdir -p $BACKUP_DIR
-cp /var/lib/safeos/safeos.sqlite3 $BACKUP_DIR/safeos-$DATE.sqlite3
-gzip $BACKUP_DIR/safeos-$DATE.sqlite3
+test -f "$SOURCE_DB"
+mkdir -p "$BACKUP_DIR"
+sqlite3 "$SOURCE_DB" ".backup '$BACKUP_DIR/safeos-$STAMP.sqlite3'"
+gzip "$BACKUP_DIR/safeos-$STAMP.sqlite3"
 
-# Keep only last 7 days
-find $BACKUP_DIR -name "*.gz" -mtime +7 -delete
+# Keep only the agreed seven-day backup window.
+find "$BACKUP_DIR" -name 'safeos-*.sqlite3.gz' -mtime +7 -delete
 ```
+
+Decompress a selected dated backup to `backup/safeos.sqlite3` before following the
+restore procedure. The script does not schedule itself or copy data off-host;
+configure those steps in the deployment's backup service.
 
 ---
 

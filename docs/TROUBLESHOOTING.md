@@ -16,7 +16,7 @@ curl http://localhost:3001/health
 curl http://localhost:11434/api/version
 
 # Database exists
-ls -la db_data/safeos.sqlite3
+ls -la db_data/app.sqlite3
 ```
 
 ---
@@ -215,7 +215,7 @@ ls -la db_data/safeos.sqlite3
 
 1. **Check for multiple processes:**
    ```bash
-   lsof db_data/safeos.sqlite3
+   lsof db_data/app.sqlite3
    ```
 
 2. **Restart API server:**
@@ -241,21 +241,21 @@ ls -la db_data/safeos.sqlite3
 
 1. **Try integrity check:**
    ```bash
-   sqlite3 db_data/safeos.sqlite3 "PRAGMA integrity_check;"
+   sqlite3 db_data/app.sqlite3 "PRAGMA integrity_check;"
    ```
 
 2. **Recover from backup:**
    ```bash
-   cp backup/safeos-latest.sqlite3 db_data/safeos.sqlite3
+   cp backup/safeos-latest.sqlite3 db_data/app.sqlite3
    ```
 
 3. **Export and recreate:**
    ```bash
    # Export what you can
-   sqlite3 db_data/safeos.sqlite3 ".dump" > backup.sql
+   sqlite3 db_data/app.sqlite3 ".dump" > backup.sql
 
    # Delete and restart (will recreate schema)
-   rm db_data/safeos.sqlite3
+   rm db_data/app.sqlite3
    npm run api
    ```
 
@@ -281,7 +281,7 @@ ls -la db_data/safeos.sqlite3
 
 3. **Database session table issue:**
    ```bash
-   sqlite3 db_data/safeos.sqlite3 "SELECT * FROM sessions LIMIT 5;"
+   sqlite3 db_data/app.sqlite3 "SELECT * FROM sessions LIMIT 5;"
    ```
 
 ---
@@ -328,7 +328,7 @@ ls -la db_data/safeos.sqlite3
 
 3. **Verify chat ID is saved:**
    ```bash
-   sqlite3 db_data/safeos.sqlite3 "SELECT * FROM telegram_chats;"
+   sqlite3 db_data/app.sqlite3 "SELECT * FROM telegram_chats;"
    ```
 
 ### "Browser notifications not working"

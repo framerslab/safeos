@@ -11,7 +11,7 @@ Complete reference for all configuration options, environment variables, and thr
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SAFEOS_PORT` | `3001` | API server port |
-| `SAFEOS_DB_PATH` | `db_data/safeos.sqlite3` | SQLite database file path |
+| Database file | `db_data/app.sqlite3` | Relative to the API working directory; `SAFEOS_DB_PATH` is ignored by the current setup |
 
 ### Ollama (Local AI)
 
@@ -211,7 +211,7 @@ Response includes:
 ```env
 # Server
 SAFEOS_PORT=3001
-SAFEOS_DB_PATH=db_data/safeos.sqlite3
+# Database: db_data/app.sqlite3 relative to the API working directory
 
 # Ollama (optional - for LLM-enhanced analysis)
 OLLAMA_HOST=http://localhost:11434
