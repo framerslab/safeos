@@ -47,3 +47,13 @@ it('stops camera, microphone and frame analysis when monitoring stops', async ()
   expect(browser.readFrame).toHaveBeenCalledTimes(reads);
   expect(screen.queryByText('LIVE')).toBeNull();
 });
+
+it.each(['NotAllowedError', 'NotFoundError'])('does not claim monitoring when camera acquisition fails with %s', async (name) => {
+  browser.getUserMedia.mockRejectedValue(new DOMException('Camera unavailable', name));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(screen.queryByRole('button', { name: 'Stop Monitoring' })).toBeNull();
+  expect(screen.getByText('Camera unavailable')).toBeTruthy();
+});
