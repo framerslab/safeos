@@ -77,7 +77,7 @@ Get detailed system status.
 ### Authentication
 
 #### POST /api/auth/session
-Create a guest session lasting 30 days. Without a token this always creates a new profile, even when the device label is known. To retain a guest profile, send its live session token in `X-Session-Token` or `Authorization: Bearer` and the same `deviceId` (or omit it if the original session had no device). The response contains a fresh token and the stored profile. Invalid, expired or mismatched proof returns `401`; a device ID alone never restores an existing profile. Email accounts use `/api/auth/email/login`.
+Create a guest session lasting 30 days. Without a token this always creates a new profile, even when the device label is known. To retain a guest profile, send its live session token in `X-Session-Token` or `Authorization: Bearer` and the same `deviceId` (or omit it if the original session had no device). The response contains a fresh token and the stored profile. A successful resume replaces the presented token in the same session row; clients must save the returned token. The earlier token is immediately invalid, and only one concurrent resume can succeed. Invalid, expired or mismatched proof returns `401`; a device ID alone never restores an existing profile. Email accounts use `/api/auth/email/login`.
 
 **Request:**
 ```json
@@ -149,7 +149,7 @@ The email router is mounted at `/api/auth/email`. Its failed requests use the au
 
 | Method and path | Request | Result |
 | --- | --- | --- |
-| `POST /register` | `email`, `password`, optional `displayName` | Creates an unverified account; sends verification mail when configured |
+| `POST /register` | `email`, `password`, optional `displayName` | Creates an unverified account; returns the same `201` message for new and existing addresses, without account details |
 | `GET /verify?token=…` | Verification link | Shows a confirmation form; does not verify on GET |
 | `POST /verify` | `token` | Consumes a valid verification token (24-hour lifetime) |
 | `POST /login` | `email`, `password` | Verified accounts receive `sessionToken` and `user`; session lasts 30 days |
@@ -160,6 +160,8 @@ The email router is mounted at `/api/auth/email`. Its failed requests use the au
 | `POST /change-password` | Session header, `currentPassword`, `newPassword` | Changes the password after checking the current one |
 | `POST /logout` | Session header | Ends that session |
 | `POST /logout-all` | Session header | Ends all sessions of that account |
+
+Blank or whitespace-only optional display names use the email name. Registration, reset and change share the same password requirements: 8–1024 characters with at least one uppercase letter, lowercase letter and number. Invalid replacement passwords leave the password and reset token untouched. Duplicate registration leaves the existing account unchanged. Account-link forms preserve any path prefix in the public API URL.
 
 Session headers accept `X-Session-Token` or `Authorization: Bearer`. An email account has a stable `user_profiles` row, created on its first successful login, so its token works on the same owned routes as a guest token. Signing into an email account does not adopt a guest's records. Roles for protected routes come from `user_profiles.role`; creating an email account grants no staff access. Account links and responses are not cached.
 
