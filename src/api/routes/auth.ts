@@ -71,9 +71,10 @@ authRouter.post('/session', validate(CreateSessionSchema), async (req, res) => {
     // A device label is not a credential. Only the live guest session for
     // that device can authorize reuse of its profile.
     let profile: UserProfileRow | null = null;
+    let existingSession: Session | null = null;
     const proof = extractToken(req);
     if (proof !== null) {
-      const existingSession = await db.get<Session>(
+      existingSession = await db.get<Session>(
         `SELECT * FROM sessions WHERE token = ? AND julianday(expires_at) > julianday(?)`,
         [proof, now()]
       );
@@ -128,17 +129,30 @@ authRouter.post('/session', validate(CreateSessionSchema), async (req, res) => {
     }
 
     // Create session
-    const sessionId = generateId();
+    const sessionId = existingSession?.id ?? generateId();
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
 
-    await db.run(
-      `INSERT INTO sessions (
-        id, token, device_id, is_guest, profile_id, created_at, expires_at, last_active_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      // SQLite stores booleans as integers; better-sqlite3 refuses a JS boolean
-      [sessionId, token, deviceId || null, 1, profile.id, now(), expiresAt, now()]
-    );
+    if (existingSession) {
+      // Replace proof in one conditional write. Concurrent resumes cannot both
+      // succeed, and no extra live session is left behind for the old token.
+      const rotated = await db.run(
+        `UPDATE sessions SET token = ?, expires_at = ?, last_active_at = ?
+         WHERE id = ? AND token = ? AND device_id IS ? AND profile_id = ?
+           AND is_guest = 1 AND julianday(expires_at) > julianday(?)`,
+        [token, expiresAt, now(), sessionId, proof, deviceId || null, profile.id, now()]
+      );
+      if (!rotated.changes) {
+        return res.status(401).json({ success: false, error: 'Invalid session proof' });
+      }
+    } else {
+      await db.run(
+        `INSERT INTO sessions (
+          id, token, device_id, is_guest, profile_id, created_at, expires_at, last_active_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [sessionId, token, deviceId || null, 1, profile.id, now(), expiresAt, now()]
+      );
+    }
 
     res.status(201).json({
       success: true,
