@@ -42,6 +42,7 @@ interface CameraFeedProps {
   onError?: (error: Error) => void;
   scenario?: 'pet' | 'baby' | 'elderly' | 'security';
   enabled?: boolean;
+  deviceId?: string;
   audioEnabled?: boolean;
   showDebug?: boolean;
   className?: string;
@@ -88,6 +89,7 @@ export function CameraFeed({
   onError,
   scenario = 'baby',
   enabled = true,
+  deviceId = '',
   audioEnabled = true,
   showDebug = false,
   className,
@@ -242,7 +244,7 @@ export function CameraFeed({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: 'environment',
+          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' }),
         },
         audio: audioEnabled,
       });
@@ -298,7 +300,7 @@ export function CameraFeed({
       setError(error.message);
       onErrorRef.current?.(error);
     }
-  }, [audioEnabled, stopCamera]);
+  }, [audioEnabled, deviceId, stopCamera]);
 
   useEffect(() => {
     if (enabled) void initCamera();

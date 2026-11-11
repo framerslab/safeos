@@ -11,6 +11,8 @@
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { CameraPicker } from '../../components/CameraPicker';
+import { useCameraStore } from '../../stores/camera-store';
 import { CameraFeed } from '../../components/CameraFeed';
 import { AlertPanel } from '../../components/AlertPanel';
 import { SubjectPreviewOverlay, SubjectPreview } from '../../components/SubjectPreview';
@@ -95,6 +97,7 @@ export default function MonitorPage() {
   } = useMonitoringStore();
 
   const { config: backendConfig } = useBackendStatus();
+  const deviceId = useCameraStore(state => state.deviceId);
 
   const { selectedScenario } = useOnboardingStore();
 
@@ -319,7 +322,12 @@ export default function MonitorPage() {
 
   const handleVideoReady = (video: HTMLVideoElement | null) => {
     videoRef.current = video;
-    if (!video || !captureRequestedRef.current) return;
+    if (!video) {
+      setStreaming(false);
+      setStreamId(null);
+      return;
+    }
+    if (!captureRequestedRef.current) return;
     setStreaming(true);
     setStreamId(`local-${Date.now()}`);
     if (wsConnected) {
@@ -1051,7 +1059,9 @@ export default function MonitorPage() {
               {/* Subject preview overlay */}
               {isLostFoundWatching && <SubjectPreviewOverlay />}
 
+              <CameraPicker refreshKey={isStreaming} />
               <CameraFeed
+                deviceId={deviceId}
                 enabled={captureRequested}
                 scenario={selectedScenario || scenario || undefined}
                 onFrame={handleFrame}

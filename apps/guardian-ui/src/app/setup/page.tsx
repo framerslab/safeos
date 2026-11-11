@@ -7,6 +7,8 @@
  * Clear, functional layout. No decorative elements.
  */
 
+import { CameraPicker } from '../../components/CameraPicker';
+import { useCameraStore } from '../../stores/camera-store';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboardingStore, canSkipOnboarding } from '../../stores/onboarding-store';
@@ -42,6 +44,7 @@ const STEPS: Step[] = ['welcome', 'disclaimer', 'scenario', 'permissions', 'noti
 export default function SetupPage() {
   const router = useRouter();
   const onboarding = useOnboardingStore();
+  const deviceId = useCameraStore(state => state.deviceId);
   const [currentStep, setCurrentStep] = useState<Step>('welcome');
   const [permissionStatus, setPermissionStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
 
@@ -72,7 +75,7 @@ export default function SetupPage() {
   const requestPermissions = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: deviceId ? { deviceId: { exact: deviceId } } : true,
         audio: true,
       });
       stream.getTracks().forEach((track) => track.stop());
@@ -406,6 +409,8 @@ function PermissionsStep({
           Camera and microphone access is required for monitoring.
           All processing happens locally on your device.
         </p>
+
+        <CameraPicker refreshKey={status === 'granted'} />
 
         {/* Permission Items */}
         <div className="space-y-3">
