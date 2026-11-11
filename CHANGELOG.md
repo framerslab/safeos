@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resuming a guest profile with `POST /api/auth/session` needs that session's live token for the same device; the token is replaced in place.
 
 ### Fixed
+- Telegram text and photo requests close after 15 seconds of transport inactivity.
+- Reviewers and operators can restore another owner's banned stream through the status PATCH route without gaining owner access to reads, deletion or sockets.
 - Browser clients retry recoverable socket policy closes, preserve one opening socket, and ignore events from replaced sockets.
 - Browser push preserves registrations owned by another live session. The 32-endpoint limit counts live registrations only, and every session-removal path removes its push registrations.
 - Telegram availability reflects the caller's saved personal bot token, with settings and setup guidance describing the same delivery rule.

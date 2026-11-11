@@ -20,7 +20,7 @@ curl -H "X-Session-Token: your-token-here" http://localhost:3001/api/streams
 **Who may call a route.** Each route below says one of:
 
 - **Anyone**: no session needed.
-- **Signed in**: any valid session. Data routes return and change only the caller's own records: alerts and analysis results of streams the caller owns, monitoring profiles the caller created. Another owner's record answers `404`, as if it did not exist.
+- **Signed in**: any valid session. Data routes return and change only the caller's own records: alerts and analysis results of streams the caller owns, monitoring profiles the caller created. Another owner's record answers `404`, as if it did not exist. The stream-status PATCH route also admits reviewers and operators for moderation, as described below.
 - **Reviewer or operator**: a session whose profile holds the `reviewer` or `operator` role. Any other session gets `403`.
 
 Every profile starts with the role `user`. The operator grants a role in the database:
@@ -226,6 +226,13 @@ Create a new stream.
 
 #### GET /api/streams/:id
 Get a specific stream.
+
+#### PATCH /api/streams/:id
+Update `status` to `active`, `paused`, `ended` or `banned`. Owners can change
+their own non-banned streams, but cannot set or clear a ban. Reviewers and
+operators can change any stream's status, including restoring another owner's
+banned stream. This permission does not grant access to that owner's stream
+reads, deletion, frames or socket messages. The update preserves stream ownership.
 
 #### DELETE /api/streams/:id
 End a stream.
@@ -857,7 +864,8 @@ with `deliverySkipped: "capacity"` when 32 deliveries are in flight; they are no
 retried later. Critical alerts always bypass this capacity check. Every channel
 has a 15-second deadline and reports timeout as failure, freeing the delivery
 slot when all channel results settle. Mail and SMS requests also have 15-second
-request timeouts; browser destinations are attempted concurrently.
+request timeouts. Telegram text and photo requests use a 15-second transport
+inactivity timeout so unanswered connections close; browser destinations are attempted concurrently.
 Server shutdown does not wait for providers and may interrupt pending delivery.
 
 Each admitted alert starts its channels independently. One provider failure does not

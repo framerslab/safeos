@@ -499,6 +499,8 @@ cooldown. Quiet hours skip low and medium delivery in the saved local time zone
 and on selected weekdays. Alerts remain in the app and are not sent later. High and critical alerts always bypass quiet hours.
 Legacy windows without a time zone hold nothing and produce a fixed log message.
 Dispatch runs outside analysis slots with a 15-second deadline per channel.
+Telegram also applies a 15-second transport inactivity timeout to text and photo
+requests, releasing unanswered connections even after dispatch stops waiting.
 Critical alerts bypass the 32-delivery capacity check, and shutdown does not wait
 on providers. Skips and settled delivery outcomes are recorded on each alert. See the API delivery settings
 for configuration and the best-effort delivery limitation.

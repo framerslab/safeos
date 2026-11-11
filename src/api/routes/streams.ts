@@ -154,7 +154,7 @@ streamRoutes.post('/', validate(CreateStreamSchema), async (req: Request, res: R
 });
 
 /**
- * PATCH /api/streams/:id - Update stream (with ownership verification)
+ * PATCH /api/streams/:id - Update stream status as its owner or a reviewer/operator
  */
 streamRoutes.patch('/:id', validate(UpdateStreamSchema), async (req: Request, res: Response) => {
   try {
@@ -162,16 +162,16 @@ streamRoutes.patch('/:id', validate(UpdateStreamSchema), async (req: Request, re
     const profileId = getProfileId(req);
     const { id } = req.params;
     const { status } = req.body;
+    const canReview = req.session?.role === 'reviewer' || req.session?.role === 'operator';
 
     const stream = await db.get(
-      'SELECT * FROM streams WHERE id = ? AND user_id = ?',
-      [id, profileId]
+      'SELECT * FROM streams WHERE id = ? AND (user_id = ? OR ? = 1)',
+      [id, profileId, canReview ? 1 : 0]
     );
     if (!stream) {
       return notFound(res, 'Stream');
     }
 
-    const canReview = req.session?.role === 'reviewer' || req.session?.role === 'operator';
     if (!canReview && ((stream as any).status === 'banned' || status === 'banned')) {
       return res.status(403).json({ error: 'Only reviewers or operators may change a banned stream' });
     }
@@ -183,16 +183,16 @@ streamRoutes.patch('/:id', validate(UpdateStreamSchema), async (req: Request, re
       }
 
       const changed = await db.get(
-        `UPDATE streams SET status = ?, ended_at = ? WHERE id = ? AND user_id = ?
+        `UPDATE streams SET status = ?, ended_at = ? WHERE id = ? AND (user_id = ? OR ? = 1)
          AND (status != 'banned' OR ? = 1) RETURNING id`,
-        [status, updates.ended_at || null, id, profileId, canReview ? 1 : 0]
+        [status, updates.ended_at || null, id, profileId, canReview ? 1 : 0, canReview ? 1 : 0]
       );
       if (!changed) return res.status(403).json({ error: 'Only reviewers or operators may change a banned stream' });
     }
 
     const updated = await db.get(
-      'SELECT * FROM streams WHERE id = ? AND user_id = ?',
-      [id, profileId]
+      'SELECT * FROM streams WHERE id = ? AND (user_id = ? OR ? = 1)',
+      [id, profileId, canReview ? 1 : 0]
     );
     res.json({ stream: updated });
   } catch (error) {

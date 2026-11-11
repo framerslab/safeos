@@ -338,7 +338,8 @@ start cooldown. Escalation is
 immediate. Non-critical alerts skip delivery when 32 deliveries are in flight;
 critical alerts always bypass capacity. Capacity skips are recorded in alert
 metadata and are not queued for a later retry. Every channel has a 15-second
-deadline, and mail and SMS clients also have request timeouts. Slow providers
+deadline, and mail and SMS clients also have request timeouts. Telegram requests,
+including photos, close after 15 seconds of transport inactivity. Slow providers
 do not occupy analysis workers or delay server shutdown.
 
 Quiet hours skip channel delivery for low and medium server alerts. Those alerts
