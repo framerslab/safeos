@@ -59,7 +59,7 @@ it.each(['logout', 'logout-all', 'reset-password', 'expired'])('%s removes the r
     const stamp = new Date().toISOString();
     await p.db.run(`INSERT INTO users (id, email, password_hash, display_name, email_verified,
       reset_token, reset_token_expires, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)`,
-    [p.owner.id, 'owner@example.com', 'unused', 'Owner', 'reset-token',
+    [p.owner.id, 'owner@example.com', 'unused', 'Owner', 'a'.repeat(64),
       new Date(Date.now() + 60000).toISOString(), stamp, stamp]);
     await p.db.run('UPDATE sessions SET is_guest = 0 WHERE id = ?', [p.owner.id]);
     await p.db.run(`INSERT INTO sessions (id, token, profile_id, is_guest, created_at, expires_at, last_active_at)
@@ -73,7 +73,7 @@ it.each(['logout', 'logout-all', 'reset-password', 'expired'])('%s removes the r
       await p.api.get('/api/notifications/status').set('x-session-token', p.owner.token).expect(401);
     } else if (action === 'reset-password') {
       await p.api.post('/api/auth/email/reset-password')
-        .send({ token: 'reset-token', newPassword: 'NewPassword456' }).expect(200);
+        .send({ token: 'a'.repeat(64), newPassword: 'NewPassword456' }).expect(200);
     } else {
       await p.api.post(`/api/auth/email/${action}`).set('x-session-token', p.owner.token).expect(200);
     }
@@ -100,5 +100,20 @@ it('reports Telegram availability from the callers saved bot token only', async 
     await p.api.patch('/api/auth/profile').set('x-session-token', p.owner.token)
       .send({ notificationSettings: { telegramBotToken: '' } }).expect(200);
     expect(await status(p.owner.token)).toBe(false);
+  } finally { await p.close(); }
+});
+
+it('does not revive an inactive owned endpoint beyond the 32 live-registration limit', async () => {
+  const p = await startPipeline();
+  try {
+    for (let i = 0; i < 33; i++) {
+      await p.db.run(`INSERT INTO push_subscriptions (id, profile_id, session_id, endpoint, keys_json, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)`,
+      [`limit-${i}`, p.owner.id, i === 32 ? 'missing-session' : p.owner.id,
+        endpoint(`limit-${i}`), JSON.stringify(keys), new Date().toISOString()]);
+    }
+    expect((await subscribe(p, p.owner.token, 'limit-32')).status).toBe(409);
+    expect((await p.db.get('SELECT session_id FROM push_subscriptions WHERE id = ?', ['limit-32'])).session_id)
+      .toBe('missing-session');
   } finally { await p.close(); }
 });

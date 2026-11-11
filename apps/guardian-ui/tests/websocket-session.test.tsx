@@ -190,3 +190,56 @@ it('keeps one signed-in socket across callback changes and calls the latest hand
   expect(clients).toHaveLength(1);
   expect(tokens).toEqual(['live-session']);
 });
+
+it.each(['Session required', 'Too many pending messages'])('the hook retries a recoverable policy close: %s', async reason => {
+  useAuthStore.setState({ sessionToken: 'live-session', isInitialized: true });
+  const { result } = renderHook(() => useWebSocket(url, options));
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  for (const peer of server.clients) peer.close(1008, reason);
+  await waitFor(() => expect(tokens).toEqual(['live-session', 'live-session']));
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+});
+
+it.each(['Session required', 'Too many pending messages'])('the client class retries a recoverable policy close: %s', async reason => {
+  useAuthStore.setState({ sessionToken: 'live-session', isInitialized: true });
+  const client = new WebSocketClient(url, options);
+  classClients.push(client);
+  client.connect();
+  await waitFor(() => expect(client.isConnected()).toBe(true));
+  for (const peer of server.clients) peer.close(1008, reason);
+  await waitFor(() => expect(tokens).toEqual(['live-session', 'live-session']));
+  await waitFor(() => expect(client.isConnected()).toBe(true));
+});
+
+it('the client class keeps one socket while a connection is opening', async () => {
+  useAuthStore.setState({ sessionToken: 'live-session', isInitialized: true });
+  const client = new WebSocketClient(url, options);
+  classClients.push(client);
+  client.connect();
+  client.connect();
+  expect(clients).toHaveLength(1);
+  await waitFor(() => expect(client.isConnected()).toBe(true));
+  expect(tokens).toEqual(['live-session']);
+});
+
+it('the client class ignores events from a replaced socket', async () => {
+  useAuthStore.setState({ sessionToken: 'live-session', isInitialized: true });
+  const client = new WebSocketClient(url, options);
+  classClients.push(client);
+  client.connect();
+  await waitFor(() => expect(client.isConnected()).toBe(true));
+  const oldSocket = clients[0];
+  const oldClose = oldSocket.onclose;
+  const oldOpen = oldSocket.onopen;
+  const oldMessage = oldSocket.onmessage;
+  client.disconnect();
+  useAuthStore.setState({ sessionToken: 'new-session' });
+  client.connect();
+  await waitFor(() => expect(client.isConnected()).toBe(true));
+  oldOpen.call(oldSocket, new Event('open'));
+  oldClose.call(oldSocket, new CloseEvent('close', { code: 1008, reason: 'Invalid session' }));
+  expect(client.isConnected()).toBe(true);
+  oldMessage.call(oldSocket, new MessageEvent('message', { data: JSON.stringify({ type: 'connected' }) }));
+  await new Promise(resolve => setTimeout(resolve, 100));
+  expect(tokens).toEqual(['live-session', 'new-session']);
+});

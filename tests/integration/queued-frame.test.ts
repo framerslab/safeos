@@ -30,3 +30,15 @@ it('does not substitute a newer frame after the triggering frame expires', async
     expect(boundary.triage).not.toHaveBeenCalled();
   } finally { await p.close(); }
 });
+
+it('waits for each accepted frame when identical images arrive twice', async () => {
+  const p = await startPipeline();
+  try {
+    const ws = await p.connect();
+    const repeated = await image('repeated-frame');
+    const first = await p.frame(ws, repeated);
+    const second = await p.frame(ws, repeated);
+    expect(second).not.toBe(first);
+    expect(await p.db.all('SELECT id FROM frame_buffer WHERE stream_id = ?', [p.streamId])).toHaveLength(2);
+  } finally { await p.close(); }
+});

@@ -160,7 +160,7 @@ describe('quiet-hours profile saves', () => {
 });
 
 describe('personal Telegram bot guidance', () => {
-  it.each(['@/app/settings/page', '@/app/settings/notifications/page'])(
+  it.each(['@/app/settings/page', '@/app/settings/notifications/page', '@/app/help/integrations/telegram/page'])(
     'explains that the caller needs their own bot on %s', async path => {
       const Page = require(path).default;
       render(<Page />);
@@ -168,3 +168,10 @@ describe('personal Telegram bot guidance', () => {
       expect(screen.queryByText(/server operator only|no per-user bot tokens|every chat that registered/i)).toBeNull();
     });
 });
+
+it.each(['@/app/settings/page', '@/app/settings/notifications/page'])(
+  'explains that quiet-hours alerts are not deferred on %s', async path => {
+    const Page = require(path).default;
+    render(<Page />);
+    expect(await screen.findByText(/not sent later/i)).toBeTruthy();
+  });
