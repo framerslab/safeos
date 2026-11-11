@@ -3,6 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import HomePage from '@/app/page';
 import FAQPage from '@/app/faq/page';
 
+beforeAll(() => {
+  Object.defineProperty(window, 'location', { value: new URL('http://localhost/'), configurable: true });
+});
+
 function text(Page: React.ComponentType) {
   return renderToStaticMarkup(<Page />).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
 }
