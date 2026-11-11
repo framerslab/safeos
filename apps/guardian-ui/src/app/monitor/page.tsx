@@ -8,6 +8,7 @@
  * @module app/monitor/page
  */
 
+import { showBrowserNotification } from '@/lib/browser-notification';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -207,7 +208,7 @@ export default function MonitorPage() {
 
         // Show notification if enabled
         if (lostFoundSettings.alertNotification && 'Notification' in window && Notification.permission === 'granted') {
-          new Notification('Potential Match Detected!', {
+          void showBrowserNotification('Potential Match Detected!', {
             body: `${activeSubject.name} - ${result.confidence}% confidence`,
             icon: activeSubject.referenceImages[0],
           });

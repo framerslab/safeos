@@ -9,6 +9,7 @@
  * @module app/wildlife/page
  */
 
+import { showBrowserNotification } from '@/lib/browser-notification';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { CameraFeed } from '../../components/CameraFeed';
@@ -275,7 +276,7 @@ export default function WildlifePage() {
     if (settings.browserNotifications && 'Notification' in window) {
       if (Notification.permission === 'granted') {
         const isDangerous = primary.dangerLevel === 'high' || primary.dangerLevel === 'extreme';
-        new Notification(
+        void showBrowserNotification(
           isDangerous ? 'WILDLIFE DANGER ALERT!' : 'Animal Detected',
           {
             body: `${primary.displayName} detected with ${Math.round(primary.confidence * 100)}% confidence`,

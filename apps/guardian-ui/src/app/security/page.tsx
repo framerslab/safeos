@@ -9,6 +9,7 @@
  * @module app/security/page
  */
 
+import { showBrowserNotification } from '@/lib/browser-notification';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { SecurityPanel } from '../../components/SecurityPanel';
@@ -312,7 +313,7 @@ export default function SecurityPage() {
       // Browser notification
       if (settings.alerts.notificationEnabled && 'Notification' in window) {
         if (Notification.permission === 'granted') {
-          new Notification('INTRUDER ALERT!', {
+          void showBrowserNotification('INTRUDER ALERT!', {
             body: `${result.personCount} person(s) detected. ${result.personCount - settings.allowedPersons} unauthorized.`,
             icon: '/icons/icon-192.png',
             tag: 'intrusion-alert',
