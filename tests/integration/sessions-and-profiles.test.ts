@@ -143,3 +143,24 @@ describe('mounted email sign-in', () => {
     expect((await call('post', '/api/auth/email/login').send({ email: 'reset@example.com', password: 'NewPassword456' })).status).toBe(200);
   });
 });
+
+describe('personal active monitoring choices', () => {
+  it('lets each person select a default without changing anyone else', async () => {
+    const alice = await guest();
+    const bob = await guest();
+    const selected = await call('post', '/api/profiles/profile-baby-default/activate', alice.token);
+    expect(selected.status).toBe(200);
+    expect(selected.body.profile.is_active).toBe(1);
+    expect((await call('get', '/api/profiles/profile-baby-default', bob.token)).body.profile.is_active).toBe(0);
+    const custom = await call('post', '/api/profiles', alice.token).send({ name: 'Nights', scenario: 'baby' });
+    expect(custom.status).toBe(201);
+    expect((await call('post', `/api/profiles/${custom.body.profile.id}/activate`, alice.token)).status).toBe(200);
+    expect((await call('post', '/api/profiles/profile-baby-default/activate', bob.token)).status).toBe(200);
+    const a = (await call('get', '/api/profiles?scenario=baby', alice.token)).body.profiles;
+    expect(a.filter((p: any) => p.is_active).map((p: any) => p.id)).toEqual([custom.body.profile.id]);
+    const b = (await call('get', '/api/profiles?scenario=baby', bob.token)).body.profiles;
+    expect(b.filter((p: any) => p.is_active).map((p: any) => p.id)).toEqual(['profile-baby-default']);
+    expect((await call('patch', `/api/profiles/${custom.body.profile.id}`, alice.token).send({ isActive: false })).body.profile.is_active).toBe(0);
+    expect((await call('get', '/api/profiles/profile-baby-default', bob.token)).body.profile.is_active).toBe(1);
+  });
+});
