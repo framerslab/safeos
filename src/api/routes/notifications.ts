@@ -15,7 +15,7 @@ import {
   TelegramUnregisterSchema,
   TestNotificationSchema,
 } from '../schemas/index.js';
-import { sendTestEmail, isResendConfigured } from '../../lib/alerts/email.js';
+import { sendTestEmail, isResendConfigured, isMailLinkConfigured } from '../../lib/alerts/email.js';
 import { sendTestSms, isTwilioConfigured } from '../../lib/alerts/twilio.js';
 import { strictLimiter } from '../middleware/rate-limiter.js';
 
@@ -233,6 +233,16 @@ notificationRoutes.post('/test-email', strictLimiter, async (req: Request, res: 
       });
     }
 
+    // Every mail carries an unsubscribe link back to this server, so nothing
+    // is sent until the server knows its own https address.
+    if (!isMailLinkConfigured()) {
+      return res.status(400).json({
+        error: 'Email not configured',
+        message:
+          'Every email carries an unsubscribe link to this server. Set SAFEOS_API_PUBLIC_URL to its https address (or SAFEOS_DOMAIN behind the bundled Caddy), then try again.',
+      });
+    }
+
     // Reject if neither server nor user has a key set — saves a confusing
     // 500 from the Resend SDK.
     if (!resendApiKey && !isResendConfigured()) {
@@ -259,6 +269,13 @@ notificationRoutes.post('/test-email', strictLimiter, async (req: Request, res: 
       from: result.from,
     });
   } catch (error) {
+    if (error instanceof Error && error.name === 'EmailSuppressedError') {
+      return res.status(409).json({
+        error: 'Address unsubscribed',
+        message:
+          'This address unsubscribed from SafeOS Guardian alert email, so no test was sent.',
+      });
+    }
     // Log full server-side, sanitize the client response so we don't leak
     // Resend internals (raw error keys, account context) into a 500 body.
     console.error('[/test-email] send failed:', error);

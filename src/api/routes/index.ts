@@ -15,3 +15,4 @@ export { notificationRoutes } from './notifications';
 export { reviewRoutes } from './review';
 export { authRouter } from './auth';
 export { analyticsRoutes } from './analytics';
+export { mailRoutes, createMailRoutes } from './mail';

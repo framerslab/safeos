@@ -62,6 +62,26 @@ export {
 
 export { NotificationManager, getNotificationManager } from './lib/alerts/notification-manager';
 
+export {
+  sendEmail,
+  sendAlertEmail,
+  isResendConfigured,
+  isMailLinkConfigured,
+  EmailNotConfiguredError,
+  EmailSendError,
+  EmailSuppressedError,
+} from './lib/alerts/email';
+
+export {
+  MailSuppressionStore,
+  getMailSuppressionStore,
+  setMailSuppressionStore,
+  suppressAddressesFromText,
+  resubscribeAddressesFromText,
+} from './lib/alerts/mail-suppression';
+
+export { MAIL_KINDS, type MailKind, type MailCategory, type SuppressionScope } from './lib/alerts/mail-kinds';
+
 export { TelegramBotService } from './lib/alerts/telegram';
 
 export { sendTwilioSms, isTwilioConfigured } from './lib/alerts/twilio';

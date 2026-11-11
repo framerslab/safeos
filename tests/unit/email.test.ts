@@ -22,6 +22,15 @@ vi.mock('resend', () => ({
   })),
 }));
 
+// The suppression store is exercised against a real database in
+// tests/integration/mail-unsubscribe.test.ts; here every address is open.
+vi.mock('../../src/lib/alerts/mail-suppression.js', () => ({
+  getMailSuppressionStore: () => ({
+    issueToken: async () => 'T'.repeat(43),
+    isSuppressed: async () => false,
+  }),
+}));
+
 // Pull the module after the mock is in place
 let email: typeof import('../../src/lib/alerts/email.js');
 
@@ -33,6 +42,7 @@ beforeEach(async () => {
   process.env['RESEND_API_KEY'] = 're_server_key';
   process.env['EMAIL_FROM'] = 'SafeOS <alerts@safeos.test>';
   process.env['EMAIL_REPLY_TO'] = 'team@safeos.test';
+  process.env['SAFEOS_API_PUBLIC_URL'] = 'https://api.safeos.test';
   email = await import('../../src/lib/alerts/email.js');
 });
 
@@ -40,6 +50,7 @@ afterEach(() => {
   delete process.env['RESEND_API_KEY'];
   delete process.env['EMAIL_FROM'];
   delete process.env['EMAIL_REPLY_TO'];
+  delete process.env['SAFEOS_API_PUBLIC_URL'];
   delete process.env['NEXT_PUBLIC_SITE_URL'];
 });
 
@@ -74,6 +85,7 @@ describe('isResendConfigured', () => {
 describe('sendEmail', () => {
   it('returns a result with id, to, and from on success', async () => {
     const result = await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
@@ -86,7 +98,7 @@ describe('sendEmail', () => {
   });
 
   it('uses server env values when no override is supplied', async () => {
-    await email.sendEmail({ to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' });
+    await email.sendEmail({ kind: 'alert', to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' });
 
     expect(sendMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -101,6 +113,7 @@ describe('sendEmail', () => {
     (Resend as any).mockClear();
 
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
@@ -112,6 +125,7 @@ describe('sendEmail', () => {
 
   it('uses fromOverride when supplied', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
@@ -125,6 +139,7 @@ describe('sendEmail', () => {
 
   it('prefers override.from over server EMAIL_FROM', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
@@ -138,6 +153,7 @@ describe('sendEmail', () => {
 
   it('prefers fromOverride over override.from', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
@@ -159,7 +175,7 @@ describe('sendEmail', () => {
     email = await import('../../src/lib/alerts/email.js');
 
     await expect(
-      email.sendEmail({ to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' }),
+      email.sendEmail({ kind: 'alert', to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' }),
     ).rejects.toBeInstanceOf(email.EmailNotConfiguredError);
   });
 
@@ -169,7 +185,7 @@ describe('sendEmail', () => {
     email = await import('../../src/lib/alerts/email.js');
 
     await expect(
-      email.sendEmail({ to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' }),
+      email.sendEmail({ kind: 'alert', to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' }),
     ).rejects.toBeInstanceOf(email.EmailNotConfiguredError);
   });
 
@@ -180,7 +196,7 @@ describe('sendEmail', () => {
     });
 
     await expect(
-      email.sendEmail({ to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' }),
+      email.sendEmail({ kind: 'alert', to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' }),
     ).rejects.toThrow(/Resend send failed: Domain not verified/);
   });
 
@@ -188,38 +204,45 @@ describe('sendEmail', () => {
     sendMock.mockResolvedValueOnce({ data: null, error: null });
 
     await expect(
-      email.sendEmail({ to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' }),
+      email.sendEmail({ kind: 'alert', to: 'user@example.com', subject: 'Hi', html: '<p>Body</p>' }),
     ).rejects.toThrow(/Resend returned no message id/);
   });
 
   // -------- options passthrough --------
 
-  it('forwards Idempotency-Key header when idempotencyKey is set', async () => {
+  it('passes idempotencyKey as a request option, never as a mail header', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
       idempotencyKey: 'alert-42',
     });
 
-    expect(sendMock).toHaveBeenCalledWith(
-      expect.objectContaining({ headers: { 'Idempotency-Key': 'alert-42' } }),
-    );
+    const [payload, requestOptions] = sendMock.mock.calls[0];
+    expect(requestOptions).toEqual({ idempotencyKey: 'alert-42' });
+    expect(payload.headers).not.toHaveProperty('Idempotency-Key');
   });
 
-  it('omits headers when no idempotencyKey is set', async () => {
+  it('carries only the unsubscribe headers when no idempotencyKey is set', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
     });
 
-    const call = sendMock.mock.calls[0][0];
-    expect(call.headers).toBeUndefined();
+    const [payload, requestOptions] = sendMock.mock.calls[0];
+    expect(requestOptions).toBeUndefined();
+    expect(payload.headers).toEqual({
+      'List-Unsubscribe': `<https://api.safeos.test/api/mail/unsubscribe/${'T'.repeat(43)}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    });
   });
 
   it('adds severity tag when severity is set', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
@@ -233,6 +256,7 @@ describe('sendEmail', () => {
 
   it('omits tags when severity is not set', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Body</p>',
@@ -244,19 +268,22 @@ describe('sendEmail', () => {
 
   it('accepts an array of recipients', async () => {
     const result = await email.sendEmail({
+      kind: 'alert',
       to: ['a@example.com', 'b@example.com'],
       subject: 'Hi',
       html: '<p>Body</p>',
     });
 
     expect(result.to).toEqual(['a@example.com', 'b@example.com']);
-    expect(sendMock).toHaveBeenCalledWith(
-      expect.objectContaining({ to: ['a@example.com', 'b@example.com'] }),
-    );
+    // One mail per recipient, so each carries a link bound to its own address.
+    expect(sendMock).toHaveBeenCalledTimes(2);
+    expect(sendMock.mock.calls[0][0].to).toBe('a@example.com');
+    expect(sendMock.mock.calls[1][0].to).toBe('b@example.com');
   });
 
   it('auto-generates plain-text fallback when text is not supplied', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>Hello <strong>world</strong></p><br>Line 2',
@@ -271,28 +298,30 @@ describe('sendEmail', () => {
 
   it('uses the supplied text body when given', async () => {
     await email.sendEmail({
+      kind: 'alert',
       to: 'user@example.com',
       subject: 'Hi',
       html: '<p>HTML</p>',
       text: 'Plain text version',
     });
 
-    expect(sendMock).toHaveBeenCalledWith(
-      expect.objectContaining({ text: 'Plain text version' }),
-    );
+    const call = sendMock.mock.calls[0][0];
+    expect(call.text.startsWith('Plain text version')).toBe(true);
+    expect(call.text).toContain(`Unsubscribe: https://api.safeos.test/api/mail/unsubscribe/${'T'.repeat(43)}`);
   });
 
   it('caches Resend client per API key', async () => {
     const { Resend } = await import('resend');
     (Resend as any).mockClear();
 
-    await email.sendEmail({ to: 'a@a.test', subject: 'X', html: '<p>1</p>' });
-    await email.sendEmail({ to: 'b@b.test', subject: 'X', html: '<p>2</p>' });
+    await email.sendEmail({ kind: 'alert', to: 'a@a.test', subject: 'X', html: '<p>1</p>' });
+    await email.sendEmail({ kind: 'alert', to: 'b@b.test', subject: 'X', html: '<p>2</p>' });
 
     // Same server key → constructor called only once
     expect(Resend).toHaveBeenCalledTimes(1);
 
     await email.sendEmail({
+      kind: 'alert',
       to: 'c@c.test',
       subject: 'X',
       html: '<p>3</p>',
@@ -332,9 +361,7 @@ describe('sendAlertEmail', () => {
       alertId: 'alert-abc-123',
     });
 
-    expect(sendMock).toHaveBeenCalledWith(
-      expect.objectContaining({ headers: { 'Idempotency-Key': 'alert-abc-123' } }),
-    );
+    expect(sendMock.mock.calls[0][1]).toEqual({ idempotencyKey: 'alert-abc-123' });
   });
 
   it('embeds the thumbnail URL in the HTML when provided', async () => {
@@ -473,8 +500,7 @@ describe('sendVerificationEmail', () => {
   it('uses a deterministic idempotency key', async () => {
     await email.sendVerificationEmail('x@example.com', 'https://x.test/v');
 
-    const call = sendMock.mock.calls[0][0];
-    expect(call.headers['Idempotency-Key']).toBe('verify:x@example.com:https://x.test/v');
+    expect(sendMock.mock.calls[0][1]).toEqual({ idempotencyKey: 'verify:x@example.com:https://x.test/v' });
   });
 });
 
@@ -499,8 +525,7 @@ describe('sendPasswordResetEmail', () => {
   it('uses a deterministic idempotency key based on URL', async () => {
     await email.sendPasswordResetEmail('user@example.com', 'https://x.test/r');
 
-    const call = sendMock.mock.calls[0][0];
-    expect(call.headers['Idempotency-Key']).toBe('reset:user@example.com:https://x.test/r');
+    expect(sendMock.mock.calls[0][1]).toEqual({ idempotencyKey: 'reset:user@example.com:https://x.test/r' });
   });
 });
 

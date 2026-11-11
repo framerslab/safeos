@@ -99,14 +99,20 @@ export default function ResendHelpPage() {
                 <h3 className="font-semibold text-white">Server-wide key (operator pays)</h3>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed mb-3">
-                Set these three values on your API server&apos;s <code>.env</code> file. Every user
+                Set these four values on your API server&apos;s <code>.env</code> file. Every user
                 of the deployment can then opt in to email alerts without supplying their own key.
               </p>
               <pre className="text-xs bg-slate-950 border border-slate-800 rounded p-3 overflow-x-auto text-slate-300">
 {`RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
 EMAIL_FROM="SafeOS Guardian <alerts@yourdomain.com>"
-EMAIL_REPLY_TO="team@yourdomain.com"`}
+EMAIL_REPLY_TO="team@yourdomain.com"
+SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
               </pre>
+              <p className="text-xs text-slate-400 mt-2">
+                <code>SAFEOS_API_PUBLIC_URL</code> is the https address of your API server. Every
+                email&apos;s Unsubscribe link points there, so the server sends no email until it is
+                set (behind the bundled Caddy, <code>SAFEOS_DOMAIN</code> is enough).
+              </p>
               <p className="text-xs text-slate-400 mt-2">
                 Restart your API server after editing. The setting takes effect immediately.
               </p>
@@ -166,6 +172,39 @@ EMAIL_REPLY_TO="team@yourdomain.com"`}
           </Callout>
         </Card>
 
+        {/* ─────── Unsubscribe ──────────────────────────────────────────── */}
+        <Card title="The Unsubscribe link in every email">
+          <ul className="list-disc list-inside text-sm text-slate-300 space-y-1.5 leading-relaxed">
+            <li>
+              Every email the API server sends (alerts, the test message, account verification and
+              password reset) ends with an <strong>Unsubscribe</strong> link and carries the{' '}
+              <code>List-Unsubscribe</code> and <code>List-Unsubscribe-Post</code> headers, so mail
+              apps can show their own unsubscribe button (
+              <ExternalLink href="https://datatracker.ietf.org/doc/html/rfc8058">RFC 8058</ExternalLink>).
+            </li>
+            <li>
+              Opening the link shows a page that asks and changes nothing. Its button, or a mail
+              app&apos;s one-click unsubscribe, stops the email at once. No email is sent to confirm it.
+            </li>
+            <li>
+              Alert email and test messages stop for that address. Account email is sent only when
+              someone asks for it; its link turns off every optional email and says what still comes.
+            </li>
+            <li>
+              To stop all email to an address, account email included, run{' '}
+              <code>docker compose exec -T api npx tsx src/cli/mail-suppress.ts &lt; addresses.txt</code>{' '}
+              (one address per line). When a person who unsubscribed asks for email again, the same
+              command with <code>--resubscribe</code> lifts their unsubscribe; a manual stop stays.
+            </li>
+            <li>
+              Mail apps act on the one-click header only when your domain&apos;s DKIM signature covers
+              both headers. Open a received email&apos;s original source and check that the{' '}
+              <code>h=</code> list of its <code>DKIM-Signature</code> includes{' '}
+              <code>list-unsubscribe</code> and <code>list-unsubscribe-post</code>.
+            </li>
+          </ul>
+        </Card>
+
         {/* ─────── Severity routing ─────────────────────────────────────── */}
         <Card title="Which alerts go to email?">
           <p className="text-sm text-slate-300 leading-relaxed mb-3">
@@ -212,6 +251,10 @@ EMAIL_REPLY_TO="team@yourdomain.com"`}
               any time from the settings page.
             </li>
             <li>
+              For the Unsubscribe link, the server keeps the SHA-256 of the recipient address and of
+              the link&apos;s token, never the address itself.
+            </li>
+            <li>
               Frame does not receive copies of your alert emails. The path is{' '}
               <code>your browser → your SafeOS API server → Resend → your inbox</code>.
             </li>
@@ -225,6 +268,17 @@ EMAIL_REPLY_TO="team@yourdomain.com"`}
               Check that (a) the toggle is on, (b) the recipient field is a valid email, and (c)
               either the server reports Resend as configured (badge on this page) or you&apos;ve
               entered your own API key.
+            </Trouble>
+            <Trouble q={'The test says "Email not configured" although my key is set.'}>
+              Every email carries an Unsubscribe link back to your API server, so the server needs
+              its own https address. Set <code>SAFEOS_API_PUBLIC_URL</code> (or{' '}
+              <code>SAFEOS_DOMAIN</code> behind the bundled Caddy) and restart the server.
+            </Trouble>
+            <Trouble q={'The test says the address unsubscribed.'}>
+              Someone used the Unsubscribe link in an email to that address, so SafeOS Guardian
+              sends it no more alert or test email. If it was you, ask whoever runs the server to
+              run the <code>mail-suppress</code> command with <code>--resubscribe</code> for your
+              address, or use another address.
             </Trouble>
             <Trouble q={'I get "Resend send failed: From address not authorized".'}>
               Your <code>From</code> address must use a domain that&apos;s verified in your Resend
