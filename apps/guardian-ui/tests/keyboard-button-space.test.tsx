@@ -17,3 +17,16 @@ it('leaves Space on the security arm button to native button activation', async 
   expect(fireEvent.keyDown(arm, { key: ' ', code: 'Space', bubbles: true, cancelable: true })).toBe(true);
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
 });
+
+it('opens shortcut help from a focused button and closes it with Escape', async () => {
+  jest.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  render(<KeyboardShortcutsProvider><button>Keep focus</button></KeyboardShortcutsProvider>);
+  const button = screen.getByRole('button', { name: 'Keep focus' });
+  button.focus();
+  fireEvent.keyDown(button, { key: '?', bubbles: true });
+  expect(await screen.findByRole('dialog')).toBeTruthy();
+  const close = screen.getByRole('button', { name: /close/i });
+  close.focus();
+  fireEvent.keyDown(close, { key: 'Escape', bubbles: true });
+  expect(screen.queryByRole('dialog')).toBeNull();
+});
