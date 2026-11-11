@@ -283,3 +283,115 @@ describe('WebSocket decode capacity', () => {
     expect(await frameCount(streamId) + await frameCount(otherStream)).toBe(2);
   });
 });
+
+describe('WebSocket pixel limit', () => {
+  it('refuses an image over 16 megapixels before storage or analysis', async () => {
+    const owner = await signIn();
+    const streamId = await stream(owner);
+    const peer = await connected(owner);
+    // About 50 KB compressed, so only the pixel limit can refuse it.
+    const image = (await sharp({ create: { width: 4001, height: 4000, channels: 3, background: 'white' } }).png().toBuffer()).toString('base64');
+    frame(peer, streamId, image, 100);
+    await vi.waitFor(() => expect(peer.messages).toContainEqual(expect.objectContaining({ type: 'error', payload: expect.objectContaining({ code: 'INVALID_FRAME' }) })));
+    expect(await frameCount(streamId)).toBe(0);
+    expect(await db.get('SELECT id FROM analysis_queue WHERE stream_id = ?', [streamId])).toBeFalsy();
+  });
+});
+
+describe('WebSocket subscriptions', () => {
+  it.each(['x'.repeat(129), 'bad channel', 'bad\nchannel', '', 42])('refuses invalid channel %j', async channel => {
+    const peer = await connected(await signIn());
+    send(peer, { type: 'subscribe', channel });
+    await vi.waitFor(() => expect(peer.messages).toContainEqual(expect.objectContaining({
+      type: 'error', payload: expect.objectContaining({ code: 'INVALID_CHANNEL' }),
+    })));
+    expect(peer.ws.readyState).toBe(WebSocket.OPEN);
+  });
+
+  it('holds at most 32 subscriptions and releases capacity on unsubscribe', async () => {
+    const peer = await connected(await signIn());
+    for (let i = 0; i < 20; i++) send(peer, { type: 'subscribe', channel: `channel-${i}` });
+    await settle(peer);
+    for (let i = 20; i < 33; i++) send(peer, { type: 'subscribe', channel: `channel-${i}` });
+    send(peer, { type: 'subscribe', channel: 'channel-0' });
+    await settle(peer);
+    expect(peer.messages.filter(m => m.type === 'error').map(m => m.payload.code))
+      .toEqual(['SUBSCRIPTION_LIMIT']);
+    api.broadcast('channel-32', { type: 'refused-channel' });
+    api.broadcast('channel-31', { type: 'accepted-channel' });
+    await settle(peer);
+    expect(peer.messages.some(m => m.type === 'refused-channel')).toBe(false);
+    expect(peer.messages.some(m => m.type === 'accepted-channel')).toBe(true);
+    send(peer, { type: 'unsubscribe', channel: 'channel-0' });
+    send(peer, { type: 'subscribe', channel: 'channel-32' });
+    await settle(peer);
+    api.broadcast('channel-32', { type: 'replacement-channel' });
+    await settle(peer);
+    expect(peer.messages.some(m => m.type === 'replacement-channel')).toBe(true);
+    expect(peer.messages.filter(m => m.type === 'error')).toHaveLength(1);
+  });
+
+  it('accepts a 128-character channel without writing its value to the log', async () => {
+    const peer = await connected(await signIn());
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const channel = `AZaz09:_-${'x'.repeat(119)}`;
+      send(peer, { type: 'subscribe', channel });
+      await settle(peer);
+      api.broadcast(channel, { type: 'boundary-channel' });
+      await settle(peer);
+      expect(peer.messages.some(m => m.type === 'boundary-channel')).toBe(true);
+      expect(log.mock.calls.flat().some(arg => String(arg).includes(channel))).toBe(false);
+    } finally {
+      log.mockRestore();
+    }
+  });
+});
+
+describe('WebSocket server log', () => {
+  it('does not write a message type it does not handle into the log', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      const peer = await connected(await signIn());
+      const type = `unknown-${'x'.repeat(4096)}`;
+      send(peer, { type });
+      await settle(peer);
+      expect(log.mock.calls).toContainEqual(['[WebSocket] Unknown message type']);
+      expect(log.mock.calls.flat().some(arg => String(arg).includes(type))).toBe(false);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it.each([
+    ['session check', 'FROM sessions', { type: 'ping' }],
+    ['message handling', 'FROM streams', { type: 'join_stream', streamId: 'any-stream' }],
+  ])('writes one line when the %s fails on the database', async (_name, failingQuery, message) => {
+    const peer = await connected(await signIn());
+    const real = dbRef.current;
+    const failure = new TypeError('database unavailable');
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let code: number | undefined;
+    peer.ws.on('close', value => { code = value; });
+    dbRef.current = new Proxy(real, {
+      get(target, prop) {
+        if (prop === 'get') {
+          return (sql: string, params?: unknown[]) => sql.includes(failingQuery)
+            ? Promise.reject(failure) : target.get(sql, params);
+        }
+        const value = target[prop];
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    try {
+      send(peer, message);
+      await vi.waitFor(() => expect(code).toBe(1011));
+      const lines = error.mock.calls.filter(([line]) => String(line).startsWith('[WebSocket]'));
+      expect(lines).toEqual([['[WebSocket] Internal error', 'TypeError']]);
+      expect(lines[0].map(String).join(' ')).not.toContain('database unavailable');
+    } finally {
+      dbRef.current = real;
+      error.mockRestore();
+    }
+  });
+});
