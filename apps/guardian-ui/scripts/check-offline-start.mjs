@@ -23,7 +23,26 @@ try {
   const context = await browser.newContext();
   const page = await context.newPage();
   await page.goto(base, { waitUntil: 'networkidle' });
-  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.evaluate(async () => {
+    let registration;
+    let timer;
+    // Collect diagnostics without letting that lookup extend the deadline.
+    navigator.serviceWorker.getRegistration().then(value => { registration = value; }, () => {});
+    try {
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            const worker = registration?.installing || registration?.waiting || registration?.active;
+            const state = registration ? worker?.state || 'no worker' : 'no registration';
+            reject(new Error(`Service worker did not become ready within 30 seconds (${state}).`));
+          }, 30_000);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  });
   await context.setOffline(true);
   const offlinePage = await context.newPage();
   await offlinePage.goto(base + '/wildlife/');

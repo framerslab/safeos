@@ -21,11 +21,13 @@ const files = (await walk(root)).filter(file => {
     /\.(html|txt|css|js|woff2?|svg|png|ico|webp|jpe?g|gif)$/.test(relative) && relative !== 'sw.js' || relative === 'manifest.json';
 }).sort();
 const worker = await readFile('public/sw.js', 'utf8');
-const hash = createHash('sha256').update(worker);
+// Keep each path and content digest in a separate, unambiguous record.
+const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+const hash = createHash('sha256').update(JSON.stringify(['worker', digest(worker)]));
 const urls = [];
 for (const file of files) {
   const relative = path.relative(root, file).split(path.sep).join('/');
-  hash.update(relative).update(await readFile(file));
+  hash.update(JSON.stringify(['file', relative, digest(await readFile(file))]));
   urls.push('/' + relative.replace(/(^|\/)index\.html$/, '$1'));
 }
 if (!urls.includes('/') || !urls.some(url => url.startsWith('/_next/static/') && url.endsWith('.js'))) {

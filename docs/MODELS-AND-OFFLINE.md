@@ -23,7 +23,8 @@ Offline starts require two completed preparations:
 1. The service worker installs the exported HTML and all generated scripts,
    styles, fonts, route data and the images pages show (logo, favicons, logos,
    diagrams). The postbuild script derives the list and cache version from the
-   actual output. Installation fails if an asset cannot be saved. Route data the
+   actual output, using separate path and content-digest records for each file
+   and a separate worker record. Installation fails if an asset cannot be saved. Route data the
    router requests with a query (`index.txt?_rsc=...`) is served from the
    installed copy. Alert sounds are not installed: audio is fetched with Range
    requests, which the worker leaves to the network.
@@ -46,4 +47,9 @@ control, and persistent detection weights. Browser APIs and GPU execution are
 replaced at their edges; TensorFlow's manifest and weight IO runs in the tests.
 Worker install, activation and fetch handlers run against a fake Cache Storage.
 CI also builds the static export and opens Wildlife offline in Chromium, then
-operates its settings control. All validation runs in CI.
+operates its settings control. The browser check bounds service-worker readiness
+to 30 seconds, reports the registration state on failure, and closes its browser
+and HTTP server. Its command-line launch failure exits with a nonzero status.
+Rendered home and FAQ regressions keep offline preparation, the available model,
+and saved monitor alerts consistent with the implementation. All validation runs
+in CI.
