@@ -11,6 +11,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
+import { ModelDownloadProgress } from '@/components/ModelDownloadProgress';
+import { useDetectionModel } from '@/lib/detection-model';
 import { SecurityPanel } from '../../components/SecurityPanel';
 import { IntrusionGallery } from '../../components/IntrusionGallery';
 import { CameraFeed } from '../../components/CameraFeed';
@@ -192,7 +194,9 @@ export default function SecurityPage() {
   const [showGallery, setShowGallery] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [isSirenPlaying, setIsSirenPlaying] = useState(false);
-  const [modelStatus, setModelStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const download = useDetectionModel();
+  const [detectorReady, setDetectorReady] = useState(false);
+  const modelStatus = !download.setupComplete ? 'idle' : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
   const [lastDetection, setLastDetection] = useState<PersonDetectionResult | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -215,23 +219,21 @@ export default function SecurityPage() {
     });
   }, [settings.confidenceThreshold, settings.motionThreshold, settings.detectionInterval]);
 
-  // Initialize detector
+  // Initialize frame processing only after the agreed model is ready.
   useEffect(() => {
-    const init = async () => {
-      try {
-        await detectorRef.current.initialize();
-        setModelStatus('ready');
-      } catch (error) {
-        console.error('[SecurityPage] Failed to initialize detector:', error);
-        setModelStatus('error');
-      }
-    };
-    init();
-
+    if (download.status !== 'ready' || !download.setupComplete) return;
+    let cancelled = false;
+    const detector = detectorRef.current;
+    void detector.initialize().then(() => {
+      if (!cancelled) setDetectorReady(true);
+    }).catch(() => {
+      if (!cancelled) setDetectorReady(false);
+    });
     return () => {
-      detectorRef.current.dispose();
+      cancelled = true;
+      detector.dispose();
     };
-  }, []);
+  }, [download.status, download.setupComplete]);
 
   // Handle intrusion trigger
   const handleIntrusion = useCallback(async (result: PersonDetectionResult) => {
@@ -338,7 +340,7 @@ export default function SecurityPage() {
 
   // Detection loop (uses video element directly; avoids relying on CameraFeed's gated onFrame)
   useEffect(() => {
-    if (!isArmed) return;
+    if (!isArmed || modelStatus !== 'ready') return;
 
     const intervalMs = Math.max(250, settings.detectionInterval);
     let cancelled = false;
@@ -391,7 +393,7 @@ export default function SecurityPage() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [isArmed, armingState, settings.detectionInterval, settings.allowedPersons, handleIntrusion, setCurrentPersonCount, recordDetection]);
+  }, [isArmed, modelStatus, armingState, settings.detectionInterval, settings.allowedPersons, handleIntrusion, setCurrentPersonCount, recordDetection]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
@@ -436,7 +438,7 @@ export default function SecurityPage() {
                     : 'bg-red-500/20 text-red-400'
                 }`}
               >
-                AI: {modelStatus === 'ready' ? 'Ready' : modelStatus === 'loading' ? 'Loading...' : 'Error'}
+                AI: {modelStatus === 'ready' ? 'Ready' : modelStatus === 'loading' ? 'Loading...' : modelStatus === 'error' ? 'Error' : 'Not downloaded'}
               </div>
 
               {/* Gallery Toggle */}
@@ -471,6 +473,7 @@ export default function SecurityPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <ModelDownloadProgress className="mb-6" />
         {showGallery ? (
           /* Intrusion History Gallery */
           <IntrusionGallery className="mb-6" />
@@ -494,7 +497,7 @@ export default function SecurityPage() {
                 <CameraFeed
                   scenario="security"
                   showDebug={true}
-                  enabled={isArmed}
+                  enabled={isArmed && modelStatus === 'ready'}
                   audioEnabled={false}
                   onVideoReady={(video) => {
                     videoRef.current = video;
