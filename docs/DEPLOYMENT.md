@@ -125,10 +125,11 @@ Deploy the API server for SMS/Telegram alerts, Ollama LLM, and multi-device sync
 ### Local Development
 
 ```bash
-cd safeos
+# From the repository root (the folder git clone made)
 
 # Install dependencies
-npm install
+npm install --legacy-peer-deps
+(cd apps/guardian-ui && npm ci)
 
 # Start API + UI
 npm run dev
@@ -216,8 +217,7 @@ volumes:
 # Install PM2
 npm install -g pm2
 
-# Build
-cd safeos
+# Build, from the repository root
 npm run build
 
 # Start with PM2

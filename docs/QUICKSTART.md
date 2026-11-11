@@ -42,11 +42,11 @@ ollama pull llava:7b     # Detailed analysis (~4GB)
 ### 3. Start SafeOS
 
 ```bash
-# From monorepo root
-cd safeos
+# From the repository root (the folder git clone made)
 
 # Install dependencies (first time only)
-npm install
+npm install --legacy-peer-deps
+(cd apps/guardian-ui && npm ci)
 
 # Start everything
 npm run dev
