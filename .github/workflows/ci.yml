@@ -167,9 +167,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install browser storage test fixture
-        run: npm install --no-save fake-indexeddb@6.2.4
-
       - name: Run Jest
         run: npx jest --ci
 
