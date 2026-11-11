@@ -76,7 +76,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How does local-first processing work?',
-        answer: 'Local-first means the analysis happens on your device. The monitor compares video frames and measures sound levels in your browser. Security and Wildlife modes also run a TensorFlow.js model in the browser to find people and animals. On safeos.sh your camera frames and sound stay in your browser. The page itself downloads the detection model from Google and asks GitHub for the star count, so those two services see your IP address, as the privacy page lists. If you connect a server you run yourself, the monitor sends frames to that server.',
+        answer: 'Local-first means the analysis happens on your device. The monitor compares video frames and measures sound levels in your browser. Security and Wildlife modes also run a TensorFlow.js model in the browser to find people and animals. On safeos.sh your camera frames and sound stay in your browser. The page downloads the detection model from Google, which sees your IP address. The GitHub link contacts GitHub only when you open it. If you connect a server you run yourself, the monitor sends frames to that server.',
       },
       {
         question: 'Can I use this without any internet connection?',

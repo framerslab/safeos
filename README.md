@@ -294,6 +294,8 @@ npm run test:watch      # watch mode
 
 ## Deployment
 
+Browser data, sign-out, saved preferences and optional server connections are described in [Local data and settings](docs/LOCAL-DATA.md).
+
 The PWA is a static export. Deploy `apps/guardian-ui/out` to any CDN — GitHub Pages, Vercel, Netlify, Cloudflare Pages. No server is required.
 
 The API server (and optional local AI) run via Docker Compose — see [docs/DOCKER.md](docs/DOCKER.md):
