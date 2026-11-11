@@ -233,6 +233,10 @@ export class SafeOSServer {
       });
     });
 
+    this.startHeartbeat();
+  }
+
+  private startHeartbeat(): void {
     // Start heartbeat with stale client cleanup
     this.heartbeatInterval = setInterval(() => {
       const staleClients: string[] = [];
@@ -459,55 +463,67 @@ export class SafeOSServer {
   // ---------------------------------------------------------------------------
 
   async start(): Promise<void> {
-    // Initialize database
-    const db = await getSafeOSDatabase();
-    await runMigrations(db);
-    console.log('Database initialized');
+    try {
+      if (!this.heartbeatInterval) this.startHeartbeat();
+      // Initialize database
+      const db = await getSafeOSDatabase();
+      await runMigrations(db);
+      console.log('Database initialized');
 
-    // Retention must keep running even when every camera stops uploading.
-    await cleanupOldFrames(db);
-    this.frameCleanupInterval = setInterval(() => {
-      if (this.frameCleanup) return this.frameCleanup;
-      this.frameCleanup = cleanupOldFrames(db)
-        .catch(() => console.error('Frame retention cleanup failed'))
-        .finally(() => { this.frameCleanup = null; });
-      return this.frameCleanup;
-    }, 1000);
+      // Retention must keep running even when every camera stops uploading.
+      await cleanupOldFrames(db);
+      this.frameCleanupInterval = setInterval(() => {
+        if (this.frameCleanup) return this.frameCleanup;
+        this.frameCleanup = cleanupOldFrames(db)
+          .catch((error: unknown) => {
+            // Error messages and stacks may contain SQL values. Only emit a known class name.
+            const names = ['Error', 'TypeError', 'RangeError', 'SyntaxError', 'ReferenceError', 'URIError', 'EvalError', 'AggregateError', 'SqliteError'];
+            const name = error instanceof Error && names.includes(error.name) ? error.name : 'Error';
+            console.error(`Frame retention cleanup failed (${name})`);
+          })
+          .finally(() => { this.frameCleanup = null; });
+        return this.frameCleanup;
+      }, 1000);
 
-    // Check Ollama
-    const ollamaAvailable = await this.ollamaClient.isHealthy();
-    console.log(`Ollama: ${ollamaAvailable ? 'available' : 'not available'}`);
+      // Check Ollama
+      const ollamaAvailable = await this.ollamaClient.isHealthy();
+      console.log(`Ollama: ${ollamaAvailable ? 'available' : 'not available'}`);
 
-    if (ollamaAvailable) {
-      // Ensure required models are available
-      await this.ollamaClient.ensureModels(['moondream', 'llava:7b']);
-    }
+      if (ollamaAvailable) {
+        // Ensure required models are available
+        await this.ollamaClient.ensureModels(['moondream', 'llava:7b']);
+      }
 
-    // Initialize analysis queue
-    this.analysisQueue = new AnalysisQueue({
-      concurrency: 2,
-      maxRetries: 3,
-      retryDelay: 5000,
-    });
-    await this.analysisQueue.start();
-    console.log('Analysis queue started');
-
-    // Start server
-    return new Promise((resolve) => {
-      this.server.listen(PORT, () => {
-        console.log(`SafeOS server running on port ${PORT}`);
-        console.log(`WebSocket server ready`);
-        resolve();
+      // Initialize analysis queue
+      this.analysisQueue = new AnalysisQueue({
+        concurrency: 2,
+        maxRetries: 3,
+        retryDelay: 5000,
       });
-    });
+      await this.analysisQueue.start();
+      console.log('Analysis queue started');
+
+      // Start server
+      await new Promise<void>((resolve, reject) => {
+        this.server.once('error', reject);
+        this.server.listen(PORT, () => {
+          this.server.off('error', reject);
+          console.log(`SafeOS server running on port ${PORT}`);
+          console.log(`WebSocket server ready`);
+          resolve();
+        });
+      });
+    } catch (error) {
+      await this.stopScheduledWork();
+      throw error;
+    }
   }
 
-  async stop(): Promise<void> {
-    console.log('Shutting down SafeOS server...');
-
+  private async stopScheduledWork(): Promise<void> {
     // Stop heartbeat
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
 
     if (this.frameCleanupInterval) {
@@ -519,7 +535,14 @@ export class SafeOSServer {
     // Stop analysis queue
     if (this.analysisQueue) {
       await this.analysisQueue.stop();
+      this.analysisQueue = null;
     }
+  }
+
+  async stop(): Promise<void> {
+    console.log('Shutting down SafeOS server...');
+
+    await this.stopScheduledWork();
 
     // Close all WebSocket connections
     this.clients.forEach((client) => {
