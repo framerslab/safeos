@@ -29,7 +29,7 @@ Every profile starts with the role `user`. The operator grants a role in the dat
 UPDATE user_profiles SET role = 'reviewer' WHERE id = '<profile id>';
 ```
 
-Behind the bundled Caddy (`docker-compose.prod.yml`), `SAFEOS_TRUST_PROXY=1` tells the API that one proxy sits in front of it, so the rate limits count each client's own address. Leave it unset when clients reach the API directly; set it to the number of proxies only when nothing else can reach the API port.
+Behind the bundled Caddy (`docker-compose.prod.yml`), `SAFEOS_TRUST_PROXY=172.30.0.2` trusts only Caddy's fixed address on the dedicated proxy network. Other deployments may supply a comma-separated list of exact IPv4 or IPv6 proxy addresses. Hop counts, network ranges and invalid values are not accepted; unset or invalid settings trust no proxy. Direct peers cannot supply the client's rate-limit identity.
 
 ---
 
@@ -77,7 +77,7 @@ Get detailed system status.
 ### Authentication
 
 #### POST /api/auth/session
-Create a new session (guest or authenticated).
+Create a guest session lasting 30 days. Without a token this always creates a new profile, even when the device label is known. To retain a guest profile, send its live session token in `X-Session-Token` or `Authorization: Bearer` and the same `deviceId` (or omit it if the original session had no device). The response contains a fresh token and the stored profile. A successful resume replaces the presented token in the same session row; clients must save the returned token. The earlier token is immediately invalid, and only one concurrent resume can succeed. Invalid, expired or mismatched proof returns `401`; a device ID alone never restores an existing profile. Email accounts use `/api/auth/email/login`.
 
 **Request:**
 ```json
@@ -87,44 +87,47 @@ Create a new session (guest or authenticated).
 }
 ```
 
-**Response:**
+**Response (`201`):**
 ```json
 {
   "success": true,
-  "session": {
-    "id": "session-uuid",
+  "data": {
+    "sessionId": "session-uuid",
     "token": "session-token",
     "isGuest": true,
-    "expiresAt": "2024-12-28T00:00:00.000Z"
-  },
-  "profile": {
-    "id": "profile-uuid",
-    "displayName": "My Monitoring Station",
-    "preferences": {...},
-    "notificationSettings": {...}
+    "expiresAt": "2026-12-11T00:00:00.000Z",
+    "profile": {
+      "id": "profile-uuid",
+      "displayName": "My Monitoring Station",
+      "avatarUrl": null,
+      "preferences": {},
+      "notificationSettings": {},
+      "createdAt": "2026-11-11T00:00:00.000Z",
+      "updatedAt": "2026-11-11T00:00:00.000Z"
+    }
   }
 }
 ```
 
 #### GET /api/auth/session
-Get current session info.
+Get the stored session metadata and profile in the same `data` shape as session creation. Expiry is checked at the current instant.
 
-**Headers:** `X-Session-Token: required`
+**Headers:** `X-Session-Token` or `Authorization: Bearer` required
 
 #### DELETE /api/auth/session
 End the current session.
 
-**Headers:** `X-Session-Token: required`
+**Headers:** `X-Session-Token` or `Authorization: Bearer` required
 
 #### GET /api/auth/profile
 Get user profile.
 
-**Headers:** `X-Session-Token: required`
+**Headers:** `X-Session-Token` or `Authorization: Bearer` required
 
 #### PATCH /api/auth/profile
 Update user profile.
 
-**Headers:** `X-Session-Token: required`
+**Headers:** `X-Session-Token` or `Authorization: Bearer` required
 
 **Request:**
 ```json
@@ -136,6 +139,31 @@ Update user profile.
   }
 }
 ```
+
+#### POST /api/auth/device
+Attach a `deviceId` to the current live session. Requires a session token; unknown or expired sessions return `401`.
+
+### Email accounts
+
+The email router is mounted at `/api/auth/email`. Its failed requests use the authentication rate limit once; reset requests also use the stricter reset limit. Configure Resend and an https `SAFEOS_API_PUBLIC_URL` (or `SAFEOS_DOMAIN`) for account mail. Links point to this API, not the static web app. Registration can succeed when mail is unavailable, but verification is still required before login; operators must configure mail before offering registration.
+
+| Method and path | Request | Result |
+| --- | --- | --- |
+| `POST /register` | `email`, `password`, optional `displayName` | Creates an unverified account; returns the same `201` message for new and existing addresses, without account details |
+| `GET /verify?token=…` | Verification link | Shows a confirmation form; does not verify on GET |
+| `POST /verify` | `token` | Consumes a valid verification token (24-hour lifetime) |
+| `POST /login` | `email`, `password` | Verified accounts receive `sessionToken` and `user`; session lasts 30 days |
+| `GET /me` | Session header | Returns the signed-in email account |
+| `POST /forgot-password` | `email` | Requests a reset link; same success response for unknown addresses |
+| `GET /reset-password?token=…` | Reset link | Shows the password form; does not reset on GET |
+| `POST /reset-password` | `token`, `newPassword` | Consumes the one-hour token, updates the password and revokes existing sessions |
+| `POST /change-password` | Session header, `currentPassword`, `newPassword` | Changes the password after checking the current one |
+| `POST /logout` | Session header | Ends that session |
+| `POST /logout-all` | Session header | Ends all sessions of that account |
+
+Blank or whitespace-only optional display names use the email name. Registration, reset and change share the same password requirements: 8–1024 characters with at least one uppercase letter, lowercase letter and number. Invalid replacement passwords leave the password and reset token untouched. Duplicate registration leaves the existing account unchanged. Account-link forms preserve any path prefix in the public API URL.
+
+Session headers accept `X-Session-Token` or `Authorization: Bearer`. An email account has a stable `user_profiles` row, created on its first successful login, so its token works on the same owned routes as a guest token. Signing into an email account does not adopt a guest's records. Roles for protected routes come from `user_profiles.role`; creating an email account grants no staff access. Account links and responses are not cached.
 
 ---
 
@@ -307,7 +335,18 @@ Delete an alert.
 
 ### Monitoring Profiles
 
-All profile routes: **signed in**. The built-in defaults (`profile-<scenario>-default`) are shared and read-only; the operator alone may change them. A custom profile belongs to the caller who created it: others neither see nor change it (`404`).
+All profile routes: **signed in**. The three built-in defaults (`profile-baby-default`, `profile-pet-default`, `profile-elderly-default`) have shared settings; only the operator may change their names or settings. Every person may select a default for their own monitoring. A custom profile belongs to the caller who created it: others neither see nor change it (`404`).
+
+Active choices are stored per person and scenario. `is_active` in list, detail, update and activation responses describes the caller's choice. Selecting one profile clears only that person's prior choice for that scenario. `PATCH` with `isActive: false` clears that choice. Deleting a selected custom profile leaves no active choice. Existing owned selections are imported once on upgrade; old shared flags are not assigned to anyone.
+
+Custom profiles from before ownership existed remain hidden, including from ordinary operator HTTP reads, until the operator assigns them in the database:
+
+```sql
+UPDATE monitoring_profiles SET owner_id = '<user profile id>'
+WHERE id = '<custom monitoring profile id>' AND owner_id IS NULL;
+```
+
+Assign only custom profiles; leave the three shared default IDs unowned. The assigned owner can then read, edit and select the profile.
 
 #### GET /api/profiles
 List the built-in defaults and the caller's own profiles.
@@ -332,7 +371,7 @@ Create a custom profile owned by the caller.
 Update one of the caller's profiles.
 
 #### POST /api/profiles/:id/activate
-Make one of the caller's profiles the active one for its scenario.
+Select a shared default or the caller's custom profile for that person's scenario. Other people's choices are unchanged.
 
 #### DELETE /api/profiles/:id
 Delete one of the caller's profiles.

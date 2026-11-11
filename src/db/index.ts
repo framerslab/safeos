@@ -328,6 +328,34 @@ export async function runMigrations(db: Database): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_monitoring_profiles_owner ON monitoring_profiles(owner_id)
   `);
 
+  // One active choice per person and scenario. Import only owned choices
+  // once; a former shared flag cannot identify the person who selected it.
+  // A choice whose owner's user profile is gone is not imported: the owner
+  // column references user_profiles, and OR IGNORE does not cover a foreign
+  // key failure, which would stop the API from starting.
+  const choicesExist = await db.get(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'active_monitoring_profiles'"
+  );
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS active_monitoring_profiles (
+      owner_id TEXT NOT NULL,
+      scenario TEXT NOT NULL CHECK (scenario IN ('pet', 'baby', 'elderly')),
+      monitoring_profile_id TEXT,
+      PRIMARY KEY (owner_id, scenario),
+      FOREIGN KEY (owner_id) REFERENCES user_profiles(id),
+      FOREIGN KEY (monitoring_profile_id) REFERENCES monitoring_profiles(id) ON DELETE SET NULL
+    )
+  `);
+  if (!choicesExist) {
+    await db.exec(`
+      INSERT OR IGNORE INTO active_monitoring_profiles (owner_id, scenario, monitoring_profile_id)
+      SELECT owner_id, scenario, id FROM monitoring_profiles
+      WHERE owner_id IS NOT NULL AND is_active = 1
+        AND owner_id IN (SELECT id FROM user_profiles)
+      ORDER BY created_at DESC, id DESC
+    `);
+  }
+
   // Insert default profiles if not exist
   await insertDefaultProfiles(db);
 }

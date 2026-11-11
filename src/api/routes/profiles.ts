@@ -28,14 +28,15 @@ profileRoutes.use(requireAuth);
 
 /**
  * A caller reads their own profiles and the shared built-in defaults
- * (owner_id NULL). A caller changes only their own; the operator may also
- * change the defaults.
+ * (the three known IDs with no owner). Unassigned custom rows stay hidden
+ * until an operator assigns an owner in the database.
  */
-const READABLE = '(owner_id = ? OR owner_id IS NULL)';
+const DEFAULT_IDS = "'profile-baby-default', 'profile-pet-default', 'profile-elderly-default'";
+const READABLE = `(p.owner_id = ? OR (p.owner_id IS NULL AND p.id IN (${DEFAULT_IDS})))`;
 
 function writableClause(req: Request): { sql: string; params: any[] } {
   if (req.session?.role === 'operator') {
-    return { sql: '(owner_id = ? OR owner_id IS NULL)', params: [getProfileId(req)] };
+    return { sql: `(owner_id = ? OR (owner_id IS NULL AND id IN (${DEFAULT_IDS})))`, params: [getProfileId(req)] };
   }
   return { sql: 'owner_id = ?', params: [getProfileId(req)] };
 }
@@ -46,14 +47,30 @@ async function findWritable(req: Request, id: string): Promise<any> {
   return db.get(`SELECT * FROM monitoring_profiles WHERE id = ? AND ${w.sql}`, [id, ...w.params]);
 }
 
-/** Deactivates the other profiles of a scenario that the caller can see. */
-async function deactivateScenario(req: Request, scenario: string): Promise<void> {
+// The response flag is the caller's choice, never the shared row's flag.
+const PROFILE_SELECT = `SELECT p.id, p.name, p.scenario, p.settings, p.created_at, p.owner_id,
+  CASE WHEN a.monitoring_profile_id = p.id THEN 1 ELSE 0 END AS is_active
+  FROM monitoring_profiles p LEFT JOIN active_monitoring_profiles a
+  ON a.owner_id = ? AND a.scenario = p.scenario`;
+
+async function findReadable(req: Request, id: string): Promise<any> {
   const db = await getSafeOSDatabase();
-  const w = writableClause(req);
-  await db.run(
-    `UPDATE monitoring_profiles SET is_active = 0 WHERE scenario = ? AND ${w.sql}`,
-    [scenario, ...w.params]
-  );
+  return db.get(`${PROFILE_SELECT} WHERE p.id = ? AND ${READABLE}`,
+    [getProfileId(req), id, getProfileId(req)]);
+}
+
+async function setActive(req: Request, profile: any, active: boolean): Promise<void> {
+  const db = await getSafeOSDatabase();
+  if (active) {
+    await db.run(`INSERT INTO active_monitoring_profiles (owner_id, scenario, monitoring_profile_id)
+      VALUES (?, ?, ?) ON CONFLICT(owner_id, scenario)
+      DO UPDATE SET monitoring_profile_id = excluded.monitoring_profile_id`,
+    [getProfileId(req), profile.scenario, profile.id]);
+  } else {
+    await db.run(`UPDATE active_monitoring_profiles SET monitoring_profile_id = NULL
+      WHERE owner_id = ? AND scenario = ? AND monitoring_profile_id = ?`,
+    [getProfileId(req), profile.scenario, profile.id]);
+  }
 }
 
 // =============================================================================
@@ -68,15 +85,15 @@ profileRoutes.get('/', validate(ListProfilesQuerySchema, 'query'), async (req: R
     const db = await getSafeOSDatabase();
     const { scenario } = req.query;
 
-    let query = `SELECT * FROM monitoring_profiles WHERE ${READABLE}`;
-    const params: any[] = [getProfileId(req)];
+    let query = `${PROFILE_SELECT} WHERE ${READABLE}`;
+    const params: any[] = [getProfileId(req), getProfileId(req)];
 
     if (scenario) {
-      query += ' AND scenario = ?';
+      query += ' AND p.scenario = ?';
       params.push(scenario);
     }
 
-    query += ' ORDER BY is_active DESC, created_at DESC';
+    query += ' ORDER BY is_active DESC, p.created_at DESC';
 
     const profiles = await db.all(query, params);
 
@@ -98,13 +115,9 @@ profileRoutes.get('/', validate(ListProfilesQuerySchema, 'query'), async (req: R
  */
 profileRoutes.get('/:id', validate(IdParamsSchema, 'params'), async (req: Request, res: Response) => {
   try {
-    const db = await getSafeOSDatabase();
     const { id } = req.params;
 
-    const profile = await db.get(`SELECT * FROM monitoring_profiles WHERE id = ? AND ${READABLE}`, [
-      id,
-      getProfileId(req),
-    ]);
+    const profile = await findReadable(req, String(id));
 
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
@@ -162,7 +175,10 @@ profileRoutes.patch('/:id', validate(IdParamsSchema, 'params'), validate(UpdateP
     const { id } = req.params;
     const { name, settings, isActive } = req.body;
 
-    const profile = await findWritable(req, String(id));
+    const changesSettings = name !== undefined || settings !== undefined;
+    const profile = changesSettings
+      ? await findWritable(req, String(id))
+      : await findReadable(req, String(id));
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
@@ -181,12 +197,7 @@ profileRoutes.patch('/:id', validate(IdParamsSchema, 'params'), validate(UpdateP
     }
 
     if (isActive !== undefined) {
-      // If activating, deactivate other profiles of same scenario
-      if (isActive) {
-        await deactivateScenario(req, (profile as any).scenario);
-      }
-      updates.push('is_active = ?');
-      params.push(isActive ? 1 : 0);
+      await setActive(req, profile, isActive);
     }
 
     if (updates.length > 0) {
@@ -197,7 +208,7 @@ profileRoutes.patch('/:id', validate(IdParamsSchema, 'params'), validate(UpdateP
       );
     }
 
-    const updated = await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id]);
+    const updated = await findReadable(req, String(id));
 
     res.json({
       profile: {
@@ -230,6 +241,7 @@ profileRoutes.delete('/:id', validate(IdParamsSchema, 'params'), async (req: Req
       return res.status(400).json({ error: 'Cannot delete default profiles' });
     }
 
+    await db.run('UPDATE active_monitoring_profiles SET monitoring_profile_id = NULL WHERE monitoring_profile_id = ?', [id]);
     await db.run('DELETE FROM monitoring_profiles WHERE id = ?', [id]);
 
     res.json({ success: true });
@@ -244,24 +256,15 @@ profileRoutes.delete('/:id', validate(IdParamsSchema, 'params'), async (req: Req
  */
 profileRoutes.post('/:id/activate', validate(IdParamsSchema, 'params'), async (req: Request, res: Response) => {
   try {
-    const db = await getSafeOSDatabase();
     const { id } = req.params;
 
-    const profile = await findWritable(req, String(id));
+    const profile = await findReadable(req, String(id));
     if (!profile) {
       return res.status(404).json({ error: 'Profile not found' });
     }
 
-    // Deactivate other profiles of same scenario
-    await deactivateScenario(req, (profile as any).scenario);
-
-    // Activate this profile
-    await db.run(
-      'UPDATE monitoring_profiles SET is_active = 1 WHERE id = ?',
-      [id]
-    );
-
-    const updated = await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id]);
+    await setActive(req, profile, true);
+    const updated = await findReadable(req, String(id));
 
     res.json({
       profile: {

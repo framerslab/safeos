@@ -194,7 +194,7 @@ export const requireAdmin: RequestHandler = requireRole('operator');
 /**
  * Extract authentication token from request
  */
-function extractToken(req: Request): string | null {
+export function extractToken(req: Request): string | null {
   // Check x-session-token header first (custom header)
   const sessionToken = req.headers['x-session-token'];
   if (typeof sessionToken === 'string') {

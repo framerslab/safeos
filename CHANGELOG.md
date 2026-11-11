@@ -20,11 +20,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Without an https address for the unsubscribe link the server sends no mail; `/api/notifications/test-email` answers `400` with the setting to add, and `409` for an address that unsubscribed.
 - A mail to several recipients goes out as one mail per recipient, each with its own link.
 - Footer and fine-print text in every mail is 13px or larger.
+- Upgrading needs operator steps, in order: [Upgrading to the proxy network and per-person profile choices](docs/DEPLOYMENT.md#upgrading-to-the-proxy-network-and-per-person-profile-choices).
+- `SAFEOS_TRUST_PROXY` takes exact proxy IP addresses only; a hop count, a range or an invalid value trusts no proxy. The production compose file puts Caddy at `172.30.0.2` on its own `proxy-network`, whose other containers get addresses from `172.30.0.128/25`.
+- Each person has their own active monitoring profile per scenario, built-in defaults included. Monitoring profiles with no owner other than the three built-in defaults are hidden until the operator assigns an owner.
+- Resuming a guest profile with `POST /api/auth/session` needs that session's live token for the same device; the token is replaced in place.
 
 ### Fixed
 - The Resend idempotency key went out as a header inside the mail, where Resend ignores it; it is now sent as the request's `Idempotency-Key`.
 - The pull request preview comment job can write its comment, and skips pull requests from forks, whose token is read-only.
 - The production compose file passes `SAFEOS_DOMAIN` and `CORS_ORIGIN` to Caddy, which serves `{$SAFEOS_DOMAIN}`.
+- `GET /api/auth/session` and the profile routes read the stored session row, so a returning guest gets their profile, `isGuest` and `expiresAt` back.
+- Email sign-in is mounted at `/api/auth/email`; its sessions carry a profile, its links open forms served by the API, and a password reset ends the account's other sessions.
 
 ## [0.1.0] - 2025-01-08
 

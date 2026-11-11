@@ -10,7 +10,7 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'crypto';
 import { promisify } from 'util';
 import { getSafeOSDatabase, generateId, now } from '../db/index.js';
-import { sendVerificationEmail, sendPasswordResetEmail, isResendConfigured } from '../lib/alerts/email.js';
+import { sendVerificationEmail, sendPasswordResetEmail, isResendConfigured, getMailLinkBase } from '../lib/alerts/email.js';
 
 const scryptAsync = promisify(scrypt);
 
@@ -59,6 +59,16 @@ export interface AuthResult {
 const SALT_LENGTH = 16;
 const KEY_LENGTH = 64;
 
+/** The same policy applies whenever an account password is set. */
+function passwordPolicyError(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters';
+  if (password.length > 1024) return 'Password must be at most 1024 characters';
+  if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter';
+  if (!/[a-z]/.test(password)) return 'Password must contain at least one lowercase letter';
+  if (!/[0-9]/.test(password)) return 'Password must contain at least one number';
+  return null;
+}
+
 /**
  * Hash a password using scrypt
  */
@@ -88,16 +98,11 @@ function generateToken(): string {
   return randomBytes(32).toString('hex');
 }
 
-/**
- * Build a fully-qualified URL into the PWA for transactional emails.
- * Prefers SAFEOS_PUBLIC_URL, falls back to NEXT_PUBLIC_SITE_URL, then safeos.sh.
- */
-function buildAppUrl(path: string): string {
-  const base =
-    process.env['SAFEOS_PUBLIC_URL'] ??
-    process.env['NEXT_PUBLIC_SITE_URL'] ??
-    'https://safeos.sh';
-  return `${base.replace(/\/+$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
+/** Account links are served by the API that owns the account database. */
+function buildAccountUrl(path: string): string {
+  const base = getMailLinkBase();
+  if (!base) throw new Error('Account mail requires an https API public URL');
+  return `${base}/api/auth/email/${path}`;
 }
 
 // =============================================================================
@@ -154,34 +159,11 @@ export class EmailAuthService {
       return { success: false, error: 'Invalid email format' };
     }
 
-    // Validate password strength
-    if (password.length < 8) {
-      return { success: false, error: 'Password must be at least 8 characters' };
-    }
+    const policyError = passwordPolicyError(password);
+    if (policyError) return { success: false, error: policyError };
 
-    if (!/[A-Z]/.test(password)) {
-      return { success: false, error: 'Password must contain at least one uppercase letter' };
-    }
-
-    if (!/[a-z]/.test(password)) {
-      return { success: false, error: 'Password must contain at least one lowercase letter' };
-    }
-
-    if (!/[0-9]/.test(password)) {
-      return { success: false, error: 'Password must contain at least one number' };
-    }
-
-    // Check if email already exists
-    const existing = await this.db.get(
-      'SELECT id FROM users WHERE email = ?',
-      [email.toLowerCase()]
-    );
-
-    if (existing) {
-      return { success: false, error: 'Email already registered' };
-    }
-
-    // Hash password
+    // Do the password work for both new and existing addresses. A duplicate
+    // registration leaves the account untouched and has the same public reply.
     const passwordHash = await hashPassword(password);
 
     // Generate verification token
@@ -192,8 +174,8 @@ export class EmailAuthService {
     const userId = generateId();
     const timestamp = now();
 
-    await this.db.run(
-      `INSERT INTO users (
+    const inserted = await this.db.run(
+      `INSERT OR IGNORE INTO users (
         id, email, password_hash, display_name, email_verified,
         verification_token, verification_expires, role, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -201,7 +183,7 @@ export class EmailAuthService {
         userId,
         email.toLowerCase(),
         passwordHash,
-        displayName || email.split('@')[0],
+        displayName?.trim() || email.split('@')[0],
         0, // Not verified
         verificationToken,
         verificationExpires,
@@ -210,6 +192,9 @@ export class EmailAuthService {
         timestamp,
       ]
     );
+
+    // The unique email constraint also handles simultaneous registrations.
+    if (!inserted.changes) return { success: true };
 
     // Get the created user (without sensitive fields)
     const user = await this.getUserById(userId);
@@ -222,7 +207,7 @@ export class EmailAuthService {
     // Operators without Resend configured can re-issue verification later.
     if (isResendConfigured()) {
       try {
-        const verificationUrl = buildAppUrl(`/verify-email?token=${encodeURIComponent(verificationToken)}`);
+        const verificationUrl = buildAccountUrl(`verify?token=${encodeURIComponent(verificationToken)}`);
         await sendVerificationEmail(user.email, verificationUrl, user.displayName);
       } catch (error) {
         console.error('[EmailAuth] Failed to send verification email:', error);
@@ -277,14 +262,19 @@ export class EmailAuthService {
     // Create session token
     const sessionToken = generateToken();
 
-    // Store session
-    const sessionId = generateId();
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(); // 30 days
-
+    // The account ID is also its stable profile ID. Existing accounts get
+    // their profile on first login; subsequent logins retain preferences.
     await this.db.run(
-      `INSERT INTO sessions (id, token, user_id, is_guest, profile_id, created_at, expires_at, last_active_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [sessionId, sessionToken, row.id, 0, row.id, timestamp, expiresAt, timestamp]
+      `INSERT OR IGNORE INTO user_profiles (id, display_name, created_at, updated_at)
+       VALUES (?, ?, ?, ?)`,
+      [row.id, row.display_name, timestamp, timestamp]
+    );
+    const sessionId = generateId();
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    await this.db.run(
+      `INSERT INTO sessions (id, token, is_guest, profile_id, created_at, expires_at, last_active_at)
+       VALUES (?, ?, 0, ?, ?, ?, ?)`,
+      [sessionId, sessionToken, row.id, timestamp, expiresAt, timestamp]
     );
 
     const user = await this.getUserById(row.id);
@@ -368,7 +358,7 @@ export class EmailAuthService {
     if (isResendConfigured()) {
       try {
         const user = await this.getUserById(row.id);
-        const resetUrl = buildAppUrl(`/reset-password?token=${encodeURIComponent(resetToken)}`);
+        const resetUrl = buildAccountUrl(`reset-password?token=${encodeURIComponent(resetToken)}`);
         await sendPasswordResetEmail(email.toLowerCase(), resetUrl, user?.displayName);
       } catch (error) {
         console.error('[EmailAuth] Failed to send password reset email:', error);
@@ -399,24 +389,24 @@ export class EmailAuthService {
       return { success: false, error: 'Reset token has expired' };
     }
 
-    // Validate new password
-    if (newPassword.length < 8) {
-      return { success: false, error: 'Password must be at least 8 characters' };
-    }
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) return { success: false, error: policyError };
 
     const passwordHash = await hashPassword(newPassword);
     const timestamp = now();
 
-    await this.db.run(
+    const changed = await this.db.run(
       `UPDATE users SET
         password_hash = ?,
         reset_token = NULL,
         reset_token_expires = NULL,
         updated_at = ?
-       WHERE id = ?`,
-      [passwordHash, timestamp, row.id]
+       WHERE id = ? AND reset_token = ? AND julianday(reset_token_expires) > julianday(?)`,
+      [passwordHash, timestamp, row.id, token, timestamp]
     );
 
+    if (!changed.changes) return { success: false, error: 'Invalid or expired reset token' };
+    await this.logoutAll(row.id);
     const user = await this.getUserById(row.id);
 
     return {
@@ -450,9 +440,8 @@ export class EmailAuthService {
       return { success: false, error: 'Current password is incorrect' };
     }
 
-    if (newPassword.length < 8) {
-      return { success: false, error: 'New password must be at least 8 characters' };
-    }
+    const policyError = passwordPolicyError(newPassword);
+    if (policyError) return { success: false, error: policyError };
 
     const passwordHash = await hashPassword(newPassword);
 
@@ -497,7 +486,7 @@ export class EmailAuthService {
     await this.initialize();
 
     const session = await this.db.get(
-      'SELECT * FROM sessions WHERE token = ? AND expires_at > ?',
+      'SELECT * FROM sessions WHERE token = ? AND julianday(expires_at) > julianday(?)',
       [token, now()]
     );
 
@@ -511,7 +500,7 @@ export class EmailAuthService {
       [now(), session.id]
     );
 
-    return this.getUserById(session.user_id);
+    return this.getUserById(session.profile_id);
   }
 
   /**
@@ -529,7 +518,7 @@ export class EmailAuthService {
   async logoutAll(userId: string): Promise<void> {
     await this.initialize();
 
-    await this.db.run('DELETE FROM sessions WHERE user_id = ?', [userId]);
+    await this.db.run('DELETE FROM sessions WHERE profile_id = ?', [userId]);
   }
 }
 
@@ -537,32 +526,3 @@ export class EmailAuthService {
 export const emailAuthService = new EmailAuthService();
 
 export default emailAuthService;
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

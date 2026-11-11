@@ -79,6 +79,7 @@ export const CreateProfileSchema = z.object({
 });
 
 export const UpdateProfileSchema = z.object({
+  isActive: z.boolean().optional(),
   name: z.string().min(1).max(100).optional(),
   scenario: ScenarioEnum.optional(),
   settings: z.record(z.any()).optional(),

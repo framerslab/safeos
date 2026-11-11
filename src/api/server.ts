@@ -8,6 +8,7 @@
 
 import express, { Express, Request, Response, NextFunction } from 'express';
 import { createServer, Server } from 'http';
+import { isIP } from 'net';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
 import { getSafeOSDatabase, runMigrations, generateId, now } from '../db';
@@ -21,6 +22,7 @@ import { systemRoutes } from './routes/system';
 import { notificationRoutes } from './routes/notifications';
 import { reviewRoutes } from './routes/review';
 import { authRouter } from './routes/auth';
+import { emailAuthRouter } from './routes/email-auth';
 import { webhookRouter } from './routes/webhooks';
 import { exportRouter } from './routes/export';
 import { analyticsRoutes } from './routes/analytics';
@@ -70,13 +72,11 @@ const MAX_FRAMES_PER_MINUTE = 30;
 const FRAME_WINDOW_MS = 60000; // 1 minute
 const MAX_MISSED_HEARTBEATS = 3; // Disconnect after 3 missed heartbeats (90 seconds)
 
-/**
- * Reads SAFEOS_TRUST_PROXY as a hop count. Anything but a positive integer
- * trusts no proxy.
- */
-function parseTrustProxyHops(value: string | undefined): number {
-  if (!value || !/^\d+$/.test(value.trim())) return 0;
-  return parseInt(value.trim(), 10);
+/** Only explicit proxy IP addresses are trusted; invalid settings fail closed. */
+function parseTrustedProxies(value: string | undefined): string[] | false {
+  if (!value?.trim()) return false;
+  const addresses = value.split(',').map((address) => address.trim());
+  return addresses.every((address) => isIP(address) !== 0) ? addresses : false;
 }
 
 // =============================================================================
@@ -108,15 +108,9 @@ export class SafeOSServer {
   // ---------------------------------------------------------------------------
 
   private setupMiddleware(): void {
-    // Behind the bundled Caddy every request arrives from Caddy's address.
-    // SAFEOS_TRUST_PROXY is the number of proxy hops in front of the API
-    // (docker-compose.prod.yml sets 1), so req.ip and the rate limiter see the
-    // client's address. Unset, X-Forwarded-For is ignored: a client that
-    // reaches the API directly cannot choose its own address.
-    const hops = parseTrustProxyHops(process.env['SAFEOS_TRUST_PROXY']);
-    if (hops > 0) {
-      this.app.set('trust proxy', hops);
-    }
+    // A hop count would trust every peer able to reach the API. Compose gives
+    // Caddy a fixed address on its dedicated proxy network instead.
+    this.app.set('trust proxy', parseTrustedProxies(process.env['SAFEOS_TRUST_PROXY']));
 
     this.app.use(cors());
     this.app.use(express.json({ limit: '10mb' }));
@@ -147,6 +141,7 @@ export class SafeOSServer {
     this.app.use('/api', systemRoutes);
     this.app.use('/api/notifications', notificationRoutes);
     this.app.use('/api/review', reviewRoutes);
+    this.app.use('/api/auth/email', emailAuthRouter);
     this.app.use('/api/auth', authLimiter, authRouter);
     this.app.use('/api/webhooks', webhookRouter);
     this.app.use('/api/export', exportLimiter, exportRouter);
