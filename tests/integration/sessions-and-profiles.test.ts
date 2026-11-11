@@ -92,3 +92,54 @@ describe('guest session proof and stored profile fields', () => {
     expect(await db.get('SELECT COUNT(*) AS count FROM sessions')).toEqual(before);
   });
 });
+
+describe('mounted email sign-in', () => {
+  it('registers and sends a verification link served by this API', async () => {
+    const registered = await call('post', '/api/auth/email/register').send({ email: 'register@example.com', password: 'GoodPassword123', displayName: 'Mail user' });
+    expect(registered.status).toBe(201);
+    const link = new URL(verificationMail.mock.calls.at(-1)![1]);
+    expect(link.pathname).toBe('/api/auth/email/verify');
+    const page = await call('get', link.pathname + link.search);
+    expect(page.status).toBe(200);
+    expect(page.headers['cache-control']).toBe('no-store');
+    expect((await db.get('SELECT email_verified FROM users WHERE email = ?', ['register@example.com'])).email_verified).toBe(0);
+    const verified = await call('post', '/api/auth/email/verify').send({ token: link.searchParams.get('token') });
+    expect(verified.status).toBe(200);
+  });
+
+  it('logs a verified account into owned routes and revokes all its sessions', async () => {
+    // Seed an existing verified account to exercise login independently of registration routing.
+    const { emailAuthService } = await import('../../src/auth/email-auth.js');
+    const account = await emailAuthService.register({ email: 'login@example.com', password: 'GoodPassword123' });
+    await db.run('UPDATE users SET email_verified = 1 WHERE id = ?', [account.user!.id]);
+    const login = await call('post', '/api/auth/email/login').send({ email: 'login@example.com', password: 'GoodPassword123' });
+    expect(login.status).toBe(200);
+    const token = login.body.sessionToken;
+    const session = await call('get', '/api/auth/session', token);
+    expect(session.status).toBe(200);
+    expect(session.body.data).toMatchObject({ isGuest: false, profile: { id: account.user!.id } });
+    expect((await call('post', '/api/streams', token).send({ scenario: 'baby' })).status).toBe(201);
+    expect((await call('get', '/api/auth/email/me').set('Authorization', `Bearer ${token}`)).body.user.id).toBe(account.user!.id);
+    const second = await call('post', '/api/auth/email/login').send({ email: 'login@example.com', password: 'GoodPassword123' });
+    expect(second.status).toBe(200);
+    expect((await call('post', '/api/auth/email/logout-all').set('Authorization', `Bearer ${token}`)).status).toBe(200);
+    expect((await call('get', '/api/streams', second.body.sessionToken)).status).toBe(401);
+  });
+
+  it('serves reset links, consumes their tokens once and revokes prior sessions', async () => {
+    const { emailAuthService } = await import('../../src/auth/email-auth.js');
+    const account = await emailAuthService.register({ email: 'reset@example.com', password: 'GoodPassword123' });
+    await db.run('UPDATE users SET email_verified = 1 WHERE id = ?', [account.user!.id]);
+    const login = await call('post', '/api/auth/email/login').send({ email: 'reset@example.com', password: 'GoodPassword123' });
+    expect(login.status).toBe(200);
+    expect((await call('post', '/api/auth/email/forgot-password').send({ email: 'reset@example.com' })).status).toBe(200);
+    const link = new URL(resetMail.mock.calls.at(-1)![1]);
+    expect(link.pathname).toBe('/api/auth/email/reset-password');
+    expect((await call('get', link.pathname + link.search)).status).toBe(200);
+    const body = { token: link.searchParams.get('token'), newPassword: 'NewPassword456' };
+    expect((await call('post', '/api/auth/email/reset-password').send(body)).status).toBe(200);
+    expect((await call('post', '/api/auth/email/reset-password').send(body)).status).toBe(400);
+    expect((await call('get', '/api/streams', login.body.sessionToken)).status).toBe(401);
+    expect((await call('post', '/api/auth/email/login').send({ email: 'reset@example.com', password: 'NewPassword456' })).status).toBe(200);
+  });
+});
