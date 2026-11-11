@@ -316,7 +316,6 @@ export default function MonitorPage() {
   const stopStream = () => {
     if (wsConnected) {
       sendMessage({ type: 'stop-stream' });
-      return;
     }
 
     setStreaming(false);
@@ -1039,6 +1038,7 @@ export default function MonitorPage() {
               {isLostFoundWatching && <SubjectPreviewOverlay />}
 
               <CameraFeed
+                enabled={isStreaming}
                 scenario={selectedScenario || scenario || undefined}
                 onFrame={handleFrame}
                 onMotion={handleMotion}
