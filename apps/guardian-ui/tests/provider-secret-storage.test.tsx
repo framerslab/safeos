@@ -8,8 +8,8 @@ jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => ({
 it('does not persist typed provider secrets and removes legacy saved values', async () => {
   localStorage.setItem('safeos_notifications_settings', JSON.stringify({ emailEnabled: true, emailUseOwnKey: true, smsEnabled: true, smsUseOwnKey: true, emailResendApiKey: 'old-mail-secret', smsAuthToken: 'old-sms-secret' }));
   render(<Page />);
-  fireEvent.change(await screen.findByLabelText('Resend API key'), { target: { value: 'new-mail-secret' } });
-  fireEvent.change(screen.getByLabelText('Twilio Auth Token'), { target: { value: 'new-sms-secret' } });
+  fireEvent.change(await screen.findByLabelText('Resend API key', { selector: 'input' }), { target: { value: 'new-mail-secret' } });
+  fireEvent.change(screen.getByLabelText('Twilio Auth Token', { selector: 'input' }), { target: { value: 'new-sms-secret' } });
   fireEvent.click(screen.getByRole('button', { name: /save/i }));
   const stored = localStorage.getItem('safeos_notifications_settings')!;
   expect(stored).not.toMatch(/old-mail-secret|old-sms-secret|new-mail-secret|new-sms-secret/);
