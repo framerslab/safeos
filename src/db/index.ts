@@ -30,14 +30,6 @@ const BUFFER_MINUTES = 10; // Rolling buffer for privacy
 // =============================================================================
 
 const hooks: StorageHooks = {
-  onAfterWrite: async (context, _result) => {
-    // Cleanup old frames after every write
-    if (context.statement?.includes('frame_buffer')) {
-      const db = await getSafeOSDatabase();
-      await cleanupOldFrames(db);
-    }
-  },
-
   onAfterQuery: async (context, _result) => {
     // Log slow queries
     const duration = Date.now() - (context.startTime || Date.now());
@@ -414,7 +406,7 @@ export async function insertDefaultProfiles(db: Database): Promise<void> {
 export async function cleanupOldFrames(db: Database): Promise<void> {
   const threshold = new Date(Date.now() - BUFFER_MINUTES * 60 * 1000).toISOString();
 
-  await db.run('DELETE FROM frame_buffer WHERE created_at < ?', [threshold]);
+  await db.run('DELETE FROM frame_buffer WHERE created_at <= ?', [threshold]);
 }
 
 // =============================================================================

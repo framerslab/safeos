@@ -10,7 +10,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import { createServer, Server } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import cors from 'cors';
-import { getSafeOSDatabase, runMigrations, generateId, now } from '../db';
+import { cleanupOldFrames, getSafeOSDatabase, runMigrations, generateId, now } from '../db';
 import { AnalysisQueue } from '../queues/analysis-queue';
 import { OllamaClient } from '../lib/ollama/client';
 import { streamRoutes } from './routes/streams';
@@ -91,6 +91,9 @@ export class SafeOSServer {
   private analysisQueue: AnalysisQueue | null = null;
   private ollamaClient: OllamaClient;
   private heartbeatInterval: NodeJS.Timeout | null = null;
+
+  private frameCleanupInterval: NodeJS.Timeout | null = null;
+  private frameCleanup: Promise<void> | null = null;
 
   constructor() {
     this.app = express();
@@ -461,6 +464,16 @@ export class SafeOSServer {
     await runMigrations(db);
     console.log('Database initialized');
 
+    // Retention must keep running even when every camera stops uploading.
+    await cleanupOldFrames(db);
+    this.frameCleanupInterval = setInterval(() => {
+      if (this.frameCleanup) return this.frameCleanup;
+      this.frameCleanup = cleanupOldFrames(db)
+        .catch(() => console.error('Frame retention cleanup failed'))
+        .finally(() => { this.frameCleanup = null; });
+      return this.frameCleanup;
+    }, 1000);
+
     // Check Ollama
     const ollamaAvailable = await this.ollamaClient.isHealthy();
     console.log(`Ollama: ${ollamaAvailable ? 'available' : 'not available'}`);
@@ -496,6 +509,12 @@ export class SafeOSServer {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
     }
+
+    if (this.frameCleanupInterval) {
+      clearInterval(this.frameCleanupInterval);
+      this.frameCleanupInterval = null;
+    }
+    await this.frameCleanup;
 
     // Stop analysis queue
     if (this.analysisQueue) {

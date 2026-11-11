@@ -460,3 +460,14 @@ HTTP API:
 - [Configuration Reference](./CONFIGURATION.md)
 - [API Documentation](./API.md)
 - [Development Guide](./DEVELOPMENT.md)
+
+
+### Server frame retention
+
+The optional API server deletes frame-buffer rows at startup and every second,
+including frames from ended streams. The cutoff is ten minutes old; deletion
+runs on the next sweep (normally within one second), independently of new writes.
+Shutdown stops the timer and waits for an active sweep. A stopped server cannot
+run cleanup; startup removes expired rows before accepting uploads. This is
+logical deletion of rows, not a promise of forensic erasure from SQLite pages or
+backups. Keep backups protected and expire them separately.
