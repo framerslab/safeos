@@ -77,13 +77,7 @@ emailAuthRouter.post('/register', validate(credentials.extend({ displayName: z.s
     }
 
     res.status(201).json({
-      message: 'Registration successful. Please check your email to verify your account.',
-      user: {
-        id: result.user!.id,
-        email: result.user!.email,
-        displayName: result.user!.displayName,
-        emailVerified: result.user!.emailVerified,
-      },
+      message: 'If registration is available for this address, check your email to verify your account.',
     });
   } catch (error) {
     console.error('[EmailAuth] Registration error:', error);

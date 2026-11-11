@@ -162,17 +162,8 @@ export class EmailAuthService {
     const policyError = passwordPolicyError(password);
     if (policyError) return { success: false, error: policyError };
 
-    // Check if email already exists
-    const existing = await this.db.get(
-      'SELECT id FROM users WHERE email = ?',
-      [email.toLowerCase()]
-    );
-
-    if (existing) {
-      return { success: false, error: 'Email already registered' };
-    }
-
-    // Hash password
+    // Do the password work for both new and existing addresses. A duplicate
+    // registration leaves the account untouched and has the same public reply.
     const passwordHash = await hashPassword(password);
 
     // Generate verification token
@@ -183,8 +174,8 @@ export class EmailAuthService {
     const userId = generateId();
     const timestamp = now();
 
-    await this.db.run(
-      `INSERT INTO users (
+    const inserted = await this.db.run(
+      `INSERT OR IGNORE INTO users (
         id, email, password_hash, display_name, email_verified,
         verification_token, verification_expires, role, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -201,6 +192,9 @@ export class EmailAuthService {
         timestamp,
       ]
     );
+
+    // The unique email constraint also handles simultaneous registrations.
+    if (!inserted.changes) return { success: true };
 
     // Get the created user (without sensitive fields)
     const user = await this.getUserById(userId);
