@@ -16,7 +16,6 @@ import {
   IconWarning,
   IconInfo,
   IconRadar,
-  IconEye,
   IconFingerprint,
   IconMic,
   IconWifiOff,
@@ -354,11 +353,10 @@ function LandingPage() {
               Deep learning, in your browser.
             </h2>
             <p className="text-base md:text-lg text-[var(--color-steel-200)] max-w-2xl mx-auto leading-relaxed">
-              Every frame is screened by motion, audio, and pixel-change detectors running{' '}
-              <span className="text-emerald-400 font-medium">locally</span>. When motion
-              is detected, the frame is routed to on-device computer vision models: COCO-SSD
-              spots objects, a Vision Transformer cross-checks ambiguous scenes. No uploads.
-              No cloud round-trips. Tap any card to see the architecture underneath.
+              Motion, audio, and pixel-change detectors run{' '}
+              <span className="text-emerald-400 font-medium">locally</span>. Security and
+              Wildlife use COCO-SSD to find people and animals after setup and agreement
+              to download the detection model. Tap any card to see how it works.
             </p>
           </div>
 
@@ -369,7 +367,7 @@ function LandingPage() {
               alt="SafeOS Guardian architecture — browser inference pipeline plus optional API server"
               caption={
                 <>
-                  The solid path runs in your browser and keeps running offline once a page has loaded.
+                  The solid path runs in your browser. Offline starts need a completed app installation and a saved detection model.
                   The dashed path engages only when you deploy the optional API server.
                 </>
               }
@@ -388,19 +386,6 @@ function LandingPage() {
                 'Bounding-box localization plus confidence scoring per class.',
                 'Frame buffer keeps the most recent 5–10 minutes; older frames are discarded automatically.',
                 'Configurable confidence thresholds per scenario (pets, baby, elderly).',
-              ]}
-            />
-
-            <DeepLearningCard
-              icon={IconEye}
-              title="Scene classifier download"
-              tag="ViT-base · Transformers.js"
-              size="88.3 MB download"
-              summary="Settings → Models can download a Vision Transformer for in-browser scene classification. No monitoring mode calls it."
-              details={[
-                'Hugging Face Xenova/vit-base-patch16-224, quantized for browser use.',
-                'Runs client-side through Transformers.js, with no inference API.',
-                'Transformers.js keeps the downloaded files in the browser cache.',
               ]}
             />
 
@@ -437,11 +422,11 @@ function LandingPage() {
               icon={IconWifiOff}
               title="Offline-first by design"
               tag="PWA · Service worker"
-              size="Pages you have opened"
-              summary="SafeOS installs as a Progressive Web App. The service worker keeps a copy of the pages you open, so a loaded monitor keeps running without WiFi. Person and animal detection download their model from Google's servers and need a connection to load it."
+              size="Installed pages and saved model"
+              summary="SafeOS installs as a Progressive Web App. Once installation finishes online, exported pages and their scripts are available offline, including pages you have not opened. Security and Wildlife reuse the detection model offline after you agree to download and save it."
               details={[
-                'The service worker stores the main pages on install and each page you open after that.',
-                'Settings stay in localStorage; Lost & Found photos and saved frames persist in IndexedDB; monitor alerts clear on reload.',
+                'Wait for the app installation and detection model download to finish while online. Clearing or evicting browser storage requires downloading them again.',
+                'Settings stay in localStorage; Lost & Found photos and saved frames persist in IndexedDB; monitor alerts persist in IndexedDB and remain in History after acknowledgement.',
                 'No origin server required — host the static `out/` folder on GitHub Pages, Netlify, or any CDN.',
                 'Optional API server is just that: optional. Only needed for SMS/Telegram fan-out or Ollama LLM bridging.',
               ]}

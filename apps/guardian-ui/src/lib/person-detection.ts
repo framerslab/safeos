@@ -7,6 +7,8 @@
  * @module lib/person-detection
  */
 
+import { loadDetectionModel } from './detection-model';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -77,28 +79,15 @@ let modelLoadError: Error | null = null;
  */
 export async function loadPersonDetectionModel(): Promise<CocoSsdModel> {
   if (model) return model;
-  if (modelLoadError) throw modelLoadError;
   
   if (modelLoading) {
     return modelLoading;
   }
 
+  modelLoadError = null;
   modelLoading = (async () => {
     try {
-      // Dynamic import to avoid loading TensorFlow.js until needed
-      const tf = await import('@tensorflow/tfjs');
-      const cocoSsd = await import('@tensorflow-models/coco-ssd');
-      
-      // Set backend to webgl for best performance
-      await tf.setBackend('webgl');
-      await tf.ready();
-      
-      console.log('[PersonDetection] Loading COCO-SSD model...');
-      const loadedModel = await cocoSsd.load({
-        base: 'lite_mobilenet_v2', // Lighter model for faster inference
-      });
-      
-      console.log('[PersonDetection] Model loaded successfully');
+      const loadedModel = await loadDetectionModel();
       model = loadedModel;
       return loadedModel;
     } catch (error) {
