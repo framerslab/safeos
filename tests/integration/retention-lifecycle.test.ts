@@ -70,6 +70,7 @@ it('reports an initial retention failure once without exposing stored values to 
 
 it('releases scheduled work when the listen port is already in use', async () => {
   const p = await startPipeline();
+  const originalTimerCount = vi.getTimerCount();
   const { SafeOSServer } = await import('../../src/api/server.js');
   const service = new SafeOSServer();
   const http = (service as any).server;
@@ -84,8 +85,7 @@ it('releases scheduled work when the listen port is already in use', async () =>
       new Promise<undefined>((resolve) => { deadline = setTimeout(() => resolve(undefined), 1000); }),
     ]);
     expect.soft(failure?.code).toBe('EADDRINUSE');
-    // Only the original server's heartbeat, retention and queue intervals remain.
-    expect.soft(vi.getTimerCount()).toBe(3);
+    expect.soft(vi.getTimerCount()).toBe(originalTimerCount);
     expect((await p.api.get('/health')).status).toBe(200);
   } finally {
     clearTimeout(deadline);
