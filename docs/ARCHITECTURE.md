@@ -343,41 +343,15 @@ See [WebSocket API](API.md#websocket-api) for the complete wire format.
 ### Server -> Client Messages
 
 ```typescript
-// Alert notification
-{
-  type: 'alert',
-  alert: {
-    id: string,
-    streamId: string,
-    alertType: string,
-    severity: string,
-    message: string,
-    createdAt: string
-  }
-}
-
-// Analysis result
-{
-  type: 'analysis',
-  result: {
-    concernLevel: string,
-    description: string,
-    detectedIssues: string[]
-  }
-}
-
-// Heartbeat ping
-{
-  type: 'ping'
-}
-
-// Rate limit warning
-{
-  type: 'rate_limited',
-  message: string,
-  retryAfter: number
-}
+{ type: 'connected', payload: { clientId: 'peer-id' } }
+{ type: 'metrics', streamId: 'stream-id', payload: { motionScore: 15, audioLevel: 8 } }
+{ type: 'audio_level', streamId: 'stream-id', payload: { level: 12, hasCrying: false } }
+{ type: 'ping' }
+{ type: 'error', payload: { code: 'RATE_LIMITED', message: 'Maximum 30 frame attempts per minute' } }
 ```
+
+The current analysis worker does not emit alert or analysis-result socket
+events. Those records are read and acknowledged through HTTP.
 
 ---
 
