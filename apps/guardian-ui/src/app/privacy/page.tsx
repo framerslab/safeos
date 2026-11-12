@@ -80,8 +80,8 @@ export default function PrivacyPage() {
               'Without a configured server, your camera feed stays on your device',
               'We store nothing on our servers',
               'No accounts, no sign-ups, no tracking',
-              'All data lives in your browser',
-              'Delete your browser data = delete everything',
+              'Without a configured server, saved records stay in your browser',
+              "Clearing browser data removes only this device’s saved records",
             ].map((item, i) => (
               <li key={i} className="flex items-start gap-3 text-slate-300">
                 <IconCheck size={18} className="text-emerald-400 mt-0.5 flex-shrink-0" />
@@ -141,7 +141,8 @@ export default function PrivacyPage() {
                 and do not count toward the limits. New alerts are limited to 100 monitoring alerts per person
                 and 500 alerts overall in this browser. Acknowledged alerts are removed first, oldest first;
                 if all remaining alerts are unacknowledged, the oldest leave first.
-                Alerts are never removed because of their age. Clearing your browser data removes everything.
+                Alerts are never removed because of their age.
+                Records on a configured server are not deleted by clearing browser data or signing out.
                 Clear All Local Data also removes recorded sounds and the offline cache.
                 If your session expires and is replaced without signing out, your monitoring history
                 moves to the new profile and stays visible in Monitor, History, and History&apos;s offline export.
