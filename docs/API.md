@@ -821,6 +821,8 @@ is idempotent. A push endpoint belongs to one current profile and session;
 the same profile may refresh it. A different profile receives `409` while the
 registration's owning session is live, leaving that registration unchanged.
 A registration without a live owning session may be claimed by the next caller.
+The registration write also requires the incoming session to remain live and
+bound to the caller's profile. Otherwise it returns `409` without changing any registration.
 Signing out removes that session's push registrations; signing out everywhere
 or resetting the password removes registrations for all revoked sessions.
 Expired-session cleanup also removes that session's registrations. Expired

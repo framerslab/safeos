@@ -55,12 +55,15 @@ notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (r
     const saved = await db.get(
       `INSERT INTO push_subscriptions (id, profile_id, session_id, endpoint, keys_json, created_at)
        SELECT ?, ?, ?, ?, ?, ?
-       WHERE EXISTS (SELECT 1 FROM push_subscriptions p
+       WHERE EXISTS (SELECT 1 FROM sessions incoming
+                     WHERE incoming.id = ? AND incoming.profile_id = ?
+                       AND julianday(incoming.expires_at) > julianday(?))
+         AND (EXISTS (SELECT 1 FROM push_subscriptions p
                      JOIN sessions s ON s.id = p.session_id AND s.profile_id = p.profile_id
                      WHERE p.endpoint = ? AND p.profile_id = ? AND julianday(s.expires_at) > julianday(?))
           OR (SELECT COUNT(*) FROM push_subscriptions p
               JOIN sessions s ON s.id = p.session_id AND s.profile_id = p.profile_id
-              WHERE p.profile_id = ? AND julianday(s.expires_at) > julianday(?)) < 32
+              WHERE p.profile_id = ? AND julianday(s.expires_at) > julianday(?)) < 32)
        ON CONFLICT(endpoint) DO UPDATE SET id = excluded.id, profile_id = excluded.profile_id,
          session_id = excluded.session_id, keys_json = excluded.keys_json, created_at = excluded.created_at
        WHERE push_subscriptions.profile_id = excluded.profile_id
@@ -70,10 +73,11 @@ notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (r
                            AND julianday(s.expires_at) > julianday(?))
        RETURNING id`,
       [id, profileId, req.session!.id, subscription.endpoint, JSON.stringify(subscription.keys), timestamp,
+        req.session!.id, profileId, timestamp,
         subscription.endpoint, profileId, timestamp, profileId, timestamp, timestamp]
     );
     if (!saved) {
-      res.status(409).json({ error: 'Push registration conflicts with an active owner or the subscription limit' });
+      res.status(409).json({ error: 'Push registration conflicts with session, ownership or subscription limits' });
       return;
     }
 

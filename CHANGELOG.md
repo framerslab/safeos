@@ -26,13 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resuming a guest profile with `POST /api/auth/session` needs that session's live token for the same device; the token is replaced in place.
 
 ### Fixed
+- Push registration verifies the incoming session's live profile binding in the same write that saves the registration.
+- Before-and-after picture capture also runs when a pull request opens.
 - Telegram text and photo requests close after 15 seconds of transport inactivity.
 - Reviewers and operators can restore another owner's banned stream through the status PATCH route without gaining owner access to reads, deletion or sockets.
 - Browser clients retry recoverable socket policy closes, preserve one opening socket, and ignore events from replaced sockets.
 - Browser push preserves registrations owned by another live session. The 32-endpoint limit counts live registrations only, and every session-removal path removes its push registrations.
 - Telegram availability reflects the caller's saved personal bot token, with settings and setup guidance describing the same delivery rule.
 - Socket frames and queued delivery require an active owned stream; restarting the API retains the socket payload limit, and repeated startup leaves live work intact.
-- Alert delivery starts a five-minute cooldown only after a channel succeeds. Each channel has a 15-second deadline; critical alerts bypass the 32-delivery capacity check. Quiet hours skip low and medium delivery in the saved local time zone and chosen days without deferring it; high and critical alerts always go out.
+- Alert delivery starts a five-minute cooldown only after a channel succeeds. Each channel has a 15-second deadline; critical alerts bypass the 32-delivery capacity check. Quiet hours skip low and medium delivery in the saved local time zone and chosen days without deferring it; high and critical alerts bypass quiet hours.
 - Only reviewers and operators can change a banned stream status.
 - Startup recovers interrupted analysis jobs without duplicating saved results or alerts.
 - Provider secrets are write-only in profile, session and export responses. Push unsubscribe preserves other devices, and notification settings requests carry the session token.
