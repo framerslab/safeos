@@ -117,3 +117,44 @@ it('does not revive an inactive owned endpoint beyond the 32 live-registration l
       .toBe('missing-session');
   } finally { await p.close(); }
 });
+
+it.each([
+  ['existing', 'logout'], ['existing', 'expired'], ['existing', 'profile-changed'],
+  ['new', 'logout'], ['new', 'expired'], ['new', 'profile-changed'],
+])('preserves registrations when a delayed %s registration session is %s', async (kind, change) => {
+  const p = await startPipeline();
+  let release = () => {};
+  try {
+    await p.db.run('UPDATE sessions SET profile_id = ? WHERE id = ?', [p.owner.id, p.other.id]);
+    if (kind === 'existing') expect((await subscribe(p, p.owner.token, 'delayed')).status).toBe(200);
+    const before = await p.db.all('SELECT * FROM push_subscriptions');
+    let entered = () => {};
+    const resolving = new Promise<void>(resolve => { entered = resolve; });
+    const blocked = new Promise<void>(resolve => { release = resolve; });
+    boundary.lookup.mockImplementationOnce(async () => {
+      entered();
+      await blocked;
+      return [{ address: '142.250.1.1', family: 4 }];
+    });
+    const pending = subscribe(p, p.other.token, 'delayed');
+    await resolving;
+    if (change === 'logout') {
+      await p.api.post('/api/auth/email/logout').set('x-session-token', p.other.token).expect(200);
+    } else if (change === 'expired') {
+      await p.db.run('UPDATE sessions SET expires_at = ? WHERE id = ?', ['2000-01-01T00:00:00.000Z', p.other.id]);
+    } else {
+      await p.db.run('UPDATE sessions SET profile_id = ? WHERE id = ?', [p.other.id, p.other.id]);
+    }
+    release();
+    expect((await pending).status).toBe(409);
+    expect(await p.db.all('SELECT * FROM push_subscriptions')).toEqual(before);
+    if (kind === 'existing') {
+      boundary.triage.mockResolvedValue('CONCERN_LEVEL: critical');
+      boundary.analyze.mockResolvedValue('CONCERN_LEVEL: critical');
+      const ws = await p.connect();
+      await p.frame(ws, await image(`preserved-registration-${change}`), 100);
+      await p.tick();
+      expect(boundary.push).toHaveBeenCalledWith({ endpoint: endpoint('delayed'), keys }, expect.anything());
+    }
+  } finally { release(); await p.close(); }
+});
