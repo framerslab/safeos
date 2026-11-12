@@ -53,7 +53,6 @@ it('expires shared and monitoring records after 24 hours even without new alerts
   useMonitoringStore.getState().addAlert(alert('monitor-old', new Date(start).toISOString()));
   await useMonitoringStore.getState().hydrateAlerts();
   jest.spyOn(Date, 'now').mockReturnValue(start + DAY + 1);
-  useMonitoringStore.setState({ alerts: [] });
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts).toEqual([]);
   expect(await getCachedAlerts()).toEqual([]);
@@ -69,10 +68,12 @@ it('reads monitoring history through an owner index without loading the store', 
   useMonitoringStore.getState().addAlert(alert('bob-only'));
   await useMonitoringStore.getState().hydrateAlerts();
   const getAll = jest.spyOn(IDBObjectStore.prototype, 'getAll');
+  const cursors = jest.spyOn(IDBIndex.prototype, 'openCursor');
   owner('alice');
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-only']);
   expect(getAll.mock.contexts.some(store => (store as unknown as IDBObjectStore).name === 'alert_cache')).toBe(false);
+  expect(cursors.mock.contexts.map(index => (index as unknown as IDBIndex).name)).toContain('by-owner-created');
 });
 
 it('acknowledges and clears only the current owners history', async () => {
@@ -86,4 +87,25 @@ it('acknowledges and clears only the current owners history', async () => {
   owner('alice');
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-only']);
+});
+
+it('keeps the owner captured before a queued write runs', async () => {
+  useMonitoringStore.getState().addAlert(alert('queued-alice'));
+  owner('bob');
+  useMonitoringStore.getState().addAlert(alert('queued-bob'));
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['queued-bob']);
+  owner('alice');
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['queued-alice']);
+});
+
+it('removes expired records on write without needing a cleanup call', async () => {
+  const expired = new Date(Date.now() - DAY - 1).toISOString();
+  await cacheAlert(alert('old-shared', expired));
+  useMonitoringStore.getState().addAlert(alert('old-monitor', expired));
+  await useMonitoringStore.getState().hydrateAlerts();
+  const db = await openDB('safeos-guardian');
+  expect(await db.count('alert_cache')).toBe(0);
+  db.close();
 });
