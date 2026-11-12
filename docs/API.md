@@ -565,6 +565,9 @@ cannot be safely redacted and are never passed through. `monitoringSettingsOmitt
 reports the number of these profiles, or `0` when all settings can be read. This
 field is in `data` for the profile export and at the top level for the full export.
 Other rows are exported as usual, and stored settings are not changed.
+After downloading a profile or full export, the export page reports any omitted
+settings and points to `monitoringSettingsOmitted` in the downloaded file. A zero
+count keeps the ordinary download-success message.
 
 #### GET /api/export/all
 Download a JSON object containing `profile`, `sessions`, `streams`, `alerts`,
@@ -576,6 +579,9 @@ newest rows first (`created_at` descending, then `id` descending for ties).
 `counts.streams`, `counts.alerts`, and `counts.analysisResults` each contain
 `total` (all rows owned by this person), `included` (rows in the export), and
 `truncated` (`true` when `total` exceeds `included`). These counts cover all owned
+rows at the time each limited list is selected: each list and its total come from
+the same database statement, so concurrent writes cannot inflate that list's
+truncation flag. Different export sections are read independently. Counts cover
 streams, including alerts or analysis from streams outside the exported stream
 list. For example, an alert total of 5,001 produces `{ "total": 5001,
 "included": 5000, "truncated": true }`; exporting does not remove the omitted rows

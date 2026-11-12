@@ -138,6 +138,13 @@ export default function ExportPage() {
         throw new Error('Export failed');
       }
 
+      let omittedSettings = 0;
+      if (selectedType === 'profile' || selectedType === 'all') {
+        const result = await res.clone().json();
+        const data = selectedType === 'profile' ? result.data : result;
+        omittedSettings = data?.monitoringSettingsOmitted ?? 0;
+      }
+
       // Get filename from header or generate one
       const contentDisposition = res.headers.get('Content-Disposition');
       let filename = `safeos-${selectedType}-${new Date().toISOString().split('T')[0]}.${selectedFormat}`;
@@ -157,7 +164,10 @@ export default function ExportPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      setStatusMessage({ type: 'success', text: `Downloaded ${filename}` });
+      setStatusMessage(omittedSettings > 0 ? {
+        type: 'info',
+        text: `Downloaded ${filename}. ${omittedSettings} monitoring ${omittedSettings === 1 ? 'profile had' : 'profiles had'} unreadable settings left out. Check monitoringSettingsOmitted in the file for the count.`,
+      } : { type: 'success', text: `Downloaded ${filename}` });
     } catch (err) {
       setStatusMessage({ type: 'error', text: 'Export failed. Please try again later.' });
     } finally {
