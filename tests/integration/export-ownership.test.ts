@@ -17,12 +17,14 @@ let server: SafeOSServer;
 let alice: any;
 let bob: any;
 let foreignId: string;
+let client = 0;
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'safeos-export-'));
   db = await createDatabase({ file: join(dir, 'test.sqlite3'), priority: ['better-sqlite3'] } as any);
   dbRef.current = db;
   await runMigrations(db);
   server = new SafeOSServer();
+  server.getApp().set('trust proxy', ['127.0.0.1', '::1']);
   const guest = async (deviceId: string) => {
     const response = await request(server.getApp()).post('/api/auth/session').send({ deviceId });
     expect(response.status).toBe(201);
@@ -47,7 +49,7 @@ afterAll(async () => {
 });
 describe.each(['profile', 'all'])('%s export ownership', (kind) => {
   const exported = async () => {
-    const response = await request(server.getApp()).get(`/api/export/${kind}`).set('X-Session-Token', alice.token);
+    const response = await request(server.getApp()).get(`/api/export/${kind}`).set('X-Forwarded-For', `198.51.100.${++client}`).set('X-Session-Token', alice.token);
     expect(response.status).toBe(200);
     return kind === 'profile' ? response.body.data : response.body;
   };

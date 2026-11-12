@@ -72,7 +72,7 @@ it('reads monitoring history through an owner index without loading the store', 
   owner('alice');
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-only']);
-  expect(getAll.mock.instances.some(store => store.name === 'alert_cache')).toBe(false);
+  expect(getAll.mock.contexts.some(store => (store as unknown as IDBObjectStore).name === 'alert_cache')).toBe(false);
 });
 
 it('acknowledges and clears only the current owners history', async () => {
