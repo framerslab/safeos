@@ -10,5 +10,7 @@ it('states saved-history protection, new alert limits, no age removal and tab up
   expect(screen.getByText(/acknowledged alerts.*first/i)).toBeTruthy();
   expect(screen.getByText(/never removed because of.*age/i)).toBeTruthy();
   expect(screen.getByText(/other SafeOS tabs/i)).toBeTruthy();
+  expect(screen.getByText(/session.*expires/i)).toBeTruthy();
+  expect(screen.getByText(/new alerts.*not saved/i)).toBeTruthy();
   expect(screen.getByText(/November 12, 2026/)).toBeTruthy();
 });

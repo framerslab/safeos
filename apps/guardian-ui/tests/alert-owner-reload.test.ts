@@ -24,7 +24,7 @@ beforeEach(async () => {
   await db.clear('alert_cache');
   db.close();
 });
-it.each(['Monitor reload', 'History direct'])('restores dashboard-owned alerts on %s', async () => {
+it('restores dashboard-owned alerts on Monitor reload', async () => {
   await useAuthStore.getState().initialize();
   useMonitoringStore.getState().addAlert({ id: 'saved', streamId: 'camera', severity: 'low',
     message: 'Saved', acknowledged: false });
@@ -32,6 +32,14 @@ it.each(['Monitor reload', 'History direct'])('restores dashboard-owned alerts o
   await reload();
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['saved']);
+});
+it('restores saved history on a direct History load before the dashboard', async () => {
+  await cacheAlert({ id: 'history-direct', monitoring: true, ownerId: profile.id,
+    createdAt: '2026-10-01T00:00:00Z', message: 'History direct' });
+  await reload();
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['history-direct']);
+  expect(useAuthStore.getState().profile?.id).toBe(profile.id);
 });
 it('keeps direct Monitor history when the dashboard later establishes the owner', async () => {
   useMonitoringStore.getState().addAlert({ id: 'direct', streamId: 'camera', severity: 'low',
