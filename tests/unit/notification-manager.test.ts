@@ -9,6 +9,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NotificationManager, getNotificationManager } from '../../src/lib/alerts/notification-manager.js';
 
+// These formatting/delivery tests use an owner with a verified phone and operator role.
+vi.mock('../../src/db/index.js', () => ({
+  getSafeOSDatabase: async () => ({ get: async () => ({ id: 'verified-phone', role: 'operator' }) }),
+}));
+
 // Mock external services
 vi.mock('../../src/lib/alerts/browser-push.js', () => ({
   sendBrowserPushNotification: vi.fn().mockResolvedValue({ success: true }),
@@ -71,7 +76,7 @@ describe('NotificationManager', () => {
         smsNumber: '+1234567890',
         email: true,
         emailRecipient: 'alerts@example.com',
-      });
+      }, 'operator-owner');
 
       const config = customManager.getConfig();
       expect(config.browserPush).toBe(false);
@@ -282,7 +287,7 @@ describe('NotificationManager', () => {
       new NotificationManager({
         sms: true,
         smsNumber: '+15551234567',
-      });
+      }, 'verified-owner');
 
     it('skips sms when toggle is off, even at critical severity', async () => {
       const { sendAlertSms, isTwilioConfigured } = await import('../../src/lib/alerts/twilio.js');
@@ -336,7 +341,7 @@ describe('NotificationManager', () => {
 
       expect(sendAlertSms).not.toHaveBeenCalled();
       const smsResult = results.find((r) => r.channel === 'sms');
-      expect(smsResult?.success).toBe(true); // skip is silent
+      expect(smsResult).toMatchObject({ success: false, skipped: true });
     });
 
     it('skips sms when override is incomplete (missing fromNumber)', async () => {
@@ -490,7 +495,7 @@ describe('NotificationManager', () => {
       new NotificationManager({
         email: true,
         emailRecipient: 'alerts@example.com',
-      });
+      }, 'operator-owner');
 
     it('skips email when toggle is off, even at critical severity', async () => {
       const { sendAlertEmail, isResendConfigured } = await import('../../src/lib/alerts/email.js');
@@ -544,9 +549,9 @@ describe('NotificationManager', () => {
       });
 
       expect(sendAlertEmail).not.toHaveBeenCalled();
-      // Channel attempted; skip is silent (success-shaped to avoid false failures)
+      // An unavailable channel cannot count as a delivered alert.
       const emailResult = results.find((r) => r.channel === 'email');
-      expect(emailResult?.success).toBe(true);
+      expect(emailResult).toMatchObject({ success: false, skipped: true });
     });
 
     it('sends email when enabled + recipient set + server Resend configured', async () => {
@@ -585,6 +590,7 @@ describe('NotificationManager', () => {
         email: true,
         emailRecipient: 'alerts@example.com',
         emailOverride: { apiKey: 're_byo' },
+        emailFromOverride: 'Me <me@example.com>',
       });
 
       await m.notify({
@@ -601,7 +607,7 @@ describe('NotificationManager', () => {
         'high',
         'T',
         'M',
-        expect.objectContaining({ override: { apiKey: 're_byo' } }),
+        expect.objectContaining({ override: { apiKey: 're_byo' }, fromOverride: 'Me <me@example.com>' }),
       );
     });
 
@@ -613,7 +619,7 @@ describe('NotificationManager', () => {
         email: true,
         emailRecipient: 'alerts@example.com',
         emailFromOverride: 'Custom <custom@test>',
-      });
+      }, 'operator-owner');
 
       await m.notify({
         streamId: 's',
@@ -725,4 +731,19 @@ describe('NotificationManager', () => {
       }
     });
   });
+});
+
+
+it('reports a channel timeout while preserving successful channels', async () => {
+  const { sendAlertEmail } = await import('../../src/lib/alerts/email.js');
+  vi.mocked(sendAlertEmail).mockImplementationOnce(() => new Promise(() => {}));
+  vi.useFakeTimers();
+  try {
+    const manager = new NotificationManager({ email: true, emailRecipient: 'owner@example.com',
+      emailOverride: { apiKey: 'personal' }, emailFromOverride: 'owner@example.com' });
+    const pending = manager.notify({ streamId: 's', alertId: 'a', severity: 'critical',
+      title: 'Alert', message: 'Check monitoring', timestamp: new Date().toISOString() });
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(await pending).toContainEqual({ channel: 'email', success: false, error: 'timeout' });
+  } finally { vi.useRealTimers(); }
 });

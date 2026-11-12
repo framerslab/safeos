@@ -10,6 +10,7 @@ import { getSafeOSDatabase, generateId, now } from '../db';
 import { OllamaClient } from '../lib/ollama/client';
 import { cloudFallbackAnalysis } from '../lib/analysis/cloud-fallback';
 import { ContentFilter } from '../lib/safety/content-filter';
+import { NotificationManager, isQuietHours, type NotificationPayload } from '../lib/alerts/notification-manager';
 
 // =============================================================================
 // Types
@@ -18,7 +19,7 @@ import { ContentFilter } from '../lib/safety/content-filter';
 export interface AnalysisJob {
   id: string;
   streamId: string;
-  frameId?: string;
+  frameId: string;
   imageData: string;
   motionScore: number;
   audioLevel: number;
@@ -54,6 +55,10 @@ export interface QueueOptions {
 const DEFAULT_CONCURRENCY = 2;
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY = 5000;
+const DELIVERY_COOLDOWN_MS = 5 * 60 * 1000;
+const MAX_ACTIVE_DELIVERIES = 32;
+// Track deliveries across server instances in this API process; critical alerts bypass the cap.
+let activeDeliveries = 0;
 
 // Prompts for different scenarios
 const TRIAGE_PROMPTS: Record<string, string> = {
@@ -129,6 +134,11 @@ export class AnalysisQueue {
   // ---------------------------------------------------------------------------
 
   async start(): Promise<void> {
+    if (this.isRunning) return;
+    const db = await getSafeOSDatabase();
+    // One API process owns this SQLite queue. Stable result and alert IDs make
+    // recovery safe, and the worker still enforces the frame retention cutoff.
+    await db.run("UPDATE analysis_queue SET status = 'pending' WHERE status = 'processing'");
     this.isRunning = true;
     console.log('Analysis queue started');
 
@@ -153,13 +163,8 @@ export class AnalysisQueue {
   }
 
   async enqueue(job: AnalysisJob): Promise<void> {
+    if (!job.frameId) throw new Error('Analysis jobs require a frame identity');
     const db = await getSafeOSDatabase();
-
-    await db.run(
-      `INSERT INTO analysis_queue (id, stream_id, scenario, priority, status, retries, created_at)
-       VALUES (?, ?, ?, ?, 'pending', 0, ?)`,
-      [job.id, job.streamId, job.scenario, job.priority, job.createdAt]
-    );
 
     // Store frame data in buffer if not already there
     if (job.imageData && job.frameId) {
@@ -172,6 +177,12 @@ export class AnalysisQueue {
         );
       }
     }
+
+    await db.run(
+      `INSERT INTO analysis_queue (id, stream_id, frame_id, scenario, priority, status, retries, created_at)
+       VALUES (?, ?, ?, ?, ?, 'pending', 0, ?)`,
+      [job.id, job.streamId, job.frameId, job.scenario, job.priority, job.createdAt]
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -185,21 +196,22 @@ export class AnalysisQueue {
 
     const db = await getSafeOSDatabase();
 
-    // Get next pending job
+    // Claim atomically so overlapping worker ticks cannot analyse the same job.
     const job = await db.get<any>(
-      `SELECT * FROM analysis_queue 
-       WHERE status = 'pending' 
-       ORDER BY priority DESC, created_at ASC 
-       LIMIT 1`
+      `UPDATE analysis_queue SET status = 'processing'
+       WHERE id = (
+         SELECT id FROM analysis_queue WHERE status = 'pending'
+         ORDER BY priority DESC, created_at ASC LIMIT 1
+       ) AND status = 'pending'
+       RETURNING *`
     );
 
     if (!job) return;
-
-    // Mark as processing
-    await db.run(
-      `UPDATE analysis_queue SET status = 'processing' WHERE id = ?`,
-      [job.id]
-    );
+    if (!job.frame_id) {
+      await db.run("UPDATE analysis_queue SET status = 'failed' WHERE id = ?", [job.id]);
+      console.warn('Analysis job failed: missing frame identity');
+      return;
+    }
 
     this.activeJobs++;
 
@@ -233,11 +245,16 @@ export class AnalysisQueue {
   private async processJob(job: any): Promise<void> {
     const db = await getSafeOSDatabase();
     const startTime = Date.now();
+    const stored = await this.readStoredResult(job.id);
+    if (stored) {
+      if (['medium', 'high', 'critical'].includes(stored.concernLevel)) await this.createAlert(stored);
+      return;
+    }
 
     // Get frame data
     const frame = await db.get<any>(
-      `SELECT * FROM frame_buffer WHERE stream_id = ? ORDER BY created_at DESC LIMIT 1`,
-      [job.stream_id]
+      `SELECT * FROM frame_buffer WHERE id = ? AND stream_id = ? AND created_at > ?`,
+      [job.frame_id, job.stream_id, new Date(Date.now() - 10 * 60 * 1000).toISOString()]
     );
 
     if (!frame || !frame.frame_data) {
@@ -317,9 +334,12 @@ export class AnalysisQueue {
       // Flag is already created by content filter
     }
 
+    // A retry keeps the same result and alert identity.
+    result.id = job.id;
+
     // Store result
     await db.run(
-      `INSERT INTO analysis_results 
+      `INSERT OR IGNORE INTO analysis_results
        (id, stream_id, frame_id, concern_level, description, detected_issues, 
         processing_time_ms, model_used, is_cloud_fallback, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -337,10 +357,29 @@ export class AnalysisQueue {
       ]
     );
 
+    // Use the persisted result even if another attempt already saved it.
+    result = (await this.readStoredResult(job.id))!;
+    if (!result) throw new Error('Analysis result was not stored');
     // Create alert if concern level is medium or higher
     if (['medium', 'high', 'critical'].includes(result.concernLevel)) {
       await this.createAlert(result);
     }
+  }
+
+  private async readStoredResult(id: string): Promise<AnalysisResult | undefined> {
+    const row = await (await getSafeOSDatabase()).get<any>('SELECT * FROM analysis_results WHERE id = ?', [id]);
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      streamId: row.stream_id,
+      frameId: row.frame_id,
+      concernLevel: row.concern_level,
+      description: row.description,
+      detectedIssues: JSON.parse(row.detected_issues || '[]'),
+      processingTimeMs: row.processing_time_ms,
+      modelUsed: row.model_used,
+      isCloudFallback: !!row.is_cloud_fallback,
+    };
   }
 
   private async cloudAnalysis(
@@ -421,31 +460,81 @@ export class AnalysisQueue {
   private async createAlert(result: AnalysisResult): Promise<void> {
     const db = await getSafeOSDatabase();
 
-    const severityMap: Record<string, string> = {
-      medium: 'medium',
-      high: 'high',
-      critical: 'critical',
-    };
+    const alertId = `alert-${result.id}`;
+    // Insertion claims the delivery attempt; retries must not resend it.
+    if (await db.get('SELECT id FROM alerts WHERE id = ?', [alertId])) return;
+    const timestamp = now();
+    const severity = result.concernLevel as NotificationPayload['severity'];
 
-    await db.run(
-      `INSERT INTO alerts 
-       (id, stream_id, alert_type, severity, message, metadata, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        generateId(),
-        result.streamId,
-        'analysis',
-        severityMap[result.concernLevel] || 'medium',
-        result.description.slice(0, 500),
-        JSON.stringify({
-          analysisId: result.id,
-          detectedIssues: result.detectedIssues,
-          modelUsed: result.modelUsed,
-          isCloudFallback: result.isCloudFallback,
-        }),
-        now(),
-      ]
+    const owner = await db.get<{ id: string; notification_settings: string }>(
+      `SELECT p.id, p.notification_settings FROM user_profiles p
+       JOIN streams s ON s.user_id = p.id WHERE s.id = ? AND s.status = 'active'`, [result.streamId]
     );
+    const settings = JSON.parse(owner?.notification_settings || '{}');
+    let skipped: string | undefined = !owner ? 'inactive-stream'
+      : isQuietHours(settings, severity) ? 'quiet-hours' : undefined;
+    if (!skipped && severity !== 'critical' && activeDeliveries >= MAX_ACTIVE_DELIVERIES) skipped = 'capacity';
+    const reserved = !skipped;
+    if (reserved) activeDeliveries++;
+    let dispatched = false;
+    try {
+      const metadata = JSON.stringify({
+        analysisId: result.id,
+        detectedIssues: result.detectedIssues,
+        modelUsed: result.modelUsed,
+        isCloudFallback: result.isCloudFallback,
+        deliveryAttempted: !skipped,
+        deliverySucceeded: false,
+        deliverySkipped: skipped,
+      });
+      const ranks: Record<string, number> = { info: 0, low: 1, medium: 2, high: 3, critical: 4 };
+      // Only a completed successful delivery starts cooldown. Pending or
+      // failed attempts must not suppress a later alert.
+      await db.run(
+        `INSERT INTO alerts (id, stream_id, alert_type, severity, message, metadata, created_at)
+         VALUES (?, ?, ?, ?, ?,
+           CASE WHEN ? IS NULL AND EXISTS (
+             SELECT 1 FROM alerts WHERE stream_id = ? AND acknowledged = 0 AND created_at > ?
+               AND CASE severity WHEN 'critical' THEN 4 WHEN 'high' THEN 3
+                 WHEN 'medium' THEN 2 WHEN 'low' THEN 1 ELSE 0 END >= ?
+               AND CASE WHEN json_valid(metadata) THEN json_extract(metadata, '$.deliverySucceeded') ELSE 0 END = 1
+           ) THEN json_set(?, '$.deliverySkipped', 'cooldown', '$.deliveryAttempted', 0) ELSE ? END, ?)`,
+        [alertId, result.streamId, 'analysis', severity, result.description.slice(0, 500),
+          skipped ?? null, result.streamId, new Date(Date.now() - DELIVERY_COOLDOWN_MS).toISOString(),
+          ranks[severity], metadata, metadata, timestamp]
+      );
+      const saved = await db.get<{ metadata: string }>('SELECT metadata FROM alerts WHERE id = ?', [alertId]);
+      if (!saved || JSON.parse(saved.metadata).deliverySkipped || !owner) return;
+      try {
+        const manager = new NotificationManager(settings, owner.id);
+        // Delivery does not occupy an analysis slot or delay server shutdown.
+        // Each channel settles within its deadline, releasing this slot.
+        dispatched = true;
+        void manager.notify({
+          streamId: result.streamId, alertId, severity, title: 'Monitoring alert',
+          message: result.description.slice(0, 500), timestamp,
+        }, true).then(async results => {
+          const succeeded = results.some(channel => channel.success || channel.delivered);
+          await db.run(
+            `UPDATE alerts SET metadata = json_set(metadata, '$.deliverySucceeded', json(?),
+             '$.deliveryFailed', json(?), '$.deliveryResults', json(?)) WHERE id = ?`,
+            [JSON.stringify(succeeded), JSON.stringify(!succeeded), JSON.stringify(results.map(channel => ({
+              channel: channel.channel, success: channel.success, delivered: channel.success || channel.delivered || false,
+              skipped: channel.skipped ?? false,
+              timedOut: channel.error === 'timeout',
+            }))), alertId]
+          );
+        }).catch(() => {
+          console.error('Alert delivery outcome could not be saved');
+        }).finally(() => { activeDeliveries--; });
+      } catch {
+        // Invalid provider configuration must not retry the saved analysis.
+        await db.run(`UPDATE alerts SET metadata = json_set(metadata, '$.deliveryFailed', json('true')) WHERE id = ?`, [alertId]);
+        console.error('Alert delivery failed');
+      }
+    } finally {
+      if (reserved && !dispatched) activeDeliveries--;
+    }
 
     console.log(`Alert created for stream ${result.streamId}: ${result.concernLevel}`);
   }
@@ -459,6 +548,7 @@ export class AnalysisQueue {
     processing: number;
     completed: number;
     failed: number;
+    deliveriesInFlight: number;
   }> {
     const db = await getSafeOSDatabase();
 
@@ -476,6 +566,7 @@ export class AnalysisQueue {
     );
 
     return {
+      deliveriesInFlight: activeDeliveries,
       pending: pending?.count || 0,
       processing: processing?.count || 0,
       completed: completed?.count || 0,

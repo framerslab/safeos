@@ -20,7 +20,7 @@ curl -H "X-Session-Token: your-token-here" http://localhost:3001/api/streams
 **Who may call a route.** Each route below says one of:
 
 - **Anyone**: no session needed.
-- **Signed in**: any valid session. Data routes return and change only the caller's own records: alerts and analysis results of streams the caller owns, monitoring profiles the caller created. Another owner's record answers `404`, as if it did not exist.
+- **Signed in**: any valid session. Data routes return and change only the caller's own records: alerts and analysis results of streams the caller owns, monitoring profiles the caller created. Another owner's record answers `404`, as if it did not exist. The stream-status PATCH route also admits reviewers and operators for moderation, as described below.
 - **Reviewer or operator**: a session whose profile holds the `reviewer` or `operator` role. Any other session gets `403`.
 
 Every profile starts with the role `user`. The operator grants a role in the database:
@@ -29,7 +29,7 @@ Every profile starts with the role `user`. The operator grants a role in the dat
 UPDATE user_profiles SET role = 'reviewer' WHERE id = '<profile id>';
 ```
 
-Behind the bundled Caddy (`docker-compose.prod.yml`), `SAFEOS_TRUST_PROXY=1` tells the API that one proxy sits in front of it, so the rate limits count each client's own address. Leave it unset when clients reach the API directly; set it to the number of proxies only when nothing else can reach the API port.
+Behind the bundled Caddy (`docker-compose.prod.yml`), `SAFEOS_TRUST_PROXY=172.30.0.2` trusts only Caddy's fixed address on the dedicated proxy network. Other deployments may supply a comma-separated list of exact IPv4 or IPv6 proxy addresses. Hop counts, network ranges and invalid values are not accepted; unset or invalid settings trust no proxy. Direct peers cannot supply the client's rate-limit identity.
 
 ---
 
@@ -77,7 +77,7 @@ Get detailed system status.
 ### Authentication
 
 #### POST /api/auth/session
-Create a new session (guest or authenticated).
+Create a guest session lasting 30 days. Without a token this always creates a new profile, even when the device label is known. To retain a guest profile, send its live session token in `X-Session-Token` or `Authorization: Bearer` and the same `deviceId` (or omit it if the original session had no device). The response contains a fresh token and the stored profile. A successful resume replaces the presented token in the same session row; clients must save the returned token. The earlier token is immediately invalid, and only one concurrent resume can succeed. Invalid, expired or mismatched proof returns `401`; a device ID alone never restores an existing profile. Email accounts use `/api/auth/email/login`.
 
 **Request:**
 ```json
@@ -87,44 +87,47 @@ Create a new session (guest or authenticated).
 }
 ```
 
-**Response:**
+**Response (`201`):**
 ```json
 {
   "success": true,
-  "session": {
-    "id": "session-uuid",
+  "data": {
+    "sessionId": "session-uuid",
     "token": "session-token",
     "isGuest": true,
-    "expiresAt": "2024-12-28T00:00:00.000Z"
-  },
-  "profile": {
-    "id": "profile-uuid",
-    "displayName": "My Monitoring Station",
-    "preferences": {...},
-    "notificationSettings": {...}
+    "expiresAt": "2026-12-11T00:00:00.000Z",
+    "profile": {
+      "id": "profile-uuid",
+      "displayName": "My Monitoring Station",
+      "avatarUrl": null,
+      "preferences": {},
+      "notificationSettings": {},
+      "createdAt": "2026-11-11T00:00:00.000Z",
+      "updatedAt": "2026-11-11T00:00:00.000Z"
+    }
   }
 }
 ```
 
 #### GET /api/auth/session
-Get current session info.
+Get the stored session metadata and profile in the same `data` shape as session creation. Expiry is checked at the current instant.
 
-**Headers:** `X-Session-Token: required`
+**Headers:** `X-Session-Token` or `Authorization: Bearer` required
 
 #### DELETE /api/auth/session
 End the current session.
 
-**Headers:** `X-Session-Token: required`
+**Headers:** `X-Session-Token` or `Authorization: Bearer` required
 
 #### GET /api/auth/profile
 Get user profile.
 
-**Headers:** `X-Session-Token: required`
+**Headers:** `X-Session-Token` or `Authorization: Bearer` required
 
 #### PATCH /api/auth/profile
 Update user profile.
 
-**Headers:** `X-Session-Token: required`
+**Headers:** `X-Session-Token` or `Authorization: Bearer` required
 
 **Request:**
 ```json
@@ -136,6 +139,31 @@ Update user profile.
   }
 }
 ```
+
+#### POST /api/auth/device
+Attach a `deviceId` to the current live session. Requires a session token; unknown or expired sessions return `401`.
+
+### Email accounts
+
+The email router is mounted at `/api/auth/email`. Its failed requests use the authentication rate limit once; reset requests also use the stricter reset limit. Configure Resend and an https `SAFEOS_API_PUBLIC_URL` (or `SAFEOS_DOMAIN`) for account mail. Links point to this API, not the static web app. Registration can succeed when mail is unavailable, but verification is still required before login; operators must configure mail before offering registration.
+
+| Method and path | Request | Result |
+| --- | --- | --- |
+| `POST /register` | `email`, `password`, optional `displayName` | Creates an unverified account; returns the same `201` message for new and existing addresses, without account details |
+| `GET /verify?token=…` | Verification link | Shows a confirmation form; does not verify on GET |
+| `POST /verify` | `token` | Consumes a valid verification token (24-hour lifetime) |
+| `POST /login` | `email`, `password` | Verified accounts receive `sessionToken` and `user`; session lasts 30 days |
+| `GET /me` | Session header | Returns the signed-in email account |
+| `POST /forgot-password` | `email` | Requests a reset link; same success response for unknown addresses |
+| `GET /reset-password?token=…` | Reset link | Shows the password form; does not reset on GET |
+| `POST /reset-password` | `token`, `newPassword` | Consumes the one-hour token, updates the password and revokes existing sessions |
+| `POST /change-password` | Session header, `currentPassword`, `newPassword` | Changes the password after checking the current one |
+| `POST /logout` | Session header | Ends that session |
+| `POST /logout-all` | Session header | Ends all sessions of that account |
+
+Blank or whitespace-only optional display names use the email name. Registration, reset and change share the same password requirements: 8–1024 characters with at least one uppercase letter, lowercase letter and number. Invalid replacement passwords leave the password and reset token untouched. Duplicate registration leaves the existing account unchanged. Account-link forms preserve any path prefix in the public API URL.
+
+Session headers accept `X-Session-Token` or `Authorization: Bearer`. An email account has a stable `user_profiles` row, created on its first successful login, so its token works on the same owned routes as a guest token. Signing into an email account does not adopt a guest's records. Roles for protected routes come from `user_profiles.role`; creating an email account grants no staff access. Account links and responses are not cached.
 
 ---
 
@@ -198,6 +226,13 @@ Create a new stream.
 
 #### GET /api/streams/:id
 Get a specific stream.
+
+#### PATCH /api/streams/:id
+Update `status` to `active`, `paused`, `ended` or `banned`. Owners can change
+their own non-banned streams, but cannot set or clear a ban. Reviewers and
+operators can change any stream's status, including restoring another owner's
+banned stream. This permission does not grant access to that owner's stream
+reads, deletion, frames or socket messages. The update preserves stream ownership.
 
 #### DELETE /api/streams/:id
 End a stream.
@@ -307,7 +342,18 @@ Delete an alert.
 
 ### Monitoring Profiles
 
-All profile routes: **signed in**. The built-in defaults (`profile-<scenario>-default`) are shared and read-only; the operator alone may change them. A custom profile belongs to the caller who created it: others neither see nor change it (`404`).
+All profile routes: **signed in**. The three built-in defaults (`profile-baby-default`, `profile-pet-default`, `profile-elderly-default`) have shared settings; only the operator may change their names or settings. Every person may select a default for their own monitoring. A custom profile belongs to the caller who created it: others neither see nor change it (`404`).
+
+Active choices are stored per person and scenario. `is_active` in list, detail, update and activation responses describes the caller's choice. Selecting one profile clears only that person's prior choice for that scenario. `PATCH` with `isActive: false` clears that choice. Deleting a selected custom profile leaves no active choice. Existing owned selections are imported once on upgrade; old shared flags are not assigned to anyone.
+
+Custom profiles from before ownership existed remain hidden, including from ordinary operator HTTP reads, until the operator assigns them in the database:
+
+```sql
+UPDATE monitoring_profiles SET owner_id = '<user profile id>'
+WHERE id = '<custom monitoring profile id>' AND owner_id IS NULL;
+```
+
+Assign only custom profiles; leave the three shared default IDs unowned. The assigned owner can then read, edit and select the profile.
 
 #### GET /api/profiles
 List the built-in defaults and the caller's own profiles.
@@ -332,7 +378,7 @@ Create a custom profile owned by the caller.
 Update one of the caller's profiles.
 
 #### POST /api/profiles/:id/activate
-Make one of the caller's profiles the active one for its scenario.
+Select a shared default or the caller's custom profile for that person's scenario. Other people's choices are unchanged.
 
 #### DELETE /api/profiles/:id
 Delete one of the caller's profiles.
@@ -341,13 +387,13 @@ Delete one of the caller's profiles.
 
 ### Notifications
 
-These routes manage notification configuration for deployments that run the optional SafeOS API server.
+These routes require a session and manage notification configuration for deployments that run the optional SafeOS API server.
 
 **Important:** remote delivery channels (Web Push / SMS / Telegram / Email) require additional setup and provider credentials.
 Some endpoints may store configuration only and do not send messages by default.
 
 #### POST /api/notifications/subscribe
-Register a Web Push subscription (storage-only in the default implementation).
+Store a Web Push subscription for the signed-in profile. Registration returns `400` unless the endpoint is HTTPS on a documented push service, uses the default port, and resolves only to public addresses. Delivery repeats these checks for stored rows and never follows redirects. See the provider list in CONFIGURATION.md. The analysis worker uses it when that owner's browser-push preference is enabled.
 
 **Request:**
 ```json
@@ -358,10 +404,10 @@ Register a Web Push subscription (storage-only in the default implementation).
 ```
 
 #### DELETE /api/notifications/subscribe
-Unregister a Web Push subscription.
+Remove the `endpoint` supplied in the JSON body for the signed-in profile. With an empty body, remove only registrations belonging to the calling session. Other devices keep their registrations.
 
 #### POST /api/notifications/telegram/register
-Register a Telegram chat ID (storage-only in the default implementation).
+Store a Telegram chat ID for the signed-in profile. Registration does not verify ownership of the chat. The analysis worker sends only when that owner's Telegram preference and personal `telegramBotToken` are set; it skips the server bot because chat verification is unavailable.
 
 **Request:**
 ```json
@@ -374,7 +420,7 @@ Register a Telegram chat ID (storage-only in the default implementation).
 Unregister a Telegram chat ID.
 
 #### GET /api/notifications/status
-Check which notification channels are configured/enabled on the server.
+Check channel configuration and the signed-in profile's registration counts. `telegramEnabled` is true only when the caller has saved a personal `telegramBotToken`; the server token does not enable queued alert delivery.
 
 #### POST /api/notifications/test
 Send a test notification (simulated in the default implementation).
@@ -530,116 +576,119 @@ Action a content flag.
 
 ## WebSocket API
 
-Connect to `ws://localhost:3001` for real-time frame submission and alerts.
+Connect to `ws://localhost:3001/ws` (use `wss://` outside local development).
 
-### Connection
+### Connection and session
 
-The WebSocket reads no session token today: it is open to any client, and its sign-in is separate work. The HTTP rule above (no token in a query string) applies to it too once it gains one.
+A live session from `POST /api/auth/session` is required. Native clients may
+supply `X-Session-Token` or `Authorization: Bearer <token>` in the handshake.
+Browser clients send this as their first message, within five seconds:
 
+```json
+{"type":"authenticate","payload":{"token":"session-token"}}
 ```
-ws://localhost:3001
+
+Wait for `{"type":"connected","payload":{"clientId":"peer-id"}}` before
+sending application messages. Missing, unknown, revoked or expired sessions
+close with code `1008`; session checks also run on each message and heartbeat.
+Tokens in URLs are not accepted. The browser client uses the current sign-in
+session. The hook and client class do not open sockets for tokens beginning
+with `local-` or `offline-`. A `1008` close with `Invalid session` or
+`Invalid or expired session` stops retries for that credential, including
+explicit attempts, until the session changes. Authentication deadlines and
+pending-message limits retry with backoff. Duplicate connect calls share the
+opening socket, and events from replaced sockets cannot alter the current one.
+The socket hook initializes a session on a fresh monitoring visit. Logout and
+session changes cancel old retries and detach the old socket's event handlers.
+Updating hook callbacks does not reconnect the socket.
+
+### Stream ownership
+
+Only the stream's owner may join it, submit frames or audio levels, or relay
+signalling. A missing or unowned stream receives an `error` message with
+`payload.code: "STREAM_FORBIDDEN"`.
+
+```json
+{"type":"join_stream","streamId":"stream-uuid"}
 ```
 
-### Client → Server Messages
+Only active streams can be joined, receive frames/audio or relay signalling. Paused, ended and banned streams are unavailable, including to their owner.
 
-#### Submit Frame for Analysis
+Joining receives `metrics` and `audio_level` events for that stream. Send
+`{"type":"leave_stream"}` to stop receiving them. `offer`, `answer` and
+`ice-candidate` messages must name `streamId` and `payload.targetPeerId`;
+both peers must be signed in as the stream owner and joined to that same stream.
+The forwarded message includes the sender's `payload.peerId`.
+
+### Frame submission
+
 ```json
 {
   "type": "frame",
   "streamId": "stream-uuid",
-  "frameData": "base64-encoded-jpeg",
-  "motionScore": 15,
-  "audioLevel": 8,
-  "timestamp": "2024-12-21T00:00:00.000Z"
-}
-```
-
-**Rate Limit:** 30 frames per minute per client. Excess frames receive `rate_limited` response.
-
-#### Acknowledge Alert
-```json
-{
-  "type": "acknowledge",
-  "alertId": "alert-uuid"
-}
-```
-
-#### Heartbeat Response
-```json
-{
-  "type": "pong"
-}
-```
-
-### Server → Client Messages
-
-#### Alert Notification
-```json
-{
-  "type": "alert",
-  "alert": {
-    "id": "alert-uuid",
-    "streamId": "stream-uuid",
-    "alertType": "motion_detected",
-    "severity": "high",
-    "message": "Unusual motion detected in monitored area",
-    "createdAt": "2024-12-21T00:00:00.000Z"
-  }
-}
-```
-
-#### Analysis Result
-```json
-{
-  "type": "analysis",
-  "result": {
-    "concernLevel": "medium",
-    "description": "Pet appears to be scratching at the door",
-    "detectedIssues": ["door_scratching", "vocalization"]
-  }
-}
-```
-
-#### Heartbeat Ping
-```json
-{
-  "type": "ping"
-}
-```
-
-Clients must respond with `pong` within 30 seconds. After 3 missed heartbeats, the connection is terminated.
-
-#### Rate Limit Warning
-```json
-{
-  "type": "rate_limited",
-  "message": "Frame submission rate exceeded",
-  "retryAfter": 2000
-}
-```
-
-#### Stats Update
-```json
-{
-  "type": "stats",
   "payload": {
-    "activeStreams": 2,
-    "analysisQueueSize": 5,
-    "ollamaStatus": "online"
+    "imageData": "base64-encoded-jpeg",
+    "motionScore": 15,
+    "audioLevel": 8
   }
 }
 ```
 
-### Channel Subscriptions
+Images must fully decode as a single JPEG, PNG or WebP image, at most
+**2 MiB (2,097,152 bytes)** before base64 encoding and **16,000,000 pixels**.
+Plain base64 and matching `data:image/...;base64,` URLs are accepted; stored
+frames use plain base64. Invalid content receives `INVALID_FRAME`; images
+above the byte limit receive `FRAME_TOO_LARGE`. Rejected frames are neither
+stored nor queued. Entire WebSocket messages above **3 MiB** close with `1009`.
+A connection with more than 32 pending messages closes with `1008`.
+At most **two image decodes** run at once across the API process. While both
+slots are occupied, additional frames receive `RATE_LIMITED` and are not
+stored or queued. Decoding scans pixels without returning a full bitmap to
+JavaScript.
 
-Subscribe to specific event channels:
+Each profile has **30 frame attempts per 60-second window**, shared across
+its streams, sessions and concurrent connections. Invalid images count toward
+this allowance. Reconnecting does not reset it; a different profile has its
+own allowance. Counters live in the API process and reset on process restart;
+multiple API processes would need a shared limit store.
+
+Frames with motion of at least 10 or audio of at least 15 are queued for
+analysis using the stream's saved `pet`, `baby` or `elderly` scenario.
+
+### Audio and heartbeat
 
 ```json
-{
-  "type": "subscribe",
-  "channel": "alerts" | "stats" | "stream:{streamId}"
-}
+{"type":"audio_level","streamId":"stream-uuid","payload":{"level":12,"hasCrying":false}}
 ```
+
+Respond to server `ping` messages with `{"type":"pong"}`. The server also
+answers client `ping` messages with `pong`. Heartbeats run every 30 seconds;
+a connection closes after more than three missed responses. Both browser
+clients answer server pings automatically after sign-in.
+
+### Errors and events
+
+Errors use this envelope:
+
+```json
+{"type":"error","payload":{"code":"RATE_LIMITED","message":"Maximum 30 frame attempts per minute"}}
+```
+
+Stream metrics use `{"type":"metrics","streamId":"...","payload":{"motionScore":15,"audioLevel":8}}`.
+Messages from the server include a millisecond `timestamp`. Channel
+`subscribe` and `unsubscribe` messages accept a `channel` field; subscribing
+to `stream:<id>` requires ownership too. Channel names must contain 1–128
+ASCII letters, digits, colons, underscores or hyphens. Each connection holds
+at most 32 distinct subscriptions. Invalid names receive `INVALID_CHANNEL`;
+additional subscriptions receive `SUBSCRIPTION_LIMIT`. Subscribing again to
+an existing channel uses no extra slot; unsubscribing frees a slot.
+Subscription and unknown-message log lines do not include the supplied value.
+An internal failure closes the socket with `1011` and logs one fixed diagnostic
+with the error name, without the error message, session or client data.
+
+The current worker does not send
+alert or analysis-result events over this socket; use the HTTP routes to
+read those records and acknowledge alerts.
 
 ---
 
@@ -713,3 +762,117 @@ Full OpenAPI 3.0 specification available at:
 
 
 
+
+
+### Server alert delivery settings
+
+With the optional API server running, new analysis alerts of medium or greater
+severity are handed to the stream owner's enabled channels. SMS retains its
+high/critical severity threshold; browser push, Telegram and email are eligible
+from medium severity. Set preferences with
+`PATCH /api/auth/profile`, carrying `X-Session-Token` (or a Bearer token):
+
+```json
+{
+  "notificationSettings": {
+    "browserPush": true,
+    "telegram": true,
+    "sms": true,
+    "smsNumber": "+15551234567",
+    "email": true,
+    "emailRecipient": "parent@example.com"
+  }
+}
+```
+
+Email uses `email`, not the legacy `emailDigest` preference. Each channel requires
+its opt-in flag. Server SMS requires a matching `phone_numbers` row with
+`verified = 1` for the alert owner, including operator-owned alerts. Unlike the
+interactive test route, queued SMS has no operator bypass. Server email is
+operator-only, matching the test-mail route: profiles have no verified email
+field. Other owners must supply their own Resend key. Server-bot Telegram is
+skipped because chat registration does not establish recipient ownership.
+
+Personal credentials are supported in `notificationSettings`:
+
+- `smsOverride`: `accountSid`, `authToken`, and `fromNumber` (all required for a
+  personal account; a partial override never changes the server sender).
+- `emailOverride`: `apiKey`, with optional `replyTo`; `emailFromOverride` may
+  specify a sender verified in that account. Without a personal sender, complete
+  server mail configuration must supply the fallback; otherwise delivery is skipped.
+- `telegramBotToken`: a personal bot token, used with the owner's registered chats.
+
+The same profile route saves these credentials, but they are write-only. Profile,
+session and data-export responses omit `smsOverride.authToken`,
+`emailOverride.apiKey` and `telegramBotToken`. They return `hasAuthToken` and
+`hasApiKey` inside the corresponding override and `hasBotToken` alongside them.
+Saving these presence flags back preserves the omitted credentials. Database
+access still exposes the stored secrets. Clear `emailOverride` or `smsOverride` with `{}` and
+`telegramBotToken` with an empty string. A personal key or complete SMS override
+does not use the server account's recipient authorization. Email suppression
+still applies. Unauthorized channels are skipped with one fixed log line naming
+the channel and reason, without the recipient. Browser push requires VAPID
+configuration and a permitted subscription destination.
+
+All `/api/notifications` routes require a session. Push and Telegram registrations
+are stored in SQLite under that session's profile and survive restarts. A caller's
+`userId` field cannot select a different owner. Re-registering an endpoint or chat
+is idempotent. A push endpoint belongs to one current profile and session;
+the same profile may refresh it. A different profile receives `409` while the
+registration's owning session is live, leaving that registration unchanged.
+A registration without a live owning session may be claimed by the next caller.
+The registration write also requires the incoming session to remain live and
+bound to the caller's profile. Otherwise it returns `409` without changing any registration.
+Signing out removes that session's push registrations; signing out everywhere
+or resetting the password removes registrations for all revoked sessions.
+Expired-session cleanup also removes that session's registrations. Expired
+sessions cannot receive push. Each profile may have at most 32 endpoints bound
+to live sessions; inactive rows do not count. A further new endpoint returns
+`409`; refreshing one at
+the limit is allowed. Endpoint, public key and auth key lengths are limited to
+2048, 256 and 128 characters. DNS validation has a two-second deadline. Legacy
+push rows without a session binding must be registered again. Push unsubscribe removes a named endpoint for that owner, or only the calling session's registrations when no endpoint is supplied; Telegram
+unregister removes only the named chat for that owner. Status counts are scoped
+to the caller. Existing in-memory registrations must be registered again once
+when upgrading.
+
+Alerts for inactive streams are saved without dispatch. For an active stream,
+a previous unacknowledged successful delivery of the same or higher severity
+suppresses another attempt for five minutes. Higher severity can be delivered
+immediately. All alert rows remain available; skipped rows carry
+`metadata.deliverySkipped` (`cooldown`, `quiet-hours`, `inactive-stream` or
+`capacity`). `deliveryAttempted` records an attempt, not confirmed receipt.
+`deliverySucceeded` records whether any channel accepted delivery, and
+`deliveryFailed` records a settled attempt with no success. `deliveryResults`
+records each channel's success, delivery, skip and timeout flags without provider
+error text. A destination accepted before another times out still counts as
+delivered, while the channel also reports its timeout. Failed or pending attempts do not start cooldown. Older rows without a
+successful outcome do not suppress delivery.
+
+Quiet hours skip channel delivery for low and medium server alerts. Those alerts
+remain in the app and are not sent later. High and critical alerts
+always bypass the window. Settings saves the browser's IANA time zone as
+`quietHoursTimeZone`, the chosen local weekdays as `quietHoursDays` (Sunday = 0),
+and `quietHoursStart` / `quietHoursEnd` as `HH:mm`. The current local weekday
+must be selected, including the after-midnight portion of an overnight window.
+The start is inclusive and the end exclusive; missing, invalid or equal times
+disable the window. Missing days or an empty day list holds nothing. A legacy
+profile with a window but no saved time zone holds nothing; the server logs
+one fixed message without personal data explaining why. Saving settings adds
+the zone and days. Browser sound settings continue to use the device clock.
+
+Delivery runs outside the analysis worker slots. Non-critical alerts are saved
+with `deliverySkipped: "capacity"` when 32 deliveries are in flight; they are not
+retried later. Critical alerts always bypass this capacity check. Every channel
+has a 15-second deadline and reports timeout as failure, freeing the delivery
+slot when all channel results settle. Mail and SMS requests also have 15-second
+request timeouts. Telegram text and photo requests use a 15-second transport
+inactivity timeout so unanswered connections close; browser destinations are attempted concurrently.
+Server shutdown does not wait for providers and may interrupt pending delivery.
+
+Each admitted alert starts its channels independently. One provider failure does not
+prevent the others from receiving an attempt, and an analysis retry does not
+resend an existing alert. This is one best-effort attempt per channel, not a
+retrying delivery outbox: a process crash between saving an alert and sending it
+can leave it unsent. Provider delivery itself is not guaranteed. No new alert
+WebSocket message is introduced by this change.

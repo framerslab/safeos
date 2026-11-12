@@ -314,69 +314,46 @@ CREATE INDEX idx_frame_buffer_created_at ON frame_buffer(created_at);
 
 ## WebSocket Protocol
 
+A valid session is required through handshake headers or a browser's first
+`authenticate` message. The server sends `connected` only after validation.
+Stream joins, frames, audio and signalling are restricted to the stream owner;
+signalling peers must also be joined to the same stream.
+
 ### Client -> Server Messages
 
 ```typescript
-// Submit frame for analysis
+// First message for a browser client
+{ type: 'authenticate', payload: { token: 'session-token' } }
+
+// Submit a frame after receiving connected
 {
   type: 'frame',
-  streamId: string,
-  frameData: string,  // base64
-  motionScore: number,
-  audioLevel: number,
-  timestamp: string
-}
-
-// Acknowledge alert
-{
-  type: 'acknowledge',
-  alertId: string
+  streamId: 'stream-id',
+  payload: { imageData: 'base64-image', motionScore: 15, audioLevel: 8 }
 }
 
 // Heartbeat response
-{
-  type: 'pong'
-}
+{ type: 'pong' }
 ```
+
+Frames fully decode as JPEG, PNG or WebP before storage, with a 2 MiB byte
+limit and 16 megapixel limit. At most two frames decode concurrently across
+the process, without returning full bitmaps to JavaScript. Analysis jobs use
+the stream's stored scenario.
+See [WebSocket API](API.md#websocket-api) for the complete wire format.
 
 ### Server -> Client Messages
 
 ```typescript
-// Alert notification
-{
-  type: 'alert',
-  alert: {
-    id: string,
-    streamId: string,
-    alertType: string,
-    severity: string,
-    message: string,
-    createdAt: string
-  }
-}
-
-// Analysis result
-{
-  type: 'analysis',
-  result: {
-    concernLevel: string,
-    description: string,
-    detectedIssues: string[]
-  }
-}
-
-// Heartbeat ping
-{
-  type: 'ping'
-}
-
-// Rate limit warning
-{
-  type: 'rate_limited',
-  message: string,
-  retryAfter: number
-}
+{ type: 'connected', payload: { clientId: 'peer-id' } }
+{ type: 'metrics', streamId: 'stream-id', payload: { motionScore: 15, audioLevel: 8 } }
+{ type: 'audio_level', streamId: 'stream-id', payload: { level: 12, hasCrying: false } }
+{ type: 'ping' }
+{ type: 'error', payload: { code: 'RATE_LIMITED', message: 'Maximum 30 frame attempts per minute' } }
 ```
+
+The current analysis worker does not emit alert or analysis-result socket
+events. Those records are read and acknowledged through HTTP.
 
 ---
 
@@ -409,7 +386,9 @@ WHERE s.user_id = ?;
 
 ```
 WebSocket:
-- 30 frames/minute per client
+- 30 frame attempts/minute per profile across sessions and connections
+- Allowances survive reconnects; process restarts reset them
+- 3 MiB maximum message; 32 pending messages per connection
 - Heartbeat timeout: 90 seconds (3 missed pings)
 - Stale clients automatically disconnected
 
@@ -460,3 +439,68 @@ HTTP API:
 - [Configuration Reference](./CONFIGURATION.md)
 - [API Documentation](./API.md)
 - [Development Guide](./DEVELOPMENT.md)
+
+
+### Server frame retention
+
+The optional API server deletes frame-buffer rows at startup and every second,
+including frames from ended streams. The cutoff is ten minutes old; deletion
+runs on the next sweep (normally within one second), independently of new writes.
+Shutdown and failed startup stop the retention and heartbeat timers and wait for
+an active sweep. Model initialization and listen errors reject startup after
+scheduled work stops; an occupied port does not leave cleanup running. Restarting
+a stopped server recreates its WebSocket listener as well as its scheduled work. Cleanup
+errors log one fixed line and a known error class name,
+without messages, stacks or stored values; later sweeps still run. An initial
+cleanup failure rejects startup with a fixed message after logging once. A stopped
+server cannot run cleanup; startup removes expired rows before accepting uploads. This is
+logical deletion of rows, not a promise of forensic erasure from SQLite pages or
+backups. Keep backups protected and expire them separately.
+
+
+### Analysis job identity
+
+Each queue row stores the triggering `frame_id`. The worker reads that frame in
+that stream. New jobs require a frame ID; legacy jobs without one fail explicitly
+with a fixed diagnostic. When no result was saved and retention has removed the
+frame or it is too old, the worker completes without an analysis or alert. It
+never substitutes a later image. Startup adds the column to existing
+databases without removing queued rows. On worker startup, interrupted
+`processing` rows return to `pending`. Recovery reuses saved results and alert
+IDs and applies the same ten-minute frame cutoff. Only one API process may own
+this SQLite queue.
+
+
+### Alert dispatch
+
+The SQLite worker claims each pending job atomically. It uses the job ID for the
+analysis result and a stable derived alert ID, so retrying completion cannot
+insert another result or resend the saved alert. A retry reuses an already
+persisted result before reading the frame or calling a model, and finishes
+creating its alert if that insertion previously failed. After inserting a new alert it
+loads an active stream owner's notification settings and dispatches through that
+owner's severity-eligible channels (SMS for high/critical; push, Telegram and
+email from medium). Push subscriptions and Telegram chats are read from their
+owner-scoped SQLite tables. Push destinations are checked at registration and
+delivery, including public DNS resolution with a two-second deadline, pinned to
+the connection. Push registration preserves an endpoint's live owner; only that
+profile may update it until the owning session ends. Registration limits count
+at most 32 live-session endpoints per profile and bound key sizes. Session
+removal also deletes its push registrations, including sign-out, sign-out
+everywhere, password reset and expired-session cleanup. Expired and legacy unbound
+registrations cannot receive push. Server SMS
+requires the owner's verified phone, server email requires an operator owner, and
+server-bot Telegram is skipped until recipient verification exists. Personal
+provider credentials remain available. Channel attempts start concurrently and report their
+own failures; they do not trigger analysis retries. Alert insertion atomically
+records a five-minute cooldown against unacknowledged attempts of the same or
+higher severity that reached at least one channel; escalation bypasses that
+cooldown. Quiet hours skip low and medium delivery in the saved local time zone
+and on selected weekdays. Alerts remain in the app and are not sent later. High and critical alerts always bypass quiet hours.
+Legacy windows without a time zone hold nothing and produce a fixed log message.
+Dispatch runs outside analysis slots with a 15-second deadline per channel.
+Telegram also applies a 15-second transport inactivity timeout to text and photo
+requests, releasing unanswered connections even after dispatch stops waiting.
+Critical alerts bypass the 32-delivery capacity check, and shutdown does not wait
+on providers. Skips and settled delivery outcomes are recorded on each alert. See the API delivery settings
+for configuration and the best-effort delivery limitation.

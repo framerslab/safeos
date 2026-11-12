@@ -158,8 +158,8 @@ beforeAll(async () => {
   dbRef.current = db;
   await runMigrations(db);
 
-  // The documented Caddy deployment: one proxy hop in front of the API.
-  process.env['SAFEOS_TRUST_PROXY'] = '1';
+  // Model the documented proxy by its exact address on this test server.
+  process.env['SAFEOS_TRUST_PROXY'] = '127.0.0.1';
   const { SafeOSServer } = await import('../../src/api/server.js');
   app = new SafeOSServer().getApp();
   server = createServer(app);
@@ -532,15 +532,18 @@ describe('rate limiter behind the documented Caddy deployment', () => {
     expect((await call('POST', '/api/auth/session', { body: {}, client: c })).status).toBe(429);
   });
 
-  it('trusts exactly one proxy hop, and none unless the deployment says so', async () => {
-    expect(app.get('trust proxy')).toBe(1);
+  it('trusts only the configured proxy address, and none unless configured', async () => {
+    const trust = app.get('trust proxy fn');
+    expect(trust('127.0.0.1', 0)).toBe(true);
+    expect(trust('172.30.0.3', 0)).toBe(false);
     delete process.env['SAFEOS_TRUST_PROXY'];
     const { SafeOSServer } = await import('../../src/api/server.js');
     expect(new SafeOSServer().getApp().get('trust proxy')).toBe(false);
-    process.env['SAFEOS_TRUST_PROXY'] = '1';
+    process.env['SAFEOS_TRUST_PROXY'] = '127.0.0.1';
 
     const compose = readFileSync(join(ROOT, 'docker-compose.prod.yml'), 'utf8');
-    expect(compose).toMatch(/SAFEOS_TRUST_PROXY=1\b/);
+    expect(compose).toMatch(/SAFEOS_TRUST_PROXY=172\.30\.0\.2\b/);
+    expect(compose).toMatch(/ipv4_address: 172\.30\.0\.2/);
   });
 });
 

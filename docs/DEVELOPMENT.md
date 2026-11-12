@@ -8,6 +8,8 @@ This guide covers local development setup, testing, code style, and contribution
 
 - **Node.js** 20+ (LTS recommended)
 - **npm** (comes with Node.js; CI uses npm)
+- **Bash** and the **SQLite CLI** (`sqlite3`), required by the default server test
+  suite to exercise the documented backup and recovery commands
 - **Ollama** (optional, for LLM-enhanced analysis)
 
 ---
@@ -415,8 +417,8 @@ Before submitting a PR, ensure:
 DEBUG=safeos:* npm run api
 
 # Check database contents
-sqlite3 db_data/safeos.sqlite3 ".tables"
-sqlite3 db_data/safeos.sqlite3 "SELECT * FROM streams LIMIT 5;"
+sqlite3 db_data/app.sqlite3 ".tables"
+sqlite3 db_data/app.sqlite3 "SELECT * FROM streams LIMIT 5;"
 ```
 
 ### Ollama Debugging
@@ -440,8 +442,12 @@ Use browser DevTools Network tab (WS filter) or:
 ```bash
 # wscat for CLI testing
 npm i -g wscat
-wscat -c ws://localhost:3001
+wscat -c ws://localhost:3001/ws
 ```
+
+Send an `authenticate` message with a live session within five seconds and
+wait for `connected`. See [WebSocket API](API.md#websocket-api); do not put a
+session token in the URL.
 
 ---
 

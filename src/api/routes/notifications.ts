@@ -7,6 +7,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { createHash } from 'crypto';
 import { validate } from '../middleware/validate.js';
 import {
   PushSubscriptionSchema,
@@ -19,7 +20,8 @@ import { sendTestEmail, isResendConfigured, isMailLinkConfigured } from '../../l
 import { sendTestSms, isTwilioConfigured } from '../../lib/alerts/twilio.js';
 import { strictLimiter } from '../middleware/rate-limiter.js';
 import { requireAuth, getProfileId } from '../middleware/auth.js';
-import { getSafeOSDatabase } from '../../db/index.js';
+import { getSafeOSDatabase, now } from '../../db/index.js';
+import { resolvePushDestination, PushDestinationError } from '../../lib/alerts/push-destination.js';
 
 // =============================================================================
 // Router
@@ -27,9 +29,12 @@ import { getSafeOSDatabase } from '../../db/index.js';
 
 export const notificationRoutes = Router();
 
-// In-memory storage for subscriptions (would use DB in production)
-const pushSubscriptions: Map<string, any> = new Map();
-const telegramChatIds: Set<string> = new Set();
+// Registrations and status belong to the authenticated profile.
+notificationRoutes.use(requireAuth);
+
+function registrationId(profileId: string, address: string): string {
+  return createHash('sha256').update(JSON.stringify([profileId, address])).digest('hex');
+}
 
 // =============================================================================
 // Routes
@@ -40,13 +45,48 @@ const telegramChatIds: Set<string> = new Set();
  */
 notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (req: Request, res: Response) => {
   try {
-    const { subscription, userId } = req.body;
-
-    const id = userId || `user-${Date.now()}`;
-    pushSubscriptions.set(id, subscription);
+    const { subscription } = req.body;
+    const destination = await resolvePushDestination(subscription.endpoint);
+    subscription.endpoint = destination.url.href;
+    const profileId = getProfileId(req);
+    const id = registrationId(profileId, subscription.endpoint);
+    const db = await getSafeOSDatabase();
+    const timestamp = now();
+    const saved = await db.get(
+      `INSERT INTO push_subscriptions (id, profile_id, session_id, endpoint, keys_json, created_at)
+       SELECT ?, ?, ?, ?, ?, ?
+       WHERE EXISTS (SELECT 1 FROM sessions incoming
+                     WHERE incoming.id = ? AND incoming.profile_id = ?
+                       AND julianday(incoming.expires_at) > julianday(?))
+         AND (EXISTS (SELECT 1 FROM push_subscriptions p
+                     JOIN sessions s ON s.id = p.session_id AND s.profile_id = p.profile_id
+                     WHERE p.endpoint = ? AND p.profile_id = ? AND julianday(s.expires_at) > julianday(?))
+          OR (SELECT COUNT(*) FROM push_subscriptions p
+              JOIN sessions s ON s.id = p.session_id AND s.profile_id = p.profile_id
+              WHERE p.profile_id = ? AND julianday(s.expires_at) > julianday(?)) < 32)
+       ON CONFLICT(endpoint) DO UPDATE SET id = excluded.id, profile_id = excluded.profile_id,
+         session_id = excluded.session_id, keys_json = excluded.keys_json, created_at = excluded.created_at
+       WHERE push_subscriptions.profile_id = excluded.profile_id
+          OR NOT EXISTS (SELECT 1 FROM sessions s
+                         WHERE s.id = push_subscriptions.session_id
+                           AND s.profile_id = push_subscriptions.profile_id
+                           AND julianday(s.expires_at) > julianday(?))
+       RETURNING id`,
+      [id, profileId, req.session!.id, subscription.endpoint, JSON.stringify(subscription.keys), timestamp,
+        req.session!.id, profileId, timestamp,
+        subscription.endpoint, profileId, timestamp, profileId, timestamp, timestamp]
+    );
+    if (!saved) {
+      res.status(409).json({ error: 'Push registration conflicts with session, ownership or subscription limits' });
+      return;
+    }
 
     res.json({ success: true, id });
   } catch (error) {
+    if (error instanceof PushDestinationError) {
+      res.status(400).json({ error: error.message });
+      return;
+    }
     console.error('Failed to subscribe:', error);
     res.status(500).json({ error: 'Failed to subscribe' });
   }
@@ -57,10 +97,14 @@ notificationRoutes.post('/subscribe', validate(PushSubscriptionSchema), async (r
  */
 notificationRoutes.delete('/subscribe', validate(UnsubscribeSchema), async (req: Request, res: Response) => {
   try {
-    const { userId } = req.body;
-
-    if (userId) {
-      pushSubscriptions.delete(userId);
+    const db = await getSafeOSDatabase();
+    const { endpoint } = req.body;
+    if (endpoint) {
+      await db.run('DELETE FROM push_subscriptions WHERE profile_id = ? AND endpoint = ?',
+        [getProfileId(req), new URL(endpoint).href]);
+    } else {
+      await db.run('DELETE FROM push_subscriptions WHERE profile_id = ? AND session_id = ?',
+        [getProfileId(req), req.session!.id]);
     }
 
     res.json({ success: true });
@@ -77,7 +121,12 @@ notificationRoutes.post('/telegram/register', validate(TelegramConfigSchema), as
   try {
     const { chatId } = req.body;
 
-    telegramChatIds.add(chatId);
+    const profileId = getProfileId(req);
+    const db = await getSafeOSDatabase();
+    await db.run(
+      `INSERT OR IGNORE INTO telegram_chats (id, profile_id, chat_id, created_at) VALUES (?, ?, ?, ?)`,
+      [registrationId(profileId, chatId), profileId, chatId, now()]
+    );
 
     res.json({ success: true, chatId });
   } catch (error) {
@@ -94,7 +143,8 @@ notificationRoutes.delete('/telegram/register', validate(TelegramUnregisterSchem
     const { chatId } = req.body;
 
     if (chatId) {
-      telegramChatIds.delete(chatId);
+      const db = await getSafeOSDatabase();
+      await db.run('DELETE FROM telegram_chats WHERE profile_id = ? AND chat_id = ?', [getProfileId(req), chatId]);
     }
 
     res.json({ success: true });
@@ -105,17 +155,24 @@ notificationRoutes.delete('/telegram/register', validate(TelegramUnregisterSchem
 });
 
 /**
- * GET /api/notifications/status - Report which server-side notification
- * channels are configured. UI uses this to show "configured: yes/no" rows.
+ * GET /api/notifications/status - Report channel configuration for the caller.
  */
-notificationRoutes.get('/status', async (_req: Request, res: Response) => {
+notificationRoutes.get('/status', async (req: Request, res: Response) => {
   try {
+    const profileId = getProfileId(req);
+    const subscriptions = await getPushSubscriptions(profileId);
+    const chats = await getTelegramChatIds(profileId);
+    const db = await getSafeOSDatabase();
+    const profile = await db.get<{ notification_settings: string }>(
+      'SELECT notification_settings FROM user_profiles WHERE id = ?', [profileId]
+    );
+    const settings = JSON.parse(profile?.notification_settings || '{}');
     res.json({
       status: {
-        pushSubscriptions: pushSubscriptions.size,
-        telegramChats: telegramChatIds.size,
+        pushSubscriptions: subscriptions.size,
+        telegramChats: chats.size,
         smsEnabled: !!process.env['TWILIO_ACCOUNT_SID'],
-        telegramEnabled: !!process.env['TELEGRAM_BOT_TOKEN'],
+        telegramEnabled: !!settings.telegramBotToken,
         emailEnabled: isResendConfigured(),
       },
     });
@@ -313,13 +370,23 @@ notificationRoutes.post('/test-email', requireAuth, strictLimiter, async (req: R
   }
 });
 
-// Export subscriptions for use by notification manager
-export function getPushSubscriptions(): Map<string, any> {
-  return pushSubscriptions;
+// An absent owner never means every owner.
+export async function getPushSubscriptions(profileId?: string): Promise<Map<string, any>> {
+  if (!profileId) return new Map();
+  const db = await getSafeOSDatabase();
+  const rows = await db.all<{ endpoint: string; keys_json: string }>(
+    `SELECT p.endpoint, p.keys_json FROM push_subscriptions p
+     JOIN sessions s ON s.id = p.session_id AND s.profile_id = p.profile_id
+     WHERE p.profile_id = ? AND s.expires_at > ? LIMIT 32`, [profileId, now()]
+  );
+  return new Map(rows.map((row) => [row.endpoint, { endpoint: row.endpoint, keys: JSON.parse(row.keys_json) }]));
 }
 
-export function getTelegramChatIds(): Set<string> {
-  return telegramChatIds;
+export async function getTelegramChatIds(profileId?: string): Promise<Set<string>> {
+  if (!profileId) return new Set();
+  const db = await getSafeOSDatabase();
+  const rows = await db.all<{ chat_id: string }>('SELECT chat_id FROM telegram_chats WHERE profile_id = ?', [profileId]);
+  return new Set(rows.map((row) => row.chat_id));
 }
 
 export default notificationRoutes;

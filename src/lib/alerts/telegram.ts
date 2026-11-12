@@ -28,10 +28,13 @@ export class TelegramBotService {
   private bot: TelegramBot | null = null;
   private registeredChats: Set<string> = new Set();
 
-  constructor() {
-    const token = process.env['TELEGRAM_BOT_TOKEN'];
+  constructor(token = process.env['TELEGRAM_BOT_TOKEN']) {
     if (token) {
-      this.bot = new TelegramBot(token, { polling: false });
+      this.bot = new TelegramBot(token, {
+        polling: false,
+        // The SDK supplies the URL; only transport options belong here.
+        request: { timeout: 15000 } as TelegramBot.ConstructorOptions['request'],
+      });
       console.log('Telegram bot initialized');
     }
   }

@@ -28,9 +28,8 @@ services:
     environment:
       - NODE_ENV=production
       - SAFEOS_PORT=3001
-      # Caddy is the one proxy in front of the API (the API port is only
-      # exposed to Caddy), so the API reads the client address from it.
-      - SAFEOS_TRUST_PROXY=1
+      # Trust only Caddy's fixed address on the dedicated proxy network.
+      - SAFEOS_TRUST_PROXY=172.30.0.2
       - SAFEOS_DB_PATH=/app/db_data/safeos.sqlite3
       - OLLAMA_HOST=http://ollama:11434
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
@@ -65,6 +64,7 @@ services:
       start_period: 10s
     networks:
       - safeos-network
+      - proxy-network
     depends_on:
       ollama:
         condition: service_healthy
@@ -162,7 +162,8 @@ services:
       api:
         condition: service_healthy
     networks:
-      - safeos-network
+      proxy-network:
+        ipv4_address: 172.30.0.2
     logging:
       driver: "json-file"
       options:
@@ -235,3 +236,12 @@ volumes:
 networks:
   safeos-network:
     driver: bridge
+  proxy-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+          # Containers without a fixed address (the API) get one from the
+          # upper half, so none can take Caddy's 172.30.0.2 by starting first,
+          # on a deploy or after a reboot.
+          ip_range: 172.30.0.128/25

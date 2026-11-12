@@ -68,6 +68,9 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Install SQLite CLI for backup and restore tests
+        run: sudo apt-get update && sudo apt-get install -y sqlite3
+
       - name: Run tests with coverage
         run: npm test -- --coverage
 
@@ -199,3 +202,36 @@ jobs:
           for d in scripts/testdata/compose-ports/accept-*; do
             bash scripts/check-compose-ports.sh "$d"
           done
+
+      # The API trusts X-Forwarded-For only from Caddy's fixed address on the
+      # proxy network. Start that network's services from stand-in images, in
+      # the production file's order, and check Caddy gets that address.
+      - name: Start the proxy network and check the proxy's address
+        run: bash scripts/check-compose-proxy-network.sh .
+
+  account-pictures:
+    name: Account form pictures
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install dependencies and Chromium
+        run: |
+          npm install --legacy-peer-deps
+          npm install --no-save --legacy-peer-deps @playwright/test@1.56.1
+          npx playwright install chromium
+      - name: Capture API account forms
+        run: npx tsx scripts/capture-account-pictures.ts "$RUNNER_TEMP/account-pictures"
+      - name: Upload account pictures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: account-pictures
+          path: ${{ runner.temp }}/account-pictures/*.png
+          if-no-files-found: error
+          retention-days: 14

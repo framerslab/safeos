@@ -154,7 +154,7 @@ streamRoutes.post('/', validate(CreateStreamSchema), async (req: Request, res: R
 });
 
 /**
- * PATCH /api/streams/:id - Update stream (with ownership verification)
+ * PATCH /api/streams/:id - Update stream status as its owner or a reviewer/operator
  */
 streamRoutes.patch('/:id', validate(UpdateStreamSchema), async (req: Request, res: Response) => {
   try {
@@ -162,13 +162,18 @@ streamRoutes.patch('/:id', validate(UpdateStreamSchema), async (req: Request, re
     const profileId = getProfileId(req);
     const { id } = req.params;
     const { status } = req.body;
+    const canReview = req.session?.role === 'reviewer' || req.session?.role === 'operator';
 
     const stream = await db.get(
-      'SELECT * FROM streams WHERE id = ? AND user_id = ?',
-      [id, profileId]
+      'SELECT * FROM streams WHERE id = ? AND (user_id = ? OR ? = 1)',
+      [id, profileId, canReview ? 1 : 0]
     );
     if (!stream) {
       return notFound(res, 'Stream');
+    }
+
+    if (!canReview && ((stream as any).status === 'banned' || status === 'banned')) {
+      return res.status(403).json({ error: 'Only reviewers or operators may change a banned stream' });
     }
 
     if (status) {
@@ -177,15 +182,17 @@ streamRoutes.patch('/:id', validate(UpdateStreamSchema), async (req: Request, re
         updates.ended_at = now();
       }
 
-      await db.run(
-        `UPDATE streams SET status = ?, ended_at = ? WHERE id = ? AND user_id = ?`,
-        [status, updates.ended_at || null, id, profileId]
+      const changed = await db.get(
+        `UPDATE streams SET status = ?, ended_at = ? WHERE id = ? AND (user_id = ? OR ? = 1)
+         AND (status != 'banned' OR ? = 1) RETURNING id`,
+        [status, updates.ended_at || null, id, profileId, canReview ? 1 : 0, canReview ? 1 : 0]
       );
+      if (!changed) return res.status(403).json({ error: 'Only reviewers or operators may change a banned stream' });
     }
 
     const updated = await db.get(
-      'SELECT * FROM streams WHERE id = ? AND user_id = ?',
-      [id, profileId]
+      'SELECT * FROM streams WHERE id = ? AND (user_id = ? OR ? = 1)',
+      [id, profileId, canReview ? 1 : 0]
     );
     res.json({ stream: updated });
   } catch (error) {
@@ -211,11 +218,14 @@ streamRoutes.delete('/:id', async (req: Request, res: Response) => {
       return notFound(res, 'Stream');
     }
 
-    // Mark as ended instead of deleting
-    await db.run(
-      `UPDATE streams SET status = 'ended', ended_at = ? WHERE id = ? AND user_id = ?`,
-      [now(), id, profileId]
+    const canReview = req.session?.role === 'reviewer' || req.session?.role === 'operator';
+    // Keep the status guard in the write so a concurrent review is respected.
+    const changed = await db.get(
+      `UPDATE streams SET status = 'ended', ended_at = ? WHERE id = ? AND user_id = ?
+       AND (status != 'banned' OR ? = 1) RETURNING id`,
+      [now(), id, profileId, canReview ? 1 : 0]
     );
+    if (!changed) return res.status(403).json({ error: 'Only reviewers or operators may change a banned stream' });
 
     res.json({ success: true });
   } catch (error) {

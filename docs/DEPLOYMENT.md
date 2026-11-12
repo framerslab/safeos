@@ -232,6 +232,8 @@ Serve the resulting `out/` folder from that domain (for example `safeos.example.
 
 #### Updating
 
+For the first upgrade to per-person profile choices, follow the ordered steps below before starting the new release. For later updates:
+
 ```bash
 cd safeos
 git pull
@@ -239,6 +241,91 @@ docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 The SQLite database and the downloaded models live in named volumes (`safeos-data`, `ollama-models`) and survive the rebuild.
+
+##### Upgrading to the proxy network and per-person profile choices
+
+This release moves Caddy onto a proxy network of its own, keeps each person's active monitoring profile apart from everyone else's, hides monitoring profiles that have no owner, and mounts email sign-in. Upgrade a server that runs an earlier release in this order.
+
+1. **Back up the database.** From the repository directory, stop Caddy and the API and archive the data volume outside it. Keep this shell open for the remaining steps:
+
+   ```bash
+   backup_dir="$(pwd)/../safeos-backups/$(date -u +%Y%m%dT%H%M%SZ)"
+   mkdir -p "$backup_dir"
+   chmod 700 "$backup_dir"
+   git rev-parse HEAD > "$backup_dir/revision"
+   cp docker-compose.prod.yml .env "$backup_dir/"
+   docker compose -f docker-compose.prod.yml stop caddy api
+   docker run --rm --volumes-from safeos-api:ro alpine:3.20 \
+     tar -C /app/db_data -czf - . > "$backup_dir/database.tar.gz"
+   ```
+
+2. **Pull the release and check the proxy subnet.** The production file creates `proxy-network` on `172.30.0.0/24`, gives Caddy `172.30.0.2` and hands other containers addresses from `172.30.0.128/25` only. The API trusts a forwarded client address only from `172.30.0.2` (`SAFEOS_TRUST_PROXY`). Inspect host routes and existing Docker networks with the commands below. If another network overlaps this subnet, change the subnet, the `ip_range`, Caddy's `ipv4_address` and `SAFEOS_TRUST_PROXY` together in `docker-compose.prod.yml`. The dynamic range must exclude Caddy's address.
+
+   ```bash
+   git pull
+   ip -4 route
+   docker network ls -q | xargs -r docker network inspect \
+     --format '{{.Name}} {{json .IPAM.Config}}'
+   ${EDITOR:-vi} docker-compose.prod.yml
+   ```
+
+3. **Recreate the API and Caddy.** Remove the old Compose containers and networks, keeping named volumes, then recreate the stack. This also replaces an existing proxy network whose allocation range has changed. On first start the API copies each person's own active monitoring profile into the new per-person table:
+
+   ```bash
+   docker compose -f docker-compose.prod.yml down
+   docker compose -f docker-compose.prod.yml up -d --build
+   docker compose -f docker-compose.prod.yml ps
+   docker inspect safeos-caddy --format '{{range $n, $c := .NetworkSettings.Networks}}{{$n}} {{$c.IPAddress}}{{"\n"}}{{end}}'
+   ```
+
+   Check that the API is healthy and Caddy is running. The last command must list a network ending in `_proxy-network` with `172.30.0.2` (or the address chosen in step 2). Its prefix is the Compose project name. Never add `--volumes` to `down` during an upgrade. A server that runs the API behind another proxy sets `SAFEOS_TRUST_PROXY` to that proxy's exact IP addresses, comma-separated; the earlier hop count `1` now trusts no proxy, so every client would share the proxy's rate limit.
+
+4. **Assign an owner to each monitoring profile that has none.** Profiles created before profiles had owners stay hidden from everyone, the operator included, until they have one. Open the database:
+
+   ```bash
+   docker run --rm -it --volumes-from safeos-api alpine:3.20 \
+     sh -c 'apk add --no-cache sqlite >/dev/null && sqlite3 /app/db_data/app.sqlite3'
+   ```
+
+   List them, then give each to the person it belongs to. A person's profile id is the `id` that `GET /api/auth/profile` returns for their session.
+
+   ```sql
+   SELECT id, name, scenario, created_at FROM monitoring_profiles
+   WHERE owner_id IS NULL
+     AND id NOT IN ('profile-baby-default', 'profile-pet-default', 'profile-elderly-default');
+
+   UPDATE monitoring_profiles SET owner_id = '<user profile id>'
+   WHERE id = '<monitoring profile id>' AND owner_id IS NULL
+     AND id NOT IN ('profile-baby-default', 'profile-pet-default', 'profile-elderly-default')
+     AND EXISTS (SELECT 1 FROM user_profiles WHERE id = '<user profile id>');
+
+   .quit
+   ```
+
+   Replace both placeholders with the selected IDs before running the update. Leave the three built-in defaults without an owner. A profile nobody claims stays hidden. Active choices for owners that no longer exist are not imported; choices for existing owners carry over.
+
+5. **Ask people to choose their shared default again.** A person's own active custom profile carries over. The earlier release kept one active flag on each built-in default for everyone, which names nobody, so it is not carried over: each person selects the built-in default they want once. Each person can use their own session token with the API:
+
+   ```bash
+   read -r -p 'Public API base URL (https): ' api_url
+   read -r -s -p 'Your session token: ' session_token; printf '\n'
+   read -r -p 'Default profile ID (profile-baby-default, profile-pet-default or profile-elderly-default): ' profile_id
+   curl --fail-with-body -X POST -H "X-Session-Token: $session_token" \
+     "${api_url%/}/api/profiles/$profile_id/activate"
+   unset session_token
+   ```
+
+6. **Configure account mail before offering email sign-up.** Email sign-in is served at `/api/auth/email`, and its verification and reset links point at this API (`<api>/api/auth/email/verify` and `/reset-password`), not at the web app. Set `RESEND_API_KEY`, `EMAIL_FROM` and an https `SAFEOS_API_PUBLIC_URL` (or `SAFEOS_DOMAIN`) in `.env`, then run `docker compose -f docker-compose.prod.yml up -d`. Without them the server sends no account mail, and an account registered meanwhile cannot be verified. Guest sessions need no mail.
+
+   ```bash
+   ${EDITOR:-vi} .env
+   docker compose -f docker-compose.prod.yml up -d
+   docker compose -f docker-compose.prod.yml ps
+   ```
+
+Keep the backup archive, saved revision, Compose file and environment file until the upgrade is accepted. A rollback must stop the API and restore the whole data volume from that archive along with the saved release and configuration; do not mix a restored database with newer SQLite journal files.
+
+A successful guest resume rotates its token in place; clients must persist the returned token because the previous one stops working immediately. Email registration returns a generic response for both new and existing addresses. Password resets and changes enforce the registration password requirements. Account-link forms support an API public URL with a path prefix. Existing email accounts receive a persistent profile at their first successful login; password resets end the account's existing sessions.
 
 ### One machine with Docker Compose
 
@@ -299,7 +386,6 @@ RestartSec=10
 StateDirectory=safeos
 Environment=NODE_ENV=production
 Environment=SAFEOS_PORT=3001
-Environment=SAFEOS_DB_PATH=/var/lib/safeos/safeos.sqlite3
 Environment=OLLAMA_HOST=http://127.0.0.1:11434
 
 [Install]
@@ -455,29 +541,216 @@ journalctl -u safeos --since "1 hour ago"
 
 ### Database Backup
 
-```bash
-# Simple copy
-cp db_data/safeos.sqlite3 backup/safeos-$(date +%Y%m%d).sqlite3
+The current adapter writes `db_data/app.sqlite3` relative to the API process's
+working directory. For the systemd unit above that is
+`/opt/safeos/db_data/app.sqlite3`; in the container it is
+`/app/db_data/app.sqlite3` inside the mounted data volume. `SAFEOS_DB_PATH` is not
+read by this version of the adapter setup and does not move the database.
 
-# With compression
-sqlite3 db_data/safeos.sqlite3 ".backup 'backup.db'"
-gzip backup.db
+Install Bash and the SQLite CLI. Run the host commands as the service user
+(`sudo -u safeos -H bash`, then `cd /opt/safeos`) or as root, with write access
+to the working directory and `db_data`. Run from the API working directory (or
+from a directory containing the mounted `db_data` volume). `test -s` refuses to
+create an empty database when the source path is wrong. SQLite's backup command
+makes a consistent snapshot even when the live database uses WAL; do not copy
+only a live database file.
+
+```bash
+set -eu
+umask 077
+test -s db_data/app.sqlite3
+mkdir -p backup
+chmod 700 backup
+if test -e backup/safeos.sqlite3; then chmod 600 backup/safeos.sqlite3; fi
+sqlite3 db_data/app.sqlite3 ".backup 'backup/safeos.sqlite3'"
+test "$(sqlite3 backup/safeos.sqlite3 'PRAGMA integrity_check;')" = ok
+chmod 600 backup/safeos.sqlite3
 ```
+
+Keep dated copies off the host and restrict access: a backup contains account
+and session data and may contain frames still in the ten-minute buffer. Cleanup
+in the running API does not delete frames from old backups. Use a separate
+backup expiration policy and periodically exercise the restore procedure.
+
+### Database Restore
+
+Stop the API before restoring (`sudo systemctl stop safeos`, or stop the API
+container). Preserve the existing data directory as a rollback copy, including
+any `-wal` and `-shm` sidecars. Run these commands from the API working directory
+with the backup file available at `backup/safeos.sqlite3`. The commands reject empty or unrelated snapshots before moving the existing
+database and sidecars into a private rollback directory. They restore into a
+fresh file, including when the previous database is corrupt or missing.
+
+```bash
+set -eu
+umask 077
+test -s backup/safeos.sqlite3
+chmod 700 backup
+chmod 600 backup/safeos.sqlite3
+test "$(sqlite3 backup/safeos.sqlite3 'PRAGMA integrity_check;')" = ok
+test "$(sqlite3 backup/safeos.sqlite3 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('user_profiles','streams','alerts','analysis_queue');")" = 4
+mkdir -p db_data
+chmod 700 db_data
+rollback=$(mktemp -d backup/before-restore.XXXXXX)
+for file in app.sqlite3 app.sqlite3-wal app.sqlite3-shm; do
+  if test -e "db_data/$file"; then mv "db_data/$file" "$rollback/$file"; fi
+done
+sqlite3 db_data/app.sqlite3 ".restore 'backup/safeos.sqlite3'"
+test "$(sqlite3 db_data/app.sqlite3 'PRAGMA integrity_check;')" = ok
+chmod 600 db_data/app.sqlite3
+```
+
+Restore ownership of `db_data` to the API service user, then start the API again.
+Startup runs migrations and purges expired frames before accepting traffic.
+Verify `/health`, sign in, and check a known stream through `/api/streams` before
+retiring the rollback copy. CI creates a stream through HTTP, executes these
+backup commands, restores into a fresh file and reads the stream through HTTP.
+
+### Docker named-volume backup and restore
+
+Run these commands in Bash from the directory containing the Compose files.
+Select the same setup and project options used to create the running API:
+
+```bash
+# Local build:
+SAFEOS_COMPOSE=(docker compose -f docker-compose.yml)
+# Prebuilt images: use this instead of the line above.
+# SAFEOS_COMPOSE=(docker compose -f docker-compose.ghcr.yml)
+# Production: use this instead.
+# SAFEOS_COMPOSE=(docker compose -f docker-compose.prod.yml)
+# Local build with the GPU override: use this instead.
+# SAFEOS_COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.gpu.yml)
+# Prebuilt images with the GPU override: use this instead.
+# SAFEOS_COMPOSE=(docker compose -f docker-compose.ghcr.yml -f docker-compose.gpu.yml)
+```
+
+Each base file mounts the `safeos-data` volume at `/app/db_data`. The local and
+prebuilt files declare project name `safeos`, so their default volume name is
+`safeos_safeos-data`. Production uses Compose's project name (normally the
+checkout directory name), giving `<project>_safeos-data`. A `-p` option or
+`COMPOSE_PROJECT_NAME` changes that prefix. Include any original `-p` option in
+`SAFEOS_COMPOSE`. The GPU override only changes Ollama's devices.
+
+Read the actual volume name from the selected API container. This also handles
+custom project names and refuses to create a new, empty source volume:
+
+```bash
+set -eu
+umask 077
+SAFEOS_API_CONTAINER=$("${SAFEOS_COMPOSE[@]}" ps -aq api)
+test -n "$SAFEOS_API_CONTAINER"
+SAFEOS_DATA_VOLUME=$(docker inspect "$SAFEOS_API_CONTAINER" --format '{{range .Mounts}}{{if eq .Destination "/app/db_data"}}{{.Name}}{{end}}{{end}}')
+test -n "$SAFEOS_DATA_VOLUME"
+docker volume inspect "$SAFEOS_DATA_VOLUME" >/dev/null
+mkdir -p backup
+chmod 700 backup
+SAFEOS_BACKUP_DIR=$(cd backup && pwd)
+```
+
+The backend Dockerfile uses `/app` as its working directory and installs the
+SQLite runtime libraries, but not the `sqlite3` CLI. A temporary Alpine helper
+installs the CLI and mounts the existing volume. The database in that volume is
+`app.sqlite3`, despite the unused `SAFEOS_DB_PATH` setting in Compose.
+
+For backup, stop the selected API, make a consistent SQLite snapshot, then
+restart that API. Ollama and the UI can stay running. The helper needs network
+access to install SQLite. If any command fails, leave the API stopped until the
+failure is understood.
+
+```bash
+"${SAFEOS_COMPOSE[@]}" stop api
+docker run --rm -i \
+  --mount "type=volume,src=$SAFEOS_DATA_VOLUME,dst=/data" \
+  --mount "type=bind,src=$SAFEOS_BACKUP_DIR,dst=/backup" \
+  alpine:3 sh -eu <<'SAFEOS_SQLITE'
+    umask 077
+    chmod 700 /backup
+    apk add --no-cache sqlite >/dev/null
+    test -s /data/app.sqlite3
+    test ! -e /backup/safeos.sqlite3
+    sqlite3 /data/app.sqlite3 ".backup /backup/safeos.sqlite3"
+    test "$(sqlite3 /backup/safeos.sqlite3 "PRAGMA integrity_check;")" = ok
+    chmod 600 /backup/safeos.sqlite3
+SAFEOS_SQLITE
+"${SAFEOS_COMPOSE[@]}" start api
+```
+
+Move the previous `backup/safeos.sqlite3` to a dated, protected location before
+the next backup. To restore, select the same Compose setup and resolve its volume
+as above. Place the chosen snapshot at `backup/safeos.sqlite3`. The following
+preserves the stopped volume, including any WAL sidecars, in a unique rollback
+archive before restoring. It refuses a missing, empty, unrelated or invalid snapshot before changing the
+volume. After archiving, it removes the old database and sidecars so a damaged
+destination cannot prevent restoration into a fresh file.
+
+```bash
+"${SAFEOS_COMPOSE[@]}" stop api
+docker run --rm -i \
+  --mount "type=volume,src=$SAFEOS_DATA_VOLUME,dst=/data" \
+  --mount "type=bind,src=$SAFEOS_BACKUP_DIR,dst=/backup" \
+  alpine:3 sh -eu <<'SAFEOS_SQLITE'
+    umask 077
+    chmod 700 /backup
+    apk add --no-cache sqlite >/dev/null
+    test -s /backup/safeos.sqlite3
+    chmod 600 /backup/safeos.sqlite3
+    test "$(sqlite3 /backup/safeos.sqlite3 "PRAGMA integrity_check;")" = ok
+    test "$(sqlite3 /backup/safeos.sqlite3 "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('user_profiles','streams','alerts','analysis_queue');")" = 4
+    rollback=$(mktemp /backup/before-restore.XXXXXX)
+    tar -C /data -cf "$rollback" .
+    chmod 600 "$rollback"
+    rm -f /data/app.sqlite3 /data/app.sqlite3-wal /data/app.sqlite3-shm
+    sqlite3 /data/app.sqlite3 ".restore /backup/safeos.sqlite3"
+    test "$(sqlite3 /data/app.sqlite3 "PRAGMA integrity_check;")" = ok
+    chmod 600 /data/app.sqlite3
+SAFEOS_SQLITE
+"${SAFEOS_COMPOSE[@]}" start api
+"${SAFEOS_COMPOSE[@]}" exec -T api wget -q -O - http://localhost:3001/health
+```
+
+The supplied backend runs as root, matching the helper's file ownership. If you
+have customized the API user, restore that user's ownership before restarting.
+Check a known stream through the API before removing the rollback archive.
+These Docker commands were traced against all Compose files and the Dockerfile;
+they have not been run, and CI does not execute them. The separate host SQLite
+backup/restore commands above are exercised in CI.
 
 ### Automated Backup Script
 
+For the systemd installation, provision `/backups/safeos` for the `safeos`
+service user and run as that user (or root), with write access to both directories.
+The script validates each snapshot before compression or expiration of older
+backups; a failed check leaves older copies in place.
+Install `sqlite3` on the host first. For containers, use the named-volume
+procedure above instead of this host-path script.
+
 ```bash
 #!/bin/bash
+set -eu
+umask 077
+SOURCE_DB=/opt/safeos/db_data/app.sqlite3
 BACKUP_DIR=/backups/safeos
-DATE=$(date +%Y%m%d_%H%M%S)
+STAMP=$(date -u +%Y%m%d_%H%M%S)
 
-mkdir -p $BACKUP_DIR
-cp /var/lib/safeos/safeos.sqlite3 $BACKUP_DIR/safeos-$DATE.sqlite3
-gzip $BACKUP_DIR/safeos-$DATE.sqlite3
+test -s "$SOURCE_DB"
+mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+find "$BACKUP_DIR" -type f -name 'safeos-*' -exec chmod 600 {} +
+test ! -e "$BACKUP_DIR/safeos-$STAMP.sqlite3"
+test ! -e "$BACKUP_DIR/safeos-$STAMP.sqlite3.gz"
+sqlite3 "$SOURCE_DB" ".backup '$BACKUP_DIR/safeos-$STAMP.sqlite3'"
+test "$(sqlite3 "$BACKUP_DIR/safeos-$STAMP.sqlite3" 'PRAGMA integrity_check;')" = ok
+test "$(sqlite3 "$BACKUP_DIR/safeos-$STAMP.sqlite3" "SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('user_profiles','streams','alerts','analysis_queue');")" = 4
+gzip "$BACKUP_DIR/safeos-$STAMP.sqlite3"
+chmod 600 "$BACKUP_DIR/safeos-$STAMP.sqlite3.gz"
 
-# Keep only last 7 days
-find $BACKUP_DIR -name "*.gz" -mtime +7 -delete
+# Keep only the agreed seven-day backup window.
+find "$BACKUP_DIR" -name 'safeos-*.sqlite3.gz' -mtime +7 -delete
 ```
+
+Decompress a selected dated backup to `backup/safeos.sqlite3` before following the
+restore procedure. The script does not schedule itself or copy data off-host;
+configure those steps in the deployment's backup service.
 
 ---
 

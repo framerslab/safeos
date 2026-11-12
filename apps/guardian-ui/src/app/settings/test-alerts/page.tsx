@@ -14,6 +14,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useAuthStore } from '../../../stores/auth-store';
 import { useMonitoringStore } from '../../../stores/monitoring-store';
 import { useSettingsStore } from '../../../stores/settings-store';
 import { useSoundManager, SoundType } from '../../../lib/sound-manager';
@@ -52,6 +53,8 @@ export default function TestAlertsPage() {
   const [showEmergencyTest, setShowEmergencyTest] = useState(false);
   const [serverTestMessage, setServerTestMessage] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const [serverTestChannel, setServerTestChannel] = useState<null | 'webhook' | 'push' | 'sms' | 'telegram'>(null);
+
+  const { sessionToken } = useAuthStore();
 
   // Stores and hooks
   const addAlert = useMonitoringStore((state) => state.addAlert);
@@ -282,7 +285,7 @@ export default function TestAlertsPage() {
     try {
       const res = await fetch(`${backendConfig.apiUrl}/api/notifications/test`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Session-Token': sessionToken || '' },
         body: JSON.stringify({ channel }),
       });
 

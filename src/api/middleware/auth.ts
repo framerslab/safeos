@@ -92,7 +92,8 @@ export const requireAuth: RequestHandler = async (
     // Check expiration
     const expiresAt = new Date(session.expires_at);
     if (expiresAt < new Date()) {
-      // Clean up expired session
+      // Revoke registrations before removing their session binding.
+      await db.run('DELETE FROM push_subscriptions WHERE session_id = ?', [session.id]);
       await db.run(`DELETE FROM sessions WHERE id = ?`, [session.id]);
 
       res.status(401).json({
@@ -194,7 +195,7 @@ export const requireAdmin: RequestHandler = requireRole('operator');
 /**
  * Extract authentication token from request
  */
-function extractToken(req: Request): string | null {
+export function extractToken(req: Request): string | null {
   // Check x-session-token header first (custom header)
   const sessionToken = req.headers['x-session-token'];
   if (typeof sessionToken === 'string') {

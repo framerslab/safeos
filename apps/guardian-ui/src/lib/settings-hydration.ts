@@ -61,6 +61,7 @@ export function hydrateSavedSettings(profile: UserProfile | null): void {
       enabled: !!(savedQuiet.quietHoursStart && savedQuiet.quietHoursEnd),
       startTime: savedQuiet.quietHoursStart ?? quietHoursSettings.startTime,
       endTime: savedQuiet.quietHoursEnd ?? quietHoursSettings.endTime,
+      days: savedQuiet.quietHoursDays ?? quietHoursSettings.days,
     };
   } else if (accountQuiet?.quietHoursStart && accountQuiet.quietHoursEnd) {
     quietHoursSettings = {
@@ -68,6 +69,7 @@ export function hydrateSavedSettings(profile: UserProfile | null): void {
       enabled: true,
       startTime: accountQuiet.quietHoursStart,
       endTime: accountQuiet.quietHoursEnd,
+      days: accountQuiet.quietHoursDays ?? quietHoursSettings.days,
     };
   }
 

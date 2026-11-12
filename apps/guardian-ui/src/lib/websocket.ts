@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { isStaticMode } from './env';
+import { useAuthStore } from '../stores/auth-store';
 
 // =============================================================================
 // Types
@@ -41,6 +42,11 @@ const DEFAULT_RECONNECT_DELAY = 3000;
 const MAX_RECONNECT_ATTEMPTS = 10;
 const HEARTBEAT_INTERVAL = 30000;
 
+function rejectsSession(event: CloseEvent): boolean {
+  return event?.code === 1008 &&
+    (event.reason === 'Invalid session' || event.reason === 'Invalid or expired session');
+}
+
 // =============================================================================
 // useWebSocket Hook
 // =============================================================================
@@ -61,6 +67,9 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     callbacksRef.current = { onMessage, onConnect, onDisconnect, onError };
   }, [onMessage, onConnect, onDisconnect, onError]);
 
+  const sessionToken = useAuthStore(state => state.sessionToken);
+  const authenticatedRef = useRef(false);
+  const refusedTokenRef = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const heartbeatRef = useRef<NodeJS.Timeout | null>(null);
@@ -69,61 +78,67 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
   const [isConnected, setIsConnected] = useState(false);
   const [lastMessage, setLastMessage] = useState<WSMessage | null>(null);
 
+  // A rejected credential stays blocked until the session changes.
+  useEffect(() => {
+    refusedTokenRef.current = null;
+    reconnectAttemptsRef.current = 0;
+  }, [sessionToken]);
+
+  // A direct monitor visit may not render the separate sign-in control.
+  useEffect(() => {
+    if (!url || isStaticMode()) return;
+    const auth = useAuthStore.getState();
+    if (!auth.isInitialized && !auth.isLoading) void auth.initialize();
+  }, [url]);
+
   // Connect to WebSocket
   const connect = useCallback(() => {
-    // Skip WebSocket connection in static mode (GitHub Pages deployment)
-    if (isStaticMode()) {
-      console.log('[WebSocket] Skipping connection in static mode');
-      return;
-    }
+    if (isStaticMode()) return;
+    if (wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) return;
 
-    if (wsRef.current && (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING)) return;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
 
-    // Don't attempt connection with empty URL
-    if (!url) return;
-
-    // Only connect to localhost when actually running locally
+    // A retry must read the current session, never a captured credential.
+    const token = useAuthStore.getState().sessionToken;
+    if (!url || !token || /^(local-|offline-)/.test(token) || refusedTokenRef.current === token) return;
     if (url.startsWith('ws://localhost') || url.startsWith('wss://localhost')) {
       if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
-        if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
-          console.log('[WebSocket] Skipping localhost connection from remote host');
-          return;
-        }
+        if (hostname !== 'localhost' && hostname !== '127.0.0.1') return;
       }
     }
 
     try {
       const ws = new WebSocket(url);
       wsRef.current = ws;
+      authenticatedRef.current = false;
+      const isCurrent = () => wsRef.current === ws && useAuthStore.getState().sessionToken === token;
 
       ws.onopen = () => {
-        if (wsRef.current !== ws) return;
-        setIsConnected(true);
-        reconnectAttemptsRef.current = 0;
-        callbacksRef.current.onConnect?.();
-
-        // Clear any existing heartbeat before starting new one
-        if (heartbeatRef.current) {
-          clearInterval(heartbeatRef.current);
-        }
-
-        // Start heartbeat
-        heartbeatRef.current = setInterval(() => {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'ping' }));
-          }
-        }, HEARTBEAT_INTERVAL);
+        if (!isCurrent()) { ws.close(); return; }
+        ws.send(JSON.stringify({ type: 'authenticate', payload: { token } }));
       };
 
       ws.onmessage = (event) => {
-        if (wsRef.current !== ws) return;
+        if (!isCurrent()) return;
         try {
           const message: WSMessage = JSON.parse(event.data);
+          if (message.type === 'ping' && authenticatedRef.current && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong' }));
+          }
+          if (message.type === 'connected') {
+            authenticatedRef.current = true;
+            setIsConnected(true);
+            reconnectAttemptsRef.current = 0;
+            if (heartbeatRef.current) clearInterval(heartbeatRef.current);
+            heartbeatRef.current = setInterval(() => {
+              if (isCurrent() && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+            }, HEARTBEAT_INTERVAL);
+            callbacksRef.current.onConnect?.();
+          }
           setLastMessage(message);
           callbacksRef.current.onMessage?.(message);
         } catch (err) {
@@ -131,50 +146,50 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (wsRef.current !== ws) return;
+        if (rejectsSession(event)) refusedTokenRef.current = token;
         wsRef.current = null;
+        authenticatedRef.current = false;
         setIsConnected(false);
         callbacksRef.current.onDisconnect?.();
-
-        // Clear heartbeat
         if (heartbeatRef.current) {
           clearInterval(heartbeatRef.current);
           heartbeatRef.current = null;
         }
-
-        // Attempt reconnect
-        if (reconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        if (refusedTokenRef.current !== token && useAuthStore.getState().sessionToken === token && reconnect && reconnectAttemptsRef.current < maxReconnectAttempts) {
           reconnectAttemptsRef.current++;
           const delay = reconnectDelay * Math.pow(1.5, reconnectAttemptsRef.current - 1);
-          reconnectTimeoutRef.current = setTimeout(connect, Math.min(delay, 30000));
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            if (useAuthStore.getState().sessionToken === token && !wsRef.current) connect();
+          }, Math.min(delay, 30000));
         }
       };
-
-      ws.onerror = (error) => {
-        if (wsRef.current !== ws) return;
-        callbacksRef.current.onError?.(error);
-      };
+      ws.onerror = (error) => { if (isCurrent()) callbacksRef.current.onError?.(error); };
     } catch (err) {
       console.error('WebSocket connection error:', err);
     }
   }, [url, reconnect, reconnectDelay, maxReconnectAttempts]);
 
-  // Disconnect from WebSocket
+  // Detach before closing: a late event must not affect a newer connection.
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
     if (heartbeatRef.current) {
       clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
     }
-    if (wsRef.current) {
-      const ws = wsRef.current;
-      wsRef.current = null;
+    const ws = wsRef.current;
+    wsRef.current = null;
+    authenticatedRef.current = false;
+    if (ws) {
       ws.onopen = null;
-      ws.onclose = null;
       ws.onmessage = null;
-      ws.onerror = null;
+      ws.onclose = null;
+      ws.onerror = () => {};
       ws.close();
     }
     setIsConnected(false);
@@ -183,7 +198,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
   // Send message
   const sendMessage = useCallback((message: WSMessage) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    if (authenticatedRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(
         JSON.stringify({
           ...message,
@@ -236,7 +251,7 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
     return () => {
       disconnect();
     };
-  }, [connect, disconnect]);
+  }, [connect, disconnect, sessionToken]);
 
   return {
     isConnected,
@@ -256,6 +271,8 @@ export function useWebSocket(url: string, options: UseWebSocketOptions = {}) {
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
+  private authenticated = false;
+  private refusedToken: string | null = null;
   private url: string;
   private reconnectAttempts = 0;
   private maxReconnectAttempts: number;
@@ -285,10 +302,12 @@ export class WebSocketClient {
       return;
     }
 
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
 
     // Don't attempt connection with empty URL
-    if (!this.url) return;
+    const token = useAuthStore.getState().sessionToken;
+    if (!this.url || !token || /^(local-|offline-)/.test(token) || this.refusedToken === token) return;
+    this.refusedToken = null;
 
     // Only connect to localhost when actually running locally
     if (this.url.startsWith('ws://localhost') || this.url.startsWith('wss://localhost')) {
@@ -301,32 +320,45 @@ export class WebSocketClient {
       }
     }
 
-    this.ws = new WebSocket(this.url);
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+    const ws = new WebSocket(this.url);
+    this.ws = ws;
+    this.authenticated = false;
+    const isCurrent = () => this.ws === ws && useAuthStore.getState().sessionToken === token;
 
-    this.ws.onopen = () => {
-      this.reconnectAttempts = 0;
-      this.onConnectCallback?.();
-
-      // Clear any existing heartbeat before starting new one
-      if (this.heartbeatInterval) {
-        clearInterval(this.heartbeatInterval);
-      }
-
-      this.heartbeatInterval = setInterval(() => {
-        this.send({ type: 'ping' });
-      }, HEARTBEAT_INTERVAL);
+    ws.onopen = () => {
+      if (!isCurrent()) { ws.close(); return; }
+      ws.send(JSON.stringify({ type: 'authenticate', payload: { token } }));
     };
 
-    this.ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
+      if (!isCurrent()) return;
       try {
         const message: WSMessage = JSON.parse(event.data);
+        if (message.type === 'ping') this.send({ type: 'pong' });
+        if (message.type === 'connected') {
+          this.authenticated = true;
+          this.reconnectAttempts = 0;
+          if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+          this.heartbeatInterval = setInterval(() => {
+            if (isCurrent()) this.send({ type: 'ping' });
+          }, HEARTBEAT_INTERVAL);
+          this.onConnectCallback?.();
+        }
         this.onMessageCallback?.(message);
       } catch (err) {
         console.error('Failed to parse WebSocket message:', err);
       }
     };
 
-    this.ws.onclose = () => {
+    ws.onclose = (event) => {
+      if (this.ws !== ws) return;
+      if (rejectsSession(event)) this.refusedToken = token;
+      this.ws = null;
+      this.authenticated = false;
       this.onDisconnectCallback?.();
 
       if (this.heartbeatInterval) {
@@ -334,33 +366,45 @@ export class WebSocketClient {
         this.heartbeatInterval = null;
       }
 
-      if (this.reconnectAttempts < this.maxReconnectAttempts) {
+      if (this.refusedToken !== token && useAuthStore.getState().sessionToken === token
+          && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.reconnectAttempts++;
         const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
-        this.reconnectTimeout = setTimeout(() => this.connect(), Math.min(delay, 30000));
+        this.reconnectTimeout = setTimeout(() => {
+          this.reconnectTimeout = null;
+          if (useAuthStore.getState().sessionToken === token && !this.ws) this.connect();
+        }, Math.min(delay, 30000));
       }
     };
 
-    this.ws.onerror = (error) => {
-      this.onErrorCallback?.(error);
+    ws.onerror = (error) => {
+      if (isCurrent()) this.onErrorCallback?.(error);
     };
   }
 
   disconnect(): void {
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
     }
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
     }
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    const ws = this.ws;
+    this.ws = null;
+    this.authenticated = false;
+    if (ws) {
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onclose = null;
+      ws.onerror = () => {};
+      ws.close();
     }
   }
 
   send(message: WSMessage): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (this.authenticated && this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(
         JSON.stringify({
           ...message,
@@ -379,7 +423,7 @@ export class WebSocketClient {
   }
 
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN;
+    return this.authenticated && this.ws?.readyState === WebSocket.OPEN;
   }
 }
 

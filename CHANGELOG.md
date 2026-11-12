@@ -20,11 +20,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Without an https address for the unsubscribe link the server sends no mail; `/api/notifications/test-email` answers `400` with the setting to add, and `409` for an address that unsubscribed.
 - A mail to several recipients goes out as one mail per recipient, each with its own link.
 - Footer and fine-print text in every mail is 13px or larger.
+- Upgrading needs operator steps, in order: [Upgrading to the proxy network and per-person profile choices](docs/DEPLOYMENT.md#upgrading-to-the-proxy-network-and-per-person-profile-choices).
+- `SAFEOS_TRUST_PROXY` takes exact proxy IP addresses only; a hop count, a range or an invalid value trusts no proxy. The production compose file puts Caddy at `172.30.0.2` on its own `proxy-network`, whose other containers get addresses from `172.30.0.128/25`.
+- Each person has their own active monitoring profile per scenario, built-in defaults included. Monitoring profiles with no owner other than the three built-in defaults are hidden until the operator assigns an owner.
+- Resuming a guest profile with `POST /api/auth/session` needs that session's live token for the same device; the token is replaced in place.
 
 ### Fixed
+- Push registration verifies the incoming session's live profile binding in the same write that saves the registration.
+- Before-and-after picture capture also runs when a pull request opens.
+- Telegram text and photo requests close after 15 seconds of transport inactivity.
+- Reviewers and operators can restore another owner's banned stream through the status PATCH route without gaining owner access to reads, deletion or sockets.
+- Browser clients retry recoverable socket policy closes, preserve one opening socket, and ignore events from replaced sockets.
+- Browser push preserves registrations owned by another live session. The 32-endpoint limit counts live registrations only, and every session-removal path removes its push registrations.
+- Telegram availability reflects the caller's saved personal bot token, with settings and setup guidance describing the same delivery rule.
+- Socket frames and queued delivery require an active owned stream; restarting the API retains the socket payload limit, and repeated startup leaves live work intact.
+- Alert delivery starts a five-minute cooldown only after a channel succeeds. Each channel has a 15-second deadline; critical alerts bypass the 32-delivery capacity check. Quiet hours skip low and medium delivery in the saved local time zone and chosen days without deferring it; high and critical alerts bypass quiet hours.
+- Only reviewers and operators can change a banned stream status.
+- Startup recovers interrupted analysis jobs without duplicating saved results or alerts.
+- Provider secrets are write-only in profile, session and export responses. Push unsubscribe preserves other devices, and notification settings requests carry the session token.
+- The legacy-profile upgrade command opens `app.sqlite3`, matching the adapter. Image jobs stop after 30 minutes.
 - The Resend idempotency key went out as a header inside the mail, where Resend ignores it; it is now sent as the request's `Idempotency-Key`.
 - The pull request preview comment job can write its comment, and skips pull requests from forks, whose token is read-only.
 - The production compose file passes `SAFEOS_DOMAIN` and `CORS_ORIGIN` to Caddy, which serves `{$SAFEOS_DOMAIN}`.
+- `GET /api/auth/session` and the profile routes read the stored session row, so a returning guest gets their profile, `isGuest` and `expiresAt` back.
+- Email sign-in is mounted at `/api/auth/email`; its sessions carry a profile, its links open forms served by the API, and a password reset ends the account's other sessions.
 
 ## [0.1.0] - 2025-01-08
 

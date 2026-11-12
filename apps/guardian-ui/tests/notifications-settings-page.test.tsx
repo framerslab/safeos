@@ -31,7 +31,7 @@ jest.mock('@/stores/auth-store', () => {
   const state = {
     profile: null,
     sessionToken: 'session-token-for-test',
-    updateProfile: async () => undefined,
+    updateProfile: jest.fn(async () => undefined),
   };
   const useAuthStore = Object.assign(() => state, { getState: () => state });
   return { useAuthStore };
@@ -109,3 +109,80 @@ describe('notification settings test buttons', () => {
     expect(sessionHeader('/api/notifications/test-sms')).toBe('session-token-for-test');
   });
 });
+
+describe('authenticated notification status and server tests', () => {
+  it.each(['@/app/settings/page', '@/app/settings/notifications/page'])('loads status with the session from %s', async path => {
+    const Page = require(path).default;
+    render(<Page />);
+    await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/notifications/status'))).toBe(true));
+    expect(sessionHeader('/api/notifications/status')).toBe('session-token-for-test');
+    if (path === '@/app/settings/page') {
+      expect(screen.getByRole('link', { name: /^notifications$/i }).getAttribute('href'))
+        .toBe('/settings/notifications');
+    } else {
+      expect(await screen.findByText(/Server has Twilio configured/)).toBeTruthy();
+    }
+  });
+
+  it('sends the current session from the server test button', async () => {
+    const Page = require('@/app/settings/test-alerts/page').default;
+    render(<Page />);
+    await press(/^test push$/i);
+    await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/notifications/test'))).toBe(true));
+    expect(sessionHeader('/api/notifications/test')).toBe('session-token-for-test');
+  });
+});
+
+
+describe('quiet-hours profile saves', () => {
+  it.each(['@/app/settings/page', '@/app/settings/notifications/page'])('saves the browser zone and chosen days from %s', async path => {
+    const { useSettingsStore } = require('@/stores/settings-store');
+    const { useAuthStore } = require('@/stores/auth-store');
+    useSettingsStore.getState().resetToDefaults();
+    useSettingsStore.getState().updateQuietHoursSettings({
+      enabled: true, startTime: '22:00', endTime: '07:00', days: [1, 3, 5],
+    });
+    useAuthStore.getState().updateProfile.mockClear();
+    const Page = require(path).default;
+    render(<Page />);
+    await press(/save changes/i);
+    await waitFor(() => expect(useAuthStore.getState().updateProfile).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationSettings: expect.objectContaining({
+        quietHoursStart: '22:00', quietHoursEnd: '07:00', quietHoursDays: [1, 3, 5],
+        quietHoursTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      }) })
+    ));
+    if (path.endsWith('notifications/page')) {
+      expect(screen.getByText(/skips delivery of low and medium alerts on the server/i)).toBeTruthy();
+      expect(screen.getByText(/high and critical alerts are always sent/i)).toBeTruthy();
+    }
+  });
+});
+
+function renderNotificationGuidance(path: string): void {
+  const Page = require(path).default;
+  const view = render(<Page />);
+  if (path === '@/app/settings/page') {
+    // Settings links to the dedicated route; its old inline section is unreachable.
+    const link = screen.getByRole('link', { name: /^notifications$/i });
+    expect(link.getAttribute('href')).toBe('/settings/notifications');
+    view.unmount();
+    const NotificationsPage = require('@/app/settings/notifications/page').default;
+    render(<NotificationsPage />);
+  }
+}
+
+describe('personal Telegram bot guidance', () => {
+  it.each(['@/app/settings/page', '@/app/settings/notifications/page', '@/app/help/integrations/telegram/page'])(
+    'explains that the caller needs their own bot on %s', async path => {
+      renderNotificationGuidance(path);
+      expect(await screen.findByText(/Save your own Telegram bot token/i)).toBeTruthy();
+      expect(screen.queryByText(/server operator only|no per-user bot tokens|every chat that registered/i)).toBeNull();
+    });
+});
+
+it.each(['@/app/settings/page', '@/app/settings/notifications/page'])(
+  'explains that quiet-hours alerts are not deferred on %s', async path => {
+    renderNotificationGuidance(path);
+    expect(await screen.findByText(/not sent later/i)).toBeTruthy();
+  });

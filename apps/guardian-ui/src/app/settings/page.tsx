@@ -32,7 +32,7 @@ interface SettingsSection {
 // =============================================================================
 
 export default function SettingsPage() {
-  const { profile, updateProfile } = useAuthStore();
+  const { profile, updateProfile, sessionToken } = useAuthStore();
   const { globalSettings, quietHoursSettings, updateGlobalSettings, updateQuietHoursSettings } = useSettingsStore();
   const { status: backendStatus, config: backendConfig } = useBackendStatus();
   const [activeSection, setActiveSection] = useState('general');
@@ -135,7 +135,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    if (backendStatus.api !== 'connected' || !backendConfig.apiUrl) {
+    if (backendStatus.api !== 'connected' || !backendConfig.apiUrl || !sessionToken) {
       setNotificationServerStatus(null);
       setNotificationServerStatusLoading(false);
       setNotificationServerStatusError(null);
@@ -146,7 +146,7 @@ export default function SettingsPage() {
     setNotificationServerStatusLoading(true);
     setNotificationServerStatusError(null);
 
-    fetch(`${backendConfig.apiUrl}/api/notifications/status`, { signal: controller.signal })
+    fetch(`${backendConfig.apiUrl}/api/notifications/status`, { signal: controller.signal, headers: { 'X-Session-Token': sessionToken || '' } })
       .then(async (res) => {
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
@@ -180,7 +180,7 @@ export default function SettingsPage() {
       .finally(() => setNotificationServerStatusLoading(false));
 
     return () => controller.abort();
-  }, [backendStatus.api, backendConfig.apiUrl]);
+  }, [backendStatus.api, backendConfig.apiUrl, sessionToken]);
 
   const openMonitoringServerSettings = () => {
     if (typeof window !== 'undefined') {
@@ -326,6 +326,8 @@ export default function SettingsPage() {
           emailDigest: profile?.notificationSettings?.emailDigest ?? false,
           quietHoursStart: quietHoursEnabled ? quietHoursStart : null,
           quietHoursEnd: quietHoursEnabled ? quietHoursEnd : null,
+          quietHoursTimeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          quietHoursDays: quietHoursSettings.days,
         },
       };
 
@@ -561,7 +563,7 @@ export default function SettingsPage() {
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-3">
-                            <span>Telegram bot configured</span>
+                            <span>Your Telegram bot configured</span>
                             <span className={`px-2 py-0.5 rounded-full ${notificationServerStatus.telegramEnabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-700/40 text-slate-300'}`}>
                               {notificationServerStatus.telegramEnabled ? 'Yes' : 'No'}
                             </span>
@@ -648,7 +650,7 @@ export default function SettingsPage() {
                     </div>
                   </label>
 
-                  <label className="flex items-center gap-3 cursor-pointer" title="Requires a monitoring server (API) + Telegram bot credentials.">
+                  <label className="flex items-center gap-3 cursor-pointer" title="Requires a monitoring server (API) and your own Telegram bot token.">
                     <input
                       type="checkbox"
                       checked={telegramEnabled}
@@ -665,14 +667,14 @@ export default function SettingsPage() {
                           notificationServerStatusLoading ? (
                             'Checking monitoring server configuration…'
                           ) : notificationServerStatus && !notificationServerStatus.telegramEnabled ? (
-                            'Monitoring server online, but Telegram bot credentials are not configured yet.'
+                            'Save your own Telegram bot token in your profile to enable alerts.'
                           ) : notificationServerStatus && notificationServerStatus.telegramEnabled ? (
-                            'Monitoring server is configured for Telegram delivery.'
+                            'Your saved Telegram bot is available for your registered chats.'
                           ) : (
-                            'Requires bot credentials on your monitoring server (bot token + chat ID).'
+                            'Requires your own Telegram bot token saved in your profile and a registered chat.'
                           )
                         ) : (
-                          'Saved locally; activates when a monitoring server + bot credentials are configured.'
+                          'Saved locally; alerts require an online monitoring server and your own Telegram bot token.'
                         )}
                       </p>
                     </div>
@@ -691,7 +693,7 @@ export default function SettingsPage() {
                     />
                     <div>
                       <p className="text-white">Quiet Hours</p>
-                      <p className="text-xs text-slate-500">Mute non-critical alerts during set times</p>
+                      <p className="text-xs text-slate-500">Skips delivery of low and medium alerts on the server during your selected local times and days. They remain in the app and are not sent later. High and critical alerts are always sent.</p>
                     </div>
                   </label>
 
