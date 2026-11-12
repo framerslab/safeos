@@ -2,6 +2,7 @@
 import { openDB } from 'idb';
 import { cacheAlert, getCachedAlerts } from '@/lib/client-db';
 import { useMonitoringStore } from '@/stores/monitoring-store';
+import { localAlertEngine } from '@/lib/local-alert-engine';
 import { useAuthStore } from '@/stores/auth-store';
 
 require('fake-indexeddb/auto');
@@ -106,6 +107,35 @@ it('removes expired records on write without needing a cleanup call', async () =
   await cacheAlert(alert('old-shared', expired));
   useMonitoringStore.getState().addAlert(alert('old-monitor', expired));
   await useMonitoringStore.getState().hydrateAlerts();
+  const db = await openDB('safeos-guardian');
+  expect(await db.count('alert_cache')).toBe(0);
+  db.close();
+});
+
+it('limits generic readers and acknowledgements to shared and current-owner history', async () => {
+  await cacheAlert(alert('shared'));
+  for (const id of ['alice', 'bob']) {
+    await cacheAlert({ ...alert(`${id}-private`), monitoring: true, ownerId: id });
+  }
+  expect((await getCachedAlerts()).map(a => a.id)).toEqual(['shared']);
+  expect((await getCachedAlerts('camera')).map(a => a.id)).toEqual(['shared']);
+  expect((await localAlertEngine.getRecentAlerts()).map(a => a.id).sort()).toEqual(['alice-private', 'shared']);
+  expect((await localAlertEngine.getUnacknowledgedAlerts()).map(a => a.id).sort()).toEqual(['alice-private', 'shared']);
+  await localAlertEngine.acknowledgeAlert('bob-private');
+  const db = await openDB('safeos-guardian');
+  expect((await db.get('alert_cache', 'bob-private')).acknowledged).toBe(false);
+  db.close();
+});
+
+it('expires every owner and shared history on a monitoring-only read', async () => {
+  const start = Date.now();
+  await cacheAlert(alert('shared-expiring', new Date(start).toISOString()));
+  for (const id of ['alice', 'bob']) {
+    await cacheAlert({ ...alert(`${id}-expiring`, new Date(start).toISOString()), monitoring: true, ownerId: id });
+  }
+  jest.spyOn(Date, 'now').mockReturnValue(start + DAY + 1);
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts).toEqual([]);
   const db = await openDB('safeos-guardian');
   expect(await db.count('alert_cache')).toBe(0);
   db.close();

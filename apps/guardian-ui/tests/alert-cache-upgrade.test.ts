@@ -18,6 +18,7 @@ it('upgrades a version 4 database in place and indexes its existing alerts', asy
   for (let i = 0; i < 99; i++) await old.put('alert_cache', { ...record, id: `retained-${i}` });
   // Older writers accepted a missing or invalid creation date.
   await old.put('alert_cache', { ...record, id: 'invalid-date', createdAt: 'not-a-date' });
+  await old.put('alert_cache', { ...record, id: 'unindexed-date', createdAt: {} });
   await old.put('settings_cache', { key: 'saved', value: 'keep' });
   old.close();
   expect(await getCachedAlerts()).toEqual(expect.arrayContaining([expect.objectContaining(record)]));
@@ -25,6 +26,7 @@ it('upgrades a version 4 database in place and indexes its existing alerts', asy
   expect(upgraded.version).toBeGreaterThan(4);
   expect(await upgraded.count('alert_cache')).toBe(100);
   expect(await upgraded.get('alert_cache', 'invalid-date')).toBeUndefined();
+  expect(await upgraded.get('alert_cache', 'unindexed-date')).toBeUndefined();
   expect(upgraded.transaction('alert_cache').store.indexNames.contains('by-owner-created')).toBe(true);
   expect(await upgraded.get('settings_cache', 'saved')).toEqual({ key: 'saved', value: 'keep' });
   upgraded.close();
