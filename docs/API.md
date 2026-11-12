@@ -231,8 +231,12 @@ Get a specific stream.
 Update `status` to `active`, `paused`, `ended` or `banned`. Owners can change
 their own non-banned streams, but cannot set or clear a ban. Reviewers and
 operators can change any stream's status, including restoring another owner's
-banned stream. This permission does not grant access to that owner's stream
-reads, deletion, frames or socket messages. The update preserves stream ownership.
+banned stream. A reviewer or operator who is not the owner must provide `status`;
+without it the route returns `400` with an error and no stream fields. A successful
+non-owner update returns only `{ "stream": { "id": "...", "status": "..." } }`.
+The owner's own PATCH still accepts an omitted status and returns the full stream
+row. This permission does not grant access to that owner's stream reads, deletion,
+frames or socket messages. The update preserves stream ownership.
 
 #### DELETE /api/streams/:id
 End a stream.

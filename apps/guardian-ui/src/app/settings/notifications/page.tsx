@@ -884,7 +884,7 @@ export default function NotificationsSettingsPage() {
         <Section icon={<IconShield size={18} />} title="Quiet hours" subtitle="Use the same quiet hours as monitoring and sound settings.">
           <Toggle
             label="Enable quiet hours"
-            description="Skips delivery of low and medium alerts on the server during your selected local times and days. They remain in the app and are not sent later. High and critical alerts are always sent."
+            description="Skips delivery of low and medium alerts on the server during your selected local times and days. They remain in the app and are not sent later. High and critical alerts bypass quiet hours."
             checked={settings.quietHoursEnabled}
             onChange={(v) => update('quietHoursEnabled', v)}
           />

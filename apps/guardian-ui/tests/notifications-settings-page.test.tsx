@@ -154,7 +154,7 @@ describe('quiet-hours profile saves', () => {
     ));
     if (path.endsWith('notifications/page')) {
       expect(screen.getByText(/skips delivery of low and medium alerts on the server/i)).toBeTruthy();
-      expect(screen.getByText(/high and critical alerts are always sent/i)).toBeTruthy();
+      expect(screen.getByText(/high and critical alerts bypass quiet hours/i)).toBeTruthy();
     }
   });
 });
@@ -185,4 +185,11 @@ it.each(['@/app/settings/page', '@/app/settings/notifications/page'])(
   'explains that quiet-hours alerts are not deferred on %s', async path => {
     renderNotificationGuidance(path);
     expect(await screen.findByText(/not sent later/i)).toBeTruthy();
+  });
+
+it.each(['@/app/settings/page', '@/app/settings/notifications/page', '@/app/help/integrations/resend/page', '@/app/settings/schedule/page'])(
+  'limits the high and critical alert promise to quiet hours on %s', async path => {
+    renderNotificationGuidance(path);
+    expect(await screen.findByText(/high and critical alerts bypass quiet hours/i)).toBeTruthy();
+    expect(screen.queryByText(/always sent|always go out|always delivered|always come through|always sound|never missed|guaranteed/i)).toBeNull();
   });
