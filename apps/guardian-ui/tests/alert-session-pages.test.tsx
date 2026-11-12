@@ -60,6 +60,7 @@ beforeEach(() => {
   localStorage.clear();
   jest.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
   jest.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
+  jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined);
   global.fetch = jest.fn().mockRejectedValue(new TypeError('Offline'));
 });
 afterEach(() => { cleanup(); jest.restoreAllMocks(); });

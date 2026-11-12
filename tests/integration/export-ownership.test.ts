@@ -57,6 +57,26 @@ describe.each(['profile', 'all'])('%s export ownership', (kind) => {
     const data = await exported();
     expect(data.monitoringProfiles).toEqual([expect.objectContaining({ id: 'independent-profile-id', owner_id: alice.profile.id, is_active: 1 })]);
   });
+  it('redacts write-only credentials from owned monitoring settings without changing their JSON format', async () => {
+    const settings = { motionSensitivity: 35, telegramBotToken: 'private-bot-value',
+      smsOverride: { accountSid: 'account-id', authToken: 'private-sms-value', fromNumber: '+15555550100' },
+      emailOverride: { apiKey: 'private-email-value', replyTo: 'person@example.test' } };
+    await db.run('UPDATE monitoring_profiles SET settings = ? WHERE id = ?',
+      [JSON.stringify(settings), 'independent-profile-id']);
+    const data = await exported();
+    const exportedSettings = data.monitoringProfiles[0].settings;
+    expect(typeof exportedSettings).toBe('string');
+    const parsed = JSON.parse(exportedSettings);
+    expect(parsed.motionSensitivity).toBe(35);
+    expect(parsed.smsOverride.authToken).toBeUndefined();
+    expect(parsed.emailOverride.apiKey).toBeUndefined();
+    expect(parsed.telegramBotToken).toBeUndefined();
+    expect(JSON.stringify(data)).not.toContain('private-bot-value');
+    expect(JSON.stringify(data)).not.toContain('private-sms-value');
+    expect(JSON.stringify(data)).not.toContain('private-email-value');
+    expect(JSON.parse((await db.get('SELECT settings FROM monitoring_profiles WHERE id = ?',
+      ['independent-profile-id'])).settings)).toEqual(settings);
+  });
   it('includes personal active choices, including built-in defaults', async () => {
     const data = await exported();
     expect(data.activeMonitoringProfiles).toEqual([

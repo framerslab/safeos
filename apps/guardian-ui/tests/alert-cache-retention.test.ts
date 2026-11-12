@@ -185,3 +185,18 @@ it('keeps displayed alerts when a browser history read fails and retries on the 
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['visible-during-read-failure']);
 });
+
+it('keeps a live alert through a failed save and retries it on the next history read', async () => {
+  const put = IDBObjectStore.prototype.put;
+  const failingWrite = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+    if (this.name === 'alert_cache') throw new DOMException('Storage full', 'QuotaExceededError');
+    return put.apply(this, args);
+  });
+  useMonitoringStore.getState().addAlert({ ...alert('live-during-write-failure'), severity: 'critical' });
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['live-during-write-failure']);
+  failingWrite.mockRestore();
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['live-during-write-failure']);
+  expect((await getCachedAlerts(undefined, 'alice')).map(a => a.id)).toEqual(['live-during-write-failure']);
+});
