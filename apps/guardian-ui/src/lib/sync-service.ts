@@ -170,6 +170,7 @@ async function handleSyncResponse(action: string, data: any): Promise<void> {
       ...alert,
       streamId: alert.streamId ?? alert.stream_id,
       alertType: alert.alertType ?? alert.alert_type,
+      thumbnailUrl: alert.thumbnailUrl ?? alert.thumbnail_url,
       acknowledged: Boolean(alert.acknowledged),
       acknowledgedAt: alert.acknowledgedAt ?? alert.acknowledged_at,
       createdAt: alert.createdAt ?? alert.created_at,

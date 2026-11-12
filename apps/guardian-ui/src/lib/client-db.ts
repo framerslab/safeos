@@ -334,7 +334,17 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
           let cursor = await alerts.openCursor();
           while (cursor) {
             const record = cursor.value;
-            await cursor.update({ ...record, createdAt: record.createdAt || record.syncedAt || new Date().toISOString(), cacheOwner: alertOwner(record) });
+            const rawDate = record.createdAt || record.syncedAt || new Date().toISOString();
+            const timestamp = typeof rawDate === 'string' ? Date.parse(rawDate) : NaN;
+            if (!Number.isFinite(timestamp)) {
+              await cursor.delete();
+            } else {
+              await cursor.update({
+                ...record,
+                createdAt: new Date(Math.min(timestamp, Date.now())).toISOString(),
+                cacheOwner: alertOwner(record),
+              });
+            }
             cursor = await cursor.continue();
           }
         }
@@ -604,21 +614,28 @@ export async function cacheAlert(alert: any): Promise<void> {
   }
 }
 
-export async function getCachedAlerts(streamId?: string): Promise<any[]> {
+/** Shared history plus the explicitly selected owner's monitoring records. */
+export async function getCachedAlerts(streamId?: string, ownerId = ''): Promise<any[]> {
   try {
     const db = await getDB();
     const tx = db.transaction('alert_cache', 'readwrite');
-    await pruneAllAlerts(tx.store);
+    await pruneGlobalAlerts(tx.store);
     const alerts: SafeOSDB['alert_cache']['value'][] = [];
-    let cursor = streamId
-      ? await tx.store.index('by-stream').openCursor(streamId)
-      : await tx.store.index('by-created').openCursor(null, 'prev');
-    while (cursor && (streamId || alerts.length < MAX_MONITORING_ALERTS)) {
-      alerts.push(cursor.value);
-      cursor = await cursor.continue();
+    const maximum = streamId ? MAX_CACHED_ALERTS : MAX_MONITORING_ALERTS;
+    for (const owner of ['shared', alertOwner({ monitoring: true, ownerId })]) {
+      await pruneOwnerAlerts(tx.store, owner);
+      let cursor = await tx.store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
+      let count = 0;
+      while (cursor && count < maximum) {
+        if (!streamId || cursor.value.streamId === streamId) {
+          alerts.push(cursor.value);
+          count++;
+        }
+        cursor = await cursor.continue();
+      }
     }
     await tx.done;
-    return alerts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    return alerts.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, maximum);
   } catch {
     return [];
   }
@@ -630,6 +647,7 @@ export async function getCachedMonitoringAlerts(ownerId = ''): Promise<any[]> {
     const db = await getDB();
     const owner = alertOwner({ monitoring: true, ownerId });
     const tx = db.transaction('alert_cache', 'readwrite');
+    await pruneGlobalAlerts(tx.store);
     await pruneOwnerAlerts(tx.store, owner);
     const alerts: SafeOSDB['alert_cache']['value'][] = [];
     let cursor = await tx.store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');

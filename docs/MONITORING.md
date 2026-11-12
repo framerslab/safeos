@@ -50,12 +50,16 @@ panel limits; 24 hours covers the longest monitoring session without keeping
 an indefinite browser archive.
 
 The database prunes history on opening, each alert write, and history reads.
+Any history read also expires old records across owners using the creation-time index.
+General alert lists and their acknowledgements include shared records and only the
+selected owner's monitoring records.
 Acknowledgement does not restart an alert's age or remove its owner and thumbnail. Monitoring reads and removals
 are scoped to the current owner, including writes queued before an owner change.
 The version 4 to 5 upgrade adds the index in place, retaining existing records
 and other stores. Legacy monitoring records with no owner remain in the local,
 unsigned-in history; they are not assigned to whichever account opens the app.
-Normal retention applies after opening; invalid creation dates are discarded before counting retained history. Browser-only data is not included in
+The upgrade normalizes valid dates and removes invalid dates before indexing or
+counting retained history. Normal retention applies after opening. Browser-only data is not included in
 server exports; use History's local export for that data.
 
 An alert acknowledged on Monitor stays in history marked acknowledged, also when the server

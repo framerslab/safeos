@@ -11,6 +11,7 @@
 'use client';
 
 import { cacheAlert, getCachedAlerts, saveSetting, getSetting } from './client-db';
+import { useAuthStore } from '@/stores/auth-store';
 import { getNotificationManager } from './notification-manager';
 
 // =============================================================================
@@ -548,7 +549,7 @@ class LocalAlertEngine {
 
   async acknowledgeAlert(alertId: string): Promise<void> {
     // Update in IndexedDB
-    const alerts = await getCachedAlerts();
+    const alerts = await getCachedAlerts(undefined, useAuthStore.getState().profile?.id || '');
     const alert = alerts.find((a) => a.id === alertId);
     if (alert) {
       alert.acknowledged = true;
@@ -558,7 +559,7 @@ class LocalAlertEngine {
   }
 
   async getRecentAlerts(limit = 50): Promise<LocalAlert[]> {
-    const cached = await getCachedAlerts();
+    const cached = await getCachedAlerts(undefined, useAuthStore.getState().profile?.id || '');
     return cached.slice(0, limit).map((a) => ({
       id: a.id,
       type: this.inferAlertType(a.message),
