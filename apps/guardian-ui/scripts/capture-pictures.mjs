@@ -63,8 +63,10 @@ try {
           }
           if (route === '/export/') {
             await page.getByRole('button', { name: 'Download Export' }).waitFor();
+            await page.locator('#main-content').screenshot({ path: file });
+          } else {
+            await page.screenshot({ path: file, fullPage: true });
           }
-          await page.screenshot({ path: file, fullPage: true });
           console.log(`captured ${file}`);
         } catch (err) {
           failures += 1;
