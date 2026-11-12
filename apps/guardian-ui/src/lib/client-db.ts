@@ -272,14 +272,14 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
     const blocked = new Promise<never>((_resolve, reject) => { rejectBlocked = reject; });
     const opening = openDB<SafeOSDB>(DB_NAME, DB_VERSION, {
       blocked() {
-        const message = 'Close other SafeOS tabs, then reload this page to finish updating your saved history.';
+        const message = 'Close other SafeOS tabs, then reload this page to finish updating your saved history. New alerts in this tab are not saved until you reload.';
         requestDatabaseReload(message);
         rejectBlocked(new Error(message));
       },
       blocking(_currentVersion, _blockedVersion, event) {
         (event.target as IDBDatabase).close();
         dbPromise = null;
-        requestDatabaseReload('SafeOS has been updated in another tab. Reload this page to keep saving history.');
+        requestDatabaseReload('SafeOS has been updated in another tab. Reload this page to keep saving history. New alerts in this tab are not saved until you reload.');
       },
       terminated() {
         dbPromise = null;
@@ -432,7 +432,8 @@ async function cleanupOldFrames(): Promise<void> {
   }
 }
 
-type AlertStore = IDBPObjectStore<SafeOSDB, ['alert_cache'], 'alert_cache', 'readwrite'>;
+type AlertStores = Array<'alert_cache' | 'profile_cache' | 'local_session'>;
+type AlertStore<Stores extends AlertStores> = IDBPObjectStore<SafeOSDB, Stores, 'alert_cache', 'readwrite'>;
 
 function alertOwner(alert: { monitoring?: boolean; ownerId?: string }): string {
   return alert.monitoring === true ? `monitoring:${alert.ownerId || ''}` : 'shared';
@@ -443,7 +444,7 @@ function ownerRange(owner: string): IDBKeyRange {
 }
 
 /** Only post-upgrade records count; acknowledged records leave first, oldest first. */
-async function pruneOwnerAlerts(store: AlertStore, owner: string): Promise<void> {
+async function pruneOwnerAlerts<Stores extends AlertStores>(store: AlertStore<Stores>, owner: string): Promise<void> {
   const index = store.index('by-owner-retention');
   const range = IDBKeyRange.bound([owner, 'new'], [owner, 'new', []]);
   const maximum = owner === 'shared' ? MAX_CACHED_ALERTS : MAX_MONITORING_ALERTS;
@@ -455,7 +456,7 @@ async function pruneOwnerAlerts(store: AlertStore, owner: string): Promise<void>
   }
 }
 
-async function pruneGlobalAlerts(store: AlertStore): Promise<void> {
+async function pruneGlobalAlerts<Stores extends AlertStores>(store: AlertStore<Stores>): Promise<void> {
   const index = store.index('by-retention');
   const range = IDBKeyRange.bound(['new'], ['new', []]);
   let excess = (await index.count(range)) - MAX_CACHED_ALERTS;
@@ -466,7 +467,7 @@ async function pruneGlobalAlerts(store: AlertStore): Promise<void> {
   }
 }
 
-async function pruneAllAlerts(store: AlertStore): Promise<void> {
+async function pruneAllAlerts<Stores extends AlertStores>(store: AlertStore<Stores>): Promise<void> {
   const owners = new Set<string>();
   let cursor = await store.index('by-owner-retention').openKeyCursor(null, 'nextunique');
   while (cursor) {
@@ -478,7 +479,7 @@ async function pruneAllAlerts(store: AlertStore): Promise<void> {
 }
 
 /** The first known owner claims browser-local history atomically with the read. */
-async function claimUnownedAlerts(store: AlertStore, ownerId: string): Promise<void> {
+async function claimUnownedAlerts<Stores extends AlertStores>(store: AlertStore<Stores>, ownerId: string): Promise<void> {
   if (!ownerId) return;
   let cursor = await store.index('by-owner-created').openCursor(ownerRange('monitoring:'));
   while (cursor) {
@@ -513,28 +514,41 @@ export interface LocalSession {
   syncedAt: string | null;
 }
 
+/** Commit the session and its browser history together, before exposing the profile. */
 export async function saveLocalSession(session: LocalSession): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(['local_session', 'profile_cache', 'alert_cache'], 'readwrite');
+  const sessions = tx.objectStore('local_session');
+  const alerts = tx.objectStore('alert_cache');
   try {
-    const db = await getDB();
-    await db.put('local_session', session);
+    const previous = await sessions.getAll();
+    const ownerId = session.profile.id;
+    for (const owner of new Set(previous.map(saved => saved.profile?.id))) {
+      if (!owner || owner === ownerId) continue;
+      let cursor = await alerts.index('by-owner-created').openCursor(ownerRange(`monitoring:${owner}`));
+      while (cursor) {
+        await cursor.update({ ...cursor.value, ownerId, cacheOwner: `monitoring:${ownerId}` });
+        cursor = await cursor.continue();
+      }
+    }
+    await tx.objectStore('profile_cache').put(session.profile);
+    await sessions.clear();
+    await sessions.put(session);
+    await tx.done;
   } catch (error) {
-    console.warn('[ClientDB] Failed to save session:', error);
+    try { tx.abort(); } catch { /* The failed request may already have aborted it. */ }
+    await tx.done.catch(() => {});
+    throw error;
   }
 }
 
+/** Storage failures must not be mistaken for a browser with no session. */
 export async function getLocalSession(): Promise<LocalSession | null> {
-  try {
-    const db = await getDB();
-    const sessions = await db.getAll('local_session');
-
-    const now = new Date().toISOString();
-    const validSession = sessions.find(s => s.expiresAt > now);
-
-    return validSession || null;
-  } catch (error) {
-    console.warn('[ClientDB] Failed to get session:', error);
-    return null;
-  }
+  const db = await getDB();
+  const sessions = await db.getAll('local_session');
+  const now = new Date().toISOString();
+  return sessions.filter(s => s.expiresAt > now)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] || null;
 }
 
 export async function clearLocalSession(): Promise<void> {
@@ -658,13 +672,14 @@ export async function cacheAlert(alert: any): Promise<void> {
 export async function getCachedAlerts(streamId?: string, ownerId = ''): Promise<any[]> {
   try {
     const db = await getDB();
-    const tx = db.transaction('alert_cache', 'readwrite');
-    await claimUnownedAlerts(tx.store, ownerId);
-    await pruneGlobalAlerts(tx.store);
+    const tx = db.transaction(['alert_cache', 'profile_cache'], 'readwrite');
+    const store = tx.objectStore('alert_cache');
+    if (ownerId && await tx.objectStore('profile_cache').get(ownerId)) await claimUnownedAlerts(store, ownerId);
+    await pruneGlobalAlerts(store);
     const alerts: SafeOSDB['alert_cache']['value'][] = [];
     for (const owner of ['shared', alertOwner({ monitoring: true, ownerId })]) {
-      await pruneOwnerAlerts(tx.store, owner);
-      let cursor = await tx.store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
+      await pruneOwnerAlerts(store, owner);
+      let cursor = await store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
       while (cursor) {
         if (!streamId || cursor.value.streamId === streamId) {
           alerts.push(cursor.value);
@@ -683,12 +698,13 @@ export async function getCachedAlerts(streamId?: string, ownerId = ''): Promise<
 export async function getCachedMonitoringAlerts(ownerId = ''): Promise<any[]> {
   const db = await getDB();
   const owner = alertOwner({ monitoring: true, ownerId });
-  const tx = db.transaction('alert_cache', 'readwrite');
-  await claimUnownedAlerts(tx.store, ownerId);
-  await pruneGlobalAlerts(tx.store);
-  await pruneOwnerAlerts(tx.store, owner);
+  const tx = db.transaction(['alert_cache', 'profile_cache'], 'readwrite');
+  const store = tx.objectStore('alert_cache');
+  if (ownerId && await tx.objectStore('profile_cache').get(ownerId)) await claimUnownedAlerts(store, ownerId);
+  await pruneGlobalAlerts(store);
+  await pruneOwnerAlerts(store, owner);
   const alerts: SafeOSDB['alert_cache']['value'][] = [];
-  let cursor = await tx.store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
+  let cursor = await store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
   while (cursor) {
     alerts.push(cursor.value);
     cursor = await cursor.continue();

@@ -15,8 +15,9 @@ import { BackendSettings } from '@/components/BackendSettings';
 import { ToastProvider } from '@/components/Toast';
 import { useSettingsStore } from '@/stores/settings-store';
 import { hydrateSavedSettings } from '@/lib/settings-hydration';
-import { useAuthStore } from '@/stores/auth-store';
+import { useAuthStore, suspendUnavailableSession } from '@/stores/auth-store';
 import { useMonitoringStore } from '@/stores/monitoring-store';
+import { getDatabaseNotice } from '@/lib/client-db';
 import { getSoundManager } from '@/lib/sound-manager';
 
 // =============================================================================
@@ -33,6 +34,13 @@ interface ProvidersProps {
 
 export function Providers({ children }: ProvidersProps) {
   const [showBackendSettings, setShowBackendSettings] = useState(false);
+
+  useEffect(() => {
+    const suspend = () => { if (getDatabaseNotice()) suspendUnavailableSession(); };
+    suspend();
+    window.addEventListener('safeos:database-status', suspend);
+    return () => window.removeEventListener('safeos:database-status', suspend);
+  }, []);
 
   const profile = useAuthStore((state) => state.profile);
   useEffect(() => { void useAuthStore.getState().initialize(); }, []);

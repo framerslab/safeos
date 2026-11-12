@@ -50,7 +50,12 @@ try {
             }, version: 0 }));
           });
           await context.route('https://pictures.example.test/**', request => request.fulfill({
-            contentType: 'application/json', body: JSON.stringify({ status: 'ok' }),
+            contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: {
+              sessionId: 'picture-session', token: 'picture-token', isGuest: false,
+              expiresAt: '2099-01-01T00:00:00Z', profile: {
+                id: 'picture-person', displayName: 'Picture person', preferences: {}, notificationSettings: {},
+              },
+            } }),
           }));
         }
         const page = await context.newPage();
@@ -119,6 +124,7 @@ try {
               await page.getByRole('button', { name: 'Reload SafeOS' }).waitFor();
               const notice = page.getByRole('alert').filter({ has: page.getByRole('button', { name: 'Reload SafeOS' }) });
               const words = scenario === 'blocked' ? 'Close other SafeOS tabs' : 'updated in another tab';
+              if (!(await notice.textContent()).includes('New alerts in this tab are not saved until you reload.')) throw new Error('Missing unsaved-alert disclosure');
               if (!(await notice.textContent()).includes(words)) throw new Error('Missing database update guidance');
               const contrast = await notice.evaluate(element => {
                 const luminance = color => {

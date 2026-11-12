@@ -16,7 +16,7 @@ const alert = (id: string, createdAt = new Date().toISOString()) => ({
   id, streamId: 'camera', severity: 'low' as const, message: id, createdAt, acknowledged: false,
 });
 function owner(id: string) {
-  useAuthStore.setState({ profile: { id } as any });
+  useAuthStore.setState({ profile: { id } as any, isInitialized: true });
   useMonitoringStore.setState({ alerts: [] });
 }
 beforeEach(async () => {

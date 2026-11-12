@@ -143,12 +143,16 @@ export default function PrivacyPage() {
                 if all remaining alerts are unacknowledged, the oldest leave first.
                 Alerts are never removed because of their age. Clearing your browser data removes everything.
                 Clear All Local Data also removes recorded sounds and the offline cache.
-                Signing out clears local records before another account can use the browser.
+                If your session expires and is replaced without signing out, your monitoring history
+                moves to the new profile and stays visible in Monitor, History, and History&apos;s offline export.
+                You can still dismiss or clear it. Signing out clears local records before another account can use the browser.
               </p>
               <p>
                 <strong className="text-white">Updates in other tabs:</strong> When another tab updates
                 the saved-history database, this tab closes its connection and asks you to reload SafeOS.
                 If an older tab blocks the update, close other SafeOS tabs, then reload this page.
+                While this notice is shown, new alerts in this tab are not saved and will be lost on reload.
+                Saved history becomes available after the database opens and session setup finishes.
               </p>
               <p>
                 <strong className="text-white">AI Processing:</strong> When you use AI features, 

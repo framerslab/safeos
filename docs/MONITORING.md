@@ -51,7 +51,8 @@ person and 500 alerts across all producers and owners in this browser. At either
 limit, acknowledged alerts are removed first, oldest first. Only when no
 acknowledged candidates remain are the oldest unacknowledged alerts removed.
 Thus newer acknowledged alerts can leave before an older unseen alert. Monitor's
-in-memory list follows the same rule. Protected history is shown in addition to
+in-memory list applies the 100-record per-person rule; changes caused by the shared
+500-record limit appear on its next history read. Protected history is shown in addition to
 these limits, so an existing browser can hold and display more than 500 alerts.
 
 Writes enforce both limits in the same transaction. Indexes separate protected
@@ -64,17 +65,28 @@ saved-before-upgrade marker.
 The version 4 (or 5) to 6 upgrade adds these indexes in place and preserves every
 existing alert and all other stores. Dates are normalized for indexing; unusable
 original dates remain on the record alongside a usable display date. Authentication
-initializes on every page, and the profile is persisted so direct loads and
-reloads use the same alert owner. Unowned browser history remains visible before
-sign-in; the first known owner to read it claims it in the same transaction as
-the read. Later owners cannot claim it again. Queued writes retain their captured
-owner, and a profile change reloads the displayed history. If a browser history
-read fails, the current owner's displayed alerts stay in place; the next read retries.
+initializes on every page. Alert readers wait for session setup to finish; a
+localStorage profile alone cannot claim history. The profile must be restored
+from or saved to IndexedDB before it becomes active. If the database cannot open,
+SafeOS does not create or adopt a replacement profile. Previously unowned history
+is claimed atomically by a database-backed profile when it reads the records.
+
+When a session expires or a profile changes without sign-out, saving the new
+session moves the previous browser session's monitoring records to the new
+profile in the same transaction. Dates, acknowledgements and upgrade protection
+stay intact. The records remain visible in Monitor, History's Local Timeline and
+History's offline export, and the new profile can dismiss or clear them.
+Explicit sign-out instead clears local data before another person can sign in.
+If a browser history read fails, the current owner's displayed alerts stay in
+place; the next read retries.
 
 An open connection closes when another tab requests a newer database version,
 and its page asks the person to reload SafeOS. A new tab blocked by an older tab
 shows “Close other SafeOS tabs, then reload this page to finish updating your saved
-history.” The opener settles instead of waiting indefinitely. The reload notice uses the app's light and dark palette, with readable text in both looks. Tabs running a
+history. New alerts in this tab are not saved until you reload.” Alerts received
+while either reload notice is shown are only in memory and are lost on reload.
+Existing saved history returns after the database opens and session setup finishes.
+The opener settles instead of waiting indefinitely. The reload notice uses the app's light and dark palette, with readable text in both looks. Tabs running a
 version from before this change may need to be closed manually. Browser-only data
 is not included in server exports; use History's local export for that data.
 

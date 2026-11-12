@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { openDB } from 'idb';
-import { cacheAlert, getCachedAlerts, getCachedMonitoringAlerts } from '@/lib/client-db';
+import { cacheAlert, getCachedAlerts, getCachedMonitoringAlerts, saveLocalSession } from '@/lib/client-db';
 import { useAuthStore } from '@/stores/auth-store';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 require('fake-indexeddb/auto');
@@ -23,7 +23,9 @@ it('upgrades a version 4 database in place and indexes its existing alerts', asy
   await old.put('alert_cache', { ...record, id: 'unindexed-date', createdAt: {} });
   await old.put('settings_cache', { key: 'saved', value: 'keep' });
   old.close();
-  useAuthStore.setState({ profile: { id: 'alice' } as any });
+  await saveLocalSession({ id: 'alice-session', token: 'local-alice', deviceId: null,
+    profile: { id: 'alice' }, createdAt: '2026-10-01T00:00:00Z', expiresAt: '2099-01-01T00:00:00Z', syncedAt: null });
+  await useAuthStore.getState().initialize();
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts).toHaveLength(302);
   expect(await getCachedAlerts(undefined, 'alice')).toEqual(expect.arrayContaining([expect.objectContaining(record)]));

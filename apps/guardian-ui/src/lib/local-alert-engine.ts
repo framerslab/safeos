@@ -549,6 +549,8 @@ class LocalAlertEngine {
 
   async acknowledgeAlert(alertId: string): Promise<void> {
     // Update in IndexedDB
+    await useAuthStore.getState().initialize();
+    if (!useAuthStore.getState().isInitialized) return;
     const alerts = await getCachedAlerts(undefined, useAuthStore.getState().profile?.id || '');
     const alert = alerts.find((a) => a.id === alertId);
     if (alert) {
@@ -559,6 +561,8 @@ class LocalAlertEngine {
   }
 
   async getRecentAlerts(limit = 50): Promise<LocalAlert[]> {
+    await useAuthStore.getState().initialize();
+    if (!useAuthStore.getState().isInitialized) return [];
     const cached = await getCachedAlerts(undefined, useAuthStore.getState().profile?.id || '');
     return cached.slice(0, limit).map((a) => ({
       id: a.id,

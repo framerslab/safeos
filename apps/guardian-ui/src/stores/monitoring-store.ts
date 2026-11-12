@@ -199,7 +199,14 @@ export const useMonitoringStore = create<MonitoringState>()(
           createdAt: alert.createdAt || alert.timestamp || new Date().toISOString(),
         };
         set((state) => ({ alerts: currentAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)], dated.ownerId) }));
-        writeAlerts(() => saveAlert(dated));
+        writeAlerts(async () => {
+          if (!useAuthStore.getState().isInitialized) {
+            await useAuthStore.getState().initialize();
+            if (!useAuthStore.getState().isInitialized) return;
+            dated.ownerId = currentOwner();
+          }
+          await saveAlert(dated);
+        });
       },
 
       removeAlert: (id) => {
@@ -222,6 +229,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       },
 
       hydrateAlerts: async () => {
+        await useAuthStore.getState().initialize();
+        if (!useAuthStore.getState().isInitialized) return;
         await alertWrites;
         const revision = alertRevision;
         const ownerId = currentOwner();

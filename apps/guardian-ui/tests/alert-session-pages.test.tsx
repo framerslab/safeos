@@ -58,6 +58,8 @@ beforeEach(() => {
   jest.doMock('react', () => React);
   global.indexedDB = new IDBFactory();
   localStorage.clear();
+  jest.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  jest.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {});
   global.fetch = jest.fn().mockRejectedValue(new TypeError('Offline'));
 });
 afterEach(() => { cleanup(); jest.restoreAllMocks(); });
@@ -115,7 +117,17 @@ it('waits for database session restoration before claiming ownerless history', a
   expect(monitoring.getState().alerts.every(a => a.ownerId === profile.id)).toBe(true);
 });
 
-it('keeps history visible, exportable and clearable after session expiry changes the profile', async () => {
+it.each(['local-only', 'server'])('keeps history visible, exportable and clearable after %s session expiry changes the profile', async (mode) => {
+  if (mode === 'server') {
+    localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://monitor.example.test', wsUrl: '' }));
+    global.fetch = jest.fn().mockImplementation(async (_url: string, options?: RequestInit) => ({
+      ok: true, json: async () => ({ status: 'ok', data: {
+        sessionId: options?.method === 'POST' ? 'renewed-session' : session.id,
+        token: 'server-token', isGuest: true, expiresAt: session.expiresAt,
+        profile: options?.method === 'POST' ? { ...profile, id: 'renewed-person' } : profile,
+      } }),
+    }));
+  }
   const old = await oldTab();
   old.close();
   const { Providers, History, auth, monitoring } = await app();
@@ -154,4 +166,42 @@ it('does not give the next person history after an explicit sign-out', async () 
   expect(auth.getState().profile?.id).not.toBe(profile.id);
   expect(monitoring.getState().alerts).toEqual([]);
   for (const id of ids) expect(screen.queryByText(id)).toBeNull();
+});
+
+it('initializes and hydrates history through Providers without page effects', async () => {
+  const old = await oldTab();
+  old.close();
+  const { Providers, auth, monitoring } = await app();
+  render(<Providers><p>App content</p></Providers>);
+  await waitFor(() => expect(monitoring.getState().alerts.map(a => a.id).sort()).toEqual([...ids].sort()));
+  expect(auth.getState().profile?.id).toBe(profile.id);
+});
+
+it('rolls back the history transfer when saving a replacement session fails', async () => {
+  const old = await oldTab();
+  old.close();
+  const { auth, monitoring } = await app();
+  await auth.getState().initialize();
+  await monitoring.getState().hydrateAlerts();
+  const put = IDBObjectStore.prototype.put;
+  jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+    if (this.name === 'local_session') throw new DOMException('Storage full', 'QuotaExceededError');
+    return put.apply(this, args);
+  });
+  await auth.getState().createSession();
+  expect(auth.getState().profile).toBeNull();
+  const db = await openDB('safeos-guardian');
+  expect((await db.getAll('alert_cache')).map((a: any) => a.ownerId)).toEqual(ids.map(() => profile.id));
+  expect(await db.getAll('local_session')).toEqual([session]);
+  db.close();
+});
+
+it('does not let a profile absent from the database claim unowned records', async () => {
+  const old = await oldTab();
+  old.close();
+  const { db } = await app();
+  expect(await db.getCachedMonitoringAlerts('not-saved')).toEqual([]);
+  const stored = await openDB('safeos-guardian');
+  expect((await stored.getAll('alert_cache')).every((a: any) => !a.ownerId)).toBe(true);
+  stored.close();
 });

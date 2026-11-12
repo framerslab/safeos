@@ -2,7 +2,7 @@
 import { openDB } from 'idb';
 import { useAuthStore } from '@/stores/auth-store';
 import { useMonitoringStore } from '@/stores/monitoring-store';
-import { cacheAlert, getCachedMonitoringAlerts, saveLocalSession } from '@/lib/client-db';
+import { cacheAlert, getCachedMonitoringAlerts, saveLocalSession, cacheProfile } from '@/lib/client-db';
 require('fake-indexeddb/auto');
 Object.defineProperty(global, 'structuredClone', { configurable: true, value: (value: unknown) =>
   require('v8').deserialize(require('v8').serialize(value)),
@@ -52,6 +52,8 @@ it('keeps direct Monitor history when the dashboard later establishes the owner'
 });
 it('claims unowned history once in a transaction when two known owners read together', async () => {
   await cacheAlert({ id: 'unowned', monitoring: true, createdAt: '2026-10-01T00:00:00Z' });
+  await cacheProfile({ id: 'first' });
+  await cacheProfile({ id: 'second' });
   const [first, second] = await Promise.all([
     getCachedMonitoringAlerts('first'), getCachedMonitoringAlerts('second'),
   ]);
