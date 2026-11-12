@@ -26,7 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resuming a guest profile with `POST /api/auth/session` needs that session's live token for the same device; the token is replaced in place.
 
 ### Fixed
-- Full server exports keep the newest limited rows and include total, included and truncated counts for streams, alerts and analysis results. Both profile and full exports redact write-only provider credentials from monitoring settings while preserving readable settings' JSON-string format and stored values.
+- Profile and full exports omit unreadable or non-object monitoring and user notification settings, report separate omission counts, and leave stored rows unchanged. The export page reports both kinds of omissions and states the single-kind record limits. Export guidance distinguishes notification-setting merges from whole monitoring-setting replacements.
+- Full server exports keep the newest limited rows and include total, included and truncated counts for streams, alerts and analysis results. Both profile and full exports redact provider credentials from monitoring settings while preserving readable settings' JSON-string format and stored values.
 - Profile and full exports include owned monitoring profiles and personal active choices by ownership, with matching export guidance and documented record limits. Profiles with unreadable settings remain included with null settings and a count of omitted settings; exporting leaves stored rows unchanged.
 - Full-export lists and their totals use the same database statement during monitoring writes. Profile and full downloads report omitted unreadable settings on the export page.
 - Push registration verifies the incoming session's live profile binding in the same write that saves the registration.

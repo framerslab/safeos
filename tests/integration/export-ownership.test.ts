@@ -57,7 +57,7 @@ describe.each(['profile', 'all'])('%s export ownership', (kind) => {
     const data = await exported();
     expect(data.monitoringProfiles).toEqual([expect.objectContaining({ id: 'independent-profile-id', owner_id: alice.profile.id, is_active: 1 })]);
   });
-  it('redacts write-only credentials from owned monitoring settings without changing their JSON format', async () => {
+  it('redacts credentials from owned monitoring settings without changing their JSON format', async () => {
     const settings = { motionSensitivity: 35, telegramBotToken: 'private-bot-value',
       smsOverride: { accountSid: 'account-id', authToken: 'private-sms-value', fromNumber: '+15555550100' },
       emailOverride: { apiKey: 'private-email-value', replyTo: 'person@example.test' } };
