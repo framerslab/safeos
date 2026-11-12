@@ -40,3 +40,14 @@ After source: `270c626b46ade54b166743f863eab78e2a853440`.
 [Session and database-notice pictures](https://github.com/framerslab/safeos/actions/runs/43160155758).
 The `session-after` files contain all twelve captures. Both notices pass the
 wording and 4.5:1 text-contrast checks at both widths and in both looks.
+
+## Browser and server storage wording
+
+The `privacy-after` pictures replace the earlier Privacy captures as the final
+after view. They show the complete retention, session-renewal, blocked-storage
+and browser-versus-server clearing guidance at 390 and 1280 px in both looks.
+Compare with `session-before/privacy-*` for the before view. The earlier
+`session-after` captures remain as the intermediate wording and the final Monitor notices.
+
+Final Privacy source: `c9fe1ab7588394b9b6bd452ac849f40c361d5661`.
+[Privacy picture run](https://github.com/framerslab/safeos/actions/runs/43161989850).
