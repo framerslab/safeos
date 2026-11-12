@@ -200,3 +200,20 @@ it('keeps a live alert through a failed save and retries it on the next history 
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['live-during-write-failure']);
   expect((await getCachedAlerts(undefined, 'alice')).map(a => a.id)).toEqual(['live-during-write-failure']);
 });
+
+it.each(['dismiss', 'clear'])('does not restore an unsaved live alert after %s', async (action) => {
+  const put = IDBObjectStore.prototype.put;
+  const failingWrite = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+    if (this.name === 'alert_cache') throw new DOMException('Storage full', 'QuotaExceededError');
+    return put.apply(this, args);
+  });
+  useMonitoringStore.getState().addAlert(alert('unsaved-to-remove'));
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['unsaved-to-remove']);
+  if (action === 'dismiss') useMonitoringStore.getState().removeAlert('unsaved-to-remove');
+  else useMonitoringStore.getState().clearAlerts();
+  failingWrite.mockRestore();
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts).toEqual([]);
+  expect(await getCachedAlerts(undefined, 'alice')).toEqual([]);
+});
