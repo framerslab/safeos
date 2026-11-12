@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 import { openDB } from 'idb';
-import { cacheAlert, getCachedAlerts, queueSyncAction } from '@/lib/client-db';
+import { cacheAlert, getCachedAlerts, getCachedMonitoringAlerts, queueSyncAction } from '@/lib/client-db';
 import { localAlertEngine } from '@/lib/local-alert-engine';
 import { syncPendingActions } from '@/lib/sync-service';
 require('fake-indexeddb/auto');
@@ -41,4 +41,21 @@ it('caches acknowledgement responses from the API with their original age and sh
   expect(await db.get('alert_cache', 'synced-expired')).toBeUndefined();
   expect(await db.count('alert_cache')).toBe(500);
   db.close();
+});
+
+it('keeps monitoring ownership and history when sync updates an acknowledgement', async () => {
+  localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://api.example.test' }));
+  const createdAt = new Date().toISOString();
+  await cacheAlert({ id: 'monitor-synced', monitoring: true, ownerId: 'alice', streamId: 'camera',
+    message: 'Motion', createdAt, acknowledged: false, thumbnailUrl: 'data:image/png;base64,example' });
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ alert: {
+    id: 'monitor-synced', stream_id: 'camera', created_at: createdAt, acknowledged: 1,
+  } }) });
+  await queueSyncAction({ action: 'acknowledge_alert', endpoint: '/api/alerts/monitor-synced/acknowledge', method: 'POST', body: null });
+  expect(await syncPendingActions()).toEqual({ synced: 1, failed: 0, pending: 0 });
+  expect(await getCachedMonitoringAlerts('alice')).toEqual([expect.objectContaining({
+    id: 'monitor-synced', ownerId: 'alice', acknowledged: true, createdAt,
+    thumbnailUrl: 'data:image/png;base64,example',
+  })]);
+  expect(await getCachedMonitoringAlerts('bob')).toEqual([]);
 });
