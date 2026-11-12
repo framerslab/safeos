@@ -231,7 +231,7 @@ SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
             </table>
           </div>
           <p className="text-xs text-slate-400 mt-3">
-            Quiet hours suppress non-critical alerts. Critical events always come through.
+            Quiet hours skip delivery of low and medium alerts. High and critical alerts bypass quiet hours.
           </p>
         </Card>
 

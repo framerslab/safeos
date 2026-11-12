@@ -693,7 +693,7 @@ export default function SettingsPage() {
                     />
                     <div>
                       <p className="text-white">Quiet Hours</p>
-                      <p className="text-xs text-slate-500">Skips delivery of low and medium alerts on the server during your selected local times and days. They remain in the app and are not sent later. High and critical alerts are always sent.</p>
+                      <p className="text-xs text-slate-500">Skips delivery of low and medium alerts on the server during your selected local times and days. They remain in the app and are not sent later. High and critical alerts bypass quiet hours.</p>
                     </div>
                   </label>
 

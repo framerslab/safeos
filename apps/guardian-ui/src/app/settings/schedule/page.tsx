@@ -352,8 +352,8 @@ export default function ScheduleSettingsPage() {
             Important
           </h3>
           <p className="text-sm text-slate-400">
-            Emergency alerts will always sound at full volume, regardless of quiet hours settings.
-            This ensures critical situations are never missed.
+            High and critical alerts bypass quiet hours on the server.
+            Delivery still depends on channel settings and availability.
           </p>
         </div>
 
