@@ -532,7 +532,7 @@ Send a test payload.
 All export routes: **signed in** with the `X-Session-Token` header, the caller's own data only. An expired session gets `401`.
 
 #### GET /api/export/alerts
-Export alerts as JSON or CSV.
+Export up to 10,000 owned alerts as JSON or CSV.
 
 **Query Parameters:**
 - `format` - `json` or `csv`
@@ -540,16 +540,47 @@ Export alerts as JSON or CSV.
 - `endDate` - ISO date
 
 #### GET /api/export/analysis
-Export analysis results.
+Export up to 10,000 owned analysis results as JSON or CSV.
 
 #### GET /api/export/streams
-Export stream history.
+Export up to 1,000 owned streams as JSON or CSV.
 
 #### GET /api/export/profile
-Export user profile and settings.
+Export the user profile and settings in `data`, including:
+
+- `monitoringProfiles`: every monitoring profile whose `owner_id` is the caller,
+  independent of its identifier. `is_active` reflects that caller's personal
+  choice for the scenario, rather than the legacy flag on the shared row.
+- `activeMonitoringProfiles`: the caller's rows from the personal choices table,
+  ordered by scenario, with `owner_id`, `scenario`, and `monitoring_profile_id`.
+  Built-in default selections and explicit `null` selections are retained.
+- `notifications`: the caller's push subscription endpoints and Telegram chats.
+
+Unowned defaults are not exported as owned profiles. Another person's profiles
+and active choices are excluded. Provider secrets remain redacted.
+
+If a monitoring profile's stored settings are not valid JSON (including an empty
+string), the profile is still included with `settings: null`. Unreadable settings
+cannot be safely redacted and are never passed through. `monitoringSettingsOmitted`
+reports the number of these profiles, or `0` when all settings can be read. This
+field is in `data` for the profile export and at the top level for the full export.
+Other rows are exported as usual, and stored settings are not changed.
 
 #### GET /api/export/all
-Export all user data (GDPR compliant).
+Download a JSON object containing `profile`, `sessions`, `streams`, `alerts`,
+`analysisResults`, `monitoringProfiles`, and `activeMonitoringProfiles`.
+Monitoring profiles and choices use the same ownership rules and fields as
+`/api/export/profile`. Sessions omit tokens. Streams are capped at 1,000;
+alerts and analysis results are each capped at 5,000. Each limited list keeps the
+newest rows first (`created_at` descending, then `id` descending for ties).
+`counts.streams`, `counts.alerts`, and `counts.analysisResults` each contain
+`total` (all rows owned by this person), `included` (rows in the export), and
+`truncated` (`true` when `total` exceeds `included`). These counts cover all owned
+streams, including alerts or analysis from streams outside the exported stream
+list. For example, an alert total of 5,001 produces `{ "total": 5001,
+"included": 5000, "truncated": true }`; exporting does not remove the omitted rows
+from the server. Monitoring profiles and personal choices have no export count cap. This is server data only: browser
+history is exported separately from History's local timeline.
 
 ---
 
@@ -807,8 +838,11 @@ Personal credentials are supported in `notificationSettings`:
 - `telegramBotToken`: a personal bot token, used with the owner's registered chats.
 
 The same profile route saves these credentials, but they are write-only. Profile,
-session and data-export responses omit `smsOverride.authToken`,
-`emailOverride.apiKey` and `telegramBotToken`. They return `hasAuthToken` and
+session and data-export responses, including monitoring-profile settings in both
+profile and full exports, omit `smsOverride.authToken`,
+`emailOverride.apiKey` and `telegramBotToken`. Readable exported monitoring settings
+remain a JSON string; unreadable settings become `null` as described above.
+Exporting does not change the stored credentials. Redacted settings return `hasAuthToken` and
 `hasApiKey` inside the corresponding override and `hasBotToken` alongside them.
 Saving these presence flags back preserves the omitted credentials. Database
 access still exposes the stored secrets. Clear `emailOverride` or `smsOverride` with `{}` and

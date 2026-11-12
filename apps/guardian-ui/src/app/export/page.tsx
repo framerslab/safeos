@@ -92,14 +92,14 @@ const EXPORT_OPTIONS: ExportOption[] = [
   {
     id: 'profile',
     label: 'Profile & Settings',
-    description: 'Your profile, preferences, and notification settings',
+    description: 'Your profile, preferences, notification settings, monitoring profiles and active choices',
     icon: exportIcons.profile,
     formats: ['json'],
   },
   {
     id: 'all',
     label: 'Full Data Export',
-    description: 'Complete data export (GDPR compliant)',
+    description: 'Your account profile, sessions, streams, alerts, analysis and monitoring settings',
     icon: exportIcons.all,
     formats: ['json'],
   },
@@ -356,9 +356,9 @@ export default function ExportPage() {
             <div>
               <h3 className="font-medium text-blue-300 mb-1">Your Data, Your Control</h3>
               <p className="text-sm text-slate-400">
-                Exports include all data associated with your account. The &quot;Full Data Export&quot;
-                option provides a complete download of all your information as required by
-                GDPR and CCPA regulations.
+                Server exports contain your account data. Full Data Export includes your profile,
+                sessions, owned monitoring settings and active choices, plus up to 1,000 streams
+                and 5,000 each of alerts and analysis results. Export browser-only history from History.
               </p>
             </div>
           </div>

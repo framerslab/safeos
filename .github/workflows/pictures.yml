@@ -33,7 +33,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/
+  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/
 
 jobs:
   pictures:
@@ -51,6 +51,15 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ matrix.version == 'before' && github.event.pull_request.base.sha || (github.event_name == 'workflow_dispatch' && inputs.ref || '') }}
+
+      # Both versions use the same session fixture and capture script.
+      - name: Use the pull request capture script
+        if: github.event_name == 'pull_request'
+        env:
+          CAPTURE_REF: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch origin "$CAPTURE_REF"
+          git show "$CAPTURE_REF:apps/guardian-ui/scripts/capture-pictures.mjs" > scripts/capture-pictures.mjs
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
