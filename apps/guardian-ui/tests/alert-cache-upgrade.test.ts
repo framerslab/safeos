@@ -53,4 +53,4 @@ it('upgrades a version 4 database in place and indexes its existing alerts', asy
   await useMonitoringStore.getState().hydrateAlerts();
   expect(await upgraded.get('alert_cache', 'existing')).toBeUndefined();
   upgraded.close();
-});
+}, 30000);

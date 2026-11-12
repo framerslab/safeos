@@ -118,6 +118,19 @@ try {
               const notice = page.getByRole('alert').filter({ has: page.getByRole('button', { name: 'Reload SafeOS' }) });
               const words = scenario === 'blocked' ? 'Close other SafeOS tabs' : 'updated in another tab';
               if (!(await notice.textContent()).includes(words)) throw new Error('Missing database update guidance');
+              const contrast = await notice.evaluate(element => {
+                const luminance = color => {
+                  const channels = color.match(/[\d.]+/g).slice(0, 3).map(Number).map(value => {
+                    const channel = value / 255;
+                    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+                  });
+                  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+                };
+                const foreground = luminance(getComputedStyle(element.querySelector('p')).color);
+                const background = luminance(getComputedStyle(element).backgroundColor);
+                return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+              });
+              if (contrast < 4.5) throw new Error(`Database notice contrast ${contrast.toFixed(2)} is below 4.5`);
             }
             await page.screenshot({ path: path.join(outDir, `monitor-${scenario}-${size.width}-${look}.png`), fullPage: true });
           } catch (err) {
