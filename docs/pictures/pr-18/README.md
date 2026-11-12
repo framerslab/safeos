@@ -9,6 +9,7 @@ for pull request #18 at 390 and 1280 pixels, in the light and dark looks.
 Both builds use the same signed-in fixture and export-page capture script.
 The before pictures show the previous option descriptions; the after pictures
 state the record limits for alerts, analysis results and stream history.
-These pictures show the page before a download; omission notices are covered
-by the export-page tests. Only export-page images from the workflow artifacts
-are included here.
+The initial-page pictures show the option descriptions. The capture script also
+downloads a profile fixture with both omission counts to show the notice in both
+builds. The export-page tests cover either, both and no omitted settings in both
+export endpoints. Only export-page images from workflow artifacts are included here.
