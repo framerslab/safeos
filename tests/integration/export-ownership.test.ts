@@ -70,3 +70,30 @@ describe.each(['profile', 'all'])('%s export ownership', (kind) => {
     expect(JSON.stringify(data)).not.toContain(bob.profile.id);
   });
 });
+
+
+it('keeps the newest full-export rows and reports totals and included counts for every limited kind', async () => {
+  await db.exec('BEGIN');
+  try {
+    for (let i = 0; i < 1001; i++) {
+      const created = new Date(Date.UTC(2026, 0, 1) + i * 1000).toISOString();
+      await db.run("INSERT INTO streams (id, user_id, scenario, started_at, created_at) VALUES (?, ?, 'baby', ?, ?)",
+        [`export-stream-${i}`, alice.profile.id, created, created]);
+    }
+    for (let i = 0; i < 5001; i++) {
+      const created = new Date(Date.UTC(2026, 0, 1) + i * 1000).toISOString();
+      await db.run("INSERT INTO alerts (id, stream_id, alert_type, severity, message, created_at) VALUES (?, 'export-stream-0', 'motion', 'low', 'Saved alert', ?)", [`export-alert-${i}`, created]);
+      await db.run("INSERT INTO analysis_results (id, stream_id, concern_level, description, created_at) VALUES (?, 'export-stream-0', 'low', 'Saved analysis', ?)", [`export-analysis-${i}`, created]);
+    }
+    await db.exec('COMMIT');
+  } catch (error) { await db.exec('ROLLBACK'); throw error; }
+  const response = await request(server.getApp()).get('/api/export/all')
+    .set('X-Forwarded-For', `198.51.100.${++client}`).set('X-Session-Token', alice.token);
+  expect(response.status).toBe(200);
+  for (const [kind, prefix, limit] of [['streams', 'stream', 1000], ['alerts', 'alert', 5000], ['analysisResults', 'analysis', 5000]] as const) {
+    expect(response.body[kind]).toHaveLength(limit);
+    expect(response.body[kind][0].id).toBe(`export-${prefix}-${limit}`);
+    expect(response.body[kind].at(-1).id).toBe(`export-${prefix}-1`);
+    expect(response.body.counts[kind]).toEqual({ total: limit + 1, included: limit, truncated: true });
+  }
+}, 30000);

@@ -49,17 +49,17 @@ it('keeps exactly 100 monitoring records for each owner independently', async ()
   db.close();
 });
 
-it('expires shared and monitoring records after 24 hours even without new alerts', async () => {
+it('keeps shared and monitoring records regardless of age without new alerts', async () => {
   const start = Date.now();
   await cacheAlert(alert('engine-old', new Date(start).toISOString()));
   useMonitoringStore.getState().addAlert(alert('monitor-old', new Date(start).toISOString()));
   await useMonitoringStore.getState().hydrateAlerts();
   jest.spyOn(Date, 'now').mockReturnValue(start + DAY + 1);
   await useMonitoringStore.getState().hydrateAlerts();
-  expect(useMonitoringStore.getState().alerts).toEqual([]);
-  expect(await getCachedAlerts()).toEqual([]);
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['monitor-old']);
+  expect((await getCachedAlerts(undefined, 'alice')).map(a => a.id).sort()).toEqual(['engine-old', 'monitor-old']);
   const db = await openDB('safeos-guardian');
-  expect(await db.count('alert_cache')).toBe(0);
+  expect(await db.count('alert_cache')).toBe(2);
   db.close();
 });
 
@@ -102,13 +102,13 @@ it('keeps the owner captured before a queued write runs', async () => {
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['queued-alice']);
 });
 
-it('removes expired records on write without needing a cleanup call', async () => {
+it('keeps old records on write without an age cutoff', async () => {
   const expired = new Date(Date.now() - DAY - 1).toISOString();
   await cacheAlert(alert('old-shared', expired));
   useMonitoringStore.getState().addAlert(alert('old-monitor', expired));
   await useMonitoringStore.getState().hydrateAlerts();
   const db = await openDB('safeos-guardian');
-  expect(await db.count('alert_cache')).toBe(0);
+  expect(await db.count('alert_cache')).toBe(2);
   db.close();
 });
 
@@ -127,7 +127,7 @@ it('limits generic readers and acknowledgements to shared and current-owner hist
   db.close();
 });
 
-it('expires every owner and shared history on a monitoring-only read', async () => {
+it('keeps every owner and shared history on a later monitoring-only read', async () => {
   const start = Date.now();
   await cacheAlert(alert('shared-expiring', new Date(start).toISOString()));
   for (const id of ['alice', 'bob']) {
@@ -135,8 +135,39 @@ it('expires every owner and shared history on a monitoring-only read', async () 
   }
   jest.spyOn(Date, 'now').mockReturnValue(start + DAY + 1);
   await useMonitoringStore.getState().hydrateAlerts();
-  expect(useMonitoringStore.getState().alerts).toEqual([]);
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-expiring']);
   const db = await openDB('safeos-guardian');
-  expect(await db.count('alert_cache')).toBe(0);
+  expect(await db.count('alert_cache')).toBe(3);
+  db.close();
+});
+
+
+it('keeps an early unseen critical alert in memory and storage ahead of acknowledged alerts', async () => {
+  const created = Date.now() - 30 * DAY;
+  useMonitoringStore.getState().addAlert({ ...alert('unseen', new Date(created).toISOString()), severity: 'critical' });
+  for (let i = 0; i < 100; i++) useMonitoringStore.getState().addAlert({
+    ...alert(`seen-${i}`, new Date(created + i + 1).toISOString()), acknowledged: true,
+  });
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toContain('unseen');
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).not.toContain('seen-0');
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toContain('unseen');
+  const db = await openDB('safeos-guardian');
+  expect(await db.get('alert_cache', 'unseen')).toBeDefined();
+  expect(await db.get('alert_cache', 'seen-0')).toBeUndefined();
+  expect(await db.count('alert_cache')).toBe(100);
+  db.close();
+});
+
+it('trims acknowledged shared records first, then oldest unseen records only when necessary', async () => {
+  const created = Date.now() - 30 * DAY;
+  for (let i = 0; i < 500; i++) await cacheAlert(alert(`unseen-${i}`, new Date(created + i).toISOString()));
+  await cacheAlert({ ...alert('seen-new'), acknowledged: true });
+  const db = await openDB('safeos-guardian');
+  expect(await db.get('alert_cache', 'seen-new')).toBeUndefined();
+  expect(await db.get('alert_cache', 'unseen-0')).toBeDefined();
+  await cacheAlert(alert('unseen-new'));
+  expect(await db.get('alert_cache', 'unseen-0')).toBeUndefined();
+  expect(await db.get('alert_cache', 'unseen-1')).toBeDefined();
   db.close();
 });
