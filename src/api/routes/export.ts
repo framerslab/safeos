@@ -308,11 +308,7 @@ exportRouter.get('/profile', async (req, res) => {
       [session.profile_id]
     );
 
-    // Get user's monitoring profiles
-    const monitoringProfiles = await db.all(
-      `SELECT * FROM monitoring_profiles WHERE id LIKE ?`,
-      [`%${session.profile_id}%`]
-    );
+    const monitoring = await getMonitoringExport(db, session.profile_id);
 
     // Get notification settings
     const pushSubscriptions = await db.all(
@@ -329,7 +325,7 @@ exportRouter.get('/profile', async (req, res) => {
       success: true,
       data: {
         profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
-        monitoringProfiles,
+        ...monitoring,
         notifications: {
           pushSubscriptions,
           telegramChats,
@@ -375,36 +371,46 @@ exportRouter.get('/all', async (req, res) => {
       [session.profile_id]
     );
 
-    // User-scoped queries
-    const streams = await db.all(
-      `SELECT * FROM streams WHERE user_id = ? LIMIT 1000`,
+    // Each list and its total share one statement's snapshot during live writes.
+    const streams = await db.all<CountedExportRow>(
+      `SELECT *, COUNT(*) OVER() AS export_total FROM streams
+       WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1000`,
       [session.profile_id]
     );
 
-    const alerts = await db.all(
-      `SELECT a.* FROM alerts a
+    const alerts = await db.all<CountedExportRow>(
+      `SELECT a.*, COUNT(*) OVER() AS export_total FROM alerts a
        INNER JOIN streams s ON a.stream_id = s.id
        WHERE s.user_id = ?
+       ORDER BY a.created_at DESC, a.id DESC
        LIMIT 5000`,
       [session.profile_id]
     );
 
-    const analysisResults = await db.all(
-      `SELECT ar.* FROM analysis_results ar
+    const analysisResults = await db.all<CountedExportRow>(
+      `SELECT ar.*, COUNT(*) OVER() AS export_total FROM analysis_results ar
        INNER JOIN streams s ON ar.stream_id = s.id
        WHERE s.user_id = ?
+       ORDER BY ar.created_at DESC, ar.id DESC
        LIMIT 5000`,
       [session.profile_id]
     );
 
+    const monitoring = await getMonitoringExport(db, session.profile_id);
     const exportData = {
+      counts: {
+        streams: exportCounts(streams),
+        alerts: exportCounts(alerts),
+        analysisResults: exportCounts(analysisResults),
+      },
+      ...monitoring,
       exportedAt: new Date().toISOString(),
       exportType: 'full_data_export',
       profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
       sessions,
-      streams,
-      alerts,
-      analysisResults,
+      streams: withoutExportTotals(streams),
+      alerts: withoutExportTotals(alerts),
+      analysisResults: withoutExportTotals(analysisResults),
     };
 
     res.setHeader('Content-Type', 'application/json');
@@ -419,6 +425,17 @@ exportRouter.get('/all', async (req, res) => {
 // =============================================================================
 // Helpers
 // =============================================================================
+
+type CountedExportRow = Record<string, unknown> & { export_total: number };
+
+function exportCounts(rows: CountedExportRow[]) {
+  const total = rows[0]?.export_total ?? 0;
+  return { total, included: rows.length, truncated: total > rows.length };
+}
+
+function withoutExportTotals(rows: CountedExportRow[]) {
+  return rows.map(({ export_total: _total, ...row }) => row);
+}
 
 function convertToCSV(data: Record<string, unknown>[], columns: string[]): string {
   if (data.length === 0) {
@@ -453,22 +470,43 @@ function convertToCSV(data: Record<string, unknown>[], columns: string[]): strin
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Export ownership and personal choices use the same scope as profile reads. */
+async function getMonitoringExport(
+  db: Awaited<ReturnType<typeof getSafeOSDatabase>>,
+  ownerId: string
+) {
+  const monitoringProfiles = await db.all<{
+    id: string; name: string; scenario: string; settings: string;
+    created_at: string; owner_id: string; is_active: number;
+  }>(
+    `SELECT p.id, p.name, p.scenario, p.settings, p.created_at, p.owner_id,
+      CASE WHEN a.monitoring_profile_id = p.id THEN 1 ELSE 0 END AS is_active
+     FROM monitoring_profiles p
+     LEFT JOIN active_monitoring_profiles a
+       ON a.owner_id = p.owner_id AND a.scenario = p.scenario
+     WHERE p.owner_id = ? ORDER BY p.scenario, p.id`,
+    [ownerId]
+  );
+  const activeMonitoringProfiles = await db.all(
+    `SELECT owner_id, scenario, monitoring_profile_id FROM active_monitoring_profiles
+     WHERE owner_id = ? ORDER BY scenario`,
+    [ownerId]
+  );
+  let monitoringSettingsOmitted = 0;
+  const sanitizedProfiles = monitoringProfiles.map((profile) => {
+    let settings;
+    try {
+      settings = JSON.parse(profile.settings);
+    } catch {
+      // Unreadable settings cannot be redacted safely. Keep the profile only.
+      monitoringSettingsOmitted += 1;
+      return { ...profile, settings: null };
+    }
+    return { ...profile, settings: JSON.stringify(redactNotificationSettings(settings)) };
+  });
+  return {
+    monitoringProfiles: sanitizedProfiles,
+    monitoringSettingsOmitted,
+    activeMonitoringProfiles,
+  };
+}

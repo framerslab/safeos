@@ -41,6 +41,23 @@ try {
           colorScheme: look,
           deviceScaleFactor: 1,
         });
+        if (route === '/export/') {
+          // Render the signed-in server export screen in both base and head builds.
+          await context.addInitScript(() => {
+            localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://pictures.example.test' }));
+            localStorage.setItem('safeos-auth', JSON.stringify({ state: {
+              isInitialized: true, isAuthenticated: true, sessionToken: 'picture-session',
+            }, version: 0 }));
+          });
+          await context.route('https://pictures.example.test/**', request => request.fulfill({
+            contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: {
+              sessionId: 'picture-session', token: 'picture-token', isGuest: false,
+              expiresAt: '2099-01-01T00:00:00Z', profile: {
+                id: 'picture-person', displayName: 'Picture person', preferences: {}, notificationSettings: {},
+              },
+            } }),
+          }));
+        }
         const page = await context.newPage();
         const url = new URL(route, baseUrl).toString();
         const file = path.join(outDir, `${slug(route)}-${size.width}-${look}.png`);
@@ -49,7 +66,15 @@ try {
           if (!response || !response.ok()) {
             throw new Error(`HTTP ${response ? response.status() : 'no response'}`);
           }
-          await page.screenshot({ path: file, fullPage: true });
+          if (route === '/export/') {
+            await page.getByRole('button', { name: 'Download Export' }).waitFor();
+            const exportContent = page.locator('#main-content > div').filter({
+              has: page.getByRole('heading', { name: 'Export Data', exact: true }),
+            });
+            await exportContent.screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
+          } else {
+            await page.screenshot({ path: file, fullPage: true });
+          }
           console.log(`captured ${file}`);
         } catch (err) {
           failures += 1;
