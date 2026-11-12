@@ -205,3 +205,13 @@ it('does not let a profile absent from the database claim unowned records', asyn
   expect((await stored.getAll('alert_cache')).every((a: any) => !a.ownerId)).toBe(true);
   stored.close();
 });
+
+it('restores profile edits saved separately by earlier versions', async () => {
+  const old = await oldTab();
+  old.close();
+  const { auth, db } = await app();
+  await db.cacheProfile({ ...profile, displayName: 'Saved name', preferences: { alertVolume: 0.2 } });
+  await auth.getState().initialize();
+  expect(auth.getState().profile).toMatchObject({ displayName: 'Saved name', preferences: { alertVolume: 0.2 } });
+  expect((await db.getLocalSession())?.profile.displayName).toBe('Saved name');
+});

@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
   getLocalSession,
+  getCachedProfile,
   saveLocalSession,
   type LocalSession,
 } from '../lib/client-db';
@@ -167,7 +168,9 @@ export const useAuthStore = create<AuthState>()(
                 return;
               }
               if (!response) {
-                await adoptSession(localSession, true, 'local-only');
+                // Earlier versions saved profile edits separately from the session.
+                const cached = await getCachedProfile(localSession.profile.id);
+                await adoptSession({ ...localSession, profile: { ...localSession.profile, ...cached } }, true, 'local-only');
                 return;
               }
             }
