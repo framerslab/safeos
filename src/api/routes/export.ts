@@ -485,5 +485,11 @@ async function getMonitoringExport(
      WHERE owner_id = ? ORDER BY scenario`,
     [ownerId]
   );
-  return { monitoringProfiles, activeMonitoringProfiles };
+  return {
+    monitoringProfiles: monitoringProfiles.map((profile) => ({
+      ...profile,
+      settings: JSON.stringify(redactNotificationSettings(JSON.parse(String(profile.settings || '{}')))),
+    })),
+    activeMonitoringProfiles,
+  };
 }

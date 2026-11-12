@@ -35,3 +35,8 @@ The `session-before` pictures show Privacy and both Monitor reload notices at
 The picture run is https://github.com/framerslab/safeos/actions/runs/43158706583.
 The follow-up captures show the session-renewal explanation and the notice that
 alerts received in a tab awaiting reload are not saved.
+
+After source: `270c626b46ade54b166743f863eab78e2a853440`.
+[Session and database-notice pictures](https://github.com/framerslab/safeos/actions/runs/43160155758).
+The `session-after` files contain all twelve captures. Both notices pass the
+wording and 4.5:1 text-contrast checks at both widths and in both looks.

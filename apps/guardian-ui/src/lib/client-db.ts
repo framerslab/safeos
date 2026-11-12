@@ -377,10 +377,11 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
             const record = cursor.value;
             const rawDate = record.createdAt || record.syncedAt || new Date().toISOString();
             const timestamp = typeof rawDate === 'string' ? Date.parse(rawDate) : NaN;
+            const originalTimestamp = typeof record.createdAt === 'string' ? Date.parse(record.createdAt) : NaN;
             // Keep even undated history, including its original date value.
             await cursor.update({
               ...record,
-              ...(!Number.isFinite(timestamp) ? { originalCreatedAt: record.createdAt } : {}),
+              ...(!Number.isFinite(originalTimestamp) ? { originalCreatedAt: record.createdAt } : {}),
               createdAt: new Date(Number.isFinite(timestamp) ? timestamp : Date.now()).toISOString(),
               cacheOwner: alertOwner(record),
               savedBeforeUpgrade: true,
@@ -625,7 +626,7 @@ export async function getCachedStreams(): Promise<any[]> {
 // Alert Cache
 // =============================================================================
 
-export async function cacheAlert(alert: any): Promise<void> {
+export async function cacheAlert(alert: any): Promise<boolean> {
   try {
     const db = await getDB();
     const tx = db.transaction('alert_cache', 'readwrite');
@@ -663,8 +664,10 @@ export async function cacheAlert(alert: any): Promise<void> {
     await pruneOwnerAlerts(tx.store, cacheOwner);
     await pruneGlobalAlerts(tx.store);
     await tx.done;
+    return true;
   } catch (error) {
     console.warn('[ClientDB] Failed to cache alert:', error);
+    return false;
   }
 }
 

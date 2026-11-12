@@ -78,7 +78,10 @@ stay intact. The records remain visible in Monitor, History's Local Timeline and
 History's offline export, and the new profile can dismiss or clear them.
 Explicit sign-out instead clears local data before another person can sign in.
 If a browser history read fails, the current owner's displayed alerts stay in
-place; the next read retries.
+place; the next read retries. A failed alert save also keeps that alert in the live
+list and History's offline export, and the next history read retries the save.
+Dismiss and clear remove pending saves too. An alert that has not been saved
+cannot survive closing or reloading the tab.
 
 An open connection closes when another tab requests a newer database version,
 and its page asks the person to reload SafeOS. A new tab blocked by an older tab

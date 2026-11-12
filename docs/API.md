@@ -831,8 +831,10 @@ Personal credentials are supported in `notificationSettings`:
 - `telegramBotToken`: a personal bot token, used with the owner's registered chats.
 
 The same profile route saves these credentials, but they are write-only. Profile,
-session and data-export responses omit `smsOverride.authToken`,
-`emailOverride.apiKey` and `telegramBotToken`. They return `hasAuthToken` and
+session and data-export responses, including monitoring-profile settings in both
+profile and full exports, omit `smsOverride.authToken`,
+`emailOverride.apiKey` and `telegramBotToken`. Exported monitoring settings remain a JSON string, and exporting does not change
+the stored credentials. Redacted settings return `hasAuthToken` and
 `hasApiKey` inside the corresponding override and `hasBotToken` alongside them.
 Saving these presence flags back preserves the omitted credentials. Database
 access still exposes the stored secrets. Clear `emailOverride` or `smsOverride` with `{}` and

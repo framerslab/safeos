@@ -52,6 +52,10 @@ it('upgrades a version 4 database in place and indexes its existing alerts', asy
   for (let i = 0; i < 505; i++) await cacheAlert({ id: `shared-${i}`, acknowledged: true });
   expect((await upgraded.getAll('alert_cache')).filter((a: any) => a.savedBeforeUpgrade)).toHaveLength(304);
   expect(await upgraded.count('alert_cache')).toBe(804);
+  // Protection belongs to the saved record, including through an owner change.
+  await cacheAlert({ ...record, ownerId: 'bob' });
+  expect(await upgraded.get('alert_cache', 'existing')).toMatchObject({ ownerId: 'bob', savedBeforeUpgrade: true, retentionClass: 'saved' });
+  await cacheAlert({ ...record, ownerId: 'alice' });
   useMonitoringStore.getState().acknowledgeAlert('existing');
   await useMonitoringStore.getState().hydrateAlerts();
   expect(await upgraded.get('alert_cache', 'existing')).toMatchObject({ savedBeforeUpgrade: true });

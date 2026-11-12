@@ -9,6 +9,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from './auth-store';
+import { getLocalDataGeneration, isCurrentLocalData } from '../lib/local-data-generation';
 import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, getDatabaseNotice, MAX_MONITORING_ALERTS } from '../lib/client-db';
 
 // =============================================================================
@@ -126,9 +127,13 @@ const DEFAULT_SETTINGS: MonitoringSettings = {
 // an earlier save that is still waiting for IndexedDB to open.
 let alertWrites: Promise<void> = Promise.resolve();
 let alertRevision = 0;
-function writeAlerts(write: () => Promise<void>) {
-  alertRevision++;
-  alertWrites = alertWrites.then(write).catch((error) => {
+const unsavedAlerts = new Map<string, Alert>();
+function writeAlerts(write: () => Promise<void>, revise = true) {
+  if (revise) alertRevision++;
+  const generation = getLocalDataGeneration();
+  alertWrites = alertWrites.then(async () => {
+    if (isCurrentLocalData(generation)) await write();
+  }).catch((error) => {
     console.warn('[Monitoring] Could not save alert history:', error);
   });
 }
@@ -151,8 +156,25 @@ function currentAlerts(alerts: Alert[], ownerId: string): Alert[] {
   const removed = new Set(candidates.slice(0, Math.max(0, candidates.length - MAX_MONITORING_ALERTS)).map(a => a.id));
   return owned.filter(alert => !removed.has(alert.id));
 }
-function saveAlert(alert: Alert) {
-  return cacheAlert({ ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
+function pendingKey(alert: Pick<Alert, 'id' | 'ownerId'>): string {
+  return JSON.stringify([alert.ownerId || '', alert.id]);
+}
+function forgetUnsaved(ownerId: string): void {
+  for (const [key, alert] of unsavedAlerts) if ((alert.ownerId || '') === ownerId) unsavedAlerts.delete(key);
+}
+async function saveAlert(alert: Alert): Promise<void> {
+  const generation = getLocalDataGeneration();
+  const saved = await cacheAlert({ ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
+  if (!isCurrentLocalData(generation)) return;
+  if (saved) unsavedAlerts.delete(pendingKey(alert));
+  else {
+    unsavedAlerts.set(pendingKey(alert), alert);
+    const owner = alert.ownerId || '';
+    const retained = new Set(currentAlerts([...unsavedAlerts.values()], owner).map(pendingKey));
+    for (const [key, pending] of unsavedAlerts) {
+      if ((pending.ownerId || '') === owner && !retained.has(key)) unsavedAlerts.delete(key);
+    }
+  }
 }
 
 export const useMonitoringStore = create<MonitoringState>()(
@@ -212,7 +234,10 @@ export const useMonitoringStore = create<MonitoringState>()(
       removeAlert: (id) => {
         const ownerId = currentOwner();
         set((state) => ({ alerts: currentAlerts(state.alerts, ownerId).filter(a => a.id !== id) }));
-        writeAlerts(() => deleteCachedMonitoringAlert(id, ownerId));
+        writeAlerts(async () => {
+          unsavedAlerts.delete(pendingKey({ id, ownerId }));
+          await deleteCachedMonitoringAlert(id, ownerId);
+        });
       },
 
       acknowledgeAlert: (id) => {
@@ -225,12 +250,23 @@ export const useMonitoringStore = create<MonitoringState>()(
       clearAlerts: () => {
         set({ alerts: [] });
         const ownerId = currentOwner();
-        writeAlerts(() => clearCachedMonitoringAlerts(ownerId));
+        writeAlerts(async () => {
+          forgetUnsaved(ownerId);
+          await clearCachedMonitoringAlerts(ownerId);
+        });
       },
 
       hydrateAlerts: async () => {
         await useAuthStore.getState().initialize();
         if (!useAuthStore.getState().isInitialized) return;
+        const retryOwner = currentOwner();
+        const retries = [...unsavedAlerts.values()].filter(alert => (alert.ownerId || '') === retryOwner);
+        if (retries.length) writeAlerts(async () => {
+          for (const pending of retries) {
+            // A queued clear or acknowledgement may have replaced this pending save.
+            if (unsavedAlerts.get(pendingKey(pending)) === pending) await saveAlert(pending);
+          }
+        }, false);
         await alertWrites;
         const revision = alertRevision;
         const ownerId = currentOwner();
@@ -246,7 +282,9 @@ export const useMonitoringStore = create<MonitoringState>()(
         }
         if (revision !== alertRevision || ownerId !== currentOwner()) return get().hydrateAlerts();
         if (getDatabaseNotice()) return;
-        set({ alerts: currentAlerts(saved, ownerId) });
+        const pending = [...unsavedAlerts.values()].filter(alert => (alert.ownerId || '') === ownerId);
+        const pendingIds = new Set(pending.map(alert => alert.id));
+        set({ alerts: currentAlerts([...pending, ...saved.filter(alert => !pendingIds.has(alert.id))], ownerId) });
       },
 
       addStream: (stream) =>
@@ -326,8 +364,12 @@ export const useMonitoringStore = create<MonitoringState>()(
       },
 
       reset: () => {
+        unsavedAlerts.clear();
         const ownerId = currentOwner();
-        writeAlerts(() => clearCachedMonitoringAlerts(ownerId));
+        writeAlerts(async () => {
+          forgetUnsaved(ownerId);
+          await clearCachedMonitoringAlerts(ownerId);
+        });
         set({
           isConnected: false,
           isStreaming: false,
