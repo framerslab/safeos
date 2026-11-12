@@ -4,6 +4,8 @@ import { cacheAlert, getCachedAlerts, getCachedMonitoringAlerts, queueSyncAction
 import { localAlertEngine } from '@/lib/local-alert-engine';
 import { syncPendingActions } from '@/lib/sync-service';
 require('fake-indexeddb/auto');
+// These integration scenarios serialize hundreds of real IndexedDB transactions.
+jest.setTimeout(60000);
 Object.defineProperty(global, 'structuredClone', { configurable: true, value: (value: unknown) =>
   require('v8').deserialize(require('v8').serialize(value)),
 });

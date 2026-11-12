@@ -6,6 +6,8 @@ import { localAlertEngine } from '@/lib/local-alert-engine';
 import { useAuthStore } from '@/stores/auth-store';
 
 require('fake-indexeddb/auto');
+// These integration scenarios serialize hundreds of real IndexedDB transactions.
+jest.setTimeout(60000);
 Object.defineProperty(global, 'structuredClone', { configurable: true, value: (value: unknown) =>
   require('v8').deserialize(require('v8').serialize(value)),
 });
@@ -170,4 +172,16 @@ it('trims acknowledged shared records first, then oldest unseen records only whe
   expect(await db.get('alert_cache', 'unseen-0')).toBeUndefined();
   expect(await db.get('alert_cache', 'unseen-1')).toBeDefined();
   db.close();
+});
+
+it('keeps displayed alerts when a browser history read fails and retries on the next read', async () => {
+  useMonitoringStore.getState().addAlert({ ...alert('visible-during-read-failure'), severity: 'critical' });
+  await useMonitoringStore.getState().hydrateAlerts();
+  jest.spyOn(IDBDatabase.prototype, 'transaction').mockImplementationOnce(() => {
+    throw new DOMException('The connection is unavailable', 'InvalidStateError');
+  });
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['visible-during-read-failure']);
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['visible-during-read-failure']);
 });
