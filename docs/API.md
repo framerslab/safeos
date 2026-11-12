@@ -528,7 +528,7 @@ Send a test payload.
 All export routes: **signed in** with the `X-Session-Token` header, the caller's own data only. An expired session gets `401`.
 
 #### GET /api/export/alerts
-Export alerts as JSON or CSV.
+Export up to 10,000 owned alerts as JSON or CSV.
 
 **Query Parameters:**
 - `format` - `json` or `csv`
@@ -536,16 +536,33 @@ Export alerts as JSON or CSV.
 - `endDate` - ISO date
 
 #### GET /api/export/analysis
-Export analysis results.
+Export up to 10,000 owned analysis results as JSON or CSV.
 
 #### GET /api/export/streams
-Export stream history.
+Export up to 1,000 owned streams as JSON or CSV.
 
 #### GET /api/export/profile
-Export user profile and settings.
+Export the user profile and settings in `data`, including:
+
+- `monitoringProfiles`: every monitoring profile whose `owner_id` is the caller,
+  independent of its identifier. `is_active` reflects that caller's personal
+  choice for the scenario, rather than the legacy flag on the shared row.
+- `activeMonitoringProfiles`: the caller's rows from the personal choices table,
+  ordered by scenario, with `owner_id`, `scenario`, and `monitoring_profile_id`.
+  Built-in default selections and explicit `null` selections are retained.
+- `notifications`: the caller's push subscription endpoints and Telegram chats.
+
+Unowned defaults are not exported as owned profiles. Another person's profiles
+and active choices are excluded. Provider secrets remain redacted.
 
 #### GET /api/export/all
-Export all user data (GDPR compliant).
+Download a JSON object containing `profile`, `sessions`, `streams`, `alerts`,
+`analysisResults`, `monitoringProfiles`, and `activeMonitoringProfiles`.
+Monitoring profiles and choices use the same ownership rules and fields as
+`/api/export/profile`. Sessions omit tokens. Streams are capped at 1,000;
+alerts and analysis results are each capped at 5,000. Monitoring profiles and
+personal choices have no export count cap. This is server data only: browser
+history is exported separately from History's local timeline.
 
 ---
 

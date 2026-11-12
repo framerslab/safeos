@@ -40,9 +40,25 @@ and reconnect timer.
 ## Alert history
 
 Monitor alerts are written to the existing `safeos-guardian` IndexedDB alert cache.
-Monitor and **History → Local Timeline** restore the latest 100 alerts after a
-reload. Stored monitoring history is also capped at 100 records. An alert
-acknowledged on Monitor stays in history marked acknowledged, also when the server
+Monitor and **History → Local Timeline** restore the latest 100 alerts for the
+current owner after a reload, using an owner-and-creation-time index instead of
+loading the whole alert store. Each owner's monitoring history is capped at 100
+records. The complete alert cache, including local-engine and sync records, is
+capped at 500 records; the oldest records are removed first. Both kinds expire
+24 hours after creation. The counts preserve the existing intended cache and
+panel limits; 24 hours covers the longest monitoring session without keeping
+an indefinite browser archive.
+
+The database prunes history on opening, each alert write, and history reads.
+Acknowledgement does not restart an alert's age. Monitoring reads and removals
+are scoped to the current owner, including writes queued before an owner change.
+The version 4 to 5 upgrade adds the index in place, retaining existing records
+and other stores. Legacy monitoring records with no owner remain in the local,
+unsigned-in history; they are not assigned to whichever account opens the app.
+Normal retention applies after opening. Browser-only data is not included in
+server exports; use History's local export for that data.
+
+An alert acknowledged on Monitor stays in history marked acknowledged, also when the server
 cannot be reached. Dismissals and clearing alerts remove only monitoring-owned
 records; alerts from other producers in the shared database are left intact. Alert
 types and thumbnails are retained. A severity outside info, low, medium, high and

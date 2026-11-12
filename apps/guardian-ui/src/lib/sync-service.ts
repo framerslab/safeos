@@ -164,6 +164,18 @@ export async function syncPendingActions(): Promise<{
 // =============================================================================
 
 async function handleSyncResponse(action: string, data: any): Promise<void> {
+  if (action === 'acknowledge_alert') {
+    const alert = data?.alert || data?.data;
+    if (alert) await cacheAlert({
+      ...alert,
+      streamId: alert.streamId ?? alert.stream_id,
+      alertType: alert.alertType ?? alert.alert_type,
+      acknowledged: Boolean(alert.acknowledged),
+      acknowledgedAt: alert.acknowledgedAt ?? alert.acknowledged_at,
+      createdAt: alert.createdAt ?? alert.created_at,
+    });
+    return;
+  }
   if (!data?.data) return;
 
   switch (action) {
@@ -172,9 +184,6 @@ async function handleSyncResponse(action: string, data: any): Promise<void> {
       await cacheStream(data.data);
       break;
 
-    case 'acknowledge_alert':
-      await cacheAlert(data.data);
-      break;
   }
 }
 

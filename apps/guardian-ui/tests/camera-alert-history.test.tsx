@@ -41,7 +41,7 @@ it('writes a received monitor alert to IndexedDB and restores it in History afte
   await act(async () => {});
   act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
     id: 'persistent-camera-alert', streamId: 'camera-session', severity: 'low',
-    message: 'Camera motion recorded', timestamp: '2026-11-11T10:00:00.000Z',
+    message: 'Camera motion recorded', timestamp: new Date().toISOString(),
   } }));
   expect(screen.getByText('Camera motion recorded')).toBeTruthy();
   await waitFor(async () => {
@@ -146,7 +146,7 @@ it('renders saved and received alerts whose severity the alert panel does not de
   expect(screen.getByText('Received unknown severity')).toBeTruthy();
 });
 
-it('bounds persisted monitoring history without pruning other alert producers', async () => {
+it('bounds persisted monitoring history and expires old records from other producers', async () => {
   await cacheAlert({ id: 'retained-engine-alert', streamId: 'engine', severity: 'low',
     message: 'Engine record', acknowledged: true, createdAt: '2020-01-01T00:00:00.000Z' });
   render(<MonitorPage />);
@@ -161,8 +161,8 @@ it('bounds persisted monitoring history without pruning other alert producers', 
   });
   await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
   const db = await openDB('safeos-guardian');
-  expect(await db.count('alert_cache')).toBe(101);
-  expect(await db.get('alert_cache', 'retained-engine-alert')).toBeTruthy();
+  expect(await db.count('alert_cache')).toBe(100);
+  expect(await db.get('alert_cache', 'retained-engine-alert')).toBeUndefined();
   db.close();
   expect(screen.getByText('Motion 104')).toBeTruthy();
 });

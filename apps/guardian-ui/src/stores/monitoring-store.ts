@@ -8,7 +8,8 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts } from '../lib/client-db';
+import { useAuthStore } from './auth-store';
+import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, ALERT_MAX_AGE_MS, MAX_MONITORING_ALERTS } from '../lib/client-db';
 
 // =============================================================================
 // Types
@@ -16,6 +17,7 @@ import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, cle
 
 export interface Alert {
   id: string;
+  ownerId?: string;
   streamId: string;
   alertType?: string;
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
@@ -136,6 +138,14 @@ function knownSeverity(severity: unknown): Alert['severity'] {
   if (SEVERITIES.includes(severity as Alert['severity'])) return severity as Alert['severity'];
   return severity === 'emergency' ? 'critical' : 'medium';
 }
+function currentOwner(): string {
+  return useAuthStore.getState().profile?.id || '';
+}
+function currentAlerts(alerts: Alert[], ownerId: string): Alert[] {
+  const cutoff = Date.now() - ALERT_MAX_AGE_MS;
+  return alerts.filter(alert => (alert.ownerId || '') === ownerId &&
+    Date.parse(alert.createdAt || alert.timestamp || '') >= cutoff);
+}
 function saveAlert(alert: Alert) {
   return cacheAlert({ ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
 }
@@ -178,39 +188,44 @@ export const useMonitoringStore = create<MonitoringState>()(
       addAlert: (alert) => {
         const dated = {
           ...alert,
+          ownerId: currentOwner(),
           severity: knownSeverity(alert.severity),
           createdAt: alert.createdAt || alert.timestamp || new Date().toISOString(),
         };
-        set((state) => ({ alerts: [dated, ...state.alerts.filter(a => a.id !== dated.id)].slice(0, 100) }));
+        set((state) => ({ alerts: currentAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)], dated.ownerId).slice(0, MAX_MONITORING_ALERTS) }));
         writeAlerts(() => saveAlert(dated));
       },
 
       removeAlert: (id) => {
-        set((state) => ({ alerts: state.alerts.filter(a => a.id !== id) }));
-        writeAlerts(() => deleteCachedMonitoringAlert(id));
+        const ownerId = currentOwner();
+        set((state) => ({ alerts: currentAlerts(state.alerts, ownerId).filter(a => a.id !== id) }));
+        writeAlerts(() => deleteCachedMonitoringAlert(id, ownerId));
       },
 
       acknowledgeAlert: (id) => {
-        set((state) => ({ alerts: state.alerts.map(a => a.id === id ? { ...a, acknowledged: true } : a) }));
+        const ownerId = currentOwner();
+        set((state) => ({ alerts: currentAlerts(state.alerts, ownerId).map(a => a.id === id ? { ...a, acknowledged: true } : a) }));
         const alert = get().alerts.find(a => a.id === id);
         if (alert) writeAlerts(() => saveAlert(alert));
       },
 
       clearAlerts: () => {
         set({ alerts: [] });
-        writeAlerts(clearCachedMonitoringAlerts);
+        const ownerId = currentOwner();
+        writeAlerts(() => clearCachedMonitoringAlerts(ownerId));
       },
 
       hydrateAlerts: async () => {
         await alertWrites;
         const revision = alertRevision;
-        const saved: Alert[] = (await getCachedMonitoringAlerts())
+        const ownerId = currentOwner();
+        const saved: Alert[] = (await getCachedMonitoringAlerts(ownerId))
           .map((alert: Alert) => ({ ...alert, severity: knownSeverity(alert.severity) }));
-        if (revision !== alertRevision) return get().hydrateAlerts();
+        if (revision !== alertRevision || ownerId !== currentOwner()) return get().hydrateAlerts();
         set((state) => ({
-          alerts: Array.from(new Map([...saved, ...state.alerts].map(a => [a.id, a])).values())
+          alerts: currentAlerts(Array.from(new Map([...saved, ...state.alerts].map(a => [a.id, a])).values()), ownerId)
             .sort((a, b) => (b.createdAt || b.timestamp || '').localeCompare(a.createdAt || a.timestamp || ''))
-            .slice(0, 100),
+            .slice(0, MAX_MONITORING_ALERTS),
         }));
       },
 
@@ -291,7 +306,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       },
 
       reset: () => {
-        writeAlerts(clearCachedMonitoringAlerts);
+        const ownerId = currentOwner();
+        writeAlerts(() => clearCachedMonitoringAlerts(ownerId));
         set({
           isConnected: false,
           isStreaming: false,

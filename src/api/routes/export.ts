@@ -308,11 +308,7 @@ exportRouter.get('/profile', async (req, res) => {
       [session.profile_id]
     );
 
-    // Get user's monitoring profiles
-    const monitoringProfiles = await db.all(
-      `SELECT * FROM monitoring_profiles WHERE id LIKE ?`,
-      [`%${session.profile_id}%`]
-    );
+    const monitoring = await getMonitoringExport(db, session.profile_id);
 
     // Get notification settings
     const pushSubscriptions = await db.all(
@@ -329,7 +325,7 @@ exportRouter.get('/profile', async (req, res) => {
       success: true,
       data: {
         profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
-        monitoringProfiles,
+        ...monitoring,
         notifications: {
           pushSubscriptions,
           telegramChats,
@@ -397,7 +393,9 @@ exportRouter.get('/all', async (req, res) => {
       [session.profile_id]
     );
 
+    const monitoring = await getMonitoringExport(db, session.profile_id);
     const exportData = {
+      ...monitoring,
       exportedAt: new Date().toISOString(),
       exportType: 'full_data_export',
       profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
@@ -453,22 +451,24 @@ function convertToCSV(data: Record<string, unknown>[], columns: string[]): strin
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+/** Export ownership and personal choices use the same scope as profile reads. */
+async function getMonitoringExport(
+  db: Awaited<ReturnType<typeof getSafeOSDatabase>>,
+  ownerId: string
+) {
+  const monitoringProfiles = await db.all(
+    `SELECT p.id, p.name, p.scenario, p.settings, p.created_at, p.owner_id,
+      CASE WHEN a.monitoring_profile_id = p.id THEN 1 ELSE 0 END AS is_active
+     FROM monitoring_profiles p
+     LEFT JOIN active_monitoring_profiles a
+       ON a.owner_id = p.owner_id AND a.scenario = p.scenario
+     WHERE p.owner_id = ? ORDER BY p.scenario, p.id`,
+    [ownerId]
+  );
+  const activeMonitoringProfiles = await db.all(
+    `SELECT owner_id, scenario, monitoring_profile_id FROM active_monitoring_profiles
+     WHERE owner_id = ? ORDER BY scenario`,
+    [ownerId]
+  );
+  return { monitoringProfiles, activeMonitoringProfiles };
+}

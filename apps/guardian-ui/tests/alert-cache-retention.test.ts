@@ -22,6 +22,7 @@ beforeEach(async () => {
   const db = await openDB('safeos-guardian');
   await db.clear('alert_cache');
   db.close();
+  useMonitoringStore.setState({ alerts: [] });
 });
 afterEach(() => jest.restoreAllMocks());
 

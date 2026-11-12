@@ -41,6 +41,18 @@ try {
           colorScheme: look,
           deviceScaleFactor: 1,
         });
+        if (route === '/export/') {
+          // Render the signed-in server export screen in both base and head builds.
+          await context.addInitScript(() => {
+            localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://pictures.example.test' }));
+            localStorage.setItem('safeos-auth', JSON.stringify({ state: {
+              isInitialized: true, isAuthenticated: true, sessionToken: 'picture-session',
+            }, version: 0 }));
+          });
+          await context.route('https://pictures.example.test/**', request => request.fulfill({
+            contentType: 'application/json', body: JSON.stringify({ status: 'ok' }),
+          }));
+        }
         const page = await context.newPage();
         const url = new URL(route, baseUrl).toString();
         const file = path.join(outDir, `${slug(route)}-${size.width}-${look}.png`);
@@ -48,6 +60,9 @@ try {
           const response = await page.goto(url, { waitUntil: 'networkidle', timeout: 60_000 });
           if (!response || !response.ok()) {
             throw new Error(`HTTP ${response ? response.status() : 'no response'}`);
+          }
+          if (route === '/export/') {
+            await page.getByRole('button', { name: 'Download Export' }).waitFor();
           }
           await page.screenshot({ path: file, fullPage: true });
           console.log(`captured ${file}`);
