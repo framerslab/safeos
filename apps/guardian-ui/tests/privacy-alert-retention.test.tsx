@@ -14,3 +14,11 @@ it('states saved-history protection, new alert limits, no age removal and tab up
   expect(screen.getByText(/new alerts.*not saved/i)).toBeTruthy();
   expect(screen.getByText(/November 12, 2026/)).toBeTruthy();
 });
+
+it('distinguishes browser clearing from records kept on a configured server', () => {
+  render(<PrivacyPage />);
+  expect(screen.queryByText('All data lives in your browser')).toBeNull();
+  expect(screen.queryByText('Delete your browser data = delete everything')).toBeNull();
+  expect(screen.getByText(/clearing browser data removes only this device/i)).toBeTruthy();
+  expect(screen.getByText(/records on a configured server are not deleted/i)).toBeTruthy();
+});
