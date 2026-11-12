@@ -471,7 +471,10 @@ async function getMonitoringExport(
   db: Awaited<ReturnType<typeof getSafeOSDatabase>>,
   ownerId: string
 ) {
-  const monitoringProfiles = await db.all(
+  const monitoringProfiles = await db.all<{
+    id: string; name: string; scenario: string; settings: string;
+    created_at: string; owner_id: string; is_active: number;
+  }>(
     `SELECT p.id, p.name, p.scenario, p.settings, p.created_at, p.owner_id,
       CASE WHEN a.monitoring_profile_id = p.id THEN 1 ELSE 0 END AS is_active
      FROM monitoring_profiles p
