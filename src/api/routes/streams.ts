@@ -172,6 +172,11 @@ streamRoutes.patch('/:id', validate(UpdateStreamSchema), async (req: Request, re
       return notFound(res, 'Stream');
     }
 
+    const isOwner = (stream as any).user_id === profileId;
+    if (!isOwner && !status) {
+      return res.status(400).json({ error: "Status is required when updating another owner's stream" });
+    }
+
     if (!canReview && ((stream as any).status === 'banned' || status === 'banned')) {
       return res.status(403).json({ error: 'Only reviewers or operators may change a banned stream' });
     }
@@ -182,12 +187,13 @@ streamRoutes.patch('/:id', validate(UpdateStreamSchema), async (req: Request, re
         updates.ended_at = now();
       }
 
-      const changed = await db.get(
+      const changed = await db.get<{ id: string; status: string }>(
         `UPDATE streams SET status = ?, ended_at = ? WHERE id = ? AND (user_id = ? OR ? = 1)
-         AND (status != 'banned' OR ? = 1) RETURNING id`,
+         AND (status != 'banned' OR ? = 1) RETURNING id, status`,
         [status, updates.ended_at || null, id, profileId, canReview ? 1 : 0, canReview ? 1 : 0]
       );
       if (!changed) return res.status(403).json({ error: 'Only reviewers or operators may change a banned stream' });
+      if (!isOwner) return res.json({ stream: { id: changed.id, status: changed.status } });
     }
 
     const updated = await db.get(

@@ -317,12 +317,52 @@ it.each(['reviewer', 'operator'])('allows a non-owner %s to restore a banned str
     await p.db.run('UPDATE user_profiles SET role = ? WHERE id = ?', [role, p.other.id]);
     const restored = await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token)
       .send({ status: 'active' }).expect(200);
-    expect(restored.body.stream).toMatchObject({ id: p.streamId, user_id: p.owner.id, status: 'active' });
+    expect(restored.body).toEqual({ stream: { id: p.streamId, status: 'active' } });
+    expect(await p.db.get('SELECT id, user_id, status FROM streams WHERE id = ?', [p.streamId]))
+      .toEqual({ id: p.streamId, user_id: p.owner.id, status: 'active' });
     await p.api.get(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token).expect(404);
     await p.api.delete(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token).expect(404);
     const ws = await p.connect();
     const frameId = await p.frame(ws, await image(`restored-${role}`));
     expect(await p.db.get('SELECT id FROM frame_buffer WHERE id = ?', [frameId])).toBeTruthy();
+  } finally { await p.close(); }
+});
+
+it.each(['reviewer', 'operator'])('requires a status from a non-owner %s without returning stream fields', async role => {
+  const p = await startPipeline();
+  try {
+    await p.db.run('UPDATE user_profiles SET role = ? WHERE id = ?', [role, p.other.id]);
+    const before = await p.db.get('SELECT * FROM streams WHERE id = ?', [p.streamId]);
+    const response = await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token)
+      .send({}).expect(400);
+    expect(response.body).toEqual({ error: 'Status is required when updating another owner\'s stream' });
+    expect(await p.db.get('SELECT * FROM streams WHERE id = ?', [p.streamId])).toEqual(before);
+  } finally { await p.close(); }
+});
+
+it.each(['user', 'reviewer', 'operator'])('preserves the full PATCH response for a stream owner with role %s', async role => {
+  const p = await startPipeline();
+  try {
+    await p.db.run('UPDATE user_profiles SET role = ? WHERE id = ?', [role, p.owner.id]);
+    for (const body of [{}, { status: 'paused' }, { status: 'ended' }]) {
+      const response = await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.owner.token)
+        .send(body).expect(200);
+      const stored = await p.db.get('SELECT * FROM streams WHERE id = ?', [p.streamId]);
+      expect(response.body).toEqual({ stream: stored });
+      expect(response.body.stream).toMatchObject({ id: p.streamId, user_id: p.owner.id, scenario: 'baby' });
+      if (body.status) expect(stored.status).toBe(body.status);
+    }
+  } finally { await p.close(); }
+});
+
+it.each([{}, { status: 'paused' }])('keeps another owner\'s stream unavailable to an ordinary user with %j', async body => {
+  const p = await startPipeline();
+  try {
+    const before = await p.db.get('SELECT * FROM streams WHERE id = ?', [p.streamId]);
+    const response = await p.api.patch(`/api/streams/${p.streamId}`).set('x-session-token', p.other.token)
+      .send(body).expect(404);
+    expect(response.body).not.toHaveProperty('stream');
+    expect(await p.db.get('SELECT * FROM streams WHERE id = ?', [p.streamId])).toEqual(before);
   } finally { await p.close(); }
 });
 

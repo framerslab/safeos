@@ -31,7 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Push registration verifies the incoming session's live profile binding in the same write that saves the registration.
 - Before-and-after picture capture also runs when a pull request opens.
 - Telegram text and photo requests close after 15 seconds of transport inactivity.
-- Reviewers and operators can restore another owner's banned stream through the status PATCH route without gaining owner access to reads, deletion or sockets.
+- Reviewers and operators can restore another owner's banned stream through the status PATCH route without gaining owner access to reads, deletion or sockets. Non-owner updates require a status and return only the stream id and status; owner responses are unchanged.
+- Settings, notification settings, scheduling and email setup guidance describe high and critical alerts as bypassing quiet hours without promising delivery.
 - Browser clients retry recoverable socket policy closes, preserve one opening socket, and ignore events from replaced sockets.
 - Browser push preserves registrations owned by another live session. The 32-endpoint limit counts live registrations only, and every session-removal path removes its push registrations.
 - Telegram availability reflects the caller's saved personal bot token, with settings and setup guidance describing the same delivery rule.
