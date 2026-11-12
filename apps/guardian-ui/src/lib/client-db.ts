@@ -427,11 +427,15 @@ async function pruneAllAlerts(store: AlertStore): Promise<void> {
   let cursor = await store.index('by-created').openCursor(null, 'prev');
   while (cursor) {
     const record = cursor.value;
-    const owner = alertOwner(record);
-    const count = (counts.get(owner) || 0) + 1;
-    counts.set(owner, count);
-    if (!Number.isFinite(Date.parse(record.createdAt)) || Date.parse(record.createdAt) < cutoff ||
-        (record.monitoring && count > MAX_MONITORING_ALERTS)) await cursor.delete();
+    const createdAt = Date.parse(record.createdAt);
+    if (!Number.isFinite(createdAt) || createdAt < cutoff) {
+      await cursor.delete();
+    } else {
+      const owner = alertOwner(record);
+      const count = (counts.get(owner) || 0) + 1;
+      counts.set(owner, count);
+      if (record.monitoring && count > MAX_MONITORING_ALERTS) await cursor.delete();
+    }
     cursor = await cursor.continue();
   }
   await pruneGlobalAlerts(store);
@@ -565,6 +569,14 @@ export async function cacheAlert(alert: any): Promise<void> {
   try {
     const db = await getDB();
     const tx = db.transaction('alert_cache', 'readwrite');
+    const previous = await tx.store.get(alert.id);
+    // Partial acknowledgement responses do not carry browser ownership or media.
+    // An explicit change of owner must not copy the previous owner's metadata.
+    const sameOwner = alert.monitoring === undefined || alertOwner(alert) === alertOwner(previous || {});
+    alert = {
+      ...(sameOwner ? previous : {}),
+      ...Object.fromEntries(Object.entries(alert).filter(([, value]) => value !== undefined)),
+    };
     const createdAt = new Date(Math.min(new Date(alert.createdAt || alert.timestamp || Date.now()).getTime(), Date.now())).toISOString();
     const cacheOwner = alertOwner(alert);
     await tx.store.put({

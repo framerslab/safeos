@@ -63,7 +63,10 @@ try {
           }
           if (route === '/export/') {
             await page.getByRole('button', { name: 'Download Export' }).waitFor();
-            await page.locator('#main-content').screenshot({ path: file });
+            const exportContent = page.locator('#main-content > div').filter({
+              has: page.getByRole('heading', { name: 'Export Data', exact: true }),
+            });
+            await exportContent.screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
           } else {
             await page.screenshot({ path: file, fullPage: true });
           }

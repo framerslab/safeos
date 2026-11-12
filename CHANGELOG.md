@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Resuming a guest profile with `POST /api/auth/session` needs that session's live token for the same device; the token is replaced in place.
 
 ### Fixed
-- Browser alert writes and reads enforce a 500-record total, 100 monitoring records per owner, and a 24-hour age limit. Monitoring uses an ownership index, existing browser data upgrades in place, and synced acknowledgements keep their original creation time.
+- Browser alert writes and reads enforce a 500-record total, 100 monitoring records per owner, and a 24-hour age limit. Monitoring uses an ownership index, existing browser data upgrades in place, and synced acknowledgements keep their ownership, media and original creation time.
 - Profile and full exports include owned monitoring profiles and personal active choices by ownership, with matching export guidance and documented record limits.
 - Push registration verifies the incoming session's live profile binding in the same write that saves the registration.
 - Before-and-after picture capture also runs when a pull request opens.
