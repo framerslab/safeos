@@ -560,14 +560,21 @@ Unowned defaults are not exported as owned profiles. Another person's profiles
 and active choices are excluded. Provider secrets remain redacted.
 
 If a monitoring profile's stored settings are not valid JSON (including an empty
-string), the profile is still included with `settings: null`. Unreadable settings
-cannot be safely redacted and are never passed through. `monitoringSettingsOmitted`
+string), or parse to anything other than a plain object, the profile is still
+included with `settings: null`. Unreadable settings cannot be safely redacted and are never passed through. `monitoringSettingsOmitted`
 reports the number of these profiles, or `0` when all settings can be read. This
 field is in `data` for the profile export and at the top level for the full export.
 Other rows are exported as usual, and stored settings are not changed.
-After downloading a profile or full export, the export page reports any omitted
-settings and points to `monitoringSettingsOmitted` in the downloaded file. A zero
-count keeps the ordinary download-success message.
+
+The same rule applies to the user profile's `notification_settings`: invalid JSON
+or a value other than a plain object is exported as `null`. `notificationSettingsOmitted`
+is `1` when these settings are omitted and `0` otherwise. It is alongside
+`monitoringSettingsOmitted`: in `data` for the profile export and at the top level
+for the full export. Other data is exported as usual, and the stored row is not changed.
+
+After downloading a profile or full export, the export page reports each kind of
+omitted settings and points to its count field in the downloaded file. When both
+counts are zero, it keeps the ordinary download-success message.
 
 #### GET /api/export/all
 Download a JSON object containing `profile`, `sessions`, `streams`, `alerts`,
@@ -581,9 +588,9 @@ newest rows first (`created_at` descending, then `id` descending for ties).
 `truncated` (`true` when `total` exceeds `included`). These counts cover all owned
 rows at the time each limited list is selected: each list and its total come from
 the same database statement, so concurrent writes cannot inflate that list's
-truncation flag. Different export sections are read independently. Counts cover
-streams, including alerts or analysis from streams outside the exported stream
-list. For example, an alert total of 5,001 produces `{ "total": 5001,
+truncation flag. Different export sections are read independently.
+Alert and analysis totals and lists cover every owned stream, including streams outside the exported stream list.
+For example, an alert total of 5,001 produces `{ "total": 5001,
 "included": 5000, "truncated": true }`; exporting does not remove the omitted rows
 from the server. Monitoring profiles and personal choices have no export count cap. This is server data only: browser
 history is exported separately from History's local timeline.
@@ -843,20 +850,27 @@ Personal credentials are supported in `notificationSettings`:
   server mail configuration must supply the fallback; otherwise delivery is skipped.
 - `telegramBotToken`: a personal bot token, used with the owner's registered chats.
 
-The same profile route saves these credentials, but they are write-only. Profile,
-session and data-export responses, including monitoring-profile settings in both
-profile and full exports, omit `smsOverride.authToken`,
-`emailOverride.apiKey` and `telegramBotToken`. Readable exported monitoring settings
-remain a JSON string; unreadable settings become `null` as described above.
-Exporting does not change the stored credentials. Redacted settings return `hasAuthToken` and
-`hasApiKey` inside the corresponding override and `hasBotToken` alongside them.
-Saving these presence flags back preserves the omitted credentials. Database
-access still exposes the stored secrets. Clear `emailOverride` or `smsOverride` with `{}` and
-`telegramBotToken` with an empty string. A personal key or complete SMS override
-does not use the server account's recipient authorization. Email suppression
-still applies. Unauthorized channels are skipped with one fixed log line naming
-the channel and reason, without the recipient. Browser push requires VAPID
-configuration and a permitted subscription destination.
+`PATCH /api/auth/profile` merges `notificationSettings` with the saved user
+notification settings. User profile, session and data-export responses omit
+`smsOverride.authToken`, `emailOverride.apiKey` and `telegramBotToken` from those
+settings. The user profile route returns `hasAuthToken` and `hasApiKey` inside
+the corresponding override and `hasBotToken` alongside them. Saving these returned
+presence flags back in `notificationSettings` on the user profile route preserves
+the omitted credentials. On that route, clear `emailOverride` or `smsOverride`
+with `{}` and `telegramBotToken` with an empty string. A personal key or
+complete SMS override does not use the server account's recipient authorization.
+Email suppression still applies. Unauthorized channels are skipped with one fixed
+log line naming the channel and reason, without the recipient. Browser push
+requires VAPID configuration and a permitted subscription destination.
+
+Monitoring profile routes return stored settings, including any credentials;
+saving `settings` replaces the whole settings object. Exported monitoring
+settings are a redacted copy for reading and are not meant to be saved back.
+Both profile and full exports omit `smsOverride.authToken`, `emailOverride.apiKey`
+and `telegramBotToken` from monitoring settings. Readable exported settings remain
+a JSON string; unreadable or non-object settings become `null` as described above.
+Exporting does not change stored credentials. Database access still exposes the
+stored secrets.
 
 All `/api/notifications` routes require a session. Push and Telegram registrations
 are stored in SQLite under that session's profile and survive restarts. A caller's

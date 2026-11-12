@@ -308,6 +308,7 @@ exportRouter.get('/profile', async (req, res) => {
       [session.profile_id]
     );
 
+    const notificationSettings = profile ? redactExportSettings(profile.notification_settings) : null;
     const monitoring = await getMonitoringExport(db, session.profile_id);
 
     // Get notification settings
@@ -324,7 +325,8 @@ exportRouter.get('/profile', async (req, res) => {
     res.json({
       success: true,
       data: {
-        profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
+        profile: profile ? { ...profile, notification_settings: notificationSettings } : profile,
+        notificationSettingsOmitted: profile && notificationSettings === null ? 1 : 0,
         ...monitoring,
         notifications: {
           pushSubscriptions,
@@ -396,6 +398,7 @@ exportRouter.get('/all', async (req, res) => {
       [session.profile_id]
     );
 
+    const notificationSettings = profile ? redactExportSettings(profile.notification_settings) : null;
     const monitoring = await getMonitoringExport(db, session.profile_id);
     const exportData = {
       counts: {
@@ -406,7 +409,8 @@ exportRouter.get('/all', async (req, res) => {
       ...monitoring,
       exportedAt: new Date().toISOString(),
       exportType: 'full_data_export',
-      profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
+      profile: profile ? { ...profile, notification_settings: notificationSettings } : profile,
+      notificationSettingsOmitted: profile && notificationSettings === null ? 1 : 0,
       sessions,
       streams: withoutExportTotals(streams),
       alerts: withoutExportTotals(alerts),
@@ -425,6 +429,19 @@ exportRouter.get('/all', async (req, res) => {
 // =============================================================================
 // Helpers
 // =============================================================================
+
+/** Only object settings can be safely redacted; stored rows are never changed. */
+function redactExportSettings(stored: string): string | null {
+  try {
+    const settings = JSON.parse(stored);
+    if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) {
+      return null;
+    }
+    return JSON.stringify(redactNotificationSettings(settings));
+  } catch {
+    return null;
+  }
+}
 
 type CountedExportRow = Record<string, unknown> & { export_total: number };
 
@@ -494,15 +511,9 @@ async function getMonitoringExport(
   );
   let monitoringSettingsOmitted = 0;
   const sanitizedProfiles = monitoringProfiles.map((profile) => {
-    let settings;
-    try {
-      settings = JSON.parse(profile.settings);
-    } catch {
-      // Unreadable settings cannot be redacted safely. Keep the profile only.
-      monitoringSettingsOmitted += 1;
-      return { ...profile, settings: null };
-    }
-    return { ...profile, settings: JSON.stringify(redactNotificationSettings(settings)) };
+    const settings = redactExportSettings(profile.settings);
+    if (settings === null) monitoringSettingsOmitted += 1;
+    return { ...profile, settings };
   });
   return {
     monitoringProfiles: sanitizedProfiles,

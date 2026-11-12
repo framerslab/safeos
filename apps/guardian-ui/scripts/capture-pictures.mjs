@@ -57,6 +57,22 @@ try {
               },
             } }),
           }));
+          await context.route('https://pictures.example.test/api/export/**', request => request.fulfill({
+            contentType: 'application/json',
+            headers: {
+              'Content-Disposition': 'attachment; filename="safeos-profile.json"',
+              'Access-Control-Expose-Headers': 'Content-Disposition',
+            },
+            body: JSON.stringify({ success: true, data: {
+              monitoringSettingsOmitted: 2,
+              notificationSettingsOmitted: 1,
+              profile: { notification_settings: null },
+              monitoringProfiles: [
+                { id: 'picture-profile-one', settings: null },
+                { id: 'picture-profile-two', settings: null },
+              ],
+            } }),
+          }));
         }
         const page = await context.newPage();
         const url = new URL(route, baseUrl).toString();
@@ -72,6 +88,15 @@ try {
               has: page.getByRole('heading', { name: 'Export Data', exact: true }),
             });
             await exportContent.screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
+            await page.getByRole('button', { name: /Profile & Settings/ }).click();
+            await Promise.all([
+              page.waitForEvent('download'),
+              page.getByRole('button', { name: 'Download Export' }).click(),
+            ]);
+            await page.getByText(/Downloaded safeos-profile.json/).waitFor();
+            const noticeFile = path.join(outDir, `export-notice-${size.width}-${look}.png`);
+            await exportContent.screenshot({ path: noticeFile, style: 'nav { visibility: hidden !important; }' });
+            console.log(`captured ${noticeFile}`);
           } else {
             await page.screenshot({ path: file, fullPage: true });
           }

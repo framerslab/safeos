@@ -71,21 +71,21 @@ const EXPORT_OPTIONS: ExportOption[] = [
   {
     id: 'alerts',
     label: 'Alerts',
-    description: 'All alerts with timestamps, severity, and messages',
+    description: 'Up to 10,000 alerts with timestamps, severity, and messages',
     icon: exportIcons.alerts,
     formats: ['json', 'csv'],
   },
   {
     id: 'analysis',
     label: 'AI Analysis Results',
-    description: 'Analysis results, concern levels, and processing times',
+    description: 'Up to 10,000 analysis results with concern levels and processing times',
     icon: exportIcons.analysis,
     formats: ['json', 'csv'],
   },
   {
     id: 'streams',
     label: 'Stream History',
-    description: 'All monitoring sessions with stats',
+    description: 'Up to 1,000 monitoring sessions with stats',
     icon: exportIcons.streams,
     formats: ['json', 'csv'],
   },
@@ -139,10 +139,12 @@ export default function ExportPage() {
       }
 
       let omittedSettings = 0;
+      let omittedNotificationSettings = 0;
       if (selectedType === 'profile' || selectedType === 'all') {
         const result = await res.clone().json();
         const data = selectedType === 'profile' ? result.data : result;
         omittedSettings = data?.monitoringSettingsOmitted ?? 0;
+        omittedNotificationSettings = data?.notificationSettingsOmitted ?? 0;
       }
 
       // Get filename from header or generate one
@@ -164,9 +166,16 @@ export default function ExportPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      setStatusMessage(omittedSettings > 0 ? {
+      const notices: string[] = [];
+      if (omittedSettings > 0) {
+        notices.push(`${omittedSettings} monitoring ${omittedSettings === 1 ? 'profile had' : 'profiles had'} unreadable settings left out. Check monitoringSettingsOmitted in the file for the count.`);
+      }
+      if (omittedNotificationSettings > 0) {
+        notices.push(`${omittedNotificationSettings} user ${omittedNotificationSettings === 1 ? 'profile had' : 'profiles had'} unreadable notification settings left out. Check notificationSettingsOmitted in the file for the count.`);
+      }
+      setStatusMessage(notices.length > 0 ? {
         type: 'info',
-        text: `Downloaded ${filename}. ${omittedSettings} monitoring ${omittedSettings === 1 ? 'profile had' : 'profiles had'} unreadable settings left out. Check monitoringSettingsOmitted in the file for the count.`,
+        text: `Downloaded ${filename}. ${notices.join(' ')}`,
       } : { type: 'success', text: `Downloaded ${filename}` });
     } catch (err) {
       setStatusMessage({ type: 'error', text: 'Export failed. Please try again later.' });
