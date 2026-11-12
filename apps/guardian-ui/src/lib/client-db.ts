@@ -681,24 +681,20 @@ export async function getCachedAlerts(streamId?: string, ownerId = ''): Promise<
 
 /** Read all saved history plus retained new alerts through the owner index. */
 export async function getCachedMonitoringAlerts(ownerId = ''): Promise<any[]> {
-  try {
-    const db = await getDB();
-    const owner = alertOwner({ monitoring: true, ownerId });
-    const tx = db.transaction('alert_cache', 'readwrite');
-    await claimUnownedAlerts(tx.store, ownerId);
-    await pruneGlobalAlerts(tx.store);
-    await pruneOwnerAlerts(tx.store, owner);
-    const alerts: SafeOSDB['alert_cache']['value'][] = [];
-    let cursor = await tx.store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
-    while (cursor) {
-      alerts.push(cursor.value);
-      cursor = await cursor.continue();
-    }
-    await tx.done;
-    return alerts;
-  } catch {
-    return [];
+  const db = await getDB();
+  const owner = alertOwner({ monitoring: true, ownerId });
+  const tx = db.transaction('alert_cache', 'readwrite');
+  await claimUnownedAlerts(tx.store, ownerId);
+  await pruneGlobalAlerts(tx.store);
+  await pruneOwnerAlerts(tx.store, owner);
+  const alerts: SafeOSDB['alert_cache']['value'][] = [];
+  let cursor = await tx.store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
+  while (cursor) {
+    alerts.push(cursor.value);
+    cursor = await cursor.continue();
   }
+  await tx.done;
+  return alerts;
 }
 
 export async function deleteCachedMonitoringAlert(id: string, ownerId = ''): Promise<void> {

@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Browser alert upgrades preserve every existing record until the person clears it, including older and unowned history. No alert is removed for its age. New records are limited to 100 monitoring alerts per person and 500 overall, with acknowledged alerts removed first, oldest first. Saved history is outside those limits. Direct loads and reloads use the same owner; the first known owner claims unowned browser history atomically. Acknowledgements retain ownership, media, creation time and upgrade protection.
-- Database connections close for a newer version in another tab and ask for a reload. Blocked upgrades ask the person to close other SafeOS tabs and reload instead of waiting indefinitely.
+- A failed browser-history read preserves the current person's displayed alerts and retries on the next read.
+- Database connections close for a newer version in another tab and ask for a reload. Blocked upgrades ask the person to close other SafeOS tabs and reload instead of waiting indefinitely. Reload guidance remains readable in both light and dark looks.
 - Full server exports keep the newest limited rows and include total, included and truncated counts for streams, alerts and analysis results.
 - Profile and full exports include owned monitoring profiles and personal active choices by ownership, with matching export guidance and documented record limits.
 - Push registration verifies the incoming session's live profile binding in the same write that saves the registration.

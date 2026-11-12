@@ -67,6 +67,8 @@ try {
               has: page.getByRole('heading', { name: 'Export Data', exact: true }),
             });
             await exportContent.screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
+          } else if (route === '/privacy/') {
+            await page.locator('#main-content').screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
           } else {
             await page.screenshot({ path: file, fullPage: true });
           }
@@ -132,7 +134,8 @@ try {
               });
               if (contrast < 4.5) throw new Error(`Database notice contrast ${contrast.toFixed(2)} is below 4.5`);
             }
-            await page.screenshot({ path: path.join(outDir, `monitor-${scenario}-${size.width}-${look}.png`), fullPage: true });
+            await page.locator('#main-content').screenshot({ path: path.join(outDir, `monitor-${scenario}-${size.width}-${look}.png`),
+              style: 'nav { visibility: hidden !important; }' });
           } catch (err) {
             failures += 1;
             console.error(`failed monitor ${scenario} at ${size.width} ${look}: ${err.message}`);

@@ -68,12 +68,13 @@ initializes on every page, and the profile is persisted so direct loads and
 reloads use the same alert owner. Unowned browser history remains visible before
 sign-in; the first known owner to read it claims it in the same transaction as
 the read. Later owners cannot claim it again. Queued writes retain their captured
-owner, and a profile change reloads the displayed history.
+owner, and a profile change reloads the displayed history. If a browser history
+read fails, the current owner's displayed alerts stay in place; the next read retries.
 
 An open connection closes when another tab requests a newer database version,
 and its page asks the person to reload SafeOS. A new tab blocked by an older tab
 shows “Close other SafeOS tabs, then reload this page to finish updating your saved
-history.” The opener settles instead of waiting indefinitely. Tabs running a
+history.” The opener settles instead of waiting indefinitely. The reload notice uses the app's light and dark palette, with readable text in both looks. Tabs running a
 version from before this change may need to be closed manually. Browser-only data
 is not included in server exports; use History's local export for that data.
 

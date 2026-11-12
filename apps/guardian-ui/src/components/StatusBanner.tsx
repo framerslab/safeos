@@ -80,7 +80,7 @@ export function StatusBanner({ onConfigureClick, dismissible = true }: StatusBan
 
   if (databaseNotice) {
     return (
-      <div role="alert" className="bg-amber-900 border-b border-amber-500 text-amber-100">
+      <div role="alert" className="bg-[var(--color-steel-900)] border-b border-amber-500 text-[var(--color-steel-100)]">
         <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
           <p className="text-sm flex-1 min-w-48">{databaseNotice}</p>
           <button type="button" onClick={() => window.location.reload()}

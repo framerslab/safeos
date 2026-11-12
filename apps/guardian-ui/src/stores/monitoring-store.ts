@@ -225,8 +225,16 @@ export const useMonitoringStore = create<MonitoringState>()(
         await alertWrites;
         const revision = alertRevision;
         const ownerId = currentOwner();
-        const saved: Alert[] = (await getCachedMonitoringAlerts(ownerId))
-          .map((alert: Alert) => ({ ...alert, severity: knownSeverity(alert.severity) }));
+        let saved: Alert[];
+        try {
+          saved = (await getCachedMonitoringAlerts(ownerId))
+            .map((alert: Alert) => ({ ...alert, severity: knownSeverity(alert.severity) }));
+        } catch (error) {
+          // Unavailable storage is not an empty history. Keep this owner's live list.
+          console.warn('[Monitoring] Could not read alert history:', error);
+          set(state => ({ alerts: currentAlerts(state.alerts, currentOwner()) }));
+          return;
+        }
         if (revision !== alertRevision || ownerId !== currentOwner()) return get().hydrateAlerts();
         if (getDatabaseNotice()) return;
         set({ alerts: currentAlerts(saved, ownerId) });
