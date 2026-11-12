@@ -857,7 +857,11 @@ settings. The user profile route returns `hasAuthToken` and `hasApiKey` inside
 the corresponding override and `hasBotToken` alongside them. Saving these returned
 presence flags back in `notificationSettings` on the user profile route preserves
 the omitted credentials. On that route, clear `emailOverride` or `smsOverride`
-with `{}` and `telegramBotToken` with an empty string.
+with `{}` and `telegramBotToken` with an empty string. A personal key or
+complete SMS override does not use the server account's recipient authorization.
+Email suppression still applies. Unauthorized channels are skipped with one fixed
+log line naming the channel and reason, without the recipient. Browser push
+requires VAPID configuration and a permitted subscription destination.
 
 Monitoring profile routes return stored settings, including any credentials;
 saving `settings` replaces the whole settings object. Exported monitoring
@@ -866,11 +870,7 @@ Both profile and full exports omit `smsOverride.authToken`, `emailOverride.apiKe
 and `telegramBotToken` from monitoring settings. Readable exported settings remain
 a JSON string; unreadable or non-object settings become `null` as described above.
 Exporting does not change stored credentials. Database access still exposes the
-stored secrets. A personal key or complete SMS override
-does not use the server account's recipient authorization. Email suppression
-still applies. Unauthorized channels are skipped with one fixed log line naming
-the channel and reason, without the recipient. Browser push requires VAPID
-configuration and a permitted subscription destination.
+stored secrets.
 
 All `/api/notifications` routes require a session. Push and Telegram registrations
 are stored in SQLite under that session's profile and survive restarts. A caller's
