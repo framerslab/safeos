@@ -9,7 +9,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from './auth-store';
-import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, ALERT_MAX_AGE_MS, MAX_MONITORING_ALERTS } from '../lib/client-db';
+import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, getDatabaseNotice, MAX_MONITORING_ALERTS } from '../lib/client-db';
 
 // =============================================================================
 // Types
@@ -18,6 +18,7 @@ import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, cle
 export interface Alert {
   id: string;
   ownerId?: string;
+  savedBeforeUpgrade?: boolean;
   streamId: string;
   alertType?: string;
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
@@ -142,9 +143,13 @@ function currentOwner(): string {
   return useAuthStore.getState().profile?.id || '';
 }
 function currentAlerts(alerts: Alert[], ownerId: string): Alert[] {
-  const cutoff = Date.now() - ALERT_MAX_AGE_MS;
-  return alerts.filter(alert => (alert.ownerId || '') === ownerId &&
-    Date.parse(alert.createdAt || alert.timestamp || '') >= cutoff);
+  const owned = alerts.filter(alert => (alert.ownerId || '') === ownerId);
+  const candidates = owned.filter(alert => !alert.savedBeforeUpgrade).sort((a, b) =>
+    Number(b.acknowledged) - Number(a.acknowledged) ||
+    (a.createdAt || a.timestamp || '').localeCompare(b.createdAt || b.timestamp || '') ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const removed = new Set(candidates.slice(0, Math.max(0, candidates.length - MAX_MONITORING_ALERTS)).map(a => a.id));
+  return owned.filter(alert => !removed.has(alert.id));
 }
 function saveAlert(alert: Alert) {
   return cacheAlert({ ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
@@ -188,11 +193,12 @@ export const useMonitoringStore = create<MonitoringState>()(
       addAlert: (alert) => {
         const dated = {
           ...alert,
+          savedBeforeUpgrade: get().alerts.find(a => a.id === alert.id)?.savedBeforeUpgrade,
           ownerId: currentOwner(),
           severity: knownSeverity(alert.severity),
           createdAt: alert.createdAt || alert.timestamp || new Date().toISOString(),
         };
-        set((state) => ({ alerts: currentAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)], dated.ownerId).slice(0, MAX_MONITORING_ALERTS) }));
+        set((state) => ({ alerts: currentAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)], dated.ownerId) }));
         writeAlerts(() => saveAlert(dated));
       },
 
@@ -222,11 +228,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         const saved: Alert[] = (await getCachedMonitoringAlerts(ownerId))
           .map((alert: Alert) => ({ ...alert, severity: knownSeverity(alert.severity) }));
         if (revision !== alertRevision || ownerId !== currentOwner()) return get().hydrateAlerts();
-        set((state) => ({
-          alerts: currentAlerts(Array.from(new Map([...saved, ...state.alerts].map(a => [a.id, a])).values()), ownerId)
-            .sort((a, b) => (b.createdAt || b.timestamp || '').localeCompare(a.createdAt || a.timestamp || ''))
-            .slice(0, MAX_MONITORING_ALERTS),
-        }));
+        if (getDatabaseNotice()) return;
+        set({ alerts: currentAlerts(saved, ownerId) });
       },
 
       addStream: (stream) =>

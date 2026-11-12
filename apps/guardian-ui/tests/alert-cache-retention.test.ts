@@ -103,9 +103,9 @@ it('keeps the owner captured before a queued write runs', async () => {
 });
 
 it('keeps old records on write without an age cutoff', async () => {
-  const expired = new Date(Date.now() - DAY - 1).toISOString();
-  await cacheAlert(alert('old-shared', expired));
-  useMonitoringStore.getState().addAlert(alert('old-monitor', expired));
+  const older = new Date(Date.now() - DAY - 1).toISOString();
+  await cacheAlert(alert('old-shared', older));
+  useMonitoringStore.getState().addAlert(alert('old-monitor', older));
   await useMonitoringStore.getState().hydrateAlerts();
   const db = await openDB('safeos-guardian');
   expect(await db.count('alert_cache')).toBe(2);
@@ -129,13 +129,13 @@ it('limits generic readers and acknowledgements to shared and current-owner hist
 
 it('keeps every owner and shared history on a later monitoring-only read', async () => {
   const start = Date.now();
-  await cacheAlert(alert('shared-expiring', new Date(start).toISOString()));
+  await cacheAlert(alert('shared-older', new Date(start).toISOString()));
   for (const id of ['alice', 'bob']) {
-    await cacheAlert({ ...alert(`${id}-expiring`, new Date(start).toISOString()), monitoring: true, ownerId: id });
+    await cacheAlert({ ...alert(`${id}-older`, new Date(start).toISOString()), monitoring: true, ownerId: id });
   }
   jest.spyOn(Date, 'now').mockReturnValue(start + DAY + 1);
   await useMonitoringStore.getState().hydrateAlerts();
-  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-expiring']);
+  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-older']);
   const db = await openDB('safeos-guardian');
   expect(await db.count('alert_cache')).toBe(3);
   db.close();

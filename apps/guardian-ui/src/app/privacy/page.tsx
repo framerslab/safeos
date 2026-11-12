@@ -136,9 +136,19 @@ export default function PrivacyPage() {
                 <strong className="text-white">Data Storage:</strong> Your preferences are stored in
                 your browser&apos;s local storage. Saved frames from Security, Lost &amp; Found, and
                 Wildlife, and your reference photos, are stored in IndexedDB. Alerts on the monitor
-                page are saved in IndexedDB and restored in History after a reload. Clearing your browser data removes
-                everything. Clear All Local Data also removes recorded sounds and the offline cache.
+                page are saved in IndexedDB and restored in History after a reload.
+                Alerts saved before this update stay until you dismiss them or use the existing clear controls,
+                and do not count toward the limits. New alerts are limited to 100 monitoring alerts per person
+                and 500 alerts overall in this browser. Acknowledged alerts are removed first, oldest first;
+                if all remaining alerts are unacknowledged, the oldest leave first.
+                Alerts are never removed because of their age. Clearing your browser data removes everything.
+                Clear All Local Data also removes recorded sounds and the offline cache.
                 Signing out clears local records before another account can use the browser.
+              </p>
+              <p>
+                <strong className="text-white">Updates in other tabs:</strong> When another tab updates
+                the saved-history database, this tab closes its connection and asks you to reload SafeOS.
+                If an older tab blocks the update, close other SafeOS tabs, then reload this page.
               </p>
               <p>
                 <strong className="text-white">AI Processing:</strong> When you use AI features, 
@@ -219,7 +229,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: November 2026
+          Last updated: November 12, 2026
         </div>
       </div>
     </main>

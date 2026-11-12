@@ -115,6 +115,8 @@ function generateDeviceId(): string {
 // Store
 // =============================================================================
 
+let initialization: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -134,74 +136,77 @@ export const useAuthStore = create<AuthState>()(
       isOffline: false,
 
       // Initialize from local storage
-      initialize: async () => {
-        if (get().isInitialized) return;
+      initialize: () => {
+        if (get().isInitialized) return Promise.resolve();
+        if (initialization) return initialization;
+        initialization = (async () => {
+          set({ isLoading: true });
 
-        set({ isLoading: true });
+          try {
+            // Get device ID
+            const deviceId = generateDeviceId();
+            set({ deviceId });
 
-        try {
-          // Get device ID
-          const deviceId = generateDeviceId();
-          set({ deviceId });
+            // Try to restore from IndexedDB
+            const localSession = await getLocalSession();
 
-          // Try to restore from IndexedDB
-          const localSession = await getLocalSession();
+            if (localSession && new Date(localSession.expiresAt) > new Date()) {
+              // Validate with server if online
+              const apiUrl = getApiUrl();
+              try {
+                if (!apiUrl) {
+                  throw new Error('No monitoring server configured');
+                }
 
-          if (localSession && new Date(localSession.expiresAt) > new Date()) {
-            // Validate with server if online
-            const apiUrl = getApiUrl();
-            try {
-              if (!apiUrl) {
-                throw new Error('No monitoring server configured');
-              }
+                const response = await fetch(`${apiUrl}/api/auth/session`, {
+                  headers: {
+                    'X-Session-Token': localSession.token,
+                  },
+                });
 
-              const response = await fetch(`${apiUrl}/api/auth/session`, {
-                headers: {
-                  'X-Session-Token': localSession.token,
-                },
-              });
-
-              if (response.ok) {
-                const { data } = await response.json();
+                if (response.ok) {
+                  const { data } = await response.json();
+                  set({
+                    isAuthenticated: true,
+                    isGuest: data.isGuest,
+                    sessionToken: data.token,
+                    sessionId: data.sessionId,
+                    profile: data.profile,
+                    expiresAt: data.expiresAt,
+                    mode: 'full',
+                    isOffline: false,
+                    isInitialized: true,
+                    isLoading: false,
+                  });
+                  return;
+                }
+              } catch (error) {
+                // Offline - use cached data
+                console.log('[Auth] Offline, using cached session');
                 set({
                   isAuthenticated: true,
-                  isGuest: data.isGuest,
-                  sessionToken: data.token,
-                  sessionId: data.sessionId,
-                  profile: data.profile,
-                  expiresAt: data.expiresAt,
-                  mode: 'full',
-                  isOffline: false,
+                  isGuest: true,
+                  sessionToken: localSession.token,
+                  sessionId: localSession.id,
+                  profile: localSession.profile,
+                  expiresAt: localSession.expiresAt,
+                  mode: 'local-only',
+                  isOffline: true,
                   isInitialized: true,
                   isLoading: false,
                 });
                 return;
               }
-            } catch (error) {
-              // Offline - use cached data
-              console.log('[Auth] Offline, using cached session');
-              set({
-                isAuthenticated: true,
-                isGuest: true,
-                sessionToken: localSession.token,
-                sessionId: localSession.id,
-                profile: localSession.profile,
-                expiresAt: localSession.expiresAt,
-                mode: 'local-only',
-                isOffline: true,
-                isInitialized: true,
-                isLoading: false,
-              });
-              return;
             }
-          }
 
-          // No valid session - create guest session
-          await get().createSession();
-        } catch (error) {
-          console.error('[Auth] Initialization failed:', error);
-          set({ isInitialized: true, isLoading: false });
-        }
+            // No valid session - create guest session
+            await get().createSession();
+          } catch (error) {
+            console.error('[Auth] Initialization failed:', error);
+            set({ isInitialized: true, isLoading: false });
+          }
+        })().finally(() => { initialization = null; });
+        return initialization;
       },
 
       // Create new session
@@ -507,6 +512,7 @@ export const useAuthStore = create<AuthState>()(
         sessionToken: state.sessionToken,
         sessionId: state.sessionId,
         deviceId: state.deviceId,
+        profile: state.profile,
         isGuest: state.isGuest,
       }),
     }

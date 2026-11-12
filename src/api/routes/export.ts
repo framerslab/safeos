@@ -373,7 +373,7 @@ exportRouter.get('/all', async (req, res) => {
 
     // User-scoped queries
     const streams = await db.all(
-      `SELECT * FROM streams WHERE user_id = ? LIMIT 1000`,
+      `SELECT * FROM streams WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1000`,
       [session.profile_id]
     );
 
@@ -381,6 +381,7 @@ exportRouter.get('/all', async (req, res) => {
       `SELECT a.* FROM alerts a
        INNER JOIN streams s ON a.stream_id = s.id
        WHERE s.user_id = ?
+       ORDER BY a.created_at DESC, a.id DESC
        LIMIT 5000`,
       [session.profile_id]
     );
@@ -389,12 +390,26 @@ exportRouter.get('/all', async (req, res) => {
       `SELECT ar.* FROM analysis_results ar
        INNER JOIN streams s ON ar.stream_id = s.id
        WHERE s.user_id = ?
+       ORDER BY ar.created_at DESC, ar.id DESC
        LIMIT 5000`,
       [session.profile_id]
     );
 
+    const totals = await db.get<{ streams: number; alerts: number; analysisResults: number }>(
+      `SELECT
+        (SELECT COUNT(*) FROM streams WHERE user_id = ?) AS streams,
+        (SELECT COUNT(*) FROM alerts a JOIN streams s ON a.stream_id = s.id WHERE s.user_id = ?) AS alerts,
+        (SELECT COUNT(*) FROM analysis_results ar JOIN streams s ON ar.stream_id = s.id WHERE s.user_id = ?) AS analysisResults`,
+      [session.profile_id, session.profile_id, session.profile_id]
+    );
+    const count = (total: number, included: number) => ({ total, included, truncated: total > included });
     const monitoring = await getMonitoringExport(db, session.profile_id);
     const exportData = {
+      counts: {
+        streams: count(totals!.streams, streams.length),
+        alerts: count(totals!.alerts, alerts.length),
+        analysisResults: count(totals!.analysisResults, analysisResults.length),
+      },
       ...monitoring,
       exportedAt: new Date().toISOString(),
       exportType: 'full_data_export',

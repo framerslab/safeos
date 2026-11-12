@@ -80,6 +80,56 @@ try {
       }
     }
   }
+  // Exercise the real database lifecycle in fresh contexts. The base build has
+  // no notice, so its pictures show the same screen while the upgrade waits.
+  if (routes.includes('/monitor/')) {
+    for (const scenario of ['updated', 'blocked']) {
+      for (const size of WIDTHS) {
+        for (const look of LOOKS) {
+          const context = await browser.newContext({
+            viewport: { width: size.width, height: size.height },
+            isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look,
+          });
+          const page = await context.newPage();
+          try {
+            if (scenario === 'blocked') {
+              await page.addInitScript(() => {
+                const request = indexedDB.open('safeos-guardian', 4);
+                request.onsuccess = () => { window.pictureOldDatabase = request.result; };
+              });
+            }
+            await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle' });
+            if (scenario === 'updated') {
+              await page.evaluate(() => new Promise((resolve, reject) => {
+                const observer = indexedDB.open('safeos-guardian');
+                observer.onerror = () => reject(observer.error);
+                observer.onsuccess = () => {
+                  const version = observer.result.version;
+                  observer.result.close();
+                  const newer = indexedDB.open('safeos-guardian', version + 1);
+                  newer.onsuccess = () => { newer.result.close(); resolve(); };
+                  newer.onblocked = () => resolve();
+                  newer.onerror = () => reject(newer.error);
+                };
+              }));
+            }
+            if (process.env.PICTURE_VERSION === 'after') {
+              await page.getByRole('button', { name: 'Reload SafeOS' }).waitFor();
+              const notice = page.getByRole('alert').filter({ has: page.getByRole('button', { name: 'Reload SafeOS' }) });
+              const words = scenario === 'blocked' ? 'Close other SafeOS tabs' : 'updated in another tab';
+              if (!(await notice.textContent()).includes(words)) throw new Error('Missing database update guidance');
+            }
+            await page.screenshot({ path: path.join(outDir, `monitor-${scenario}-${size.width}-${look}.png`), fullPage: true });
+          } catch (err) {
+            failures += 1;
+            console.error(`failed monitor ${scenario} at ${size.width} ${look}: ${err.message}`);
+          } finally {
+            await context.close();
+          }
+        }
+      }
+    }
+  }
 } finally {
   await browser.close();
 }

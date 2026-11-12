@@ -40,30 +40,45 @@ and reconnect timer.
 ## Alert history
 
 Monitor alerts are written to the existing `safeos-guardian` IndexedDB alert cache.
-Monitor and **History → Local Timeline** restore the latest 100 alerts for the
-current owner after a reload, using an owner-and-creation-time index instead of
-loading the whole alert store. Each owner's monitoring history is capped at 100
-records. The complete alert cache, including local-engine and sync records, is
-capped at 500 records; the oldest records are removed first. Both kinds expire
-24 hours after creation. The counts preserve the existing intended cache and
-panel limits; 24 hours covers the longest monitoring session without keeping
-an indefinite browser archive.
+Every alert already saved when this update opens the database is marked as saved
+before the upgrade. All saved monitoring history stays available in Monitor and
+**History → Local Timeline**, including history with no owner or an unusable date,
+until the person dismisses it or uses the existing clear controls. These records
+do not count toward either limit. No alert is ever removed because of its age.
 
-The database prunes history on opening, each alert write, and history reads.
-Any history read also expires old records across owners using the creation-time index.
-General alert lists and their acknowledgements include shared records and only the
-selected owner's monitoring records.
-Acknowledgement does not restart an alert's age or remove its owner and thumbnail. Monitoring reads and removals
-are scoped to the current owner, including writes queued before an owner change.
-The version 4 to 5 upgrade adds the index in place, retaining existing records
-and other stores. Legacy monitoring records with no owner remain in the local,
-unsigned-in history; they are not assigned to whichever account opens the app.
-The upgrade normalizes valid dates and removes invalid dates before indexing or
-counting retained history. Normal retention applies after opening. Browser-only data is not included in
-server exports; use History's local export for that data.
+For alerts written after the upgrade, the limits are 100 monitoring alerts per
+person and 500 alerts across all producers and owners in this browser. At either
+limit, acknowledged alerts are removed first, oldest first. Only when no
+acknowledged candidates remain are the oldest unacknowledged alerts removed.
+Thus newer acknowledged alerts can leave before an older unseen alert. Monitor's
+in-memory list follows the same rule. Protected history is shown in addition to
+these limits, so an existing browser can hold and display more than 500 alerts.
 
-An alert acknowledged on Monitor stays in history marked acknowledged, also when the server
-cannot be reached. Dismissals and clearing alerts remove only monitoring-owned
+Writes enforce both limits in the same transaction. Indexes separate protected
+history from new records and order new records by acknowledgement and creation
+time. Monitoring reads and removals use the owner index. General alert lists and
+their acknowledgements include shared records and only the selected owner's
+monitoring records. Acknowledgements keep creation time, ownership, media and the
+saved-before-upgrade marker.
+
+The version 4 (or 5) to 6 upgrade adds these indexes in place and preserves every
+existing alert and all other stores. Dates are normalized for indexing; unusable
+original dates remain on the record alongside a usable display date. Authentication
+initializes on every page, and the profile is persisted so direct loads and
+reloads use the same alert owner. Unowned browser history remains visible before
+sign-in; the first known owner to read it claims it in the same transaction as
+the read. Later owners cannot claim it again. Queued writes retain their captured
+owner, and a profile change reloads the displayed history.
+
+An open connection closes when another tab requests a newer database version,
+and its page asks the person to reload SafeOS. A new tab blocked by an older tab
+shows “Close other SafeOS tabs, then reload this page to finish updating your saved
+history.” The opener settles instead of waiting indefinitely. Tabs running a
+version from before this change may need to be closed manually. Browser-only data
+is not included in server exports; use History's local export for that data.
+
+An alert acknowledged on Monitor is marked acknowledged in history, also when the server
+cannot be reached. New acknowledged alerts remain subject to the count limits. Dismissals and clearing alerts remove only monitoring-owned
 records; alerts from other producers in the shared database are left intact. Alert
 types and thumbnails are retained. A severity outside info, low, medium, high and
 critical is shown as medium (emergency as critical).

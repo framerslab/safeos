@@ -59,6 +59,10 @@ interface SafeOSDB extends DBSchema {
       monitoring?: boolean;
       ownerId?: string;
       cacheOwner: string;
+      savedBeforeUpgrade?: boolean;
+      originalCreatedAt?: unknown;
+      retentionClass: 'saved' | 'new';
+      acknowledgementOrder: number;
       alertType?: string;
       thumbnailUrl?: string;
       timestamp?: string;
@@ -71,7 +75,13 @@ interface SafeOSDB extends DBSchema {
       createdAt: string;
       syncedAt: string;
     };
-    indexes: { 'by-stream': string; 'by-created': string; 'by-owner-created': [string, string] };
+    indexes: {
+      'by-stream': string;
+      'by-created': string;
+      'by-owner-created': [string, string];
+      'by-retention': [string, number, string];
+      'by-owner-retention': [string, string, number, string];
+    };
   };
   frame_cache: {
     key: string;
@@ -226,12 +236,11 @@ interface SafeOSDB extends DBSchema {
 // =============================================================================
 
 const DB_NAME = 'safeos-guardian';
-const DB_VERSION = 5; // Add ownership and creation time to the alert index
+const DB_VERSION = 6; // Preserve existing history and index new alerts by acknowledgement
 
 const FRAME_BUFFER_MINUTES = 5;
 const MAX_CACHED_ALERTS = 500;
 export const MAX_MONITORING_ALERTS = 100;
-export const ALERT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MAX_MATCH_FRAMES = 500;
 
 // =============================================================================
@@ -239,6 +248,16 @@ const MAX_MATCH_FRAMES = 500;
 // =============================================================================
 
 let dbPromise: Promise<IDBPDatabase<SafeOSDB>> | null = null;
+let databaseNotice: string | null = null;
+
+export function getDatabaseNotice(): string | null {
+  return databaseNotice;
+}
+
+function requestDatabaseReload(message: string): void {
+  databaseNotice = message;
+  window.dispatchEvent(new CustomEvent('safeos:database-status', { detail: message }));
+}
 
 function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
   if (typeof window === 'undefined') {
@@ -246,8 +265,25 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
     return Promise.reject(new Error('IndexedDB not available on server'));
   }
 
+  if (databaseNotice) return Promise.reject(new Error(databaseNotice));
+
   if (!dbPromise) {
-    dbPromise = openDB<SafeOSDB>(DB_NAME, DB_VERSION, {
+    let rejectBlocked: (error: Error) => void;
+    const blocked = new Promise<never>((_resolve, reject) => { rejectBlocked = reject; });
+    const opening = openDB<SafeOSDB>(DB_NAME, DB_VERSION, {
+      blocked() {
+        const message = 'Close other SafeOS tabs, then reload this page to finish updating your saved history.';
+        requestDatabaseReload(message);
+        rejectBlocked(new Error(message));
+      },
+      blocking(_currentVersion, _blockedVersion, event) {
+        (event.target as IDBDatabase).close();
+        dbPromise = null;
+        requestDatabaseReload('SafeOS has been updated in another tab. Reload this page to keep saving history.');
+      },
+      terminated() {
+        dbPromise = null;
+      },
       async upgrade(db, oldVersion, _newVersion, transaction) {
         // Create stores
         if (!db.objectStoreNames.contains('local_session')) {
@@ -272,6 +308,11 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
         const alerts = transaction.objectStore('alert_cache');
         if (!alerts.indexNames.contains('by-owner-created')) {
           alerts.createIndex('by-owner-created', ['cacheOwner', 'createdAt']);
+        }
+
+        if (!alerts.indexNames.contains('by-retention')) {
+          alerts.createIndex('by-retention', ['retentionClass', 'acknowledgementOrder', 'createdAt']);
+          alerts.createIndex('by-owner-retention', ['cacheOwner', 'retentionClass', 'acknowledgementOrder', 'createdAt']);
         }
 
         if (!db.objectStoreNames.contains('frame_cache')) {
@@ -330,30 +371,37 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
           animalStore.createIndex('by-danger', 'dangerLevel');
         }
 
-        if (oldVersion < 5) {
+        if (oldVersion < 6) {
           let cursor = await alerts.openCursor();
           while (cursor) {
             const record = cursor.value;
             const rawDate = record.createdAt || record.syncedAt || new Date().toISOString();
             const timestamp = typeof rawDate === 'string' ? Date.parse(rawDate) : NaN;
-            if (!Number.isFinite(timestamp)) {
-              await cursor.delete();
-            } else {
-              await cursor.update({
-                ...record,
-                createdAt: new Date(Math.min(timestamp, Date.now())).toISOString(),
-                cacheOwner: alertOwner(record),
-              });
-            }
+            // Keep even undated history, including its original date value.
+            await cursor.update({
+              ...record,
+              ...(!Number.isFinite(timestamp) ? { originalCreatedAt: record.createdAt } : {}),
+              createdAt: new Date(Number.isFinite(timestamp) ? timestamp : Date.now()).toISOString(),
+              cacheOwner: alertOwner(record),
+              savedBeforeUpgrade: true,
+              retentionClass: 'saved',
+              acknowledgementOrder: record.acknowledged ? 0 : 1,
+            });
             cursor = await cursor.continue();
           }
         }
       },
-    }).then(async db => {
-      const tx = db.transaction('alert_cache', 'readwrite');
-      await pruneAllAlerts(tx.store);
-      await tx.done;
+    }).then(db => {
+      // A blocked request can finish after its caller has already been notified.
+      if (databaseNotice) {
+        db.close();
+        throw new Error(databaseNotice);
+      }
       return db;
+    });
+    dbPromise = Promise.race([opening, blocked]).catch(error => {
+      dbPromise = null;
+      throw error;
     });
   }
 
@@ -394,16 +442,10 @@ function ownerRange(owner: string): IDBKeyRange {
   return IDBKeyRange.bound([owner], [owner, []]);
 }
 
-/** Retain an owner's newest records without materializing the store. */
+/** Only post-upgrade records count; acknowledged records leave first, oldest first. */
 async function pruneOwnerAlerts(store: AlertStore, owner: string): Promise<void> {
-  const index = store.index('by-owner-created');
-  const cutoff = new Date(Date.now() - ALERT_MAX_AGE_MS).toISOString();
-  let expired = await index.openCursor(IDBKeyRange.bound([owner], [owner, cutoff], false, true));
-  while (expired) {
-    await expired.delete();
-    expired = await expired.continue();
-  }
-  const range = ownerRange(owner);
+  const index = store.index('by-owner-retention');
+  const range = IDBKeyRange.bound([owner, 'new'], [owner, 'new', []]);
   const maximum = owner === 'shared' ? MAX_CACHED_ALERTS : MAX_MONITORING_ALERTS;
   let excess = (await index.count(range)) - maximum;
   let cursor = excess > 0 ? await index.openCursor(range) : null;
@@ -413,42 +455,36 @@ async function pruneOwnerAlerts(store: AlertStore, owner: string): Promise<void>
   }
 }
 
-/** Apply the overall age and count bounds in the same transaction as a write. */
 async function pruneGlobalAlerts(store: AlertStore): Promise<void> {
-  const index = store.index('by-created');
-  const cutoff = new Date(Date.now() - ALERT_MAX_AGE_MS).toISOString();
-  let expired = await index.openCursor(IDBKeyRange.upperBound(cutoff, true));
-  while (expired) {
-    await expired.delete();
-    expired = await expired.continue();
-  }
-  let excess = (await store.count()) - MAX_CACHED_ALERTS;
-  let cursor = excess > 0 ? await index.openCursor() : null;
+  const index = store.index('by-retention');
+  const range = IDBKeyRange.bound(['new'], ['new', []]);
+  let excess = (await index.count(range)) - MAX_CACHED_ALERTS;
+  let cursor = excess > 0 ? await index.openCursor(range) : null;
   while (cursor && excess-- > 0) {
     await cursor.delete();
     cursor = await cursor.continue();
   }
 }
 
-/** Opening also brings legacy records within every owner's bound. */
 async function pruneAllAlerts(store: AlertStore): Promise<void> {
-  const counts = new Map<string, number>();
-  const cutoff = Date.now() - ALERT_MAX_AGE_MS;
-  let cursor = await store.index('by-created').openCursor(null, 'prev');
+  const owners = new Set<string>();
+  let cursor = await store.index('by-owner-retention').openKeyCursor(null, 'nextunique');
   while (cursor) {
-    const record = cursor.value;
-    const createdAt = Date.parse(record.createdAt);
-    if (!Number.isFinite(createdAt) || createdAt < cutoff) {
-      await cursor.delete();
-    } else {
-      const owner = alertOwner(record);
-      const count = (counts.get(owner) || 0) + 1;
-      counts.set(owner, count);
-      if (record.monitoring && count > MAX_MONITORING_ALERTS) await cursor.delete();
-    }
+    if (cursor.key[1] === 'new') owners.add(cursor.key[0]);
     cursor = await cursor.continue();
   }
+  for (const owner of owners) await pruneOwnerAlerts(store, owner);
   await pruneGlobalAlerts(store);
+}
+
+/** The first known owner claims browser-local history atomically with the read. */
+async function claimUnownedAlerts(store: AlertStore, ownerId: string): Promise<void> {
+  if (!ownerId) return;
+  let cursor = await store.index('by-owner-created').openCursor(ownerRange('monitoring:'));
+  while (cursor) {
+    await cursor.update({ ...cursor.value, ownerId, cacheOwner: alertOwner({ monitoring: true, ownerId }) });
+    cursor = await cursor.continue();
+  }
 }
 
 export async function cleanupCaches(): Promise<void> {
@@ -594,6 +630,10 @@ export async function cacheAlert(alert: any): Promise<void> {
       monitoring: alert.monitoring === true,
       ownerId: alert.monitoring === true ? alert.ownerId || '' : undefined,
       cacheOwner,
+      savedBeforeUpgrade: previous?.savedBeforeUpgrade === true,
+      originalCreatedAt: previous?.originalCreatedAt,
+      retentionClass: previous?.savedBeforeUpgrade === true ? 'saved' : 'new',
+      acknowledgementOrder: alert.acknowledged ? 0 : 1,
       alertType: alert.alertType,
       thumbnailUrl: alert.thumbnailUrl,
       timestamp: alert.timestamp,
@@ -619,39 +659,38 @@ export async function getCachedAlerts(streamId?: string, ownerId = ''): Promise<
   try {
     const db = await getDB();
     const tx = db.transaction('alert_cache', 'readwrite');
+    await claimUnownedAlerts(tx.store, ownerId);
     await pruneGlobalAlerts(tx.store);
     const alerts: SafeOSDB['alert_cache']['value'][] = [];
-    const maximum = streamId ? MAX_CACHED_ALERTS : MAX_MONITORING_ALERTS;
     for (const owner of ['shared', alertOwner({ monitoring: true, ownerId })]) {
       await pruneOwnerAlerts(tx.store, owner);
       let cursor = await tx.store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
-      let count = 0;
-      while (cursor && count < maximum) {
+      while (cursor) {
         if (!streamId || cursor.value.streamId === streamId) {
           alerts.push(cursor.value);
-          count++;
         }
         cursor = await cursor.continue();
       }
     }
     await tx.done;
-    return alerts.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, maximum);
+    return alerts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch {
     return [];
   }
 }
 
-/** Unowned legacy history stays local; accounts read only their own index range. */
+/** Read all saved history plus retained new alerts through the owner index. */
 export async function getCachedMonitoringAlerts(ownerId = ''): Promise<any[]> {
   try {
     const db = await getDB();
     const owner = alertOwner({ monitoring: true, ownerId });
     const tx = db.transaction('alert_cache', 'readwrite');
+    await claimUnownedAlerts(tx.store, ownerId);
     await pruneGlobalAlerts(tx.store);
     await pruneOwnerAlerts(tx.store, owner);
     const alerts: SafeOSDB['alert_cache']['value'][] = [];
     let cursor = await tx.store.index('by-owner-created').openCursor(ownerRange(owner), 'prev');
-    while (cursor && alerts.length < MAX_MONITORING_ALERTS) {
+    while (cursor) {
       alerts.push(cursor.value);
       cursor = await cursor.continue();
     }

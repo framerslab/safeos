@@ -564,8 +564,15 @@ Download a JSON object containing `profile`, `sessions`, `streams`, `alerts`,
 `analysisResults`, `monitoringProfiles`, and `activeMonitoringProfiles`.
 Monitoring profiles and choices use the same ownership rules and fields as
 `/api/export/profile`. Sessions omit tokens. Streams are capped at 1,000;
-alerts and analysis results are each capped at 5,000. Monitoring profiles and
-personal choices have no export count cap. This is server data only: browser
+alerts and analysis results are each capped at 5,000. Each limited list keeps the
+newest rows first (`created_at` descending, then `id` descending for ties).
+`counts.streams`, `counts.alerts`, and `counts.analysisResults` each contain
+`total` (all rows owned by this person), `included` (rows in the export), and
+`truncated` (`true` when `total` exceeds `included`). These counts cover all owned
+streams, including alerts or analysis from streams outside the exported stream
+list. For example, an alert total of 5,001 produces `{ "total": 5001,
+"included": 5000, "truncated": true }`; exporting does not remove the omitted rows
+from the server. Monitoring profiles and personal choices have no export count cap. This is server data only: browser
 history is exported separately from History's local timeline.
 
 ---
