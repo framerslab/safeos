@@ -7,6 +7,9 @@ it('describes owned monitoring settings and the full exports record limits', () 
   localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://api.example.test' }));
   useAuthStore.setState({ isInitialized: true, isAuthenticated: true, sessionToken: 'export-session' });
   render(<ExportPage />);
+  expect(screen.getByText('Up to 10,000 alerts with timestamps, severity, and messages')).toBeTruthy();
+  expect(screen.getByText('Up to 1,000 monitoring sessions with stats')).toBeTruthy();
+  expect(screen.getByText('Up to 10,000 analysis results with concern levels and processing times')).toBeTruthy();
   expect(screen.getByText(/monitoring profiles and active choices/i)).toBeTruthy();
   expect(screen.getByText(/1,000 streams and 5,000 each/i)).toBeTruthy();
 });
@@ -45,6 +48,58 @@ it.each([
       expect(screen.getByText(/monitoringSettingsOmitted/)).toBeTruthy();
     } else {
       expect(screen.queryByText(/unreadable settings left out/i)).toBeNull();
+    }
+  } finally {
+    global.fetch = originalFetch;
+    URL.createObjectURL = originalCreate;
+    URL.revokeObjectURL = originalRevoke;
+    click.mockRestore();
+  }
+});
+
+
+it.each([
+  ['profile', 'Profile & Settings', 0, 1],
+  ['all', 'Full Data Export', 0, 1],
+  ['profile', 'Profile & Settings', 2, 1],
+  ['all', 'Full Data Export', 2, 1],
+  ['profile', 'Profile & Settings', 0, 0],
+  ['all', 'Full Data Export', 0, 0],
+] as const)('reports notification omissions after a %s download (%s, monitoring %s, notification %s)', async (kind, label, monitoring, notification) => {
+  localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://api.example.test' }));
+  useAuthStore.setState({ isInitialized: true, isAuthenticated: true, sessionToken: 'export-session' });
+  const originalFetch = global.fetch;
+  const originalCreate = URL.createObjectURL;
+  const originalRevoke = URL.revokeObjectURL;
+  const data = { monitoringSettingsOmitted: monitoring, notificationSettingsOmitted: notification };
+  const payload = kind === 'profile' ? { success: true, data } : data;
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  const createURL = jest.fn(() => 'blob:export');
+  const click = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  global.fetch = jest.fn().mockResolvedValue({
+    ok: true, headers: { get: () => null }, blob: async () => blob,
+    clone: () => ({ json: async () => payload }),
+  });
+  URL.createObjectURL = createURL;
+  URL.revokeObjectURL = jest.fn();
+  try {
+    render(<ExportPage />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(label) }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download Export' }));
+    await screen.findByText(new RegExp(`Downloaded safeos-${kind}-`));
+    expect(createURL).toHaveBeenCalledWith(blob);
+    expect(click).toHaveBeenCalledTimes(1);
+    if (notification) {
+      expect(screen.getByText(/1 user profile had unreadable notification settings left out/i)).toBeTruthy();
+      expect(screen.getByText(/notificationSettingsOmitted/)).toBeTruthy();
+    } else {
+      expect(screen.queryByText(/unreadable notification settings left out/i)).toBeNull();
+    }
+    if (monitoring) {
+      expect(screen.getByText(/2 monitoring profiles had unreadable settings left out/i)).toBeTruthy();
+      expect(screen.getByText(/monitoringSettingsOmitted/)).toBeTruthy();
+    } else {
+      expect(screen.queryByText(/monitoring profiles had unreadable settings left out/i)).toBeNull();
     }
   } finally {
     global.fetch = originalFetch;

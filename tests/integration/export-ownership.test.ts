@@ -84,7 +84,7 @@ describe.each(['profile', 'all'])('%s export ownership', (kind) => {
       { owner_id: alice.profile.id, scenario: 'pet', monitoring_profile_id: 'profile-pet-default' },
     ]);
   });
-  it.each(['{"telegramBotToken":"unreadable-private-value",', ''])('omits unreadable settings while retaining the profile and other rows (%j)', async (settings) => {
+  it.each(['{"telegramBotToken":"unreadable-private-value",', '', '5', '[]', 'null', '"text"', 'true', 'false', '[{"telegramBotToken":"unreadable-private-value"}]'])('omits unreadable settings while retaining the profile and other rows (%j)', async (settings) => {
     const before = await exported();
     expect(before.monitoringSettingsOmitted).toBe(0);
     const id = 'unreadable-settings-profile';
@@ -104,6 +104,24 @@ describe.each(['profile', 'all'])('%s export ownership', (kind) => {
       expect(await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id])).toEqual(stored);
     } finally {
       await db.run('DELETE FROM monitoring_profiles WHERE id = ?', [id]);
+    }
+  });
+  it.each(['{"telegramBotToken":"unreadable-notification-value",', '', '5', '[]', 'null', '"text"', 'true', 'false', '[{"telegramBotToken":"unreadable-notification-value"}]'])('omits unreadable notification settings without changing other data (%j)', async (settings) => {
+    const stored = await db.get('SELECT * FROM user_profiles WHERE id = ?', [alice.profile.id]);
+    const before = await exported();
+    await db.run('UPDATE user_profiles SET notification_settings = ? WHERE id = ?', [settings, alice.profile.id]);
+    try {
+      const data = await exported();
+      expect(before.notificationSettingsOmitted).toBe(0);
+      expect(data.notificationSettingsOmitted).toBe(1);
+      expect(data.profile).toEqual({ ...before.profile, notification_settings: null });
+      for (const key of Object.keys(before).filter((key) => !['profile', 'notificationSettingsOmitted', 'exportedAt'].includes(key))) {
+        expect(data[key]).toEqual(before[key]);
+      }
+      expect(JSON.stringify(data)).not.toContain('unreadable-notification-value');
+      expect(await db.get('SELECT * FROM user_profiles WHERE id = ?', [alice.profile.id])).toEqual({ ...stored, notification_settings: settings });
+    } finally {
+      await db.run('UPDATE user_profiles SET notification_settings = ? WHERE id = ?', [stored.notification_settings, alice.profile.id]);
     }
   });
   it('excludes another persons profiles and choices even when identifiers overlap', async () => {
