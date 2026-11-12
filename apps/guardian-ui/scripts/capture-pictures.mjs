@@ -59,7 +59,10 @@ try {
           }));
           await context.route('https://pictures.example.test/api/export/**', request => request.fulfill({
             contentType: 'application/json',
-            headers: { 'Content-Disposition': 'attachment; filename="safeos-profile.json"' },
+            headers: {
+              'Content-Disposition': 'attachment; filename="safeos-profile.json"',
+              'Access-Control-Expose-Headers': 'Content-Disposition',
+            },
             body: JSON.stringify({ success: true, data: {
               monitoringSettingsOmitted: 2,
               notificationSettingsOmitted: 1,
