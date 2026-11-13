@@ -4,6 +4,11 @@
  * Industrial, utilitarian top navigation bar.
  * Consistent across all pages.
  *
+ * One row at every width from 320 px. Below 1280 px the page links, the
+ * GitHub button and the keyboard-shortcuts button move into the menu, so the
+ * row holds the logo, the theme button, the bell and the menu button, each a
+ * 44 px target. From 1280 px everything fits in the row.
+ *
  * @module components/layout/Nav
  */
 
@@ -87,10 +92,10 @@ export function Nav() {
   }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] bg-[rgba(10,12,15,0.95)] backdrop-blur-xl border-b border-emerald-500/15">
-      <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between gap-8">
+    <nav aria-label="Main" className="fixed top-0 left-0 right-0 z-[100] bg-[rgba(10,12,15,0.95)] backdrop-blur-xl border-b border-emerald-500/15">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3 xl:gap-6">
         {/* Logo */}
-        <Link href="/" className="flex-shrink-0">
+        <Link href="/" className="flex-shrink-0 flex items-center min-h-[44px]" aria-label="SafeOS Guardian home">
           <Logo size="sm" showSuperCloud={false} />
         </Link>
 
@@ -165,31 +170,31 @@ export function Nav() {
         </div>
 
         {/* Right Side Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* GitHub repository - Desktop */}
           <a
             href={`https://github.com/${GITHUB_REPO}`}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="View SafeOS on GitHub"
-            className="hidden lg:inline-flex items-stretch h-9 rounded-md border border-white/10 hover:border-emerald-500/40 bg-white/[0.02] hover:bg-white/[0.05] overflow-hidden transition-colors group"
+            className="hidden xl:inline-flex items-stretch h-11 rounded-md border border-white/10 hover:border-emerald-500/40 bg-white/[0.02] hover:bg-white/[0.05] overflow-hidden transition-colors group"
           >
-            <span className="flex items-center gap-1.5 px-3 text-xs font-medium text-zinc-300 group-hover:text-white">
+            <span className="flex items-center gap-1.5 px-3 text-sm font-medium text-zinc-300 group-hover:text-white">
               <GitHubIcon size={16} className="text-zinc-300 group-hover:text-white" />
               GitHub
             </span>
-            <span className="flex items-center gap-1 px-3 text-xs font-medium border-l border-white/10 text-zinc-300 group-hover:text-white group-hover:bg-emerald-500/10">
+            <span className="flex items-center gap-1 px-3 text-sm font-medium border-l border-white/10 text-zinc-300 group-hover:text-white group-hover:bg-emerald-500/10">
               <StarIcon size={12} className="text-amber-400" />
               Star
             </span>
           </a>
 
-          <div className="hidden lg:block w-px h-6 bg-white/10 mx-1" />
+          <div className="hidden xl:block w-px h-6 bg-white/10 mx-1" />
 
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="flex items-center justify-center w-10 h-10 rounded-lg
+            className="flex items-center justify-center w-11 h-11 rounded-lg
                        text-zinc-400 hover:text-zinc-100 hover:bg-white/5
                        border border-transparent hover:border-white/10 transition-all"
             aria-label={
@@ -209,7 +214,7 @@ export function Nav() {
           <NotificationDropdown />
           <button
             onClick={toggleHelp}
-            className="flex items-center justify-center w-10 h-10 rounded-lg
+            className="hidden xl:flex items-center justify-center w-11 h-11 rounded-lg
                        text-zinc-400 hover:text-zinc-100 hover:bg-white/5
                        border border-transparent hover:border-white/10 transition-all"
             aria-label="Help"
@@ -262,7 +267,7 @@ export function Nav() {
 
           {/* Resources - Mobile */}
           <div className="border-t border-white/5 mt-3 pt-3">
-            <span className="block px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider font-medium">
+            <span className="block px-4 py-2 text-sm text-zinc-500 uppercase tracking-wider font-medium">
               Resources
             </span>
             <Link
@@ -315,6 +320,16 @@ export function Nav() {
               {isDark ? <IconSun size={20} className="text-amber-400" /> : <IconMoon size={20} className="text-indigo-400" />}
               <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
+            <button
+              onClick={() => {
+                toggleHelp();
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-3 px-4 py-3.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all w-full"
+            >
+              <IconHelp size={20} />
+              <span>Keyboard Shortcuts</span>
+            </button>
           </div>
 
           {/* GitHub repository - Mobile */}
@@ -329,9 +344,9 @@ export function Nav() {
               <GitHubIcon size={20} className="text-zinc-300" />
               <span className="flex flex-col flex-1">
                 <span className="text-sm font-medium">View on GitHub</span>
-                <span className="text-xs text-zinc-500">{GITHUB_REPO}</span>
+                <span className="text-sm text-zinc-500">{GITHUB_REPO}</span>
               </span>
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded border border-white/10 text-xs text-zinc-300">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded border border-white/10 text-sm text-zinc-300">
                 <StarIcon size={12} className="text-amber-400" />
                 Star
               </span>

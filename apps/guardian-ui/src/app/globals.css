@@ -73,7 +73,9 @@ html.light .app-layout {
   gap: 0.25rem;
 }
 
-@media (min-width: 768px) {
+/* The page links join the row only where the whole row fits (1280 px);
+   below that they are in the menu, so the row never runs off the edge. */
+@media (min-width: 1280px) {
   .nav-links-desktop {
     display: flex;
   }
@@ -114,8 +116,8 @@ html.light .nav-mobile-menu button:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.75rem;
+  height: 2.75rem;
   border-radius: 0.5rem;
   color: var(--color-steel-400, #a1a1aa);
   background: transparent;
@@ -133,7 +135,7 @@ html.light .nav-mobile-toggle:hover {
   background: rgba(0, 0, 0, 0.05);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .nav-mobile-toggle {
     display: none;
   }
@@ -146,7 +148,7 @@ html.light .nav-mobile-toggle:hover {
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1280px) {
   .nav-mobile-menu {
     display: none;
   }
