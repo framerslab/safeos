@@ -359,7 +359,8 @@ it.each([
       fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
       expect(await screen.findByText('Notification settings were not saved to your profile. Reload this page, set them again, then save.')).toBeTruthy();
       expect(screen.queryByText('Notification settings saved.')).toBeNull();
-      expect(screen.queryByText('Saved locally. Sync to server failed — will retry next time you connect.')).toBeNull();
+      expect(screen.queryByText('Saved on this device. The server did not take the change. Save again when you are connected.')).toBeNull();
+      expect(screen.queryByText('Notification settings were not saved. Try again.')).toBeNull();
       expect(calls.calls.filter((call) => call.method === 'PATCH')).toEqual([]);
     } else {
       const name = screen.getByText('Display Name').parentElement!.querySelector('input')!;

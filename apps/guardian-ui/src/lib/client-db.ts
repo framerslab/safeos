@@ -603,11 +603,18 @@ export async function clearLocalSession(): Promise<void> {
   }
 }
 
+/** Deletes one saved session by its id. It rejects when the database cannot be opened or written. */
+export async function deleteLocalSession(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('local_session', id);
+}
+
 // =============================================================================
 // Profile Cache
 // =============================================================================
 
-export async function cacheProfile(profile: any): Promise<void> {
+/** Writes the profile to the profile cache. A failed write is logged, and the answer is false. */
+export async function cacheProfile(profile: any): Promise<boolean> {
   try {
     const db = await getDB();
     await db.put('profile_cache', {
@@ -618,8 +625,10 @@ export async function cacheProfile(profile: any): Promise<void> {
       notificationSettings: profile.notificationSettings || {},
       updatedAt: new Date().toISOString(),
     });
+    return true;
   } catch (error) {
     console.warn('[ClientDB] Failed to cache profile:', error);
+    return false;
   }
 }
 

@@ -13,11 +13,13 @@ import {
   isDatabaseAvailable,
   readLocalSession,
   saveLocalSession,
+  deleteLocalSession,
   cacheProfile,
   getCachedProfile,
   type LocalSession,
 } from '../lib/client-db';
 import { clearLocalData } from '../lib/local-data';
+import { getLocalDataGeneration, isCurrentLocalData } from '../lib/local-data-generation';
 import { getApiUrl } from '../lib/env';
 
 // =============================================================================
@@ -55,6 +57,20 @@ export interface NotificationSettings {
 
 /** Session mode - 'full' when connected to backend, 'local-only' otherwise */
 export type SessionMode = 'full' | 'local-only';
+
+/**
+ * A profile change that did not reach both this browser and the server. `localSaved` says whether
+ * the change was written to this browser's profile cache.
+ */
+export class ProfileSaveError extends Error {
+  readonly localSaved: boolean;
+
+  constructor(localSaved: boolean, message: string) {
+    super(message);
+    this.name = 'ProfileSaveError';
+    this.localSaved = localSaved;
+  }
+}
 
 interface AuthState {
   // State
@@ -194,10 +210,18 @@ export const useAuthStore = create<AuthState>()(
                 });
                 return;
               }
-              if (response.status === 401) {
-                // The server has ended the saved session: its token no longer counts as held.
-                refusedTokens.add(localSession.token);
-                if (await keepsHeldSession()) return keepHeldSession();
+              if (response.status !== 401) {
+                // Any other answer (a 503, a 429) says nothing about the token: as when the server is unreachable.
+                throw new Error(`The session check answered ${response.status}`);
+              }
+              // The server has ended the saved session: its token no longer counts as held.
+              refusedTokens.add(localSession.token);
+              if (await keepsHeldSession()) return keepHeldSession();
+              // Drop that row, so the next load does not choose it again. A failed delete does not stop set-up.
+              try {
+                await deleteLocalSession(localSession.id);
+              } catch (error) {
+                console.warn('[Auth] Could not delete the refused saved session:', error);
               }
             } catch (error) {
               // Offline - use cached data
@@ -231,6 +255,10 @@ export const useAuthStore = create<AuthState>()(
       createSession: async (displayName?: string) => {
         set({ isLoading: true });
         if (await keepsHeldSession()) return keepHeldSession();
+        // A clear of local data after this point (a sign-out, Clear All Local Data) discards the answer.
+        const generation = getLocalDataGeneration();
+        const cleared = () => !isCurrentLocalData(generation);
+        const leaveCleared = () => set({ isLoading: false, isInitialized: true });
 
         try {
           const deviceId = get().deviceId || generateDeviceId();
@@ -256,10 +284,11 @@ export const useAuthStore = create<AuthState>()(
           }
 
           const { data } = await response.json();
+          if (cleared()) return leaveCleared();
           if (await keepsHeldSession()) return keepHeldSession();
 
           // A session made after the store could not be read stays in memory and local storage.
-          if (!sessionStoreUnread && await isDatabaseAvailable()) {
+          if (!sessionStoreUnread && await isDatabaseAvailable() && !cleared()) {
             // Save to IndexedDB
             await saveLocalSession({
               id: data.sessionId,
@@ -272,11 +301,12 @@ export const useAuthStore = create<AuthState>()(
             });
 
             // Cache profile
-            if (data.profile) {
+            if (data.profile && !cleared()) {
               await cacheProfile(data.profile);
             }
           }
 
+          if (cleared()) return leaveCleared();
           if (await keepsHeldSession()) return keepHeldSession();
           set({
             isAuthenticated: true,
@@ -292,6 +322,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
         } catch (error) {
+          if (cleared()) return leaveCleared();
           if (await keepsHeldSession()) return keepHeldSession();
           console.error('[Auth] Failed to create session:', error);
           
@@ -320,15 +351,16 @@ export const useAuthStore = create<AuthState>()(
             updatedAt: new Date().toISOString(),
           };
 
-          const persistable = !sessionStoreUnread && await isDatabaseAvailable();
+          const persistable = () => !sessionStoreUnread && !cleared();
+          const available = persistable() && await isDatabaseAvailable();
 
           // Cache profile
-          if (persistable) await cacheProfile(guestProfile);
+          if (available && persistable()) await cacheProfile(guestProfile);
 
           // Save local session to IndexedDB for persistence
           const localToken = `local-${guestId}`;
           const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // 1 year
-          if (persistable) await saveLocalSession({
+          if (available && persistable()) await saveLocalSession({
             id: guestId,
             token: localToken,
             deviceId: get().deviceId || generateDeviceId(),
@@ -338,6 +370,7 @@ export const useAuthStore = create<AuthState>()(
             syncedAt: new Date().toISOString(),
           });
 
+          if (cleared()) return leaveCleared();
           if (await keepsHeldSession()) return keepHeldSession();
           set({
             isAuthenticated: true,
@@ -397,26 +430,30 @@ export const useAuthStore = create<AuthState>()(
         // Optimistic update
         set({ profile: updatedProfile });
 
-        try {
-          const apiUrl = getApiUrl();
-          if (token && !token.startsWith('local-') && !token.startsWith('offline-')) {
-            if (apiUrl) {
-              await fetch(`${apiUrl}/api/auth/profile`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Session-Token': token,
-              },
-              body: JSON.stringify(updates),
-              });
-            }
-          }
+        // The local copy is written first; the server is asked only once it is saved.
+        if (!(await cacheProfile(updatedProfile))) {
+          throw new ProfileSaveError(false, 'The profile change was not saved on this device.');
+        }
 
-          // Cache locally
-          await cacheProfile(updatedProfile);
+        const apiUrl = getApiUrl();
+        if (!apiUrl || !token || token.startsWith('local-') || token.startsWith('offline-')) return;
+
+        let response: Response;
+        try {
+          response = await fetch(`${apiUrl}/api/auth/profile`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Session-Token': token,
+            },
+            body: JSON.stringify(updates),
+          });
         } catch (error) {
           console.error('[Auth] Failed to update profile:', error);
-          // Keep optimistic update, will sync later
+          throw new ProfileSaveError(true, 'The profile change was saved on this device; the server could not be reached.');
+        }
+        if (!response.ok) {
+          throw new ProfileSaveError(true, `The profile change was saved on this device; the server answered ${response.status}.`);
         }
       },
 

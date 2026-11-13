@@ -198,6 +198,75 @@ try {
       }
     }
   }
+  // A profile save the server does not take, and one this browser cannot write. The base build shows
+  // its own words for the same saves; in the head build CI checks the words.
+  const saves = [
+    ...(routes.includes('/settings/notifications/') ? [
+      { name: 'notifications-server-refused', route: '/settings/notifications/', button: 'Save changes', localFails: false,
+        words: 'Saved on this device. The server did not take the change. Save again when you are connected.' },
+      { name: 'notifications-not-saved', route: '/settings/notifications/', button: 'Save changes', localFails: true,
+        words: 'Notification settings were not saved. Try again.' },
+    ] : []),
+    ...(routes.includes('/settings/') ? [
+      { name: 'settings-failed', route: '/settings/', button: 'Save Changes', localFails: false,
+        words: 'Failed to save settings.' },
+    ] : []),
+  ];
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Session-Token',
+  };
+  for (const save of saves) {
+    for (const size of WIDTHS) {
+      for (const look of LOOKS) {
+        const context = await browser.newContext({
+          viewport: { width: size.width, height: size.height },
+          isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look,
+        });
+        await context.addInitScript(({ localFails }) => {
+          localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://pictures.example.test' }));
+          if (localFails) {
+            // This browser cannot write the profile cache, as when storage is full.
+            const put = IDBObjectStore.prototype.put;
+            IDBObjectStore.prototype.put = function (...args) {
+              if (this.name === 'profile_cache') throw new DOMException('No space left', 'QuotaExceededError');
+              return put.apply(this, args);
+            };
+          }
+        }, { localFails: save.localFails });
+        await context.route('https://pictures.example.test/**', request => {
+          const method = request.request().method();
+          if (method === 'OPTIONS') return request.fulfill({ status: 204, headers: cors });
+          // The server refuses the profile change unless the scenario is a failed local write.
+          if (method === 'PATCH') return request.fulfill({ status: save.localFails ? 200 : 500, headers: cors,
+            contentType: 'application/json', body: JSON.stringify({ success: save.localFails }) });
+          return request.fulfill({ headers: cors, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: {
+            sessionId: 'picture-session', token: 'picture-token', isGuest: false, expiresAt: '2099-01-01T00:00:00Z',
+            profile: { id: 'picture-person', displayName: 'Picture person', preferences: {}, notificationSettings: {} },
+          } }) });
+        });
+        const page = await context.newPage();
+        const file = path.join(outDir, `${save.name}-${size.width}-${look}.png`);
+        try {
+          await page.goto(new URL(save.route, baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+          await page.getByRole('button', { name: save.button, exact: true }).click();
+          const message = process.env.PICTURE_VERSION === 'after'
+            ? page.getByText(save.words, { exact: true })
+            : page.getByText(/^(Notification settings|Saved |Settings saved|Failed to save)/);
+          await message.first().waitFor({ timeout: 10_000 });
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
+          console.log(`captured ${file}`);
+        } catch (err) {
+          failures += 1;
+          console.error(`failed ${save.name} at ${size.width} ${look}: ${err.message}`);
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  }
 } finally {
   await browser.close();
 }
