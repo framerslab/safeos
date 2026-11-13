@@ -4,8 +4,8 @@ Captured in CI for pull request #21 by the
 [Pictures run](https://github.com/framerslab/safeos/actions/runs/43500603961),
 at 390 and 1280 pixels in the light and dark looks:
 
-- Before: base commit `79320ffb5f7c4e8bcd5208bc9e4f1aa63dc0bc95` (master).
-- After: commit `6d254b1498e135811868a0731439fe6db54b2ddb`.
+- Before: base commit `79320ff5a785bf90596f1e048fd1d274f68a627d` (master).
+- After: commit `6d254b1498e135811868a0731439fe6db54b2ddb`, built merged into that base.
 
 `before/` and `after/` hold the same file names for the home page, About, FAQ,
 Help, Tutorials, Tutorial, the blog and its post, the old support address
