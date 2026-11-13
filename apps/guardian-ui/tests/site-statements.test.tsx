@@ -79,7 +79,8 @@ describe('the old support address', () => {
   const description = String(donateMetadata.description ?? '');
 
   it('asks for no money and links About', () => {
-    expect(html).toContain('href="/about/"');
+    // next/link drops the trailing slash outside a build with trailingSlash.
+    expect(html).toMatch(/href="\/about\/?"/);
     for (const text of [html, title, description]) {
       expect(text).not.toMatch(/sponsor|donat|tax-deductible|non-?profit|\bcharit/i);
     }
