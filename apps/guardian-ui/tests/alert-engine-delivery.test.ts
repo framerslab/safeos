@@ -1,6 +1,3 @@
-    // Y alone: W went with the clear, and X, whose save failed before it, is not written after it.
-    expect(await storedIds()).toEqual([y!.id]);
-    expect(w === null ? [] : [w.id]).not.toContain(y!.id);
 /** @jest-environment jsdom */
 import { waitFor } from '@testing-library/react';
 import { openDB } from 'idb';
