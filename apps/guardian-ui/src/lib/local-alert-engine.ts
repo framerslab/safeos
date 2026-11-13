@@ -10,9 +10,17 @@
 
 'use client';
 
-import { cacheAlert, getCachedAlerts, saveSetting, getSetting } from './client-db';
-import { useAuthStore } from '@/stores/auth-store';
+import { cacheAlert, updateCachedAlert, getCachedAlerts, saveSetting, getSetting } from './client-db';
+import {
+  getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp,
+} from './local-data-generation';
 import { getNotificationManager } from './notification-manager';
+
+/** A save that waits: `marker` and `counter` are noted when it is first queued; `stamp` once it has failed. */
+type PendingSave = { record: any; marker: string; stamp: ClearStamp | null; counter: number };
+
+/** At most this many failed saves wait for a retry; the oldest leaves first. */
+const MAX_PENDING_SAVES = 500;
 
 // =============================================================================
 // Types
@@ -302,6 +310,10 @@ class LocalAlertEngine {
   private inactivityTimer: ReturnType<typeof setTimeout> | null = null;
   private listeners: Set<(alert: LocalAlert) => void> = new Set();
   private initialized = false;
+  /** Every save in order; an alert is delivered without waiting for it. */
+  private saves: Promise<void> = Promise.resolve();
+  /** Saves that failed and wait for a retry, by alert id. */
+  private unsaved = new Map<string, PendingSave>();
 
   // ---------------------------------------------------------------------------
   // Initialization
@@ -375,8 +387,21 @@ class LocalAlertEngine {
       metadata: options.metadata,
     };
 
-    // Store in IndexedDB
-    await cacheAlert({
+    // Update cooldown
+    this.lastAlerts.set(type, Date.now());
+
+    // Alert first: the sound and the notification start and the listeners run before the save,
+    // and nothing waits for another. A sound the browser holds back holds nothing else.
+    if (this.config.soundEnabled) {
+      this.playAlertSound(severity).catch((error) => {
+        console.warn('[LocalAlertEngine] Failed to play alert sound:', error);
+      });
+    }
+    const notified = this.config.notificationsEnabled ? this.showNotification(alert) : Promise.resolve();
+
+    // Store in IndexedDB. The save is queued before the listeners run, so an acknowledgement made
+    // in a listener waits for it, and it is written once they have been called.
+    const release = this.queueSave({
       id: alert.id,
       streamId: alert.streamId || 'local',
       severity: alert.severity,
@@ -385,25 +410,67 @@ class LocalAlertEngine {
       acknowledged: false,
       createdAt: new Date(alert.timestamp).toISOString(),
     });
-
-    // Update cooldown
-    this.lastAlerts.set(type, Date.now());
-
-    // Play sound
-    if (this.config.soundEnabled) {
-      await this.playAlertSound(severity);
+    try {
+      this.notifyListeners(alert);
+    } finally {
+      release();
     }
-
-    // Show notification
-    if (this.config.notificationsEnabled) {
-      await this.showNotification(alert);
-    }
-
-    // Notify listeners
-    this.notifyListeners(alert);
+    await notified;
 
     console.log('[LocalAlertEngine] Created alert:', alert);
     return alert;
+  }
+
+  /** Resolves once every save queued so far has been tried. */
+  whenSaved(): Promise<void> {
+    return this.saves;
+  }
+
+  /** Forgets every waiting save of this tab: a clear of local data calls it. */
+  forgetPendingSaves(): void {
+    this.unsaved.clear();
+    this.saves = Promise.resolve();
+  }
+
+  /**
+   * Queues the save of a new alert behind every earlier save, first retrying the saves that
+   * still wait. The write waits for the returned release.
+   */
+  private queueSave(record: any): () => void {
+    const entry: PendingSave = { record, marker: readLocalClearMarker(), stamp: null, counter: getLocalDataGeneration() };
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const waiting = [...this.unsaved.entries()];
+    this.saves = this.saves.then(async () => {
+      await gate;
+      for (const [id, pending] of waiting) {
+        // An acknowledgement or a clear may have replaced or dropped this waiting save.
+        if (this.unsaved.get(id) === pending) await this.save(pending);
+      }
+      await this.save(entry);
+    }).catch((error) => {
+      console.warn('[LocalAlertEngine] Could not save alert:', error);
+    });
+    return release;
+  }
+
+  /** One try at a save. A first save always writes; a retry carries its stamp and is written only if no clear came since. */
+  private async save(entry: PendingSave): Promise<void> {
+    if (!isCurrentLocalData(entry.counter)) return;
+    const saved = await cacheAlert(entry.record, entry.stamp ?? undefined);
+    if (!isCurrentLocalData(entry.counter)) return;
+    const id = entry.record.id;
+    if (saved) {
+      this.unsaved.delete(id);
+      return;
+    }
+    if (entry.stamp === null || entry.stamp.generation === null) entry.stamp = pendingClearStamp(entry.marker);
+    this.unsaved.set(id, entry);
+    while (this.unsaved.size > MAX_PENDING_SAVES) {
+      const oldest = this.unsaved.keys().next().value;
+      if (oldest === undefined) break;
+      this.unsaved.delete(oldest);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -547,23 +614,29 @@ class LocalAlertEngine {
   // Alert Management
   // ---------------------------------------------------------------------------
 
-  async acknowledgeAlert(alertId: string): Promise<void> {
-    // Update in IndexedDB
-    await useAuthStore.getState().initialize();
-    if (!useAuthStore.getState().isInitialized) return;
-    const alerts = await getCachedAlerts(undefined, useAuthStore.getState().profile?.id || '');
-    const alert = alerts.find((a) => a.id === alertId);
-    if (alert) {
-      alert.acknowledged = true;
-      alert.acknowledgedAt = new Date().toISOString();
-      await cacheAlert(alert);
+  /**
+   * Acknowledges an alert in IndexedDB. False means its record is gone, because a clear, a
+   * dismissal or a limit removed it, and nothing was written.
+   */
+  async acknowledgeAlert(alertId: string): Promise<boolean> {
+    await this.whenSaved();
+    const pending = this.unsaved.get(alertId);
+    if (pending) {
+      // The next retry saves what the person last did, under the stamp the save already has.
+      this.unsaved.set(alertId, {
+        ...pending,
+        record: { ...pending.record, acknowledged: true, acknowledgedAt: new Date().toISOString() },
+      });
+      return true;
     }
+    // One transaction reads the record and writes it back acknowledged; it never creates one.
+    const result = await updateCachedAlert({ id: alertId, acknowledged: true, acknowledgedAt: new Date().toISOString() });
+    return result !== 'gone';
   }
 
   async getRecentAlerts(limit = 50): Promise<LocalAlert[]> {
-    await useAuthStore.getState().initialize();
-    if (!useAuthStore.getState().isInitialized) return [];
-    const cached = await getCachedAlerts(undefined, useAuthStore.getState().profile?.id || '');
+    await this.whenSaved();
+    const cached = await getCachedAlerts();
     return cached.slice(0, limit).map((a) => ({
       id: a.id,
       type: this.inferAlertType(a.message),
@@ -715,16 +788,18 @@ export function useLocalAlerts(): UseLocalAlertsReturn {
   }, []);
 
   const acknowledgeAlert = useCallback(async (id: string) => {
-    await localAlertEngine.acknowledgeAlert(id);
-    setAlerts((prev) => prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)));
+    const kept = await localAlertEngine.acknowledgeAlert(id);
+    // An alert whose record is gone leaves the list instead of being shown as acknowledged.
+    setAlerts((prev) => kept ? prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a)) : prev.filter((a) => a.id !== id));
   }, []);
 
   const acknowledgeAll = useCallback(async () => {
     const unack = alerts.filter((a) => !a.acknowledged);
+    const gone = new Set<string>();
     for (const alert of unack) {
-      await localAlertEngine.acknowledgeAlert(alert.id);
+      if (!(await localAlertEngine.acknowledgeAlert(alert.id))) gone.add(alert.id);
     }
-    setAlerts((prev) => prev.map((a) => ({ ...a, acknowledged: true })));
+    setAlerts((prev) => prev.filter((a) => !gone.has(a.id)).map((a) => ({ ...a, acknowledged: true })));
   }, [alerts]);
 
   const testSound = useCallback(async (severity: AlertSeverity = 'warning') => {
