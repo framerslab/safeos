@@ -229,7 +229,7 @@ async function afterWait(session: SessionState, work: SessionWork): Promise<'voi
   return held ? 'held' : null;
 }
 
-/** How long a profile request may go without an answer before it counts as failed. */
+/** How long a profile request or a sign-out request may go without an answer before it counts as failed. */
 const REQUEST_LIMIT_MS = 15_000;
 
 /**
@@ -781,8 +781,8 @@ function queueProfileSave(session: SessionState, change: (settled: UserProfile) 
 // =============================================================================
 
 /**
- * Signs out: ends the session on its server, then clears this browser. A server that fails does not
- * keep the browser from being cleared.
+ * Signs out: ends the session on its server, within the request's time limit, then clears this
+ * browser. A server that fails or does not answer does not keep the browser from being cleared.
  */
 async function signOut(session: SessionState): Promise<void> {
   // Under a reload notice the browser cannot be cleared: refuse before the server session ends.
@@ -794,7 +794,7 @@ async function signOut(session: SessionState): Promise<void> {
   try {
     const apiUrl = getApiUrl();
     if (apiUrl && serverToken(token)) {
-      await fetch(`${apiUrl}/api/auth/session`, {
+      await limitedRequest(`${apiUrl}/api/auth/session`, {
         method: 'DELETE',
         headers: {
           'X-Session-Token': token,
