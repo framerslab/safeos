@@ -14,6 +14,7 @@ import { IconShield, IconLock, IconEye, IconDatabase, IconCheck } from '@/compon
 export const metadata: Metadata = {
   title: 'Privacy',
   description: 'SafeOS Guardian privacy policy: no tracking, no cookies, local-first by design.',
+  alternates: { canonical: '/privacy/' },
 };
 
 // =============================================================================
@@ -40,7 +41,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconLock,
     title: 'No Cookies',
-    description: 'We don\'t use cookies. Not for tracking, not for anything. Your browsing remains completely private.',
+    description: 'We don\'t use cookies. Not for tracking, not for anything.',
   },
   {
     icon: IconShield,
@@ -173,6 +174,22 @@ export default function PrivacyPage() {
                 The GitHub link makes no request until you open it.
               </p>
               <p>
+                <strong className="text-white">Do Not Track and Global Privacy Control:</strong> safeos.sh
+                runs no tracking, so these signals have nothing to switch off: nothing about you is
+                collected whether your browser sends them or not.
+              </p>
+              <p>
+                <strong className="text-white">Hosting:</strong> safeos.sh is hosted on GitHub Pages.
+                Like any web host, GitHub logs each visitor&apos;s IP address; it{' '}
+                <a
+                  href="https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#data-collection"
+                  className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  says it stores them for security purposes
+                </a>
+                .
+              </p>
+              <p>
                 <strong className="text-white">Service Worker:</strong> We use a service worker 
                 for offline functionality. It caches app files locally. After you agree to the detection model download, its manifest and weights are saved separately in browser Cache Storage.
                 Browser notifications (when enabled) are handled by your browser; true background push
@@ -213,11 +230,11 @@ export default function PrivacyPage() {
         {/* Open Source */}
         <section className="mb-12">
           <h2 className="text-xl font-semibold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
-            Open Source & Humanitarian
+            Open Source
           </h2>
           <div className="text-slate-400 space-y-4">
             <p>
-              Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
+              Frame builds SafeOS and pays for its development.
             </p>
             <p>
               This project is open source. You can inspect our code, verify our privacy claims, 
@@ -232,7 +249,8 @@ export default function PrivacyPage() {
             Questions?
           </h2>
           <p className="text-slate-400">
-            If you have any privacy concerns or questions, reach out at{' '}
+            safeos.sh is operated by Frame (Framers Lab, Inc.). If you have any privacy concerns or
+            questions, reach out at{' '}
             <a
               href="mailto:privacy@frame.dev"
               className="text-emerald-400 hover:text-emerald-300 transition-colors"
