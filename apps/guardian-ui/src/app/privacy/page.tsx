@@ -8,14 +8,16 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import type { ComponentType } from 'react';
 import { IconShield, IconLock, IconEye, IconDatabase, IconCheck } from '@/components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Privacy',
-  description: 'SafeOS Guardian privacy policy: no tracking, no cookies, local-first by design.',
-  alternates: { canonical: '/privacy/' },
-};
+  description:
+    'How SafeOS Guardian handles your data: what stays in your browser, what reaches Google or a server you run, and what the host logs.',
+  path: '/privacy/',
+});
 
 // =============================================================================
 // Privacy Features
@@ -67,7 +69,8 @@ export default function PrivacyPage() {
             Privacy Policy
           </h1>
           <p className="text-lg text-slate-400">
-            The simplest privacy policy you&apos;ll ever read: <span className="text-emerald-400 font-semibold">We collect nothing.</span>
+            <span className="text-emerald-400 font-semibold">safeos.sh runs no tracking and sets no cookies.</span>{' '}
+            Its host, GitHub Pages, logs each visitor&apos;s IP address.
           </p>
         </div>
 
@@ -168,16 +171,18 @@ export default function PrivacyPage() {
                 tries again.
               </p>
               <p>
-                <strong className="text-white">AI Processing:</strong> When you use AI features, 
-                processing happens either in your browser (TensorFlow.js) or via your local Ollama 
-                installation. We do not provide cloud AI services. Security and Wildlife download
-                the COCO-SSD model from Google&apos;s servers, which see your IP address.
+                <strong className="text-white">AI Processing:</strong> Security and Wildlife run
+                their detection model in your browser (TensorFlow.js) and download it from
+                Google&apos;s servers, which see your IP address. A server you run yourself analyses
+                the frames it receives with Ollama. If you give that server a key for a cloud AI
+                provider, it sends a frame to that provider when Ollama is down or its analysis fails;
+                with no cloud key set, frames stay on your server. safeos.sh offers no cloud AI service.
                 The GitHub link makes no request until you open it.
               </p>
               <p>
                 <strong className="text-white">Do Not Track and Global Privacy Control:</strong> safeos.sh
-                runs no tracking, so these signals have nothing to switch off: nothing about you is
-                collected whether your browser sends them or not.
+                runs no tracking and sets no cookies, so these signals have nothing to switch off. The
+                host still logs each visitor&apos;s IP address, as the next paragraph says.
               </p>
               <p>
                 <strong className="text-white">Hosting:</strong> safeos.sh is hosted on GitHub Pages.

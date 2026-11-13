@@ -9,13 +9,15 @@
 import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import { IconMessageSquare, IconExternalLink } from '@/components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Telegram setup',
-  description: 'Configure your own Telegram bot for SafeOS Guardian alerts.',
-  alternates: { canonical: '/help/integrations/telegram/' },
-};
+  description:
+    'Configure your own Telegram bot for SafeOS Guardian alerts.',
+  path: '/help/integrations/telegram/',
+});
 
 export default function TelegramHelpPage() {
   return (

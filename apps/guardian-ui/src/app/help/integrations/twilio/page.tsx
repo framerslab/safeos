@@ -9,13 +9,15 @@
 import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import { IconPhone, IconExternalLink, IconWarning } from '@/components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Twilio SMS setup',
-  description: 'Configure Twilio SMS alerts on your SafeOS Guardian API server.',
-  alternates: { canonical: '/help/integrations/twilio/' },
-};
+  description:
+    'Configure Twilio SMS alerts on your SafeOS Guardian API server.',
+  path: '/help/integrations/twilio/',
+});
 
 export default function TwilioHelpPage() {
   return (

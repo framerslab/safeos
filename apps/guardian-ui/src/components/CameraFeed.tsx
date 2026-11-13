@@ -628,7 +628,7 @@ export function CameraFeed({
                 </div>
                 {scenario === 'baby' && (
                   <div className="col-span-3">
-                    <span className="text-slate-500">Cry Detection:</span>
+                    <span className="text-slate-500">Crying pattern:</span>
                     <span className={`ml-2 ${hasCrying ? 'text-red-400' : 'text-slate-300'}`}>
                       {hasCrying ? 'DETECTED' : 'None'}
                     </span>

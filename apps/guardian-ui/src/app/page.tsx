@@ -386,7 +386,7 @@ function LandingPage() {
               title="Real-time object detection"
               tag="COCO-SSD · TensorFlow.js"
               size="18.6 MB download"
-              summary="Security mode runs COCO-SSD when the frame-difference check sees movement and counts the people in view, at most twice a second. Wildlife mode uses the same model to find animals."
+              summary="Security mode runs COCO-SSD when the frame-difference check sees movement and counts the people in view, at most twice a second, and every five seconds while an alert is on. Wildlife mode uses the same model to find animals."
               details={[
                 'Runs on TensorFlow.js with the WebGL backend, which uses your graphics chip.',
                 'Bounding-box localization plus confidence scoring per class.',
@@ -496,7 +496,7 @@ function LandingPage() {
                   </ul>
                 </div>
                 <a
-                  href="https://github.com/framerslab/safeos#option-b-full-stack-advanced"
+                  href="https://github.com/framerslab/safeos#quickstart"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600/50 rounded-lg transition-colors text-sm"

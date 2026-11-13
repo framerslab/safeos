@@ -9,6 +9,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import {
   IconChevronLeft,
   IconClock,
@@ -109,7 +110,7 @@ const blogContent: Record<string, BlogContent> = {
         <h2>The gate</h2>
 
         <p>
-          Object detection only runs when the screening layer says &quot;something happened.&quot; The
+          Object detection waits for the screening layer to say &quot;something happened.&quot; The
           gate is two lines in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
@@ -128,10 +129,12 @@ const blogContent: Record<string, BlogContent> = {
         </div>
 
         <p>
-          No motion, no inference. The GPU stays in its low-power state. COCO-SSD&apos;s{' '}
-          <code>model.detect()</code> only fires in Security and Wildlife, when something in the
-          frame moved enough to cross the motion threshold. Security also runs it at most twice a
-          second (<code>minDetectionInterval: 500</code>). On a quiet scene it hardly runs at all.
+          While nothing moves, the model does not run and the GPU stays in its low-power state.
+          COCO-SSD&apos;s <code>model.detect()</code> runs only in Security and Wildlife, when
+          something in the frame moved enough to cross the motion threshold, at most twice a second
+          in Security (<code>minDetectionInterval: 500</code>). One exception: while Security is
+          triggered or sounding an alert, it runs the model every five seconds whether or not
+          anything moved, to see if the person is still there (<code>forceDetection</code>).
         </p>
 
         <h2>One model in the browser</h2>
@@ -355,27 +358,15 @@ export function generateMetadata({
     };
   }
 
-  return {
+  return pageMetadata({
     title: post.title,
     description: post.description,
     keywords: post.tags,
-    alternates: {
-      canonical: `/blog/${post.slug}/`,
-    },
-    openGraph: {
-      type: 'article',
-      title: post.title,
-      description: post.description,
-      url: `/blog/${post.slug}/`,
-      publishedTime: new Date(post.date).toISOString(),
-      authors: [post.author],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: post.title,
-      description: post.description,
-    },
-  };
+    path: `/blog/${post.slug}/`,
+    type: 'article',
+    publishedTime: new Date(post.date).toISOString(),
+    authors: [post.author],
+  });
 }
 
 // =============================================================================

@@ -14,13 +14,15 @@
 import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import { IconMail, IconExternalLink, IconWarning, IconCheck, IconShield } from '@/components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Resend email setup',
-  description: 'Configure Resend in SafeOS Guardian for severity-routed alert email.',
-  alternates: { canonical: '/help/integrations/resend/' },
-};
+  description:
+    'Configure Resend in SafeOS Guardian for severity-routed alert email.',
+  path: '/help/integrations/resend/',
+});
 
 export default function ResendHelpPage() {
   return (
@@ -100,8 +102,9 @@ export default function ResendHelpPage() {
                 <h3 className="font-semibold text-white">Server-wide key (operator pays)</h3>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed mb-3">
-                Set these four values on your API server&apos;s <code>.env</code> file. Every user
-                of the deployment can then opt in to email alerts without supplying their own key.
+                Set these four values in your API server&apos;s <code>.env</code> file. The server
+                sends alert email with this key only for the operator&apos;s own account (the profile
+                with the operator role). Other people bring their own key.
               </p>
               <pre className="text-xs bg-slate-950 border border-slate-800 rounded p-3 overflow-x-auto text-slate-300">
 {`RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
@@ -135,14 +138,12 @@ SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
                   Settings → Notifications
                 </Link>
                 , enable email alerts, and toggle <strong>Use my own Resend account</strong>. Paste
-                your API key + a sender address from a domain you verified in your Resend account.
-                The key is stored in this browser&apos;s local storage and only sent to the API server
-                when an alert fires.
+                your API key and a sender address from a domain you verified in your Resend account.
+                The page sends the key to the API server with the test email and does not save it.
               </p>
               <Callout tone="info">
-                Your key stays in <strong>this browser&apos;s local storage</strong> and is only sent
-                to the API server when an alert fires. You can remove it any time from{' '}
-                Settings → Notifications.
+                The key is held by the open page only. Reload or leave{' '}
+                Settings → Notifications and it is gone.
               </Callout>
             </div>
           </div>
@@ -167,9 +168,8 @@ SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
           </ol>
           <Callout tone="success">
             <IconCheck size={16} className="inline-block mr-1.5 -mt-0.5" />
-            If the test email arrives, you&apos;re done. Real alerts at <strong>medium</strong>,{' '}
-            <strong>high</strong>, and <strong>critical</strong> severity will go to the same
-            address automatically.
+            If the test email arrives, the key and the sender work. The test sends one email and
+            changes no setting: saving Settings → Notifications does not turn on email for alerts.
           </Callout>
         </Card>
 
