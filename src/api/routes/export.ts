@@ -308,6 +308,7 @@ exportRouter.get('/profile', async (req, res) => {
       [session.profile_id]
     );
 
+    const notificationSettings = profile ? redactExportSettings(profile.notification_settings) : null;
     const monitoring = await getMonitoringExport(db, session.profile_id);
 
     // Get notification settings
@@ -324,7 +325,8 @@ exportRouter.get('/profile', async (req, res) => {
     res.json({
       success: true,
       data: {
-        profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
+        profile: profile ? { ...profile, notification_settings: notificationSettings } : profile,
+        notificationSettingsOmitted: profile && notificationSettings === null ? 1 : 0,
         ...monitoring,
         notifications: {
           pushSubscriptions,
@@ -371,14 +373,15 @@ exportRouter.get('/all', async (req, res) => {
       [session.profile_id]
     );
 
-    // User-scoped queries
-    const streams = await db.all(
-      `SELECT * FROM streams WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1000`,
+    // Each list and its total share one statement's snapshot during live writes.
+    const streams = await db.all<CountedExportRow>(
+      `SELECT *, COUNT(*) OVER() AS export_total FROM streams
+       WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 1000`,
       [session.profile_id]
     );
 
-    const alerts = await db.all(
-      `SELECT a.* FROM alerts a
+    const alerts = await db.all<CountedExportRow>(
+      `SELECT a.*, COUNT(*) OVER() AS export_total FROM alerts a
        INNER JOIN streams s ON a.stream_id = s.id
        WHERE s.user_id = ?
        ORDER BY a.created_at DESC, a.id DESC
@@ -386,8 +389,8 @@ exportRouter.get('/all', async (req, res) => {
       [session.profile_id]
     );
 
-    const analysisResults = await db.all(
-      `SELECT ar.* FROM analysis_results ar
+    const analysisResults = await db.all<CountedExportRow>(
+      `SELECT ar.*, COUNT(*) OVER() AS export_total FROM analysis_results ar
        INNER JOIN streams s ON ar.stream_id = s.id
        WHERE s.user_id = ?
        ORDER BY ar.created_at DESC, ar.id DESC
@@ -395,29 +398,23 @@ exportRouter.get('/all', async (req, res) => {
       [session.profile_id]
     );
 
-    const totals = await db.get<{ streams: number; alerts: number; analysisResults: number }>(
-      `SELECT
-        (SELECT COUNT(*) FROM streams WHERE user_id = ?) AS streams,
-        (SELECT COUNT(*) FROM alerts a JOIN streams s ON a.stream_id = s.id WHERE s.user_id = ?) AS alerts,
-        (SELECT COUNT(*) FROM analysis_results ar JOIN streams s ON ar.stream_id = s.id WHERE s.user_id = ?) AS analysisResults`,
-      [session.profile_id, session.profile_id, session.profile_id]
-    );
-    const count = (total: number, included: number) => ({ total, included, truncated: total > included });
+    const notificationSettings = profile ? redactExportSettings(profile.notification_settings) : null;
     const monitoring = await getMonitoringExport(db, session.profile_id);
     const exportData = {
       counts: {
-        streams: count(totals!.streams, streams.length),
-        alerts: count(totals!.alerts, alerts.length),
-        analysisResults: count(totals!.analysisResults, analysisResults.length),
+        streams: exportCounts(streams),
+        alerts: exportCounts(alerts),
+        analysisResults: exportCounts(analysisResults),
       },
       ...monitoring,
       exportedAt: new Date().toISOString(),
       exportType: 'full_data_export',
-      profile: profile ? { ...profile, notification_settings: JSON.stringify(redactNotificationSettings(JSON.parse(profile.notification_settings || '{}'))) } : profile,
+      profile: profile ? { ...profile, notification_settings: notificationSettings } : profile,
+      notificationSettingsOmitted: profile && notificationSettings === null ? 1 : 0,
       sessions,
-      streams,
-      alerts,
-      analysisResults,
+      streams: withoutExportTotals(streams),
+      alerts: withoutExportTotals(alerts),
+      analysisResults: withoutExportTotals(analysisResults),
     };
 
     res.setHeader('Content-Type', 'application/json');
@@ -432,6 +429,30 @@ exportRouter.get('/all', async (req, res) => {
 // =============================================================================
 // Helpers
 // =============================================================================
+
+/** Only object settings can be safely redacted; stored rows are never changed. */
+function redactExportSettings(stored: string): string | null {
+  try {
+    const settings = JSON.parse(stored);
+    if (settings === null || typeof settings !== 'object' || Array.isArray(settings)) {
+      return null;
+    }
+    return JSON.stringify(redactNotificationSettings(settings));
+  } catch {
+    return null;
+  }
+}
+
+type CountedExportRow = Record<string, unknown> & { export_total: number };
+
+function exportCounts(rows: CountedExportRow[]) {
+  const total = rows[0]?.export_total ?? 0;
+  return { total, included: rows.length, truncated: total > rows.length };
+}
+
+function withoutExportTotals(rows: CountedExportRow[]) {
+  return rows.map(({ export_total: _total, ...row }) => row);
+}
 
 function convertToCSV(data: Record<string, unknown>[], columns: string[]): string {
   if (data.length === 0) {
@@ -488,11 +509,15 @@ async function getMonitoringExport(
      WHERE owner_id = ? ORDER BY scenario`,
     [ownerId]
   );
+  let monitoringSettingsOmitted = 0;
+  const sanitizedProfiles = monitoringProfiles.map((profile) => {
+    const settings = redactExportSettings(profile.settings);
+    if (settings === null) monitoringSettingsOmitted += 1;
+    return { ...profile, settings };
+  });
   return {
-    monitoringProfiles: monitoringProfiles.map((profile) => ({
-      ...profile,
-      settings: JSON.stringify(redactNotificationSettings(JSON.parse(String(profile.settings || '{}')))),
-    })),
+    monitoringProfiles: sanitizedProfiles,
+    monitoringSettingsOmitted,
     activeMonitoringProfiles,
   };
 }

@@ -57,7 +57,7 @@ describe.each(['profile', 'all'])('%s export ownership', (kind) => {
     const data = await exported();
     expect(data.monitoringProfiles).toEqual([expect.objectContaining({ id: 'independent-profile-id', owner_id: alice.profile.id, is_active: 1 })]);
   });
-  it('redacts write-only credentials from owned monitoring settings without changing their JSON format', async () => {
+  it('redacts credentials from owned monitoring settings without changing their JSON format', async () => {
     const settings = { motionSensitivity: 35, telegramBotToken: 'private-bot-value',
       smsOverride: { accountSid: 'account-id', authToken: 'private-sms-value', fromNumber: '+15555550100' },
       emailOverride: { apiKey: 'private-email-value', replyTo: 'person@example.test' } };
@@ -83,6 +83,46 @@ describe.each(['profile', 'all'])('%s export ownership', (kind) => {
       { owner_id: alice.profile.id, scenario: 'baby', monitoring_profile_id: 'independent-profile-id' },
       { owner_id: alice.profile.id, scenario: 'pet', monitoring_profile_id: 'profile-pet-default' },
     ]);
+  });
+  it.each(['{"telegramBotToken":"unreadable-private-value",', '', '5', '[]', 'null', '"text"', 'true', 'false', '[{"telegramBotToken":"unreadable-private-value"}]'])('omits unreadable settings while retaining the profile and other rows (%j)', async (settings) => {
+    const before = await exported();
+    expect(before.monitoringSettingsOmitted).toBe(0);
+    const id = 'unreadable-settings-profile';
+    await db.run(`INSERT INTO monitoring_profiles (id, name, scenario, settings, is_active, created_at, owner_id)
+      VALUES (?, 'Unreadable settings', 'baby', ?, 0, ?, ?)`, [id, settings, now(), alice.profile.id]);
+    try {
+      const stored = await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id]);
+      const data = await exported();
+      expect(data.monitoringSettingsOmitted).toBe(1);
+      expect(data.monitoringProfiles).toHaveLength(before.monitoringProfiles.length + 1);
+      expect(data.monitoringProfiles.find((profile: any) => profile.id === id)).toEqual({ ...stored, settings: null });
+      expect(data.monitoringProfiles.filter((profile: any) => profile.id !== id)).toEqual(before.monitoringProfiles);
+      for (const key of Object.keys(before).filter((key) => !['monitoringProfiles', 'monitoringSettingsOmitted', 'exportedAt'].includes(key))) {
+        expect(data[key]).toEqual(before[key]);
+      }
+      expect(JSON.stringify(data)).not.toContain('unreadable-private-value');
+      expect(await db.get('SELECT * FROM monitoring_profiles WHERE id = ?', [id])).toEqual(stored);
+    } finally {
+      await db.run('DELETE FROM monitoring_profiles WHERE id = ?', [id]);
+    }
+  });
+  it.each(['{"telegramBotToken":"unreadable-notification-value",', '', '5', '[]', 'null', '"text"', 'true', 'false', '[{"telegramBotToken":"unreadable-notification-value"}]'])('omits unreadable notification settings without changing other data (%j)', async (settings) => {
+    const stored = await db.get('SELECT * FROM user_profiles WHERE id = ?', [alice.profile.id]);
+    const before = await exported();
+    await db.run('UPDATE user_profiles SET notification_settings = ? WHERE id = ?', [settings, alice.profile.id]);
+    try {
+      const data = await exported();
+      expect(before.notificationSettingsOmitted).toBe(0);
+      expect(data.notificationSettingsOmitted).toBe(1);
+      expect(data.profile).toEqual({ ...before.profile, notification_settings: null });
+      for (const key of Object.keys(before).filter((key) => !['profile', 'notificationSettingsOmitted', 'exportedAt'].includes(key))) {
+        expect(data[key]).toEqual(before[key]);
+      }
+      expect(JSON.stringify(data)).not.toContain('unreadable-notification-value');
+      expect(await db.get('SELECT * FROM user_profiles WHERE id = ?', [alice.profile.id])).toEqual({ ...stored, notification_settings: settings });
+    } finally {
+      await db.run('UPDATE user_profiles SET notification_settings = ? WHERE id = ?', [stored.notification_settings, alice.profile.id]);
+    }
   });
   it('excludes another persons profiles and choices even when identifiers overlap', async () => {
     const data = await exported();
@@ -114,6 +154,69 @@ it('keeps the newest full-export rows and reports totals and included counts for
     expect(response.body[kind]).toHaveLength(limit);
     expect(response.body[kind][0].id).toBe(`export-${prefix}-${limit}`);
     expect(response.body[kind].at(-1).id).toBe(`export-${prefix}-1`);
+    expect(response.body[kind].map((row: any) => row.id)).toEqual(
+      Array.from({ length: limit }, (_, index) => `export-${prefix}-${limit - index}`));
     expect(response.body.counts[kind]).toEqual({ total: limit + 1, included: limit, truncated: true });
   }
+  const tied = new Date(Date.UTC(2026, 0, 1) + 1000).toISOString();
+  for (const [table, prefix] of [['streams', 'stream'], ['alerts', 'alert'], ['analysis_results', 'analysis']]) {
+    await db.run(`UPDATE ${table} SET created_at = ? WHERE id = ?`, [tied, `export-${prefix}-0`]);
+  }
+  const tiedResponse = await request(server.getApp()).get('/api/export/all')
+    .set('X-Forwarded-For', `198.51.100.${++client}`).set('X-Session-Token', alice.token);
+  expect(tiedResponse.status).toBe(200);
+  for (const [kind, prefix, limit] of [['streams', 'stream', 1000], ['alerts', 'alert', 5000], ['analysisResults', 'analysis', 5000]] as const) {
+    expect(tiedResponse.body[kind].map((row: any) => row.id)).toEqual(
+      Array.from({ length: limit }, (_, index) => `export-${prefix}-${limit - index}`));
+    expect(tiedResponse.body.counts[kind]).toEqual({ total: limit + 1, included: limit, truncated: true });
+  }
 }, 30000);
+
+it.each([
+  ['streams', 'streams'], ['alerts', 'alerts'], ['analysisResults', 'analysis_results'],
+] as const)('keeps %s counts consistent with the selected rows during writes', async (kind, table) => {
+  const created = now();
+  const streamId = `live-${kind}-stream`;
+  const initialId = kind === 'streams' ? streamId : `live-${kind}-initial`;
+  const extraId = `live-${kind}-extra`;
+  await db.run("INSERT INTO streams (id, user_id, scenario, started_at, created_at) VALUES (?, ?, 'baby', ?, ?)",
+    [streamId, bob.profile.id, created, created]);
+  const insert = async (id: string) => {
+    if (kind === 'streams') {
+      await db.run("INSERT INTO streams (id, user_id, scenario, started_at, created_at) VALUES (?, ?, 'baby', ?, ?)",
+        [id, bob.profile.id, created, created]);
+    } else if (kind === 'alerts') {
+      await db.run("INSERT INTO alerts (id, stream_id, alert_type, severity, message, created_at) VALUES (?, ?, 'motion', 'low', 'Live alert', ?)",
+        [id, streamId, created]);
+    } else {
+      await db.run("INSERT INTO analysis_results (id, stream_id, concern_level, description, created_at) VALUES (?, ?, 'low', 'Live analysis', ?)",
+        [id, streamId, created]);
+    }
+  };
+  if (kind !== 'streams') await insert(initialId);
+  const originalAll = db.all.bind(db);
+  let inserted = false;
+  const read = vi.spyOn(db, 'all').mockImplementation(async (...args: any[]) => {
+    const rows = await originalAll(...args);
+    if (!inserted && new RegExp(`FROM ${table}\\b`).test(args[0]) && /LIMIT/.test(args[0])) {
+      inserted = true;
+      await insert(extraId);
+    }
+    return rows;
+  });
+  try {
+    const response = await request(server.getApp()).get('/api/export/all')
+      .set('X-Forwarded-For', `198.51.100.${++client}`).set('X-Session-Token', bob.token);
+    expect(response.status).toBe(200);
+    expect(inserted).toBe(true);
+    expect(response.body[kind].map((row: any) => row.id)).toEqual([initialId]);
+    expect(response.body.counts[kind]).toEqual({ total: 1, included: 1, truncated: false });
+    expect(await db.get(`SELECT id FROM ${table} WHERE id = ?`, [extraId])).toEqual({ id: extraId });
+    expect(JSON.stringify(response.body)).not.toContain('export_total');
+  } finally {
+    read.mockRestore();
+    await db.run('DELETE FROM alerts WHERE stream_id = ?', [streamId]);
+    await db.run('DELETE FROM analysis_results WHERE stream_id = ?', [streamId]);
+    await db.run('DELETE FROM streams WHERE user_id = ?', [bob.profile.id]);
+  }
+});

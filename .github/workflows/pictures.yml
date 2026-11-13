@@ -85,7 +85,6 @@ jobs:
 
       - name: Serve the site and capture
         env:
-          PICTURE_VERSION: ${{ matrix.version }}
           ROUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.routes || env.DEFAULT_ROUTES }}
         run: |
           python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &
