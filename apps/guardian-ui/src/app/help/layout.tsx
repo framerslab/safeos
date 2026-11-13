@@ -9,13 +9,14 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Help',
   description:
     'Get started with SafeOS Guardian: setup steps, answers to common questions, keyboard shortcuts, troubleshooting and how to reach the team.',
-  alternates: { canonical: '/help/' },
-};
+  path: '/help/',
+});
 
 export default function HelpLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;

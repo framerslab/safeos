@@ -9,14 +9,18 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import Link from 'next/link';
 import { ForwardToAbout } from './ForwardToAbout';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'SafeOS is free',
-  description: 'SafeOS at safeos.sh is free and built by Frame.',
-  robots: { index: false, follow: true },
-};
+  description:
+    'SafeOS at safeos.sh is free and built by Frame.',
+  // It forwards to About, so About is its canonical address.
+  path: '/about/',
+  noIndex: true,
+});
 
 export default function OldSupportAddress() {
   return (

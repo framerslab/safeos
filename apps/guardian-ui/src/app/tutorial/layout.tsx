@@ -8,13 +8,14 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Interactive Tutorial',
   description:
     'Six short steps through SafeOS Guardian: the safety notice, choosing a profile, camera access, placing the camera, starting and answering alerts.',
-  alternates: { canonical: '/tutorial/' },
-};
+  path: '/tutorial/',
+});
 
 export default function TutorialLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;

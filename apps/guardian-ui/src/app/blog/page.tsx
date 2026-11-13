@@ -7,6 +7,7 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import Link from 'next/link';
 import {
   IconChevronLeft,
@@ -16,11 +17,12 @@ import {
   IconFileText,
 } from '../../components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Blog',
-  description: 'Updates, insights, and technical deep dives from the SafeOS Guardian team.',
-  alternates: { canonical: '/blog/' },
-};
+  description:
+    'Updates, insights, and technical deep dives from the SafeOS Guardian team.',
+  path: '/blog/',
+});
 
 // =============================================================================
 // Types

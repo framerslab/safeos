@@ -8,13 +8,14 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'FAQ',
   description:
     'Answers about SafeOS Guardian: how setup works, what stays in your browser, what works offline, which browsers it needs, and who builds it.',
-  alternates: { canonical: '/faq/' },
-};
+  path: '/faq/',
+});
 
 export default function FAQLayout({ children }: { children: React.ReactNode }) {
   return <>{children}</>;

@@ -8,15 +8,17 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import type { ReactNode } from 'react';
 import { IconFileText, IconAlertTriangle, IconShield, IconHeart, IconCheck } from '@/components/icons';
 import { SAFE_SLEEP_URL } from '@/components/NotAMedicalDevice';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Terms',
-  description: 'Terms of service and important usage disclaimers for SafeOS Guardian.',
-  alternates: { canonical: '/terms/' },
-};
+  description:
+    'Terms of service and important usage disclaimers for SafeOS Guardian.',
+  path: '/terms/',
+});
 
 // =============================================================================
 // Terms Sections

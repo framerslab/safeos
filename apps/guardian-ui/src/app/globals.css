@@ -146,6 +146,12 @@ html.light .nav-mobile-toggle:hover {
   flex-direction: column;
   padding: 0.5rem 1rem 1rem;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
+  /* The header is fixed, so the page cannot scroll to the menu's end: the
+     menu stops at the bottom of the screen and scrolls inside itself. */
+  max-height: calc(100vh - 4rem);
+  max-height: calc(100dvh - 4rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 @media (min-width: 1280px) {

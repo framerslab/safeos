@@ -7,6 +7,7 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -23,12 +24,12 @@ import {
   IconWarning,
 } from '../../components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'About',
   description:
     'Who builds SafeOS Guardian, how it runs in your browser, what stays on your device, and how to reach the team.',
-  alternates: { canonical: '/about/' },
-};
+  path: '/about/',
+});
 
 // =============================================================================
 // Components

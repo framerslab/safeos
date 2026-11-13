@@ -254,8 +254,10 @@ export default function TutorialPage() {
 
         {/* Quick Links */}
         <div className="mt-8 grid sm:grid-cols-2 gap-4">
-          <Link
-            href="/docs/QUICKSTART.md"
+          <a
+            href="https://github.com/framerslab/safeos/blob/master/docs/QUICKSTART.md"
+            target="_blank"
+            rel="noopener noreferrer"
             className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors"
           >
             <h3 className="text-white font-medium mb-1 flex items-center gap-2">
@@ -266,10 +268,12 @@ export default function TutorialPage() {
               Quick Start Guide
             </h3>
             <p className="text-sm text-slate-400">Detailed setup instructions</p>
-          </Link>
+          </a>
 
-          <Link
-            href="/api/docs"
+          <a
+            href="https://github.com/framerslab/safeos/blob/master/docs/API.md"
+            target="_blank"
+            rel="noopener noreferrer"
             className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors"
           >
             <h3 className="text-white font-medium mb-1 flex items-center gap-2">
@@ -279,7 +283,7 @@ export default function TutorialPage() {
               API Documentation
             </h3>
             <p className="text-sm text-slate-400">Integrate with other systems</p>
-          </Link>
+          </a>
         </div>
       </main>
     </div>
