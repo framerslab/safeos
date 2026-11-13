@@ -11,7 +11,7 @@
  * 1. Baby Monitoring - Ultra-sensitive sleep monitoring
  * 2. Pet Care - Watch your pets, call them home when detected
  * 3. Elderly Care - Activity monitoring with inactivity alerts
- * 4. Lost & Found - Find missing pets/items with AI detection
+ * 4. Lost & Found - Watch the camera for an animal with a lost pet's colours
  * 5. Security - Intruder detection and person alerts
  * 6. Wildlife - Watch backyard wildlife activity
  *
@@ -51,8 +51,7 @@ const USE_CASES: UseCase[] = [
       'SUPPLEMENTARY ONLY — not a babysitter replacement',
       'Best for short naps when parent is also resting nearby',
       'Audio/visual alerts to wake you if needed',
-      '100% local processing - your data stays private',
-      'Peace of mind as an extra safety layer',
+      'Runs in your browser; frames are not uploaded unless you connect your own server',
     ],
     icon: <BabyIcon />,
     color: 'text-pink-400',
@@ -71,8 +70,6 @@ const USE_CASES: UseCase[] = [
       'SUPPLEMENTARY ONLY — not a pet-sitter replacement',
       'Best for brief room absences (bathroom, quick errands)',
       'Custom sound recordings for pet recall',
-      'Alerts for unusual activity patterns',
-      'Integrate with Lost & Found for escape alerts',
     ],
     icon: <PetIcon />,
     color: 'text-amber-400',
@@ -86,7 +83,7 @@ const USE_CASES: UseCase[] = [
     name: 'Elderly Care',
     tagline: 'Supplemental wellness check-ins',
     description:
-      'A supplementary alert system for additional peace of mind. Get notified of extended inactivity — but this is NOT a replacement for proper care, medical monitoring, or regular check-ins.',
+      'A supplementary alert system for additional peace of mind. Get notified of extended inactivity — but this is NOT a replacement for proper care or regular check-ins. Tell the person and have their agreement before you watch or listen.',
     features: [
       'SUPPLEMENTARY ONLY — not a caregiver replacement',
       'Additional awareness layer, not primary care',
@@ -104,13 +101,13 @@ const USE_CASES: UseCase[] = [
   {
     id: 'lost-found',
     name: 'Lost & Found',
-    tagline: 'Aid in locating missing subjects',
+    tagline: 'Watch your camera for a lost pet',
     description:
-      'Upload a photo to help locate a missing pet or person. This is a supplementary search aid — continue active searching and contact authorities for missing persons.',
+      'Upload photos of your lost pet. SafeOS watches your own camera for an animal with the same colouring. It matches colours, so another animal of similar colour can set it off. This is a supplementary search aid — keep searching.',
     features: [
       'SUPPLEMENTARY SEARCH AID — not primary search method',
-      'Helps increase coverage of search area',
-      'Works with pets, people, and objects',
+      'Covers the one spot your camera sees',
+      'Matches colours and size, not identity',
       'Alerts when potential match is spotted',
       'Always continue active searching efforts',
     ],
@@ -149,10 +146,8 @@ const USE_CASES: UseCase[] = [
       'Capture wildlife activity in your yard. This is for observation and enjoyment — the AI detects animals and logs sightings for nature enthusiasts.',
     features: [
       'Casual observation tool for nature lovers',
-      'Animal detection and classification',
-      'Motion-triggered recording',
-      'Species logging and statistics',
-      'Night vision compatible',
+      'Detects ten kinds of animal with COCO-SSD',
+      'Saves a still frame of each sighting',
     ],
     icon: <WildlifeIcon />,
     color: 'text-emerald-400',

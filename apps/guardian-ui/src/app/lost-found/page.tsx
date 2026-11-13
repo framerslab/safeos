@@ -1,7 +1,7 @@
 /**
  * Lost & Found Page
  * 
- * Setup page for configuring lost pet/person detection.
+ * Setup page for watching your own camera for an animal with a lost pet's colouring.
  * 
  * @module app/lost-found/page
  */
@@ -124,7 +124,7 @@ export default function LostFoundPage() {
             Lost & Found
           </h1>
           <p className="text-[var(--color-steel-400)]">
-            Watch for lost pets or people using visual detection
+            Watch your camera for an animal with your lost pet&apos;s colouring
           </p>
         </div>
 
@@ -193,7 +193,7 @@ export default function LostFoundPage() {
                   Add New Subject to Watch
                 </p>
                 <p className="text-sm text-[var(--color-steel-500)] mt-1">
-                  Upload photos of a lost pet or person
+                  Upload photos of your lost pet
                 </p>
               </button>
             </div>
@@ -299,8 +299,8 @@ export default function LostFoundPage() {
                   No Subjects Yet
                 </h3>
                 <p className="text-[var(--color-steel-400)] max-w-md mx-auto">
-                  Add a subject to start watching. Upload photos of a lost pet or person
-                  and we&apos;ll continuously monitor your camera for potential matches.
+                  Add a subject to start watching. Upload photos of your lost pet, and the monitor
+                  checks your camera for an animal with the same colouring while it stays open.
                 </p>
               </div>
             )}
@@ -315,15 +315,15 @@ export default function LostFoundPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">2</span>
-                  We create a visual fingerprint based on colors, patterns, and features
+                  Your browser records the photos&apos; colours, a coarse edge grid and size
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">3</span>
-                  Point your camera at a location and we&apos;ll watch continuously
+                  Start monitoring and keep the monitor open; it checks one to two frames a second
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">4</span>
-                  Get alerts when potential matches are detected
+                  Get an alert when the colours match; another animal of similar colour can match too
                 </li>
               </ul>
             </div>

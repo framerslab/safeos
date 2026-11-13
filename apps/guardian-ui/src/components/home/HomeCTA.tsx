@@ -88,7 +88,7 @@ export function HomeCTA() {
         />
       </Link>
       <p className="mt-4 text-sm text-[var(--color-steel-500)]">
-        Takes less than 2 minutes · No account required
+        Free · No account required
       </p>
     </>
   );

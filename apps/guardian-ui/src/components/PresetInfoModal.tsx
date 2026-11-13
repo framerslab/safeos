@@ -222,7 +222,7 @@ export function PresetInfoModal({ isOpen, onClose }: PresetInfoModalProps) {
               <ModeCard
                 preset={SLEEP_PRESETS.deep_sleep_minimal}
                 icon="&#128680;"
-                useCase="Medical monitoring, critical care situations"
+                useCase="When any movement at all should raise an alert"
                 isSleep
               />
             </div>
@@ -280,8 +280,8 @@ export function PresetInfoModal({ isOpen, onClose }: PresetInfoModalProps) {
                   <div className="text-xs text-[var(--color-steel-400)]">
                     <strong>Ultra-sensitive</strong>
                     <br />
-                    Detects micro-movements like breathing changes or slight twitches.
-                    Best for critical monitoring.
+                    Detects the smallest movements, such as slight twitches. Expect more
+                    false alerts from light and camera noise.
                   </div>
                 </div>
                 <div className="p-3 bg-[var(--color-steel-800)] rounded-lg">
@@ -298,8 +298,8 @@ export function PresetInfoModal({ isOpen, onClose }: PresetInfoModalProps) {
                   <div className="text-xs text-[var(--color-steel-400)]">
                     <strong>Balanced sensitivity</strong>
                     <br />
-                    Good for pet monitoring. Ignores small twitches and breathing,
-                    alerts on actual movement.
+                    Good for pet monitoring. Ignores small twitches and alerts on
+                    actual movement.
                   </div>
                 </div>
               </div>

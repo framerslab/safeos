@@ -5,7 +5,8 @@
  * home page and the components it renders, About, FAQ, Help and its guides,
  * Tutorials, Tutorial, the blog, the old support address, Privacy, Terms,
  * Security, Lost & Found), the root layout's metadata, the site header and
- * footer, the sitemap, the web app manifest and the social card, and fails on
+ * footer, the sitemap, the web app manifest, the social card and the home
+ * page's diagram, and fails on
  * any phrase from two lists:
  *
  * - money words: SafeOS asks for no money and is not a charity, so no page
@@ -61,11 +62,14 @@ const PUBLIC_FILES = [
   app('src', 'app', 'lost-found', 'page.tsx'),
   app('src', 'components', 'home', 'HomeCTA.tsx'),
   app('src', 'components', 'UseCaseShowcase.tsx'),
+  app('src', 'components', 'NotAMedicalDevice.tsx'),
+  app('src', 'components', 'ModelDownloadProgress.tsx'),
   app('src', 'components', 'layout', 'Nav.tsx'),
   app('src', 'components', 'layout', 'Footer.tsx'),
   app('src', 'components', 'layout', 'MobileBottomNav.tsx'),
   app('public', 'manifest.json'),
   app('public', 'og-image.svg'),
+  app('public', 'diagrams', 'how-it-works.svg'),
 ];
 
 // Files a later change may add; read when present.
@@ -80,7 +84,7 @@ const SCANNED = [
 // The one statement that may name breathing and SIDS (the not-a-medical-device
 // line); it is cut out before the phrases are matched.
 const ALLOWED_SENTENCES = [
-  /It does not monitor breathing and cannot prevent SIDS\./g,
+  /SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS\./g,
 ];
 
 type Phrase = { pattern: RegExp; why: string };
@@ -141,7 +145,7 @@ const UNBACKED_CLAIMS: Phrase[] = [
     pattern: /\b(wolf|wolves|coyotes?|foxes|fox|deer|rodents?|rabbits?|raccoons?|squirrels?|mice)\b/i,
     why: 'COCO-SSD knows ten animals: dog, cat, bird, horse, sheep, cow, elephant, bear, zebra, giraffe',
   },
-  { pattern: /\b(~|about\s+)?(19|18\.0|5|45)\s?MB\b/i, why: 'the model download is 18.6 MB (manifest and weights)' },
+  { pattern: /(?<![\d.])(19|18\.0|5|45)\s?MB\b/, why: 'the model download is 18.6 MB (manifest and weights)' },
   // Health: nothing measures breathing, illness, falls or confusion
   { pattern: /breath/i, why: 'nothing monitors breathing' },
   { pattern: /\billness|\bsick\b/i, why: 'nothing detects illness' },

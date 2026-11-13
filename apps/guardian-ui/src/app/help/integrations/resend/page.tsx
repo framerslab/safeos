@@ -19,6 +19,7 @@ import { IconMail, IconExternalLink, IconWarning, IconCheck, IconShield } from '
 export const metadata: Metadata = {
   title: 'Resend email setup',
   description: 'Configure Resend in SafeOS Guardian for severity-routed alert email.',
+  alternates: { canonical: '/help/integrations/resend/' },
 };
 
 export default function ResendHelpPage() {
@@ -239,8 +240,8 @@ SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
         <Card title="Where your data lives">
           <ul className="list-disc list-inside text-sm text-slate-300 space-y-1.5 leading-relaxed">
             <li>
-              The Resend API key (when BYO) sits in this browser&apos;s local storage. It never
-              leaves your device until you click <em>Send test email</em> or an alert fires.
+              The Resend API key (when BYO) sits in this browser&apos;s local storage. It stays
+              in this browser until you click <em>Send test email</em> or an alert fires.
             </li>
             <li>
               Email content is rendered server-side and POSTed to Resend over HTTPS. SafeOS keeps

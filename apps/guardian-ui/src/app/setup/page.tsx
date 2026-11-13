@@ -206,7 +206,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 
         <h1 className="text-heading-lg mb-2">SafeOS Guardian</h1>
         <p className="text-[var(--color-steel-400)] mb-4 max-w-md mx-auto">
-          Humanitarian AI monitoring for pets, babies, and elderly care.
+          Free motion and sound alerts for pets, babies, and elderly care.
         </p>
         <div className="flex justify-center mb-8">
           <FrameWordmark />

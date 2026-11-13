@@ -23,7 +23,7 @@ export function ModelDownloadProgress({ onReady, onError, compact, className = '
     <section aria-label="Detection model" className={`rounded-xl border border-slate-700 bg-slate-800/50 ${compact ? 'p-3' : 'p-6'} ${className}`}>
       <h3 className="font-medium text-white">Person and animal detection</h3>
       <p className="mt-2 text-sm text-slate-400">
-        Security and Wildlife share COCO-SSD. Download about 19 MB from Google model storage.
+        Security and Wildlife share COCO-SSD. Download 18.6 MB from Google model storage.
         Detection runs on this device; camera frames are not part of the download.
       </p>
       {!setupComplete ? (
