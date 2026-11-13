@@ -22,7 +22,7 @@
 
 ## ⚠️ Not a replacement for human supervision
 
-SafeOS Guardian is a **supplemental experimental tool**. It does not replace caregivers, medical monitoring equipment, or veterinary monitoring. Technology fails. Maintain direct supervision of children, pets, and elderly family members at all times.
+SafeOS Guardian is a **supplemental experimental tool**. It adds an alert and does not replace a person nearby. SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS. Technology fails. Maintain direct supervision of children, pets, and elderly family members at all times.
 
 ---
 
@@ -55,7 +55,7 @@ docker pull ghcr.io/framerslab/safeos-ui:latest
 
 The two images run together: `safeos-ui` is the interface you open, `safeos-api` is the backend it talks to for notifications and the local-AI bridge. The compose starts both, plus Ollama, and wires them on one network. (`docker run … safeos-api` on its own gives you just the headless API.)
 
-**Local AI with Ollama:** the compose runs an Ollama container and pre-pulls its models on first start, so local scene analysis works with no extra setup. To use an Ollama instance you already run, set `OLLAMA_HOST` in `.env` (e.g. `http://192.168.1.50:11434`). Choose which models to cache with `OLLAMA_MODELS` (default `moondream llava:7b`; add `llama3.2-vision:11b` if you have ~16 GB RAM). Frames only reach Ollama when in-browser detection is ambiguous, and nothing leaves your network. Details in [docs/DOCKER.md](docs/DOCKER.md).
+**Local AI with Ollama:** the compose runs an Ollama container and pre-pulls its models on first start, so local scene analysis works with no extra setup. To use an Ollama instance you already run, set `OLLAMA_HOST` in `.env` (e.g. `http://192.168.1.50:11434`). Choose which models to cache with `OLLAMA_MODELS` (default `moondream llava:7b`; add `llama3.2-vision:11b` if you have ~16 GB RAM). Frames reach the server, and so Ollama, only in a processing mode that uses the server. With no cloud AI key in `.env` they stay on your network; with one, the server sends a frame to that provider when Ollama is down or its analysis fails. Details in [docs/DOCKER.md](docs/DOCKER.md).
 
 **Build from source instead:**
 
@@ -121,7 +121,7 @@ The solid path runs in the browser; offline starts require completed app install
 7. **Audio parallel path.** The Web Audio API's [`AnalyserNode`](https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode) samples FFT bins from the microphone every ~100 ms; a loudness threshold raises the sound alert, and a crying pattern shows in the camera overlay without raising an alert of its own. No model needed.
 8. **Lost & Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), an 8×8 grid of edge strengths taken from differences between neighbouring pixels, and a size estimate. The matcher samples the live feed at 1–2 FPS and scores each frame on average colour, then region by region on a weighted mix (histogram 40%, dominant colours 35%, edges 15%, size 10%). It matches colours, so another animal or an object of similar colour matches too. Under 1 KB per photo. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
 9. **Alert engine.** Matches feed a severity router (info / low / medium / high / critical). Each severity has its own escalation: volume-ramping local audio, browser push, optional fan-out to email / SMS / Telegram via the API server.
-10. **Storage stays local.** Settings persist in local storage; fingerprints and saved frames persist in [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API). Monitor-page alerts are kept in memory and clear on reload. The motion check keeps only the last three frames in memory.
+10. **Storage stays local.** Settings persist in local storage; fingerprints and saved frames persist in [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API). Monitor-page alerts are saved in IndexedDB and restored in History after a reload. The motion check keeps only the last three frames in memory.
 
 The optional API server (`src/`) only enters the picture when you opt into fan-out channels (Resend, Twilio, Telegram), multi-device WebSocket sync, or a bridge to a local [Ollama](https://ollama.com) install for richer scene reasoning.
 
@@ -137,7 +137,7 @@ Every model runs client-side. Sizes are the download sizes measured on 11 Nov 20
 
 ### Optional: local LLM for harder scenes
 
-When detection is ambiguous, you can route the frame to a local [Ollama](https://ollama.com) install on the same network. Nothing leaves your LAN.
+In a processing mode that uses the server, the monitor sends camera frames to the API server, which analyses them with a local [Ollama](https://ollama.com) install. With no cloud AI key set, frames stay on your LAN.
 
 | Model | Size | Latency | Use |
 |---|---|---|---|
@@ -147,11 +147,13 @@ When detection is ambiguous, you can route the frame to a local [Ollama](https:/
 
 ### Optional: cloud fallback
 
-When local resources are exhausted (e.g. on a low-end phone with no Ollama box on the LAN), you can configure cloud fallback through your own API keys. Each provider receives only the frames that local models couldn't classify with confidence.
+When Ollama is down or its analysis of a frame fails, the API server sends that frame to the first cloud provider with a key in `.env`, in this order ([`src/lib/analysis/cloud-fallback.ts`](src/lib/analysis/cloud-fallback.ts)):
 
-- [`gemini-flash-1.5`](https://ai.google.dev/gemini-api/docs/models/gemini#gemini-1.5-flash) via [OpenRouter](https://openrouter.ai)
-- [`gpt-4o-mini`](https://platform.openai.com/docs/models/gpt-4o-mini) via OpenAI
-- [`claude-3-haiku`](https://docs.anthropic.com/en/docs/about-claude/models) via Anthropic
+- `google/gemini-2.5-flash` via [OpenRouter](https://openrouter.ai) (`OPENROUTER_API_KEY`)
+- `gpt-5.6-terra` via [OpenAI](https://platform.openai.com) (`OPENAI_API_KEY`)
+- `claude-haiku-5-5` via [Anthropic](https://www.anthropic.com) (`ANTHROPIC_API_KEY`)
+
+With none of these keys set, no frame goes to a cloud provider.
 
 ## Notification channels
 
@@ -172,10 +174,10 @@ Browser push works straight from the static PWA. Email via [Resend](https://rese
 
 Two ways to wire it up:
 
-1. **Server-wide key (operator pays).** Set `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO` and `SAFEOS_API_PUBLIC_URL` in the API server's `.env`. Every user of that deployment can opt in to email alerts without bringing their own key. Transactional auth email (verification + reset) requires this path.
-2. **Bring your own key (per user).** In the app, go to **Settings → Notifications**, toggle on email alerts, and enable **Use my own Resend account**. Paste a Resend API key + a verified sender. The key stays in your browser's local storage and is only sent to the API server when an alert dispatches.
+1. **Server-wide key (operator pays).** Set `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO` and `SAFEOS_API_PUBLIC_URL` in the API server's `.env`. The server sends alert email with this key only for the operator's own account (the profile with the operator role). Transactional auth email (verification + reset) requires this path.
+2. **Bring your own key (per user).** In the app, go to **Settings → Notifications**, toggle on email alerts, and enable **Use my own Resend account**. Paste a Resend API key and a verified sender. The page sends the key with the test email and does not save it.
 
-Email only fires when the toggle is **on** AND a recipient address is set. See [`apps/guardian-ui/src/app/help/integrations/resend`](apps/guardian-ui/src/app/help/integrations/resend) for the full setup walkthrough or read [`src/lib/alerts/email.ts`](src/lib/alerts/email.ts) for the implementation.
+Alert email goes out only when the profile has email turned **on** and a recipient set. The settings page's test sends one email; saving that page does not turn on alert email. See [`apps/guardian-ui/src/app/help/integrations/resend`](apps/guardian-ui/src/app/help/integrations/resend) for the full setup walkthrough or read [`src/lib/alerts/email.ts`](src/lib/alerts/email.ts) for the implementation.
 
 #### Unsubscribe link in every mail
 

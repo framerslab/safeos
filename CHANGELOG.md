@@ -24,12 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `SAFEOS_TRUST_PROXY` takes exact proxy IP addresses only; a hop count, a range or an invalid value trusts no proxy. The production compose file puts Caddy at `172.30.0.2` on its own `proxy-network`, whose other containers get addresses from `172.30.0.128/25`.
 - Each person has their own active monitoring profile per scenario, built-in defaults included. Monitoring profiles with no owner other than the three built-in defaults are hidden until the operator assigns an owner.
 - Resuming a guest profile with `POST /api/auth/session` needs that session's live token for the same device; the token is replaced in place.
-- The site title, description, social card and manifest describe motion and sound alerts in the browser; the word AI is kept for the Security and Wildlife detectors, which run COCO-SSD. FAQ, Help, Tutorials and Tutorial have titles of their own, and every public page has a canonical address.
-- safeos.sh asks for no money: the sponsorship page, the Support Us button and the money words are gone, `/donate` is a short page that says SafeOS is free and moves on to About, and the free promise is scoped to safeos.sh and the MIT-licensed code. The future paid service notice is gone.
+- The site title, description, social card and manifest describe motion and sound alerts in the browser; the word AI is kept for the Security and Wildlife detectors, which run COCO-SSD. Every public page, Security, Lost & Found and Setup included, has its own title, description, canonical address and social card, and the old support address asks search engines not to index it.
+- safeos.sh asks for no money: the page that asked for it, its header button and its wording are gone, `/donate` is a short page that says SafeOS is free and moves on to About, and the free promise is scoped to safeos.sh and the MIT-licensed code. The notice about a future paid service is gone.
 - The footer links Privacy and Terms on every page. The Privacy page says how the site treats Do Not Track and Global Privacy Control, that GitHub Pages logs visitors' IP addresses, and who operates safeos.sh.
-- The sitemap lists `/tutorial` and the integration guides and leaves out `/donate`.
+- The sitemap lists `/tutorial` and the integration guides and leaves out the old support address.
 - Below 1280 px the header keeps the logo, the theme button, the bell and the menu in one row of 44 px targets; the page links, GitHub and keyboard shortcuts are in the menu.
-- The notification prompt waits until setup is finished.
+- The notification prompt waits until setup is finished, and appears once it is, with no reload.
+- The header menu scrolls inside itself on a short screen, Escape closes it, and focus goes back to the Menu button when it closes.
+- The home page's Security card opens the Security page, and the other quick-start links name only presets that exist.
+- Lost & Found offers a pet or an item; subjects saved with the person type keep showing. The processing choice that only slowed the same matcher is gone.
 
 ### Fixed
 - A queued action the server confirmed and the browser could not save keeps the server's answer and counts no failed try. The next sync applies that answer without a new request, and the five-try limit does not drop it; if the queue cannot be written either, the action stays as it was.
@@ -44,8 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full-export lists and their totals use the same database statement during monitoring writes. Profile and full downloads report omitted unreadable settings on the export page.
 - Push registration verifies the incoming session's live profile binding in the same write that saves the registration.
 - Before-and-after picture capture also runs when a pull request opens.
-- The public pages say what the code does: the Lost & Found matcher compares colours, a coarse edge grid and size on your own camera (no cosine similarity, no Sobel kernel, no people); the browser keeps three frames, not a 5 to 10 minute buffer; nothing blurs images, sync is not encrypted, and the static site watches for no misuse; the sound alert is a loudness threshold; Wildlife knows ten kinds of animal and saves still frames; the detection model is 18.6 MB everywhere; the blog post no longer describes the unused ViT analyzer.
-- No page claims to detect breathing, illness, falls or confusion. Pages that name babies say SafeOS is not a medical device and link the NIH safe-sleep page; pages that describe watching another adult say to ask first. "Legally required" and "All systems operational" are gone.
+- The public pages say what the code does: the Lost & Found matcher compares colours, a coarse edge grid and size on your own camera, so anything of similar colour can match; the browser keeps three frames; the sound alert is a loudness threshold; Wildlife knows ten kinds of animal and saves still frames; the detection model is 18.6 MB everywhere; the blog post describes only code the app runs. Security's model runs on movement, and every five seconds while an alert is on. Setup's scenario cards, the status banner, the Resend and Ollama guides, Privacy and the README say the same.
+- The pages claim only the alerts that run: motion, sound level and an optional no-movement alert. Pages that name babies carry the safe-sleep statement and link the NIH safe-sleep page; pages that describe watching another adult say to ask first. The setup notice and the footer status line make no claim the site cannot back.
+- Help and Tutorials give the sensitivity direction the monitor uses: a higher sensitivity means a lower threshold and more alerts.
 - The theme button changes the page on a device set to light; before, the theme store failed to hydrate there and the button changed only its icon.
 - From about 800 to 1100 px the header no longer runs off the screen and hides its controls.
 - The home hero's "Guardian", the feature-card tags and setup's warning heading reach 4.5 to 1 contrast in the light look.
