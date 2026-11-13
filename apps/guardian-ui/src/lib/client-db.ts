@@ -112,6 +112,8 @@ interface SafeOSDB extends DBSchema {
       createdAt: string;
       retries: number;
       lastError: string | null;
+      /** The server's answer to the action, kept when the browser could not save it. */
+      response?: unknown;
     };
     indexes: { 'by-created': string };
   };
@@ -849,10 +851,15 @@ export interface SyncAction {
   createdAt: string;
   retries: number;
   lastError: string | null;
+  /**
+   * The server's answer, kept when the server confirmed the action and the browser could not save
+   * it. An action that carries one is not sent again: its answer is applied at the next sync.
+   */
+  response?: unknown;
 }
 
 export async function queueSyncAction(
-  action: Omit<SyncAction, 'id' | 'createdAt' | 'retries' | 'lastError'>
+  action: Omit<SyncAction, 'id' | 'createdAt' | 'retries' | 'lastError' | 'response'>
 ): Promise<void> {
   try {
     const db = await getDB();
@@ -888,6 +895,31 @@ export async function removeSyncAction(id: string): Promise<void> {
     await db.delete('sync_queue', id);
   } catch {
     // Ignore
+  }
+}
+
+/**
+ * Keeps the server's answer on a queued action whose record update failed, with no new try
+ * counted. False means the queue could not be written, and the action is as it was. The read and
+ * the write share one transaction, so a clear in another tab cannot fall between them and have
+ * the emptied entry written back.
+ */
+export async function keepSyncResponse(id: string, response: unknown, error: string): Promise<boolean> {
+  let tx: IDBPTransaction<SafeOSDB, ['sync_queue'], 'readwrite'> | undefined;
+  try {
+    const db = await getDB();
+    tx = db.transaction('sync_queue', 'readwrite');
+    const action = await tx.store.get(id);
+    if (!action) {
+      await tx.done;
+      return false;
+    }
+    await tx.store.put({ ...action, response, lastError: error });
+    await tx.done;
+    return true;
+  } catch {
+    await abandonTransaction(tx);
+    return false;
   }
 }
 
