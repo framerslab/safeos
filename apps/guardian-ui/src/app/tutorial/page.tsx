@@ -57,6 +57,7 @@ const tutorialSteps: TutorialStep[] = [
       'Pet: alerts on movement and loud sound',
       'Baby: alerts on small movements and loud sound, such as crying',
       'Elderly: alerts on movement, loud sound, and no movement for a set time',
+      'Tell any adult you watch or listen to, and have their agreement first',
     ],
   },
   {

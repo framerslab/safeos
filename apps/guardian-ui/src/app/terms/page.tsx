@@ -10,6 +10,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { IconFileText, IconAlertTriangle, IconShield, IconHeart, IconCheck } from '@/components/icons';
+import { SAFE_SLEEP_URL } from '@/components/NotAMedicalDevice';
 
 export const metadata: Metadata = {
   title: 'Terms',
@@ -84,7 +85,16 @@ const termsSections: TermSection[] = [
         <ul className="list-disc list-inside space-y-2 text-slate-400 ml-2">
           <li>
             <strong className="text-white">Baby monitoring:</strong> This does not 
-            replace a caregiver. Babies require constant, attentive human supervision.
+            replace a caregiver. Babies require constant, attentive human supervision.{' '}
+            SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.{' '}
+            <a
+              href={SAFE_SLEEP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              Safe-sleep guidance (NIH)
+            </a>
           </li>
           <li>
             <strong className="text-white">Elderly care:</strong> This is not a 

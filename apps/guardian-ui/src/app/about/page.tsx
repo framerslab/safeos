@@ -300,7 +300,7 @@ export default function AboutPage() {
             />
             <TechStackItem
               name="Capacitor"
-              description="Native wrapper, no app released"
+              description="Native wrapper configuration"
               logo="capacitor.svg"
             />
           </div>
