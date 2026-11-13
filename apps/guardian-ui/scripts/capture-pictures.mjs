@@ -247,9 +247,16 @@ try {
           // The server refuses the profile change unless the scenario is a failed local write.
           if (method === 'PATCH') return request.fulfill({ status: save.localFails ? 200 : 500, headers: cors,
             contentType: 'application/json', body: JSON.stringify({ success: save.localFails }) });
+          // Only the session route answers; the dashboard's status reads find nothing, as with no server.
+          if (!new URL(request.request().url()).pathname.startsWith('/api/auth/session')) {
+            return request.fulfill({ status: 404, headers: cors, contentType: 'application/json', body: '{"success":false}' });
+          }
           return request.fulfill({ headers: cors, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: {
             sessionId: 'picture-session', token: 'picture-token', isGuest: false, expiresAt: '2099-01-01T00:00:00Z',
-            profile: { id: 'picture-person', displayName: 'Picture person', preferences: {}, notificationSettings: {} },
+            profile: { id: 'picture-person', displayName: 'Picture person', avatarUrl: null,
+              preferences: { defaultScenario: 'pet', motionSensitivity: 0.5, audioSensitivity: 0.5, alertVolume: 0.7, theme: 'system' },
+              notificationSettings: { browserPush: true, sms: false, telegram: false, emailDigest: false,
+                quietHoursStart: null, quietHoursEnd: null } },
           } }) });
         });
         const page = await context.newPage();
@@ -260,6 +267,7 @@ try {
           const response = await request.response().catch(() => null);
           asked.push(`${request.method()} ${new URL(request.url()).pathname} ${response ? response.status() : '-'}`);
         });
+        page.on('pageerror', error => asked.push(`page error: ${error.message}`));
         page.on('requestfailed', request => {
           if (request.url().startsWith('https://pictures.example.test/')) {
             asked.push(`${request.method()} ${new URL(request.url()).pathname} failed: ${request.failure()?.errorText}`);
