@@ -198,17 +198,20 @@ try {
       }
     }
   }
-  // A profile save the server does not take, and one this browser cannot write. The base build shows
-  // its own words for the same saves; in the head build CI checks the words.
+  // A profile save of a server session that the server does not take, and one of a browser-only
+  // session that this browser cannot write. The base build shows its own words for the same saves;
+  // in the head build CI checks the words.
   const saves = [
     ...(routes.includes('/settings/notifications/') ? [
-      { name: 'notifications-server-refused', route: '/settings/notifications/', button: 'Save changes', localFails: false,
-        words: 'Saved on this device. The server did not take the change. Save again when you are connected.' },
-      { name: 'notifications-not-saved', route: '/settings/notifications/', button: 'Save changes', localFails: true,
+      { name: 'notifications-server-refused', route: '/settings/notifications/', button: 'Save changes',
+        browserOnly: false, localFails: false,
+        words: 'The server did not take the change. Save again when you are connected.' },
+      { name: 'notifications-not-saved', route: '/settings/notifications/', button: 'Save changes',
+        browserOnly: true, localFails: true,
         words: 'Notification settings were not saved. Try again.' },
     ] : []),
     ...(routes.includes('/settings/') ? [
-      { name: 'settings-failed', route: '/settings/', button: 'Save Changes', localFails: false,
+      { name: 'settings-failed', route: '/settings/', button: 'Save Changes', browserOnly: false, localFails: false,
         words: 'Failed to save settings.' },
     ] : []),
   ];
@@ -246,9 +249,13 @@ try {
         await context.route('https://pictures.example.test/**', request => {
           const method = request.request().method();
           if (method === 'OPTIONS') return request.fulfill({ status: 204, headers: cors });
-          // The server refuses the profile change unless the scenario is a failed local write.
-          if (method === 'PATCH') return request.fulfill({ status: save.localFails ? 200 : 500, headers: cors,
-            contentType: 'application/json', body: JSON.stringify({ success: save.localFails }) });
+          // The server refuses the profile change.
+          if (method === 'PATCH') return request.fulfill({ status: 500, headers: cors,
+            contentType: 'application/json', body: JSON.stringify({ success: false }) });
+          // For a browser-only session the server does not make the session, so the tab makes a guest
+          // session in this browser.
+          if (method === 'POST' && save.browserOnly) return request.fulfill({ status: 500, headers: cors,
+            contentType: 'application/json', body: '{"success":false}' });
           // The server is up and answers the session route; its other reads find nothing.
           const pathname = new URL(request.request().url()).pathname;
           if (pathname === '/health') return request.fulfill({ headers: cors, contentType: 'application/json', body: '{"status":"ok"}' });
