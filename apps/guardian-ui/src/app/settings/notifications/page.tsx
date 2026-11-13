@@ -246,7 +246,7 @@ export default function NotificationsSettingsPage() {
       console.error('[Notifications] save failed:', error);
       if (getDatabaseNotice()) {
         // Under a reload notice the profile was not changed, and nothing retries it.
-        setSaveMessage({ type: 'error', text: 'Notification settings were not saved to your profile. Reload this page, then save again.' });
+        setSaveMessage({ type: 'error', text: 'Notification settings were not saved to your profile. Reload this page, set them again, then save.' });
       } else {
         setSaveMessage({
           type: 'success',
