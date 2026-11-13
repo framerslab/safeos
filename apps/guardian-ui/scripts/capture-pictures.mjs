@@ -231,6 +231,7 @@ try {
             isComplete: true, selectedScenario: 'pet',
             acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
           }, version: 0 }));
+          localStorage.setItem('guardian-onboarding-complete', 'true');
           if (localFails) {
             // This browser cannot write the profile cache, as when storage is full.
             const put = IDBObjectStore.prototype.put;
@@ -252,6 +253,18 @@ try {
           } }) });
         });
         const page = await context.newPage();
+        // What the page asked the fixture server, reported when a capture fails.
+        const asked = [];
+        page.on('requestfinished', async request => {
+          if (!request.url().startsWith('https://pictures.example.test/')) return;
+          const response = await request.response().catch(() => null);
+          asked.push(`${request.method()} ${new URL(request.url()).pathname} ${response ? response.status() : '-'}`);
+        });
+        page.on('requestfailed', request => {
+          if (request.url().startsWith('https://pictures.example.test/')) {
+            asked.push(`${request.method()} ${new URL(request.url()).pathname} failed: ${request.failure()?.errorText}`);
+          }
+        });
         const file = path.join(outDir, `${save.name}-${size.width}-${look}.png`);
         try {
           // The settings pages do not start a session themselves: sign in on the dashboard, then
@@ -274,6 +287,9 @@ try {
         } catch (err) {
           failures += 1;
           console.error(`failed ${save.name} at ${size.width} ${look}: ${err.message}`);
+          const accounts = await page.locator('button[aria-label^="Account menu"]').evaluateAll(
+            buttons => buttons.map(button => button.getAttribute('aria-label'))).catch(() => []);
+          console.error(`  at ${page.url()}; account buttons: ${JSON.stringify(accounts)}; asked: ${JSON.stringify(asked)}`);
         } finally {
           await context.close();
         }
