@@ -1,5 +1,6 @@
 /** @jest-environment jsdom */
 import { openDB } from 'idb';
+import { IDBFactory } from 'fake-indexeddb';
 import { cacheAlert, getCachedAlerts, getCachedMonitoringAlerts, saveLocalSession } from '@/lib/client-db';
 import { useAuthStore } from '@/stores/auth-store';
 import { useMonitoringStore } from '@/stores/monitoring-store';
@@ -64,3 +65,81 @@ it('upgrades a version 4 database in place and indexes its existing alerts', asy
   expect(await upgraded.get('alert_cache', 'existing')).toBeUndefined();
   upgraded.close();
 }, 60000);
+
+/** A fresh browser: an empty database factory and a new set of modules. */
+async function fresh() {
+  jest.resetModules();
+  global.indexedDB = new IDBFactory();
+  localStorage.clear();
+  const db = await import('@/lib/client-db');
+  const { useMonitoringStore: monitoring } = await import('@/stores/monitoring-store');
+  return { db, monitoring };
+}
+const OTHER_STORES: Array<[string, string]> = [
+  ['local_session', 'id'], ['profile_cache', 'id'], ['stream_cache', 'id'], ['frame_cache', 'id'], ['sync_queue', 'id'],
+  ['settings_cache', 'key'], ['consent_log', 'id'], ['subject_profile', 'id'], ['match_frame', 'id'],
+  ['intrusion_frame', 'id'], ['custom_media', 'id'], ['animal_detection', 'id'],
+];
+
+it.each([5, 6])('upgrades a version %i database left by an unreleased build', async (version) => {
+  const { monitoring } = await fresh();
+  const old = await openDB('safeos-guardian', version, { upgrade(database) {
+    for (const [name, keyPath] of OTHER_STORES) database.createObjectStore(name, { keyPath });
+    const alerts = database.createObjectStore('alert_cache', { keyPath: 'id' });
+    alerts.createIndex('by-stream', 'streamId');
+    alerts.createIndex('by-created', 'createdAt');
+    alerts.createIndex('by-owner-created', ['cacheOwner', 'createdAt']);
+    if (version === 6) {
+      alerts.createIndex('by-retention', ['retentionClass', 'acknowledgementOrder', 'createdAt']);
+      alerts.createIndex('by-owner-retention', ['cacheOwner', 'retentionClass', 'acknowledgementOrder', 'createdAt']);
+    }
+  } });
+  for (const ownerId of ['bob', 'alice', '']) await old.put('alert_cache', {
+    id: `saved-under-${ownerId || 'nobody'}`, monitoring: true, ownerId, cacheOwner: `monitoring:${ownerId}`,
+    streamId: 'camera', severity: 'low', message: 'Unreleased build', createdAt: '2026-10-01T10:00:00.000Z',
+    acknowledged: false, ...(version === 6 ? { retentionClass: 'new', acknowledgementOrder: 1 } : {}),
+  });
+  old.close();
+  await monitoring.getState().hydrateAlerts();
+  expect(monitoring.getState().alerts.map(a => a.id).sort()).toEqual(['saved-under-alice', 'saved-under-bob', 'saved-under-nobody']);
+  const upgraded = await openDB('safeos-guardian');
+  expect(upgraded.version).toBe(7);
+  const records = await upgraded.getAll('alert_cache');
+  expect(records.filter((a: any) => 'ownerId' in a || 'cacheOwner' in a)).toEqual([]);
+  expect(records.map((a: any) => [a.savedBeforeUpgrade, a.retentionClass])).toEqual(records.map(() => [true, 'saved']));
+  const indexes = upgraded.transaction('alert_cache').store.indexNames;
+  expect(indexes.contains('by-owner-created')).toBe(false);
+  expect(indexes.contains('by-owner-retention')).toBe(false);
+  upgraded.close();
+});
+
+it('saves an alert whose date cannot be read', async () => {
+  const { db } = await fresh();
+  expect(await db.cacheAlert({ id: 'bad', createdAt: 'not-a-date' })).toBe(true);
+  const stored = await openDB('safeos-guardian');
+  const record = await stored.get('alert_cache', 'bad');
+  stored.close();
+  expect(Number.isFinite(Date.parse(record.createdAt))).toBe(true);
+  expect(record.originalCreatedAt).toBe('not-a-date');
+});
+
+it('keeps the creation time of a saved record through an acknowledgement, also one in the future', async () => {
+  const { db, monitoring } = await fresh();
+  const old = await openDB('safeos-guardian', 4, { upgrade(database) {
+    const alerts = database.createObjectStore('alert_cache', { keyPath: 'id' });
+    alerts.createIndex('by-stream', 'streamId');
+    alerts.createIndex('by-created', 'createdAt');
+  } });
+  await old.put('alert_cache', { id: 'future', monitoring: true, streamId: 'camera', severity: 'low',
+    message: 'Dated ahead', createdAt: '2027-01-01T00:00:00.000Z', acknowledged: false });
+  old.close();
+  await monitoring.getState().hydrateAlerts();
+  monitoring.getState().acknowledgeAlert('future');
+  await monitoring.getState().hydrateAlerts();
+  const kept = { createdAt: '2027-01-01T00:00:00.000Z', savedBeforeUpgrade: true, retentionClass: 'saved' };
+  const stored = await openDB('safeos-guardian');
+  expect(await stored.get('alert_cache', 'future')).toMatchObject({ ...kept, acknowledged: true });
+  await db.cacheAlert({ id: 'future', acknowledged: false });
+  expect(await stored.get('alert_cache', 'future')).toMatchObject(kept);
+  stored.close();
+});
