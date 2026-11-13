@@ -315,7 +315,7 @@ try {
           await page.getByRole('button', { name: save.button, exact: true }).click({ timeout: 20_000 });
           const message = process.env.PICTURE_VERSION === 'after'
             ? page.getByText(save.words, { exact: true })
-            : page.getByText(/^(Notification settings|Saved |Settings saved|Failed to save)/);
+            : page.getByText(/^(Notification settings|Saved |Settings saved|Failed to save|The server did not take)/);
           await message.first().waitFor({ timeout: 10_000 });
           // The whole page, so the message shows wherever it sits. The site's fixed bars are left out,
           // since the Settings message sits at the top right, where the top bar covers it.
@@ -498,7 +498,7 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
     const page = await context.newPage();
     try {
       await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
-      const toggle = page.locator('nav[aria-label="Main"] button[aria-expanded]');
+      const toggle = page.locator('nav[aria-label="Main"] button.nav-mobile-toggle');
       const menu = page.locator('.nav-mobile-menu');
       await toggle.click();
       await menu.waitFor({ timeout: 5_000 });
