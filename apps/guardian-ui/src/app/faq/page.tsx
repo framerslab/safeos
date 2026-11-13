@@ -69,7 +69,7 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         question: 'Is my video/audio data stored anywhere?',
-        answer: 'Not on any server of ours. Without a server of your own, your video and audio stay in your browser: the monitor compares frames and measures sound levels on your device, and Security and Wildlife run a TensorFlow.js model there. What the app stores stays in your browser: your settings in localStorage, and saved frames and reference photos in IndexedDB. If you connect a server you run yourself, the monitor sends frames to that server.',
+        answer: 'Not on any server of ours. Without a server of your own, your video and audio stay in your browser: the monitor compares frames and measures sound levels on your device, and Security and Wildlife run a TensorFlow.js model there. What the app stores stays in your browser: your settings in localStorage, and saved frames and reference photos in IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to that server.',
       },
       {
         question: 'Does Frame.dev have access to my camera?',
@@ -77,7 +77,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How does local-first processing work?',
-        answer: 'Local-first means the analysis happens on your device. The monitor compares video frames and measures sound levels in your browser. Security and Wildlife modes also run a TensorFlow.js model in the browser to find people and animals. Without a configured server, your camera frames and sound stay in your browser. The page downloads the detection model from Google, which sees your IP address. The GitHub link contacts GitHub only when you open it. If you connect a server you run yourself, the monitor sends frames to that server.',
+        answer: 'Local-first means the analysis happens on your device. The monitor compares video frames and measures sound levels in your browser. Security and Wildlife modes also run a TensorFlow.js model in the browser to find people and animals. Without a configured server, your camera frames and sound stay in your browser. The page downloads the detection model from Google, which sees your IP address. The GitHub link contacts GitHub only when you open it. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to that server.',
       },
       {
         question: 'Can I use this without any internet connection?',

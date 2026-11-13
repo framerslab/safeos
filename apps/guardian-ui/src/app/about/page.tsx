@@ -188,8 +188,8 @@ export default function AboutPage() {
             </p>
             <p className="text-slate-300 leading-relaxed mb-4">
               On safeos.sh, SafeOS runs entirely in your browser. Your recordings, settings, and personal
-              information stay on your device. If you connect a server you run yourself, camera frames and
-              alerts go to that server. If you also give that server a key for a cloud AI provider, it can
+              information stay on your device. If you connect a server you run yourself, alerts go to that
+              server, and camera frames go to it in a processing mode that uses it. If you also give that server a key for a cloud AI provider, it can
               send a frame to that provider when its local analysis is unavailable.
             </p>
             <p className="text-slate-400 leading-relaxed">
@@ -353,7 +353,7 @@ export default function AboutPage() {
                 step={5}
                 icon={<IconWifiOff size={16} />}
                 title="Optional Server"
-                description="If you connect a server you run yourself, your devices sync through it and the monitor sends camera frames to it."
+                description="If you connect a server you run yourself, your devices sync through it, and in a processing mode that uses it the monitor sends camera frames to it."
               />
             </div>
             <div className="mt-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">

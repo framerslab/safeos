@@ -31,7 +31,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconDatabase,
     title: 'Local-First Storage',
-    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself, the monitor sends camera frames to that server only.',
+    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends camera frames to that server only.',
   },
   {
     icon: IconEye,
@@ -131,7 +131,8 @@ export default function PrivacyPage() {
                 entirely within your browser using JavaScript. Frames are analyzed locally using 
                 motion detection algorithms and, on the Security and Wildlife pages, the COCO-SSD
                 model. Without a configured server, no video leaves your device. If you connect a server you run
-                yourself, the monitor page sends camera frames to that server.
+                yourself and choose a processing mode that uses it, the monitor page sends camera frames
+                to that server.
               </p>
               <p>
                 <strong className="text-white">Data Storage:</strong> Your preferences are stored in

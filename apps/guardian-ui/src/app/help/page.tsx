@@ -117,7 +117,7 @@ const faqs: FAQItem[] = [
   {
     category: 'privacy',
     question: 'What happens to my video data?',
-    answer: 'Video is processed in your browser. The motion check keeps only the last three frames in memory. Frames that Security, Wildlife or Lost & Found save stay in your browser\'s IndexedDB. If you connect a server you run yourself, the monitor sends frames to it.',
+    answer: 'Video is processed in your browser. The motion check keeps only the last three frames in memory. Frames that Security, Wildlife or Lost & Found save stay in your browser\'s IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to it.',
   },
   {
     category: 'privacy',
