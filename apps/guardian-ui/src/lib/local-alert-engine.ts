@@ -16,8 +16,11 @@ import {
 } from './local-data-generation';
 import { getNotificationManager } from './notification-manager';
 
-/** A save that waits: `marker` and `counter` are noted when it is first queued; `stamp` once it has failed. */
-type PendingSave = { record: any; marker: string; stamp: ClearStamp | null; counter: number };
+/**
+ * A save that waits: `marker` and `counter` are noted when it is first queued; `stamp` once it has
+ * failed. `update` marks a failed acknowledgement of a saved alert, whose retry never creates a record.
+ */
+type PendingSave = { record: any; marker: string; stamp: ClearStamp | null; counter: number; update?: boolean };
 
 /** At most this many failed saves wait for a retry; the oldest leaves first. */
 const MAX_PENDING_SAVES = 500;
@@ -442,12 +445,7 @@ class LocalAlertEngine {
     const gate = new Promise<void>((resolve) => { release = resolve; });
     this.saves = this.saves.then(async () => {
       await gate;
-      // Taken once the save in front has settled, so a save that failed there is retried here.
-      const waiting = [...this.unsaved.entries()];
-      for (const [id, pending] of waiting) {
-        // An acknowledgement or a clear may have replaced or dropped this waiting save.
-        if (this.unsaved.get(id) === pending) await this.save(pending);
-      }
+      await this.retryPending();
       await this.save(entry);
     }).catch((error) => {
       console.warn('[LocalAlertEngine] Could not save alert:', error);
@@ -455,18 +453,37 @@ class LocalAlertEngine {
     return release;
   }
 
-  /** One try at a save. A first save always writes; a retry carries its stamp and is written only if no clear came since. */
+  /** One try at every waiting save, taken when it runs, so a save that failed just in front is retried too. */
+  private async retryPending(): Promise<void> {
+    const waiting = [...this.unsaved.entries()];
+    for (const [id, pending] of waiting) {
+      // An acknowledgement or a clear may have replaced or dropped this waiting save.
+      if (this.unsaved.get(id) === pending) await this.save(pending);
+    }
+  }
+
+  /**
+   * One try at a save. A first save always writes; a retry carries its stamp and is written only if
+   * no clear came since. An update goes through `updateCachedAlert`, so it never creates a record.
+   */
   private async save(entry: PendingSave): Promise<void> {
     if (!isCurrentLocalData(entry.counter)) return;
-    const saved = await cacheAlert(entry.record, entry.stamp ?? undefined);
+    const stamp = entry.stamp ?? undefined;
+    const failed = entry.update
+      ? (await updateCachedAlert(entry.record, stamp)) === 'failed'
+      : !(await cacheAlert(entry.record, stamp));
     if (!isCurrentLocalData(entry.counter)) return;
-    const id = entry.record.id;
-    if (saved) {
-      this.unsaved.delete(id);
+    if (!failed) {
+      this.unsaved.delete(entry.record.id);
       return;
     }
+    this.keepPending(entry);
+  }
+
+  /** Keeps a failed save for the next retry, stamped with the last clear the tab knew of under its marker. */
+  private keepPending(entry: PendingSave): void {
     if (entry.stamp === null || entry.stamp.generation === null) entry.stamp = pendingClearStamp(entry.marker);
-    this.unsaved.set(id, entry);
+    this.unsaved.set(entry.record.id, entry);
     while (this.unsaved.size > MAX_PENDING_SAVES) {
       const oldest = this.unsaved.keys().next().value;
       if (oldest === undefined) break;
@@ -620,6 +637,9 @@ class LocalAlertEngine {
    * dismissal or a limit removed it, and nothing was written.
    */
   async acknowledgeAlert(alertId: string): Promise<boolean> {
+    // The marker and the counter are noted when the acknowledgement is made, as for a new alert.
+    const marker = readLocalClearMarker();
+    const counter = getLocalDataGeneration();
     await this.whenSaved();
     const pending = this.unsaved.get(alertId);
     if (pending) {
@@ -631,11 +651,20 @@ class LocalAlertEngine {
       return true;
     }
     // One transaction reads the record and writes it back acknowledged; it never creates one.
-    const result = await updateCachedAlert({ id: alertId, acknowledged: true, acknowledgedAt: new Date().toISOString() });
+    const record = { id: alertId, acknowledged: true, acknowledgedAt: new Date().toISOString() };
+    const result = await updateCachedAlert(record);
+    // A failed write waits for the passes that retry saves, as an update of the record.
+    if (result === 'failed' && isCurrentLocalData(counter)) {
+      this.keepPending({ record, marker, stamp: null, counter, update: true });
+    }
     return result !== 'gone';
   }
 
   async getRecentAlerts(limit = 50): Promise<LocalAlert[]> {
+    // A history read first retries the saves that wait, so a failed save is not left until a later alert.
+    this.saves = this.saves.then(() => this.retryPending()).catch((error) => {
+      console.warn('[LocalAlertEngine] Could not save alert:', error);
+    });
     await this.whenSaved();
     const cached = await getCachedAlerts();
     return cached.slice(0, limit).map((a) => ({
