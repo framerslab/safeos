@@ -74,12 +74,12 @@ export function server(routes: {
   profile?: () => Answer | Promise<Answer>;
 } = {}) {
   localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: API, wsUrl: 'wss://monitor.example.test/ws' }));
-  const calls: Array<{ url: string; method: string; token?: string }> = [];
-  global.fetch = jest.fn(async (input: unknown, init: { method?: string; headers?: Record<string, string> } = {}) => {
+  const calls: Array<{ url: string; method: string; token?: string; body?: string }> = [];
+  global.fetch = jest.fn(async (input: unknown, init: { method?: string; headers?: Record<string, string>; body?: string } = {}) => {
     const url = String(input);
     const method = init.method || 'GET';
     const token = init.headers?.['X-Session-Token'];
-    calls.push({ url, method, token });
+    calls.push({ url, method, token, body: init.body });
     if (url === `${API}/api/auth/session` && method === 'GET') return (routes.check ?? ((asked: string) => sessionAnswer(asked)))(token || '');
     if (url === `${API}/api/auth/session` && method === 'POST' && routes.create) return routes.create();
     if (url === `${API}/api/auth/profile` && method === 'PATCH' && routes.profile) return routes.profile();

@@ -426,6 +426,27 @@ it.each([
   if (!serverTook) expect(auth.getState().profile).toBe(before);
 });
 
+it('keeps a switch turned off when the server does not take the save, and Save again sends it off', async () => {
+  (await oldTab()).close();
+  const notificationSettings = { browserPush: true, sms: false, telegram: false, emailDigest: false, quietHoursStart: null, quietHoursEnd: null };
+  // The saved session checks OK with its notification settings; the profile change then fails as an unreachable server does.
+  const calls = server({ check: (token) => sessionAnswer(token, { ...checked, notificationSettings }) });
+  const { Providers, NotificationSettings, StatusBanner, auth } = await app();
+  render(<Providers><StatusBanner /><NotificationSettings /></Providers>);
+  await act(async () => { await auth.getState().initialize(); });
+  await waitFor(() => expect(auth.getState().profile?.id).toBe(checked.id), SLOW);
+  const browserPush = () => screen.getByText('Send browser notifications').closest('label')!.querySelector('[role="switch"]')!;
+  await waitFor(() => expect(browserPush().getAttribute('aria-checked')).toBe('true'), SLOW);
+  fireEvent.click(browserPush());
+  expect(browserPush().getAttribute('aria-checked')).toBe('false');
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  expect(await screen.findByText(SERVER_REFUSED)).toBeTruthy();
+  expect(browserPush().getAttribute('aria-checked')).toBe('false');
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+  await waitFor(() => expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(2), SLOW);
+  expect(JSON.parse(calls.sent('PATCH', '/api/auth/profile')[1].body!).notificationSettings.browserPush).toBe(false);
+});
+
 it.each(['while the change is sent', 'before the save'])('says which save failed when a reload notice appears %s', async (when) => {
   (await oldTab()).close();
   let fail!: (error: Error) => void;

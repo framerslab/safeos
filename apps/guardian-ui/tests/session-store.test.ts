@@ -451,3 +451,244 @@ it('adopts a renewal in flight when the database closes for an update after the 
     newer.close();
   }
 });
+
+it('signs in with the server profile when another tab runs Monitor’s Clear all while set-up waits on its session check', async () => {
+  (await oldTab()).close();
+  let answer!: (value: unknown) => void;
+  const pending = new Promise((resolve) => { answer = resolve; });
+  const calls = server({ check: () => pending as never });
+  const first = await tab();
+  const setUp = first.auth.getState().initialize();
+  await waitFor(() => expect(calls.checks()).toHaveLength(1), { timeout: 5000 });
+  const alertMarker = localStorage.getItem('safeos_local_data_cleared');
+  await tab();
+  const { useMonitoringStore: monitoring } = await import('@/stores/monitoring-store');
+  monitoring.getState().clearAlerts();
+  await monitoring.getState().hydrateAlerts();
+  // The alert history was cleared, which names itself to every tab.
+  expect(localStorage.getItem('safeos_local_data_cleared')).not.toBe(alertMarker);
+  answer(sessionAnswer('saved-token', { id: 'server-person', displayName: 'Server person' }));
+  await setUp;
+  expect(first.auth.getState().isAuthenticated).toBe(true);
+  expect(first.auth.getState().profile?.id).toBe('server-person');
+  expect(first.auth.getState().sessionToken).toBe('saved-token');
+});
+
+it('stays signed out and leaves no session token in local storage when another tab clears local data while a held token is checked and the session store cannot be read', async () => {
+  holdToken('held-token');
+  let answer!: (value: unknown) => void;
+  const pending = new Promise((resolve) => { answer = resolve; });
+  const calls = server({ check: () => pending as never, create: () => sessionAnswer('new-token') });
+  // The session store cannot be read. A clear, which writes every store in one transaction, still runs.
+  const transaction = IDBDatabase.prototype.transaction;
+  jest.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(function (this: IDBDatabase, ...args: Parameters<typeof transaction>) {
+    if (args[0] === 'local_session') throw new DOMException('The session store cannot be read', 'UnknownError');
+    return transaction.apply(this, args);
+  });
+  const first = await tab();
+  const setUp = first.auth.getState().initialize();
+  await waitFor(() => expect(calls.checks()).toHaveLength(1), { timeout: 5000 });
+  const other = await tab();
+  await other.clearLocalData();
+  answer(sessionAnswer('held-token', { id: 'held-person', displayName: 'Held person' }));
+  await setUp;
+  expect(first.auth.getState().isAuthenticated).toBe(false);
+  expect(first.auth.getState().sessionToken).toBeNull();
+  expect(heldToken()).toBeNull();
+  expect(calls.posts()).toHaveLength(0);
+});
+
+it('leaves no session token in local storage and stays signed out when another tab clears local data during set-up', async () => {
+  (await oldTab()).close();
+  holdToken('saved-token');
+  let answer!: (value: unknown) => void;
+  const pending = new Promise((resolve) => { answer = resolve; });
+  const calls = server({ check: () => pending as never });
+  const first = await tab();
+  expect(first.auth.getState().sessionToken).toBe('saved-token');
+  const setUp = first.auth.getState().initialize();
+  await waitFor(() => expect(calls.checks()).toHaveLength(1), { timeout: 5000 });
+  const other = await tab();
+  await other.clearLocalData();
+  answer(sessionAnswer('saved-token'));
+  await setUp;
+  expect(heldToken()).toBeNull();
+  expect(first.auth.getState().isAuthenticated).toBe(false);
+  expect(first.auth.getState().sessionToken).toBeNull();
+  expect(first.auth.getState().sessionId).toBeNull();
+  expect(first.auth.getState().profile).toBeNull();
+});
+
+/**
+ * Holds the next clear of all local data open: its transaction starts and keeps running, and it has
+ * neither emptied the profile cache nor named itself until `release` is called.
+ */
+function holdNextClear() {
+  const clear = IDBObjectStore.prototype.clear;
+  const count = IDBObjectStore.prototype.count;
+  let reached!: () => void;
+  const started = new Promise<void>((resolve) => { reached = resolve; });
+  let armed = true;
+  let released = false;
+  const opened = jest.spyOn(IDBDatabase.prototype, 'transaction');
+  jest.spyOn(IDBObjectStore.prototype, 'clear').mockImplementation(function (this: IDBObjectStore) {
+    if (!armed || this.name !== 'profile_cache') return clear.call(this);
+    armed = false;
+    const store = this;
+    // Reads keep the transaction running; the store is emptied once released. idb awaits the promise as a request.
+    return new Promise((resolve, reject) => {
+      const spin = () => {
+        const read = count.call(store);
+        read.onsuccess = () => {
+          if (!released) return spin();
+          const emptied = clear.call(store);
+          emptied.onsuccess = () => resolve(undefined);
+          emptied.onerror = () => reject(emptied.error);
+        };
+      };
+      spin();
+      reached();
+    }) as unknown as IDBRequest<undefined>;
+  });
+  return {
+    started,
+    release: () => { released = true; },
+    /** Resolves once a transaction over the profile cache has been asked for since `from` calls. */
+    profileWriteQueued: (from: number) => waitFor(() => expect(opened.mock.calls.slice(from)
+      .some(([scope]) => [scope].flat().includes('profile_cache'))).toBe(true), { timeout: 5000 }),
+    calls: () => opened.mock.calls.length,
+  };
+}
+
+it.each(['a server session whose server takes it', 'a browser-only session'])('keeps the profile cache empty when a profile save of %s is written behind a clear of local data in another tab', async (kind) => {
+  if (kind.startsWith('a server')) {
+    (await oldTab()).close();
+    server({ profile: tookIt });
+  }
+  const first = await tab();
+  await first.auth.getState().initialize();
+  expect(String(first.auth.getState().sessionToken).startsWith('local-')).toBe(!kind.startsWith('a server'));
+  const other = await tab();
+  const hold = holdNextClear();
+  const clearing = other.db.clearClientData();
+  await hold.started;
+  const from = hold.calls();
+  const saving = first.auth.getState().updateProfile({ displayName: 'Changed name' });
+  await hold.profileWriteQueued(from);
+  hold.release();
+  await clearing;
+  await saving;
+  expect(await stored('profile_cache')).toEqual([]);
+});
+
+it('keeps the profile cache and the session store empty when session creation writes its profile behind a clear of local data in another tab', async () => {
+  let reached!: () => void;
+  const written = new Promise<void>((resolve) => { reached = resolve; });
+  let open!: () => void;
+  const gate = new Promise<void>((resolve) => { open = resolve; });
+  jest.resetModules();
+  // The session row is written; session creation then waits before it writes the profile.
+  jest.doMock('@/lib/client-db', () => {
+    const actual = jest.requireActual<typeof import('@/lib/client-db')>('@/lib/client-db');
+    return { ...actual, saveLocalSession: async (...args: Parameters<typeof actual.saveLocalSession>) => {
+      const result = await actual.saveLocalSession(...args);
+      reached();
+      await gate;
+      return result;
+    } };
+  });
+  let first!: (typeof import('@/stores/auth-store'))['useAuthStore'];
+  try {
+    first = (await import('@/stores/auth-store')).useAuthStore;
+  } finally {
+    jest.dontMock('@/lib/client-db');
+  }
+  server({ create: () => sessionAnswer('new-token') });
+  const setUp = first.getState().initialize();
+  await written;
+  expect((await stored('local_session')).map((row) => row.id)).toEqual(['new-token-session']);
+  const other = await tab();
+  const hold = holdNextClear();
+  const clearing = other.db.clearClientData();
+  await hold.started;
+  const from = hold.calls();
+  open();
+  await hold.profileWriteQueued(from);
+  hold.release();
+  await clearing;
+  await setUp;
+  expect(await stored('profile_cache')).toEqual([]);
+  expect(await stored('local_session')).toEqual([]);
+});
+
+/** Answers the test settles itself, handed out in the order the requests are sent. */
+function answers(count: number) {
+  const settle: Array<{ answer: (value: unknown) => void; fail: (error: Error) => void }> = [];
+  const pending = Array.from({ length: count }, (_, index) => new Promise((answer, fail) => { settle[index] = { answer, fail }; }));
+  let next = 0;
+  return { route: () => pending[next++] as never, settle };
+}
+
+it('keeps the last accepted profile when two profile saves in flight both fail', async () => {
+  (await oldTab()).close();
+  const patches = answers(2);
+  const calls = server({ profile: patches.route });
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  const before = auth.getState().profile;
+  const first = auth.getState().updateProfile({ displayName: 'First' });
+  const second = auth.getState().updateProfile({ displayName: 'Second' });
+  await waitFor(() => expect(calls.sent('PATCH', '/api/auth/profile').length).toBeGreaterThan(0), { timeout: 5000 });
+  patches.settle[0].fail(new TypeError('Failed to fetch'));
+  await expect(first).rejects.toMatchObject({ name: 'ProfileSaveError' });
+  await waitFor(() => expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(2), { timeout: 5000 });
+  patches.settle[1].fail(new TypeError('Failed to fetch'));
+  await expect(second).rejects.toMatchObject({ name: 'ProfileSaveError' });
+  expect(auth.getState().profile).toBe(before);
+});
+
+it('keeps the second save’s profile in the profile cache when two saves in flight are answered OK in the reverse order', async () => {
+  (await oldTab()).close();
+  const patches = answers(2);
+  const calls = server({ profile: patches.route });
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  const first = auth.getState().updateProfile({ displayName: 'First' });
+  const second = auth.getState().updateProfile({ displayName: 'Second' });
+  await waitFor(() => expect(calls.sent('PATCH', '/api/auth/profile').length).toBeGreaterThan(0), { timeout: 5000 });
+  // The second request's answer comes first.
+  patches.settle[1].answer(tookIt());
+  await Promise.race([second, new Promise((resolve) => setTimeout(resolve, 500))]);
+  patches.settle[0].answer(tookIt());
+  await Promise.all([first, second]);
+  expect((await stored('profile_cache')).map((row) => row.displayName)).toEqual(['Second']);
+  expect(auth.getState().profile?.displayName).toBe('Second');
+});
+
+it('rejects a profile change of a server session as a server failure when no server address is set, and puts the profile back', async () => {
+  (await oldTab()).close();
+  const calls = server({ profile: tookIt });
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  expect(auth.getState().sessionToken).toBe('saved-token');
+  const before = auth.getState().profile;
+  localStorage.removeItem('safeos_backend_config');
+  await expect(auth.getState().updateProfile({ displayName: 'Changed name' }))
+    .rejects.toMatchObject({ name: 'ProfileSaveError', place: 'server' });
+  expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(0);
+  expect(auth.getState().profile).toBe(before);
+});
+
+it('keeps using a browser-only saved session and its cached profile across loads when the server refuses its token and cannot make a session', async () => {
+  (await oldTab({ alerts: [], sessions: [{ ...session, id: 'guest-100', token: 'local-guest-100' }] })).close();
+  const calls = server({ check: () => refused, create: () => ({ ok: false, status: 503 }) });
+  const first = await tab();
+  await first.auth.getState().initialize();
+  await first.auth.getState().updateProfile({ displayName: 'Changed name' });
+  const second = await tab();
+  await second.auth.getState().initialize();
+  expect((await stored('local_session')).map((row) => row.id)).toEqual(['guest-100']);
+  expect(second.auth.getState().sessionToken).toBe('local-guest-100');
+  expect(second.auth.getState().profile?.displayName).toBe('Changed name');
+  expect(calls.posts()).toHaveLength(2);
+});
