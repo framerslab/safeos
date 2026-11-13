@@ -179,3 +179,61 @@ it('does not write a failed save of another tab after Clear all', async () => {
   expect((await stored('local_session')).map((row) => row.id)).toEqual(['saved-session']);
   expect(await clearGeneration()).not.toBe(generation);
 });
+
+it('does not write a queued alert after Clear All Local Data, and the clear names itself in the database and in local storage', async () => {
+  const one = await tab();
+  await one.read();
+  const generation = await clearGeneration();
+  const marker = localStorage.getItem(MARKER);
+  one.monitoring.getState().addAlert(live('x'));
+  await one.clearLocalData();
+  await one.read();
+  expect(await storedAlerts()).not.toContain('x');
+  expect(one.listed()).toEqual([]);
+  expect(await stored('clear_generation')).toEqual([expect.stringMatching(/.+/)]);
+  expect(await clearGeneration()).not.toBe(generation);
+  expect(localStorage.getItem(MARKER)).toEqual(expect.stringMatching(/.+/));
+  expect(localStorage.getItem(MARKER)).not.toBe(marker);
+});
+
+/** Every alert write and history read fails before it reads the database. */
+function failBeforeRead() {
+  return jest.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(() => {
+    throw new DOMException('The connection is unavailable', 'InvalidStateError');
+  });
+}
+
+it.each(['before it reads the database', 'after it reads the database'])(
+  'saves with its retry an alert raised after another tab cleared, whose first save failed %s', async (when) => {
+    (await oldTab()).close();
+    const a = await tab();
+    const b = await tab();
+    await a.read();
+    await b.read();
+    await a.clearLocalData();
+    await a.read();
+    const failing = when.startsWith('before') ? failBeforeRead() : failSaves();
+    b.monitoring.getState().addAlert(live('after'));
+    await b.read();
+    failing.mockRestore();
+    await b.read();
+    expect(await storedAlerts()).toEqual(['after']);
+    expect(b.listed()).toEqual(['after']);
+  });
+
+it('does not write an alert queued before its tab read the database after another tab clears', async () => {
+  (await oldTab()).close();
+  const a = await tab();
+  await a.read();
+  const b = await tab();
+  const failing = failBeforeRead();
+  b.monitoring.getState().addAlert(live('early'));
+  await b.read();
+  failing.mockRestore();
+  await a.clearLocalData();
+  await b.read();
+  expect(await stored('alert_cache')).toEqual([]);
+  expect(b.listed()).toEqual([]);
+  await b.read();
+  expect(await stored('alert_cache')).toEqual([]);
+});

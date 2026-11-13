@@ -12,7 +12,7 @@ it.each(['account', 'browser'])('preserves existing %s preferences when saving s
   useAuthStore.setState({ profile: null, sessionToken: null });
   useSettingsStore.getState().resetToDefaults();
   const preferences = { defaultScenario: 'pet' as const, motionSensitivity: 0, audioSensitivity: 0.2, alertVolume: 0.3, theme: 'dark' as const };
-  if (source === 'account') await useAuthStore.getState().login({ id: 'existing', displayName: 'Existing', preferences });
+  if (source === 'account') useAuthStore.getState().login({ id: 'existing', displayName: 'Existing', preferences });
   else localStorage.setItem('safeos_user_settings', JSON.stringify({ preferences }));
   render(<SettingsPage />);
   fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));

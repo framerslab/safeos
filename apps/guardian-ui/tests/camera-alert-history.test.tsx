@@ -146,7 +146,7 @@ it('renders saved and received alerts whose severity the alert panel does not de
   expect(screen.getByText('Received unknown severity')).toBeTruthy();
 });
 
-it('bounds persisted monitoring history without pruning older records from other producers', async () => {
+it('bounds persisted monitoring history without pruning other alert producers', async () => {
   await cacheAlert({ id: 'retained-engine-alert', streamId: 'engine', severity: 'low',
     message: 'Engine record', acknowledged: true, createdAt: '2020-01-01T00:00:00.000Z' });
   render(<MonitorPage />);
@@ -162,7 +162,7 @@ it('bounds persisted monitoring history without pruning older records from other
   await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
   const db = await openDB('safeos-guardian');
   expect(await db.count('alert_cache')).toBe(101);
-  expect(await db.get('alert_cache', 'retained-engine-alert')).toBeDefined();
+  expect(await db.get('alert_cache', 'retained-engine-alert')).toBeTruthy();
   db.close();
   expect(screen.getByText('Motion 104')).toBeTruthy();
 });

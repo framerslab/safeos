@@ -5,7 +5,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import { IDBFactory } from 'fake-indexeddb';
 import { BrowserSocket } from './helpers/camera-browser';
 import {
-  checked, heldToken, holdToken, ids, oldTab, refused, server, sessionAnswer, stored, storedVersion, unreachable,
+  checked, engineOld, heldToken, holdToken, ids, monitoringAlert, oldTab, refused, server, sessionAnswer, stored, storedVersion, unreachable,
 } from './helpers/saved-history';
 require('fake-indexeddb/auto');
 jest.setTimeout(60000);
@@ -28,13 +28,14 @@ async function app() {
   const { default: NotificationSettings } = await import('@/app/settings/notifications/page');
   const { default: Export } = await import('@/app/export/page');
   const { StatusBanner } = await import('@/components/StatusBanner');
+  const { Dashboard } = await import('@/components/Dashboard');
   const { useAuthStore: auth } = await import('@/stores/auth-store');
   const { useMonitoringStore: monitoring } = await import('@/stores/monitoring-store');
   const db = await import('@/lib/client-db');
   const { clearLocalData } = await import('@/lib/local-data');
   const { useSettingsStore: settings } = await import('@/stores/settings-store');
   settings.setState({ globalMute: true });
-  return { Providers, Monitor, History, Settings, NotificationSettings, Export, StatusBanner, auth, monitoring, db, clearLocalData, settings };
+  return { Providers, Monitor, History, Settings, NotificationSettings, Export, StatusBanner, Dashboard, auth, monitoring, db, clearLocalData, settings };
 }
 async function expectBundle(expected: string[] = ids) {
   let bundle: Blob | undefined;
@@ -83,6 +84,33 @@ beforeEach(() => {
   global.fetch = jest.fn().mockRejectedValue(new TypeError('Offline'));
 });
 afterEach(() => { cleanup(); jest.restoreAllMocks(); });
+
+const six = ['saved-one', 'saved-two', 'saved-three', 'saved-four', 'saved-five', 'saved-six'];
+it.each(['Monitor', 'History', 'Dashboard'])('shows history saved before the update when %s opens first and after a reload', async (page) => {
+  (await oldTab({ sessions: [], alerts: [...six.map((id, day) => monitoringAlert(id, `2026-10-0${day + 1}T00:00:00Z`)), engineOld] })).close();
+  localStorage.setItem('guardian-onboarding-complete', 'true');
+  for (const load of ['first', 'after the reload']) {
+    if (load !== 'first') {
+      cleanup();
+      jest.resetModules();
+    }
+    const { Providers, Monitor, History, Dashboard, monitoring } = await app();
+    const Page = page === 'Monitor' ? Monitor : page === 'History' ? History : Dashboard;
+    render(<Providers><Page /></Providers>);
+    if (page === 'History') fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
+    if (page === 'Dashboard') {
+      // The dashboard's panel shows the top five of the same list.
+      for (const id of six.slice(1)) expect(await screen.findByText(id)).toBeTruthy();
+      expect(screen.queryByText('saved-one')).toBeNull();
+    } else {
+      for (const id of six) expect(await screen.findByText(id)).toBeTruthy();
+      expect(listed(monitoring)).toEqual([...six].sort());
+    }
+    expect(listed(monitoring)).not.toContain('engine-old');
+    expect(screen.queryByText('Engine history')).toBeNull();
+    if (page === 'History') await expectBundle(six);
+  }
+});
 
 it.each(['server expiry', 'server 401', 'local guest expiry'])('shows the same history across a session renewal: %s', async (renewal) => {
   (await oldTab()).close();
@@ -221,6 +249,52 @@ it('behind an older tab, a tab with no token makes a session as before, and the 
   }
 });
 
+it('shows all saved history, with what the older tab saved meanwhile, once it closes and the page reloads', async () => {
+  const old = await oldTab();
+  let closed = false;
+  try {
+    holdToken('saved-token');
+    let reachable = true;
+    server({ check: (token) => (reachable ? sessionAnswer(token) : unreachable()) });
+    const live = sockets();
+    const first = await app();
+    const view = render(<first.Providers><first.StatusBanner /><first.Monitor /></first.Providers>);
+    await waitFor(() => expect(first.db.getDatabaseNotice()).toMatch(/Close other SafeOS tabs/), SLOW);
+    await live.open();
+    live.deliver('arrived', 'Arrived behind an older tab');
+    expect(await screen.findByText('Arrived behind an older tab')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Acknowledge' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand 1 acknowledged alert' }));
+    view.unmount();
+    render(<first.Providers><first.Export /></first.Providers>);
+    cleanup();
+    // The older tab saves one more alert, as the previous release writes it.
+    const now = new Date().toISOString();
+    await old.put('alert_cache', { id: 'old-tab-new', monitoring: true, streamId: 'camera', severity: 'low',
+      message: 'old-tab-new', acknowledged: false, createdAt: now, syncedAt: now });
+    old.close();
+    closed = true;
+    await waitFor(async () => expect(await storedVersion()).toBe(7), SLOW);
+    reachable = false;
+    jest.resetModules();
+    const next = await app();
+    const four = ['old-tab-new', ...ids];
+    const monitor = render(<next.Providers><next.Monitor /></next.Providers>);
+    for (const id of four) expect(await screen.findByText(id)).toBeTruthy();
+    expect(listed(next.monitoring)).toEqual([...four].sort());
+    monitor.unmount();
+    render(<next.Providers><next.History /></next.Providers>);
+    fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
+    for (const id of four) expect(await screen.findByText(id)).toBeTruthy();
+    await expectBundle(four);
+    expect((await stored('alert_cache')).find((alert) => alert.id === 'old-tab-new')).toMatchObject({ savedBeforeUpgrade: true });
+    await act(async () => { await next.auth.getState().initialize(); });
+    await waitFor(() => expect(next.auth.getState().profile?.id).toBe('returning-person'), SLOW);
+  } finally {
+    if (!closed) old.close();
+  }
+});
+
 it('keeps the list, the session and server alerts when a later version closes this tab', async () => {
   (await oldTab()).close();
   server();
@@ -322,4 +396,30 @@ it('refuses sign-out and Clear All Local Data under a notice', async () => {
   } finally {
     newer.close();
   }
+});
+
+it('says so and changes nothing when an upgrade cannot finish', async () => {
+  (await oldTab()).close();
+  const before = await stored('alert_cache');
+  const update = IDBCursor.prototype.update;
+  let updates = 0;
+  const failing = jest.spyOn(IDBCursor.prototype, 'update').mockImplementation(function (this: IDBCursor, ...args: Parameters<typeof update>) {
+    updates += 1;
+    if (updates === 2) throw new DOMException('No space left', 'QuotaExceededError');
+    return update.apply(this, args);
+  });
+  const first = await app();
+  render(<first.Providers><first.StatusBanner /><first.Monitor /></first.Providers>);
+  expect(await screen.findByText((text) => text.startsWith('SafeOS could not finish updating your saved history'), undefined, SLOW)).toBeTruthy();
+  expect(first.db.getDatabaseNotice()).toMatch(/could not finish updating/);
+  expect(await storedVersion()).toBe(4);
+  expect(await stored('alert_cache')).toEqual(before);
+  failing.mockRestore();
+  cleanup();
+  jest.resetModules();
+  const next = await app();
+  render(<next.Providers><next.StatusBanner /><next.Monitor /></next.Providers>);
+  for (const id of ids) expect(await screen.findByText(id)).toBeTruthy();
+  expect(listed(next.monitoring)).toEqual([...ids].sort());
+  expect(await storedVersion()).toBe(7);
 });

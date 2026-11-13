@@ -19,7 +19,7 @@ it('keeps the next account out of the signed-out account’s frames and recordin
   fireEvent.click(screen.getByRole('menuitem', { name: 'Log Out' }));
   await waitFor(() => expect(useAuthStore.getState().sessionToken).toBeNull());
   account.unmount();
-  await act(() => useAuthStore.getState().login({ id: 'second', displayName: 'Second', preferences: { defaultScenario: 'pet', motionSensitivity: .5, audioSensitivity: .5, alertVolume: .7, theme: 'dark' } }));
+  act(() => useAuthStore.getState().login({ id: 'second', displayName: 'Second', preferences: { defaultScenario: 'pet', motionSensitivity: .5, audioSensitivity: .5, alertVolume: .7, theme: 'dark' } }));
   render(<HistoryPage />);
   await waitFor(async () => expect(await getAllIntrusionFrames()).toEqual([]));
   expect(await getAllCustomSounds()).toEqual([]);
