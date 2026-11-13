@@ -14,6 +14,7 @@ import { IconPhone, IconExternalLink, IconWarning } from '@/components/icons';
 export const metadata: Metadata = {
   title: 'Twilio SMS setup',
   description: 'Configure Twilio SMS alerts on your SafeOS Guardian API server.',
+  alternates: { canonical: '/help/integrations/twilio/' },
 };
 
 export default function TwilioHelpPage() {

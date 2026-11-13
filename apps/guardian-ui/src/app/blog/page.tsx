@@ -19,6 +19,7 @@ import {
 export const metadata: Metadata = {
   title: 'Blog',
   description: 'Updates, insights, and technical deep dives from the SafeOS Guardian team.',
+  alternates: { canonical: '/blog/' },
 };
 
 // =============================================================================
@@ -45,11 +46,11 @@ const blogPosts: BlogPost[] = [
     slug: 'how-safeos-guardian-works',
     title: 'How SafeOS Guardian works: motion-gated browser AI that doesn\'t burn your laptop',
     excerpt:
-      'Walking through the safeos.sh pipeline file by file. 200ms screening, gated COCO-SSD + ViT inference, Lost & Found fingerprinting. TensorFlow.js + Transformers.js running in a browser, by design.',
+      'Walking through the safeos.sh pipeline file by file. 200 ms motion screening, COCO-SSD gated on motion, Lost & Found colour matching. TensorFlow.js running in a browser, by design.',
     date: 'January 10, 2026',
     author: 'Johnny Dunn',
-    readTime: '9 min read',
-    tags: ['technical', 'architecture', 'tensorflow.js', 'transformers.js', 'on-device-ai'],
+    readTime: '8 min read',
+    tags: ['technical', 'architecture', 'tensorflow.js', 'on-device-ai'],
   },
 ];
 

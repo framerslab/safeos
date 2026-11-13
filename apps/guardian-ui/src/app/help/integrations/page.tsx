@@ -23,6 +23,7 @@ import {
 export const metadata: Metadata = {
   title: 'Integrations',
   description: 'Setup guides for Resend email, Twilio SMS, Telegram, browser push, and Ollama in SafeOS Guardian.',
+  alternates: { canonical: '/help/integrations/' },
 };
 
 interface Integration {

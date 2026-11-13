@@ -14,6 +14,7 @@ import { IconMessageSquare, IconExternalLink } from '@/components/icons';
 export const metadata: Metadata = {
   title: 'Telegram setup',
   description: 'Configure your own Telegram bot for SafeOS Guardian alerts.',
+  alternates: { canonical: '/help/integrations/telegram/' },
 };
 
 export default function TelegramHelpPage() {

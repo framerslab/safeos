@@ -14,6 +14,7 @@ import { IconCpu, IconExternalLink } from '@/components/icons';
 export const metadata: Metadata = {
   title: 'Ollama local LLM setup',
   description: 'Run a local vision model with Ollama for richer SafeOS Guardian scene understanding.',
+  alternates: { canonical: '/help/integrations/ollama/' },
 };
 
 export default function OllamaHelpPage() {

@@ -14,6 +14,7 @@ import { IconBell, IconExternalLink, IconShield } from '@/components/icons';
 export const metadata: Metadata = {
   title: 'Browser push setup',
   description: 'Configure VAPID keys for SafeOS Guardian browser push notifications.',
+  alternates: { canonical: '/help/integrations/push/' },
 };
 
 export default function PushHelpPage() {
