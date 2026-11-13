@@ -3,7 +3,7 @@
 <div align="center">
   <img alt="SafeOS Guardian Logo" src="apps/guardian-ui/public/logo.svg" width="160" height="160">
 
-  <p><strong>Deep-learning monitoring for pets, babies, and elderly care — running entirely in your browser.</strong></p>
+  <p><strong>Motion and sound alerts for pets, babies, and elderly care, in your browser, with person and animal detection in Security and Wildlife.</strong></p>
 
   <p>
     <a href="https://safeos.sh">safeos.sh</a> ·
@@ -28,7 +28,7 @@ SafeOS Guardian is a **supplemental experimental tool**. It does not replace car
 
 ## What it is
 
-SafeOS Guardian is a Progressive Web App that turns any device with a camera and microphone into a deep-learning monitoring station. It compares video frames and sound levels in the browser, runs the [TensorFlow.js](https://www.tensorflow.org/js) COCO-SSD model on-device in its Security and Wildlife modes, and raises severity-tiered alerts. In the browser-only setup no frames leave the device, the app loads no analytics or tracking script, and no account is needed.
+SafeOS Guardian is a Progressive Web App that turns any device with a camera and microphone into a monitoring station. It compares video frames and sound levels in the browser, runs the [TensorFlow.js](https://www.tensorflow.org/js) COCO-SSD model on-device in its Security and Wildlife modes, and raises severity-tiered alerts. In the browser-only setup no frames leave the device, the app loads no analytics or tracking script, and no account is needed.
 
 Choose a camera on Setup or Monitor; the choice is remembered in this browser. Monitor requests capture only when you start it, releases capture when you stop, and reports camera failures. Local processing sends no camera frames to a connected server. Monitor alerts persist in IndexedDB and reload in History. See [Camera monitoring](docs/MONITORING.md).
 
@@ -93,10 +93,10 @@ If you want to dig deeper:
 
 | Scenario | What SafeOS Guardian does |
 |---|---|
-| **Pet monitoring** | Eating, bathroom, distress, prolonged stillness, off-limits intrusion. |
+| **Pet monitoring** | Motion, loud sound, and prolonged stillness. |
 | **Baby & toddler** | Sustained motion, small movements, loud sound, and inactivity. |
 | **Elder care** | Prolonged inactivity, motion, and loud sound. |
-| **Lost & Found** | Match a missing pet or person against 1–5 reference photos via color + edge fingerprints. |
+| **Lost & Found** | Watch your own camera for an animal with a lost pet's colouring, from 1–5 reference photos (color + edge fingerprints). It does not identify a pet. |
 | **Wildlife & outdoor** | Backyard trail-cam, livestock, and animal detection with COCO-SSD. |
 | **Authority / emergency** | At-risk areas or shelters; severity-routed alerts via the optional server. |
 | **Small-business security** | Perimeter watch, after-hours intrusion, customer-traffic counts. Escalating push + audio. |
@@ -113,15 +113,15 @@ The solid path runs in the browser; offline starts require completed app install
 ## How the deep learning runs in your browser
 
 1. **First load.** The Next.js app shell loads from any static host (GitHub Pages, Vercel, Netlify, Cloudflare Pages). The service worker registers after the first page loads and installs a build-specific set of HTML, scripts (including lazy chunks), styles, fonts, and the images the pages show. A new build activates after tabs using the previous worker close.
-2. **Model fetch.** After setup and explicit agreement, TensorFlow.js downloads COCO-SSD `lite_mobilenet_v2` from Google's [`tfjs-models`](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) storage (about 19 MB including the manifest). One shared loader saves the manifest and every weight shard in Cache Storage and reuses them offline. Failed attempts can be retried without reloading the page.
+2. **Model fetch.** After setup and explicit agreement, TensorFlow.js downloads COCO-SSD `lite_mobilenet_v2` from Google's [`tfjs-models`](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) storage (18.6 MB including the manifest). One shared loader saves the manifest and every weight shard in Cache Storage and reuses them offline. Failed attempts can be retried without reloading the page.
 3. **Backend.** SafeOS sets TF.js to the [WebGL](https://www.khronos.org/webgl/) backend (`tf.setBackend('webgl')`).
 4. **Per-frame screening.** A `setInterval` loop at 200 ms samples the `<video>` element into a hidden `<canvas>`, runs pixel-diff motion detection and an FFT pass over the Web Audio `AnalyserNode`, and tracks pixel-change counts. Cheap enough to run continuously without a GPU context. Code: [`apps/guardian-ui/src/components/CameraFeed.tsx`](apps/guardian-ui/src/components/CameraFeed.tsx).
 5. **Gated inference.** In Security mode, when motion crosses the threshold the frame is handed to TF.js; COCO-SSD's `model.detect()` returns bounding boxes, class labels, and confidence, at most once every 500 ms. The monitor page runs no model. Gate: [`apps/guardian-ui/src/lib/person-detection.ts`](apps/guardian-ui/src/lib/person-detection.ts).
 6. **Model settings.** Settings → Models downloads the same COCO-SSD model used by Security and Wildlife. It offers no separate scene classifier download.
 7. **Audio parallel path.** The Web Audio API's [`AnalyserNode`](https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode) samples FFT bins from the microphone every ~100 ms; a loudness threshold raises the sound alert, and a crying pattern shows in the camera overlay without raising an alert of its own. No model needed.
-8. **Lost & Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), and an 8×8 Sobel edge grid. The matcher samples the live feed at 1–2 FPS and compares by cosine similarity. Under 1 KB per photo. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
+8. **Lost & Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), an 8×8 grid of edge strengths taken from differences between neighbouring pixels, and a size estimate. The matcher samples the live feed at 1–2 FPS and scores each frame on average colour, then region by region on a weighted mix (histogram 40%, dominant colours 35%, edges 15%, size 10%). It matches colours, so another animal of similar colour matches too. Under 1 KB per photo. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
 9. **Alert engine.** Matches feed a severity router (info / low / medium / high / critical). Each severity has its own escalation: volume-ramping local audio, browser push, optional fan-out to email / SMS / Telegram via the API server.
-10. **Storage stays local.** Settings persist in local storage; fingerprints and saved frames persist in [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API). Monitor-page alerts are kept in memory and clear on reload. The rolling video buffer keeps only the last 5–10 minutes in memory; older frames overwrite.
+10. **Storage stays local.** Settings persist in local storage; fingerprints and saved frames persist in [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API). Monitor-page alerts are kept in memory and clear on reload. The motion check keeps only the last three frames in memory.
 
 The optional API server (`src/`) only enters the picture when you opt into fan-out channels (Resend, Twilio, Telegram), multi-device WebSocket sync, or a bridge to a local [Ollama](https://ollama.com) install for richer scene reasoning.
 
@@ -131,9 +131,9 @@ Every model runs client-side. Sizes are the download sizes measured on 11 Nov 20
 
 | Job | Model | Framework | Size | Source |
 |---|---|---|---|---|
-| Object detection (Security and Wildlife modes) | COCO-SSD (`lite_mobilenet_v2`) | [TensorFlow.js Models](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) | 18.0 MB | tfjs-models |
+| Object detection (Security and Wildlife modes) | COCO-SSD (`lite_mobilenet_v2`) | [TensorFlow.js Models](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) | 18.6 MB | tfjs-models |
 | Audio analysis | FFT bins via [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) | native | 0 KB | MDN |
-| Visual fingerprinting | Color histograms + Sobel edges | hand-rolled | < 1 KB / photo | [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts) |
+| Visual fingerprinting | Color histograms + edge grid | hand-rolled | < 1 KB / photo | [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts) |
 
 ### Optional: local LLM for harder scenes
 
@@ -191,7 +191,7 @@ Every mail the API server sends (alerts, the settings test message, account veri
 
 ## Privacy guarantees
 
-- **Rolling buffer.** Camera frames live in memory for 5–10 minutes, then overwrite.
+- **Three frames.** The motion check keeps only the last three frames in memory.
 - **No cloud uploads** in PWA-only mode. Period.
 - **No telemetry.** The app loads no analytics or tracking script and uploads nothing for model training.
 - **Browser storage only.** Settings, saved frames, and reference photos stay in [browser-local storage](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API).
@@ -330,7 +330,7 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md). The four ground rules:
 
 ## License
 
-MIT. Built by [Frame](https://frame.dev) (Framers Lab, Inc.). Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
+MIT. Built by [Frame](https://frame.dev) (Framers Lab, Inc.), which pays for its development.
 
 ## Acknowledgments
 
