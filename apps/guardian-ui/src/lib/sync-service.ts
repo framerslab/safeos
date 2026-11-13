@@ -95,14 +95,7 @@ export async function syncPendingActions(): Promise<{
   failed: number;
   pending: number;
 }> {
-  const apiUrl = getApiUrl();
-
-  // Skip sync in static mode (GitHub Pages deployment)
-  if (isStaticMode() || !apiUrl) {
-    return { synced: 0, failed: 0, pending: 0 };
-  }
-
-  if (!isOnline || isSyncing) {
+  if (isSyncing) {
     return { synced: 0, failed: 0, pending: 0 };
   }
 
@@ -113,24 +106,35 @@ export async function syncPendingActions(): Promise<{
   try {
     const actions = await getPendingSyncActions();
 
+    // The server confirmed these actions and the browser could not save their answers. A kept answer
+    // needs no server: it is applied even offline, the action is not sent again, and the retry
+    // limit does not drop it.
     for (const action of actions) {
-      // The server confirmed this action and the browser could not save its answer: the kept answer
-      // is applied again, the action is not sent again, and the retry limit does not drop it.
-      if (action.response !== undefined) {
-        let applied = false;
-        try {
-          applied = await handleSyncResponse(action.action, action.response);
-        } catch {
-          // The action stays queued with its answer.
-        }
-        if (applied) {
-          await removeSyncAction(action.id);
-          synced++;
-        } else {
-          failed++;
-        }
-        continue;
+      if (action.response === undefined) continue;
+      let applied = false;
+      try {
+        applied = await handleSyncResponse(action.action, action.response);
+      } catch {
+        // The action stays queued with its answer.
       }
+      if (applied) {
+        await removeSyncAction(action.id);
+        synced++;
+      } else {
+        failed++;
+      }
+    }
+
+    const apiUrl = getApiUrl();
+
+    // Nothing is sent in static mode (GitHub Pages deployment) or while offline.
+    if (isStaticMode() || !apiUrl || !isOnline) {
+      return { synced, failed, pending: 0 };
+    }
+
+    for (const action of actions) {
+      // Applied above.
+      if (action.response !== undefined) continue;
 
       // Skip if max retries exceeded
       if (action.retries >= MAX_RETRIES) {
@@ -312,11 +316,9 @@ export function startPeriodicSync(): void {
   // Initial sync
   syncPendingActions();
 
-  // Set up interval
+  // Set up interval. Offline, a pass applies only the answers the server already gave.
   syncInterval = setInterval(() => {
-    if (isOnline) {
-      syncPendingActions();
-    }
+    syncPendingActions();
   }, SYNC_INTERVAL_MS);
 }
 

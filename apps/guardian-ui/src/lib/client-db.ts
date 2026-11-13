@@ -891,16 +891,25 @@ export async function removeSyncAction(id: string): Promise<void> {
 
 /**
  * Keeps the server's answer on a queued action whose record update failed, with no new try
- * counted. False means the queue could not be written, and the action is as it was.
+ * counted. False means the queue could not be written, and the action is as it was. The read and
+ * the write share one transaction, so a clear in another tab cannot fall between them and have
+ * the emptied entry written back.
  */
 export async function keepSyncResponse(id: string, response: unknown, error: string): Promise<boolean> {
+  let tx: IDBPTransaction<SafeOSDB, ['sync_queue'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const action = await db.get('sync_queue', id);
-    if (!action) return false;
-    await db.put('sync_queue', { ...action, response, lastError: error });
+    tx = db.transaction('sync_queue', 'readwrite');
+    const action = await tx.store.get(id);
+    if (!action) {
+      await tx.done;
+      return false;
+    }
+    await tx.store.put({ ...action, response, lastError: error });
+    await tx.done;
     return true;
   } catch {
+    await abandonTransaction(tx);
     return false;
   }
 }
