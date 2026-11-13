@@ -375,6 +375,41 @@ it.each([
   }
 });
 
+it.each([
+  'Notifications, the server did not take it', 'Notifications, this device did not save it', 'Settings, the server did not take it',
+])('says what a failed settings save kept: %s', async (state) => {
+  (await oldTab()).close();
+  // The saved session checks OK; the profile change then fails as an unreachable server does.
+  const calls = server();
+  const notifications = state.startsWith('Notifications');
+  const { Providers, Settings, NotificationSettings, StatusBanner, auth } = await app();
+  const Page = notifications ? NotificationSettings : Settings;
+  render(<Providers><StatusBanner /><Page /></Providers>);
+  await act(async () => { await auth.getState().initialize(); });
+  await waitFor(() => expect(auth.getState().profile?.id).toBe(checked.id), SLOW);
+  if (state.endsWith('did not save it')) {
+    const put = IDBObjectStore.prototype.put;
+    jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+      if (this.name === 'profile_cache') throw new DOMException('No space left', 'QuotaExceededError');
+      return put.apply(this, args);
+    });
+  }
+  if (notifications) {
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText(state.endsWith('did not save it')
+      ? 'Notification settings were not saved. Try again.'
+      : 'Saved on this device. The server did not take the change. Save again when you are connected.')).toBeTruthy();
+    expect(screen.queryByText('Notification settings saved.')).toBeNull();
+  } else {
+    const name = screen.getByText('Display Name').parentElement!.querySelector('input')!;
+    fireEvent.change(name, { target: { value: 'Changed name' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
+    expect(await screen.findByText('Failed to save settings.')).toBeTruthy();
+    expect(screen.queryByText('Settings saved!')).toBeNull();
+  }
+  if (!state.endsWith('did not save it')) expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
+});
+
 it('refuses sign-out and Clear All Local Data under a notice', async () => {
   (await oldTab()).close();
   const calls = server();

@@ -39,12 +39,90 @@ it('uses the first valid saved session in key order', async () => {
   expect(auth.getState().sessionToken).toBe('first-token');
 });
 
-it('leaves earlier rows when it saves a new session', async () => {
+const renewed = { id: 'renewed-person', displayName: 'Renewed person' };
+
+it('keeps only the new row after the server refused the saved session', async () => {
   (await oldTab({ alerts: [], sessions: [{ ...session, id: 'S1' }] })).close();
-  server({ check: () => refused, create: () => sessionAnswer('renewed-token', { id: 'renewed-person', displayName: 'Renewed person' }, 'S2') });
+  server({ check: () => refused, create: () => sessionAnswer('renewed-token', renewed, 'S2') });
   const { auth } = await tab();
   await auth.getState().initialize();
-  expect((await stored('local_session')).map((row) => row.id)).toEqual(['S1', 'S2']);
+  expect((await stored('local_session')).map((row) => row.id)).toEqual(['S2']);
+});
+
+it('uses the replacement session on the next load after the server refused the saved one', async () => {
+  (await oldTab({ alerts: [], sessions: [{ ...session, id: 'S1' }] })).close();
+  const calls = server({
+    check: (token) => (token === 'saved-token' ? refused : sessionAnswer(token, renewed, 'S2')),
+    create: () => sessionAnswer('renewed-token', renewed, 'S2'),
+  });
+  const first = await tab();
+  await first.auth.getState().initialize();
+  expect(first.auth.getState().sessionToken).toBe('renewed-token');
+  expect(calls.posts()).toHaveLength(1);
+  const second = await tab();
+  await second.auth.getState().initialize();
+  expect(calls.checks().map((call) => call.token)).toEqual(['saved-token', 'renewed-token']);
+  expect(calls.posts()).toHaveLength(1);
+  expect(second.auth.getState().sessionToken).toBe('renewed-token');
+});
+
+it('keeps the saved session and asks for no new one when its check answers 503', async () => {
+  (await oldTab()).close();
+  const calls = server({ check: () => ({ ok: false, status: 503 }), create: () => sessionAnswer('new-token') });
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  expect(auth.getState().sessionToken).toBe('saved-token');
+  expect(calls.posts()).toHaveLength(0);
+  expect(auth.getState().isAuthenticated).toBe(true);
+  expect(auth.getState().profile?.id).toBe('returning-person');
+  expect(await stored('local_session')).toEqual([session]);
+});
+
+it.each(['answers 500', 'fails'])('rejects a profile change the server did not take, with the change saved on this device: the request %s', async (outcome) => {
+  (await oldTab()).close();
+  const calls = server({ profile: outcome === 'answers 500' ? () => ({ ok: false, status: 500 }) : undefined });
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  expect(auth.getState().sessionToken).toBe('saved-token');
+  await expect(auth.getState().updateProfile({ displayName: 'Changed name' }))
+    .rejects.toMatchObject({ name: 'ProfileSaveError', localSaved: true });
+  expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
+  expect((await stored('profile_cache')).map((row) => row.displayName)).toEqual(['Changed name']);
+});
+
+it('rejects a profile change, marked not saved on this device, when the local write fails', async () => {
+  (await oldTab()).close();
+  server({ profile: () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) });
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  const put = IDBObjectStore.prototype.put;
+  jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+    if (this.name === 'profile_cache') throw new DOMException('No space left', 'QuotaExceededError');
+    return put.apply(this, args);
+  });
+  await expect(auth.getState().updateProfile({ displayName: 'Changed name' }))
+    .rejects.toMatchObject({ name: 'ProfileSaveError', localSaved: false });
+  expect(await stored('profile_cache')).toEqual([]);
+});
+
+it.each(['answers OK', 'fails'])('saves nothing and signs nobody in when a session request %s after local data was cleared', async (outcome) => {
+  let settle!: { answer: (value: unknown) => void; fail: (error: Error) => void };
+  const pending = new Promise((answer, fail) => { settle = { answer, fail }; });
+  const calls = server({ create: () => pending as never });
+  const { auth } = await tab();
+  const setUp = auth.getState().initialize();
+  await waitFor(() => expect(calls.posts()).toHaveLength(1), { timeout: 5000 });
+  await auth.getState().logout();
+  if (outcome === 'answers OK') settle.answer(sessionAnswer('late-token'));
+  else settle.fail(new TypeError('Failed to fetch'));
+  await setUp;
+  expect(await stored('local_session')).toEqual([]);
+  expect(await stored('profile_cache')).toEqual([]);
+  expect(auth.getState().isAuthenticated).toBe(false);
+  expect(auth.getState().sessionToken).toBeNull();
+  expect(auth.getState().profile).toBeNull();
+  expect(auth.getState().isLoading).toBe(false);
+  expect(auth.getState().isInitialized).toBe(true);
 });
 
 it('makes no session while a notice is set and the tab holds a token', async () => {
@@ -225,7 +303,8 @@ it('adopts a renewal in flight when the database closes for an update after the 
     await setUp;
     expect(auth.getState().sessionToken).toBe('new-token');
     expect(heldToken()).toBe('new-token');
-    expect((await newer.getAll('local_session')).map((row) => row.id)).toEqual(['saved-session']);
+    // The refused row was deleted before the renewal was asked for; nothing was written after the notice.
+    expect(await newer.getAll('local_session')).toEqual([]);
   } finally {
     newer.close();
   }
