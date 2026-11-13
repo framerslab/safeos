@@ -6,6 +6,14 @@
 // dark look (the browser's prefers-color-scheme, which the app follows when no
 // theme is saved), as a full-page PNG named <route>-<width>-<look>.png.
 // The pictures workflow (.github/workflows/pictures.yml) runs it in CI.
+//
+// When the home page is captured for the pull request's own build
+// (PICTURE_VERSION=after), it also checks a first visit in a real browser:
+// the header stays one row with every control inside the screen from 320 to
+// 1280 pixels, its text is 13 pixels or more and its phone targets 44 pixels;
+// the theme button changes the page; no notification prompt appears; and the
+// three headings that measured under 2 to 1 reach 4.5 to 1. Any failure
+// fails the run.
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
@@ -112,6 +120,9 @@ try {
       }
     }
   }
+  if (process.env.PICTURE_VERSION === 'after' && routes.includes('/')) {
+    failures += await checkFirstVisit(browser, baseUrl, outDir);
+  }
   // Exercise the real database lifecycle in fresh contexts. The base build has
   // no notice, so its pictures show the same screen while the upgrade waits.
   if (routes.includes('/monitor/')) {
@@ -202,3 +213,154 @@ try {
   await browser.close();
 }
 process.exit(failures > 0 ? 1 : 0);
+
+// -----------------------------------------------------------------------------
+// First-visit checks (pull request build only)
+// -----------------------------------------------------------------------------
+
+// WCAG contrast of an element's text against the colour behind it, with
+// translucent text and backgrounds composited over the layers beneath.
+function contrastOf(locator) {
+  return locator.evaluate((element) => {
+    const parse = (value) => {
+      const n = value.match(/[\d.]+/g).map(Number);
+      return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
+    };
+    const over = (top, bottom) => ({
+      r: top.r * top.a + bottom.r * (1 - top.a),
+      g: top.g * top.a + bottom.g * (1 - top.a),
+      b: top.b * top.a + bottom.b * (1 - top.a),
+      a: 1,
+    });
+    const layers = [];
+    for (let node = element; node; node = node.parentElement) {
+      const background = parse(getComputedStyle(node).backgroundColor);
+      if (background.a > 0) layers.push(background);
+      if (background.a >= 1) break;
+    }
+    let background = { r: 255, g: 255, b: 255, a: 1 };
+    for (const layer of layers.reverse()) background = over(layer, background);
+    const text = over(parse(getComputedStyle(element).color), background);
+    const luminance = (c) => [c.r, c.g, c.b]
+      .map((v) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; })
+      .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+    const a = luminance(text);
+    const b = luminance(background);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  });
+}
+
+async function checkFirstVisit(browser, baseUrl, outDir) {
+  const HEADER_WIDTHS = [320, 360, 390, 430, 480, 768, 820, 1024, 1280];
+  const problems = [];
+  const home = new URL('/', baseUrl).toString();
+
+  // The header: one row, every control on screen, no text under 13 px,
+  // 44 px targets on phones and tablets.
+  for (const width of HEADER_WIDTHS) {
+    const context = await browser.newContext({
+      viewport: { width, height: 800 },
+      isMobile: width < 768,
+      hasTouch: width < 768,
+      colorScheme: 'light',
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
+      const header = page.locator('nav[aria-label="Main"]');
+      await header.screenshot({ path: path.join(outDir, `header-${width}-light.png`) });
+      const found = await header.evaluate((nav, phone) => {
+        const out = [];
+        const row = nav.firstElementChild;
+        const rowBox = row.getBoundingClientRect();
+        const screenWidth = document.documentElement.clientWidth;
+        if (rowBox.height > 64.5) out.push(`row is ${Math.round(rowBox.height)} px tall`);
+        const controls = [...row.querySelectorAll('a, button')].filter((el) => {
+          const box = el.getBoundingClientRect();
+          return box.width > 0 && box.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+        });
+        if (controls.length < 3) out.push(`only ${controls.length} controls in the row`);
+        for (const el of controls) {
+          const box = el.getBoundingClientRect();
+          const name = el.getAttribute('aria-label') || el.textContent.trim() || el.tagName;
+          if (box.left < -0.5 || box.right > screenWidth + 0.5) {
+            out.push(`${name} runs off the screen (${Math.round(box.left)} to ${Math.round(box.right)} of ${screenWidth})`);
+          }
+          if (box.top < rowBox.top - 0.5 || box.bottom > rowBox.bottom + 0.5) out.push(`${name} is outside the row`);
+          if (phone && (box.width < 44 || box.height < 44)) {
+            out.push(`${name} is ${Math.round(box.width)} by ${Math.round(box.height)} px`);
+          }
+        }
+        const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const words = walker.currentNode.textContent.trim();
+          const parent = walker.currentNode.parentElement;
+          if (!words || parent.getBoundingClientRect().width === 0) continue;
+          const size = parseFloat(getComputedStyle(parent).fontSize);
+          if (size < 13) out.push(`"${words}" is ${size} px`);
+        }
+        return out;
+      }, width < 1280);
+      for (const p of found) problems.push(`header at ${width} px: ${p}`);
+      console.log(`checked header at ${width} px`);
+    } catch (err) {
+      problems.push(`header at ${width} px: ${err.message}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  for (const look of LOOKS) {
+    const context = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      isMobile: true,
+      hasTouch: true,
+      colorScheme: look,
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
+
+      // The headings that measured under 2 to 1 in the light look.
+      const guardian = page.locator('h1 span').nth(1);
+      const tag = page.getByText('COCO-SSD · TensorFlow.js', { exact: true });
+      for (const [name, locator] of [['hero "Guardian"', guardian], ['tag "COCO-SSD · TensorFlow.js"', tag]]) {
+        const ratio = await contrastOf(locator);
+        if (ratio < 4.5) problems.push(`${look}: ${name} contrast ${ratio.toFixed(2)} is below 4.5`);
+      }
+
+      // No notification prompt on a first visit, however long it stays.
+      await page.waitForTimeout(6_000);
+      if (await page.getByText('Enable notifications').count()) {
+        problems.push(`${look}: the home page shows a notification prompt before setup`);
+      }
+
+      // The theme button changes the page, not only its icon.
+      const other = look === 'light' ? 'dark' : 'light';
+      const before = await page.evaluate(() => document.documentElement.className);
+      if (!before.split(/\s+/).includes(look)) problems.push(`${look}: the page starts as "${before}"`);
+      await page.getByRole('button', { name: `Switch to ${other} mode` }).click();
+      await page.waitForFunction((want) => document.documentElement.classList.contains(want), other, { timeout: 5_000 })
+        .catch(() => problems.push(`${look}: the theme button left the page as "${before}"`));
+      await page.screenshot({ path: path.join(outDir, `home-after-theme-button-390-${look}.png`) });
+
+      // Setup's second step heading.
+      await page.goto(new URL('/setup/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+      await page.evaluate(() => localStorage.removeItem('guardian-theme'));
+      await page.reload({ waitUntil: 'networkidle' });
+      await page.getByRole('button', { name: /Begin Setup/i }).click();
+      const warning = page.getByText('This is a supplementary monitoring tool.', { exact: true });
+      await warning.waitFor({ timeout: 10_000 });
+      const ratio = await contrastOf(warning);
+      if (ratio < 4.5) problems.push(`${look}: setup step 2 heading contrast ${ratio.toFixed(2)} is below 4.5`);
+      console.log(`checked first visit in the ${look} look`);
+    } catch (err) {
+      problems.push(`first visit in the ${look} look: ${err.message}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  for (const p of problems) console.error(`failed first-visit check: ${p}`);
+  return problems.length;
+}
