@@ -305,8 +305,8 @@ const blogContent: Record<string, BlogContent> = {
           PWA install on iOS is still rough &mdash; Safari&apos;s installation flow isn&apos;t
           great, and background audio capture has well-known limits. The detection model is an
           18.6 MB download, so on a slow connection the first Security or Wildlife start is slow.
-          The Lost &amp; Found matcher compares colours, not identity, so another animal of the same
-          colour also matches. Most of these are tracked in{' '}
+          The Lost &amp; Found matcher compares colours, not identity, so another animal or an object
+          of the same colour also matches. Most of these are tracked in{' '}
           <a
             href="https://github.com/framerslab/safeos/issues"
             target="_blank"

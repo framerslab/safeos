@@ -1,7 +1,7 @@
 /**
  * Lost & Found Page
  * 
- * Setup page for watching your own camera for an animal with a lost pet's colouring.
+ * Setup page for watching your own camera for anything with a lost pet's colouring.
  * 
  * @module app/lost-found/page
  */
@@ -124,7 +124,7 @@ export default function LostFoundPage() {
             Lost & Found
           </h1>
           <p className="text-[var(--color-steel-400)]">
-            Watch your camera for an animal with your lost pet&apos;s colouring
+            Watch your camera for anything with your lost pet&apos;s colouring
           </p>
         </div>
 
@@ -300,7 +300,7 @@ export default function LostFoundPage() {
                 </h3>
                 <p className="text-[var(--color-steel-400)] max-w-md mx-auto">
                   Add a subject to start watching. Upload photos of your lost pet, and the monitor
-                  checks your camera for an animal with the same colouring while it stays open.
+                  checks your camera for anything with the same colouring while it stays open.
                 </p>
               </div>
             )}
@@ -323,7 +323,7 @@ export default function LostFoundPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">4</span>
-                  Get an alert when the colours match; another animal of similar colour can match too
+                  Get an alert when the colours match; another animal or an object of similar colour can match too
                 </li>
               </ul>
             </div>

@@ -219,11 +219,11 @@ const TUTORIALS: TutorialSection[] = [
     id: 'lost-found',
     title: 'Lost Pet Watch Mode',
     icon: <IconSearch size={24} />,
-    description: 'Upload photos of your lost pet and get an alert when an animal with the same colouring passes your camera.',
+    description: 'Upload photos of your lost pet and get an alert when something with the same colouring passes your camera.',
     steps: [
       {
         title: 'How Lost & Found Works',
-        content: `Upload reference photos of your lost pet. SafeOS records their colours, a coarse edge grid and size. While the monitor is open, it compares your camera's frames with them. It matches colours, so it cannot tell your pet from another animal of similar colour.`,
+        content: `Upload reference photos of your lost pet. SafeOS records their colours, a coarse edge grid and size. While the monitor is open, it compares your camera's frames with them. It matches colours, so another animal or an object of similar colour can match too.`,
         tips: [
           'Upload multiple photos from different angles',
           'Include photos in different lighting conditions',
@@ -364,7 +364,7 @@ const TUTORIALS: TutorialSection[] = [
       },
       {
         title: 'Detection Thresholds',
-        content: `Adjust pixel threshold, motion sensitivity, and audio sensitivity. Lower values are more sensitive but may cause false positives. Higher values reduce noise but may miss events.`,
+        content: `A higher motion or audio sensitivity lowers the trigger threshold, so you get more alerts and more false ones. A lower pixel threshold does the same. For fewer false alerts, lower the sensitivity or raise the pixel threshold; you may then miss small events.`,
         tips: [
           'Start with defaults and adjust based on results',
           'Lower thresholds catch smaller movements',

@@ -400,7 +400,7 @@ function LandingPage() {
               title="Visual fingerprinting for Lost & Found"
               tag="Color + edge signatures"
               size="< 1 KB / photo"
-              summary="Upload 1–5 reference photos of your pet. The browser records their colours, a coarse edge grid and size, and checks the live feed 1–2 times a second for an animal with matching colours. It cannot tell your pet from another animal of similar colour."
+              summary="Upload 1–5 reference photos of your pet. The browser records their colours, a coarse edge grid and size, and checks the live feed 1–2 times a second for anything with matching colours. Another animal or an object of similar colour can match too."
               details={[
                 '32-bucket color histogram per reference photo.',
                 'Top-5 dominant colors via k-means clustering.',
