@@ -576,14 +576,17 @@ export async function getLocalSession(): Promise<LocalSession | null> {
 }
 
 /**
- * The first valid saved session, or null when the store was read and holds none. It rejects when
- * the database cannot be opened or read, so a failure is never taken for a browser with no session.
+ * The saved session to restore: the row of `preferredId` (the session this browser last used) when it
+ * is there and valid, otherwise the first valid row in key order; null when the store was read and
+ * holds none. It rejects when the database cannot be opened or read, so a failure is never taken for
+ * a browser with no session.
  */
-export async function readLocalSession(): Promise<LocalSession | null> {
+export async function readLocalSession(preferredId: string | null = null): Promise<LocalSession | null> {
   const db = await getDB();
   const sessions = await db.getAll('local_session');
   const now = new Date().toISOString();
-  return sessions.find(s => s.expiresAt > now) || null;
+  const valid = sessions.filter(s => s.expiresAt > now);
+  return valid.find(s => s.id === preferredId) || valid[0] || null;
 }
 
 /** False while a reload notice is set or when the database cannot be opened. */

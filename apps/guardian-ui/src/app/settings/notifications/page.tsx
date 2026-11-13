@@ -15,9 +15,8 @@ import Link from 'next/link';
 import { BackButton } from '@/components/BackButton';
 import { useSettingsStore } from '@/stores/settings-store';
 import { hydrateSavedSettings } from '@/lib/settings-hydration';
-import { ProfileSaveError, useAuthStore } from '../../../stores/auth-store';
+import { ProfileSaveError, ProfileSaveRefused, useAuthStore } from '../../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
-import { getDatabaseNotice } from '@/lib/client-db';
 import {
   IconBell,
   IconMail,
@@ -244,15 +243,12 @@ export default function NotificationsSettingsPage() {
       setSaveMessage({ type: 'success', text: 'Notification settings saved.' });
     } catch (error) {
       console.error('[Notifications] save failed:', error);
-      if (getDatabaseNotice()) {
-        // Under a reload notice the profile was not changed, and nothing retries it.
+      if (error instanceof ProfileSaveRefused) {
+        // Refused under a reload notice: the profile was not changed, and nothing retries it.
         setSaveMessage({ type: 'error', text: 'Notification settings were not saved to your profile. Reload this page, set them again, then save.' });
-      } else if (error instanceof ProfileSaveError && error.localSaved) {
-        // Nothing sends the change later: the person saves again.
-        setSaveMessage({
-          type: 'error',
-          text: 'Saved on this device. The server did not take the change. Save again when you are connected.',
-        });
+      } else if (error instanceof ProfileSaveError && error.place === 'server') {
+        // The change was put back, and nothing sends it later: the person saves again.
+        setSaveMessage({ type: 'error', text: 'The server did not take the change. Save again when you are connected.' });
       } else {
         setSaveMessage({ type: 'error', text: 'Notification settings were not saved. Try again.' });
       }
