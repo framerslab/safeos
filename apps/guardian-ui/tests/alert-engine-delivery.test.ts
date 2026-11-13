@@ -213,6 +213,7 @@ it('saves with its retry an alert raised after another tab cleared, whose first 
 it('saves a failed save with a history read when no later alert comes', async () => {
   const { control, make } = steeredSave();
   const { engine } = await engineTab(make);
+  await engine.updateThresholds({ alertCooldown: 0 });
   control.failures = 1;
   const x = await engine.createAlert('motion', 'critical');
   await engine.whenSaved();
