@@ -9,9 +9,12 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
-  getLocalSession,
-  getCachedProfile,
+  getDatabaseNotice,
+  isDatabaseAvailable,
+  readLocalSession,
   saveLocalSession,
+  cacheProfile,
+  getCachedProfile,
   type LocalSession,
 } from '../lib/client-db';
 import { clearLocalData } from '../lib/local-data';
@@ -82,8 +85,8 @@ interface AuthState {
   setDeviceId: (deviceId: string) => void;
   
   // Convenience aliases
-  login: (user: { id: string; displayName: string; preferences: UserPreferences }) => Promise<void>;
-  startGuestSession: (user: { id: string; displayName: string; preferences: UserPreferences }) => Promise<void>;
+  login: (user: { id: string; displayName: string; preferences: UserPreferences }) => void;
+  startGuestSession: (user: { id: string; displayName: string; preferences: UserPreferences }) => void;
 }
 
 // =============================================================================
@@ -114,8 +117,6 @@ function generateDeviceId(): string {
 // Store
 // =============================================================================
 
-let initialization: Promise<void> | null = null;
-
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
@@ -135,96 +136,216 @@ export const useAuthStore = create<AuthState>()(
       isOffline: false,
 
       // Initialize from local storage
-      initialize: () => {
-        if (get().isInitialized) return Promise.resolve();
-        if (initialization) return initialization;
-        initialization = (async () => {
-          set({ isLoading: true });
+      initialize: async () => {
+        if (get().isInitialized) return;
 
+        set({ isLoading: true });
+
+        try {
+          // Get device ID
+          const deviceId = generateDeviceId();
+          set({ deviceId });
+
+          // Try to restore from IndexedDB
+          let localSession: LocalSession | null;
           try {
-            // Get device ID
-            const deviceId = generateDeviceId();
-            set({ deviceId });
-
-            // Try to restore from IndexedDB
-            const localSession = await getLocalSession();
-
-            if (localSession) {
-              const apiUrl = getApiUrl();
-              let response: Response | undefined;
-              if (apiUrl) {
-                try {
-                  response = await fetch(`${apiUrl}/api/auth/session`, {
-                    headers: { 'X-Session-Token': localSession.token },
-                  });
-                } catch {
-                  console.log('[Auth] Offline, using cached session');
-                }
-              }
-              if (response?.ok) {
-                const { data } = await response.json();
-                await adoptSession({ ...localSession, id: data.sessionId, token: data.token,
-                  profile: data.profile, expiresAt: data.expiresAt }, data.isGuest, 'full');
-                return;
-              }
-              if (!response) {
-                // Earlier versions saved profile edits separately from the session.
-                const cached = await getCachedProfile(localSession.profile.id);
-                await adoptSession({ ...localSession, profile: { ...localSession.profile, ...cached } }, true, 'local-only');
-                return;
-              }
-            }
-
-            // No valid session - create guest session
-            await get().createSession();
-          } catch (error) {
-            console.error('[Auth] Initialization failed:', error);
-            set(unavailableSession);
+            localSession = await readLocalSession();
+          } catch {
+            // The session store could not be read, which is not a browser without a session.
+            sessionStoreUnread = true;
+            if (holdsServerToken()) await checkHeldToken();
+            if (holdsServerToken()) return keepHeldSession();
+            return get().createSession();
           }
-        })().finally(() => { initialization = null; });
-        return initialization;
+
+          if (localSession && new Date(localSession.expiresAt) > new Date()) {
+            // Validate with server if online
+            const apiUrl = getApiUrl();
+            try {
+              if (!apiUrl) {
+                throw new Error('No monitoring server configured');
+              }
+
+              const response = await fetch(`${apiUrl}/api/auth/session`, {
+                headers: {
+                  'X-Session-Token': localSession.token,
+                },
+              });
+
+              if (response.ok) {
+                const { data } = await response.json();
+                if (await keepsHeldSession()) return keepHeldSession();
+                set({
+                  isAuthenticated: true,
+                  isGuest: data.isGuest,
+                  sessionToken: data.token,
+                  sessionId: data.sessionId,
+                  profile: data.profile,
+                  expiresAt: data.expiresAt,
+                  mode: 'full',
+                  isOffline: false,
+                  isInitialized: true,
+                  isLoading: false,
+                });
+                return;
+              }
+              if (response.status === 401) {
+                // The server has ended the saved session: its token no longer counts as held.
+                refusedTokens.add(localSession.token);
+                if (await keepsHeldSession()) return keepHeldSession();
+              }
+            } catch (error) {
+              // Offline - use cached data
+              console.log('[Auth] Offline, using cached session');
+              if (await keepsHeldSession()) return keepHeldSession();
+              set({
+                isAuthenticated: true,
+                isGuest: true,
+                sessionToken: localSession.token,
+                sessionId: localSession.id,
+                profile: localSession.profile,
+                expiresAt: localSession.expiresAt,
+                mode: 'local-only',
+                isOffline: true,
+                isInitialized: true,
+                isLoading: false,
+              });
+              return;
+            }
+          }
+
+          // No valid session - create guest session
+          await get().createSession();
+        } catch (error) {
+          console.error('[Auth] Initialization failed:', error);
+          set({ isInitialized: true, isLoading: false });
+        }
       },
 
-      // Do not create a profile until this browser can read its saved session.
+      // Create new session
       createSession: async (displayName?: string) => {
         set({ isLoading: true });
+        if (await keepsHeldSession()) return keepHeldSession();
+
         try {
-          await getLocalSession();
           const deviceId = get().deviceId || generateDeviceId();
           const apiUrl = getApiUrl();
-          let data: { sessionId: string; token: string; profile: UserProfile; expiresAt: string; isGuest: boolean };
-          let mode: SessionMode = 'full';
-          try {
-            if (!apiUrl) throw new Error('No monitoring server configured');
-            const response = await fetch(`${apiUrl}/api/auth/session`, {
-              method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ deviceId, displayName }),
-            });
-            if (!response.ok) throw new Error('Failed to create session');
-            ({ data } = await response.json());
-          } catch {
-            const guestId = `guest-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-            data = {
-              sessionId: guestId, token: `local-${guestId}`, isGuest: true,
-              expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-              profile: {
-                id: guestId, displayName: displayName || `Guest-${guestId.slice(6, 12)}`, avatarUrl: null,
-                preferences: { defaultScenario: 'pet', motionSensitivity: 0.5, audioSensitivity: 0.5,
-                  alertVolume: 0.7, theme: 'dark' },
-                notificationSettings: { browserPush: true, sms: false, telegram: false,
-                  emailDigest: false, quietHoursStart: null, quietHoursEnd: null },
-                createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-              },
-            };
-            mode = 'local-only';
+
+          if (!apiUrl) {
+            throw new Error('No monitoring server configured');
           }
-          // Storage failures never fall back to adopting an unsaved guest.
-          await adoptSession({ id: data.sessionId, token: data.token, deviceId, profile: data.profile,
-            createdAt: new Date().toISOString(), expiresAt: data.expiresAt,
-            syncedAt: new Date().toISOString() }, data.isGuest, mode);
+
+          const response = await fetch(`${apiUrl}/api/auth/session`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              deviceId,
+              displayName,
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to create session');
+          }
+
+          const { data } = await response.json();
+          if (await keepsHeldSession()) return keepHeldSession();
+
+          // A session made after the store could not be read stays in memory and local storage.
+          if (!sessionStoreUnread && await isDatabaseAvailable()) {
+            // Save to IndexedDB
+            await saveLocalSession({
+              id: data.sessionId,
+              token: data.token,
+              deviceId,
+              profile: data.profile,
+              createdAt: new Date().toISOString(),
+              expiresAt: data.expiresAt,
+              syncedAt: new Date().toISOString(),
+            });
+
+            // Cache profile
+            if (data.profile) {
+              await cacheProfile(data.profile);
+            }
+          }
+
+          if (await keepsHeldSession()) return keepHeldSession();
+          set({
+            isAuthenticated: true,
+            isGuest: data.isGuest,
+            sessionToken: data.token,
+            sessionId: data.sessionId,
+            deviceId,
+            profile: data.profile,
+            expiresAt: data.expiresAt,
+            mode: 'full',
+            isOffline: false,
+            isInitialized: true,
+            isLoading: false,
+          });
         } catch (error) {
-          console.error('[Auth] Could not save session:', error);
-          set(unavailableSession);
+          if (await keepsHeldSession()) return keepHeldSession();
+          console.error('[Auth] Failed to create session:', error);
+          
+          // Create offline guest session
+          const guestId = `guest-${Date.now()}`;
+          const guestProfile: UserProfile = {
+            id: guestId,
+            displayName: displayName || `Guest-${guestId.slice(0, 6)}`,
+            avatarUrl: null,
+            preferences: {
+              defaultScenario: 'pet',
+              motionSensitivity: 0.5,
+              audioSensitivity: 0.5,
+              alertVolume: 0.7,
+              theme: 'dark',
+            },
+            notificationSettings: {
+              browserPush: true,
+              sms: false,
+              telegram: false,
+              emailDigest: false,
+              quietHoursStart: null,
+              quietHoursEnd: null,
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          const persistable = !sessionStoreUnread && await isDatabaseAvailable();
+
+          // Cache profile
+          if (persistable) await cacheProfile(guestProfile);
+
+          // Save local session to IndexedDB for persistence
+          const localToken = `local-${guestId}`;
+          const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // 1 year
+          if (persistable) await saveLocalSession({
+            id: guestId,
+            token: localToken,
+            deviceId: get().deviceId || generateDeviceId(),
+            profile: guestProfile,
+            createdAt: new Date().toISOString(),
+            expiresAt,
+            syncedAt: new Date().toISOString(),
+          });
+
+          if (await keepsHeldSession()) return keepHeldSession();
+          set({
+            isAuthenticated: true,
+            isGuest: true,
+            sessionToken: localToken,
+            sessionId: guestId,
+            profile: guestProfile,
+            expiresAt,
+            mode: 'local-only',
+            isOffline: true,
+            isInitialized: true,
+            isLoading: false,
+          });
         }
       },
 
@@ -245,10 +366,10 @@ export const useAuthStore = create<AuthState>()(
 
           if (response.ok) {
             const { data } = await response.json();
-            const saved = await getLocalSession();
-            if (!saved) return;
-            await adoptSession({ ...saved, profile: data.profile, expiresAt: data.expiresAt },
-              data.isGuest, 'full');
+            set({
+              profile: data.profile,
+              expiresAt: data.expiresAt,
+            });
           }
         } catch (error) {
           console.error('[Auth] Failed to refresh session:', error);
@@ -257,6 +378,10 @@ export const useAuthStore = create<AuthState>()(
 
       // Update profile
       updateProfile: async (updates) => {
+        // Under a reload notice nothing is saved, and the caller must be able to say so.
+        const notice = getDatabaseNotice();
+        if (notice) throw new Error(notice);
+
         const token = get().sessionToken;
         const currentProfile = get().profile;
         
@@ -264,27 +389,29 @@ export const useAuthStore = create<AuthState>()(
 
         const updatedProfile = { ...currentProfile, ...updates, updatedAt: new Date().toISOString() };
 
-        try {
-          const saved = await getLocalSession();
-          if (!saved) return;
-          await adoptSession({ ...saved, profile: updatedProfile }, get().isGuest, get().mode);
-        } catch (error) {
-          console.error('[Auth] Failed to save profile:', error);
-          set(unavailableSession);
-          return;
-        }
+        // Optimistic update
+        set({ profile: updatedProfile });
 
         try {
           const apiUrl = getApiUrl();
-          if (apiUrl && token && !token.startsWith('local-') && !token.startsWith('offline-')) {
-            await fetch(`${apiUrl}/api/auth/profile`, {
-              method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Session-Token': token },
+          if (token && !token.startsWith('local-') && !token.startsWith('offline-')) {
+            if (apiUrl) {
+              await fetch(`${apiUrl}/api/auth/profile`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Session-Token': token,
+              },
               body: JSON.stringify(updates),
-            });
+              });
+            }
           }
+
+          // Cache locally
+          await cacheProfile(updatedProfile);
         } catch (error) {
-          console.error('[Auth] Failed to sync profile:', error);
-          // The locally saved profile remains available offline.
+          console.error('[Auth] Failed to update profile:', error);
+          // Keep optimistic update, will sync later
         }
       },
 
@@ -310,6 +437,10 @@ export const useAuthStore = create<AuthState>()(
 
       // Logout
       logout: async () => {
+        // Under a reload notice the browser cannot be cleared: refuse before the server session ends.
+        const notice = getDatabaseNotice();
+        if (notice) throw new Error(notice);
+
         const token = get().sessionToken;
 
         try {
@@ -353,59 +484,138 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
-      login: async (user) => adoptUser(user, false),
-      startGuestSession: async (user) => adoptUser(user, true),
+      // Convenience: Login with user data
+      login: (user) => {
+        set({
+          isAuthenticated: true,
+          isLoggedIn: true,
+          isGuest: false,
+          user,
+          profile: {
+            id: user.id,
+            displayName: user.displayName,
+            avatarUrl: null,
+            preferences: user.preferences,
+            notificationSettings: {
+              browserPush: true,
+              sms: false,
+              telegram: false,
+              emailDigest: false,
+              quietHoursStart: null,
+              quietHoursEnd: null,
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      },
+
+      // Convenience: Start guest session
+      startGuestSession: (user) => {
+        set({
+          isAuthenticated: true,
+          isLoggedIn: true,
+          isGuest: true,
+          user,
+          profile: {
+            id: user.id,
+            displayName: user.displayName,
+            avatarUrl: null,
+            preferences: user.preferences,
+            notificationSettings: {
+              browserPush: true,
+              sms: false,
+              telegram: false,
+              emailDigest: false,
+              quietHoursStart: null,
+              quietHoursEnd: null,
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      },
     }),
     {
       name: 'safeos-auth',
       storage: createJSONStorage(() => localStorage),
-      // Older localStorage snapshots are hints, never an established profile.
-      merge: (persisted, current) => ({ ...current, ...(persisted as Partial<AuthState>),
-        profile: null, user: null, isInitialized: false, isAuthenticated: false, isLoggedIn: false }),
       partialize: (state) => ({
         sessionToken: state.sessionToken,
         sessionId: state.sessionId,
         deviceId: state.deviceId,
-        profile: null,
         isGuest: state.isGuest,
       }),
     }
   )
 );
 
-const unavailableSession = {
-  profile: null, user: null, sessionToken: null, sessionId: null, expiresAt: null,
-  isAuthenticated: false, isLoggedIn: false, isInitialized: false, isLoading: false,
-};
+// =============================================================================
+// A session held while the database cannot be used
+// =============================================================================
 
-async function adoptSession(session: LocalSession, isGuest: boolean, mode: SessionMode): Promise<void> {
-  await saveLocalSession(session);
-  useAuthStore.setState({
-    isAuthenticated: true, isLoggedIn: true, isGuest, sessionToken: session.token,
-    sessionId: session.id, deviceId: session.deviceId, profile: session.profile,
-    user: session.profile, expiresAt: session.expiresAt, mode, isOffline: mode === 'local-only',
-    isInitialized: true, isLoading: false,
-  });
-}
+const serverToken = (token: unknown): token is string =>
+  typeof token === 'string' && token !== '' && !/^(local-|offline-)/.test(token);
 
-async function adoptUser(user: { id: string; displayName: string; preferences: UserPreferences }, isGuest: boolean): Promise<void> {
+/** Server tokens that set-up's session check saw answered with 401 in this page load. */
+const refusedTokens = new Set<string>();
+
+/** A held token: a server token that the server has not refused in this page load. */
+const heldToken = (token: unknown): token is string => serverToken(token) && !refusedTokens.has(token);
+
+/** The four fields the persist step keeps in local storage, when they hold a held token. Read afresh on every call. */
+function storedSession(): { sessionToken: string; sessionId: string | null; deviceId: string | null; isGuest: boolean } | null {
   try {
-    const saved = await getLocalSession();
-    const now = new Date().toISOString();
-    const profile: UserProfile = { ...user, avatarUrl: null,
-      notificationSettings: { browserPush: true, sms: false, telegram: false, emailDigest: false,
-        quietHoursStart: null, quietHoursEnd: null }, createdAt: now, updatedAt: now };
-    const token = useAuthStore.getState().sessionToken || localStorage.getItem('safeos_session_token') || `local-${user.id}`;
-    await adoptSession({ id: saved?.id || user.id, token, deviceId: generateDeviceId(), profile,
-      createdAt: now, expiresAt: saved?.expiresAt || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
-      syncedAt: now }, isGuest, token.startsWith('local-') ? 'local-only' : 'full');
-  } catch (error) {
-    useAuthStore.setState(unavailableSession);
-    throw error;
+    const state = JSON.parse(localStorage.getItem('safeos-auth') || 'null')?.state;
+    return state && heldToken(state.sessionToken) ? state : null;
+  } catch {
+    return null;
   }
 }
 
-/** A database reload notice suspends this tab without signing out or clearing data. */
-export function suspendUnavailableSession(): void {
-  useAuthStore.setState(unavailableSession);
+function holdsServerToken(): boolean {
+  return heldToken(useAuthStore.getState().sessionToken) || storedSession() !== null;
 }
+
+/** The database cannot be used and this tab already holds a server token. */
+async function keepsHeldSession(): Promise<boolean> {
+  if (!holdsServerToken()) return false;
+  if (getDatabaseNotice()) return true;
+  const available = await isDatabaseAvailable();
+  return !available || getDatabaseNotice() !== null;
+}
+
+/** The server's OK answer to the check of the held token, with the token it was asked about. */
+let heldAnswer: { token: string; data: { isGuest: boolean; profile: any; expiresAt: string | null } } | null = null;
+
+/** Ends set-up on the held token, taking it from local storage when memory has none. When the server
+ *  answered OK for that same token in this page load, the tab is signed in with that answer, in memory. */
+function keepHeldSession(): void {
+  const inMemory = useAuthStore.getState().sessionToken;
+  const stored = heldToken(inMemory) ? null : storedSession();
+  const token = stored ? stored.sessionToken : inMemory;
+  const answer = heldAnswer !== null && heldAnswer.token === token ? heldAnswer.data : null;
+  useAuthStore.setState({
+    ...(stored ? { sessionToken: stored.sessionToken, sessionId: stored.sessionId,
+      deviceId: stored.deviceId, isGuest: stored.isGuest } : {}),
+    ...(answer ? { isAuthenticated: true, isGuest: answer.isGuest, profile: answer.profile,
+      expiresAt: answer.expiresAt, mode: 'full' as const } : {}),
+    isInitialized: true, isLoading: false });
+}
+
+/** Asks the server about the token this tab holds. Only a 401 marks it refused. An OK answer is kept. */
+async function checkHeldToken(): Promise<void> {
+  const inMemory = useAuthStore.getState().sessionToken;
+  const token = heldToken(inMemory) ? inMemory : storedSession()?.sessionToken;
+  const apiUrl = getApiUrl();
+  if (!token || !apiUrl) return;
+  try {
+    const response = await fetch(`${apiUrl}/api/auth/session`, { headers: { 'X-Session-Token': token } });
+    if (response.status === 401) refusedTokens.add(token);
+    else if (response.ok) heldAnswer = { token, data: (await response.json()).data };
+  } catch {
+    // A network failure, a timeout or an unreadable body says nothing about the token: it stays held.
+  }
+}
+
+/** Set when set-up could not read the session store; a session made in this page load is then never written to the database. */
+let sessionStoreUnread = false;
