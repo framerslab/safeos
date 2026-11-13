@@ -8,16 +8,22 @@ Object.defineProperty(global, 'structuredClone', { configurable: true, value: (v
   require('v8').deserialize(require('v8').serialize(value)),
 });
 type Save = (...args: any[]) => Promise<boolean>;
+type Update = (...args: any[]) => Promise<'updated' | 'gone' | 'failed'>;
 
 /**
  * One tab's alert engine: a fresh set of modules over the shared database and local storage.
- * `save` replaces only `cacheAlert`, and is given the real one to save with.
+ * `save` replaces only `cacheAlert`, and is given the real one to save with; `update` does the
+ * same for `updateCachedAlert`.
  */
-async function engineTab(save?: (real: Save) => Save) {
+async function engineTab(save?: (real: Save) => Save, update?: (real: Update) => Update) {
   jest.resetModules();
-  if (save) jest.doMock('@/lib/client-db', () => {
+  if (save || update) jest.doMock('@/lib/client-db', () => {
     const real = jest.requireActual('@/lib/client-db');
-    return { ...real, cacheAlert: save(real.cacheAlert) };
+    return {
+      ...real,
+      ...(save ? { cacheAlert: save(real.cacheAlert) } : {}),
+      ...(update ? { updateCachedAlert: update(real.updateCachedAlert) } : {}),
+    };
   });
   const { localAlertEngine: engine } = await import('@/lib/local-alert-engine');
   const { getNotificationManager } = await import('@/lib/notification-manager');
@@ -202,4 +208,79 @@ it('saves with its retry an alert raised after another tab cleared, whose first 
   await engine.whenSaved();
   expect(await storedIds()).toEqual([x!.id, y!.id].sort());
   expect(await storedIds()).not.toContain(w!.id);
+});
+
+it('saves a failed save with a history read when no later alert comes', async () => {
+  const { control, make } = steeredSave();
+  const { engine } = await engineTab(make);
+  control.failures = 1;
+  const x = await engine.createAlert('motion', 'critical');
+  await engine.whenSaved();
+  expect(await storedIds()).toEqual([]);
+  const listed = await engine.getRecentAlerts();
+  expect(await storedIds()).toEqual([x!.id]);
+  expect(listed.map((alert) => alert.id)).toEqual([x!.id]);
+});
+
+/**
+ * An `updateCachedAlert` the test steers: it answers failed without writing while `failures`
+ * lasts, and otherwise updates for real. Every call is recorded.
+ */
+function steeredUpdate() {
+  const control = { failures: 0, calls: [] as any[][] };
+  const make = (real: Update): Update => async (...args: any[]) => {
+    control.calls.push(args);
+    if (control.failures > 0) {
+      control.failures -= 1;
+      return 'failed';
+    }
+    return real(...args);
+  };
+  return { control, make };
+}
+
+it('retries a failed acknowledgement of a saved alert with the next retry pass', async () => {
+  const { control, make } = steeredUpdate();
+  const { engine } = await engineTab(undefined, make);
+  await engine.updateThresholds({ alertCooldown: 0 });
+  const x = await engine.createAlert('motion', 'critical');
+  await engine.whenSaved();
+  control.failures = 1;
+  expect(await engine.acknowledgeAlert(x!.id)).toBe(true);
+  const db = await openDB('safeos-guardian');
+  try {
+    expect(await db.get('alert_cache', x!.id)).toMatchObject({ acknowledged: false });
+    const y = await engine.createAlert('motion', 'critical');
+    await engine.whenSaved();
+    const stored = await db.get('alert_cache', x!.id);
+    expect(stored).toMatchObject({ acknowledged: true });
+    expect(stored.acknowledgedAt).toEqual(expect.any(String));
+    expect(await db.get('alert_cache', y!.id)).toMatchObject({ acknowledged: false });
+  } finally {
+    db.close();
+  }
+});
+
+it('creates no record when it retries a failed acknowledgement whose record is gone', async () => {
+  const { control, make } = steeredUpdate();
+  const { engine } = await engineTab(undefined, make);
+  await engine.updateThresholds({ alertCooldown: 0 });
+  const x = await engine.createAlert('motion', 'critical');
+  await engine.whenSaved();
+  control.failures = 1;
+  expect(await engine.acknowledgeAlert(x!.id)).toBe(true);
+  const db = await openDB('safeos-guardian');
+  await db.delete('alert_cache', x!.id);
+  db.close();
+  const forX = () => control.calls.filter(([record]) => record.id === x!.id).length;
+  const y = await engine.createAlert('motion', 'critical');
+  await engine.whenSaved();
+  // The retry asked for an update of the record, found it gone and created none.
+  expect(forX()).toBe(2);
+  expect(await storedIds()).toEqual([y!.id]);
+  // A retry that found the record gone leaves nothing waiting.
+  const z = await engine.createAlert('motion', 'critical');
+  await engine.whenSaved();
+  expect(forX()).toBe(2);
+  expect(await storedIds()).toEqual([y!.id, z!.id].sort());
 });

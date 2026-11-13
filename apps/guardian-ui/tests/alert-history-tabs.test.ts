@@ -237,3 +237,18 @@ it('does not write an alert queued before its tab read the database after anothe
   await b.read();
   expect(await stored('alert_cache')).toEqual([]);
 });
+
+it('keeps an alert raised while a history read waits for a held save', async () => {
+  const one = await tab({ held: true });
+  await one.read();
+  let release = () => {};
+  one.hold.gate = new Promise<void>((resolve) => { release = resolve; });
+  one.monitoring.getState().addAlert(live('first'));
+  const reading = one.read();
+  await waitFor(() => expect(one.hold.calls.some(([record]) => record.id === 'first')).toBe(true), { timeout: 5000 });
+  one.monitoring.getState().addAlert(live('second'));
+  release();
+  await reading;
+  expect(one.listed()).toEqual(['first', 'second']);
+  expect(await storedAlerts()).toEqual(['first', 'second']);
+});

@@ -183,6 +183,32 @@ it.each([
   expect(auth.getState().profile).toBeNull();
 });
 
+it('signs in with the server profile when the saved session check answers OK after the database closed for an update, and the tab holds that token', async () => {
+  (await oldTab()).close();
+  holdToken('saved-token');
+  let answer!: (value: unknown) => void;
+  const pending = new Promise((resolve) => { answer = resolve; });
+  const calls = server({ check: () => pending as never, create: () => sessionAnswer('new-token') });
+  const { auth, db } = await tab();
+  const setUp = auth.getState().initialize();
+  await waitFor(() => expect(calls.checks()).toHaveLength(1), { timeout: 5000 });
+  const newer = await openDB('safeos-guardian', 8);
+  try {
+    await waitFor(() => expect(db.getDatabaseNotice()).toMatch(/updated in another tab/), { timeout: 5000 });
+    answer(sessionAnswer('saved-token', { id: 'server-person', displayName: 'Server person' }));
+    await setUp;
+    expect(calls.checks().map((call) => call.token)).toEqual(['saved-token']);
+    expect(auth.getState().isAuthenticated).toBe(true);
+    expect(auth.getState().profile?.id).toBe('server-person');
+    expect(auth.getState().sessionToken).toBe('saved-token');
+    expect(heldToken()).toBe('saved-token');
+    expect(calls.posts()).toHaveLength(0);
+    expect(await newer.getAll('local_session')).toEqual([session]);
+  } finally {
+    newer.close();
+  }
+});
+
 it('adopts a renewal in flight when the database closes for an update after the server refused the saved token', async () => {
   (await oldTab()).close();
   holdToken('saved-token');

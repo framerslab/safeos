@@ -62,3 +62,31 @@ it('keeps monitoring ownership and history when sync updates an acknowledgement'
     thumbnailUrl: 'data:image/png;base64,example',
   })]);
 });
+
+it('keeps a confirmed acknowledgement queued while the browser cannot save it, and applies it at the next sync', async () => {
+  localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://api.example.test' }));
+  const createdAt = new Date().toISOString();
+  await cacheAlert({ id: 'confirmed', streamId: 'camera', message: 'Motion', createdAt, acknowledged: false });
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ alert: {
+    id: 'confirmed', stream_id: 'camera', created_at: createdAt, acknowledged: 1,
+  } }) });
+  await queueSyncAction({ action: 'acknowledge_alert', endpoint: '/api/alerts/confirmed/acknowledge', method: 'POST', body: null });
+  // The next record write fails, as a full disk refuses it.
+  const failing = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
+    throw new DOMException('Storage full', 'QuotaExceededError');
+  });
+  await syncPendingActions();
+  failing.mockRestore();
+  const db = await openDB('safeos-guardian');
+  try {
+    const queued = await db.getAll('sync_queue');
+    expect(queued).toEqual([expect.objectContaining({ endpoint: '/api/alerts/confirmed/acknowledge', retries: 1 })]);
+    expect(queued[0].lastError).toEqual(expect.any(String));
+    expect(await db.get('alert_cache', 'confirmed')).toMatchObject({ acknowledged: false });
+    expect(await syncPendingActions()).toEqual({ synced: 1, failed: 0, pending: 0 });
+    expect(await db.get('alert_cache', 'confirmed')).toMatchObject({ acknowledged: true, createdAt });
+    expect(await db.count('sync_queue')).toBe(0);
+  } finally {
+    db.close();
+  }
+});

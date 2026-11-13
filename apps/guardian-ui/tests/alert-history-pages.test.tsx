@@ -357,7 +357,7 @@ it.each([
     }
     if (notifications) {
       fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-      expect(await screen.findByText('Notification settings were not saved to your profile. Reload this page, then save again.')).toBeTruthy();
+      expect(await screen.findByText('Notification settings were not saved to your profile. Reload this page, set them again, then save.')).toBeTruthy();
       expect(screen.queryByText('Notification settings saved.')).toBeNull();
       expect(screen.queryByText('Saved locally. Sync to server failed — will retry next time you connect.')).toBeNull();
       expect(calls.calls.filter((call) => call.method === 'PATCH')).toEqual([]);
