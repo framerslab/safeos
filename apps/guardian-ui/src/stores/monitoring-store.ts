@@ -259,6 +259,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       },
 
       hydrateAlerts: async () => {
+        // Read before the wait, so an alert queued during it makes this read run again.
+        const revision = alertRevision;
         const retries = [...unsavedAlerts.values()];
         if (retries.length) writeAlerts(async () => {
           for (const entry of retries) {
@@ -267,7 +269,6 @@ export const useMonitoringStore = create<MonitoringState>()(
           }
         }, false);
         await alertWrites;
-        const revision = alertRevision;
         let saved: Alert[];
         try {
           saved = (await getCachedMonitoringAlerts())
