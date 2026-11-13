@@ -302,7 +302,7 @@ try {
           await page.getByRole('button', { name: save.button, exact: true }).click({ timeout: 20_000 });
           const message = process.env.PICTURE_VERSION === 'after'
             ? page.getByText(save.words, { exact: true })
-            : page.getByText(/^(Notification settings|Saved |Settings saved|Failed to save)/);
+            : page.getByText(/^(Notification settings|Saved |Settings saved|Failed to save|The server did not take the change)/);
           await message.first().waitFor({ timeout: 10_000 });
           // The whole page, so the message shows wherever it sits. The site's fixed bars are left out,
           // since the Settings message sits at the top right, where the top bar covers it.
