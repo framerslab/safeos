@@ -16,6 +16,7 @@ import { ToastProvider } from '@/components/Toast';
 import { useSettingsStore } from '@/stores/settings-store';
 import { hydrateSavedSettings } from '@/lib/settings-hydration';
 import { useAuthStore } from '@/stores/auth-store';
+import { useMonitoringStore } from '@/stores/monitoring-store';
 import { getSoundManager } from '@/lib/sound-manager';
 
 // =============================================================================
@@ -35,6 +36,7 @@ export function Providers({ children }: ProvidersProps) {
 
   const profile = useAuthStore((state) => state.profile);
   useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
+  useEffect(() => { void useMonitoringStore.getState().hydrateAlerts(); }, []);
 
   // Keep SoundManager synced with user settings globally (quiet hours + emergency/mute).
   useEffect(() => {

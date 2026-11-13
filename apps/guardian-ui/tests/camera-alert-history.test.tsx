@@ -41,7 +41,7 @@ it('writes a received monitor alert to IndexedDB and restores it in History afte
   await act(async () => {});
   act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
     id: 'persistent-camera-alert', streamId: 'camera-session', severity: 'low',
-    message: 'Camera motion recorded', timestamp: '2026-11-11T10:00:00.000Z',
+    message: 'Camera motion recorded', timestamp: '2026-10-01T10:00:00.000Z',
   } }));
   expect(screen.getByText('Camera motion recorded')).toBeTruthy();
   await waitFor(async () => {
@@ -165,4 +165,17 @@ it('bounds persisted monitoring history without pruning other alert producers', 
   expect(await db.get('alert_cache', 'retained-engine-alert')).toBeTruthy();
   db.close();
   expect(screen.getByText('Motion 104')).toBeTruthy();
+});
+
+it('keeps an early unacknowledged critical alert on screen while later acknowledged alerts are bounded', async () => {
+  useMonitoringStore.getState().addAlert({ id: 'early-critical', streamId: 'camera', severity: 'critical',
+    message: 'Early critical alert', acknowledged: false, createdAt: '2026-10-01T10:00:00.000Z' });
+  for (let i = 0; i < 100; i++) useMonitoringStore.getState().addAlert({
+    id: `later-${i}`, streamId: 'camera', severity: 'low', message: `Later ${i}`, acknowledged: true,
+    createdAt: new Date(Date.now() - 1000 + i).toISOString(),
+  });
+  render(<AlertPanel />);
+  expect(screen.getByText('Early critical alert')).toBeTruthy();
+  await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
+  expect(screen.getByText('Early critical alert')).toBeTruthy();
 });

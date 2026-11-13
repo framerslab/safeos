@@ -12,7 +12,7 @@ import {
   removeSyncAction,
   markSyncActionFailed,
   queueSyncAction,
-  cacheAlert,
+  updateCachedAlert,
   cacheStream,
 } from './client-db';
 import { isStaticMode, getApiUrl } from './env';
@@ -24,6 +24,8 @@ import { isStaticMode, getApiUrl } from './env';
 const MAX_RETRIES = 5;
 const SYNC_INTERVAL_MS = 30000; // 30 seconds
 const RETRY_DELAYS = [1000, 5000, 15000, 30000, 60000]; // Progressive backoff
+/** The error kept on an action the server confirmed and the browser could not save. */
+const UNSAVED_RESPONSE = 'The server confirmed the change, and the browser could not save it';
 
 // =============================================================================
 // State
@@ -130,15 +132,22 @@ export async function syncPendingActions(): Promise<{
         });
 
         if (response.ok) {
-          await removeSyncAction(action.id);
-          synced++;
-
-          // Handle response data (cache updates from server)
+          // The server's answer is applied to the browser's records before the action leaves the queue.
+          let applied = true;
           try {
             const data = await response.json();
-            await handleSyncResponse(action.action, data);
+            applied = await handleSyncResponse(action.action, data);
           } catch {
             // No response body
+          }
+
+          if (applied) {
+            await removeSyncAction(action.id);
+            synced++;
+          } else {
+            // The browser could not save the confirmed change: the queue sends the action again.
+            await markSyncActionFailed(action.id, UNSAVED_RESPONSE);
+            failed++;
           }
         } else {
           const errorText = await response.text();
@@ -163,8 +172,26 @@ export async function syncPendingActions(): Promise<{
 // Handle Sync Responses
 // =============================================================================
 
-async function handleSyncResponse(action: string, data: any): Promise<void> {
-  if (!data?.data) return;
+/**
+ * Applies the server's answer to the browser's records. False means the alert update failed, and
+ * the action stays queued; true means it may leave the queue.
+ */
+async function handleSyncResponse(action: string, data: any): Promise<boolean> {
+  if (action === 'acknowledge_alert') {
+    const alert = data?.alert || data?.data;
+    if (!alert) return true;
+    const result = await updateCachedAlert({
+      ...alert,
+      streamId: alert.streamId ?? alert.stream_id,
+      alertType: alert.alertType ?? alert.alert_type,
+      thumbnailUrl: alert.thumbnailUrl ?? alert.thumbnail_url,
+      acknowledged: Boolean(alert.acknowledged),
+      acknowledgedAt: alert.acknowledgedAt ?? alert.acknowledged_at,
+      createdAt: alert.createdAt ?? alert.created_at,
+    });
+    return result !== 'failed';
+  }
+  if (!data?.data) return true;
 
   switch (action) {
     case 'create_stream':
@@ -172,10 +199,8 @@ async function handleSyncResponse(action: string, data: any): Promise<void> {
       await cacheStream(data.data);
       break;
 
-    case 'acknowledge_alert':
-      await cacheAlert(data.data);
-      break;
   }
+  return true;
 }
 
 // =============================================================================

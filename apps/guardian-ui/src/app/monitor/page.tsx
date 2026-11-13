@@ -10,6 +10,7 @@
 
 import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
+import { newAlertId } from '@/lib/alert-id';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -287,7 +288,7 @@ export default function MonitorPage() {
           break;
         case 'alert':
           addAlert({
-            id: message.payload?.id || Date.now().toString(),
+            id: message.payload?.id || newAlertId('server'),
             streamId: message.payload?.streamId || '',
             alertType: message.payload?.alertType,
             thumbnailUrl: message.payload?.thumbnailUrl,
@@ -603,7 +604,7 @@ export default function MonitorPage() {
     motionAboveSinceRef.current = null;
 
     addAlert({
-      id: `motion-${now}`,
+      id: newAlertId('motion', now),
       streamId: streamId || 'local',
       severity,
       message: `Motion detected: ${best.score}% (threshold: ${best.threshold}% · zone: ${best.name})`,
@@ -668,7 +669,7 @@ export default function MonitorPage() {
 
       // Add alert
       addAlert({
-        id: `audio-${now}`,
+        id: newAlertId('audio', now),
         streamId: streamId || 'local',
         severity,
         message: `Audio detected: ${level}% (threshold: ${audioThreshold}% · sensitivity: ${currentPreset.audioSensitivity}%)`,
@@ -770,7 +771,7 @@ export default function MonitorPage() {
     pixelAboveSinceRef.current = null;
 
     addAlert({
-      id: `pixel-${now}`,
+      id: newAlertId('pixel', now),
       streamId: streamId || 'local',
       severity,
       message: `Pixel movement detected${chosenZoneName ? ` in ${chosenZoneName}` : ''}: ${chosenChangedPx}px (threshold: ${chosenThresholdPx}px)`,
@@ -829,7 +830,7 @@ export default function MonitorPage() {
       const soundSeverity = severity === 'info' ? 'low' : severity;
 
       addAlert({
-        id: `inactivity-${now}`,
+        id: newAlertId('inactivity', now),
         streamId: streamId || 'local',
         severity,
         message: `Inactivity: no motion detected for ${minutes} minute${minutes === 1 ? '' : 's'}`,

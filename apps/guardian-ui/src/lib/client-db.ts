@@ -7,8 +7,11 @@
  * @module lib/client-db
  */
 
-import { getLocalDataGeneration, isCurrentLocalData } from './local-data-generation';
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import {
+  getLocalDataGeneration, isCurrentLocalData, learnClearGeneration, newClearValue, readLocalClearMarker,
+  writeLocalClearMarker, type ClearStamp,
+} from './local-data-generation';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
 
 // =============================================================================
 // Database Schema
@@ -57,6 +60,12 @@ interface SafeOSDB extends DBSchema {
     value: {
       id: string;
       monitoring?: boolean;
+      producer: 'monitoring' | 'shared';
+      savedBeforeUpgrade?: boolean;
+      originalCreatedAt?: unknown;
+      retentionClass: 'saved' | 'new';
+      /** 0 is acknowledged, so acknowledged alerts sort first in the retention indexes. */
+      acknowledgementOrder: 0 | 1;
       alertType?: string;
       thumbnailUrl?: string;
       timestamp?: string;
@@ -69,8 +78,16 @@ interface SafeOSDB extends DBSchema {
       createdAt: string;
       syncedAt: string;
     };
-    indexes: { 'by-stream': string; 'by-created': string };
+    indexes: {
+      'by-stream': string;
+      'by-created': string;
+      'by-producer-created': [string, string];
+      'by-retention': [string, number, string];
+      'by-producer-retention': [string, string, number, string];
+    };
   };
+  /** One record under the key 'current': a value that names the last clear of this browser's data. */
+  clear_generation: { key: string; value: string };
   frame_cache: {
     key: string;
     value: {
@@ -224,17 +241,35 @@ interface SafeOSDB extends DBSchema {
 // =============================================================================
 
 const DB_NAME = 'safeos-guardian';
-const DB_VERSION = 4; // Bumped for Custom Media and Animal Detection stores
+const DB_VERSION = 7; // Alerts belong to the browser: producer indexes and the clear generation
 
 const FRAME_BUFFER_MINUTES = 5;
 const MAX_CACHED_ALERTS = 500;
+export const MAX_MONITORING_ALERTS = 100;
 const MAX_MATCH_FRAMES = 500;
 
 // =============================================================================
 // Database Instance
 // =============================================================================
 
+// The reload notices. Each says what is paused in this tab until the page is reloaded.
+const BLOCKED_NOTICE = 'Close other SafeOS tabs, then reload this page to finish updating your saved history. Until you reload, new alerts in this tab are shown but not saved, and acknowledging, dismissing or clearing alerts is not saved. Everything already saved comes back as it was after you reload.';
+const UPDATED_NOTICE = 'SafeOS has been updated in another tab. Reload this page to keep saving history. Until you reload, new alerts in this tab are shown but not saved, and acknowledging, dismissing or clearing alerts is not saved. Everything already saved comes back as it was after you reload.';
+const FAILED_UPGRADE_NOTICE = 'SafeOS could not finish updating your saved history, so it is not shown in this tab. Nothing was deleted. Reload this page to try again; if it keeps failing, free some storage in this browser. Until you reload, new alerts in this tab are shown but not saved, and acknowledging, dismissing or clearing alerts is not saved.';
+
 let dbPromise: Promise<IDBPDatabase<SafeOSDB>> | null = null;
+let databaseNotice: string | null = null;
+/** The version an upgrade in progress started from; 0 when none is running or the database is new. */
+let upgradingFrom = 0;
+
+export function getDatabaseNotice(): string | null {
+  return databaseNotice;
+}
+
+function requestDatabaseReload(message: string): void {
+  databaseNotice = message;
+  window.dispatchEvent(new CustomEvent('safeos:database-status', { detail: message }));
+}
 
 function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
   if (typeof window === 'undefined') {
@@ -242,9 +277,26 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
     return Promise.reject(new Error('IndexedDB not available on server'));
   }
 
+  if (databaseNotice) return Promise.reject(new Error(databaseNotice));
+
   if (!dbPromise) {
-    dbPromise = openDB<SafeOSDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+    let rejectBlocked: (error: Error) => void;
+    const blocked = new Promise<never>((_resolve, reject) => { rejectBlocked = reject; });
+    const opening = openDB<SafeOSDB>(DB_NAME, DB_VERSION, {
+      blocked() {
+        requestDatabaseReload(BLOCKED_NOTICE);
+        rejectBlocked(new Error(BLOCKED_NOTICE));
+      },
+      blocking(_currentVersion, _blockedVersion, event) {
+        (event.target as IDBDatabase).close();
+        dbPromise = null;
+        requestDatabaseReload(UPDATED_NOTICE);
+      },
+      terminated() {
+        dbPromise = null;
+      },
+      async upgrade(db, oldVersion, _newVersion, transaction) {
+        upgradingFrom = oldVersion;
         // Create stores
         if (!db.objectStoreNames.contains('local_session')) {
           db.createObjectStore('local_session', { keyPath: 'id' });
@@ -263,6 +315,22 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
           const alertStore = db.createObjectStore('alert_cache', { keyPath: 'id' });
           alertStore.createIndex('by-stream', 'streamId');
           alertStore.createIndex('by-created', 'createdAt');
+        }
+
+        const alerts = transaction.objectStore('alert_cache');
+        // Builds that were never released indexed alerts by an owner.
+        const unreleased = alerts as unknown as { indexNames: DOMStringList; deleteIndex(name: string): void };
+        for (const name of ['by-owner-created', 'by-owner-retention']) {
+          if (unreleased.indexNames.contains(name)) unreleased.deleteIndex(name);
+        }
+        if (!alerts.indexNames.contains('by-producer-created')) {
+          alerts.createIndex('by-producer-created', ['producer', 'createdAt']);
+        }
+        if (!alerts.indexNames.contains('by-retention')) {
+          alerts.createIndex('by-retention', ['retentionClass', 'acknowledgementOrder', 'createdAt']);
+        }
+        if (!alerts.indexNames.contains('by-producer-retention')) {
+          alerts.createIndex('by-producer-retention', ['producer', 'retentionClass', 'acknowledgementOrder', 'createdAt']);
         }
 
         if (!db.objectStoreNames.contains('frame_cache')) {
@@ -320,7 +388,59 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
           animalStore.createIndex('by-type', 'type');
           animalStore.createIndex('by-danger', 'dangerLevel');
         }
+
+        try {
+          // A browser that had no clear generation gets a new one, as a clear would write it.
+          if (!db.objectStoreNames.contains('clear_generation')) {
+            db.createObjectStore('clear_generation');
+            await transaction.objectStore('clear_generation').put(newClearValue(), 'current');
+          }
+
+          if (oldVersion < 7) {
+            // Every alert found here was saved before this version: mark it and delete none.
+            let cursor = await alerts.openCursor();
+            while (cursor) {
+              // Only an unreleased build wrote the two owner fields.
+              const { ownerId: _ownerId, cacheOwner: _cacheOwner, ...record } = cursor.value as Record<string, any>;
+              const rawDate = record.createdAt || record.syncedAt || new Date().toISOString();
+              const timestamp = typeof rawDate === 'string' ? Date.parse(rawDate) : NaN;
+              const originalTimestamp = typeof record.createdAt === 'string' ? Date.parse(record.createdAt) : NaN;
+              // Keep even undated history, including its original date value.
+              await cursor.update({
+                ...record,
+                ...(!Number.isFinite(originalTimestamp) ? { originalCreatedAt: record.createdAt } : {}),
+                createdAt: new Date(Number.isFinite(timestamp) ? timestamp : Date.now()).toISOString(),
+                producer: alertProducer(record),
+                savedBeforeUpgrade: true,
+                retentionClass: 'saved',
+                acknowledgementOrder: record.acknowledged ? 0 : 1,
+              } as SafeOSDB['alert_cache']['value']);
+              cursor = await cursor.continue();
+            }
+          }
+        } catch {
+          // A half-rewritten store must never commit: the database keeps its old version, unchanged.
+          try { transaction.abort(); } catch { /* A failed request has already aborted it. */ }
+          transaction.done.catch(() => {});
+        }
       },
+    }).then(db => {
+      upgradingFrom = 0;
+      // A blocked request can finish after its caller has already been notified.
+      if (databaseNotice) {
+        db.close();
+        throw new Error(databaseNotice);
+      }
+      return db;
+    });
+    dbPromise = Promise.race([opening, blocked]).catch(error => {
+      dbPromise = null;
+      // The stored database is newer than this tab's code: some tab ran a later version.
+      if (error?.name === 'VersionError' && !databaseNotice) requestDatabaseReload(UPDATED_NOTICE);
+      // An upgrade of an existing database could not finish; a new database is simply tried again.
+      if (upgradingFrom > 0 && !databaseNotice) requestDatabaseReload(FAILED_UPGRADE_NOTICE);
+      upgradingFrom = 0;
+      throw error;
     });
   }
 
@@ -331,12 +451,24 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
 // Cleanup Functions
 // =============================================================================
 
+/**
+ * The failure path of a write: a request that fails aborts its transaction, and the transaction's
+ * completion promise rejects too. This aborts the transaction when it is still active and consumes
+ * that rejection, so a failed write leaves no unhandled rejection behind.
+ */
+async function abandonTransaction(tx: { abort(): void; done: Promise<void> } | undefined): Promise<void> {
+  if (!tx) return;
+  try { tx.abort(); } catch { /* A failed request has already aborted it. */ }
+  await tx.done.catch(() => {});
+}
+
 async function cleanupOldFrames(): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['frame_cache'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const cutoff = new Date(Date.now() - FRAME_BUFFER_MINUTES * 60 * 1000).toISOString();
 
-    const tx = db.transaction('frame_cache', 'readwrite');
+    tx = db.transaction('frame_cache', 'readwrite');
     const index = tx.store.index('by-created');
 
     let cursor = await index.openCursor(IDBKeyRange.upperBound(cutoff));
@@ -348,27 +480,58 @@ async function cleanupOldFrames(): Promise<void> {
     await tx.done;
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
+  }
+}
+
+type AlertStores = Array<'alert_cache' | 'clear_generation'>;
+type AlertStore<Stores extends AlertStores> = IDBPObjectStore<SafeOSDB, Stores, 'alert_cache', 'readwrite'>;
+
+/** The monitoring store marks every alert it saves; the alert engine and the sync service share the rest. */
+function alertProducer(record: { monitoring?: boolean }): 'monitoring' | 'shared' {
+  return record.monitoring === true ? 'monitoring' : 'shared';
+}
+
+function producerRange(producer: string): IDBKeyRange {
+  return IDBKeyRange.bound([producer], [producer, []]);
+}
+
+/** Only alerts saved after the upgrade count; acknowledged ones leave first, oldest first. */
+async function pruneMonitoringAlerts<Stores extends AlertStores>(store: AlertStore<Stores>): Promise<void> {
+  const index = store.index('by-producer-retention');
+  const range = IDBKeyRange.bound(['monitoring', 'new'], ['monitoring', 'new', []]);
+  let excess = (await index.count(range)) - MAX_MONITORING_ALERTS;
+  let cursor = excess > 0 ? await index.openCursor(range) : null;
+  while (cursor && excess-- > 0) {
+    await cursor.delete();
+    cursor = await cursor.continue();
+  }
+}
+
+/** The limit over every producer's alerts saved after the upgrade, in the same order. */
+async function pruneNewAlerts<Stores extends AlertStores>(store: AlertStore<Stores>): Promise<void> {
+  const index = store.index('by-retention');
+  const range = IDBKeyRange.bound(['new'], ['new', []]);
+  let excess = (await index.count(range)) - MAX_CACHED_ALERTS;
+  let cursor = excess > 0 ? await index.openCursor(range) : null;
+  while (cursor && excess-- > 0) {
+    await cursor.delete();
+    cursor = await cursor.continue();
   }
 }
 
 export async function cleanupCaches(): Promise<void> {
   await cleanupOldFrames();
-
+  let tx: IDBPTransaction<SafeOSDB, ['alert_cache'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-
-    // Limit alerts
-    const alerts = await db.getAllFromIndex('alert_cache', 'by-created');
-    if (alerts.length > MAX_CACHED_ALERTS) {
-      const tx = db.transaction('alert_cache', 'readwrite');
-      const toDelete = alerts.slice(0, alerts.length - MAX_CACHED_ALERTS);
-      for (const alert of toDelete) {
-        await tx.store.delete(alert.id);
-      }
-      await tx.done;
-    }
+    tx = db.transaction('alert_cache', 'readwrite');
+    await pruneMonitoringAlerts(tx.store);
+    await pruneNewAlerts(tx.store);
+    await tx.done;
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
@@ -407,6 +570,27 @@ export async function getLocalSession(): Promise<LocalSession | null> {
   } catch (error) {
     console.warn('[ClientDB] Failed to get session:', error);
     return null;
+  }
+}
+
+/**
+ * The first valid saved session, or null when the store was read and holds none. It rejects when
+ * the database cannot be opened or read, so a failure is never taken for a browser with no session.
+ */
+export async function readLocalSession(): Promise<LocalSession | null> {
+  const db = await getDB();
+  const sessions = await db.getAll('local_session');
+  const now = new Date().toISOString();
+  return sessions.find(s => s.expiresAt > now) || null;
+}
+
+/** False while a reload notice is set or when the database cannot be opened. */
+export async function isDatabaseAvailable(): Promise<boolean> {
+  try {
+    await getDB();
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -484,60 +668,132 @@ export async function getCachedStreams(): Promise<any[]> {
 // Alert Cache
 // =============================================================================
 
-export async function cacheAlert(alert: any): Promise<void> {
+/**
+ * Every write of an alert. One transaction reads the clear generation, then the stored record,
+ * writes the merged record and applies both limits. With `stamp`, the write is the retry of a save
+ * that failed earlier: it writes only when no clear came since. With `updateOnly`, it never creates
+ * a record.
+ */
+async function writeAlert(
+  alert: any, stamp: ClearStamp | undefined, updateOnly: boolean,
+): Promise<'saved' | 'cancelled' | 'gone' | 'failed'> {
+  let tx: IDBPTransaction<SafeOSDB, AlertStores, 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction('alert_cache', 'readwrite');
-    await tx.store.put({
-      id: alert.id,
-      monitoring: alert.monitoring === true,
-      alertType: alert.alertType,
-      thumbnailUrl: alert.thumbnailUrl,
-      timestamp: alert.timestamp,
-      streamId: alert.streamId,
-      severity: alert.severity,
-      message: alert.message,
-      description: alert.description,
-      acknowledged: alert.acknowledged || false,
-      acknowledgedAt: alert.acknowledgedAt,
-      createdAt: alert.createdAt,
+    tx = db.transaction(['alert_cache', 'clear_generation'], 'readwrite');
+    const alerts = tx.objectStore('alert_cache');
+    // A clear writes both stores too, so it runs wholly before or wholly after this transaction.
+    const generation = (await tx.objectStore('clear_generation').get('current')) ?? '';
+    learnClearGeneration(generation);
+    if (stamp) {
+      const current = stamp.generation !== null
+        ? generation === stamp.generation
+        : readLocalClearMarker() === stamp.marker;
+      if (!current) {
+        await tx.done;
+        return 'cancelled';
+      }
+    }
+    const previous = await alerts.get(alert.id);
+    if (updateOnly && !previous) {
+      await tx.done;
+      return 'gone';
+    }
+    // A partial write, such as an acknowledgement, keeps the stored fields it does not carry.
+    const merged: any = {
+      ...previous,
+      ...Object.fromEntries(Object.entries(alert).filter(([, value]) => value !== undefined)),
+    };
+    let createdAt: string;
+    let originalCreatedAt = previous?.originalCreatedAt;
+    if (previous && typeof previous.createdAt === 'string' && Number.isFinite(Date.parse(previous.createdAt))) {
+      // A later write never changes a stored alert's creation time, also one in the future.
+      createdAt = previous.createdAt;
+    } else {
+      const given = merged.createdAt || merged.timestamp;
+      const time = typeof given === 'string' || typeof given === 'number' ? new Date(given).getTime() : NaN;
+      createdAt = new Date(Number.isFinite(time) ? Math.min(time, Date.now()) : Date.now()).toISOString();
+      // A date that cannot be read must not lose the alert: it is kept beside a usable one.
+      if (!Number.isFinite(time) && given && originalCreatedAt === undefined) originalCreatedAt = given;
+    }
+    const producer = alertProducer(merged);
+    const savedBeforeUpgrade = previous?.savedBeforeUpgrade === true;
+    await alerts.put({
+      id: merged.id,
+      monitoring: merged.monitoring === true,
+      producer,
+      savedBeforeUpgrade,
+      originalCreatedAt,
+      retentionClass: savedBeforeUpgrade ? 'saved' : 'new',
+      acknowledgementOrder: merged.acknowledged ? 0 : 1,
+      alertType: merged.alertType,
+      thumbnailUrl: merged.thumbnailUrl,
+      timestamp: merged.timestamp,
+      streamId: merged.streamId,
+      severity: merged.severity,
+      message: merged.message,
+      description: merged.description,
+      acknowledged: Boolean(merged.acknowledged),
+      acknowledgedAt: merged.acknowledgedAt,
+      createdAt,
       syncedAt: new Date().toISOString(),
     });
-    if (alert.monitoring === true) {
-      const owned = (await tx.store.getAll()).filter(record => record.monitoring === true)
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-      for (const stale of owned.slice(100)) await tx.store.delete(stale.id);
-    }
+    if (producer === 'monitoring') await pruneMonitoringAlerts(alerts);
+    await pruneNewAlerts(alerts);
     await tx.done;
+    return 'saved';
   } catch (error) {
     console.warn('[ClientDB] Failed to cache alert:', error);
+    // A request that failed after it was queued aborted the transaction, and rejected its `done`.
+    await abandonTransaction(tx);
+    return 'failed';
   }
 }
 
+/**
+ * Saves a whole alert, creating or replacing its record. False means the write failed. True means
+ * nothing is left to save: the record was saved, or a clear since the save was queued means it
+ * must not be.
+ */
+export async function cacheAlert(alert: any, stamp?: ClearStamp): Promise<boolean> {
+  return (await writeAlert(alert, stamp, false)) !== 'failed';
+}
+
+/** An acknowledgement or any other partial update. It never creates a record. */
+export async function updateCachedAlert(alert: any, stamp?: ClearStamp): Promise<'updated' | 'gone' | 'failed'> {
+  const result = await writeAlert(alert, stamp, true);
+  if (result === 'saved') return 'updated';
+  return result === 'failed' ? 'failed' : 'gone';
+}
+
+/** Every producer's alerts, newest first. */
 export async function getCachedAlerts(streamId?: string): Promise<any[]> {
   try {
     const db = await getDB();
-
-    if (streamId) {
-      return await db.getAllFromIndex('alert_cache', 'by-stream', streamId);
-    }
-
-    const alerts = await db.getAll('alert_cache');
-    return alerts.sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100);
+    const alerts = streamId
+      ? await db.getAllFromIndex('alert_cache', 'by-stream', streamId)
+      : await db.getAllFromIndex('alert_cache', 'by-created');
+    return alerts.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch {
     return [];
   }
 }
 
-/** Monitoring owns only marked records; engine and sync alerts share this cache. */
+/** The monitoring store's alerts, newest first. It throws on failure, which is not an empty history. */
 export async function getCachedMonitoringAlerts(): Promise<any[]> {
-  try {
-    const db = await getDB();
-    return (await db.getAll('alert_cache')).filter(alert => alert.monitoring === true)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100);
-  } catch {
-    return [];
+  const db = await getDB();
+  const tx = db.transaction(['alert_cache', 'clear_generation'], 'readonly');
+  // A history read is how a tab that has saved nothing learns the clear generation.
+  learnClearGeneration((await tx.objectStore('clear_generation').get('current')) ?? '');
+  const alerts: SafeOSDB['alert_cache']['value'][] = [];
+  let cursor = await tx.objectStore('alert_cache').index('by-producer-created')
+    .openCursor(producerRange('monitoring'), 'prev');
+  while (cursor) {
+    alerts.push(cursor.value);
+    cursor = await cursor.continue();
   }
+  await tx.done;
+  return alerts;
 }
 
 export async function deleteCachedMonitoringAlert(id: string): Promise<void> {
@@ -548,11 +804,25 @@ export async function deleteCachedMonitoringAlert(id: string): Promise<void> {
   await tx.done;
 }
 
+/**
+ * Clear all: deletes every monitoring alert and names the clear, in the database and in local
+ * storage, so a failed save that waits in any tab is not written afterwards.
+ */
 export async function clearCachedMonitoringAlerts(): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction('alert_cache', 'readwrite');
-  for (const alert of await tx.store.getAll()) {
-    if (alert.monitoring) await tx.store.delete(alert.id);
+  const tx = db.transaction(['alert_cache', 'clear_generation'], 'readwrite');
+  try {
+    let cursor = await tx.objectStore('alert_cache').index('by-producer-created').openCursor(producerRange('monitoring'));
+    while (cursor) {
+      await cursor.delete();
+      cursor = await cursor.continue();
+    }
+    await tx.objectStore('clear_generation').put(newClearValue(), 'current');
+    writeLocalClearMarker();
+  } catch (error) {
+    try { tx.abort(); } catch { /* A failed request has already aborted it. */ }
+    await tx.done.catch(() => {});
+    throw error;
   }
   await tx.done;
 }
@@ -773,19 +1043,21 @@ export async function getSubjectProfilesByType(type: 'pet' | 'person' | 'other')
 }
 
 export async function deleteSubjectProfile(id: string): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     await db.delete('subject_profile', id);
     
     // Also delete associated match frames
     const matchFrames = await db.getAllFromIndex('match_frame', 'by-subject', id);
-    const tx = db.transaction('match_frame', 'readwrite');
+    tx = db.transaction('match_frame', 'readwrite');
     for (const frame of matchFrames) {
       await tx.store.delete(frame.id);
     }
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to delete subject profile:', error);
+    await abandonTransaction(tx);
   }
 }
 
@@ -930,9 +1202,10 @@ export async function updateMatchFrameNotes(id: string, notes: string): Promise<
 }
 
 export async function markMatchFramesExported(ids: string[]): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction('match_frame', 'readwrite');
+    tx = db.transaction('match_frame', 'readwrite');
     
     for (const id of ids) {
       const frame = await tx.store.get(id);
@@ -945,6 +1218,7 @@ export async function markMatchFramesExported(ids: string[]): Promise<void> {
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to mark match frames exported:', error);
+    await abandonTransaction(tx);
   }
 }
 
@@ -958,10 +1232,11 @@ export async function deleteMatchFrame(id: string): Promise<void> {
 }
 
 export async function deleteMatchFramesBySubject(subjectId: string): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const frames = await db.getAllFromIndex('match_frame', 'by-subject', subjectId);
-    const tx = db.transaction('match_frame', 'readwrite');
+    tx = db.transaction('match_frame', 'readwrite');
     
     for (const frame of frames) {
       await tx.store.delete(frame.id);
@@ -970,10 +1245,12 @@ export async function deleteMatchFramesBySubject(subjectId: string): Promise<voi
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to delete match frames by subject:', error);
+    await abandonTransaction(tx);
   }
 }
 
 async function cleanupExcessMatchFrames(): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const count = await db.count('match_frame');
@@ -987,7 +1264,7 @@ async function cleanupExcessMatchFrames(): Promise<void> {
       
       const toDelete = sortedByTime.slice(0, count - MAX_MATCH_FRAMES);
       
-      const tx = db.transaction('match_frame', 'readwrite');
+      tx = db.transaction('match_frame', 'readwrite');
       for (const frame of toDelete) {
         await tx.store.delete(frame.id);
       }
@@ -995,10 +1272,12 @@ async function cleanupExcessMatchFrames(): Promise<void> {
     }
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
 export async function cleanupOldMatchFrames(olderThanDays: number): Promise<number> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
@@ -1006,7 +1285,7 @@ export async function cleanupOldMatchFrames(olderThanDays: number): Promise<numb
     const frames = await db.getAll('match_frame');
     const toDelete = frames.filter(f => f.timestamp < cutoff && f.acknowledged);
     
-    const tx = db.transaction('match_frame', 'readwrite');
+    tx = db.transaction('match_frame', 'readwrite');
     for (const frame of toDelete) {
       await tx.store.delete(frame.id);
     }
@@ -1014,6 +1293,7 @@ export async function cleanupOldMatchFrames(olderThanDays: number): Promise<numb
     
     return toDelete.length;
   } catch {
+    await abandonTransaction(tx);
     return 0;
   }
 }
@@ -1220,9 +1500,10 @@ export async function updateIntrusionFrameNotes(id: string, notes: string): Prom
 }
 
 export async function markIntrusionFramesExported(ids: string[]): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction('intrusion_frame', 'readwrite');
+    tx = db.transaction('intrusion_frame', 'readwrite');
     
     for (const id of ids) {
       const frame = await tx.store.get(id);
@@ -1235,6 +1516,7 @@ export async function markIntrusionFramesExported(ids: string[]): Promise<void> 
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to mark intrusion frames exported:', error);
+    await abandonTransaction(tx);
   }
 }
 
@@ -1257,6 +1539,7 @@ export async function clearAllIntrusionFrames(): Promise<void> {
 }
 
 async function cleanupExcessIntrusionFrames(): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const count = await db.count('intrusion_frame');
@@ -1267,7 +1550,7 @@ async function cleanupExcessIntrusionFrames(): Promise<void> {
         .filter(f => f.acknowledged)
         .slice(0, count - MAX_INTRUSION_FRAMES);
       
-      const tx = db.transaction('intrusion_frame', 'readwrite');
+      tx = db.transaction('intrusion_frame', 'readwrite');
       for (const frame of toDelete) {
         await tx.store.delete(frame.id);
       }
@@ -1275,10 +1558,12 @@ async function cleanupExcessIntrusionFrames(): Promise<void> {
     }
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
 export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<number> {
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
@@ -1286,7 +1571,7 @@ export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<
     const frames = await db.getAll('intrusion_frame');
     const toDelete = frames.filter(f => f.timestamp < cutoff && f.acknowledged);
     
-    const tx = db.transaction('intrusion_frame', 'readwrite');
+    tx = db.transaction('intrusion_frame', 'readwrite');
     for (const frame of toDelete) {
       await tx.store.delete(frame.id);
     }
@@ -1294,6 +1579,7 @@ export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<
     
     return toDelete.length;
   } catch {
+    await abandonTransaction(tx);
     return 0;
   }
 }
@@ -1483,16 +1769,18 @@ export async function deleteCustomMedia(id: string): Promise<void> {
 }
 
 export async function deleteCustomMediaBySubject(subjectId: string): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['custom_media'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const media = await db.getAllFromIndex('custom_media', 'by-subject', subjectId);
-    const tx = db.transaction('custom_media', 'readwrite');
+    tx = db.transaction('custom_media', 'readwrite');
     for (const m of media) {
       await tx.store.delete(m.id);
     }
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to delete custom media for subject:', error);
+    await abandonTransaction(tx);
   }
 }
 
@@ -1500,9 +1788,10 @@ export async function reorderCustomMedia(
   subjectId: string,
   orderedIds: string[]
 ): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['custom_media'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction('custom_media', 'readwrite');
+    tx = db.transaction('custom_media', 'readwrite');
     
     for (let i = 0; i < orderedIds.length; i++) {
       const media = await tx.store.get(orderedIds[i]);
@@ -1515,10 +1804,12 @@ export async function reorderCustomMedia(
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to reorder custom media:', error);
+    await abandonTransaction(tx);
   }
 }
 
 async function cleanupExcessCustomMedia(subjectId: string): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['custom_media'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const media = await db.getAllFromIndex('custom_media', 'by-subject', subjectId);
@@ -1527,7 +1818,7 @@ async function cleanupExcessCustomMedia(subjectId: string): Promise<void> {
       const sorted = media.sort((a, b) => a.uploadedAt - b.uploadedAt);
       const toDelete = sorted.slice(0, media.length - MAX_CUSTOM_MEDIA);
       
-      const tx = db.transaction('custom_media', 'readwrite');
+      tx = db.transaction('custom_media', 'readwrite');
       for (const m of toDelete) {
         await tx.store.delete(m.id);
       }
@@ -1535,6 +1826,7 @@ async function cleanupExcessCustomMedia(subjectId: string): Promise<void> {
     }
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
@@ -1655,6 +1947,7 @@ export async function clearAllAnimalDetections(): Promise<void> {
 }
 
 async function cleanupExcessAnimalDetections(): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['animal_detection'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const count = await db.count('animal_detection');
@@ -1665,7 +1958,7 @@ async function cleanupExcessAnimalDetections(): Promise<void> {
         .filter(d => d.acknowledged)
         .slice(0, count - MAX_ANIMAL_DETECTIONS);
       
-      const tx = db.transaction('animal_detection', 'readwrite');
+      tx = db.transaction('animal_detection', 'readwrite');
       for (const d of toDelete) {
         await tx.store.delete(d.id);
       }
@@ -1673,10 +1966,12 @@ async function cleanupExcessAnimalDetections(): Promise<void> {
     }
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
 export async function cleanupOldAnimalDetections(olderThanDays: number): Promise<number> {
+  let tx: IDBPTransaction<SafeOSDB, ['animal_detection'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
@@ -1684,7 +1979,7 @@ export async function cleanupOldAnimalDetections(olderThanDays: number): Promise
     const detections = await db.getAll('animal_detection');
     const toDelete = detections.filter(d => d.timestamp < cutoff && d.acknowledged);
     
-    const tx = db.transaction('animal_detection', 'readwrite');
+    tx = db.transaction('animal_detection', 'readwrite');
     for (const d of toDelete) {
       await tx.store.delete(d.id);
     }
@@ -1692,6 +1987,7 @@ export async function cleanupOldAnimalDetections(olderThanDays: number): Promise
     
     return toDelete.length;
   } catch {
+    await abandonTransaction(tx);
     return 0;
   }
 }
@@ -1742,11 +2038,25 @@ export async function getAnimalDetectionStats(): Promise<{
   }
 }
 
-/** Clear every local record in one transaction, including frames and profiles. */
+/**
+ * Clear every local record in one transaction, including frames and profiles. The clear names
+ * itself in the database and, before it commits, in local storage, so a failed save that waits
+ * in any tab is not written afterwards. If either cannot be written, nothing is cleared.
+ */
 export async function clearClientData(): Promise<void> {
   const db = await getDB();
   const names = Array.from(db.objectStoreNames);
   const tx = db.transaction(names, 'readwrite');
-  await Promise.all(names.map((name) => tx.objectStore(name).clear()));
+  try {
+    await Promise.all([
+      ...names.filter((name) => name !== 'clear_generation').map((name) => tx.objectStore(name).clear()),
+      tx.objectStore('clear_generation').put(newClearValue(), 'current'),
+    ]);
+    writeLocalClearMarker();
+  } catch (error) {
+    try { tx.abort(); } catch { /* A failed request has already aborted it. */ }
+    await tx.done.catch(() => {});
+    throw error;
+  }
   await tx.done;
 }

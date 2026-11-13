@@ -1,6 +1,7 @@
 /** Local data shared by the privacy controls and account sign-out. */
-import { invalidatePendingLocalData } from './local-data-generation';
-import { clearClientData } from './client-db';
+import { invalidatePendingLocalData, LOCAL_CLEAR_MARKER_KEY } from './local-data-generation';
+import { clearClientData, getDatabaseNotice } from './client-db';
+import { localAlertEngine } from './local-alert-engine';
 import { clearCustomSounds } from './custom-sounds-db';
 import { getSoundManager } from './sound-manager';
 import { useMonitoringStore } from '../stores/monitoring-store';
@@ -16,7 +17,11 @@ import { useOnboardingStore } from '../stores/onboarding-store';
 const GUARDIAN_KEYS = ['guardian-schedules', 'guardian-theme', 'guardian-onboarding-complete'];
 
 export async function clearLocalData(options: { preserveBackendConfig?: boolean } = {}): Promise<void> {
+  // Under a reload notice nothing can be cleared: refuse before any store is reset.
+  const notice = getDatabaseNotice();
+  if (notice) throw new Error(notice);
   invalidatePendingLocalData();
+  localAlertEngine.forgetPendingSaves();
   // Stop producers before clearing their records and persisted state.
   getSoundManager().stopAll();
   getSoundManager().stopCustomSounds();
@@ -43,7 +48,8 @@ export async function clearLocalData(options: { preserveBackendConfig?: boolean 
   for (const storage of [localStorage, sessionStorage]) {
     const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
     for (const key of keys) {
-      if (!key || (options.preserveBackendConfig && key === 'safeos_backend_config')) continue;
+      // The clear marker survives every clear, so other tabs can tell that one happened.
+      if (!key || key === LOCAL_CLEAR_MARKER_KEY || (options.preserveBackendConfig && key === 'safeos_backend_config')) continue;
       if (key.startsWith('safeos') || GUARDIAN_KEYS.includes(key)) storage.removeItem(key);
     }
   }

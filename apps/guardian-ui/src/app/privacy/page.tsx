@@ -80,8 +80,8 @@ export default function PrivacyPage() {
               'Without a configured server, your camera feed stays on your device',
               'We store nothing on our servers',
               'No accounts, no sign-ups, no tracking',
-              'All data lives in your browser',
-              'Delete your browser data = delete everything',
+              'Without a configured server, saved records stay in your browser',
+              "Clearing browser data removes only this device’s saved records",
             ].map((item, i) => (
               <li key={i} className="flex items-start gap-3 text-slate-300">
                 <IconCheck size={18} className="text-emerald-400 mt-0.5 flex-shrink-0" />
@@ -136,9 +136,34 @@ export default function PrivacyPage() {
                 <strong className="text-white">Data Storage:</strong> Your preferences are stored in
                 your browser&apos;s local storage. Saved frames from Security, Lost &amp; Found, and
                 Wildlife, and your reference photos, are stored in IndexedDB. Alerts on the monitor
-                page are saved in IndexedDB and restored in History after a reload. Clearing your browser data removes
-                everything. Clear All Local Data also removes recorded sounds and the offline cache.
-                Signing out clears local records before another account can use the browser.
+                page are saved in IndexedDB and restored in History after a reload.
+                Alerts saved in this browser are shown to anyone who uses SafeOS in this browser, until
+                someone signs out or clears local data. A session that expires and is replaced does not
+                change what is shown. Alerts saved before this update stay until you dismiss them or use the
+                existing clear controls, and do not count toward the limits. A SafeOS tab opened before this
+                update keeps the earlier limit until it is closed or reloaded: each monitoring alert it saves
+                leaves only the newest 100 monitoring alerts. New alerts are limited to 100 monitoring alerts
+                and 500 alerts overall in this browser. Acknowledged alerts are removed first, oldest first;
+                if all remaining alerts are unacknowledged, the oldest leave first. Alerts are never removed
+                because of their age. Records on a configured server are not deleted by clearing browser
+                data or signing out. Clear All Local Data also removes recorded sounds and the offline cache.
+                Signing out, in any tab, clears the alerts, frames, recordings and personal settings saved in
+                this browser, for every tab; the server connection is kept. Another tab that is still open
+                may go on showing its alerts until it is reloaded, and it stops receiving alerts from a
+                configured server until then.
+              </p>
+              <p>
+                <strong className="text-white">Updates in other tabs:</strong> When SafeOS is updated in
+                another tab, this tab stops saving and asks you to reload. If an older tab holds the update
+                back, close other SafeOS tabs, then reload this page. While either notice is shown, new
+                alerts in this tab are shown but not saved, and acknowledging, dismissing or clearing alerts
+                is not saved. The notice does not stop alerts from a configured server: the tab keeps the
+                session this browser holds for it and makes no new one, or makes one if it holds none or the
+                server has ended the one it holds. One case differs: a session that ran out on this device
+                just as the notice came is kept, and alerts from a configured server pause in that tab until
+                it is reloaded. Everything already saved comes back as it was after you reload. If an update
+                of your saved history cannot finish, the page says so; nothing is deleted, and a reload
+                tries again.
               </p>
               <p>
                 <strong className="text-white">AI Processing:</strong> When you use AI features, 
@@ -219,7 +244,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: November 2026
+          Last updated: November 13, 2026
         </div>
       </div>
     </main>

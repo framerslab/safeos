@@ -9,7 +9,9 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
-  getLocalSession,
+  getDatabaseNotice,
+  isDatabaseAvailable,
+  readLocalSession,
   saveLocalSession,
   cacheProfile,
   getCachedProfile,
@@ -145,7 +147,16 @@ export const useAuthStore = create<AuthState>()(
           set({ deviceId });
 
           // Try to restore from IndexedDB
-          const localSession = await getLocalSession();
+          let localSession: LocalSession | null;
+          try {
+            localSession = await readLocalSession();
+          } catch {
+            // The session store could not be read, which is not a browser without a session.
+            sessionStoreUnread = true;
+            if (holdsServerToken()) await checkHeldToken();
+            if (holdsServerToken()) return keepHeldSession();
+            return get().createSession();
+          }
 
           if (localSession && new Date(localSession.expiresAt) > new Date()) {
             // Validate with server if online
@@ -163,6 +174,12 @@ export const useAuthStore = create<AuthState>()(
 
               if (response.ok) {
                 const { data } = await response.json();
+                if (await keepsHeldSession()) {
+                  // The OK answer counts for the token it was asked about, as checkHeldToken keeps it,
+                  // so a tab that holds that same token is signed in with it.
+                  heldAnswer = { token: localSession.token, data };
+                  return keepHeldSession();
+                }
                 set({
                   isAuthenticated: true,
                   isGuest: data.isGuest,
@@ -177,9 +194,15 @@ export const useAuthStore = create<AuthState>()(
                 });
                 return;
               }
+              if (response.status === 401) {
+                // The server has ended the saved session: its token no longer counts as held.
+                refusedTokens.add(localSession.token);
+                if (await keepsHeldSession()) return keepHeldSession();
+              }
             } catch (error) {
               // Offline - use cached data
               console.log('[Auth] Offline, using cached session');
+              if (await keepsHeldSession()) return keepHeldSession();
               set({
                 isAuthenticated: true,
                 isGuest: true,
@@ -207,6 +230,7 @@ export const useAuthStore = create<AuthState>()(
       // Create new session
       createSession: async (displayName?: string) => {
         set({ isLoading: true });
+        if (await keepsHeldSession()) return keepHeldSession();
 
         try {
           const deviceId = get().deviceId || generateDeviceId();
@@ -232,23 +256,28 @@ export const useAuthStore = create<AuthState>()(
           }
 
           const { data } = await response.json();
+          if (await keepsHeldSession()) return keepHeldSession();
 
-          // Save to IndexedDB
-          await saveLocalSession({
-            id: data.sessionId,
-            token: data.token,
-            deviceId,
-            profile: data.profile,
-            createdAt: new Date().toISOString(),
-            expiresAt: data.expiresAt,
-            syncedAt: new Date().toISOString(),
-          });
+          // A session made after the store could not be read stays in memory and local storage.
+          if (!sessionStoreUnread && await isDatabaseAvailable()) {
+            // Save to IndexedDB
+            await saveLocalSession({
+              id: data.sessionId,
+              token: data.token,
+              deviceId,
+              profile: data.profile,
+              createdAt: new Date().toISOString(),
+              expiresAt: data.expiresAt,
+              syncedAt: new Date().toISOString(),
+            });
 
-          // Cache profile
-          if (data.profile) {
-            await cacheProfile(data.profile);
+            // Cache profile
+            if (data.profile) {
+              await cacheProfile(data.profile);
+            }
           }
 
+          if (await keepsHeldSession()) return keepHeldSession();
           set({
             isAuthenticated: true,
             isGuest: data.isGuest,
@@ -263,6 +292,7 @@ export const useAuthStore = create<AuthState>()(
             isLoading: false,
           });
         } catch (error) {
+          if (await keepsHeldSession()) return keepHeldSession();
           console.error('[Auth] Failed to create session:', error);
           
           // Create offline guest session
@@ -290,13 +320,15 @@ export const useAuthStore = create<AuthState>()(
             updatedAt: new Date().toISOString(),
           };
 
+          const persistable = !sessionStoreUnread && await isDatabaseAvailable();
+
           // Cache profile
-          await cacheProfile(guestProfile);
+          if (persistable) await cacheProfile(guestProfile);
 
           // Save local session to IndexedDB for persistence
           const localToken = `local-${guestId}`;
           const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(); // 1 year
-          await saveLocalSession({
+          if (persistable) await saveLocalSession({
             id: guestId,
             token: localToken,
             deviceId: get().deviceId || generateDeviceId(),
@@ -306,6 +338,7 @@ export const useAuthStore = create<AuthState>()(
             syncedAt: new Date().toISOString(),
           });
 
+          if (await keepsHeldSession()) return keepHeldSession();
           set({
             isAuthenticated: true,
             isGuest: true,
@@ -350,6 +383,10 @@ export const useAuthStore = create<AuthState>()(
 
       // Update profile
       updateProfile: async (updates) => {
+        // Under a reload notice nothing is saved, and the caller must be able to say so.
+        const notice = getDatabaseNotice();
+        if (notice) throw new Error(notice);
+
         const token = get().sessionToken;
         const currentProfile = get().profile;
         
@@ -405,6 +442,10 @@ export const useAuthStore = create<AuthState>()(
 
       // Logout
       logout: async () => {
+        // Under a reload notice the browser cannot be cleared: refuse before the server session ends.
+        const notice = getDatabaseNotice();
+        if (notice) throw new Error(notice);
+
         const token = get().sessionToken;
 
         try {
@@ -512,3 +553,74 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// =============================================================================
+// A session held while the database cannot be used
+// =============================================================================
+
+const serverToken = (token: unknown): token is string =>
+  typeof token === 'string' && token !== '' && !/^(local-|offline-)/.test(token);
+
+/** Server tokens that set-up's session check saw answered with 401 in this page load. */
+const refusedTokens = new Set<string>();
+
+/** A held token: a server token that the server has not refused in this page load. */
+const heldToken = (token: unknown): token is string => serverToken(token) && !refusedTokens.has(token);
+
+/** The four fields the persist step keeps in local storage, when they hold a held token. Read afresh on every call. */
+function storedSession(): { sessionToken: string; sessionId: string | null; deviceId: string | null; isGuest: boolean } | null {
+  try {
+    const state = JSON.parse(localStorage.getItem('safeos-auth') || 'null')?.state;
+    return state && heldToken(state.sessionToken) ? state : null;
+  } catch {
+    return null;
+  }
+}
+
+function holdsServerToken(): boolean {
+  return heldToken(useAuthStore.getState().sessionToken) || storedSession() !== null;
+}
+
+/** The database cannot be used and this tab already holds a server token. */
+async function keepsHeldSession(): Promise<boolean> {
+  if (!holdsServerToken()) return false;
+  if (getDatabaseNotice()) return true;
+  const available = await isDatabaseAvailable();
+  return !available || getDatabaseNotice() !== null;
+}
+
+/** The server's OK answer to the check of the held token, with the token it was asked about. */
+let heldAnswer: { token: string; data: { isGuest: boolean; profile: any; expiresAt: string | null } } | null = null;
+
+/** Ends set-up on the held token, taking it from local storage when memory has none. When the server
+ *  answered OK for that same token in this page load, the tab is signed in with that answer, in memory. */
+function keepHeldSession(): void {
+  const inMemory = useAuthStore.getState().sessionToken;
+  const stored = heldToken(inMemory) ? null : storedSession();
+  const token = stored ? stored.sessionToken : inMemory;
+  const answer = heldAnswer !== null && heldAnswer.token === token ? heldAnswer.data : null;
+  useAuthStore.setState({
+    ...(stored ? { sessionToken: stored.sessionToken, sessionId: stored.sessionId,
+      deviceId: stored.deviceId, isGuest: stored.isGuest } : {}),
+    ...(answer ? { isAuthenticated: true, isGuest: answer.isGuest, profile: answer.profile,
+      expiresAt: answer.expiresAt, mode: 'full' as const } : {}),
+    isInitialized: true, isLoading: false });
+}
+
+/** Asks the server about the token this tab holds. Only a 401 marks it refused. An OK answer is kept. */
+async function checkHeldToken(): Promise<void> {
+  const inMemory = useAuthStore.getState().sessionToken;
+  const token = heldToken(inMemory) ? inMemory : storedSession()?.sessionToken;
+  const apiUrl = getApiUrl();
+  if (!token || !apiUrl) return;
+  try {
+    const response = await fetch(`${apiUrl}/api/auth/session`, { headers: { 'X-Session-Token': token } });
+    if (response.status === 401) refusedTokens.add(token);
+    else if (response.ok) heldAnswer = { token, data: (await response.json()).data };
+  } catch {
+    // A network failure, a timeout or an unreadable body says nothing about the token: it stays held.
+  }
+}
+
+/** Set when set-up could not read the session store; a session made in this page load is then never written to the database. */
+let sessionStoreUnread = false;

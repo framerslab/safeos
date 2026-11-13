@@ -8,7 +8,8 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts } from '../lib/client-db';
+import { getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp } from '../lib/local-data-generation';
+import { cacheAlert, updateCachedAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, MAX_MONITORING_ALERTS } from '../lib/client-db';
 
 // =============================================================================
 // Types
@@ -16,6 +17,7 @@ import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, cle
 
 export interface Alert {
   id: string;
+  savedBeforeUpgrade?: boolean;
   streamId: string;
   alertType?: string;
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
@@ -123,9 +125,16 @@ const DEFAULT_SETTINGS: MonitoringSettings = {
 // an earlier save that is still waiting for IndexedDB to open.
 let alertWrites: Promise<void> = Promise.resolve();
 let alertRevision = 0;
-function writeAlerts(write: () => Promise<void>) {
-  alertRevision++;
-  alertWrites = alertWrites.then(write).catch((error) => {
+// Saves that failed and wait for the next history read, by alert id. `stamp` names the last clear
+// the tab knew of when the save failed; `update` marks a failed acknowledgement of a saved alert,
+// whose retry must not create a record either.
+const unsavedAlerts = new Map<string, { alert: Alert; stamp: ClearStamp; update: boolean }>();
+function writeAlerts(write: () => Promise<void>, revise = true) {
+  if (revise) alertRevision++;
+  const generation = getLocalDataGeneration();
+  alertWrites = alertWrites.then(async () => {
+    if (isCurrentLocalData(generation)) await write();
+  }).catch((error) => {
     console.warn('[Monitoring] Could not save alert history:', error);
   });
 }
@@ -136,8 +145,37 @@ function knownSeverity(severity: unknown): Alert['severity'] {
   if (SEVERITIES.includes(severity as Alert['severity'])) return severity as Alert['severity'];
   return severity === 'emergency' ? 'critical' : 'medium';
 }
-function saveAlert(alert: Alert) {
-  return cacheAlert({ ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
+/** The list a tab shows: alerts saved before the upgrade stay, the rest keep the monitoring limit. */
+function boundedAlerts(alerts: Alert[]): Alert[] {
+  const candidates = alerts.filter(alert => !alert.savedBeforeUpgrade).sort((a, b) =>
+    Number(b.acknowledged) - Number(a.acknowledged) ||
+    (a.createdAt || a.timestamp || '').localeCompare(b.createdAt || b.timestamp || '') ||
+    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const removed = new Set(candidates.slice(0, Math.max(0, candidates.length - MAX_MONITORING_ALERTS)).map(a => a.id));
+  return alerts.filter(alert => !removed.has(alert.id));
+}
+/**
+ * One try at saving. `marker` is the clear marker noted when the alert or the acknowledgement was
+ * queued. `stamp` is given for the retry of a pending save and left out for a first save, which
+ * always writes.
+ */
+async function saveAlert(alert: Alert, update: boolean, marker: string, stamp?: ClearStamp): Promise<void> {
+  const generation = getLocalDataGeneration();
+  const record = { ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() };
+  const result = update
+    ? await updateCachedAlert(record, stamp)
+    : (await cacheAlert(record, stamp)) ? 'saved' : 'failed';
+  if (!isCurrentLocalData(generation)) return;
+  if (result === 'failed') {
+    unsavedAlerts.set(alert.id, { alert, update,
+      stamp: stamp && stamp.generation !== null ? stamp : pendingClearStamp(stamp ? stamp.marker : marker) });
+    const kept = new Set(boundedAlerts([...unsavedAlerts.values()].map((entry) => entry.alert)).map((a) => a.id));
+    for (const id of [...unsavedAlerts.keys()]) if (!kept.has(id)) unsavedAlerts.delete(id);
+    return;
+  }
+  unsavedAlerts.delete(alert.id);
+  // The record this acknowledgement was for is no longer stored: nothing was written.
+  if (result === 'gone') useMonitoringStore.setState((state) => ({ alerts: state.alerts.filter((a) => a.id !== alert.id) }));
 }
 
 export const useMonitoringStore = create<MonitoringState>()(
@@ -178,40 +216,73 @@ export const useMonitoringStore = create<MonitoringState>()(
       addAlert: (alert) => {
         const dated = {
           ...alert,
+          savedBeforeUpgrade: get().alerts.find(a => a.id === alert.id)?.savedBeforeUpgrade,
           severity: knownSeverity(alert.severity),
           createdAt: alert.createdAt || alert.timestamp || new Date().toISOString(),
         };
-        set((state) => ({ alerts: [dated, ...state.alerts.filter(a => a.id !== dated.id)].slice(0, 100) }));
-        writeAlerts(() => saveAlert(dated));
+        set((state) => ({ alerts: boundedAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)]) }));
+        // The marker is noted when the save is queued, not when it runs.
+        const marker = readLocalClearMarker();
+        writeAlerts(() => saveAlert(dated, false, marker));
       },
 
       removeAlert: (id) => {
         set((state) => ({ alerts: state.alerts.filter(a => a.id !== id) }));
-        writeAlerts(() => deleteCachedMonitoringAlert(id));
+        writeAlerts(async () => {
+          unsavedAlerts.delete(id);
+          await deleteCachedMonitoringAlert(id);
+        });
       },
 
       acknowledgeAlert: (id) => {
         set((state) => ({ alerts: state.alerts.map(a => a.id === id ? { ...a, acknowledged: true } : a) }));
         const alert = get().alerts.find(a => a.id === id);
-        if (alert) writeAlerts(() => saveAlert(alert));
+        if (alert) {
+          const marker = readLocalClearMarker();
+          writeAlerts(() => {
+            // A save that still waits is retried with the acknowledgement, under the stamp it has.
+            // Any other alert is a saved one: its record is updated, and never created again.
+            const pending = unsavedAlerts.get(id);
+            return pending
+              ? saveAlert(alert, pending.update, pending.stamp.marker, pending.stamp)
+              : saveAlert(alert, true, marker);
+          });
+        }
       },
 
       clearAlerts: () => {
         set({ alerts: [] });
-        writeAlerts(clearCachedMonitoringAlerts);
+        writeAlerts(async () => {
+          unsavedAlerts.clear();
+          await clearCachedMonitoringAlerts();
+        });
       },
 
       hydrateAlerts: async () => {
-        await alertWrites;
+        // Read before the wait, so an alert queued during it makes this read run again.
         const revision = alertRevision;
-        const saved: Alert[] = (await getCachedMonitoringAlerts())
-          .map((alert: Alert) => ({ ...alert, severity: knownSeverity(alert.severity) }));
+        const retries = [...unsavedAlerts.values()];
+        if (retries.length) writeAlerts(async () => {
+          for (const entry of retries) {
+            // A queued clear or acknowledgement may have replaced this pending save.
+            if (unsavedAlerts.get(entry.alert.id) === entry) await saveAlert(entry.alert, entry.update, entry.stamp.marker, entry.stamp);
+          }
+        }, false);
+        await alertWrites;
+        let saved: Alert[];
+        try {
+          saved = (await getCachedMonitoringAlerts())
+            .map((alert: Alert) => ({ ...alert, severity: knownSeverity(alert.severity) }));
+        } catch (error) {
+          // Unavailable storage is not an empty history. Keep the list on screen.
+          console.warn('[Monitoring] Could not read alert history:', error);
+          set(state => ({ alerts: boundedAlerts(state.alerts) }));
+          return;
+        }
         if (revision !== alertRevision) return get().hydrateAlerts();
-        set((state) => ({
-          alerts: Array.from(new Map([...saved, ...state.alerts].map(a => [a.id, a])).values())
-            .sort((a, b) => (b.createdAt || b.timestamp || '').localeCompare(a.createdAt || a.timestamp || ''))
-            .slice(0, 100),
-        }));
+        const pending = [...unsavedAlerts.values()].map((entry) => entry.alert);
+        const pendingIds = new Set(pending.map(alert => alert.id));
+        set({ alerts: boundedAlerts([...pending, ...saved.filter(alert => !pendingIds.has(alert.id))]) });
       },
 
       addStream: (stream) =>
@@ -291,7 +362,11 @@ export const useMonitoringStore = create<MonitoringState>()(
       },
 
       reset: () => {
-        writeAlerts(clearCachedMonitoringAlerts);
+        unsavedAlerts.clear();
+        writeAlerts(async () => {
+          unsavedAlerts.clear();
+          await clearCachedMonitoringAlerts();
+        });
         set({
           isConnected: false,
           isStreaming: false,

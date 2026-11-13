@@ -11,6 +11,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
+import { getDatabaseNotice } from '@/lib/client-db';
 
 // =============================================================================
 // Types
@@ -28,6 +29,14 @@ interface StatusBannerProps {
 export function StatusBanner({ onConfigureClick, dismissible = true }: StatusBannerProps) {
   const { status, isLocalOnly, retry, config } = useBackendStatus();
   const [isDismissed, setIsDismissed] = useState(false);
+  const [databaseNotice, setDatabaseNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const update = () => setDatabaseNotice(getDatabaseNotice());
+    update();
+    window.addEventListener('safeos:database-status', update);
+    return () => window.removeEventListener('safeos:database-status', update);
+  }, []);
   const [isVisible, setIsVisible] = useState(false);
 
   // Restore dismissed state from localStorage
@@ -67,6 +76,20 @@ export function StatusBanner({ onConfigureClick, dismissible = true }: StatusBan
 
   if (!isVisible) {
     return null;
+  }
+
+  if (databaseNotice) {
+    return (
+      <div role="alert" className="bg-[var(--color-steel-900)] border-b border-amber-500 text-[var(--color-steel-100)]">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+          <p className="text-sm flex-1 min-w-48">{databaseNotice}</p>
+          <button type="button" onClick={() => window.location.reload()}
+            className="min-h-11 px-3 py-2 rounded-lg bg-amber-300 text-amber-950 font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+            Reload SafeOS
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // For pure-PWA visitors who never configured a monitoring server, "local-only"
