@@ -79,12 +79,43 @@ it('keeps a confirmed acknowledgement queued while the browser cannot save it, a
   failing.mockRestore();
   const db = await openDB('safeos-guardian');
   try {
+    // A confirmed change the browser could not save is not a failed try.
     const queued = await db.getAll('sync_queue');
-    expect(queued).toEqual([expect.objectContaining({ endpoint: '/api/alerts/confirmed/acknowledge', retries: 1 })]);
+    expect(queued).toEqual([expect.objectContaining({ endpoint: '/api/alerts/confirmed/acknowledge', retries: 0 })]);
     expect(queued[0].lastError).toEqual(expect.any(String));
     expect(await db.get('alert_cache', 'confirmed')).toMatchObject({ acknowledged: false });
     expect(await syncPendingActions()).toEqual({ synced: 1, failed: 0, pending: 0 });
+    // The next sync applies the server's kept answer and sends nothing again.
+    expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(await db.get('alert_cache', 'confirmed')).toMatchObject({ acknowledged: true, createdAt });
+    expect(await db.count('sync_queue')).toBe(0);
+  } finally {
+    db.close();
+  }
+});
+
+it('applies a confirmed acknowledgement at the next sync when its record update failed at the last try', async () => {
+  localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://api.example.test' }));
+  const createdAt = new Date().toISOString();
+  await cacheAlert({ id: 'last-try', streamId: 'camera', message: 'Motion', createdAt, acknowledged: false });
+  global.fetch = jest.fn().mockResolvedValue({ ok: true, json: async () => ({ alert: {
+    id: 'last-try', stream_id: 'camera', created_at: createdAt, acknowledged: 1,
+  } }) });
+  const db = await openDB('safeos-guardian');
+  try {
+    // Four earlier tries failed; the fifth reaches the server.
+    await db.put('sync_queue', { id: 'sync-last-try', action: 'acknowledge_alert', endpoint: '/api/alerts/last-try/acknowledge',
+      method: 'POST', body: null, createdAt, retries: 4, lastError: '503: Service Unavailable' });
+    // The record write after the server's answer fails once, as a full disk refuses it.
+    const failing = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
+      throw new DOMException('Storage full', 'QuotaExceededError');
+    });
+    expect(await syncPendingActions()).toEqual({ synced: 0, failed: 1, pending: 1 });
+    failing.mockRestore();
+    expect(await db.get('alert_cache', 'last-try')).toMatchObject({ acknowledged: false });
+    expect(await syncPendingActions()).toEqual({ synced: 1, failed: 0, pending: 0 });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(await db.get('alert_cache', 'last-try')).toMatchObject({ acknowledged: true, createdAt });
     expect(await db.count('sync_queue')).toBe(0);
   } finally {
     db.close();
