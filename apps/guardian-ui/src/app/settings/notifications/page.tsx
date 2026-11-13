@@ -17,6 +17,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { hydrateSavedSettings } from '@/lib/settings-hydration';
 import { useAuthStore } from '../../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
+import { getDatabaseNotice } from '@/lib/client-db';
 import {
   IconBell,
   IconMail,
@@ -243,10 +244,15 @@ export default function NotificationsSettingsPage() {
       setSaveMessage({ type: 'success', text: 'Notification settings saved.' });
     } catch (error) {
       console.error('[Notifications] save failed:', error);
-      setSaveMessage({
-        type: 'success',
-        text: 'Saved locally. Sync to server failed — will retry next time you connect.',
-      });
+      if (getDatabaseNotice()) {
+        // Under a reload notice the profile was not changed, and nothing retries it.
+        setSaveMessage({ type: 'error', text: 'Notification settings were not saved to your profile. Reload this page, then save again.' });
+      } else {
+        setSaveMessage({
+          type: 'success',
+          text: 'Saved locally. Sync to server failed — will retry next time you connect.',
+        });
+      }
     } finally {
       setIsSaving(false);
       setTimeout(() => setSaveMessage(null), 4000);
