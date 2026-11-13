@@ -297,8 +297,10 @@ try {
             ? page.getByText(save.words, { exact: true })
             : page.getByText(/^(Notification settings|Saved |Settings saved|Failed to save)/);
           await message.first().waitFor({ timeout: 10_000 });
-          await page.evaluate(() => window.scrollTo(0, 0));
-          await page.screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
+          // The message in the middle of the screen. The site's fixed bars are left out, since the
+          // Settings message sits at the top right, where the top bar covers it.
+          await message.first().evaluate(element => element.scrollIntoView({ block: 'center' }));
+          await page.screenshot({ path: file, style: 'nav.fixed { display: none !important; }' });
           console.log(`captured ${file}`);
         } catch (err) {
           failures += 1;
