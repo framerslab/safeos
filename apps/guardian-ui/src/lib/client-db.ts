@@ -112,6 +112,8 @@ interface SafeOSDB extends DBSchema {
       createdAt: string;
       retries: number;
       lastError: string | null;
+      /** The server's answer to the action, kept when the browser could not save it. */
+      response?: unknown;
     };
     indexes: { 'by-created': string };
   };
@@ -840,10 +842,15 @@ export interface SyncAction {
   createdAt: string;
   retries: number;
   lastError: string | null;
+  /**
+   * The server's answer, kept when the server confirmed the action and the browser could not save
+   * it. An action that carries one is not sent again: its answer is applied at the next sync.
+   */
+  response?: unknown;
 }
 
 export async function queueSyncAction(
-  action: Omit<SyncAction, 'id' | 'createdAt' | 'retries' | 'lastError'>
+  action: Omit<SyncAction, 'id' | 'createdAt' | 'retries' | 'lastError' | 'response'>
 ): Promise<void> {
   try {
     const db = await getDB();
@@ -879,6 +886,22 @@ export async function removeSyncAction(id: string): Promise<void> {
     await db.delete('sync_queue', id);
   } catch {
     // Ignore
+  }
+}
+
+/**
+ * Keeps the server's answer on a queued action whose record update failed, with no new try
+ * counted. False means the queue could not be written, and the action is as it was.
+ */
+export async function keepSyncResponse(id: string, response: unknown, error: string): Promise<boolean> {
+  try {
+    const db = await getDB();
+    const action = await db.get('sync_queue', id);
+    if (!action) return false;
+    await db.put('sync_queue', { ...action, response, lastError: error });
+    return true;
+  } catch {
+    return false;
   }
 }
 
