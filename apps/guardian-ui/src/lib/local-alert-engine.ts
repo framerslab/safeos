@@ -440,9 +440,10 @@ class LocalAlertEngine {
     const entry: PendingSave = { record, marker: readLocalClearMarker(), stamp: null, counter: getLocalDataGeneration() };
     let release: () => void = () => {};
     const gate = new Promise<void>((resolve) => { release = resolve; });
-    const waiting = [...this.unsaved.entries()];
     this.saves = this.saves.then(async () => {
       await gate;
+      // Taken once the save in front has settled, so a save that failed there is retried here.
+      const waiting = [...this.unsaved.entries()];
       for (const [id, pending] of waiting) {
         // An acknowledgement or a clear may have replaced or dropped this waiting save.
         if (this.unsaved.get(id) === pending) await this.save(pending);

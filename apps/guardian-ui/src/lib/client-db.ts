@@ -11,7 +11,7 @@ import {
   getLocalDataGeneration, isCurrentLocalData, learnClearGeneration, newClearValue, readLocalClearMarker,
   writeLocalClearMarker, type ClearStamp,
 } from './local-data-generation';
-import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore } from 'idb';
+import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
 
 // =============================================================================
 // Database Schema
@@ -451,12 +451,24 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
 // Cleanup Functions
 // =============================================================================
 
+/**
+ * The failure path of a write: a request that fails aborts its transaction, and the transaction's
+ * completion promise rejects too. This aborts the transaction when it is still active and consumes
+ * that rejection, so a failed write leaves no unhandled rejection behind.
+ */
+async function abandonTransaction(tx: { abort(): void; done: Promise<void> } | undefined): Promise<void> {
+  if (!tx) return;
+  try { tx.abort(); } catch { /* A failed request has already aborted it. */ }
+  await tx.done.catch(() => {});
+}
+
 async function cleanupOldFrames(): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['frame_cache'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const cutoff = new Date(Date.now() - FRAME_BUFFER_MINUTES * 60 * 1000).toISOString();
 
-    const tx = db.transaction('frame_cache', 'readwrite');
+    tx = db.transaction('frame_cache', 'readwrite');
     const index = tx.store.index('by-created');
 
     let cursor = await index.openCursor(IDBKeyRange.upperBound(cutoff));
@@ -468,6 +480,7 @@ async function cleanupOldFrames(): Promise<void> {
     await tx.done;
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
@@ -509,14 +522,16 @@ async function pruneNewAlerts<Stores extends AlertStores>(store: AlertStore<Stor
 
 export async function cleanupCaches(): Promise<void> {
   await cleanupOldFrames();
+  let tx: IDBPTransaction<SafeOSDB, ['alert_cache'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction('alert_cache', 'readwrite');
+    tx = db.transaction('alert_cache', 'readwrite');
     await pruneMonitoringAlerts(tx.store);
     await pruneNewAlerts(tx.store);
     await tx.done;
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
@@ -662,9 +677,10 @@ export async function getCachedStreams(): Promise<any[]> {
 async function writeAlert(
   alert: any, stamp: ClearStamp | undefined, updateOnly: boolean,
 ): Promise<'saved' | 'cancelled' | 'gone' | 'failed'> {
+  let tx: IDBPTransaction<SafeOSDB, AlertStores, 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction(['alert_cache', 'clear_generation'], 'readwrite');
+    tx = db.transaction(['alert_cache', 'clear_generation'], 'readwrite');
     const alerts = tx.objectStore('alert_cache');
     // A clear writes both stores too, so it runs wholly before or wholly after this transaction.
     const generation = (await tx.objectStore('clear_generation').get('current')) ?? '';
@@ -728,6 +744,8 @@ async function writeAlert(
     return 'saved';
   } catch (error) {
     console.warn('[ClientDB] Failed to cache alert:', error);
+    // A request that failed after it was queued aborted the transaction, and rejected its `done`.
+    await abandonTransaction(tx);
     return 'failed';
   }
 }
@@ -1025,19 +1043,21 @@ export async function getSubjectProfilesByType(type: 'pet' | 'person' | 'other')
 }
 
 export async function deleteSubjectProfile(id: string): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     await db.delete('subject_profile', id);
     
     // Also delete associated match frames
     const matchFrames = await db.getAllFromIndex('match_frame', 'by-subject', id);
-    const tx = db.transaction('match_frame', 'readwrite');
+    tx = db.transaction('match_frame', 'readwrite');
     for (const frame of matchFrames) {
       await tx.store.delete(frame.id);
     }
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to delete subject profile:', error);
+    await abandonTransaction(tx);
   }
 }
 
@@ -1182,9 +1202,10 @@ export async function updateMatchFrameNotes(id: string, notes: string): Promise<
 }
 
 export async function markMatchFramesExported(ids: string[]): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction('match_frame', 'readwrite');
+    tx = db.transaction('match_frame', 'readwrite');
     
     for (const id of ids) {
       const frame = await tx.store.get(id);
@@ -1197,6 +1218,7 @@ export async function markMatchFramesExported(ids: string[]): Promise<void> {
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to mark match frames exported:', error);
+    await abandonTransaction(tx);
   }
 }
 
@@ -1210,10 +1232,11 @@ export async function deleteMatchFrame(id: string): Promise<void> {
 }
 
 export async function deleteMatchFramesBySubject(subjectId: string): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const frames = await db.getAllFromIndex('match_frame', 'by-subject', subjectId);
-    const tx = db.transaction('match_frame', 'readwrite');
+    tx = db.transaction('match_frame', 'readwrite');
     
     for (const frame of frames) {
       await tx.store.delete(frame.id);
@@ -1222,10 +1245,12 @@ export async function deleteMatchFramesBySubject(subjectId: string): Promise<voi
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to delete match frames by subject:', error);
+    await abandonTransaction(tx);
   }
 }
 
 async function cleanupExcessMatchFrames(): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const count = await db.count('match_frame');
@@ -1239,7 +1264,7 @@ async function cleanupExcessMatchFrames(): Promise<void> {
       
       const toDelete = sortedByTime.slice(0, count - MAX_MATCH_FRAMES);
       
-      const tx = db.transaction('match_frame', 'readwrite');
+      tx = db.transaction('match_frame', 'readwrite');
       for (const frame of toDelete) {
         await tx.store.delete(frame.id);
       }
@@ -1247,10 +1272,12 @@ async function cleanupExcessMatchFrames(): Promise<void> {
     }
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
 export async function cleanupOldMatchFrames(olderThanDays: number): Promise<number> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
@@ -1258,7 +1285,7 @@ export async function cleanupOldMatchFrames(olderThanDays: number): Promise<numb
     const frames = await db.getAll('match_frame');
     const toDelete = frames.filter(f => f.timestamp < cutoff && f.acknowledged);
     
-    const tx = db.transaction('match_frame', 'readwrite');
+    tx = db.transaction('match_frame', 'readwrite');
     for (const frame of toDelete) {
       await tx.store.delete(frame.id);
     }
@@ -1266,6 +1293,7 @@ export async function cleanupOldMatchFrames(olderThanDays: number): Promise<numb
     
     return toDelete.length;
   } catch {
+    await abandonTransaction(tx);
     return 0;
   }
 }
@@ -1472,9 +1500,10 @@ export async function updateIntrusionFrameNotes(id: string, notes: string): Prom
 }
 
 export async function markIntrusionFramesExported(ids: string[]): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction('intrusion_frame', 'readwrite');
+    tx = db.transaction('intrusion_frame', 'readwrite');
     
     for (const id of ids) {
       const frame = await tx.store.get(id);
@@ -1487,6 +1516,7 @@ export async function markIntrusionFramesExported(ids: string[]): Promise<void> 
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to mark intrusion frames exported:', error);
+    await abandonTransaction(tx);
   }
 }
 
@@ -1509,6 +1539,7 @@ export async function clearAllIntrusionFrames(): Promise<void> {
 }
 
 async function cleanupExcessIntrusionFrames(): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const count = await db.count('intrusion_frame');
@@ -1519,7 +1550,7 @@ async function cleanupExcessIntrusionFrames(): Promise<void> {
         .filter(f => f.acknowledged)
         .slice(0, count - MAX_INTRUSION_FRAMES);
       
-      const tx = db.transaction('intrusion_frame', 'readwrite');
+      tx = db.transaction('intrusion_frame', 'readwrite');
       for (const frame of toDelete) {
         await tx.store.delete(frame.id);
       }
@@ -1527,10 +1558,12 @@ async function cleanupExcessIntrusionFrames(): Promise<void> {
     }
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
 export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<number> {
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
@@ -1538,7 +1571,7 @@ export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<
     const frames = await db.getAll('intrusion_frame');
     const toDelete = frames.filter(f => f.timestamp < cutoff && f.acknowledged);
     
-    const tx = db.transaction('intrusion_frame', 'readwrite');
+    tx = db.transaction('intrusion_frame', 'readwrite');
     for (const frame of toDelete) {
       await tx.store.delete(frame.id);
     }
@@ -1546,6 +1579,7 @@ export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<
     
     return toDelete.length;
   } catch {
+    await abandonTransaction(tx);
     return 0;
   }
 }
@@ -1735,16 +1769,18 @@ export async function deleteCustomMedia(id: string): Promise<void> {
 }
 
 export async function deleteCustomMediaBySubject(subjectId: string): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['custom_media'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const media = await db.getAllFromIndex('custom_media', 'by-subject', subjectId);
-    const tx = db.transaction('custom_media', 'readwrite');
+    tx = db.transaction('custom_media', 'readwrite');
     for (const m of media) {
       await tx.store.delete(m.id);
     }
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to delete custom media for subject:', error);
+    await abandonTransaction(tx);
   }
 }
 
@@ -1752,9 +1788,10 @@ export async function reorderCustomMedia(
   subjectId: string,
   orderedIds: string[]
 ): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['custom_media'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const tx = db.transaction('custom_media', 'readwrite');
+    tx = db.transaction('custom_media', 'readwrite');
     
     for (let i = 0; i < orderedIds.length; i++) {
       const media = await tx.store.get(orderedIds[i]);
@@ -1767,10 +1804,12 @@ export async function reorderCustomMedia(
     await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to reorder custom media:', error);
+    await abandonTransaction(tx);
   }
 }
 
 async function cleanupExcessCustomMedia(subjectId: string): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['custom_media'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const media = await db.getAllFromIndex('custom_media', 'by-subject', subjectId);
@@ -1779,7 +1818,7 @@ async function cleanupExcessCustomMedia(subjectId: string): Promise<void> {
       const sorted = media.sort((a, b) => a.uploadedAt - b.uploadedAt);
       const toDelete = sorted.slice(0, media.length - MAX_CUSTOM_MEDIA);
       
-      const tx = db.transaction('custom_media', 'readwrite');
+      tx = db.transaction('custom_media', 'readwrite');
       for (const m of toDelete) {
         await tx.store.delete(m.id);
       }
@@ -1787,6 +1826,7 @@ async function cleanupExcessCustomMedia(subjectId: string): Promise<void> {
     }
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
@@ -1907,6 +1947,7 @@ export async function clearAllAnimalDetections(): Promise<void> {
 }
 
 async function cleanupExcessAnimalDetections(): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['animal_detection'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const count = await db.count('animal_detection');
@@ -1917,7 +1958,7 @@ async function cleanupExcessAnimalDetections(): Promise<void> {
         .filter(d => d.acknowledged)
         .slice(0, count - MAX_ANIMAL_DETECTIONS);
       
-      const tx = db.transaction('animal_detection', 'readwrite');
+      tx = db.transaction('animal_detection', 'readwrite');
       for (const d of toDelete) {
         await tx.store.delete(d.id);
       }
@@ -1925,10 +1966,12 @@ async function cleanupExcessAnimalDetections(): Promise<void> {
     }
   } catch {
     // Ignore cleanup errors
+    await abandonTransaction(tx);
   }
 }
 
 export async function cleanupOldAnimalDetections(olderThanDays: number): Promise<number> {
+  let tx: IDBPTransaction<SafeOSDB, ['animal_detection'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
     const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
@@ -1936,7 +1979,7 @@ export async function cleanupOldAnimalDetections(olderThanDays: number): Promise
     const detections = await db.getAll('animal_detection');
     const toDelete = detections.filter(d => d.timestamp < cutoff && d.acknowledged);
     
-    const tx = db.transaction('animal_detection', 'readwrite');
+    tx = db.transaction('animal_detection', 'readwrite');
     for (const d of toDelete) {
       await tx.store.delete(d.id);
     }
@@ -1944,6 +1987,7 @@ export async function cleanupOldAnimalDetections(olderThanDays: number): Promise
     
     return toDelete.length;
   } catch {
+    await abandonTransaction(tx);
     return 0;
   }
 }
