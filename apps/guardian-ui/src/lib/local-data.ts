@@ -1,5 +1,5 @@
 /** Local data shared by the privacy controls and account sign-out. */
-import { invalidatePendingLocalData, LOCAL_CLEAR_MARKER_KEY } from './local-data-generation';
+import { ACCOUNT_CLEAR_MARKER_KEY, invalidatePendingLocalData, LOCAL_CLEAR_MARKER_KEY } from './local-data-generation';
 import { clearClientData, getDatabaseNotice } from './client-db';
 import { localAlertEngine } from './local-alert-engine';
 import { clearCustomSounds } from './custom-sounds-db';
@@ -48,8 +48,8 @@ export async function clearLocalData(options: { preserveBackendConfig?: boolean 
   for (const storage of [localStorage, sessionStorage]) {
     const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
     for (const key of keys) {
-      // The clear marker survives every clear, so other tabs can tell that one happened.
-      if (!key || key === LOCAL_CLEAR_MARKER_KEY || (options.preserveBackendConfig && key === 'safeos_backend_config')) continue;
+      // The two clear markers survive every clear, so other tabs can tell that one happened.
+      if (!key || key === LOCAL_CLEAR_MARKER_KEY || key === ACCOUNT_CLEAR_MARKER_KEY || (options.preserveBackendConfig && key === 'safeos_backend_config')) continue;
       if (key.startsWith('safeos') || GUARDIAN_KEYS.includes(key)) storage.removeItem(key);
     }
   }

@@ -19,7 +19,7 @@ import {
   type LocalSession,
 } from '../lib/client-db';
 import { clearLocalData } from '../lib/local-data';
-import { getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker } from '../lib/local-data-generation';
+import { getLocalDataGeneration, isCurrentLocalData, readAccountClearMarker } from '../lib/local-data-generation';
 import { getApiUrl } from '../lib/env';
 
 // =============================================================================
@@ -146,14 +146,48 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => {
     /**
-     * Makes a session: on the server when one answers, otherwise a guest session in this browser.
-     * `stamp` is taken where the work started (set-up's entry, or the call): once a clear has landed
-     * since, nothing more is written, a session row written meanwhile is deleted again, and the tab
-     * is left signed out.
+     * A stale path of set-up or session creation: the tab is left signed out, so the persist step
+     * writes nothing of the old session back to local storage.
      */
-    const makeSession = async (displayName: string | undefined, stamp: SessionStamp): Promise<void> => {
+    const leaveSignedOut = () => set({
+      isLoading: false, isInitialized: true, isAuthenticated: false, sessionToken: null, sessionId: null, profile: null,
+    });
+
+    /**
+     * Restores a saved session without the server's answer. A profile change is saved to the profile
+     * cache: that copy is used when it holds this profile, otherwise the row's.
+     */
+    const restoreSaved = async (localSession: LocalSession, stamp: SessionStamp): Promise<void> => {
+      const cachedProfile = localSession.profile?.id ? await getCachedProfile(localSession.profile.id) : null;
+      const next = await afterWait(stamp);
+      if (next === 'cleared') return leaveSignedOut();
+      if (next === 'held') return keepHeldSession();
+      set({
+        isAuthenticated: true,
+        isGuest: true,
+        sessionToken: localSession.token,
+        sessionId: localSession.id,
+        profile: cachedProfile ? { ...localSession.profile, ...cachedProfile } : localSession.profile,
+        expiresAt: localSession.expiresAt,
+        mode: 'local-only',
+        isOffline: true,
+        isInitialized: true,
+        isLoading: false,
+      });
+    };
+
+    /**
+     * Makes a session: on the server when one answers, otherwise a guest session in this browser.
+     * `stamp` is taken where the work started (set-up's entry, or the call): once a clear of all local
+     * data has landed since, nothing more is written, a session row written meanwhile is deleted
+     * again, and the tab is left signed out. With `saved`, a browser-only session the server refused,
+     * a request that fails goes on with that session and makes no guest.
+     */
+    const makeSession = async (displayName: string | undefined, stamp: SessionStamp, saved?: LocalSession): Promise<void> => {
       /** The id of the session row this call wrote. */
       let written: string | null = null;
+      /** Read inside each write's own transaction: no clear of all local data since the stamp. */
+      const current = () => !cleared(stamp);
       const leaveCleared = async () => {
         if (written !== null) {
           try {
@@ -162,7 +196,7 @@ export const useAuthStore = create<AuthState>()(
             console.warn('[Auth] Could not delete a session saved across a clear:', error);
           }
         }
-        set({ isLoading: false, isInitialized: true });
+        leaveSignedOut();
       };
       if (cleared(stamp)) return leaveCleared();
       set({ isLoading: true });
@@ -210,17 +244,17 @@ export const useAuthStore = create<AuthState>()(
             createdAt: new Date().toISOString(),
             expiresAt: data.expiresAt,
             syncedAt: new Date().toISOString(),
-          });
+          }, current);
 
           // Cache profile
           if (data.profile && !cleared(stamp)) {
-            await cacheProfile(data.profile);
+            await cacheProfile(data.profile, current);
           }
         }
 
-        const saved = await afterWait(stamp);
-        if (saved === 'cleared') return leaveCleared();
-        if (saved === 'held') return keepHeldSession();
+        const stored = await afterWait(stamp);
+        if (stored === 'cleared') return leaveCleared();
+        if (stored === 'held') return keepHeldSession();
         set({
           isAuthenticated: true,
           isGuest: data.isGuest,
@@ -239,6 +273,7 @@ export const useAuthStore = create<AuthState>()(
         if (failed === 'cleared') return leaveCleared();
         if (failed === 'held') return keepHeldSession();
         console.error('[Auth] Failed to create session:', error);
+        if (saved) return restoreSaved(saved, stamp);
 
         // Create offline guest session
         const guestId = `guest-${Date.now()}`;
@@ -269,7 +304,7 @@ export const useAuthStore = create<AuthState>()(
         const available = persistable() && await isDatabaseAvailable();
 
         // Cache profile
-        if (available && persistable()) await cacheProfile(guestProfile);
+        if (available && persistable()) await cacheProfile(guestProfile, current);
 
         // Save local session to IndexedDB for persistence
         const localToken = `local-${guestId}`;
@@ -284,12 +319,12 @@ export const useAuthStore = create<AuthState>()(
             createdAt: new Date().toISOString(),
             expiresAt,
             syncedAt: new Date().toISOString(),
-          });
+          }, current);
         }
 
-        const saved = await afterWait(stamp);
-        if (saved === 'cleared') return leaveCleared();
-        if (saved === 'held') return keepHeldSession();
+        const stored = await afterWait(stamp);
+        if (stored === 'cleared') return leaveCleared();
+        if (stored === 'held') return keepHeldSession();
         set({
           isAuthenticated: true,
           isGuest: true,
@@ -303,6 +338,83 @@ export const useAuthStore = create<AuthState>()(
           isLoading: false,
         });
       }
+    };
+
+    /** This tab's profile saves, one after another. */
+    let profileSaves: Promise<unknown> = Promise.resolve();
+
+    /**
+     * One profile save, run when the saves before it have settled. Its change is built on the profile
+     * they settled (a change that was taken stays, one that was not was put back), and a change that is
+     * not taken is put back to that profile. A session on a server is decided by the server; with no
+     * server address set, the save fails as a server failure. A browser-only session is decided by
+     * this browser's write.
+     */
+    const saveProfile = async (change: (settled: UserProfile) => Partial<UserProfile>): Promise<void> => {
+      const token = get().sessionToken;
+      const settled = get().profile;
+      if (!settled) return;
+
+      const updates = change(settled);
+      const updatedProfile = { ...settled, ...updates, updatedAt: new Date().toISOString() };
+
+      // Optimistic update
+      set({ profile: updatedProfile });
+      // A change that was not taken is put back, unless something else has replaced it since.
+      const putBack = () => {
+        if (get().profile === updatedProfile) set({ profile: settled });
+      };
+      // Nothing is written to this browser once all local data was cleared, in this tab or another.
+      const stamp = takeStamp();
+      const current = () => !cleared(stamp);
+
+      if (serverToken(token)) {
+        // The profile lives on the server: its answer decides, whatever this browser can store.
+        const apiUrl = getApiUrl();
+        if (!apiUrl) {
+          putBack();
+          throw new ProfileSaveError('server', 'No server address is set; the profile change was not saved.');
+        }
+        let response: Response;
+        try {
+          response = await fetch(`${apiUrl}/api/auth/profile`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Session-Token': token,
+            },
+            body: JSON.stringify(updates),
+          });
+        } catch (error) {
+          console.error('[Auth] Failed to update profile:', error);
+          putBack();
+          throw new ProfileSaveError('server', 'The server could not be reached; the profile change was not saved.');
+        }
+        if (!response.ok) {
+          putBack();
+          throw new ProfileSaveError('server', `The server answered ${response.status}; the profile change was not saved.`);
+        }
+        // This browser's copy is what a reload reads when the server does not answer. A failed write is logged.
+        if ((await cacheProfile(updatedProfile, current)) === 'failed') {
+          console.warn('[Auth] The profile change was saved on the server but not copied to this browser.');
+        }
+        return;
+      }
+
+      // A browser-only session: this browser's copy is the profile.
+      if ((await cacheProfile(updatedProfile, current)) === 'failed') {
+        putBack();
+        throw new ProfileSaveError('browser', 'The profile change was not saved in this browser.');
+      }
+    };
+
+    /** Queues a profile save. Under a reload notice nothing is changed or sent, and the caller must be able to say so. */
+    const queueProfileSave = (change: (settled: UserProfile) => Partial<UserProfile>): Promise<void> => {
+      const notice = getDatabaseNotice();
+      if (notice) return Promise.reject(new ProfileSaveRefused(notice));
+      const turn = profileSaves.then(() => saveProfile(change));
+      profileSaves = turn.catch(() => undefined);
+      return turn;
     };
 
     return ({
@@ -325,11 +437,11 @@ export const useAuthStore = create<AuthState>()(
       initialize: async () => {
         if (get().isInitialized) return;
 
-        // A clear of local data from here on (a sign-out or Clear All Local Data, in this tab or another)
-        // discards what set-up finds: the tab stays signed out and nothing is written.
+        // A clear of all local data from here on (a sign-out or Clear All Local Data, in this tab or
+        // another) discards what set-up finds: the tab is left signed out and nothing is written.
         const stamp = takeStamp();
         const lastUsed = lastUsedSessionId();
-        const leaveCleared = () => set({ isLoading: false, isInitialized: true });
+        const leaveCleared = leaveSignedOut;
         set({ isLoading: true });
 
         try {
@@ -344,12 +456,16 @@ export const useAuthStore = create<AuthState>()(
           } catch {
             // The session store could not be read, which is not a browser without a session.
             sessionStoreUnread = true;
+            if (cleared(stamp)) return leaveCleared();
             if (holdsServerToken()) await checkHeldToken();
+            if (cleared(stamp)) return leaveCleared();
             if (holdsServerToken()) return keepHeldSession();
             return makeSession(undefined, stamp);
           }
           if (cleared(stamp)) return leaveCleared();
 
+          /** A browser-only session the server refused: set-up goes on with it when no new session is made. */
+          let refusedBrowserOnly: LocalSession | undefined;
           if (localSession && new Date(localSession.expiresAt) > new Date()) {
             // Validate with server if online
             const apiUrl = getApiUrl();
@@ -397,41 +513,28 @@ export const useAuthStore = create<AuthState>()(
               const next = await afterWait(stamp);
               if (next === 'cleared') return leaveCleared();
               if (next === 'held') return keepHeldSession();
-              // Drop a server session's row, so the next load does not choose it again. A browser-only
-              // session cannot be refused by a server: its row stays. A failed delete does not stop set-up.
+              // Drop a server session's row, so the next load does not choose it again. A failed delete
+              // does not stop set-up. A browser-only session cannot be refused by a server: its row stays,
+              // and when no new session is made set-up goes on with it.
               if (serverToken(localSession.token)) {
                 try {
                   await deleteLocalSession(localSession.id);
                 } catch (error) {
                   console.warn('[Auth] Could not delete the refused saved session:', error);
                 }
+              } else {
+                refusedBrowserOnly = localSession;
               }
             } catch (error) {
               // Offline - use cached data
               console.log('[Auth] Offline, using cached session');
-              // A profile change is saved to the profile cache: that copy is used when it holds this profile.
-              const cachedProfile = localSession.profile?.id ? await getCachedProfile(localSession.profile.id) : null;
-              const next = await afterWait(stamp);
-              if (next === 'cleared') return leaveCleared();
-              if (next === 'held') return keepHeldSession();
-              set({
-                isAuthenticated: true,
-                isGuest: true,
-                sessionToken: localSession.token,
-                sessionId: localSession.id,
-                profile: cachedProfile ? { ...localSession.profile, ...cachedProfile } : localSession.profile,
-                expiresAt: localSession.expiresAt,
-                mode: 'local-only',
-                isOffline: true,
-                isInitialized: true,
-                isLoading: false,
-              });
+              await restoreSaved(localSession, stamp);
               return;
             }
           }
 
           // No valid session - create guest session
-          await makeSession(undefined, stamp);
+          await makeSession(undefined, stamp, refusedBrowserOnly);
         } catch (error) {
           console.error('[Auth] Initialization failed:', error);
           set({ isInitialized: true, isLoading: false });
@@ -469,81 +572,18 @@ export const useAuthStore = create<AuthState>()(
       },
 
       // Update profile
-      updateProfile: async (updates) => {
-        // Under a reload notice nothing is changed or sent, and the caller must be able to say so.
-        const notice = getDatabaseNotice();
-        if (notice) throw new ProfileSaveRefused(notice);
-
-        const token = get().sessionToken;
-        const currentProfile = get().profile;
-        
-        if (!currentProfile) return;
-
-        const updatedProfile = { ...currentProfile, ...updates, updatedAt: new Date().toISOString() };
-
-        // Optimistic update
-        set({ profile: updatedProfile });
-        // A change that was not taken is put back, unless another change has replaced it since.
-        const putBack = () => {
-          if (get().profile === updatedProfile) set({ profile: currentProfile });
-        };
-
-        const apiUrl = getApiUrl();
-        if (apiUrl && serverToken(token)) {
-          // The profile lives on the server: its answer decides, whatever this browser can store.
-          const stamp = takeStamp();
-          let response: Response;
-          try {
-            response = await fetch(`${apiUrl}/api/auth/profile`, {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Session-Token': token,
-              },
-              body: JSON.stringify(updates),
-            });
-          } catch (error) {
-            console.error('[Auth] Failed to update profile:', error);
-            putBack();
-            throw new ProfileSaveError('server', 'The server could not be reached; the profile change was not saved.');
-          }
-          if (!response.ok) {
-            putBack();
-            throw new ProfileSaveError('server', `The server answered ${response.status}; the profile change was not saved.`);
-          }
-          // This browser's copy is what a reload reads when the server does not answer. A failed write is
-          // logged; nothing is written once local data was cleared.
-          if (!cleared(stamp) && !(await cacheProfile(updatedProfile))) {
-            console.warn('[Auth] The profile change was saved on the server but not copied to this browser.');
-          }
-          return;
-        }
-
-        // A browser-only session: this browser's copy is the profile.
-        if (!(await cacheProfile(updatedProfile))) {
-          putBack();
-          throw new ProfileSaveError('browser', 'The profile change was not saved in this browser.');
-        }
-      },
+      updateProfile: (updates) => queueProfileSave(() => updates),
 
       // Update preferences
       updatePreferences: async (prefs) => {
-        const currentProfile = get().profile;
-        if (!currentProfile) return;
-
-        await get().updateProfile({
-          preferences: { ...currentProfile.preferences, ...prefs },
-        });
+        if (!get().profile) return;
+        await queueProfileSave((settled) => ({ preferences: { ...settled.preferences, ...prefs } }));
       },
 
       // Update notification settings
       updateNotificationSettings: async (settings) => {
-        const currentProfile = get().profile;
-        if (!currentProfile) return;
-
-        await get().updateProfile({
-          notificationSettings: { ...currentProfile.notificationSettings, ...settings },
-        });
+        if (!get().profile) return;
+        await queueProfileSave((settled) => ({ notificationSettings: { ...settled.notificationSettings, ...settings } }));
       },
 
       // Logout
@@ -665,14 +705,18 @@ export const useAuthStore = create<AuthState>()(
 // Clears of local data
 // =============================================================================
 
-/** What session work carries: this tab's clear counter, and the clear marker every tab shares in local storage. */
+/**
+ * What session work and profile saves carry: this tab's clear counter, and the account marker every tab
+ * shares in local storage. Only a clear of all local data writes that marker; clearing the alert
+ * history does not.
+ */
 type SessionStamp = { counter: number; marker: string };
 
-const takeStamp = (): SessionStamp => ({ counter: getLocalDataGeneration(), marker: readLocalClearMarker() });
+const takeStamp = (): SessionStamp => ({ counter: getLocalDataGeneration(), marker: readAccountClearMarker() });
 
-/** A clear of local data, in this tab or another, has landed since the stamp was taken. */
+/** A clear of all local data, in this tab or another, has landed since the stamp was taken. */
 const cleared = (stamp: SessionStamp): boolean =>
-  !isCurrentLocalData(stamp.counter) || readLocalClearMarker() !== stamp.marker;
+  !isCurrentLocalData(stamp.counter) || readAccountClearMarker() !== stamp.marker;
 
 /** After a wait: 'cleared' when a clear has landed, 'held' when the held session ends set-up, otherwise null. */
 async function afterWait(stamp: SessionStamp): Promise<'cleared' | 'held' | null> {

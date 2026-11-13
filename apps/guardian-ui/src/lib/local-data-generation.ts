@@ -19,6 +19,20 @@ export function writeLocalClearMarker(): void {
   localStorage.setItem(LOCAL_CLEAR_MARKER_KEY, newClearValue());
 }
 
+/**
+ * The account marker: in local storage, shared by every tab, and written only by a clear of all local
+ * data (sign-out and Clear All Local Data), beside the clear marker. Session work and profile saves
+ * read it, so clearing the alert history alone does not cancel them.
+ */
+export const ACCOUNT_CLEAR_MARKER_KEY = 'safeos_account_data_cleared';
+export function readAccountClearMarker(): string {
+  try { return localStorage.getItem(ACCOUNT_CLEAR_MARKER_KEY) ?? ''; } catch { return ''; }
+}
+/** Throws when local storage refuses the write; the caller then aborts its clear. */
+export function writeAccountClearMarker(): void {
+  localStorage.setItem(ACCOUNT_CLEAR_MARKER_KEY, newClearValue());
+}
+
 /** What a pending save carries. `generation` is null when the tab had read none under `marker`. */
 export type ClearStamp = { marker: string; generation: string | null };
 
