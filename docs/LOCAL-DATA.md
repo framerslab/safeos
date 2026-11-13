@@ -21,12 +21,26 @@ to the next person using that browser. Both actions also remove the dashboard
 onboarding completion record so the next person sees its introduction and safety
 disclaimer. Export anything you want to keep first.
 This removes local copies; it does not delete records held by a connected server.
+Log Out asks the server to end the session and waits at most 15 seconds for its
+answer; with no answer by then it clears this browser all the same.
+
+Either clear in one tab signs the other open tabs out. The browser tells each
+open tab of the clear; the tab then drops its session and profile, and its
+session requests and profile saves in flight change nothing. A profile change
+made in such a tab afterwards writes nothing: it has no session to save under
+until it makes one or is reloaded.
+
 A session answer that arrives after either clear, in this tab or another, is
 dropped and leaves the tab signed out, unless the tab has made a new session
-since: that session is kept as it is. A profile change answered after such a
-clear is not written to this browser, and a change made before the clear whose
-turn to be saved comes after it is not sent. Clear all on Monitor clears only
-the alert history and stops neither.
+since: that session is kept as it is. A session answer is also dropped, with no
+clear, once the tab holds a session made after the request was sent: an answer
+to the saved session check of a page load, or to an earlier session request,
+does not replace it. A profile change answered after such a clear is not
+written to this browser, and a change made before the clear whose turn to be
+saved comes after it is not sent. A change the clear cancelled is not put back
+on screen in the tab that made it, so nothing of the cleared session is written
+to local storage again. Clear all on Monitor clears only the alert history and
+stops neither.
 
 ## Saved preferences
 
@@ -52,7 +66,8 @@ decides. A profile request that has no answer within 15 seconds counts as not
 taken. Saves under one session run one after another, and a change that was not
 taken is put back to the profile the save before it left. A change made under
 one session is neither sent nor written once the tab holds another session, or
-once all local data was cleared; it fails as not saved. Settings then shows
+once all local data was cleared; it fails as not saved, and after such a clear
+the change is not put back. Settings then shows
 "Failed to save settings." Notification Settings shows "The server did not take
 the change. Save again when you are connected." when the server did not take
 it, and "Notification settings were not saved. Try again." when this browser
