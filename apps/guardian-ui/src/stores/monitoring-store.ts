@@ -8,9 +8,8 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useAuthStore } from './auth-store';
-import { getLocalDataGeneration, isCurrentLocalData } from '../lib/local-data-generation';
-import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, getDatabaseNotice, MAX_MONITORING_ALERTS } from '../lib/client-db';
+import { getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp } from '../lib/local-data-generation';
+import { cacheAlert, updateCachedAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, MAX_MONITORING_ALERTS } from '../lib/client-db';
 
 // =============================================================================
 // Types
@@ -18,7 +17,6 @@ import { cacheAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, cle
 
 export interface Alert {
   id: string;
-  ownerId?: string;
   savedBeforeUpgrade?: boolean;
   streamId: string;
   alertType?: string;
@@ -127,7 +125,10 @@ const DEFAULT_SETTINGS: MonitoringSettings = {
 // an earlier save that is still waiting for IndexedDB to open.
 let alertWrites: Promise<void> = Promise.resolve();
 let alertRevision = 0;
-const unsavedAlerts = new Map<string, Alert>();
+// Saves that failed and wait for the next history read, by alert id. `stamp` names the last clear
+// the tab knew of when the save failed; `update` marks a failed acknowledgement of a saved alert,
+// whose retry must not create a record either.
+const unsavedAlerts = new Map<string, { alert: Alert; stamp: ClearStamp; update: boolean }>();
 function writeAlerts(write: () => Promise<void>, revise = true) {
   if (revise) alertRevision++;
   const generation = getLocalDataGeneration();
@@ -144,37 +145,37 @@ function knownSeverity(severity: unknown): Alert['severity'] {
   if (SEVERITIES.includes(severity as Alert['severity'])) return severity as Alert['severity'];
   return severity === 'emergency' ? 'critical' : 'medium';
 }
-function currentOwner(): string {
-  return useAuthStore.getState().profile?.id || '';
-}
-function currentAlerts(alerts: Alert[], ownerId: string): Alert[] {
-  const owned = alerts.filter(alert => (alert.ownerId || '') === ownerId);
-  const candidates = owned.filter(alert => !alert.savedBeforeUpgrade).sort((a, b) =>
+/** The list a tab shows: alerts saved before the upgrade stay, the rest keep the monitoring limit. */
+function boundedAlerts(alerts: Alert[]): Alert[] {
+  const candidates = alerts.filter(alert => !alert.savedBeforeUpgrade).sort((a, b) =>
     Number(b.acknowledged) - Number(a.acknowledged) ||
     (a.createdAt || a.timestamp || '').localeCompare(b.createdAt || b.timestamp || '') ||
     (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const removed = new Set(candidates.slice(0, Math.max(0, candidates.length - MAX_MONITORING_ALERTS)).map(a => a.id));
-  return owned.filter(alert => !removed.has(alert.id));
+  return alerts.filter(alert => !removed.has(alert.id));
 }
-function pendingKey(alert: Pick<Alert, 'id' | 'ownerId'>): string {
-  return JSON.stringify([alert.ownerId || '', alert.id]);
-}
-function forgetUnsaved(ownerId: string): void {
-  for (const [key, alert] of unsavedAlerts) if ((alert.ownerId || '') === ownerId) unsavedAlerts.delete(key);
-}
-async function saveAlert(alert: Alert): Promise<void> {
+/**
+ * One try at saving. `marker` is the clear marker noted when the alert or the acknowledgement was
+ * queued. `stamp` is given for the retry of a pending save and left out for a first save, which
+ * always writes.
+ */
+async function saveAlert(alert: Alert, update: boolean, marker: string, stamp?: ClearStamp): Promise<void> {
   const generation = getLocalDataGeneration();
-  const saved = await cacheAlert({ ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() });
+  const record = { ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() };
+  const result = update
+    ? await updateCachedAlert(record, stamp)
+    : (await cacheAlert(record, stamp)) ? 'saved' : 'failed';
   if (!isCurrentLocalData(generation)) return;
-  if (saved) unsavedAlerts.delete(pendingKey(alert));
-  else {
-    unsavedAlerts.set(pendingKey(alert), alert);
-    const owner = alert.ownerId || '';
-    const retained = new Set(currentAlerts([...unsavedAlerts.values()], owner).map(pendingKey));
-    for (const [key, pending] of unsavedAlerts) {
-      if ((pending.ownerId || '') === owner && !retained.has(key)) unsavedAlerts.delete(key);
-    }
+  if (result === 'failed') {
+    unsavedAlerts.set(alert.id, { alert, update,
+      stamp: stamp && stamp.generation !== null ? stamp : pendingClearStamp(stamp ? stamp.marker : marker) });
+    const kept = new Set(boundedAlerts([...unsavedAlerts.values()].map((entry) => entry.alert)).map((a) => a.id));
+    for (const id of [...unsavedAlerts.keys()]) if (!kept.has(id)) unsavedAlerts.delete(id);
+    return;
   }
+  unsavedAlerts.delete(alert.id);
+  // The record this acknowledgement was for is no longer stored: nothing was written.
+  if (result === 'gone') useMonitoringStore.setState((state) => ({ alerts: state.alerts.filter((a) => a.id !== alert.id) }));
 }
 
 export const useMonitoringStore = create<MonitoringState>()(
@@ -216,75 +217,71 @@ export const useMonitoringStore = create<MonitoringState>()(
         const dated = {
           ...alert,
           savedBeforeUpgrade: get().alerts.find(a => a.id === alert.id)?.savedBeforeUpgrade,
-          ownerId: currentOwner(),
           severity: knownSeverity(alert.severity),
           createdAt: alert.createdAt || alert.timestamp || new Date().toISOString(),
         };
-        set((state) => ({ alerts: currentAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)], dated.ownerId) }));
-        writeAlerts(async () => {
-          if (!useAuthStore.getState().isInitialized) {
-            await useAuthStore.getState().initialize();
-            if (!useAuthStore.getState().isInitialized) return;
-            dated.ownerId = currentOwner();
-          }
-          await saveAlert(dated);
-        });
+        set((state) => ({ alerts: boundedAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)]) }));
+        // The marker is noted when the save is queued, not when it runs.
+        const marker = readLocalClearMarker();
+        writeAlerts(() => saveAlert(dated, false, marker));
       },
 
       removeAlert: (id) => {
-        const ownerId = currentOwner();
-        set((state) => ({ alerts: currentAlerts(state.alerts, ownerId).filter(a => a.id !== id) }));
+        set((state) => ({ alerts: state.alerts.filter(a => a.id !== id) }));
         writeAlerts(async () => {
-          unsavedAlerts.delete(pendingKey({ id, ownerId }));
-          await deleteCachedMonitoringAlert(id, ownerId);
+          unsavedAlerts.delete(id);
+          await deleteCachedMonitoringAlert(id);
         });
       },
 
       acknowledgeAlert: (id) => {
-        const ownerId = currentOwner();
-        set((state) => ({ alerts: currentAlerts(state.alerts, ownerId).map(a => a.id === id ? { ...a, acknowledged: true } : a) }));
+        set((state) => ({ alerts: state.alerts.map(a => a.id === id ? { ...a, acknowledged: true } : a) }));
         const alert = get().alerts.find(a => a.id === id);
-        if (alert) writeAlerts(() => saveAlert(alert));
+        if (alert) {
+          const marker = readLocalClearMarker();
+          writeAlerts(() => {
+            // A save that still waits is retried with the acknowledgement, under the stamp it has.
+            // Any other alert is a saved one: its record is updated, and never created again.
+            const pending = unsavedAlerts.get(id);
+            return pending
+              ? saveAlert(alert, pending.update, pending.stamp.marker, pending.stamp)
+              : saveAlert(alert, true, marker);
+          });
+        }
       },
 
       clearAlerts: () => {
         set({ alerts: [] });
-        const ownerId = currentOwner();
         writeAlerts(async () => {
-          forgetUnsaved(ownerId);
-          await clearCachedMonitoringAlerts(ownerId);
+          unsavedAlerts.clear();
+          await clearCachedMonitoringAlerts();
         });
       },
 
       hydrateAlerts: async () => {
-        await useAuthStore.getState().initialize();
-        if (!useAuthStore.getState().isInitialized) return;
-        const retryOwner = currentOwner();
-        const retries = [...unsavedAlerts.values()].filter(alert => (alert.ownerId || '') === retryOwner);
+        const retries = [...unsavedAlerts.values()];
         if (retries.length) writeAlerts(async () => {
-          for (const pending of retries) {
+          for (const entry of retries) {
             // A queued clear or acknowledgement may have replaced this pending save.
-            if (unsavedAlerts.get(pendingKey(pending)) === pending) await saveAlert(pending);
+            if (unsavedAlerts.get(entry.alert.id) === entry) await saveAlert(entry.alert, entry.update, entry.stamp.marker, entry.stamp);
           }
         }, false);
         await alertWrites;
         const revision = alertRevision;
-        const ownerId = currentOwner();
         let saved: Alert[];
         try {
-          saved = (await getCachedMonitoringAlerts(ownerId))
+          saved = (await getCachedMonitoringAlerts())
             .map((alert: Alert) => ({ ...alert, severity: knownSeverity(alert.severity) }));
         } catch (error) {
-          // Unavailable storage is not an empty history. Keep this owner's live list.
+          // Unavailable storage is not an empty history. Keep the list on screen.
           console.warn('[Monitoring] Could not read alert history:', error);
-          set(state => ({ alerts: currentAlerts(state.alerts, currentOwner()) }));
+          set(state => ({ alerts: boundedAlerts(state.alerts) }));
           return;
         }
-        if (revision !== alertRevision || ownerId !== currentOwner()) return get().hydrateAlerts();
-        if (getDatabaseNotice()) return;
-        const pending = [...unsavedAlerts.values()].filter(alert => (alert.ownerId || '') === ownerId);
+        if (revision !== alertRevision) return get().hydrateAlerts();
+        const pending = [...unsavedAlerts.values()].map((entry) => entry.alert);
         const pendingIds = new Set(pending.map(alert => alert.id));
-        set({ alerts: currentAlerts([...pending, ...saved.filter(alert => !pendingIds.has(alert.id))], ownerId) });
+        set({ alerts: boundedAlerts([...pending, ...saved.filter(alert => !pendingIds.has(alert.id))]) });
       },
 
       addStream: (stream) =>
@@ -365,10 +362,9 @@ export const useMonitoringStore = create<MonitoringState>()(
 
       reset: () => {
         unsavedAlerts.clear();
-        const ownerId = currentOwner();
         writeAlerts(async () => {
-          forgetUnsaved(ownerId);
-          await clearCachedMonitoringAlerts(ownerId);
+          unsavedAlerts.clear();
+          await clearCachedMonitoringAlerts();
         });
         set({
           isConnected: false,
