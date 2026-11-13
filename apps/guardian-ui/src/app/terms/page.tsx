@@ -105,8 +105,8 @@ const termsSections: TermSection[] = [
             appropriate care, feeding, and attention beyond what any app can provide.
           </li>
           <li>
-            <strong className="text-white">Security:</strong> This is not a 
-            replacement for professional security systems or emergency services.
+            <strong className="text-white">Security:</strong> Security mode adds an alert. It
+            does not replace locks, an alarm service or emergency services.
           </li>
         </ul>
       </div>

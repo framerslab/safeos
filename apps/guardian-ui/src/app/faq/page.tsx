@@ -103,7 +103,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How sensitive are the alerts?',
-        answer: 'Alert sensitivity is fully customizable. You can adjust motion sensitivity (how much movement triggers an alert), audio sensitivity (how loud sounds need to be), and pixel threshold (for sleep monitoring). We also offer presets like "Infant Sleep Monitor" (ultra-sensitive) and "Pet Watch" (balanced sensitivity).',
+        answer: 'Alert sensitivity is fully customizable. You can adjust motion sensitivity (how much movement triggers an alert), audio sensitivity (how loud sounds need to be), and pixel threshold (for sleep monitoring). We also offer presets like "Infant Sleep Monitor" (ultra-sensitive) and "Pet Sleep Monitor" (sensitive).',
       },
       {
         question: 'Can I customize alert sounds?',

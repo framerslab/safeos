@@ -157,7 +157,7 @@ const faqs: FAQItem[] = [
   {
     category: 'alerts',
     question: 'Too many false alerts - what should I do?',
-    answer: 'Adjust motion and audio sensitivity in Settings > Detection. Higher sensitivity values mean fewer alerts. You can also try repositioning your camera to reduce background movement.',
+    answer: 'Lower the motion and audio sensitivity in Settings > Detection. A lower sensitivity raises the trigger threshold, so it takes more movement or a louder sound to set off an alert. You can also move the camera away from background movement.',
   },
 ];
 
