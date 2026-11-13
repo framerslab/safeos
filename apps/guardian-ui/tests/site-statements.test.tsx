@@ -1,11 +1,10 @@
 /**
  * Site statements match the code
  *
- * The privacy page says the app runs no tracking, and the pledge and
- * sponsorship pages say what a sponsorship pays for. These tests hold those
- * statements to the shipped code: no tracking loader in the app, the donate
- * page rendered as a visitor sees it, and the pledge worded one way on every
- * page and in the README.
+ * The privacy page says the app runs no tracking, and safeos.sh asks for no
+ * money. These tests hold those statements to the shipped code: no tracking
+ * loader in the app, the old support address rendered as a visitor sees it,
+ * and no page or doc making a pledge or calling SafeOS a charity.
  */
 
 import fs from 'fs';
@@ -13,6 +12,11 @@ import path from 'path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import DonatePage, { metadata as donateMetadata } from '@/app/donate/page';
+
+// The old support address forwards to About with the app router.
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: jest.fn() }),
+}));
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const REPO_ROOT = path.resolve(APP_ROOT, '..', '..');
@@ -69,38 +73,34 @@ describe('no tracking loader in the app', () => {
   });
 });
 
-describe('donate page', () => {
+describe('the old support address', () => {
   const html = renderToStaticMarkup(React.createElement(DonatePage));
+  const title = String(donateMetadata.title ?? '');
   const description = String(donateMetadata.description ?? '');
 
-  it('links the Sponsor button to the framerslab sponsors page', () => {
-    expect(html).toContain('href="https://github.com/sponsors/framerslab"');
+  it('asks for no money and links About', () => {
+    expect(html).toContain('href="/about/"');
+    for (const text of [html, title, description]) {
+      expect(text).not.toMatch(/sponsor|donat|tax-deductible|non-?profit|\bcharit/i);
+    }
   });
 
-  it('carries no link to the old sponsor addresses', () => {
-    expect(html).not.toMatch(/sponsors\/framersai/);
-    expect(html).not.toMatch(/sponsors\/manicinc/);
-    expect(html).not.toMatch(/parent agency/i);
+  it('is kept out of search results and the sitemap', () => {
+    expect(donateMetadata.robots).toMatchObject({ index: false });
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const sitemap = require('@/app/sitemap').default as () => Array<{ url: string }>;
+    expect(sitemap().map((e) => e.url).filter((u) => /\/donate\b/.test(u))).toEqual([]);
   });
 
-  it('says a sponsorship supports development by Frame and is not a tax-deductible donation', () => {
-    expect(html).toMatch(/Framers Lab, Inc\./);
-    expect(html).toMatch(/not a tax-deductible donation/i);
-  });
-
-  it('makes no percentage pledge and never says nonprofit or charity', () => {
+  it('makes no percentage pledge', () => {
     for (const text of [html, description]) {
-      // A pledge reads "N% of ..." or "N% for ...", or donates or routes N%.
-      // The page's SVG gradient offsets and GitHub's fee note are not pledges.
       expect(text).not.toMatch(/\d+\s*%\s+(of|for)\b|\b(donate|pledge|route)\w*\s+\d+\s*%/i);
       expect(text).not.toMatch(/\bten percent\b/i);
-      expect(text).not.toMatch(/non-?profit/i);
-      expect(text).not.toMatch(/\bcharit/i);
     }
   });
 });
 
-describe('the humanitarian pledge reads one way everywhere', () => {
+describe('no page or doc makes a pledge or a charity claim', () => {
   it('no page or doc gives the pledge as a percentage', () => {
     expect(
       filesMatching(VISITOR_TEXT_FILES, /10%\s*for\s*Humanity|\bten percent\b|10% of (all|every|our)|donate 10%/i)
