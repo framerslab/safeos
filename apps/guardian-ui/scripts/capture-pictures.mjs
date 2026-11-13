@@ -225,8 +225,10 @@ try {
           isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look,
         });
         await context.addInitScript(({ localFails }) => {
-          localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://pictures.example.test' }));
-          // A returning person: the dashboard opens, and its account button makes the session.
+          // With a server and its socket address saved, the dashboard starts the session.
+          localStorage.setItem('safeos_backend_config', JSON.stringify({
+            apiUrl: 'https://pictures.example.test', wsUrl: 'wss://pictures.example.test/ws' }));
+          // A returning person, so the dashboard opens without the first-run screens.
           localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
             isComplete: true, selectedScenario: 'pet',
             acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
@@ -247,8 +249,10 @@ try {
           // The server refuses the profile change unless the scenario is a failed local write.
           if (method === 'PATCH') return request.fulfill({ status: save.localFails ? 200 : 500, headers: cors,
             contentType: 'application/json', body: JSON.stringify({ success: save.localFails }) });
-          // Only the session route answers; the dashboard's status reads find nothing, as with no server.
-          if (!new URL(request.request().url()).pathname.startsWith('/api/auth/session')) {
+          // The server is up and answers the session route; its other reads find nothing.
+          const pathname = new URL(request.request().url()).pathname;
+          if (pathname === '/health') return request.fulfill({ headers: cors, contentType: 'application/json', body: '{"status":"ok"}' });
+          if (!pathname.startsWith('/api/auth/session')) {
             return request.fulfill({ status: 404, headers: cors, contentType: 'application/json', body: '{"success":false}' });
           }
           return request.fulfill({ headers: cors, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: {
@@ -275,10 +279,14 @@ try {
         });
         const file = path.join(outDir, `${save.name}-${size.width}-${look}.png`);
         try {
-          // The settings pages do not start a session themselves: sign in on the dashboard, then
-          // move to the page inside the app, so the profile stays in memory as when a person clicks there.
-          await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-          await page.getByRole('button', { name: 'Account menu for Picture person' }).waitFor({ state: 'attached', timeout: 20_000 });
+          // The settings pages do not start a session themselves: the dashboard does, then the page
+          // is opened inside the app, so the profile stays in memory as when a person clicks there.
+          const sessionMade = page.waitForResponse(response => response.url().endsWith('/api/auth/session')
+            && response.request().method() === 'POST', { timeout: 60_000 });
+          await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'load', timeout: 60_000 });
+          await sessionMade;
+          // The session is saved in this browser before the tab holds it.
+          await page.waitForTimeout(1_000);
           await page.locator('a[href="/settings/"]:visible, a[href="/settings"]:visible').first().click();
           await page.getByRole('button', { name: 'Save Changes', exact: true }).waitFor({ timeout: 20_000 });
           if (save.route === '/settings/notifications/') {
@@ -295,9 +303,7 @@ try {
         } catch (err) {
           failures += 1;
           console.error(`failed ${save.name} at ${size.width} ${look}: ${err.message}`);
-          const accounts = await page.locator('button[aria-label^="Account menu"]').evaluateAll(
-            buttons => buttons.map(button => button.getAttribute('aria-label'))).catch(() => []);
-          console.error(`  at ${page.url()}; account buttons: ${JSON.stringify(accounts)}; asked: ${JSON.stringify(asked)}`);
+          console.error(`  at ${page.url()}; asked: ${JSON.stringify(asked)}`);
         } finally {
           await context.close();
         }
