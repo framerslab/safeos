@@ -39,62 +39,81 @@ and reconnect timer.
 
 ## Alert history
 
-Monitor alerts are written to the existing `safeos-guardian` IndexedDB alert cache.
-Every alert already saved when this update opens the database is marked as saved
-before the upgrade. All saved monitoring history stays available in Monitor and
-**History → Local Timeline**, including history with no owner or an unusable date,
-until the person dismisses it or uses the existing clear controls. These records
-do not count toward either limit. No alert is ever removed because of its age.
+Monitor alerts are written to the `safeos-guardian` IndexedDB alert cache. Saved alerts
+belong to the browser, not to a session or a profile: Monitor, **History → Local
+Timeline** and History's offline export show the same records on every page and in every
+tab, the dashboard shows the newest five of them, and anyone who uses SafeOS in this
+browser sees them until someone signs out or clears local data. Reading and writing them
+never waits for a session, and a replaced session changes nothing.
 
-For alerts written after the upgrade, the limits are 100 monitoring alerts per
-person and 500 alerts across all producers and owners in this browser. At either
-limit, acknowledged alerts are removed first, oldest first. Only when no
-acknowledged candidates remain are the oldest unacknowledged alerts removed.
-Thus newer acknowledged alerts can leave before an older unseen alert. Monitor's
-in-memory list applies the 100-record per-person rule; changes caused by the shared
-500-record limit appear on its next history read. Protected history is shown in addition to
-these limits, so an existing browser can hold and display more than 500 alerts.
+Every alert already saved when this version first opens the database is marked as saved
+before the upgrade and stays until someone dismisses or clears it, whatever its date.
+The upgrade waits until every tab running the previous version is closed or reloaded;
+until then such a tab keeps that version's limit, and each monitoring alert it saves
+leaves only the newest 100 monitoring alerts. The upgrade marks what is there when it
+runs. Alerts saved afterwards are limited to 100 monitoring alerts and 500 alerts from
+all producers; at either limit acknowledged alerts leave first, oldest first, and
+unacknowledged ones only when no acknowledged ones remain. No alert is removed for its
+age. Marked records do not count, so a browser can show more than 500. Monitor's
+in-memory list applies the 100 rule; a change caused by the 500 limit shows at its next
+history read.
 
-Writes enforce both limits in the same transaction. Indexes separate protected
-history from new records and order new records by acknowledgement and creation
-time. Monitoring reads and removals use the owner index. General alert lists and
-their acknowledgements include shared records and only the selected owner's
-monitoring records. Acknowledgements keep creation time, ownership, media and the
-saved-before-upgrade marker.
+Each record names its producer: `monitoring` for the monitoring store, `shared` for the
+alert engine and the sync service. Monitoring reads and clears use the producer index,
+and every write enforces both limits in its own transaction. An acknowledgement or any
+later write keeps a saved alert's creation time, producer, media and mark; only a new
+alert's time is limited to the present. Alert ids made in the browser carry a random
+part. The upgrade to database version 7 rewrites each alert once and deletes none, and
+it keeps an unusable date beside a usable one. If it cannot finish, the database stays
+unchanged, the page says so, and a reload tries again. Versions 5 and 6 were never
+released and upgrade the same way.
 
-The version 4 (or 5) to 6 upgrade adds these indexes in place and preserves every
-existing alert and all other stores. Dates are normalized for indexing; unusable
-original dates remain on the record alongside a usable display date. Authentication
-initializes on every page. Alert readers wait for session setup to finish; a
-localStorage profile alone cannot claim history. The profile must be restored
-from or saved to IndexedDB before it becomes active. If the database cannot open,
-SafeOS does not create or adopt a replacement profile. Previously unowned history
-is claimed atomically by a database-backed profile when it reads the records.
+If a history read fails, the alerts on screen stay and the next read retries. A failed
+save keeps the alert on screen and in History's offline export and is retried at the
+next history read; an acknowledgement updates it, and dismiss and clear drop it. An
+acknowledgement or a dismissal never creates a record: when the alert is no longer
+saved, because another tab cleared or dismissed it or a limit removed it, nothing is
+written, and an acknowledged alert leaves that tab's list. Clear All Local Data, a
+sign-out or Clear all, in any tab of this browser, cancels every tab's pending saves.
+Each clear writes a new clear generation in the database transaction that deletes the
+alerts, and a new marker in local storage before that transaction ends. A pending save
+that holds a generation is written only by a transaction that reads the generation and
+finds it unchanged; one whose tab had read no generation under the marker in force when
+the alert was queued holds only that marker, and is written only if the marker it reads
+inside that transaction is unchanged. One limit: a browser may show one tab's local
+storage write to another tab a moment late, so in the instant of a clear in another tab
+a pending save can still be written, and a new alert whose first save fails may not be
+saved. Dismissing one alert reaches only its saved record: a tab that still waits to
+retry that alert's failed save shows it and saves it again at its next history read,
+where it can be dismissed again. An alert that was never saved does not survive closing
+or reloading the tab. The alert engine alerts first and saves afterwards.
 
-When a session expires or a profile changes without sign-out, saving the new
-session moves the previous browser session's monitoring records to the new
-profile in the same transaction. Dates, acknowledgements and upgrade protection
-stay intact. The records remain visible in Monitor, History's Local Timeline and
-History's offline export, and the new profile can dismiss or clear them.
-Explicit sign-out instead clears local data before another person can sign in.
-If a browser history read fails, the current owner's displayed alerts stay in
-place; the next read retries. A failed alert save also keeps that alert in the live
-list and History's offline export, and the next history read retries the save.
-Dismiss and clear remove pending saves too. An alert that has not been saved
-cannot survive closing or reloading the tab.
-
-An open connection closes when another tab requests a newer database version,
-and its page asks the person to reload SafeOS. A new tab blocked by an older tab
-shows “Close other SafeOS tabs, then reload this page to finish updating your saved
-history. New alerts in this tab are not saved until you reload.” Alerts received
-while either reload notice is shown are only in memory and are lost on reload.
-Existing saved history returns after the database opens and session setup finishes.
-The opener settles instead of waiting indefinitely. The reload notice uses the app's light and dark palette, with readable text in both looks. Tabs running a
-version from before this change may need to be closed manually. Browser-only data
-is not included in server exports; use History's local export for that data.
+A tab closes its database connection when another tab opens a newer database version,
+and a tab opened while an older tab still holds the earlier version says so instead of
+waiting; tabs from before this change must be closed or reloaded by hand. A tab whose
+code is older than the saved database shows the same notice as for an update in another
+tab. Each such tab shows a notice with a reload button and saves nothing until it is
+reloaded: new alerts are shown, sounded and notified but not saved, and acknowledging,
+dismissing or clearing changes the screen only. Whenever the database cannot be opened,
+with a notice or without one, a tab that holds a session token for a monitoring server,
+in memory or kept in local storage, goes on using it for that server's alerts and makes
+no new session; a tab that holds none makes one as before and keeps it in memory and
+local storage. One case differs: a session that ran out on this device just as a notice
+came is kept, and that server's alerts pause in that tab until it is reloaded. A tab
+that starts in that state asks the server about the token it holds. If the server
+answers OK, the tab is signed in with that session's profile, in memory. If the server
+answers 401, that session has ended: the tab uses a newer token that another tab has put
+in local storage, or else makes a new session, kept in memory and local storage. A
+network failure or any other answer keeps the token, without a profile until the next
+load. After a reload with the database open, the session saved there is used. While a
+notice is shown, signing out and Clear All Local Data are refused until the reload,
+after which everything saved is shown as it was. Otherwise signing out, in any tab, and
+Clear All Local Data clear every local store for the whole browser. The notice is
+readable in the light and dark looks. Browser-only data is not included in server
+exports; use History's local export for that data.
 
 An alert acknowledged on Monitor is marked acknowledged in history, also when the server
-cannot be reached. New acknowledged alerts remain subject to the count limits. Dismissals and clearing alerts remove only monitoring-owned
+cannot be reached. New acknowledged alerts remain subject to the count limits. Dismissals and clearing alerts remove only the monitoring store's
 records; alerts from other producers in the shared database are left intact. Alert
 types and thumbnails are retained. A severity outside info, low, medium, high and
 critical is shown as medium (emergency as critical).
