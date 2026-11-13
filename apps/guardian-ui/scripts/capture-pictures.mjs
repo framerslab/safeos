@@ -226,6 +226,11 @@ try {
         });
         await context.addInitScript(({ localFails }) => {
           localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://pictures.example.test' }));
+          // A returning person: the dashboard opens, and its account button makes the session.
+          localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
+            isComplete: true, selectedScenario: 'pet',
+            acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
+          }, version: 0 }));
           if (localFails) {
             // This browser cannot write the profile cache, as when storage is full.
             const put = IDBObjectStore.prototype.put;
@@ -249,8 +254,16 @@ try {
         const page = await context.newPage();
         const file = path.join(outDir, `${save.name}-${size.width}-${look}.png`);
         try {
-          await page.goto(new URL(save.route, baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-          await page.getByRole('button', { name: save.button, exact: true }).click();
+          // The settings pages do not start a session themselves: sign in on the dashboard, then
+          // move to the page inside the app, so the profile stays in memory as when a person clicks there.
+          await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+          await page.getByRole('button', { name: 'Account menu for Picture person' }).waitFor({ state: 'attached', timeout: 20_000 });
+          await page.locator('a[href="/settings/"]:visible, a[href="/settings"]:visible').first().click();
+          await page.getByRole('button', { name: 'Save Changes', exact: true }).waitFor({ timeout: 20_000 });
+          if (save.route === '/settings/notifications/') {
+            await page.locator('a[href^="/settings/notifications"]:visible').first().click();
+          }
+          await page.getByRole('button', { name: save.button, exact: true }).click({ timeout: 20_000 });
           const message = process.env.PICTURE_VERSION === 'after'
             ? page.getByText(save.words, { exact: true })
             : page.getByText(/^(Notification settings|Saved |Settings saved|Failed to save)/);
