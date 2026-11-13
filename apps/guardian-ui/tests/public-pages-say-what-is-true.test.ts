@@ -415,6 +415,7 @@ const METADATA_ROUTES: { route: string; index: boolean }[] = [
   { route: 'security', index: true },
   { route: 'lost-found', index: true },
   { route: 'lost-found/gallery', index: true },
+  { route: 'wildlife', index: true },
   { route: 'setup', index: true },
   { route: 'donate', index: false },
 ];
