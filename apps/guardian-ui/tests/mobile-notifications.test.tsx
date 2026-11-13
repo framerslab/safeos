@@ -3,11 +3,35 @@ import React from 'react';
 import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { NotificationPermission } from '@/components/NotificationPermission';
 import TestAlertsPage from '@/app/settings/test-alerts/page';
+import { useOnboardingStore } from '@/stores/onboarding-store';
 jest.mock('next/navigation', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));
 jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => ({ status: { api: 'disconnected' }, config: { apiUrl: '' } }) }));
 
+function finishSetup() {
+  useOnboardingStore.setState({
+    isComplete: true,
+    acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
+    selectedScenario: 'pet',
+  });
+}
+
+it('asks for nothing before setup is finished', () => {
+  localStorage.clear();
+  useOnboardingStore.getState().reset();
+  jest.useFakeTimers();
+  const constructor = jest.fn();
+  Object.assign(constructor, { permission: 'default', requestPermission: jest.fn() });
+  Object.defineProperty(window, 'Notification', { configurable: true, value: constructor });
+  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: new Promise(() => undefined) } });
+  render(<NotificationPermission />);
+  act(() => jest.advanceTimersByTime(60000));
+  expect(screen.queryByRole('button', { name: /enable/i })).toBeNull();
+  jest.useRealTimers();
+});
+
 it('shows the permission confirmation through the worker on browsers without Notification construction', async () => {
   localStorage.clear();
+  finishSetup();
   jest.useFakeTimers();
   const constructor = jest.fn(() => { throw new TypeError('Illegal constructor'); });
   Object.assign(constructor, { permission: 'default', requestPermission: jest.fn(async () => { Object.assign(constructor, { permission: 'granted' }); return 'granted'; }) });
