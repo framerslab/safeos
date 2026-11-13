@@ -103,6 +103,26 @@ it('queues a failed save and retries it, and no sound holds an alert back', asyn
   expect(await storedIds()).toEqual(alerts.map((alert) => (alert as { id: string }).id).sort());
 });
 
+it('retries a save that fails while a later alert waits behind it', async () => {
+  let failFirst = () => {};
+  const held = new Promise<void>((resolve) => { failFirst = resolve; });
+  let calls = 0;
+  // The first write is held, then fails; every later write saves for real.
+  const { engine } = await engineTab((real) => async (...args: any[]) => {
+    if (calls++ === 0) {
+      await held;
+      return false;
+    }
+    return real(...args);
+  });
+  await engine.updateThresholds({ alertCooldown: 0 });
+  const x = await engine.createAlert('motion', 'critical');
+  const y = await engine.createAlert('motion', 'critical');
+  failFirst();
+  await engine.whenSaved();
+  expect(await storedIds()).toEqual([x!.id, y!.id].sort());
+});
+
 it('acknowledges an alert whose save failed and saves the acknowledgement with the retry', async () => {
   const { control, make } = steeredSave();
   const { engine } = await engineTab(make);

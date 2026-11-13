@@ -197,6 +197,37 @@ it('keeps a live alert through a failed save and retries it on the next history 
   expect((await getCachedAlerts()).map(a => a.id)).toEqual(['live-during-write-failure']);
 });
 
+it('answers a failed save when its write request fails after it was queued, and leaves no unhandled rejection', async () => {
+  const put = IDBObjectStore.prototype.put;
+  // The request is queued as usual and fails when the database runs it: its error event fires
+  // with a QuotaExceededError and the transaction aborts.
+  const failingWrite = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+    const request = put.apply(this, args);
+    if (this.name === 'alert_cache') {
+      const queued = (this.transaction as any)._requests.find((entry: { request: IDBRequest }) => entry.request === request);
+      queued.operation = () => { throw new DOMException('Storage full', 'QuotaExceededError'); };
+    }
+    return request;
+  });
+  // Jest hands a test its own copy of `process`; the event is emitted on the runtime's.
+  const runtime: NodeJS.Process = require('vm').runInThisContext('process');
+  const unhandled = jest.fn();
+  runtime.on('unhandledRejection', unhandled);
+  try {
+    expect(await cacheAlert(alert('failed-after-queueing'))).toBe(false);
+    useMonitoringStore.getState().addAlert({ ...alert('live-after-queued-failure'), severity: 'critical' });
+    await useMonitoringStore.getState().hydrateAlerts();
+    expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['live-after-queued-failure']);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(unhandled).not.toHaveBeenCalled();
+  } finally {
+    runtime.removeListener('unhandledRejection', unhandled);
+  }
+  failingWrite.mockRestore();
+  await useMonitoringStore.getState().hydrateAlerts();
+  expect((await getCachedAlerts()).map(a => a.id)).toEqual(['live-after-queued-failure']);
+});
+
 it.each(['dismiss', 'clear'])('does not restore an unsaved live alert after %s', async (action) => {
   const put = IDBObjectStore.prototype.put;
   const failingWrite = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
