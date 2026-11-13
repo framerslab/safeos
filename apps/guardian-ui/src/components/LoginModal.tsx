@@ -63,7 +63,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         localStorage.setItem('safeos_session_token', data.data.token);
 
         // Update store
-        await startGuestSession({
+        startGuestSession({
           id: data.data.profile.id,
           displayName: data.data.profile.displayName,
           preferences: data.data.profile.preferences,
@@ -100,7 +100,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
       const data = await response.json();
 
       if (data.success) {
-        await login({
+        login({
           id: data.data.profile.id,
           displayName: data.data.profile.displayName,
           preferences: data.data.profile.preferences,

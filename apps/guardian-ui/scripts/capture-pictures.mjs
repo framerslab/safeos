@@ -115,7 +115,7 @@ try {
   // Exercise the real database lifecycle in fresh contexts. The base build has
   // no notice, so its pictures show the same screen while the upgrade waits.
   if (routes.includes('/monitor/')) {
-    for (const scenario of ['updated', 'blocked']) {
+    for (const scenario of ['updated', 'blocked', 'failed']) {
       for (const size of WIDTHS) {
         for (const look of LOOKS) {
           const context = await browser.newContext({
@@ -128,6 +128,24 @@ try {
               await page.addInitScript(() => {
                 const request = indexedDB.open('safeos-guardian', 4);
                 request.onsuccess = () => { window.pictureOldDatabase = request.result; };
+              });
+            }
+            if (scenario === 'failed') {
+              // A version 4 history with one alert, whose upgrade cannot rewrite it.
+              await page.addInitScript(() => {
+                const request = indexedDB.open('safeos-guardian', 4);
+                request.onupgradeneeded = () => {
+                  const alerts = request.result.createObjectStore('alert_cache', { keyPath: 'id' });
+                  alerts.createIndex('by-stream', 'streamId');
+                  alerts.createIndex('by-created', 'createdAt');
+                  alerts.put({ id: 'picture-saved', streamId: 'camera', severity: 'low', message: 'Saved before the update',
+                    monitoring: true, acknowledged: false, createdAt: '2026-10-01T00:00:00.000Z' });
+                };
+                request.onsuccess = () => {
+                  request.result.onversionchange = () => request.result.close();
+                  request.result.close();
+                };
+                IDBCursor.prototype.update = () => { throw new DOMException('No space left', 'QuotaExceededError'); };
               });
             }
             await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle' });
@@ -148,8 +166,11 @@ try {
             if (process.env.PICTURE_VERSION === 'after') {
               await page.getByRole('button', { name: 'Reload SafeOS' }).waitFor();
               const notice = page.getByRole('alert').filter({ has: page.getByRole('button', { name: 'Reload SafeOS' }) });
-              const words = scenario === 'blocked' ? 'Close other SafeOS tabs' : 'updated in another tab';
-              if (!(await notice.textContent()).includes('New alerts in this tab are not saved until you reload.')) throw new Error('Missing unsaved-alert disclosure');
+              const words = scenario === 'blocked' ? 'Close other SafeOS tabs'
+                : scenario === 'failed' ? 'SafeOS could not finish updating your saved history, so it is not shown in this tab.'
+                  : 'updated in another tab';
+              if (!(await notice.textContent()).includes('Until you reload, new alerts in this tab are shown but not saved, and acknowledging, dismissing or clearing alerts is not saved.')) throw new Error('Missing unsaved-alert disclosure');
+              if (scenario !== 'failed' && !(await notice.textContent()).includes('Everything already saved comes back as it was after you reload.')) throw new Error('Missing unsaved-alert disclosure');
               if (!(await notice.textContent()).includes(words)) throw new Error('Missing database update guidance');
               const contrast = await notice.evaluate(element => {
                 const luminance = color => {

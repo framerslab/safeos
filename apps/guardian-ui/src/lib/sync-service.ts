@@ -12,7 +12,7 @@ import {
   removeSyncAction,
   markSyncActionFailed,
   queueSyncAction,
-  cacheAlert,
+  updateCachedAlert,
   cacheStream,
 } from './client-db';
 import { isStaticMode, getApiUrl } from './env';
@@ -166,7 +166,7 @@ export async function syncPendingActions(): Promise<{
 async function handleSyncResponse(action: string, data: any): Promise<void> {
   if (action === 'acknowledge_alert') {
     const alert = data?.alert || data?.data;
-    if (alert) await cacheAlert({
+    if (alert) await updateCachedAlert({
       ...alert,
       streamId: alert.streamId ?? alert.stream_id,
       alertType: alert.alertType ?? alert.alert_type,
