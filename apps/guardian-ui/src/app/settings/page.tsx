@@ -339,7 +339,7 @@ export default function SettingsPage() {
         localStorage.setItem('safeos_user_settings', JSON.stringify(settingsData));
       }
 
-      // Update auth profile (offline-safe; will sync to server if connected)
+      // Update the auth profile: it rejects when the change was not taken, and the profile is put back.
       await updateProfile({
         displayName: settingsData.displayName,
         preferences: settingsData.preferences,

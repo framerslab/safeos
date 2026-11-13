@@ -21,6 +21,7 @@ export function AuthButton() {
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [displayName, setDisplayName] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Initialize on mount
@@ -50,7 +51,13 @@ export function AuthButton() {
   const handleSaveDisplayName = async () => {
     if (displayName.trim()) {
       const { updateProfile } = useAuthStore.getState();
-      await updateProfile({ displayName: displayName.trim() });
+      setNameError(null);
+      try {
+        await updateProfile({ displayName: displayName.trim() });
+      } catch {
+        // The name was put back: the editor closes and says so.
+        setNameError('The display name was not saved. Try again.');
+      }
       setIsEditing(false);
     }
   };
@@ -162,6 +169,9 @@ export function AuthButton() {
                       </svg>
                     </button>
                   </div>
+                )}
+                {nameError && (
+                  <p role="alert" className="text-xs text-red-400 mt-1">{nameError}</p>
                 )}
                 {isGuest && (
                   <p className="text-xs text-slate-400 mt-1">Guest session • Local data only</p>
