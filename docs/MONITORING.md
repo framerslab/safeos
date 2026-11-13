@@ -77,8 +77,9 @@ written, and an acknowledged alert leaves that tab's list. Clear All Local Data,
 sign-out or Clear all, in any tab of this browser, cancels every tab's pending saves.
 A failed acknowledgement of a saved alert is retried as an update with no clear
 comparison: it never creates a record, so it acknowledges an alert engine record that
-Clear all kept, and writes nothing once a clear has removed the record. Each clear writes a new clear generation in the database transaction that deletes the
-alerts, and a new marker in local storage before that transaction ends. A pending save
+Clear all kept, and writes nothing once a clear has removed the record. Each clear
+writes a new clear generation in the database transaction that deletes the alerts,
+and a new marker in local storage before that transaction ends. A pending save
 that holds a generation is written only by a transaction that reads the generation and
 finds it unchanged; one whose tab had read no generation under the marker in force when
 the alert was queued holds only that marker, and is written only if the marker it reads
