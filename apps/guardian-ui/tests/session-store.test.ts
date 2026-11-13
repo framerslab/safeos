@@ -708,7 +708,7 @@ it.each(['a browser-only session', 'a server session whose server takes what it 
   const first = await tab();
   await first.auth.getState().initialize();
   expect(String(first.auth.getState().sessionToken).startsWith('local-')).toBe(!onServer);
-  const before = first.auth.getState().profile;
+  const marker = localStorage.getItem(ACCOUNT_MARKER);
   const other = await tab();
   const hold = holdNextClear();
   const clearing = other.db.clearClientData();
@@ -729,7 +729,9 @@ it.each(['a browser-only session', 'a server session whose server takes what it 
     expect(first.auth.getState().profile?.displayName).toBe('First');
   } else {
     expect(outcomes[0]).toEqual(expect.objectContaining({ name: 'ProfileSaveError', place: 'browser' }));
-    expect(first.auth.getState().profile).toBe(before);
+    // A save the clear made void changes nothing more, so nothing is put back. The tab holds no profile once it is told of the clear.
+    tellOpenTabs(ACCOUNT_MARKER, marker);
+    expect(first.auth.getState().profile).toBeNull();
   }
   expect(outcomes[1]).toEqual(expect.objectContaining({ name: 'ProfileSaveError', place: 'browser' }));
 });
