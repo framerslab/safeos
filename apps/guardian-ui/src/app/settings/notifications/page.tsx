@@ -10,7 +10,7 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { BackButton } from '@/components/BackButton';
 import { useSettingsStore } from '@/stores/settings-store';
@@ -169,9 +169,14 @@ export default function NotificationsSettingsPage() {
     setSettings({ ...stored, quietHoursEnabled: shared.enabled, quietHoursStart: shared.startTime, quietHoursEnd: shared.endTime });
   }, []);
 
+  // The form takes the profile's values when a profile first loads and when another replaces it, not on
+  // every change of the profile: after a save that was put back it keeps what the person set, and
+  // "Save again" sends that.
+  const formProfileId = useRef<string | null>(null);
   useEffect(() => {
     hydrateSavedSettings(profile);
-    if (!profile?.notificationSettings) return;
+    if (!profile?.notificationSettings || formProfileId.current === profile.id) return;
+    formProfileId.current = profile.id;
     setSettings((prev) => ({
       ...prev,
       browserPush: profile.notificationSettings?.browserPush ?? prev.browserPush,
