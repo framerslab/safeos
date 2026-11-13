@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The production compose file passes `SAFEOS_DOMAIN` and `CORS_ORIGIN` to Caddy, which serves `{$SAFEOS_DOMAIN}`.
 - `GET /api/auth/session` and the profile routes read the stored session row, so a returning guest gets their profile, `isGuest` and `expiresAt` back.
 - Email sign-in is mounted at `/api/auth/email`; its sessions carry a profile, its links open forms served by the API, and a password reset ends the account's other sessions.
+- A saved session that the server answers with `401` is deleted from the browser before a new session is made, so the next page load does not send it again and uses the new session.
+- A session check that answers neither OK nor `401` (a `503`, a `429`) keeps the saved session, as when the server cannot be reached, and asks for no new session.
+- A profile save that this browser or the server did not take fails instead of reporting success. Settings says "Failed to save settings."; Notification Settings says whether the change was kept on this device and asks for a new save.
+- A session answer that arrives after Log Out or Clear All Local Data is dropped: nothing is saved and the tab stays signed out.
 
 ## [0.1.0] - 2025-01-08
 

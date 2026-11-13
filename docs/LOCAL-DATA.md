@@ -37,6 +37,13 @@ imported only when both times are set. Creating a session therefore preserves
 the sensitivity, volume and quiet hours already in effect. Later edits use the
 shared store. Account preferences remain compatible with the server profile.
 
+A profile save writes this browser's copy first and then sends the change to a
+connected server. When either step fails, Settings shows "Failed to save
+settings." Notification Settings shows "Saved on this device. The server did
+not take the change. Save again when you are connected." when only the server
+step failed, and "Notification settings were not saved. Try again." when this
+browser could not keep the change. Nothing sends a failed change later.
+
 Email and SMS provider secrets entered in Notification Settings stay in page
 memory. They are omitted from browser storage, and older saved secrets are
 removed when that page opens. Leaving or reloading the page discards the typed
