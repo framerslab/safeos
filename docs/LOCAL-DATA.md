@@ -21,6 +21,10 @@ to the next person using that browser. Both actions also remove the dashboard
 onboarding completion record so the next person sees its introduction and safety
 disclaimer. Export anything you want to keep first.
 This removes local copies; it does not delete records held by a connected server.
+A session answer that arrives after either clear, in this tab or another, is
+dropped and leaves the tab signed out; a profile change answered after it is
+not written to this browser. Clear all on Monitor clears only the alert history
+and stops neither.
 
 ## Saved preferences
 
@@ -40,12 +44,15 @@ shared store. Account preferences remain compatible with the server profile.
 Where the profile lives decides a profile save. For a session on a server,
 the change is sent to the server and its answer decides: when the server takes
 it, this browser's copy is written too, and a failed copy does not fail the
-save. For a session that lives only in this browser, this browser's write
-decides. A change that was not taken is put back in the page. Settings then
-shows "Failed to save settings." Notification Settings shows "The server did
-not take the change. Save again when you are connected." when the server did
-not take it, and "Notification settings were not saved. Try again." when this
-browser could not write it. Nothing sends a failed change later. The display
+save. With no server address set, such a save fails as when the server did not
+take it. For a session that lives only in this browser, this browser's write
+decides. Saves in a tab run one after another, and a change that was not taken
+is put back to the profile the save before it left. Settings then shows
+"Failed to save settings." Notification Settings shows "The server did not take
+the change. Save again when you are connected." when the server did not take
+it, and "Notification settings were not saved. Try again." when this browser
+could not write it; its switches keep what was set, so Save again sends that.
+Nothing sends a failed change later. The display
 name in the account menu and the settings panel's controls say so where the
 change was made. A page that reloads without an answer from the server takes
 its profile from this browser's copy.
