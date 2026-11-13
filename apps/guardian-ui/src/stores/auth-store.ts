@@ -174,7 +174,12 @@ export const useAuthStore = create<AuthState>()(
 
               if (response.ok) {
                 const { data } = await response.json();
-                if (await keepsHeldSession()) return keepHeldSession();
+                if (await keepsHeldSession()) {
+                  // The OK answer counts for the token it was asked about, as checkHeldToken keeps it,
+                  // so a tab that holds that same token is signed in with it.
+                  heldAnswer = { token: localSession.token, data };
+                  return keepHeldSession();
+                }
                 set({
                   isAuthenticated: true,
                   isGuest: data.isGuest,
