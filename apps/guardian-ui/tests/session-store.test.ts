@@ -2,7 +2,7 @@
 import { waitFor } from '@testing-library/react';
 import { openDB } from 'idb';
 import { IDBFactory } from 'fake-indexeddb';
-import { heldToken, holdToken, oldTab, refused, server, session, sessionAnswer, stored, unreachable } from './helpers/saved-history';
+import { heldToken, holdToken, oldTab, profile, refused, server, session, sessionAnswer, stored, unreachable } from './helpers/saved-history';
 require('fake-indexeddb/auto');
 jest.setTimeout(60000);
 Object.defineProperty(global, 'structuredClone', { configurable: true, value: (value: unknown) =>
@@ -16,7 +16,17 @@ async function tab() {
   jest.resetModules();
   const { useAuthStore: auth } = await import('@/stores/auth-store');
   const db = await import('@/lib/client-db');
-  return { auth, db };
+  const { clearLocalData } = await import('@/lib/local-data');
+  return { auth, db, clearLocalData };
+}
+const tookIt = () => ({ ok: true, status: 200, json: async () => ({ success: true }) });
+/** This browser cannot write its profile copy, as when storage is full. */
+function profileCacheFull() {
+  const put = IDBObjectStore.prototype.put;
+  jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+    if (this.name === 'profile_cache') throw new DOMException('No space left', 'QuotaExceededError');
+    return put.apply(this, args);
+  });
 }
 function blockedStorage() {
   return new DOMException('blocked', 'SecurityError');
@@ -66,6 +76,34 @@ it('uses the replacement session on the next load after the server refused the s
   expect(second.auth.getState().sessionToken).toBe('renewed-token');
 });
 
+it('keeps a browser-only saved session when a configured server refuses its token', async () => {
+  (await oldTab({ alerts: [], sessions: [{ ...session, id: 'guest-100', token: 'local-guest-100' }] })).close();
+  server({ check: () => refused, create: () => sessionAnswer('renewed-token', renewed, 'S2') });
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  expect((await stored('local_session')).map((row) => row.id)).toContain('guest-100');
+});
+
+it('uses the replacement session on the next load when another saved row sorts before it', async () => {
+  (await oldTab({ alerts: [], sessions: [
+    { ...session, id: 'S1', token: 'refused-token' },
+    { ...session, id: 'S2', token: 'other-token', profile: { ...profile, id: 'other-person' } },
+  ] })).close();
+  const calls = server({
+    check: (token) => (token === 'refused-token' ? refused : sessionAnswer(token, renewed, token === 'S3-token' ? 'S3' : `${token}-session`)),
+    create: () => sessionAnswer('S3-token', renewed, 'S3'),
+  });
+  const first = await tab();
+  await first.auth.getState().initialize();
+  expect(first.auth.getState().sessionToken).toBe('S3-token');
+  expect((await stored('local_session')).map((row) => row.id)).toEqual(['S2', 'S3']);
+  const second = await tab();
+  await second.auth.getState().initialize();
+  expect(calls.checks().map((call) => call.token)).toEqual(['refused-token', 'S3-token']);
+  expect(second.auth.getState().sessionToken).toBe('S3-token');
+  expect(calls.posts()).toHaveLength(1);
+});
+
 it('keeps the saved session and asks for no new one when its check answers 503', async () => {
   (await oldTab()).close();
   const calls = server({ check: () => ({ ok: false, status: 503 }), create: () => sessionAnswer('new-token') });
@@ -78,31 +116,63 @@ it('keeps the saved session and asks for no new one when its check answers 503',
   expect(await stored('local_session')).toEqual([session]);
 });
 
-it.each(['answers 500', 'fails'])('rejects a profile change the server did not take, with the change saved on this device: the request %s', async (outcome) => {
+it.each(['answers 500', 'fails'])('rejects a profile change of a server session that the server did not take, and puts the profile back: the request %s', async (outcome) => {
   (await oldTab()).close();
   const calls = server({ profile: outcome === 'answers 500' ? () => ({ ok: false, status: 500 }) : undefined });
   const { auth } = await tab();
   await auth.getState().initialize();
   expect(auth.getState().sessionToken).toBe('saved-token');
+  const before = auth.getState().profile;
   await expect(auth.getState().updateProfile({ displayName: 'Changed name' }))
-    .rejects.toMatchObject({ name: 'ProfileSaveError', localSaved: true });
+    .rejects.toMatchObject({ name: 'ProfileSaveError' });
   expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
-  expect((await stored('profile_cache')).map((row) => row.displayName)).toEqual(['Changed name']);
+  expect(auth.getState().profile).toBe(before);
+  expect(await stored('profile_cache')).toEqual([]);
 });
 
-it('rejects a profile change, marked not saved on this device, when the local write fails', async () => {
+it('keeps a profile change the server took when this browser cannot write its copy', async () => {
   (await oldTab()).close();
-  server({ profile: () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) });
+  const calls = server({ profile: tookIt });
   const { auth } = await tab();
   await auth.getState().initialize();
-  const put = IDBObjectStore.prototype.put;
-  jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
-    if (this.name === 'profile_cache') throw new DOMException('No space left', 'QuotaExceededError');
-    return put.apply(this, args);
-  });
+  profileCacheFull();
+  await expect(auth.getState().updateProfile({ displayName: 'Changed name' })).resolves.toBeUndefined();
+  expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
+  expect(auth.getState().profile?.displayName).toBe('Changed name');
+});
+
+it('rejects a profile change of a browser-only session that this browser cannot write, and puts the profile back', async () => {
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  expect(auth.getState().sessionToken).toMatch(/^local-/);
+  const before = auth.getState().profile;
+  profileCacheFull();
   await expect(auth.getState().updateProfile({ displayName: 'Changed name' }))
-    .rejects.toMatchObject({ name: 'ProfileSaveError', localSaved: false });
-  expect(await stored('profile_cache')).toEqual([]);
+    .rejects.toMatchObject({ name: 'ProfileSaveError' });
+  expect(auth.getState().profile).toBe(before);
+});
+
+it('sends a profile change of a server session when this browser’s database cannot be opened', async () => {
+  jest.spyOn(indexedDB, 'open').mockImplementation(() => { throw blockedStorage(); });
+  const calls = server({ create: () => sessionAnswer('server-token'), profile: tookIt });
+  const { auth } = await tab();
+  await auth.getState().initialize();
+  expect(auth.getState().sessionToken).toBe('server-token');
+  await expect(auth.getState().updateProfile({ displayName: 'Changed name' })).resolves.toBeUndefined();
+  expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
+  expect(auth.getState().profile?.displayName).toBe('Changed name');
+});
+
+it('restores a browser-only session with the profile change saved before the reload', async () => {
+  const first = await tab();
+  await first.auth.getState().initialize();
+  const token = first.auth.getState().sessionToken;
+  expect(token).toMatch(/^local-/);
+  await first.auth.getState().updateProfile({ displayName: 'Changed name' });
+  const second = await tab();
+  await second.auth.getState().initialize();
+  expect(second.auth.getState().sessionToken).toBe(token);
+  expect(second.auth.getState().profile?.displayName).toBe('Changed name');
 });
 
 it.each(['answers OK', 'fails'])('saves nothing and signs nobody in when a session request %s after local data was cleared', async (outcome) => {
@@ -123,6 +193,78 @@ it.each(['answers OK', 'fails'])('saves nothing and signs nobody in when a sessi
   expect(auth.getState().profile).toBeNull();
   expect(auth.getState().isLoading).toBe(false);
   expect(auth.getState().isInitialized).toBe(true);
+});
+
+it.each(['answers OK', 'fails'])('saves nothing and signs nobody in when a session request %s after another tab cleared local data', async (outcome) => {
+  let settle!: { answer: (value: unknown) => void; fail: (error: Error) => void };
+  const pending = new Promise((answer, fail) => { settle = { answer, fail }; });
+  const calls = server({ create: () => pending as never });
+  const first = await tab();
+  const setUp = first.auth.getState().initialize();
+  await waitFor(() => expect(calls.posts()).toHaveLength(1), { timeout: 5000 });
+  const other = await tab();
+  await other.clearLocalData();
+  if (outcome === 'answers OK') settle.answer(sessionAnswer('late-token'));
+  else settle.fail(new TypeError('Failed to fetch'));
+  await setUp;
+  expect(await stored('local_session')).toEqual([]);
+  expect(first.auth.getState().isAuthenticated).toBe(false);
+  expect(first.auth.getState().sessionToken).toBeNull();
+  expect(first.auth.getState().isLoading).toBe(false);
+  expect(first.auth.getState().isInitialized).toBe(true);
+});
+
+it.each(['answers 503', 'answers 401', 'answers OK'])('stays signed out when the saved session check %s after this tab signed out', async (outcome) => {
+  (await oldTab()).close();
+  let answer!: (value: unknown) => void;
+  const pending = new Promise((resolve) => { answer = resolve; });
+  const calls = server({ check: () => pending as never, create: () => sessionAnswer('new-token') });
+  const { auth } = await tab();
+  const setUp = auth.getState().initialize();
+  await waitFor(() => expect(calls.checks()).toHaveLength(1), { timeout: 5000 });
+  await auth.getState().logout();
+  answer(outcome === 'answers 503' ? { ok: false, status: 503 } : outcome === 'answers 401' ? refused : sessionAnswer('saved-token'));
+  await setUp;
+  expect(auth.getState().isAuthenticated).toBe(false);
+  expect(auth.getState().sessionToken).toBeNull();
+  expect(auth.getState().profile).toBeNull();
+  expect(calls.posts()).toHaveLength(0);
+  expect(heldToken()).toBeNull();
+  expect(await stored('local_session')).toEqual([]);
+  expect(await stored('profile_cache')).toEqual([]);
+  expect(auth.getState().isLoading).toBe(false);
+  expect(auth.getState().isInitialized).toBe(true);
+});
+
+it('deletes the session row written while a clear of local data landed', async () => {
+  let reached!: () => void;
+  const writing = new Promise<void>((resolve) => { reached = resolve; });
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  jest.resetModules();
+  // The session row's write waits until the clear has finished.
+  jest.doMock('@/lib/client-db', () => {
+    const actual = jest.requireActual<typeof import('@/lib/client-db')>('@/lib/client-db');
+    return { ...actual, saveLocalSession: async (row: Parameters<typeof actual.saveLocalSession>[0]) => {
+      reached();
+      await held;
+      return actual.saveLocalSession(row);
+    } };
+  });
+  try {
+    server({ create: () => sessionAnswer('late-token') });
+    const { useAuthStore: auth } = await import('@/stores/auth-store');
+    const { clearLocalData } = await import('@/lib/local-data');
+    const made = auth.getState().createSession();
+    await writing;
+    await clearLocalData();
+    release();
+    await made;
+    expect(await stored('local_session')).toEqual([]);
+    expect(auth.getState().isAuthenticated).toBe(false);
+  } finally {
+    jest.dontMock('@/lib/client-db');
+  }
 });
 
 it('makes no session while a notice is set and the tab holds a token', async () => {

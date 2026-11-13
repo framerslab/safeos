@@ -5,7 +5,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import { IDBFactory } from 'fake-indexeddb';
 import { BrowserSocket } from './helpers/camera-browser';
 import {
-  checked, engineOld, heldToken, holdToken, ids, monitoringAlert, oldTab, refused, server, sessionAnswer, stored, storedVersion, unreachable,
+  checked, engineOld, heldToken, holdToken, ids, monitoringAlert, oldTab, refused, server, session, sessionAnswer, stored, storedVersion, unreachable,
 } from './helpers/saved-history';
 require('fake-indexeddb/auto');
 jest.setTimeout(60000);
@@ -359,8 +359,9 @@ it.each([
       fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
       expect(await screen.findByText('Notification settings were not saved to your profile. Reload this page, set them again, then save.')).toBeTruthy();
       expect(screen.queryByText('Notification settings saved.')).toBeNull();
-      expect(screen.queryByText('Saved on this device. The server did not take the change. Save again when you are connected.')).toBeNull();
-      expect(screen.queryByText('Notification settings were not saved. Try again.')).toBeNull();
+      expect(screen.queryByText(SERVER_REFUSED)).toBeNull();
+      expect(screen.queryByText(NOT_SAVED)).toBeNull();
+      expect(screen.queryByText(/Saved on this device/)).toBeNull();
       expect(calls.calls.filter((call) => call.method === 'PATCH')).toEqual([]);
     } else {
       const name = screen.getByText('Display Name').parentElement!.querySelector('input')!;
@@ -376,31 +377,43 @@ it.each([
   }
 });
 
+const SERVER_REFUSED = 'The server did not take the change. Save again when you are connected.';
+const NOT_SAVED = 'Notification settings were not saved. Try again.';
+const RELOAD = 'Notification settings were not saved to your profile. Reload this page, set them again, then save.';
+function profileCacheFull() {
+  const put = IDBObjectStore.prototype.put;
+  jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
+    if (this.name === 'profile_cache') throw new DOMException('No space left', 'QuotaExceededError');
+    return put.apply(this, args);
+  });
+}
+
 it.each([
-  'Notifications, the server did not take it', 'Notifications, this device did not save it', 'Settings, the server did not take it',
+  'Notifications, the server did not take it', 'Notifications, the server took it and this browser could not write it',
+  'Notifications, this browser could not write it for a browser-only session', 'Settings, the server did not take it',
 ])('says what a failed settings save kept: %s', async (state) => {
-  (await oldTab()).close();
-  // The saved session checks OK; the profile change then fails as an unreachable server does.
-  const calls = server();
+  const browserOnly = state.endsWith('browser-only session');
+  const serverTook = state.includes('the server took it');
+  (await oldTab(browserOnly ? { sessions: [{ ...session, token: 'local-guest-saved' }] } : {})).close();
+  // A server session checks OK; its profile change then fails as an unreachable server does, or is taken.
+  // A browser-only session is restored with no server.
+  const calls = browserOnly ? null : server(serverTook ? { profile: () => ({ ok: true, status: 200, json: async () => ({ success: true }) }) } : {});
   const notifications = state.startsWith('Notifications');
   const { Providers, Settings, NotificationSettings, StatusBanner, auth } = await app();
   const Page = notifications ? NotificationSettings : Settings;
   render(<Providers><StatusBanner /><Page /></Providers>);
   await act(async () => { await auth.getState().initialize(); });
-  await waitFor(() => expect(auth.getState().profile?.id).toBe(checked.id), SLOW);
-  if (state.endsWith('did not save it')) {
-    const put = IDBObjectStore.prototype.put;
-    jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, ...args: Parameters<typeof put>) {
-      if (this.name === 'profile_cache') throw new DOMException('No space left', 'QuotaExceededError');
-      return put.apply(this, args);
-    });
-  }
+  await waitFor(() => expect(auth.getState().profile?.id).toBe(browserOnly ? 'returning-person' : checked.id), SLOW);
+  if (state.includes('could not write it')) profileCacheFull();
+  const before = auth.getState().profile;
   if (notifications) {
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
-    expect(await screen.findByText(state.endsWith('did not save it')
-      ? 'Notification settings were not saved. Try again.'
-      : 'Saved on this device. The server did not take the change. Save again when you are connected.')).toBeTruthy();
-    expect(screen.queryByText('Notification settings saved.')).toBeNull();
+    const words = serverTook ? 'Notification settings saved.' : browserOnly ? NOT_SAVED : SERVER_REFUSED;
+    expect(await screen.findByText(words)).toBeTruthy();
+    for (const other of ['Notification settings saved.', NOT_SAVED, SERVER_REFUSED, RELOAD]) {
+      if (other !== words) expect(screen.queryByText(other)).toBeNull();
+    }
+    expect(screen.queryByText(/Saved on this device/)).toBeNull();
   } else {
     const name = screen.getByText('Display Name').parentElement!.querySelector('input')!;
     fireEvent.change(name, { target: { value: 'Changed name' } });
@@ -408,7 +421,76 @@ it.each([
     expect(await screen.findByText('Failed to save settings.')).toBeTruthy();
     expect(screen.queryByText('Settings saved!')).toBeNull();
   }
-  if (!state.endsWith('did not save it')) expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
+  if (calls) expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
+  // A change that was not taken is not kept in the tab either.
+  if (!serverTook) expect(auth.getState().profile).toBe(before);
+});
+
+it.each(['while the change is sent', 'before the save'])('says which save failed when a reload notice appears %s', async (when) => {
+  (await oldTab()).close();
+  let fail!: (error: Error) => void;
+  const pending = new Promise((_answer, reject) => { fail = reject; });
+  const calls = server({ profile: () => pending as never });
+  const { Providers, NotificationSettings, StatusBanner, auth, db } = await app();
+  render(<Providers><StatusBanner /><NotificationSettings /></Providers>);
+  await act(async () => { await auth.getState().initialize(); });
+  await waitFor(() => expect(auth.getState().profile?.id).toBe(checked.id), SLOW);
+  let newer: IDBPDatabase | undefined;
+  try {
+    if (when === 'before the save') {
+      newer = await laterVersion();
+      await waitFor(() => expect(db.getDatabaseNotice()).toMatch(/updated in another tab/), SLOW);
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+    if (when === 'before the save') {
+      expect(await screen.findByText(RELOAD)).toBeTruthy();
+      expect(calls.sent('PATCH', '/api/auth/profile')).toEqual([]);
+      return;
+    }
+    await waitFor(() => expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1), SLOW);
+    newer = await laterVersion();
+    await waitFor(() => expect(db.getDatabaseNotice()).toMatch(/updated in another tab/), SLOW);
+    fail(new TypeError('Failed to fetch'));
+    expect(await screen.findByText(SERVER_REFUSED)).toBeTruthy();
+    expect(screen.queryByText(RELOAD)).toBeNull();
+  } finally {
+    newer?.close();
+  }
+});
+
+it.each(['the account menu’s display name', 'the settings panel’s theme'])('says a failed save of %s where the person acted, with no unhandled rejection', async (control) => {
+  (await oldTab()).close();
+  // The saved session checks OK; the profile change then fails as an unreachable server does.
+  const calls = server();
+  const { auth } = await app();
+  const { AuthButton } = await import('@/components/AuthButton');
+  const { SettingsPanel } = await import('@/components/SettingsPanel');
+  await act(async () => { await auth.getState().initialize(); });
+  expect(auth.getState().profile?.id).toBe(checked.id);
+  // Jest hands a test its own copy of `process`; the event is emitted on the runtime's.
+  const runtime: NodeJS.Process = require('vm').runInThisContext('process');
+  const unhandled = jest.fn();
+  runtime.on('unhandledRejection', unhandled);
+  try {
+    if (control.startsWith('the account menu')) {
+      render(<AuthButton />);
+      fireEvent.click(screen.getByRole('button', { name: /account menu/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Edit display name' }));
+      fireEvent.change(screen.getByPlaceholderText('Enter name'), { target: { value: 'Changed name' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    } else {
+      render(<SettingsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: 'light' }));
+    }
+    await waitFor(() => expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1), SLOW);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(unhandled).not.toHaveBeenCalled();
+    expect((await screen.findByRole('alert')).textContent).toBe(control.startsWith('the account menu')
+      ? 'The display name was not saved. Try again.'
+      : 'The change was not saved. Try again.');
+  } finally {
+    runtime.removeListener('unhandledRejection', unhandled);
+  }
 });
 
 it('refuses sign-out and Clear All Local Data under a notice', async () => {
