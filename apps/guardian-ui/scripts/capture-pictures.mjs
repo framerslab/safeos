@@ -198,6 +198,127 @@ try {
       }
     }
   }
+  // A profile save of a server session that the server does not take, and one of a browser-only
+  // session that this browser cannot write. The base build shows its own words for the same saves;
+  // in the head build CI checks the words.
+  const saves = [
+    ...(routes.includes('/settings/notifications/') ? [
+      { name: 'notifications-server-refused', route: '/settings/notifications/', button: 'Save changes',
+        browserOnly: false, localFails: false,
+        words: 'The server did not take the change. Save again when you are connected.' },
+      { name: 'notifications-not-saved', route: '/settings/notifications/', button: 'Save changes',
+        browserOnly: true, localFails: true,
+        words: 'Notification settings were not saved. Try again.' },
+    ] : []),
+    ...(routes.includes('/settings/') ? [
+      { name: 'settings-failed', route: '/settings/', button: 'Save Changes', browserOnly: false, localFails: false,
+        words: 'Failed to save settings.' },
+    ] : []),
+  ];
+  const cors = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Session-Token',
+  };
+  for (const save of saves) {
+    for (const size of WIDTHS) {
+      for (const look of LOOKS) {
+        const context = await browser.newContext({
+          viewport: { width: size.width, height: size.height },
+          isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look,
+        });
+        await context.addInitScript(({ localFails }) => {
+          // With a server and its socket address saved, the dashboard starts the session.
+          localStorage.setItem('safeos_backend_config', JSON.stringify({
+            apiUrl: 'https://pictures.example.test', wsUrl: 'wss://pictures.example.test/ws' }));
+          // A returning person, so the dashboard opens without the first-run screens.
+          localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
+            isComplete: true, selectedScenario: 'pet',
+            acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
+          }, version: 0 }));
+          localStorage.setItem('guardian-onboarding-complete', 'true');
+          if (localFails) {
+            // This browser cannot write the profile cache, as when storage is full.
+            const put = IDBObjectStore.prototype.put;
+            IDBObjectStore.prototype.put = function (...args) {
+              if (this.name === 'profile_cache') throw new DOMException('No space left', 'QuotaExceededError');
+              return put.apply(this, args);
+            };
+          }
+        }, { localFails: save.localFails });
+        await context.route('https://pictures.example.test/**', request => {
+          const method = request.request().method();
+          if (method === 'OPTIONS') return request.fulfill({ status: 204, headers: cors });
+          // The server refuses the profile change.
+          if (method === 'PATCH') return request.fulfill({ status: 500, headers: cors,
+            contentType: 'application/json', body: JSON.stringify({ success: false }) });
+          // For a browser-only session the server does not make the session, so the tab makes a guest
+          // session in this browser.
+          if (method === 'POST' && save.browserOnly) return request.fulfill({ status: 500, headers: cors,
+            contentType: 'application/json', body: '{"success":false}' });
+          // The server is up and answers the session route; its other reads find nothing.
+          const pathname = new URL(request.request().url()).pathname;
+          if (pathname === '/health') return request.fulfill({ headers: cors, contentType: 'application/json', body: '{"status":"ok"}' });
+          if (!pathname.startsWith('/api/auth/session')) {
+            return request.fulfill({ status: 404, headers: cors, contentType: 'application/json', body: '{"success":false}' });
+          }
+          return request.fulfill({ headers: cors, contentType: 'application/json', body: JSON.stringify({ status: 'ok', data: {
+            sessionId: 'picture-session', token: 'picture-token', isGuest: false, expiresAt: '2099-01-01T00:00:00Z',
+            profile: { id: 'picture-person', displayName: 'Picture person', avatarUrl: null,
+              preferences: { defaultScenario: 'pet', motionSensitivity: 0.5, audioSensitivity: 0.5, alertVolume: 0.7, theme: 'system' },
+              notificationSettings: { browserPush: true, sms: false, telegram: false, emailDigest: false,
+                quietHoursStart: null, quietHoursEnd: null } },
+          } }) });
+        });
+        const page = await context.newPage();
+        // What the page asked the fixture server, reported when a capture fails.
+        const asked = [];
+        page.on('requestfinished', async request => {
+          if (!request.url().startsWith('https://pictures.example.test/')) return;
+          const response = await request.response().catch(() => null);
+          asked.push(`${request.method()} ${new URL(request.url()).pathname} ${response ? response.status() : '-'}`);
+        });
+        page.on('pageerror', error => asked.push(`page error: ${error.message}`));
+        page.on('requestfailed', request => {
+          if (request.url().startsWith('https://pictures.example.test/')) {
+            asked.push(`${request.method()} ${new URL(request.url()).pathname} failed: ${request.failure()?.errorText}`);
+          }
+        });
+        const file = path.join(outDir, `${save.name}-${size.width}-${look}.png`);
+        try {
+          // The settings pages do not start a session themselves: the dashboard does, then the page
+          // is opened inside the app, so the profile stays in memory as when a person clicks there.
+          const sessionMade = page.waitForResponse(response => response.url().endsWith('/api/auth/session')
+            && response.request().method() === 'POST', { timeout: 60_000 });
+          await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'load', timeout: 60_000 });
+          await sessionMade;
+          // The session is saved in this browser before the tab holds it.
+          await page.waitForTimeout(1_000);
+          await page.locator('a[href="/settings/"]:visible, a[href="/settings"]:visible').first().click();
+          await page.getByRole('button', { name: 'Save Changes', exact: true }).waitFor({ timeout: 20_000 });
+          if (save.route === '/settings/notifications/') {
+            await page.locator('a[href^="/settings/notifications"]:visible').first().click();
+          }
+          await page.getByRole('button', { name: save.button, exact: true }).click({ timeout: 20_000 });
+          const message = process.env.PICTURE_VERSION === 'after'
+            ? page.getByText(save.words, { exact: true })
+            : page.getByText(/^(Notification settings|Saved |Settings saved|Failed to save)/);
+          await message.first().waitFor({ timeout: 10_000 });
+          // The whole page, so the message shows wherever it sits. The site's fixed bars are left out,
+          // since the Settings message sits at the top right, where the top bar covers it.
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.screenshot({ path: file, fullPage: true, style: 'nav.fixed { display: none !important; }' });
+          console.log(`captured ${file}`);
+        } catch (err) {
+          failures += 1;
+          console.error(`failed ${save.name} at ${size.width} ${look}: ${err.message}`);
+          console.error(`  at ${page.url()}; asked: ${JSON.stringify(asked)}`);
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  }
 } finally {
   await browser.close();
 }

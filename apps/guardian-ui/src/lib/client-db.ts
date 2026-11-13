@@ -9,7 +9,7 @@
 
 import {
   getLocalDataGeneration, isCurrentLocalData, learnClearGeneration, newClearValue, readLocalClearMarker,
-  writeLocalClearMarker, type ClearStamp,
+  writeAccountClearMarker, writeLocalClearMarker, type ClearStamp,
 } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
 
@@ -551,12 +551,29 @@ export interface LocalSession {
   syncedAt: string | null;
 }
 
-export async function saveLocalSession(session: LocalSession): Promise<void> {
+/**
+ * Saves a session row. With `current`, the row is written only while `current()` holds, read inside
+ * this write's own transaction after its first request: a clear that was in progress when the write
+ * was asked for has committed by then. The answer is true when the row was written; a failed write is
+ * logged.
+ */
+export async function saveLocalSession(session: LocalSession, current?: () => boolean): Promise<boolean> {
+  let tx: IDBPTransaction<SafeOSDB, ['local_session'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    await db.put('local_session', session);
+    tx = db.transaction('local_session', 'readwrite');
+    await tx.store.get(session.id);
+    if (current && !current()) {
+      await tx.done;
+      return false;
+    }
+    await tx.store.put(session);
+    await tx.done;
+    return true;
   } catch (error) {
     console.warn('[ClientDB] Failed to save session:', error);
+    await abandonTransaction(tx);
+    return false;
   }
 }
 
@@ -576,14 +593,17 @@ export async function getLocalSession(): Promise<LocalSession | null> {
 }
 
 /**
- * The first valid saved session, or null when the store was read and holds none. It rejects when
- * the database cannot be opened or read, so a failure is never taken for a browser with no session.
+ * The saved session to restore: the row of `preferredId` (the session this browser last used) when it
+ * is there and valid, otherwise the first valid row in key order; null when the store was read and
+ * holds none. It rejects when the database cannot be opened or read, so a failure is never taken for
+ * a browser with no session.
  */
-export async function readLocalSession(): Promise<LocalSession | null> {
+export async function readLocalSession(preferredId: string | null = null): Promise<LocalSession | null> {
   const db = await getDB();
   const sessions = await db.getAll('local_session');
   const now = new Date().toISOString();
-  return sessions.find(s => s.expiresAt > now) || null;
+  const valid = sessions.filter(s => s.expiresAt > now);
+  return valid.find(s => s.id === preferredId) || valid[0] || null;
 }
 
 /** False while a reload notice is set or when the database cannot be opened. */
@@ -605,14 +625,33 @@ export async function clearLocalSession(): Promise<void> {
   }
 }
 
+/** Deletes one saved session by its id. It rejects when the database cannot be opened or written. */
+export async function deleteLocalSession(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('local_session', id);
+}
+
 // =============================================================================
 // Profile Cache
 // =============================================================================
 
-export async function cacheProfile(profile: any): Promise<void> {
+/**
+ * Writes the profile to the profile cache. With `current`, the profile is written only while
+ * `current()` holds, read inside this write's own transaction after its first request, so a write
+ * queued behind a clear in progress is cancelled once that clear has committed. A failed write is
+ * logged.
+ */
+export async function cacheProfile(profile: any, current?: () => boolean): Promise<'saved' | 'cancelled' | 'failed'> {
+  let tx: IDBPTransaction<SafeOSDB, ['profile_cache'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    await db.put('profile_cache', {
+    tx = db.transaction('profile_cache', 'readwrite');
+    await tx.store.get(profile.id);
+    if (current && !current()) {
+      await tx.done;
+      return 'cancelled';
+    }
+    await tx.store.put({
       id: profile.id,
       displayName: profile.displayName,
       avatarUrl: profile.avatarUrl,
@@ -620,8 +659,12 @@ export async function cacheProfile(profile: any): Promise<void> {
       notificationSettings: profile.notificationSettings || {},
       updatedAt: new Date().toISOString(),
     });
+    await tx.done;
+    return 'saved';
   } catch (error) {
     console.warn('[ClientDB] Failed to cache profile:', error);
+    await abandonTransaction(tx);
+    return 'failed';
   }
 }
 
@@ -2072,8 +2115,9 @@ export async function getAnimalDetectionStats(): Promise<{
 
 /**
  * Clear every local record in one transaction, including frames and profiles. The clear names
- * itself in the database and, before it commits, in local storage, so a failed save that waits
- * in any tab is not written afterwards. If either cannot be written, nothing is cleared.
+ * itself in the database and, before it commits, in local storage (the clear marker, and the account
+ * marker that session work and profile saves read), so a failed save that waits in any tab is not
+ * written afterwards. If any of them cannot be written, nothing is cleared.
  */
 export async function clearClientData(): Promise<void> {
   const db = await getDB();
@@ -2085,6 +2129,7 @@ export async function clearClientData(): Promise<void> {
       tx.objectStore('clear_generation').put(newClearValue(), 'current'),
     ]);
     writeLocalClearMarker();
+    writeAccountClearMarker();
   } catch (error) {
     try { tx.abort(); } catch { /* A failed request has already aborted it. */ }
     await tx.done.catch(() => {});
