@@ -29,6 +29,24 @@ it('asks for nothing before setup is finished', () => {
   jest.useRealTimers();
 });
 
+it('offers notifications once setup is finished, without a reload', () => {
+  localStorage.clear();
+  useOnboardingStore.getState().reset();
+  jest.useFakeTimers();
+  const constructor = jest.fn();
+  Object.assign(constructor, { permission: 'default', requestPermission: jest.fn() });
+  Object.defineProperty(window, 'Notification', { configurable: true, value: constructor });
+  Object.defineProperty(navigator, 'serviceWorker', { configurable: true, value: { ready: new Promise(() => undefined) } });
+  render(<NotificationPermission />);
+  act(() => jest.advanceTimersByTime(6000));
+  expect(screen.queryByRole('button', { name: /enable/i })).toBeNull();
+  // The visitor finishes setup in this tab; the prompt stays mounted in the root layout.
+  act(() => finishSetup());
+  act(() => jest.advanceTimersByTime(5000));
+  expect(screen.getByRole('button', { name: /enable/i })).toBeTruthy();
+  jest.useRealTimers();
+});
+
 it('shows the permission confirmation through the worker on browsers without Notification construction', async () => {
   localStorage.clear();
   finishSetup();

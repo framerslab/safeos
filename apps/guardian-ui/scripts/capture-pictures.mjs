@@ -12,8 +12,10 @@
 // the header stays one row with every control inside the screen from 320 to
 // 1280 pixels, its text is 13 pixels or more and its phone targets 44 pixels;
 // the theme button changes the page; no notification prompt appears; and the
-// three headings that measured under 2 to 1 reach 4.5 to 1. Any failure
-// fails the run.
+// three headings that measured under 2 to 1 reach 4.5 to 1; at 320 by 480
+// the open menu's last control is on screen or reachable by scrolling the
+// menu, Escape closes the menu and focus returns to the Menu button; and the
+// Security card opens the Security page. Any failure fails the run.
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
@@ -356,6 +358,84 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
       console.log(`checked first visit in the ${look} look`);
     } catch (err) {
       problems.push(`first visit in the ${look} look: ${err.message}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  // The header menu on a short phone screen: its last control is on screen or
+  // reachable by scrolling the menu itself (a fixed header cannot be reached
+  // by scrolling the page); Escape closes it; focus goes back to the Menu
+  // button whenever it closes.
+  {
+    const context = await browser.newContext({
+      viewport: { width: 320, height: 480 },
+      isMobile: true,
+      hasTouch: true,
+      colorScheme: 'light',
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
+      const toggle = page.locator('nav[aria-label="Main"] button[aria-expanded]');
+      const menu = page.locator('.nav-mobile-menu');
+      await toggle.click();
+      await menu.waitFor({ timeout: 5_000 });
+      await page.screenshot({ path: path.join(outDir, 'menu-open-320x480-light.png') });
+      const last = await menu.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+        const controls = [...element.querySelectorAll('a, button')];
+        const box = controls[controls.length - 1].getBoundingClientRect();
+        return { top: box.top, bottom: box.bottom, height: window.innerHeight, name: controls[controls.length - 1].textContent.trim() };
+      });
+      if (last.bottom > last.height + 0.5 || last.top < 0) {
+        problems.push(`menu at 320 by 480: "${last.name}" sits at ${Math.round(last.top)} to ${Math.round(last.bottom)} px of ${last.height} and the menu does not scroll to it`);
+      }
+      await page.screenshot({ path: path.join(outDir, 'menu-scrolled-320x480-light.png') });
+      await menu.locator('a, button').last().focus();
+      await page.keyboard.press('Escape');
+      if (await menu.count()) problems.push('menu at 320 by 480: Escape leaves the menu open');
+      else if (!(await toggle.evaluate((element) => element === document.activeElement))) {
+        problems.push('menu at 320 by 480: after Escape, focus is not on the Menu button');
+      }
+      if (!(await menu.count())) {
+        await toggle.click();
+        await menu.waitFor({ timeout: 5_000 });
+        await menu.getByRole('button', { name: /Light Mode|Dark Mode/ }).click();
+        if (await menu.count()) problems.push('menu at 320 by 480: the theme action leaves the menu open');
+        else if (!(await toggle.evaluate((element) => element === document.activeElement))) {
+          problems.push('menu at 320 by 480: after the theme action closes the menu, focus is not on the Menu button');
+        }
+      }
+      console.log('checked the header menu at 320 by 480');
+    } catch (err) {
+      problems.push(`menu at 320 by 480: ${err.message}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  // The home page's Security card opens the page where person detection runs.
+  {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark' });
+    const page = await context.newPage();
+    try {
+      await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
+      const card = page.locator('div.rounded-xl')
+        .filter({ has: page.getByRole('heading', { name: 'Security', exact: true }) })
+        .filter({ has: page.getByRole('link', { name: /Quick Start/ }) })
+        .last();
+      await Promise.all([
+        page.waitForURL((url) => url.pathname !== '/', { timeout: 15_000 }),
+        card.getByRole('link', { name: /Quick Start/ }).click(),
+      ]);
+      const address = new URL(page.url());
+      if (!/^\/security\/?$/.test(address.pathname)) {
+        problems.push(`the Security card opens ${address.pathname}${address.search}, not the Security page`);
+      }
+      console.log(`checked the Security card: it opens ${address.pathname}`);
+    } catch (err) {
+      problems.push(`Security card: ${err.message}`);
     } finally {
       await context.close();
     }

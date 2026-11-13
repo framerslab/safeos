@@ -5,7 +5,8 @@
 # PNG files are uploaded as the run's "pictures" artifact. Pull requests also
 # capture the base commit with the same routes as "pictures-before". The
 # pull request's own capture also checks a first visit to the home page (the
-# header row, the theme button, no notification prompt, heading contrast);
+# header row, the theme button, no notification prompt, heading contrast,
+# the header menu on a short screen, the Security card's link);
 # see scripts/capture-pictures.mjs.
 #
 # Opening or updating a pull request captures both versions automatically so changed screens
