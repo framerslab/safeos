@@ -1,5 +1,35 @@
 # Saved alert history pictures
 
+## Saved history for the whole browser: the current pictures
+
+The `history-before` and `history-after` pictures are the current set. They show
+the Privacy page and Monitor under each of the three reload notices, at 390 and
+1280 px in the light and dark looks. These captures frame the app content and
+hide fixed navigation so it does not cover the text.
+
+- `privacy-*`: who sees saved alerts, the limits, what a clear and a sign-out
+  reach, the tab-update guidance and the policy date.
+- `monitor-blocked-*`: an older connection stays open while the page opens its database.
+- `monitor-updated-*`: another connection asks for a newer database version.
+- `monitor-failed-*`: an upgrade of saved history that cannot finish.
+
+The capture uses real IndexedDB connections, and both versions use the capture
+script of the after commit. The before version has none of the three notices:
+its Monitor pictures show the same screens without one, and its
+`monitor-failed-*` pictures list the alert the scenario saved beforehand, since
+that version has no upgrade to fail. In the after pictures CI checks each
+notice's words and a minimum 4.5:1 text contrast in both looks.
+
+Before source: `334f74e433db7a9ea6513e09b7454956a01b85e0`.
+After source: `c4f70263b54a79b2aede41ea3fd9e49834bddaa9`.
+[Pictures run](https://github.com/framerslab/safeos/actions/runs/43379574464).
+
+The Monitor and Privacy pictures in `before`, `after`, `session-before`,
+`session-after` and `privacy-after`, described in the sections below, show
+superseded words: saved alerts no longer belong to a person, the notices say
+what is paused until the reload, and a third notice covers an upgrade that
+cannot finish. They stay as the record of the earlier wording.
+
 ## Privacy and saved-history update notices
 
 Before and after Privacy content and Monitor's two database update notices, each
