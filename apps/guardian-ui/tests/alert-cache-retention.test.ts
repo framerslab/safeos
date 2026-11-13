@@ -36,7 +36,7 @@ it.each(['engine', 'sync'])('bounds shared records written by %s to 500', async 
   db.close();
 });
 
-it('keeps exactly 100 monitoring records for each owner independently', async () => {
+it('keeps 100 new monitoring records for the browser across two sessions', async () => {
   for (const id of ['alice', 'bob']) {
     owner(id);
     for (let i = 0; i < 105; i++) useMonitoringStore.getState().addAlert(alert(`${id}-${i}`));
@@ -45,9 +45,8 @@ it('keeps exactly 100 monitoring records for each owner independently', async ()
   owner('alice');
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts).toHaveLength(100);
-  expect(useMonitoringStore.getState().alerts.every(a => a.id.startsWith('alice-'))).toBe(true);
   const db = await openDB('safeos-guardian');
-  expect(await db.count('alert_cache')).toBe(200);
+  expect(await db.count('alert_cache')).toBe(100);
   db.close();
 });
 
@@ -59,13 +58,13 @@ it('keeps shared and monitoring records regardless of age without new alerts', a
   jest.spyOn(Date, 'now').mockReturnValue(start + DAY + 1);
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['monitor-old']);
-  expect((await getCachedAlerts(undefined, 'alice')).map(a => a.id).sort()).toEqual(['engine-old', 'monitor-old']);
+  expect((await getCachedAlerts()).map(a => a.id).sort()).toEqual(['engine-old', 'monitor-old']);
   const db = await openDB('safeos-guardian');
   expect(await db.count('alert_cache')).toBe(2);
   db.close();
 });
 
-it('reads monitoring history through an owner index without loading the store', async () => {
+it('reads monitoring history through the producer index without loading the store', async () => {
   useMonitoringStore.getState().addAlert(alert('alice-only'));
   await useMonitoringStore.getState().hydrateAlerts();
   owner('bob');
@@ -75,12 +74,13 @@ it('reads monitoring history through an owner index without loading the store', 
   const cursors = jest.spyOn(IDBIndex.prototype, 'openCursor');
   owner('alice');
   await useMonitoringStore.getState().hydrateAlerts();
-  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-only']);
+  expect(useMonitoringStore.getState().alerts.map(a => a.id).sort()).toEqual(['alice-only', 'bob-only']);
   expect(getAll.mock.contexts.some(store => (store as unknown as IDBObjectStore).name === 'alert_cache')).toBe(false);
-  expect(cursors.mock.contexts.map(index => (index as unknown as IDBIndex).name)).toContain('by-owner-created');
+  expect(cursors.mock.contexts.map(index => (index as unknown as IDBIndex).name)).toContain('by-producer-created');
 });
 
-it('acknowledges and clears only the current owners history', async () => {
+it('a clear under another session clears the browser’s monitoring history and leaves the shared record', async () => {
+  await cacheAlert(alert('shared'));
   useMonitoringStore.getState().addAlert(alert('alice-only'));
   await useMonitoringStore.getState().hydrateAlerts();
   owner('bob');
@@ -90,18 +90,8 @@ it('acknowledges and clears only the current owners history', async () => {
   await useMonitoringStore.getState().hydrateAlerts();
   owner('alice');
   await useMonitoringStore.getState().hydrateAlerts();
-  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-only']);
-});
-
-it('keeps the owner captured before a queued write runs', async () => {
-  useMonitoringStore.getState().addAlert(alert('queued-alice'));
-  owner('bob');
-  useMonitoringStore.getState().addAlert(alert('queued-bob'));
-  await useMonitoringStore.getState().hydrateAlerts();
-  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['queued-bob']);
-  owner('alice');
-  await useMonitoringStore.getState().hydrateAlerts();
-  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['queued-alice']);
+  expect(useMonitoringStore.getState().alerts).toEqual([]);
+  expect((await getCachedAlerts()).map(a => a.id)).toEqual(['shared']);
 });
 
 it('keeps old records on write without an age cutoff', async () => {
@@ -114,30 +104,36 @@ it('keeps old records on write without an age cutoff', async () => {
   db.close();
 });
 
-it('limits generic readers and acknowledgements to shared and current-owner history', async () => {
+it('generic readers and acknowledgements reach every record', async () => {
   await cacheAlert(alert('shared'));
   for (const id of ['alice', 'bob']) {
-    await cacheAlert({ ...alert(`${id}-private`), monitoring: true, ownerId: id });
+    owner(id);
+    useMonitoringStore.getState().addAlert(alert(`${id}-private`));
+    await useMonitoringStore.getState().hydrateAlerts();
   }
-  expect((await getCachedAlerts()).map(a => a.id)).toEqual(['shared']);
-  expect((await getCachedAlerts('camera')).map(a => a.id)).toEqual(['shared']);
-  expect((await localAlertEngine.getRecentAlerts()).map(a => a.id).sort()).toEqual(['alice-private', 'shared']);
-  expect((await localAlertEngine.getUnacknowledgedAlerts()).map(a => a.id).sort()).toEqual(['alice-private', 'shared']);
+  owner('alice');
+  const every = ['alice-private', 'bob-private', 'shared'];
+  expect((await getCachedAlerts()).map(a => a.id).sort()).toEqual(every);
+  expect((await getCachedAlerts('camera')).map(a => a.id).sort()).toEqual(every);
+  expect((await localAlertEngine.getRecentAlerts()).map(a => a.id).sort()).toEqual(every);
+  expect((await localAlertEngine.getUnacknowledgedAlerts()).map(a => a.id).sort()).toEqual(every);
   await localAlertEngine.acknowledgeAlert('bob-private');
   const db = await openDB('safeos-guardian');
-  expect((await db.get('alert_cache', 'bob-private')).acknowledged).toBe(false);
+  expect((await db.get('alert_cache', 'bob-private')).acknowledged).toBe(true);
   db.close();
 });
 
-it('keeps every owner and shared history on a later monitoring-only read', async () => {
+it('keeps every session’s history and the shared record on a later monitoring-only read', async () => {
   const start = Date.now();
   await cacheAlert(alert('shared-older', new Date(start).toISOString()));
   for (const id of ['alice', 'bob']) {
-    await cacheAlert({ ...alert(`${id}-older`, new Date(start).toISOString()), monitoring: true, ownerId: id });
+    owner(id);
+    useMonitoringStore.getState().addAlert(alert(`${id}-older`, new Date(start).toISOString()));
+    await useMonitoringStore.getState().hydrateAlerts();
   }
   jest.spyOn(Date, 'now').mockReturnValue(start + DAY + 1);
   await useMonitoringStore.getState().hydrateAlerts();
-  expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['alice-older']);
+  expect(useMonitoringStore.getState().alerts.map(a => a.id).sort()).toEqual(['alice-older', 'bob-older']);
   const db = await openDB('safeos-guardian');
   expect(await db.count('alert_cache')).toBe(3);
   db.close();
@@ -198,7 +194,7 @@ it('keeps a live alert through a failed save and retries it on the next history 
   failingWrite.mockRestore();
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts.map(a => a.id)).toEqual(['live-during-write-failure']);
-  expect((await getCachedAlerts(undefined, 'alice')).map(a => a.id)).toEqual(['live-during-write-failure']);
+  expect((await getCachedAlerts()).map(a => a.id)).toEqual(['live-during-write-failure']);
 });
 
 it.each(['dismiss', 'clear'])('does not restore an unsaved live alert after %s', async (action) => {
@@ -215,5 +211,5 @@ it.each(['dismiss', 'clear'])('does not restore an unsaved live alert after %s',
   failingWrite.mockRestore();
   await useMonitoringStore.getState().hydrateAlerts();
   expect(useMonitoringStore.getState().alerts).toEqual([]);
-  expect(await getCachedAlerts(undefined, 'alice')).toEqual([]);
+  expect(await getCachedAlerts()).toEqual([]);
 });
