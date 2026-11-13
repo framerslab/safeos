@@ -5,7 +5,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import { IDBFactory } from 'fake-indexeddb';
 import { BrowserSocket } from './helpers/camera-browser';
 import {
-  checked, heldToken, holdToken, ids, oldTab, refused, server, session, sessionAnswer, stored, storedVersion, unreachable,
+  checked, heldToken, holdToken, ids, oldTab, refused, server, sessionAnswer, stored, storedVersion, unreachable,
 } from './helpers/saved-history';
 require('fake-indexeddb/auto');
 jest.setTimeout(60000);
@@ -101,8 +101,9 @@ it.each(['server expiry', 'server 401', 'local guest expiry'])('shows the same h
   const copy = await stored('alert_cache');
   if (renewal === 'server 401') ended = true;
   else {
+    // Expire the saved session, under whatever id it is kept.
     const db = await openDB('safeos-guardian');
-    await db.put('local_session', { ...session, expiresAt: '2026-10-02T00:00:00Z' });
+    for (const row of await db.getAll('local_session')) await db.put('local_session', { ...row, expiresAt: '2026-10-02T00:00:00Z' });
     db.close();
   }
   await act(async () => {
