@@ -19,7 +19,9 @@ import {
   type LocalSession,
 } from '../lib/client-db';
 import { clearLocalData } from '../lib/local-data';
-import { getLocalDataGeneration, isCurrentLocalData, readAccountClearMarker } from '../lib/local-data-generation';
+import {
+  ACCOUNT_CLEAR_MARKER_KEY, getLocalDataGeneration, isCurrentLocalData, readAccountClearMarker,
+} from '../lib/local-data-generation';
 import { getApiUrl } from '../lib/env';
 
 // =============================================================================
@@ -153,6 +155,8 @@ type Change = Partial<AuthState>;
 type SessionWork = {
   /** This tab's clear counter: it moves when this tab clears all local data. */
   counter: number;
+  /** How many clears of all local data in another tab this tab had been told of. */
+  told: number;
   /** The account marker every tab shares in local storage. Only a clear of all local data writes it; clearing the alert history does not. */
   marker: string;
   /** The session the work expects the tab to hold: the token at its start, then the token the work last set. */
@@ -177,12 +181,15 @@ interface SessionState {
   isVoid: (work: SessionWork) => boolean;
 }
 
+/** Clears of all local data in another tab that this tab was told of, by the account marker's storage event. */
+let clearsToldOf = 0;
+
 const beginWork = (token: string | null, afterClear: Change | null): SessionWork =>
-  ({ counter: getLocalDataGeneration(), marker: readAccountClearMarker(), token, afterClear });
+  ({ counter: getLocalDataGeneration(), told: clearsToldOf, marker: readAccountClearMarker(), token, afterClear });
 
 /** A clear of all local data, in this tab or another, has landed since the work began. */
 const clearedSince = (work: SessionWork): boolean =>
-  !isCurrentLocalData(work.counter) || readAccountClearMarker() !== work.marker;
+  !isCurrentLocalData(work.counter) || work.told !== clearsToldOf || readAccountClearMarker() !== work.marker;
 
 /**
  * What set-up or session creation leaves when a clear of all local data landed under it: the tab
@@ -193,7 +200,7 @@ const LEFT_SIGNED_OUT: Change = {
   isLoading: false, isInitialized: true, isAuthenticated: false, sessionToken: null, sessionId: null, profile: null,
 };
 
-/** What a sign-out leaves: no session, no profile, no device id. */
+/** What a sign-out leaves, and a clear of all local data in another tab: no session, no profile, no device id. */
 const SIGNED_OUT: Change = {
   isAuthenticated: false,
   isLoggedIn: false,
@@ -675,8 +682,9 @@ async function refresh(session: SessionState): Promise<void> {
 // =============================================================================
 
 /**
- * This tab's profile saves under one session, one after another. A clear of all local data in this
- * tab, or another session, starts a new queue, so a save never waits behind another session's.
+ * This tab's profile saves under one session, one after another. A clear of all local data, in this
+ * tab or in another tab this one is told of, or another session starts a new queue, so a save never
+ * waits behind another session's.
  */
 let profileSaves: { counter: number; token: string | null; last: Promise<unknown> } | null = null;
 
@@ -837,6 +845,18 @@ export const useAuthStore = create<AuthState>()(
       write,
       isVoid: (work) => clearedSince(work) || get().sessionToken !== work.token,
     };
+
+    // A clear of all local data in another tab reaches this open tab as the storage event of the
+    // account marker: the tab drops its session, its work in flight is void and its next profile
+    // save starts a new queue. A browser sends the event to the other tabs only.
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('storage', (event) => {
+        if (event.key !== ACCOUNT_CLEAR_MARKER_KEY) return;
+        clearsToldOf += 1;
+        profileSaves = null;
+        set(SIGNED_OUT);
+      });
+    }
 
     return ({
       // Initial state
