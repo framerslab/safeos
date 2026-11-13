@@ -74,6 +74,12 @@ const tabs: Tab[] = [
 export function SettingsPanel() {
   const [activeTab, setActiveTab] = useState<TabId>('general');
   const { profile, updatePreferences, updateNotificationSettings } = useAuthStore();
+  const [saveError, setSaveError] = useState<string | null>(null);
+  /** Runs a profile save from a control, and says so when it was not taken. */
+  const save = (change: Promise<void>) => {
+    setSaveError(null);
+    change.catch(() => setSaveError('The change was not saved. Try again.'));
+  };
 
   const preferences = profile?.preferences || {
     defaultScenario: 'pet',
@@ -116,6 +122,9 @@ export function SettingsPanel() {
 
       {/* Content */}
       <div className="p-6">
+        {saveError && (
+          <p role="alert" className="mb-4 text-sm text-red-400">{saveError}</p>
+        )}
         {/* General Settings */}
         {activeTab === 'general' && (
           <div className="space-y-6">
@@ -129,7 +138,7 @@ export function SettingsPanel() {
                   {(['pet', 'baby', 'elderly'] as const).map((scenario) => (
                     <button
                       key={scenario}
-                      onClick={() => updatePreferences({ defaultScenario: scenario })}
+                      onClick={() => save(updatePreferences({ defaultScenario: scenario }))}
                       className={`
                         px-4 py-3 rounded-lg text-center transition-all
                         ${preferences.defaultScenario === scenario
@@ -175,7 +184,7 @@ export function SettingsPanel() {
                   min="0"
                   max="100"
                   value={preferences.motionSensitivity * 100}
-                  onChange={(e) => updatePreferences({ motionSensitivity: parseInt(e.target.value) / 100 })}
+                  onChange={(e) => save(updatePreferences({ motionSensitivity: parseInt(e.target.value) / 100 }))}
                   className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                 />
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
@@ -194,7 +203,7 @@ export function SettingsPanel() {
                   min="0"
                   max="100"
                   value={preferences.audioSensitivity * 100}
-                  onChange={(e) => updatePreferences({ audioSensitivity: parseInt(e.target.value) / 100 })}
+                  onChange={(e) => save(updatePreferences({ audioSensitivity: parseInt(e.target.value) / 100 }))}
                   className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                 />
                 <div className="flex justify-between text-xs text-slate-500 mt-1">
@@ -213,7 +222,7 @@ export function SettingsPanel() {
                   min="0"
                   max="100"
                   value={preferences.alertVolume * 100}
-                  onChange={(e) => updatePreferences({ alertVolume: parseInt(e.target.value) / 100 })}
+                  onChange={(e) => save(updatePreferences({ alertVolume: parseInt(e.target.value) / 100 }))}
                   className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                 />
               </div>
@@ -225,7 +234,7 @@ export function SettingsPanel() {
                   {(['dark', 'light', 'system'] as const).map((theme) => (
                     <button
                       key={theme}
-                      onClick={() => updatePreferences({ theme })}
+                      onClick={() => save(updatePreferences({ theme }))}
                       className={`
                         px-4 py-2 rounded-lg text-sm capitalize transition-all
                         ${preferences.theme === theme
@@ -264,7 +273,7 @@ export function SettingsPanel() {
                 </div>
                 <div className="min-w-[44px] min-h-[44px] flex items-center justify-end">
                   <button
-                    onClick={() => updateNotificationSettings({ browserPush: !notificationSettings.browserPush })}
+                    onClick={() => save(updateNotificationSettings({ browserPush: !notificationSettings.browserPush }))}
                     className={`
                       relative w-12 h-6 rounded-full transition-colors
                       ${notificationSettings.browserPush ? 'bg-emerald-500' : 'bg-slate-600'}
@@ -295,7 +304,7 @@ export function SettingsPanel() {
                 </div>
                 <div className="min-w-[44px] min-h-[44px] flex items-center justify-end">
                   <button
-                    onClick={() => updateNotificationSettings({ sms: !notificationSettings.sms })}
+                    onClick={() => save(updateNotificationSettings({ sms: !notificationSettings.sms }))}
                     title="Requires a monitoring server (API) + SMS provider credentials (e.g. Twilio)."
                     className={`
                       relative w-12 h-6 rounded-full transition-colors
@@ -327,7 +336,7 @@ export function SettingsPanel() {
                 </div>
                 <div className="min-w-[44px] min-h-[44px] flex items-center justify-end">
                   <button
-                    onClick={() => updateNotificationSettings({ telegram: !notificationSettings.telegram })}
+                    onClick={() => save(updateNotificationSettings({ telegram: !notificationSettings.telegram }))}
                     title="Requires a monitoring server (API) + Telegram bot credentials."
                     className={`
                       relative w-12 h-6 rounded-full transition-colors
