@@ -11,6 +11,7 @@ import {
   getPendingSyncActions,
   removeSyncAction,
   markSyncActionFailed,
+  keepSyncResponse,
   queueSyncAction,
   updateCachedAlert,
   cacheStream,
@@ -94,14 +95,7 @@ export async function syncPendingActions(): Promise<{
   failed: number;
   pending: number;
 }> {
-  const apiUrl = getApiUrl();
-
-  // Skip sync in static mode (GitHub Pages deployment)
-  if (isStaticMode() || !apiUrl) {
-    return { synced: 0, failed: 0, pending: 0 };
-  }
-
-  if (!isOnline || isSyncing) {
+  if (isSyncing) {
     return { synced: 0, failed: 0, pending: 0 };
   }
 
@@ -112,7 +106,36 @@ export async function syncPendingActions(): Promise<{
   try {
     const actions = await getPendingSyncActions();
 
+    // The server confirmed these actions and the browser could not save their answers. A kept answer
+    // needs no server: it is applied even offline, the action is not sent again, and the retry
+    // limit does not drop it.
     for (const action of actions) {
+      if (action.response === undefined) continue;
+      let applied = false;
+      try {
+        applied = await handleSyncResponse(action.action, action.response);
+      } catch {
+        // The action stays queued with its answer.
+      }
+      if (applied) {
+        await removeSyncAction(action.id);
+        synced++;
+      } else {
+        failed++;
+      }
+    }
+
+    const apiUrl = getApiUrl();
+
+    // Nothing is sent in static mode (GitHub Pages deployment) or while offline.
+    if (isStaticMode() || !apiUrl || !isOnline) {
+      return { synced, failed, pending: 0 };
+    }
+
+    for (const action of actions) {
+      // Applied above.
+      if (action.response !== undefined) continue;
+
       // Skip if max retries exceeded
       if (action.retries >= MAX_RETRIES) {
         console.warn(`[Sync] Max retries exceeded for action ${action.id}`);
@@ -134,8 +157,9 @@ export async function syncPendingActions(): Promise<{
         if (response.ok) {
           // The server's answer is applied to the browser's records before the action leaves the queue.
           let applied = true;
+          let data: unknown;
           try {
-            const data = await response.json();
+            data = await response.json();
             applied = await handleSyncResponse(action.action, data);
           } catch {
             // No response body
@@ -145,8 +169,10 @@ export async function syncPendingActions(): Promise<{
             await removeSyncAction(action.id);
             synced++;
           } else {
-            // The browser could not save the confirmed change: the queue sends the action again.
-            await markSyncActionFailed(action.id, UNSAVED_RESPONSE);
+            // The browser could not save the confirmed change: the answer is kept on the action, which
+            // is not sent again and counts no failed try. If the queue refuses that too, the action
+            // stays as it was.
+            await keepSyncResponse(action.id, data, UNSAVED_RESPONSE);
             failed++;
           }
         } else {
@@ -174,7 +200,7 @@ export async function syncPendingActions(): Promise<{
 
 /**
  * Applies the server's answer to the browser's records. False means the alert update failed, and
- * the action stays queued; true means it may leave the queue.
+ * the action stays queued with its answer; true means it may leave the queue.
  */
 async function handleSyncResponse(action: string, data: any): Promise<boolean> {
   if (action === 'acknowledge_alert') {
@@ -290,11 +316,9 @@ export function startPeriodicSync(): void {
   // Initial sync
   syncPendingActions();
 
-  // Set up interval
+  // Set up interval. Offline, a pass applies only the answers the server already gave.
   syncInterval = setInterval(() => {
-    if (isOnline) {
-      syncPendingActions();
-    }
+    syncPendingActions();
   }, SYNC_INTERVAL_MS);
 }
 

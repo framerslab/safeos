@@ -18,7 +18,8 @@ import { getNotificationManager } from './notification-manager';
 
 /**
  * A save that waits: `marker` and `counter` are noted when it is first queued; `stamp` once it has
- * failed. `update` marks a failed acknowledgement of a saved alert, whose retry never creates a record.
+ * failed. `update` marks a failed acknowledgement of a saved alert, whose retry never creates a record
+ * and so carries no stamp: a clear that removed the record leaves nothing to update.
  */
 type PendingSave = { record: any; marker: string; stamp: ClearStamp | null; counter: number; update?: boolean };
 
@@ -464,14 +465,14 @@ class LocalAlertEngine {
 
   /**
    * One try at a save. A first save always writes; a retry carries its stamp and is written only if
-   * no clear came since. An update goes through `updateCachedAlert`, so it never creates a record.
+   * no clear came since. An update goes through `updateCachedAlert` with no stamp: it never creates a
+   * record, so it writes only to a record that every clear since has kept.
    */
   private async save(entry: PendingSave): Promise<void> {
     if (!isCurrentLocalData(entry.counter)) return;
-    const stamp = entry.stamp ?? undefined;
     const failed = entry.update
-      ? (await updateCachedAlert(entry.record, stamp)) === 'failed'
-      : !(await cacheAlert(entry.record, stamp));
+      ? (await updateCachedAlert(entry.record)) === 'failed'
+      : !(await cacheAlert(entry.record, entry.stamp ?? undefined));
     if (!isCurrentLocalData(entry.counter)) return;
     if (!failed) {
       this.unsaved.delete(entry.record.id);
@@ -480,9 +481,14 @@ class LocalAlertEngine {
     this.keepPending(entry);
   }
 
-  /** Keeps a failed save for the next retry, stamped with the last clear the tab knew of under its marker. */
+  /**
+   * Keeps a failed save for the next retry, stamped with the last clear the tab knew of under its
+   * marker. An update is kept with no stamp.
+   */
   private keepPending(entry: PendingSave): void {
-    if (entry.stamp === null || entry.stamp.generation === null) entry.stamp = pendingClearStamp(entry.marker);
+    if (!entry.update && (entry.stamp === null || entry.stamp.generation === null)) {
+      entry.stamp = pendingClearStamp(entry.marker);
+    }
     this.unsaved.set(entry.record.id, entry);
     while (this.unsaved.size > MAX_PENDING_SAVES) {
       const oldest = this.unsaved.keys().next().value;
@@ -643,7 +649,7 @@ class LocalAlertEngine {
     await this.whenSaved();
     const pending = this.unsaved.get(alertId);
     if (pending) {
-      // The next retry saves what the person last did, under the stamp the save already has.
+      // The next retry saves what the person last did, under the stamp the save already has, if any.
       this.unsaved.set(alertId, {
         ...pending,
         record: { ...pending.record, acknowledged: true, acknowledgedAt: new Date().toISOString() },

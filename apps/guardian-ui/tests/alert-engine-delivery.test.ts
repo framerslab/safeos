@@ -285,3 +285,49 @@ it('creates no record when it retries a failed acknowledgement whose record is g
   expect(forX()).toBe(2);
   expect(await storedIds()).toEqual([y!.id, z!.id].sort());
 });
+
+it('acknowledges with the retry a saved engine alert that Clear all in another tab kept', async () => {
+  const { control, make } = steeredUpdate();
+  const { engine } = await engineTab(undefined, make);
+  await engine.updateThresholds({ alertCooldown: 0 });
+  const x = await engine.createAlert('motion', 'critical');
+  await engine.whenSaved();
+  control.failures = 1;
+  expect(await engine.acknowledgeAlert(x!.id)).toBe(true);
+  // Another tab's Clear all deletes its monitoring alerts and names a new clear; the engine's alert stays.
+  jest.resetModules();
+  const other = await import('@/lib/client-db');
+  await other.clearCachedMonitoringAlerts();
+  expect(await storedIds()).toEqual([x!.id]);
+  await engine.getRecentAlerts();
+  const db = await openDB('safeos-guardian');
+  try {
+    const stored = await db.get('alert_cache', x!.id);
+    expect(stored).toMatchObject({ acknowledged: true });
+    expect(stored.acknowledgedAt).toEqual(expect.any(String));
+  } finally {
+    db.close();
+  }
+});
+
+it('writes nothing and drops a failed acknowledgement whose alert another tab cleared with all local data', async () => {
+  const { control, make } = steeredUpdate();
+  const { engine } = await engineTab(undefined, make);
+  await engine.updateThresholds({ alertCooldown: 0 });
+  const x = await engine.createAlert('motion', 'critical');
+  await engine.whenSaved();
+  control.failures = 1;
+  expect(await engine.acknowledgeAlert(x!.id)).toBe(true);
+  const other = await otherTab();
+  await other.clearLocalData();
+  const forX = () => control.calls.filter(([record]) => record.id === x!.id);
+  await engine.getRecentAlerts();
+  // The retry is an update with no clear stamp: it found the record gone and created none.
+  expect(forX()).toHaveLength(2);
+  expect(forX()[1][1]).toBeUndefined();
+  expect(await storedIds()).toEqual([]);
+  // A retry that found the record gone leaves nothing waiting.
+  await engine.getRecentAlerts();
+  expect(forX()).toHaveLength(2);
+  expect(await storedIds()).toEqual([]);
+});
