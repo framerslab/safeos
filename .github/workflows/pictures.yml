@@ -5,8 +5,9 @@
 # PNG files are uploaded as the run's "pictures" artifact. Pull requests also
 # capture the base commit with the same routes as "pictures-before". The
 # pull request's own capture also checks a first visit to the home page (the
-# header row, the theme button, no notification prompt, heading contrast,
-# the header menu on a short screen, the Security card's link) and the Test
+# header row, the look switch, no notification prompt, heading contrast,
+# the Menu on a short screen), walks the home page part by part
+# (scripts/home-checks.mjs) and checks the Test
 # Alerts page's alert key (its generated tones start, an analyser on the
 # way to the speakers reads signal, no sound file is asked for). Both
 # versions capture the dashboard after setup and its header menu open; the
@@ -17,6 +18,17 @@
 #
 # Opening or updating a pull request captures both versions automatically so changed screens
 # have before and after pictures. Workflow dispatch remains available for other refs.
+#
+# A third job, "Capture the home page pictures", makes the pictures the home
+# page itself shows. It builds the same commit, feeds Chromium's fake camera
+# and microphone from the committed sample clip
+# (apps/guardian-ui/public/home/sample-clip.mp4, converted to .y4m and .wav
+# inside the job) and runs scripts/home-captures.mjs, which opens the monitor,
+# presses its own "Start Monitoring" key, waits for a motion alert and saves
+# the capture's three crops in both looks, the two install screenshots, the
+# shared-link card and provenance.json. They are uploaded as the run's
+# "home-pictures" artifact and committed under apps/guardian-ui/public/ from
+# there; a pull request that changes what the monitor draws commits them again.
 
 name: Pictures
 
@@ -115,5 +127,71 @@ jobs:
         with:
           name: ${{ matrix.version == 'before' && 'pictures-before' || 'pictures' }}
           path: ${{ runner.temp }}/pictures/*.png
+          if-no-files-found: error
+          retention-days: 14
+
+  home-captures:
+    name: Capture the home page pictures
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/guardian-ui
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || (github.event_name == 'workflow_dispatch' && inputs.ref || '') }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/guardian-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build static site
+        run: npm run build
+        env:
+          NEXT_PUBLIC_STATIC_MODE: 'true'
+          NEXT_PUBLIC_API_URL: ''
+          NEXT_PUBLIC_WS_URL: ''
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install chromium
+
+      - name: Install ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+
+      # Chromium's fake camera reads a .y4m file and its fake microphone a
+      # .wav file. Both are made here from the committed clip and never
+      # committed.
+      - name: Make the fake camera's files from the sample clip
+        run: |
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -an -pix_fmt yuv420p "$RUNNER_TEMP/sample-clip.y4m"
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -vn -ac 1 -ar 48000 -c:a pcm_s16le "$RUNNER_TEMP/sample-clip.wav"
+          ls -l "$RUNNER_TEMP"/sample-clip.*
+
+      - name: Serve the site and capture the monitor
+        env:
+          CAPTURE_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CAPTURE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node scripts/home-captures.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/home-pictures" "$RUNNER_TEMP/sample-clip.y4m" "$RUNNER_TEMP/sample-clip.wav"
+
+      - name: Upload the home page pictures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-pictures
+          path: ${{ runner.temp }}/home-pictures
           if-no-files-found: error
           retention-days: 14

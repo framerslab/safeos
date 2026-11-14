@@ -1,0 +1,985 @@
+// Checks the home page on the built static site in a real browser.
+//
+// scripts/capture-pictures.mjs runs it for the pull request's own build when
+// the home page is among the routes. Each block walks one part of the page as
+// a visitor would: the page before any script runs, the header, the look
+// switch, the headline, the start key, the capture, the five uses, how it
+// works, what sets off an alert, the free part, the questions, the footer and
+// what a search result or a shared link shows. It also saves the page from
+// top to bottom at 820 and 1920 pixels in both looks. Every finding is
+// printed, and the count of findings is returned; any finding fails the run.
+import path from 'node:path';
+
+const LOOKS = ['light', 'dark'];
+const HEADLINE = 'Free motion and sound alerts from an old phone or laptop';
+const LEAD = 'SafeOS Guardian runs in your browser. The device watching the room sounds the alert when something moves or gets loud.';
+const STATEMENT = 'SafeOS adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.';
+const NEEDS_SCRIPT = 'Setup needs JavaScript. The rest of this page reads without it.';
+const CAPTION = 'SafeOS watching a recorded clip of a kitten. Captured from the app while it ran.';
+const DESCRIPTION = 'Get motion and sound alerts from an old phone, tablet or laptop. SafeOS Guardian runs in your browser, free and open source under the MIT License.';
+const PAGE_COLOURS = { light: 'rgb(248, 249, 250)', dark: 'rgb(11, 19, 27)' };
+const PANEL_COLOURS = { light: 'rgb(241, 243, 244)', dark: 'rgb(16, 26, 36)' };
+const INK = { light: 'rgb(15, 18, 21)', dark: 'rgb(244, 245, 246)' };
+const THEME_COLOURS = { light: '#f8f9fa', dark: '#0b131b' };
+
+// Straight and curly apostrophes are one character to a reader; so are a
+// space and a non-breaking space.
+const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+
+// A person who has finished setup on this device.
+const SETUP_DONE = () => {
+  localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
+    isComplete: true, selectedScenario: 'pet',
+    acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
+  }, version: 0 }));
+  localStorage.setItem('guardian-onboarding-complete', 'true');
+};
+
+// Reads what the readability rule measures: every visible piece of text with
+// its size, face and contrast against the colour behind it, and every element
+// that scrolls sideways.
+function measureText(root) {
+  const parse = (value) => {
+    const n = (value.match(/[\d.]+/g) || ['0', '0', '0', '0']).map(Number);
+    return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
+  };
+  const over = (top, bottom) => ({
+    r: top.r * top.a + bottom.r * (1 - top.a),
+    g: top.g * top.a + bottom.g * (1 - top.a),
+    b: top.b * top.a + bottom.b * (1 - top.a),
+    a: 1,
+  });
+  const luminance = (c) => [c.r, c.g, c.b]
+    .map((v) => { const x = v / 255; return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; })
+    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const backgroundOf = (element) => {
+    const layers = [];
+    for (let node = element; node; node = node.parentElement) {
+      const background = parse(getComputedStyle(node).backgroundColor);
+      if (background.a > 0) layers.push(background);
+      if (background.a >= 1) break;
+    }
+    let background = { r: 255, g: 255, b: 255, a: 1 };
+    for (const layer of layers.reverse()) background = over(layer, background);
+    return background;
+  };
+  const out = [];
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const seen = new Set();
+  while (walker.nextNode()) {
+    const words = walker.currentNode.textContent.trim();
+    const element = walker.currentNode.parentElement;
+    if (!words || !element || seen.has(element)) continue;
+    if (element.closest('script, style, [hidden], .sr-only')) continue;
+    const box = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    if (box.width === 0 || box.height === 0 || style.visibility === 'hidden') continue;
+    seen.add(element);
+    const background = backgroundOf(element);
+    const text = over(parse(style.color), background);
+    const a = luminance(text);
+    const b = luminance(background);
+    out.push({
+      words: words.slice(0, 40),
+      tag: element.tagName.toLowerCase(),
+      body: !!element.closest('main') && !!element.closest('h1, h2, h3, p, summary') && !element.closest('a, figcaption'),
+      size: parseFloat(style.fontSize),
+      face: style.fontFamily,
+      weight: style.fontWeight,
+      figures: style.fontVariantNumeric,
+      contrast: (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05),
+    });
+  }
+  return out;
+}
+
+export async function checkHomePage(browser, baseUrl, outDir) {
+  const problems = [];
+  const home = new URL('/', baseUrl).toString();
+  const origin = new URL(baseUrl).origin;
+  const fail = (message) => problems.push(message);
+  const expect = (ok, message) => { if (!ok) fail(message); };
+
+  const open = async (options, run, { setupDone = false, script = null } = {}) => {
+    const { width, height = 844, look = 'light', ...rest } = options;
+    const context = await browser.newContext({
+      viewport: { width, height },
+      isMobile: width < 768,
+      hasTouch: width < 768,
+      colorScheme: look,
+      ...rest,
+    });
+    if (setupDone) await context.addInitScript(SETUP_DONE);
+    if (script) await context.addInitScript(script);
+    const page = await context.newPage();
+    try {
+      await run(page, context);
+    } catch (err) {
+      fail(`${options.name || 'home page'} at ${width} px, ${look}: ${err.message.split('\n')[0]}`);
+    } finally {
+      await context.close();
+    }
+  };
+  const visit = (page, address = home) => page.goto(address, { waitUntil: 'networkidle', timeout: 60_000 });
+  const sidewaysScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+
+  // ---------------------------------------------------------------------------
+  // 1. The page reads before any script runs and asks for nothing
+  // ---------------------------------------------------------------------------
+
+  for (const look of LOOKS) {
+    await open({ name: 'feature 1, scripts off', width: 390, look, javaScriptEnabled: false }, async (page) => {
+      await visit(page);
+      const seen = await page.evaluate((NEEDS) => {
+        const visible = (element) => !!element && element.getBoundingClientRect().height > 0 && getComputedStyle(element).visibility !== 'hidden';
+        const line = document.getElementById('home-needs-script');
+        const statement = document.querySelector('.home-statement');
+        let opacity = 1;
+        for (let node = document.querySelector('h1'); node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+        return {
+          h1: visible(document.querySelector('h1')),
+          lead: visible(document.querySelector('.home-lead')),
+          start: document.querySelector('.home-first a.key--start')?.getAttribute('href'),
+          startWords: document.querySelector('.home-first a.key--start')?.textContent.trim(),
+          statement: visible(statement),
+          line: visible(line) && line.textContent.trim() === NEEDS,
+          lineUnderStatement: !!line && !!statement && line.getBoundingClientRect().top >= statement.getBoundingClientRect().bottom,
+          sections: [...document.querySelectorAll('main h2')].filter(visible).length,
+          footer: visible(document.querySelector('footer nav[aria-label="Site links"]')),
+          menu: document.querySelector('nav[aria-label="Site"] .site-header__menu-key')?.getAttribute('href'),
+          menuTag: document.querySelector('nav[aria-label="Site"] .site-header__menu-key')?.tagName,
+          switchShown: !!document.querySelector('.look-switch'),
+          footerStart: document.querySelector('footer nav a')?.textContent.trim(),
+          background: getComputedStyle(document.body).backgroundColor,
+          opacity,
+        };
+      }, NEEDS_SCRIPT);
+      expect(seen.h1 && seen.lead && seen.statement, `feature 1, scripts off, ${look}: the headline, the lead or the statement is not shown`);
+      expect(/^\/setup\/?$/.test(seen.start || '') && seen.startWords === 'Start setup', `feature 1, scripts off, ${look}: the start key is "${seen.startWords}" to ${seen.start}`);
+      expect(seen.line && seen.lineUnderStatement, `feature 1, scripts off, ${look}: "${NEEDS_SCRIPT}" does not show under the statement`);
+      expect(seen.sections === 6, `feature 1, scripts off, ${look}: ${seen.sections} part headings show, not 6`);
+      expect(seen.footer, `feature 1, scripts off, ${look}: the footer's links do not show`);
+      expect(seen.menuTag === 'A' && seen.menu === '#site-links', `feature 2, scripts off, ${look}: Menu is a ${seen.menuTag} to ${seen.menu}, not a link to the footer's links`);
+      expect(!seen.switchShown, `feature 3, scripts off, ${look}: a look switch is shown`);
+      expect(seen.footerStart === 'Start setup', `feature 13, scripts off, ${look}: the footer's start link reads "${seen.footerStart}"`);
+      expect(seen.background === PAGE_COLOURS[look], `feature 1, scripts off, ${look}: the page is ${seen.background}, not ${PAGE_COLOURS[look]}`);
+      expect(seen.opacity === 1, `feature 1, scripts off, ${look}: the headline's opacity is ${seen.opacity}`);
+      // Feature 12: a question opens with scripts off.
+      const question = page.locator('details.home-q').nth(1);
+      await question.locator('summary').click();
+      expect(await question.evaluate((element) => element.open), `feature 12, scripts off, ${look}: a pressed question does not open`);
+      await page.screenshot({ path: path.join(outDir, `home-scripts-off-390-${look}.png`), fullPage: true });
+    });
+
+    // The main script blocked, scripts on: the page still reads and the line stays.
+    await open({ name: 'feature 1, main script blocked', width: 390, look }, async (page, context) => {
+      await context.route('**/_next/static/chunks/**', (route) => route.abort());
+      await page.goto(home, { waitUntil: 'load', timeout: 60_000 });
+      await page.waitForTimeout(1_500);
+      const seen = await page.evaluate(() => {
+        let opacity = 1;
+        for (let node = document.querySelector('h1'); node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+        const line = document.getElementById('home-needs-script');
+        return { opacity, line: !!line && line.getBoundingClientRect().height > 0, h1: document.querySelector('h1')?.textContent.trim() };
+      });
+      expect(seen.opacity === 1 && seen.h1 === HEADLINE, `feature 1, main script blocked, ${look}: the headline is not readable (opacity ${seen.opacity})`);
+      expect(seen.line, `feature 1, main script blocked, ${look}: "${NEEDS_SCRIPT}" does not show`);
+    });
+  }
+
+  // Nothing blocked: the line hides once the app has started; every request
+  // stays on the site; no cookie; no card or sheet appears, however long the
+  // visitor stays, before setup or after it.
+  for (const setupDone of [false, true]) {
+    await open({ name: 'feature 1, requests', width: setupDone ? 390 : 1280, height: setupDone ? 844 : 800 }, async (page) => {
+      const hosts = new Set();
+      page.on('request', (request) => {
+        const url = new URL(request.url());
+        if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'ws:' || url.protocol === 'wss:') hosts.add(url.origin);
+      });
+      await visit(page);
+      await page.waitForTimeout(8_000);
+      const elsewhere = [...hosts].filter((host) => host !== origin);
+      expect(elsewhere.length === 0, `feature 1: the page asked ${elsewhere.join(', ')}`);
+      expect((await page.evaluate(() => document.cookie)) === '', 'feature 1: the page set a cookie');
+      expect(await page.locator('#home-needs-script').isHidden(), `feature 1: "${NEEDS_SCRIPT}" still shows after the app started`);
+      for (const words of ['Enable notifications', 'Install SafeOS', 'Install App']) {
+        expect((await page.getByText(words).count()) === 0, `feature 1: "${words}" shows on the home page${setupDone ? ' after setup' : ''}`);
+      }
+    }, { setupDone });
+  }
+
+  // A saved server address: every request that leaves the site goes to it.
+  await open({ name: 'feature 1, saved server', width: 1280, height: 800 }, async (page, context) => {
+    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' };
+    await context.route('https://server.example.test/**', (route) => route.fulfill({ status: 200, headers: cors, contentType: 'application/json', body: '{"status":"ok"}' }));
+    const hosts = new Set();
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (/^(https?|wss?):$/.test(url.protocol) && url.origin !== origin) hosts.add(url.host);
+    });
+    await visit(page);
+    await page.waitForTimeout(3_000);
+    const others = [...hosts].filter((host) => host !== 'server.example.test');
+    expect(others.length === 0, `feature 1, saved server: the page asked ${others.join(', ')}`);
+    expect(hosts.has('server.example.test'), 'feature 1, saved server: the saved address was not checked');
+  }, { script: () => localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://server.example.test', wsUrl: 'wss://server.example.test/ws' })) });
+
+  // The skip link, the landmarks and the headings.
+  await open({ name: 'feature 1, skip link', width: 1280, height: 800, look: 'dark' }, async (page) => {
+    await visit(page);
+    await page.keyboard.press('Tab');
+    const skip = await page.evaluate(() => {
+      const element = document.activeElement;
+      const box = element.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return { words: element.textContent.trim(), shown: box.width >= 120 && box.height >= 44 && box.top >= 0 && style.opacity === '1' && style.clipPath === 'none', outline: style.outlineStyle, width: Math.round(box.width), height: Math.round(box.height) };
+    });
+    expect(skip.words === 'Skip to content' && skip.shown, `feature 1: the first Tab stop is "${skip.words}", ${skip.width} by ${skip.height} px, shown ${skip.shown}`);
+    expect(skip.outline !== 'none', 'feature 1: the skip link shows no ring');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement?.id === 'main-content'), 'feature 1: Enter on the skip link does not move focus to the main content');
+    const marks = await page.evaluate(() => ({
+      mains: document.querySelectorAll('main').length,
+      h1s: document.querySelectorAll('h1').length,
+      navs: [...document.querySelectorAll('nav')].map((nav) => nav.getAttribute('aria-label')),
+      footers: document.querySelectorAll('footer').length,
+    }));
+    expect(marks.mains === 1 && marks.h1s === 1, `feature 1: ${marks.mains} main landmarks and ${marks.h1s} H1 headings`);
+    expect(marks.navs.join(' | ') === 'Site | Site links', `feature 1: the navigation landmarks are ${marks.navs.join(' | ')}`);
+    // The Tab order of the header.
+    await page.reload({ waitUntil: 'networkidle' });
+    const order = [];
+    for (let i = 0; i < 9; i += 1) {
+      await page.keyboard.press('Tab');
+      order.push(await page.evaluate(() => {
+        const element = document.activeElement;
+        return element.getAttribute('aria-label') || element.textContent.trim();
+      }));
+    }
+    const wanted = ['Skip to content', 'SafeOS Guardian, home', 'How it works', 'Uses', 'Privacy', 'FAQ', 'SafeOS on GitHub', 'Switch to the light look', 'Start setup'];
+    expect(order.join(' > ') === wanted.join(' > '), `feature 2: the Tab order is ${order.join(' > ')}`);
+  });
+
+  // No sideways scroll, the readable sizes and contrast, at each width in
+  // both looks; the page from top to bottom at 820 and 1920 pixels.
+  for (const width of [320, 390, 820, 1280, 1440, 1920]) {
+    for (const look of LOOKS) {
+      await open({ name: 'feature 1, readable', width, height: width >= 1440 ? 900 : width >= 768 ? 800 : 844, look }, async (page) => {
+        await visit(page);
+        expect((await sidewaysScroll(page)) <= 0, `feature 1 at ${width} px, ${look}: the page scrolls sideways`);
+        if (width === 820 || width === 1920) {
+          await page.screenshot({ path: path.join(outDir, `home-${width}-${look}.png`), fullPage: true });
+        }
+        if (![390, 820, 1280, 1920].includes(width)) return;
+        // Open every question so its answer is measured too.
+        await page.evaluate(() => document.querySelectorAll('details').forEach((details) => { details.open = true; }));
+        const texts = await page.evaluate(measureText, await page.evaluateHandle(() => document.querySelector('.visitor-shell')));
+        const bodySize = width >= 1440 ? 20 : 18;
+        for (const text of texts) {
+          const where = `at ${width} px, ${look}: "${text.words}"`;
+          if (text.size < 16) fail(`readability ${where} is ${text.size} px, under 16`);
+          if (/mono/i.test(text.face.split(',')[0])) fail(`readability ${where} is set in ${text.face.split(',')[0]}`);
+          if (!['400', '700'].includes(text.weight)) fail(`readability ${where} has weight ${text.weight}`);
+          if (text.body && text.tag === 'p' && text.size < bodySize) fail(`readability ${where} is body text at ${text.size} px, under ${bodySize}`);
+          if (text.contrast < (text.body ? 12 : 7)) fail(`readability ${where} has contrast ${text.contrast.toFixed(2)}, under ${text.body ? 12 : 7}`);
+          if (/\d/.test(text.words) && !/tabular-nums/.test(text.figures)) fail(`readability ${where} holds a number without tabular figures`);
+        }
+        expect(texts.length > 60, `readability at ${width} px, ${look}: only ${texts.length} pieces of text were measured`);
+      });
+    }
+  }
+
+  // Text at 200 per cent with the spacing overrides: nothing scrolls sideways
+  // and the header keeps one row.
+  for (const width of [320, 390, 820, 1280]) {
+    await open({ name: 'feature 1, larger text', width, height: 800 }, async (page) => {
+      await visit(page);
+      await page.addStyleTag({ content: 'html { font-size: 200% !important; } * { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }' });
+      await page.waitForTimeout(500);
+      expect((await sidewaysScroll(page)) <= 0, `larger text at ${width} px: the page scrolls sideways`);
+      const row = await page.evaluate(() => {
+        const bar = document.querySelector('nav[aria-label="Site"] .site-header__bar');
+        const tops = [...bar.querySelectorAll('a, button')].filter((element) => element.getBoundingClientRect().width > 0)
+          .map((element) => { const box = element.getBoundingClientRect(); return Math.round(box.top + box.height / 2); });
+        const cut = [...document.querySelectorAll('main a.key, main .link-row, main summary')].filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => element.textContent.trim());
+        return { rows: new Set(tops).size, over: bar.scrollWidth > bar.clientWidth + 1, menu: !!document.querySelector('.site-header__menu-key')?.getBoundingClientRect().width, cut };
+      });
+      expect(row.rows === 1 && !row.over, `feature 2, larger text at ${width} px: the header is not one row`);
+      if (width === 820) expect(row.menu, 'feature 2, larger text at 820 px: the links did not move into the Menu');
+      expect(row.cut.length === 0, `larger text at ${width} px: cut labels: ${row.cut.join(', ')}`);
+      await page.screenshot({ path: path.join(outDir, `home-larger-text-${width}-light.png`) });
+    });
+  }
+
+  // The first screen's counts.
+  for (const [width, height, controls] of [[390, 844, 4], [1280, 800, 9]]) {
+    await open({ name: 'feature 1, first screen', width, height, look: 'dark' }, async (page) => {
+      await visit(page);
+      const count = await page.evaluate(() => [...document.querySelectorAll('a, button, summary')].filter((element) => {
+        const box = element.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0 && getComputedStyle(element).visibility !== 'hidden'
+          && !element.classList.contains('skip-link');
+      }).length);
+      expect(count === controls, `feature 1: the first screen at ${width} by ${height} holds ${count} controls, not ${controls}`);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. Visitor header
+  // ---------------------------------------------------------------------------
+
+  for (const width of [320, 360, 390, 430, 480, 768, 820, 1024, 1280, 1440, 1920]) {
+    for (const look of LOOKS) {
+      await open({ name: 'feature 2, header', width, height: 800, look }, async (page) => {
+        await visit(page);
+        const header = page.locator('nav[aria-label="Site"]');
+        if (look === 'light') await header.screenshot({ path: path.join(outDir, `header-${width}-light.png`) });
+        const found = await header.evaluate((nav) => {
+          const out = [];
+          const bar = nav.querySelector('.site-header__bar');
+          const barBox = bar.getBoundingClientRect();
+          const screen = document.documentElement.clientWidth;
+          const phone = screen < 768;
+          const height = phone ? 56 : 64;
+          if (Math.abs(barBox.height - height) > 0.5) out.push(`the bar is ${Math.round(barBox.height)} px tall, not ${height}`);
+          const controls = [...bar.querySelectorAll('a, button')].filter((element) => element.getBoundingClientRect().width > 0 && getComputedStyle(element).visibility !== 'hidden');
+          const names = controls.map((element) => element.getAttribute('aria-label') || element.textContent.trim());
+          const centres = new Set(controls.map((element) => { const box = element.getBoundingClientRect(); return Math.round(box.top + box.height / 2); }));
+          if (centres.size !== 1) out.push(`its items sit on ${centres.size} rows`);
+          for (const element of controls) {
+            const box = element.getBoundingClientRect();
+            const name = element.getAttribute('aria-label') || element.textContent.trim();
+            if (box.left < -0.5 || box.right > screen + 0.5) out.push(`${name} runs off the screen`);
+            if (box.height < 43.5) out.push(`${name} is ${Math.round(box.height)} px tall`);
+          }
+          const want = phone ? ['SafeOS Guardian, home', 'Switch to the dark look|Switch to the light look', 'Menu']
+            : screen < 1024 ? ['SafeOS Guardian, home', 'How it works', 'Uses', 'Privacy', 'FAQ', 'Switch to the dark look|Switch to the light look', 'Start setup']
+              : ['SafeOS Guardian, home', 'How it works', 'Uses', 'Privacy', 'FAQ', 'SafeOS on GitHub', 'Switch to the dark look|Switch to the light look', 'Start setup'];
+          if (names.length !== want.length || names.some((name, i) => !want[i].split('|').includes(name))) out.push(`its items are ${names.join(', ')}`);
+          if (nav.querySelector('[aria-label="Help"], [aria-label*="otification"]')) out.push('it holds a bell or a shortcuts key');
+          if (nav.querySelector('svg path[d^="M12 2C6.477"]')) out.push('it holds the GitHub logo');
+          const links = nav.querySelector('.site-header__links');
+          if (!phone) {
+            const box = links.getBoundingClientRect();
+            const centre = box.left + box.width / 2;
+            if (screen >= 1440 && Math.abs(centre - screen / 2) > 2) out.push(`the links are centred at ${Math.round(centre)} of ${screen}`);
+            if (screen < 1440 && centre > screen / 2) out.push('the links do not follow the mark');
+          }
+          if (getComputedStyle(nav).boxShadow !== 'none') out.push('the bar draws a line in the first screen');
+          return out;
+        });
+        for (const p of found) fail(`feature 2 at ${width} px, ${look}: ${p}`);
+        expect((await sidewaysScroll(page)) <= 0, `feature 2 at ${width} px, ${look}: the page scrolls sideways`);
+        // Once the page has moved under the bar, a 1 px line in the line colour.
+        await page.evaluate(() => window.scrollTo(0, 600));
+        await page.waitForFunction(() => getComputedStyle(document.querySelector('nav[aria-label="Site"]')).boxShadow !== 'none', null, { timeout: 5_000 })
+          .catch(() => fail(`feature 2 at ${width} px, ${look}: no line under the bar once the page has moved under it`));
+      });
+    }
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'feature 2, Menu', width: 390, look }, async (page) => {
+      await visit(page);
+      const key = page.locator('nav[aria-label="Site"] button.site-header__menu-key');
+      const menu = page.locator('#site-menu');
+      const sizes = await page.evaluate(() => {
+        const look = document.querySelector('.look-switch').getBoundingClientRect();
+        const menuKey = document.querySelector('.site-header__menu-key').getBoundingClientRect();
+        return { look: [look.width, look.height], key: [menuKey.width, menuKey.height], gap: menuKey.left - look.right };
+      });
+      expect(sizes.look[0] === 44 && sizes.look[1] === 44, `feature 3: the look switch is ${sizes.look.join(' by ')} px`);
+      expect(sizes.key[0] >= 64 && sizes.key[1] >= 44, `feature 2: the Menu key is ${sizes.key.join(' by ')} px`);
+      expect(Math.abs(sizes.gap - 8) < 0.5, `feature 2: the look switch and Menu are ${sizes.gap} px apart`);
+      await key.click();
+      await menu.waitFor({ timeout: 5_000 });
+      const opened = await page.evaluate(() => {
+        const menuKey = document.querySelector('.site-header__menu-key');
+        const rows = [...document.querySelectorAll('#site-menu a')];
+        return {
+          words: [...menuKey.querySelectorAll('.menu-key__words span')].filter((span) => getComputedStyle(span).visibility !== 'hidden').map((span) => span.textContent).join(''),
+          name: menuKey.getAttribute('aria-label'),
+          expanded: menuKey.getAttribute('aria-expanded'),
+          controls: menuKey.getAttribute('aria-controls'),
+          width: menuKey.getBoundingClientRect().width,
+          rows: rows.map((row) => row.textContent.trim()),
+          heights: rows.map((row) => Math.round(row.getBoundingClientRect().height)),
+          animation: getComputedStyle(document.getElementById('site-menu')).animationName,
+        };
+      });
+      expect(opened.words === 'Close' && opened.name === 'Close menu' && opened.expanded === 'true' && opened.controls === 'site-menu',
+        `feature 2: the open Menu key shows "${opened.words}", is named "${opened.name}", aria-expanded ${opened.expanded}`);
+      expect(Math.abs(opened.width - sizes.key[0]) < 0.5, `feature 2: the Menu key changes width when open (${sizes.key[0]} to ${opened.width})`);
+      expect(opened.rows.join(', ') === 'Start setup, How it works, Uses, Privacy, FAQ, GitHub', `feature 2: the Menu's rows are ${opened.rows.join(', ')}`);
+      expect(opened.heights.every((height) => height >= 48), `feature 2: the Menu's rows are ${opened.heights.join(', ')} px tall`);
+      expect(opened.animation === 'site-menu-in', `feature 2: the Menu panel's animation is ${opened.animation}`);
+      await page.screenshot({ path: path.join(outDir, `home-menu-open-390-${look}.png`) });
+      await page.keyboard.press('Escape');
+      expect(await menu.isHidden(), 'feature 2: Escape leaves the Menu open');
+      expect(await key.evaluate((element) => element === document.activeElement), 'feature 2: after Escape, focus is not on the Menu key');
+      await key.click();
+      await menu.waitFor({ timeout: 5_000 });
+      await page.mouse.click(195, 760);
+      expect(await menu.isHidden(), 'feature 2: a press outside leaves the Menu open');
+      expect(await key.evaluate((element) => element === document.activeElement), 'feature 2: after a press outside, focus is not on the Menu key');
+    });
+  }
+
+  // The Menu on a short screen scrolls inside itself; with reduced motion it shows at once.
+  await open({ name: 'feature 2, short screen', width: 320, height: 300, reducedMotion: 'reduce' }, async (page) => {
+    await visit(page);
+    await page.locator('nav[aria-label="Site"] button.site-header__menu-key').click();
+    const menu = page.locator('#site-menu');
+    await menu.waitFor({ timeout: 5_000 });
+    const last = await menu.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+      const rows = [...element.querySelectorAll('a')];
+      const box = rows[rows.length - 1].getBoundingClientRect();
+      return { top: box.top, bottom: box.bottom, screen: window.innerHeight, duration: getComputedStyle(element).animationDuration, name: getComputedStyle(element).animationName };
+    });
+    expect(last.bottom <= last.screen + 0.5 && last.top >= 0, `feature 2 at 320 by 300: the Menu's last row sits at ${Math.round(last.top)} to ${Math.round(last.bottom)} of ${last.screen} px and the Menu does not scroll to it`);
+    expect(last.name === 'none' || parseFloat(last.duration) < 0.001, `feature 2, reduced motion: the Menu panel still fades (${last.name}, ${last.duration})`);
+  });
+
+  // Privacy and FAQ open with their own H1 and the same header and footer.
+  await open({ name: 'feature 2, links', width: 1280, height: 800 }, async (page) => {
+    await visit(page);
+    const footerGroups = await page.evaluate(() => [...document.querySelectorAll('footer h2')].map((heading) => heading.textContent.trim()).join(', '));
+    for (const [link, address] of [['Privacy', '/privacy/'], ['FAQ', '/faq/']]) {
+      await visit(page);
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === address, { timeout: 15_000 }),
+        page.locator('nav[aria-label="Site"] .site-header__links').getByRole('link', { name: link, exact: true }).click(),
+      ]);
+      await page.locator('h1').first().waitFor({ timeout: 15_000 });
+      const there = await page.evaluate(() => ({
+        current: document.querySelector('nav[aria-label="Site"] [aria-current="page"]')?.textContent.trim(),
+        groups: [...document.querySelectorAll('footer h2')].map((heading) => heading.textContent.trim()).join(', '),
+        h1: document.querySelector('h1')?.textContent.trim(),
+      }));
+      expect(there.current === link, `feature 2: on ${address} the link of the page being read is "${there.current}"`);
+      expect(there.groups === footerGroups, `feature 13: ${address} has the footer groups ${there.groups}`);
+      expect(!!there.h1 && there.h1 !== HEADLINE, `feature 2: ${address} has no H1 of its own`);
+    }
+    await visit(page);
+    const github = page.locator('nav[aria-label="Site"]').getByRole('link', { name: 'SafeOS on GitHub' });
+    expect((await github.getAttribute('href')) === 'https://github.com/framerslab/safeos' && !(await github.getAttribute('target')),
+      'feature 2: the GitHub link does not open the repository in the same tab');
+  });
+
+  // After setup the start key reads "Open dashboard" in the header, the first
+  // screen, the closing block, the Menu and the footer.
+  for (const width of [390, 1280]) {
+    await open({ name: 'feature 5, setup done', width, height: width === 390 ? 844 : 800 }, async (page) => {
+      await visit(page);
+      await page.getByText('Setup is done on this device.', { exact: true }).waitFor({ timeout: 10_000 });
+      const seen = await page.evaluate(() => ({
+        first: [...document.querySelectorAll('.home-first a')].map((a) => `${a.textContent.trim()} ${a.getAttribute('href')}`),
+        closing: document.querySelector('.home-closing a')?.textContent.trim(),
+        footer: document.querySelector('footer nav a')?.textContent.trim(),
+        header: document.querySelector('.site-header__start')?.textContent.trim(),
+        menu: document.querySelector('#site-menu a')?.textContent.trim(),
+        h1: document.querySelector('h1').textContent.trim(),
+      }));
+      expect(/^Open dashboard \/dashboard\/?$/.test(seen.first[0] || '') && /^Run setup again \/setup\/?\?again=1$/.test(seen.first[1] || ''),
+        `feature 5, setup done at ${width} px: the first screen's keys are ${seen.first.join(' | ')}`);
+      expect([seen.closing, seen.footer, seen.header, seen.menu].every((words) => words === 'Open dashboard'),
+        `feature 5, setup done at ${width} px: the start links read ${[seen.closing, seen.footer, seen.header, seen.menu].join(', ')}`);
+      expect(seen.h1 === HEADLINE, 'feature 4, setup done: the headline changed');
+      await page.screenshot({ path: path.join(outDir, `home-setup-done-${width}-light.png`) });
+      // "Run setup again" opens setup at its first step and stays there.
+      await Promise.all([
+        page.waitForURL((url) => /^\/setup\/?$/.test(url.pathname), { timeout: 15_000 }),
+        page.getByRole('link', { name: 'Run setup again', exact: true }).click(),
+      ]);
+      await page.getByRole('button', { name: /Begin Setup/i }).waitFor({ timeout: 15_000 });
+      await page.waitForTimeout(2_000);
+      const address = new URL(page.url());
+      expect(/^\/setup\/?$/.test(address.pathname) && address.search === '?again=1', `feature 5: "Run setup again" ended at ${address.pathname}${address.search}`);
+      // Nothing was reset: the home page still says setup is done, and setup
+      // with no parameter goes on to the dashboard.
+      await visit(page);
+      await page.getByText('Setup is done on this device.', { exact: true }).waitFor({ timeout: 10_000 });
+      await page.goto(new URL('/setup/', baseUrl).toString(), { waitUntil: 'load' });
+      await page.waitForURL((url) => /^\/dashboard\/?$/.test(url.pathname), { timeout: 15_000 })
+        .catch(() => fail('feature 5: setup with no parameter does not go on to the dashboard after setup is done'));
+    }, { setupDone: true });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 3. Look switch
+  // ---------------------------------------------------------------------------
+
+  for (const look of LOOKS) {
+    const other = look === 'light' ? 'dark' : 'light';
+    await open({ name: 'feature 3, look switch', width: 390, look }, async (page) => {
+      await visit(page);
+      const state = () => page.evaluate(() => ({
+        background: getComputedStyle(document.body).backgroundColor,
+        scheme: document.documentElement.style.colorScheme,
+        theme: [...document.querySelectorAll('meta[name="theme-color"]')].map((meta) => meta.getAttribute('content')).join(','),
+        said: document.querySelector('.site-header [role="status"]')?.textContent.trim(),
+        capture: [...document.querySelectorAll('img[data-capture]')].filter((image) => image.offsetParent !== null).map((image) => image.dataset.capture).join(','),
+      }));
+      const before = await state();
+      expect(before.background === PAGE_COLOURS[look], `feature 3: with the device set to ${look} the page is ${before.background}`);
+      const key = page.getByRole('button', { name: `Switch to the ${other} look`, exact: true });
+      await key.click();
+      await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
+      const after = await state();
+      expect(after.background === PAGE_COLOURS[other], `feature 3: after a press the page is ${after.background}, not ${PAGE_COLOURS[other]}`);
+      expect(after.said === `${other === 'dark' ? 'Dark' : 'Light'} look on`, `feature 3: the press announced "${after.said}"`);
+      expect(after.scheme === other && after.theme === THEME_COLOURS[other], `feature 3: after a press color-scheme is ${after.scheme} and theme-color ${after.theme}`);
+      if (after.capture) expect(after.capture.endsWith(`-${other}`), `feature 6: after a press the capture shown is ${after.capture}`);
+      await page.screenshot({ path: path.join(outDir, `home-after-look-switch-390-${look}.png`) });
+      // The choice is kept: a reload and another page are in the chosen look.
+      await page.reload({ waitUntil: 'networkidle' });
+      expect((await state()).background === PAGE_COLOURS[other], 'feature 3: the chosen look is lost on reload');
+      await visit(page, new URL('/faq/', baseUrl).toString());
+      expect(await page.evaluate((want) => document.documentElement.classList.contains(want), other), 'feature 3: the FAQ page is not in the chosen look');
+      // Space and Enter press the key.
+      await visit(page);
+      await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).focus();
+      await page.keyboard.press('Space');
+      await page.getByRole('button', { name: `Switch to the ${other} look`, exact: true }).waitFor({ timeout: 5_000 });
+      await page.keyboard.press('Enter');
+      await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
+    });
+
+    // A browser that refuses storage: the look changes for the visit and no error shows.
+    await open({ name: 'feature 3, storage refused', width: 390, look }, async (page) => {
+      const errors = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await visit(page);
+      await page.getByRole('button', { name: `Switch to the ${other} look`, exact: true }).click();
+      await page.waitForFunction((want) => getComputedStyle(document.body).backgroundColor === want, PAGE_COLOURS[other], { timeout: 5_000 })
+        .catch(() => fail('feature 3, storage refused: the look does not change'));
+      expect(errors.length === 0, `feature 3, storage refused: the page reported ${errors.join('; ')}`);
+      expect(await page.locator('h1').isVisible(), 'feature 1, storage refused: the page does not read');
+    }, { script: () => {
+      // This browser will not store the look choice.
+      const store = Storage.prototype.setItem;
+      Storage.prototype.setItem = function setItem(key, value) {
+        if (key === 'guardian-theme') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+        return store.call(this, key, value);
+      };
+    } });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4, 5 and 6. Headline and lead, the start key and the statement, the capture
+  // ---------------------------------------------------------------------------
+
+  const H1_LINES = { 320: [1, 4], 390: [1, 3], 768: [2, 2], 820: [2, 2], 1024: [3, 3], 1280: [3, 3], 1440: [3, 3], 1920: [3, 3] };
+  const CROPS = { 320: 'phone', 390: 'phone', 768: 'landscape', 820: 'landscape', 1024: 'portrait', 1280: 'portrait', 1440: 'landscape', 1920: 'landscape' };
+  const RATIOS = { phone: 16 / 9, landscape: 16 / 10, portrait: 4 / 5 };
+  const record = await (await fetch(new URL('/home/sample-clip.json', baseUrl))).json();
+  for (const width of Object.keys(H1_LINES).map(Number)) {
+    for (const look of LOOKS) {
+      const height = width === 1440 || width === 1920 ? 900 : width >= 768 ? 800 : 844;
+      await open({ name: 'features 4 to 6, first screen', width, height, look }, async (page) => {
+        await visit(page);
+        const seen = await page.evaluate(() => {
+          const h1 = document.querySelector('h1');
+          const style = getComputedStyle(h1);
+          const box = (selector) => document.querySelector(selector)?.getBoundingClientRect();
+          const image = [...document.querySelectorAll('img[data-capture]')].find((element) => element.offsetParent !== null);
+          const slot = [...document.querySelectorAll('.capture__slot')].find((element) => element.getBoundingClientRect().height > 0);
+          const key = document.querySelector('.home-first a.key--start');
+          const keyStyle = getComputedStyle(key);
+          return {
+            h1s: document.querySelectorAll('h1').length,
+            headline: h1.textContent.trim(),
+            lines: Math.round(h1.getBoundingClientRect().height / parseFloat(style.lineHeight)),
+            ink: style.color,
+            face: style.fontFamily,
+            lead: document.querySelector('.home-lead').textContent.trim(),
+            statement: document.querySelector('.home-statement').textContent.trim(),
+            caption: document.querySelector('.capture__caption').textContent.trim(),
+            order: ['h1', '.home-lead', '.home-capture', '.home-first a.key--start', '.home-statement'].map((selector) => Math.round(box(selector).top)),
+            bottoms: ['h1', '.home-lead', '.capture__frame', '.home-first a.key--start', '.home-statement'].map((selector) => Math.round(box(selector).bottom)),
+            lefts: { text: box('.home-first__text').left, textRight: box('.home-first__text').right, capture: box('.capture__frame').left, captureRight: box('.capture__frame').right, wrap: box('.home-first__grid').left, wrapRight: box('.home-first__grid').right },
+            tops: { h1: box('h1').top, capture: box('.capture__frame').top },
+            keys: document.querySelectorAll('.home-first a.key, .home-first button').length,
+            key: { width: key.getBoundingClientRect().width, height: key.getBoundingClientRect().height, column: box('.home-first__start').width, colour: keyStyle.color, fill: keyStyle.backgroundColor, href: key.getAttribute('href') },
+            statementSize: parseFloat(getComputedStyle(document.querySelector('.home-statement')).fontSize),
+            statementInk: getComputedStyle(document.querySelector('.home-statement')).color,
+            capture: image ? { id: image.dataset.capture, alt: image.getAttribute('alt'), loaded: image.complete && image.naturalWidth > 0 } : null,
+            slot: slot ? { name: slot.className, ratio: slot.getBoundingClientRect().width / slot.getBoundingClientRect().height } : null,
+            ticks: document.querySelectorAll('.capture__frame .corner-ticks i').length,
+            screen: window.innerHeight,
+          };
+        });
+        const at = `at ${width} px, ${look}`;
+        expect(seen.h1s === 1 && seen.headline === HEADLINE, `feature 4 ${at}: ${seen.h1s} H1 reading "${seen.headline}"`);
+        expect(plain(seen.lead) === LEAD, `feature 4 ${at}: the lead reads "${seen.lead}"`);
+        const [least, most] = H1_LINES[width];
+        expect(seen.lines >= least && seen.lines <= most, `feature 4 ${at}: the headline has ${seen.lines} lines, not ${least === most ? most : `at most ${most}`}`);
+        expect(seen.ink === INK[look], `feature 4 ${at}: the headline is ${seen.ink}`);
+        expect(/Space_Grotesk|Space Grotesk/i.test(seen.face), `feature 4 ${at}: the headline's face is ${seen.face}`);
+        expect(plain(seen.statement) === STATEMENT, `feature 5 ${at}: the statement reads "${seen.statement}"`);
+        expect(seen.statementSize >= 18 && seen.statementInk === INK[look], `feature 5 ${at}: the statement is ${seen.statementSize} px in ${seen.statementInk}`);
+        expect(seen.keys === 1, `feature 5 ${at}: the first screen holds ${seen.keys} keys`);
+        expect(/^\/setup\/?$/.test(seen.key.href || ''), `feature 5 ${at}: the start key opens ${seen.key.href}`);
+        expect(Math.abs(seen.key.height - (width >= 1440 ? 56 : 52)) < 0.5, `feature 5 ${at}: the start key is ${seen.key.height} px tall`);
+        if (width < 768) expect(Math.abs(seen.key.width - seen.key.column) < 0.5, `feature 5 ${at}: the start key is ${seen.key.width} px wide in a ${seen.key.column} px column`);
+        else expect(seen.key.width < seen.key.column - 40, `feature 5 ${at}: the start key is as wide as its column`);
+        expect(plain(seen.caption) === CAPTION, `feature 6 ${at}: the caption reads "${seen.caption}"`);
+        expect(seen.ticks === 4, `feature 6 ${at}: ${seen.ticks} corner ticks`);
+        const crop = CROPS[width];
+        expect(!!seen.slot && seen.slot.name.includes(`capture__slot--${crop}`) && Math.abs(seen.slot.ratio - RATIOS[crop]) < 0.02,
+          `feature 6 ${at}: the capture's box is ${seen.slot ? `${seen.slot.name} at ${seen.slot.ratio.toFixed(3)}` : 'missing'}, not the ${crop} crop`);
+        expect(!!seen.capture && seen.capture.id === `${crop}-${look}` && seen.capture.loaded, `feature 6 ${at}: the capture shown is ${seen.capture ? `${seen.capture.id}, loaded ${seen.capture.loaded}` : 'missing'}`);
+        if (seen.capture) expect(seen.capture.alt === record.words.captureAlt[crop], `feature 6 ${at}: the capture's text equivalent is not the record's for the ${crop} crop`);
+        // The order and the layout of the first screen.
+        const sorted = (list) => list.every((value, i) => i === 0 || value >= list[i - 1]);
+        if (width < 768) {
+          expect(sorted(seen.order), `feature 4 ${at}: the first screen's order is not headline, lead, capture, key, statement`);
+        } else if (width < 1024) {
+          expect(seen.lefts.textRight - seen.lefts.text <= 640.5, `feature 4 ${at}: the text block is ${Math.round(seen.lefts.textRight - seen.lefts.text)} px wide`);
+          expect(seen.order[2] > seen.order[4], `feature 6 ${at}: the capture is not under the text block`);
+          expect(Math.abs((seen.lefts.captureRight - seen.lefts.capture) - (seen.lefts.wrapRight - seen.lefts.wrap - 64)) < 1, `feature 6 ${at}: the capture is not as wide as the container`);
+        } else {
+          const columns = width >= 1440 ? 6 : 7;
+          const gap = width >= 1440 ? 32 : 24;
+          const container = seen.lefts.wrapRight - seen.lefts.wrap - (width >= 1440 ? 128 : 64);
+          const column = (container - 11 * gap) / 12;
+          expect(Math.abs((seen.lefts.textRight - seen.lefts.text) - (columns * column + (columns - 1) * gap)) < 1, `feature 4 ${at}: the words are not in the left ${columns} of twelve columns`);
+          expect(seen.lefts.capture > seen.lefts.textRight, `feature 6 ${at}: the capture is not at the right of the words`);
+          expect(Math.abs(seen.tops.capture - seen.tops.h1) <= 16, `feature 6 ${at}: the capture's top is ${Math.round(seen.tops.capture - seen.tops.h1)} px from the headline's`);
+        }
+        if ((width === 390 && height === 844) || (width === 1440 && height === 900)) {
+          expect(seen.bottoms.every((bottom) => bottom <= seen.screen), `feature 4 ${at}: the first screen does not hold the headline, the lead, the capture, the key and the statement (bottoms ${seen.bottoms.join(', ')} of ${seen.screen})`);
+        }
+      });
+    }
+  }
+
+  // The capture's file blocked: the box keeps its size and shows the text equivalent.
+  await open({ name: 'feature 6, file blocked', width: 390, look: 'dark' }, async (page, context) => {
+    await context.route('**/home/capture-*', (route) => route.abort());
+    await visit(page);
+    const error = page.locator('.capture__slot--phone .capture__pic--dark .capture__error');
+    await error.waitFor({ timeout: 10_000 });
+    const seen = await page.evaluate(() => {
+      const slot = document.querySelector('.capture__slot--phone').getBoundingClientRect();
+      return { ratio: slot.width / slot.height, words: document.querySelector('.capture__slot--phone .capture__pic--dark .capture__error p').textContent.trim(), caption: document.querySelector('.capture__caption').getBoundingClientRect().height > 0 };
+    });
+    expect(Math.abs(seen.ratio - 16 / 9) < 0.02, `feature 6, file blocked: the box is ${seen.ratio.toFixed(3)} wide for its height`);
+    expect(seen.words === record.words.captureAlt.phone && seen.caption, 'feature 6, file blocked: the box does not show the text equivalent with the caption under it');
+    await page.screenshot({ path: path.join(outDir, 'home-capture-blocked-390-dark.png') });
+  });
+
+  // The start key opens setup; the words that left the page are gone.
+  await open({ name: 'features 4 and 5, words', width: 1280, height: 800 }, async (page) => {
+    await visit(page);
+    const words = plain(await page.evaluate(() => {
+      document.querySelectorAll('details').forEach((details) => { details.open = true; });
+      return document.querySelector('.visitor-shell').innerText;
+    }));
+    const count = (needle) => words.split(needle).length - 1;
+    expect(count('It does not replace a person nearby.') === 1, `feature 5: "It does not replace a person nearby." appears ${count('It does not replace a person nearby.')} times`);
+    expect(count('SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.') === 1, 'feature 8: the not-a-medical-device sentence does not appear exactly once');
+    for (const gone of ['Experimental Supplemental Monitoring Tool', 'lo-tech', 'tech-savvy', 'supplemental', 'supplementary', 'NOT a replacement', 'babysitter', 'carer',
+      'security system', 'Takes less than 2 minutes', 'Deep learning', 'cosine', 'Sobel', 'Blurred', 'humanitarian', 'always be free', 'never charge', 'Future optional service',
+      'nonprofit', 'charity', 'donate', 'donation', 'tax-exempt', 'tax-deductible', 'identify', 'FREE', 'Quick Start', 'All systems operational', 'All rights reserved',
+      'Your camera\'s pictures stay in your browser', 'never leaves', '100% local', 'No telemetry', 'Who can see my camera?', 'What does it cost?', 'vital', 'falls', 'COCO-SSD']) {
+      expect(!words.toLowerCase().includes(gone.toLowerCase()) || (gone === 'FREE' && !words.includes('FREE')), `the page says "${gone}"`);
+    }
+    expect(!/\bAI\b/.test(words), 'feature 10: the page says "AI"');
+    for (const health of ['medical', 'breathing', 'SIDS']) expect(count(health) === 1, `feature 8: "${health}" appears ${count(health)} times`);
+    expect(count('account') === 1, `feature 12: the word "account" appears ${count('account')} times`);
+    await Promise.all([
+      page.waitForURL((url) => /^\/setup\/?$/.test(url.pathname), { timeout: 15_000 }),
+      page.locator('.home-first a.key--start').click(),
+    ]);
+    await page.getByRole('button', { name: /Begin Setup/i }).waitFor({ timeout: 15_000 });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 8 to 12 and the closing block: the parts of the page
+  // ---------------------------------------------------------------------------
+
+  const columnsOf = (page, selector) => page.evaluate((query) => {
+    const rows = new Map();
+    for (const item of document.querySelectorAll(query)) {
+      const top = Math.round(item.getBoundingClientRect().top);
+      rows.set(top, (rows.get(top) || 0) + 1);
+    }
+    return [...rows.entries()].sort((a, b) => a[0] - b[0]).map((row) => row[1]).join(',');
+  }, selector);
+
+  const LAYOUTS = {
+    390: { uses: '1,1,1,1,1', alerts: '1,1,1,1', footer: '2,2,2', qr: false },
+    820: { uses: '2,2,1', alerts: '2,2', footer: '3,3', qr: 160 },
+    1280: { uses: '2,3', alerts: '2,2', footer: '6', qr: 200 },
+    1440: { uses: '3,2', alerts: '3,1', footer: '6', qr: 200 },
+  };
+  for (const width of [390, 820, 1280, 1440]) {
+    for (const look of LOOKS) {
+      await open({ name: 'features 8 to 13, layout', width, height: 900, look }, async (page) => {
+        await visit(page);
+        const at = `at ${width} px, ${look}`;
+        const layout = LAYOUTS[width];
+        expect((await columnsOf(page, '.home-use')) === layout.uses, `feature 8 ${at}: the entries sit in rows of ${await columnsOf(page, '.home-use')}, not ${layout.uses}`);
+        expect((await columnsOf(page, '.home-alert')) === layout.alerts, `feature 10 ${at}: the entries sit in rows of ${await columnsOf(page, '.home-alert')}, not ${layout.alerts}`);
+        expect((await columnsOf(page, '.site-footer__groups > div')) === layout.footer, `feature 13 ${at}: the groups sit in rows of ${await columnsOf(page, '.site-footer__groups > div')}, not ${layout.footer}`);
+        const seen = await page.evaluate(() => {
+          const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+          const qr = document.querySelector('.home-qr img');
+          const style = (selector) => getComputedStyle(document.querySelector(selector));
+          const questions = [...document.querySelectorAll('.home-q > summary')].map((summary) => summary.getBoundingClientRect());
+          return {
+            qr: qr.getBoundingClientRect().width,
+            qrAlt: qr.getAttribute('alt'),
+            steps: box('.home-steps'),
+            qrBox: box('.home-qr'),
+            note: box('.home-how__note'),
+            noteFill: style('.home-how__note').backgroundColor,
+            free: style('#free').backgroundColor,
+            closing: style('.home-closing').textAlign,
+            closingBand: getComputedStyle(document.querySelector('.home-closing').closest('section')).backgroundColor,
+            closingKey: box('.home-closing a.key'),
+            closingWords: box('.home-closing__words'),
+            footer: style('footer').backgroundColor,
+            questionRows: Math.min(...questions.map((row) => row.height)),
+            questionColumns: new Set(questions.map((row) => Math.round(row.left))).size,
+            links: [...document.querySelectorAll('main .link-row, main .home-use__medical a, footer nav a')].map((link) => ({ words: link.textContent.trim(), height: link.getBoundingClientRect().height })),
+            cells: [...document.querySelectorAll('.home-use')].map((cell) => Math.round(cell.getBoundingClientRect().width)),
+            freeLinks: [...document.querySelectorAll('.home-free__links li')].map((item) => Math.round(item.getBoundingClientRect().top)),
+            boxed: [...document.querySelectorAll('.home-use, .home-alert, .home-step, .home-q')].filter((entry) => {
+              const entryStyle = getComputedStyle(entry);
+              return entryStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' || parseFloat(entryStyle.borderRadius) > 0;
+            }).length,
+          };
+        });
+        if (layout.qr) {
+          expect(Math.abs(seen.qr - layout.qr) < 0.5, `feature 9 ${at}: the QR code is ${seen.qr} px wide, not ${layout.qr}`);
+          expect(seen.qrBox.left >= seen.steps.right - 1, `feature 9 ${at}: the QR panel is not beside the steps`);
+        } else {
+          expect(seen.qr === 0, `feature 9 ${at}: a QR code shows on a phone`);
+        }
+        expect(seen.qrAlt === 'QR code for https://safeos.sh/', `feature 9 ${at}: the QR code's text equivalent is "${seen.qrAlt}"`);
+        expect(seen.free === PANEL_COLOURS[look] && seen.closingBand === PANEL_COLOURS[look] && seen.footer === PANEL_COLOURS[look],
+          `features 11, 5 and 13 ${at}: the bands are ${seen.free}, ${seen.closingBand} and ${seen.footer}, not the panel colour`);
+        expect(seen.questionRows >= 48, `feature 12 ${at}: a question's row is ${seen.questionRows} px tall`);
+        expect(seen.questionColumns === (width === 820 || width === 1440 ? 2 : 1), `feature 12 ${at}: the questions sit in ${seen.questionColumns} columns`);
+        expect(seen.boxed === 0, `${at}: ${seen.boxed} text entries are boxed`);
+        if (width === 390) {
+          for (const link of seen.links) expect(link.height >= 43.5, `${at}: the link "${link.words}" is ${link.height} px tall`);
+          expect(seen.closingKey.top > seen.closingWords.bottom, `feature 5 ${at}: the closing block's key is not under its line`);
+        } else {
+          for (const link of seen.links) expect(link.height >= 24, `${at}: the link "${link.words}" is ${link.height} px tall`);
+        }
+        if (width === 820 || width === 1280) {
+          expect(seen.closing === 'center' && seen.closingKey.top > seen.closingWords.bottom, `feature 5 ${at}: the closing block is not centred with its key under its line`);
+        }
+        if (width === 1440) {
+          expect(seen.closingKey.left > seen.closingWords.right - 1 && Math.abs(seen.closingKey.height - 56) < 0.5, `feature 5 ${at}: the closing block is not one row with a 56 px key`);
+          expect(Math.min(...seen.cells) >= 424, `feature 8 ${at}: a cell of the grid is ${Math.min(...seen.cells)} px wide`);
+        }
+        if (width === 1280) expect(new Set(seen.freeLinks).size === 2, `feature 11 ${at}: the four links are not a grid of two by two`);
+        if (width === 1280) expect(seen.noteFill === PANEL_COLOURS[look], `feature 9 ${at}: the server note is not in the panel`);
+      });
+    }
+  }
+
+  // The words of each part, the anchors and the links.
+  await open({ name: 'features 8 to 13, words', width: 1280, height: 800 }, async (page) => {
+    await visit(page);
+    const seen = await page.evaluate(() => {
+      const text = (element) => (element ? element.textContent.replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim() : '');
+      const part = (id) => document.getElementById(id);
+      return {
+        h2s: [...document.querySelectorAll('main h2')].map(text),
+        uses: [...document.querySelectorAll('.home-use')].map((entry) => ({ id: entry.querySelector('h3').id, title: text(entry.querySelector('h3')), words: [...entry.querySelectorAll('p')].map(text), links: [...entry.querySelectorAll('a')].map((a) => `${text(a)} ${a.href} ${a.target}`) })),
+        steps: [...document.querySelectorAll('ol.home-steps > li')].map((step) => ({ action: text(step.querySelector('h3')), words: text(step.querySelector('p')) })),
+        note: text(document.querySelector('.home-how__note p')),
+        noteLink: document.querySelector('.home-how__note a').href,
+        qrCaption: text(document.querySelector('.home-qr figcaption')),
+        alerts: [...document.querySelectorAll('.home-alert')].map((entry) => ({ title: text(entry.querySelector('h3')), words: [...entry.querySelectorAll('p')].map(text) })),
+        aside: text(document.querySelector('.home-alerts__aside p')),
+        asideLink: `${text(document.querySelector('.home-alerts__aside a'))} ${document.querySelector('.home-alerts__aside a').href}`,
+        openers: part('alerts').querySelectorAll('details, button').length,
+        free: [...document.querySelectorAll('.home-free__words p')].map(text),
+        freeLinks: [...document.querySelectorAll('.home-free__links a')].map((a) => `${text(a)} ${a.getAttribute('href')}`),
+        questions: [...document.querySelectorAll('.home-q')].map((details) => ({ question: text(details.querySelector('summary')), open: details.open, answer: text(details.querySelector('.home-q__answer p')), links: [...details.querySelectorAll('a')].map((a) => `${text(a)} ${a.getAttribute('href')}`) })),
+        all: `${text(document.querySelector('.home-questions__all'))} ${document.querySelector('.home-questions__all').getAttribute('href')}`,
+        closing: [...document.querySelectorAll('.home-closing h2, .home-closing p, .home-closing a')].map(text),
+        footer: [...document.querySelectorAll('.site-footer__groups > div')].map((group) => `${text(group.querySelector('h2'))}: ${[...group.querySelectorAll('a')].map((a) => `${text(a)} ${a.getAttribute('href')}${a.target ? ` ${a.target}` : ''}`).join(' | ')}`),
+        brand: [...document.querySelectorAll('.site-footer__brand p')].map(text),
+        last: text(document.querySelector('.site-footer__last')),
+        structured: [...document.querySelectorAll('script[type="application/ld+json"]')].map((script) => JSON.parse(script.textContent)),
+      };
+    });
+    const same = (got, want, what) => expect(JSON.stringify(got) === JSON.stringify(want), `${what}: ${JSON.stringify(got)}`);
+    same(seen.h2s, ['What people set it up for', 'One device does the watching and the alerting', 'Four things set off an alert', 'Free on safeos.sh, with the code in the open', 'Questions people ask first', 'Start with the device you have'], 'the part headings are');
+    same(seen.uses.map((entry) => `${entry.id}: ${entry.title}`), ['baby-nap: A baby\'s nap', 'pet-out: A pet while you are out', 'elderly-parent: An elderly parent', 'lost-pet: A lost pet near home', 'wildlife: Backyard wildlife'], 'feature 8: the entries are');
+    same(seen.uses[0].words, ['Motion and loud-sound alerts for a short nap while you are close by. It reacts to movement and noise in the room.', 'SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS. Safe-sleep guidance (NIH)'], 'feature 8: the baby entry reads');
+    same(seen.uses[0].links, ['Safe-sleep guidance (NIH) https://safetosleep.nichd.nih.gov/reduce-risk/reduce _blank'], 'feature 8: the baby entry links');
+    same(seen.uses[1].words, ['Leave it watching for a short while. It can play a sound you recorded when it sees motion, and History lists each alert for when you are back.'], 'feature 8: the pet entry reads');
+    same(seen.uses[2].words, ['Set it up together, with their agreement. It alerts in the room on motion, a loud sound or a set time of stillness. It cannot tell why nothing has moved or whether someone needs help. Reaching your own phone takes a server you run.'], 'feature 8: the elderly entry reads');
+    same(seen.uses[3].words, ['Point a camera at the yard or the porch. SafeOS compares what it sees with the colours in your pet\'s photos and alerts on a likely match. It cannot tell your pet from a look-alike, so post an alert on PawBoost or Petco Love Lost too.'], 'feature 8: the lost pet entry reads');
+    same(seen.uses[3].links, ['PawBoost https://www.pawboost.com/ ', 'Petco Love Lost https://lost.petcolove.org/ '], 'feature 8: the lost pet entry links');
+    same(seen.uses[4].words, ['The Wildlife page uses an object-detection model to spot 10 kinds of animal, birds, cats and dogs among them. It saves a picture of each sighting in your browser.'], 'feature 8: the wildlife entry reads');
+    same(seen.steps, [
+      { action: 'Open safeos.sh on the device that will watch.', words: 'An old phone, a tablet or a laptop works. Plug it in and set its screen to stay on, because a device that sleeps stops watching.' },
+      { action: 'Go through setup.', words: 'It has 6 short steps. You say what you are watching, and at step 4 the browser asks for the camera and microphone.' },
+      { action: 'Stay within earshot.', words: 'When something moves or gets loud, the device plays an alert sound, shows a notification and lists the alert in History.' },
+    ], 'feature 9: the steps read');
+    expect(seen.note === 'Want the alert on another phone? Email, text and Telegram alerts need a server you run yourself.', `feature 9: the server note reads "${seen.note}"`);
+    expect(seen.noteLink === 'https://github.com/framerslab/safeos/blob/master/docs/DEPLOYMENT.md#option-b-full-stack-deployment', `feature 9: the server guide link is ${seen.noteLink}`);
+    expect(seen.qrCaption === 'Scan to open safeos.sh on the phone or tablet that will watch.', `feature 9: the QR caption reads "${seen.qrCaption}"`);
+    same(seen.alerts, [
+      { title: 'Motion', words: ['The camera picture changes by more than the amount you set.'] },
+      { title: 'A loud sound', words: ['The microphone level stays above the level you set.'] },
+      { title: 'Stillness', words: ['Nothing has moved for a time you set, from 1 to 60 minutes.'] },
+      { title: 'A person or an animal', words: ['The Security and Wildlife pages run an object-detection model in your browser. It finds people and 10 kinds of animal: dog, cat, bird, horse, sheep, cow, elephant, bear, zebra and giraffe.', 'That model is 18.6 MB, downloaded from Google\'s storage. The download starts only after you agree, and Google sees your IP address when it does.'] },
+    ], 'feature 10: the entries read');
+    expect(seen.aside === 'The everyday monitor compares each camera frame with the one before and measures how loud the room is.', `feature 10: the everyday-monitor line reads "${seen.aside}"`);
+    expect(seen.asideLink === 'Read the detection code on GitHub https://github.com/framerslab/safeos/tree/master/apps/guardian-ui/src/lib', `feature 10: the code link is ${seen.asideLink}`);
+    expect(seen.openers === 0, 'feature 10: an entry opens or closes');
+    same(seen.free, ['SafeOS at safeos.sh is free, and this site has no paid tier or subscription. Frame builds SafeOS and pays for it.', 'The code is MIT-licensed, so anyone can read it, change it and run it.', 'SafeOS is experimental software, provided as is.'], 'feature 11: the sentences read');
+    same(seen.freeLinks.map((link) => link.replace(/\/$/, '')), ['Read the code on GitHub https://github.com/framerslab/safeos', 'The MIT License https://github.com/framerslab/safeos/blob/master/LICENSE',
+      'The offline check that runs before each deploy https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/scripts/check-offline-start.mjs', 'How SafeOS works, in detail /blog/how-safeos-guardian-works'], 'feature 11: the links are');
+    same(seen.questions.map((entry) => ({ ...entry, links: entry.links.map((link) => link.replace(/\/$/, '')) })), [
+      { question: 'Can an old phone be the camera?', open: false, answer: 'Yes. SafeOS runs in the browser on phones, tablets and computers. Plug the device in and set its screen to stay on, because a device that sleeps stops watching. The FAQ lists the browsers.', links: ['See the browser list in the FAQ /faq'] },
+      { question: 'Where does the alert go?', open: false, answer: 'To the device that is watching. It plays a sound, shows a notification and lists the alert in History. Email, text and Telegram alerts need a server you run yourself.', links: [] },
+      { question: 'Can I see the camera from another device?', open: false, answer: 'No. safeos.sh shows the camera only on the device that is watching.', links: [] },
+      { question: 'Does it work without internet?', open: false, answer: 'Yes, after your browser has saved the app\'s files on a visit online. Motion and sound alerts then work with no connection. The Security and Wildlife pages also need their model saved first.', links: [] },
+      { question: 'Do I need an account?', open: false, answer: 'No. Open safeos.sh on the device that will watch and go through setup.', links: [] },
+      { question: 'Where are my pictures kept?', open: false, answer: 'In the browser on the device that watches. Saved frames, photos and alerts are kept in its storage, and they go to a server only if you connect one of your own.', links: ['Read the privacy page /privacy'] },
+    ], 'feature 12: the questions read');
+    expect(seen.all.replace(/\/$/, '') === 'All questions and answers /faq', `feature 12: the link to the FAQ is ${seen.all}`);
+    same(seen.closing, ['Start with the device you have', 'Setup has 6 short steps and asks for the camera at step 4.', 'Start setup'], 'feature 5: the closing block reads');
+    const slashless = (line) => line.replace(/(\/[a-z-]+)\/(?= |$)/g, '$1');
+    same(seen.footer.map(slashless), [
+      'Use it: Start setup /setup',
+      'Uses: A baby\'s nap /#baby-nap | A pet while you are out /#pet-out | An elderly parent /#elderly-parent | A lost pet near home /#lost-pet | Backyard wildlife /#wildlife',
+      'Learn: How it works /#how-it-works | Guides /tutorials | FAQ /faq | Help /help | Blog /blog',
+      'About: About SafeOS /about | SafeOS on GitHub https://github.com/framerslab/safeos | Discord https://wilds.ai/discord | team@frame.dev mailto:team@frame.dev',
+      'Legal: Privacy /privacy | Terms /terms | MIT License https://github.com/framerslab/safeos/blob/master/LICENSE | Security policy https://github.com/framerslab/safeos/blob/master/SECURITY.md',
+      'From Frame: Frame https://frame.dev | AgentOS https://agentos.sh | Paracosm https://paracosm.agentos.sh',
+    ], 'feature 13: the groups are');
+    same(seen.brand, ['SafeOS Guardian', 'Motion and sound alerts that run in your browser.'], 'feature 13: the brand block reads');
+    expect(seen.last === `© ${new Date().getFullYear()} Frame. SafeOS code is MIT-licensed.`, `feature 13: the last line reads "${seen.last}"`);
+    // Feature 14: the structured data.
+    const kinds = seen.structured.map((block) => block['@type']).sort().join(', ');
+    expect(kinds === 'Organization, WebApplication', `feature 14: the structured data blocks are ${kinds}`);
+    const application = seen.structured.find((block) => block['@type'] === 'WebApplication') || {};
+    expect(application.description === DESCRIPTION && application.applicationCategory === 'UtilitiesApplication' && application.offers?.price === '0'
+      && /^\d+\.\d+\.\d+/.test(application.softwareVersion || '') && !application.aggregateRating && !application.review,
+    `feature 14: the WebApplication block is ${JSON.stringify(application).slice(0, 300)}`);
+
+    // All six questions can be open together, by pointer and by keyboard.
+    for (const summary of await page.locator('.home-q > summary').all()) await summary.click();
+    expect((await page.locator('.home-q[open]').count()) === 6, 'feature 12: the six questions cannot be open together');
+    const first = page.locator('.home-q > summary').first();
+    await first.focus();
+    await page.keyboard.press('Enter');
+    expect(!(await page.locator('.home-q').first().evaluate((details) => details.open)), 'feature 12: Enter does not close an open question');
+    await page.keyboard.press('Space');
+    expect(await page.locator('.home-q').first().evaluate((details) => details.open), 'feature 12: Space does not open a question');
+  });
+
+  // The header's and the footer's anchors land below the bar, not under it.
+  for (const [from, link, hash, target] of [
+    ['/', 'Uses', '#uses', '#uses-title'],
+    ['/', 'How it works', '#how-it-works', '#how-title'],
+    ['/faq/', 'A lost pet near home', '#lost-pet', '#lost-pet'],
+  ]) {
+    await open({ name: 'anchors', width: 1280, height: 800, look: 'dark', reducedMotion: 'reduce' }, async (page) => {
+      await visit(page, new URL(from, baseUrl).toString());
+      const scope = from === '/' ? page.locator('nav[aria-label="Site"] .site-header__links') : page.locator('footer');
+      await scope.getByRole('link', { name: link, exact: true }).click();
+      await page.waitForURL((url) => url.pathname === '/' && url.hash === hash, { timeout: 15_000 });
+      await page.locator(target).waitFor({ timeout: 15_000 });
+      await page.waitForTimeout(800);
+      const seen = await page.evaluate((selector) => ({
+        top: document.querySelector(selector).getBoundingClientRect().top,
+        bar: document.querySelector('nav[aria-label="Site"]').getBoundingClientRect().bottom,
+        screen: window.innerHeight,
+      }), target);
+      expect(seen.top >= seen.bar && seen.top < seen.screen, `the "${link}" link from ${from}: its heading sits at ${Math.round(seen.top)} px with the bar ending at ${Math.round(seen.bar)}`);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // 14. Search result and shared link
+  // ---------------------------------------------------------------------------
+
+  await open({ name: 'feature 14', width: 1280, height: 800 }, async (page) => {
+    await visit(page);
+    const tags = await page.evaluate(() => {
+      const meta = (selector) => document.querySelector(selector)?.getAttribute('content') ?? null;
+      return {
+        title: document.title,
+        description: meta('meta[name="description"]'),
+        canonical: document.querySelector('link[rel="canonical"]')?.getAttribute('href'),
+        keywords: meta('meta[name="keywords"]'),
+        ogImage: meta('meta[property="og:image"]'),
+        ogAlt: meta('meta[property="og:image:alt"]'),
+        ogType: meta('meta[property="og:image:type"]'),
+        xImage: meta('meta[name="twitter:image"]'),
+        ogTitle: meta('meta[property="og:title"]'),
+        lang: document.documentElement.lang,
+      };
+    });
+    expect(tags.title === `${HEADLINE} | SafeOS Guardian`, `feature 14: the title is "${tags.title}"`);
+    expect(tags.description === DESCRIPTION && tags.description.length === 146, `feature 14: the description is "${tags.description}"`);
+    expect(/^https?:\/\/[^/]+\/$/.test(tags.canonical || ''), `feature 14: the canonical address is ${tags.canonical}`);
+    expect(tags.keywords === null, 'feature 14: a keywords tag is present');
+    expect(tags.lang === 'en', `feature 14: the page's language is ${tags.lang}`);
+    expect(!!tags.ogImage && new URL(tags.ogImage).pathname === '/home/card.jpg' && tags.xImage === tags.ogImage && tags.ogType === 'image/jpeg',
+      `feature 14: the card pictures are ${tags.ogImage} (${tags.ogType}) and ${tags.xImage}`);
+    expect(tags.ogAlt === 'SafeOS Guardian watching a recorded clip of a kitten, beside the words Free motion and sound alerts from an old phone or laptop.', `feature 14: the card's text equivalent is "${tags.ogAlt}"`);
+    for (const file of ['/home/card.jpg', '/screenshots/dashboard.png', '/screenshots/monitoring.png']) {
+      const response = await page.request.get(new URL(file, baseUrl).toString());
+      expect(response.ok(), `feature ${file.includes('card') ? 14 : 6}: ${file} answers ${response.status()}`);
+      if (file.includes('card') && response.ok()) expect((await response.body()).length < 300_000, 'feature 14: the card is not under 300 KB');
+    }
+    for (const other of ['/about/', '/faq/']) {
+      await visit(page, new URL(other, baseUrl).toString());
+      const card = await page.evaluate(() => document.querySelector('meta[property="og:image"]')?.getAttribute('content'));
+      expect(!!card && new URL(card).pathname === '/home/card.jpg', `feature 14: ${other} shows the card ${card}`);
+    }
+    const manifest = await (await page.request.get(new URL('/manifest.json', baseUrl).toString())).json();
+    expect(manifest.description === 'Motion and sound alerts that run in your browser. By Frame.' && manifest.background_color === '#0b131b' && manifest.theme_color === '#0b131b'
+      && manifest.categories.join(',') === 'utilities,lifestyle', `feature 14: the manifest reads ${JSON.stringify({ d: manifest.description, b: manifest.background_color, t: manifest.theme_color, c: manifest.categories })}`);
+    const sitemap = await (await page.request.get(new URL('/sitemap.xml', baseUrl).toString())).text();
+    const entry = sitemap.match(/<url>\s*<loc>[^<]*\/<\/loc>\s*<lastmod>([^<]+)<\/lastmod>/);
+    expect(!!entry && /^\d{4}-\d{2}-\d{2}T00:00:00\.000Z$/.test(entry[1]), `feature 14: the sitemap gives the home page ${entry ? entry[1] : 'no day'}`);
+    expect(!/\/donate\b/.test(sitemap), 'feature 14: the sitemap lists the forwarding page');
+  });
+
+  // The page after one visit online, with the connection gone.
+  await open({ name: 'offline', width: 390, look: 'dark' }, async (page, context) => {
+    await visit(page);
+    await page.evaluate(() => Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('the installed copy was not ready within 60 seconds')), 60_000)),
+    ]));
+    await context.setOffline(true);
+    await page.reload({ waitUntil: 'load' });
+    const seen = await page.evaluate(() => {
+      const image = [...document.querySelectorAll('img[data-capture]')].find((element) => element.offsetParent !== null);
+      return { h1: document.querySelector('h1')?.textContent.trim(), capture: !!image && image.complete && image.naturalWidth > 0, steps: document.querySelectorAll('ol.home-steps > li').length };
+    });
+    expect(seen.h1 === HEADLINE && seen.steps === 3, 'offline: the page does not show from the installed copy');
+    expect(seen.capture, 'feature 6, offline: the capture does not show from the installed copy');
+    await page.locator('.home-q > summary').nth(3).click();
+    expect(await page.locator('.home-q').nth(3).evaluate((details) => details.open), 'feature 12, offline: a question does not open');
+    await page.getByRole('button', { name: /^Switch to the/ }).click();
+    expect((await page.evaluate(() => getComputedStyle(document.body).backgroundColor)) === PAGE_COLOURS.light, 'feature 3, offline: the look does not change');
+    await Promise.all([
+      page.waitForURL((url) => /^\/setup\/?$/.test(url.pathname), { timeout: 15_000 }),
+      page.locator('.home-first a.key--start').click(),
+    ]);
+    await page.getByRole('button', { name: /Begin Setup/i }).waitFor({ timeout: 15_000 });
+  });
+
+  for (const p of problems) console.error(`failed home page check: ${p}`);
+  console.log(`checked the home page: ${problems.length} findings`);
+  return problems.length;
+}

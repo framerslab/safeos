@@ -9,16 +9,19 @@
 //
 // When the home page is captured for the pull request's own build
 // (PICTURE_VERSION=after), it also checks a first visit in a real browser:
-// the header stays one row with every control inside the screen from 320 to
-// 1280 pixels, its text is 13 pixels or more and its phone targets 44 pixels;
-// the theme button changes the page; no notification prompt appears; and the
-// three headings that measured under 2 to 1 reach 4.5 to 1; at 320 by 480
-// the open menu's last control is on screen or reachable by scrolling the
-// menu, Escape closes the menu and focus returns to the Menu button; the
-// Security card opens the Security page; and the alert key on the Test Alerts
-// page starts the alert's two generated tones on a running audio context,
-// an analyser on the way to the speakers reads samples that are not all zero,
-// and the page makes no request under /sounds/. Any failure fails the run.
+// the visitor header (the navigation named "Site") stays one row with every
+// control inside the screen from 320 to 1280 pixels, its text is 16 pixels or
+// more and its targets 44 pixels tall; the look switch ("Switch to the dark
+// look" or "Switch to the light look") changes the page; no notification
+// prompt appears; the new H1 and setup's second heading reach their contrast;
+// at 320 by 480 the open Menu's last row is on screen or reachable by
+// scrolling the Menu, Escape closes it and focus returns to the Menu key; and
+// the alert key on the Test Alerts page starts the alert's two generated tones
+// on a running audio context, an analyser on the way to the speakers reads
+// samples that are not all zero, and the page makes no request under /sounds/.
+// It then walks the home page part by part (scripts/home-checks.mjs). Any
+// failure fails the run. The dashboard's link to the Security page is checked
+// with the dashboard, below.
 //
 // When /dashboard/ is captured, both versions also capture the dashboard as a
 // person who has finished setup sees it (dashboard-setup-<width>-<look>.png)
@@ -136,6 +139,10 @@ try {
   }
   if (process.env.PICTURE_VERSION === 'after' && routes.includes('/')) {
     failures += await checkFirstVisit(browser, baseUrl, outDir);
+    // The base build has no such file, so it is loaded only for the pull
+    // request's own build.
+    const { checkHomePage } = await import('./home-checks.mjs');
+    failures += await checkHomePage(browser, baseUrl, outDir);
   }
   if (routes.includes('/dashboard/')) {
     failures += await captureDashboardAfterSetup(browser, baseUrl, outDir);
@@ -394,8 +401,8 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
   const problems = [];
   const home = new URL('/', baseUrl).toString();
 
-  // The header: one row, every control on screen, no text under 13 px,
-  // 44 px targets on phones and tablets.
+  // The visitor header: one row, every control on screen, no text under
+  // 16 px, targets 44 px tall (the look switch and Menu 44 px wide too).
   for (const width of HEADER_WIDTHS) {
     const context = await browser.newContext({
       viewport: { width, height: 800 },
@@ -406,8 +413,7 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
     const page = await context.newPage();
     try {
       await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
-      const header = page.locator('nav[aria-label="Main"]');
-      await header.screenshot({ path: path.join(outDir, `header-${width}-light.png`) });
+      const header = page.locator('nav[aria-label="Site"]');
       const found = await header.evaluate((nav, phone) => {
         const out = [];
         const row = nav.firstElementChild;
@@ -426,7 +432,7 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
             out.push(`${name} runs off the screen (${Math.round(box.left)} to ${Math.round(box.right)} of ${screenWidth})`);
           }
           if (box.top < rowBox.top - 0.5 || box.bottom > rowBox.bottom + 0.5) out.push(`${name} is outside the row`);
-          if (phone && (box.width < 44 || box.height < 44)) {
+          if (box.height < 43.5 || (el.tagName === 'BUTTON' && box.width < 43.5)) {
             out.push(`${name} is ${Math.round(box.width)} by ${Math.round(box.height)} px`);
           }
         }
@@ -436,7 +442,7 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
           const parent = walker.currentNode.parentElement;
           if (!words || parent.getBoundingClientRect().width === 0) continue;
           const size = parseFloat(getComputedStyle(parent).fontSize);
-          if (size < 13) out.push(`"${words}" is ${size} px`);
+          if (size < 16) out.push(`"${words}" is ${size} px`);
         }
         return out;
       }, width < 1280);
@@ -460,13 +466,10 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
     try {
       await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
 
-      // The headings that measured under 2 to 1 in the light look.
-      const guardian = page.locator('h1 span').nth(1);
-      const tag = page.getByText('COCO-SSD · TensorFlow.js', { exact: true });
-      for (const [name, locator] of [['hero "Guardian"', guardian], ['tag "COCO-SSD · TensorFlow.js"', tag]]) {
-        const ratio = await contrastOf(locator);
-        if (ratio < 4.5) problems.push(`${look}: ${name} contrast ${ratio.toFixed(2)} is below 4.5`);
-      }
+      // The headline: body text and headings read at 12 to 1 or more.
+      const headline = page.getByRole('heading', { level: 1, name: 'Free motion and sound alerts from an old phone or laptop', exact: true });
+      const headlineRatio = await contrastOf(headline);
+      if (headlineRatio < 12) problems.push(`${look}: the headline's contrast ${headlineRatio.toFixed(2)} is below 12`);
 
       // No notification prompt on a first visit, however long it stays.
       await page.waitForTimeout(6_000);
@@ -474,13 +477,13 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
         problems.push(`${look}: the home page shows a notification prompt before setup`);
       }
 
-      // The theme button changes the page, not only its icon.
+      // The look switch changes the page, not only its icon.
       const other = look === 'light' ? 'dark' : 'light';
       const before = await page.evaluate(() => document.documentElement.className);
       if (!before.split(/\s+/).includes(look)) problems.push(`${look}: the page starts as "${before}"`);
-      await page.getByRole('button', { name: `Switch to ${other} mode` }).click();
+      await page.getByRole('button', { name: `Switch to the ${other} look`, exact: true }).click();
       await page.waitForFunction((want) => document.documentElement.classList.contains(want), other, { timeout: 5_000 })
-        .catch(() => problems.push(`${look}: the theme button left the page as "${before}"`));
+        .catch(() => problems.push(`${look}: the look switch left the page as "${before}"`));
       await page.screenshot({ path: path.join(outDir, `home-after-theme-button-390-${look}.png`) });
 
       // Setup's second step heading.
@@ -500,10 +503,10 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
     }
   }
 
-  // The header menu on a short phone screen: its last control is on screen or
-  // reachable by scrolling the menu itself (a fixed header cannot be reached
-  // by scrolling the page); Escape closes it; focus goes back to the Menu
-  // button whenever it closes.
+  // The Menu on a short phone screen: its last row is on screen or reachable
+  // by scrolling the Menu itself (a fixed header cannot be reached by
+  // scrolling the page); Escape closes it; focus goes back to the Menu key
+  // whenever it closes.
   {
     const context = await browser.newContext({
       viewport: { width: 320, height: 480 },
@@ -514,8 +517,8 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
     const page = await context.newPage();
     try {
       await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
-      const toggle = page.locator('nav[aria-label="Main"] button.nav-mobile-toggle');
-      const menu = page.locator('.nav-mobile-menu');
+      const toggle = page.locator('nav[aria-label="Site"] button[aria-controls="site-menu"]');
+      const menu = page.locator('#site-menu');
       await toggle.click();
       await menu.waitFor({ timeout: 5_000 });
       await page.screenshot({ path: path.join(outDir, 'menu-open-320x480-light.png') });
@@ -531,48 +534,14 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
       await page.screenshot({ path: path.join(outDir, 'menu-scrolled-320x480-light.png') });
       await menu.locator('a, button').last().focus();
       await page.keyboard.press('Escape');
-      if (await menu.count()) problems.push('menu at 320 by 480: Escape leaves the menu open');
+      if (await menu.isVisible()) problems.push('menu at 320 by 480: Escape leaves the menu open');
       else if (!(await toggle.evaluate((element) => element === document.activeElement))) {
-        problems.push('menu at 320 by 480: after Escape, focus is not on the Menu button');
+        problems.push('menu at 320 by 480: after Escape, focus is not on the Menu key');
       }
-      if (!(await menu.count())) {
-        await toggle.click();
-        await menu.waitFor({ timeout: 5_000 });
-        await menu.getByRole('button', { name: /Light Mode|Dark Mode/ }).click();
-        if (await menu.count()) problems.push('menu at 320 by 480: the theme action leaves the menu open');
-        else if (!(await toggle.evaluate((element) => element === document.activeElement))) {
-          problems.push('menu at 320 by 480: after the theme action closes the menu, focus is not on the Menu button');
-        }
-      }
-      console.log('checked the header menu at 320 by 480');
+      if ((await toggle.getAttribute('aria-expanded')) !== 'false') problems.push('menu at 320 by 480: the closed Menu key is still marked as open');
+      console.log('checked the Menu at 320 by 480');
     } catch (err) {
       problems.push(`menu at 320 by 480: ${err.message}`);
-    } finally {
-      await context.close();
-    }
-  }
-
-  // The home page's Security card opens the page where person detection runs.
-  {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark' });
-    const page = await context.newPage();
-    try {
-      await page.goto(home, { waitUntil: 'networkidle', timeout: 60_000 });
-      const card = page.locator('div.rounded-xl')
-        .filter({ has: page.getByRole('heading', { name: 'Security', exact: true }) })
-        .filter({ has: page.getByRole('link', { name: /Quick Start/ }) })
-        .last();
-      await Promise.all([
-        page.waitForURL((url) => url.pathname !== '/', { timeout: 15_000 }),
-        card.getByRole('link', { name: /Quick Start/ }).click(),
-      ]);
-      const address = new URL(page.url());
-      if (!/^\/security\/?$/.test(address.pathname)) {
-        problems.push(`the Security card opens ${address.pathname}${address.search}, not the Security page`);
-      }
-      console.log(`checked the Security card: it opens ${address.pathname}`);
-    } catch (err) {
-      problems.push(`Security card: ${err.message}`);
     } finally {
       await context.close();
     }
