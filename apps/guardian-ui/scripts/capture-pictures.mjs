@@ -18,6 +18,15 @@
 // Security card opens the Security page; and the alert key on the Test Alerts
 // page starts the alert's two generated tones on a running audio context with
 // no request under /sounds/. Any failure fails the run.
+//
+// When /dashboard/ is captured, both versions also capture the dashboard as a
+// person who has finished setup sees it (dashboard-setup-<width>-<look>.png)
+// and its header menu open at 390 pixels (dashboard-menu-390-<look>.png). The
+// pull request's own build then checks that the dashboard's Lost & Found,
+// Security and Wildlife cards are visible at 390 and 1280 pixels and each
+// opens its page, whose own heading shows; and that from 320 to 768 pixels
+// the header row stays one row with none of those three in it, while the open
+// menu lists all three under its four page links.
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
@@ -126,6 +135,10 @@ try {
   }
   if (process.env.PICTURE_VERSION === 'after' && routes.includes('/')) {
     failures += await checkFirstVisit(browser, baseUrl, outDir);
+  }
+  if (routes.includes('/dashboard/')) {
+    failures += await captureDashboardAfterSetup(browser, baseUrl, outDir);
+    if (process.env.PICTURE_VERSION === 'after') failures += await checkModeLinks(browser, baseUrl, outDir);
   }
   // Exercise the real database lifecycle in fresh contexts. The base build has
   // no notice, so its pictures show the same screen while the upgrade waits.
@@ -609,5 +622,169 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
   }
 
   for (const p of problems) console.error(`failed first-visit check: ${p}`);
+  return problems.length;
+}
+
+// -----------------------------------------------------------------------------
+// The dashboard after setup, and the modes it and the header menu link
+// -----------------------------------------------------------------------------
+
+// A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
+async function finishedSetupContext(browser, options) {
+  const context = await browser.newContext(options);
+  await context.addInitScript(() => {
+    localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
+      isComplete: true, selectedScenario: 'pet',
+      acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
+    }, version: 0 }));
+    localStorage.setItem('guardian-onboarding-complete', 'true');
+  });
+  return context;
+}
+
+async function openDashboard(page, baseUrl) {
+  await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+  const quickActions = page.locator('.panel')
+    .filter({ has: page.getByRole('heading', { name: 'Quick Actions', exact: true }) });
+  await quickActions.waitFor({ timeout: 20_000 });
+  return quickActions;
+}
+
+// Both versions: the dashboard at 390 and 1280 pixels in both looks, and its
+// header menu open at 390 pixels, so the pull request has before and after.
+async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
+  let failed = 0;
+  for (const size of WIDTHS) {
+    for (const look of LOOKS) {
+      const context = await finishedSetupContext(browser, {
+        viewport: { width: size.width, height: size.height },
+        isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look, deviceScaleFactor: 1,
+      });
+      const page = await context.newPage();
+      try {
+        await openDashboard(page, baseUrl);
+        const file = path.join(outDir, `dashboard-setup-${size.width}-${look}.png`);
+        await page.screenshot({ path: file, fullPage: true });
+        console.log(`captured ${file}`);
+        if (size.isMobile) {
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.locator('nav[aria-label="Main"] button.nav-mobile-toggle').click();
+          await page.locator('.nav-mobile-menu').waitFor({ timeout: 5_000 });
+          const menuFile = path.join(outDir, `dashboard-menu-${size.width}-${look}.png`);
+          await page.screenshot({ path: menuFile });
+          console.log(`captured ${menuFile}`);
+        }
+      } catch (err) {
+        failed += 1;
+        console.error(`failed dashboard after setup at ${size.width} ${look}: ${err.message}`);
+      } finally {
+        await context.close();
+      }
+    }
+  }
+  return failed;
+}
+
+// Pull request build only: Lost & Found, Security and Wildlife are reachable
+// from the dashboard and from the header menu, and the header row stays one row.
+async function checkModeLinks(browser, baseUrl, outDir) {
+  const MODES = [
+    { name: 'Lost & Found', path: '/lost-found', heading: 'Lost & Found' },
+    { name: 'Security', path: '/security', heading: 'Security Mode' },
+    { name: 'Wildlife', path: '/wildlife', heading: 'Wildlife Detection' },
+  ];
+  const MENU_WIDTHS = [320, 360, 390, 430, 480, 768];
+  const PAGE_LINKS = ['/dashboard', '/monitor', '/history', '/settings', ...MODES.map((mode) => mode.path)];
+  const problems = [];
+  const bare = (href) => (href || '').replace(/\/$/, '');
+
+  // Each card is visible in Quick Actions and opens its page, whose own heading shows.
+  for (const size of WIDTHS) {
+    const context = await finishedSetupContext(browser, {
+      viewport: { width: size.width, height: size.height },
+      isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: 'light',
+    });
+    const page = await context.newPage();
+    try {
+      for (const mode of MODES) {
+        try {
+          const quickActions = await openDashboard(page, baseUrl);
+          const card = quickActions.getByRole('link', { name: new RegExp(`^${mode.name}`) });
+          if (!(await card.count())) {
+            problems.push(`dashboard at ${size.width} px: no ${mode.name} card in Quick Actions`);
+            continue;
+          }
+          if (!(await card.isVisible())) {
+            problems.push(`dashboard at ${size.width} px: the ${mode.name} card is not visible`);
+            continue;
+          }
+          await Promise.all([
+            page.waitForURL((url) => bare(url.pathname) === mode.path, { timeout: 15_000 }),
+            card.click(),
+          ]);
+          await page.getByRole('heading', { level: 1, name: mode.heading, exact: true }).waitFor({ timeout: 20_000 });
+          console.log(`checked the ${mode.name} card at ${size.width} px: it opens ${new URL(page.url()).pathname}, heading "${mode.heading}"`);
+        } catch (err) {
+          problems.push(`dashboard at ${size.width} px, ${mode.name} card: ${err.message}`);
+        }
+      }
+    } finally {
+      await context.close();
+    }
+  }
+
+  // The header row is one row with none of the three in it; the open menu
+  // lists them under its four page links.
+  for (const width of MENU_WIDTHS) {
+    const context = await finishedSetupContext(browser, {
+      viewport: { width, height: 800 },
+      isMobile: width < 768, hasTouch: width < 768, colorScheme: 'light',
+    });
+    const page = await context.newPage();
+    try {
+      await openDashboard(page, baseUrl);
+      const header = page.locator('nav[aria-label="Main"]');
+      const rowProblems = () => header.evaluate((nav, paths) => {
+        const out = [];
+        const row = nav.firstElementChild;
+        const rowBox = row.getBoundingClientRect();
+        if (rowBox.height > 64.5) out.push(`row is ${Math.round(rowBox.height)} px tall`);
+        for (const el of row.querySelectorAll('a, button')) {
+          const box = el.getBoundingClientRect();
+          if (box.width === 0 || box.height === 0 || getComputedStyle(el).visibility === 'hidden') continue;
+          const name = el.getAttribute('aria-label') || el.textContent.trim() || el.tagName;
+          if (box.top < rowBox.top - 0.5 || box.bottom > rowBox.bottom + 0.5) out.push(`${name} is outside the row`);
+          if (paths.includes((el.getAttribute('href') || '').replace(/\/$/, ''))) out.push(`${name} is in the row`);
+        }
+        return out;
+      }, MODES.map((mode) => mode.path));
+      for (const p of await rowProblems()) problems.push(`header at ${width} px: ${p}`);
+      await header.locator('button.nav-mobile-toggle').click();
+      const menu = page.locator('.nav-mobile-menu');
+      await menu.waitFor({ timeout: 5_000 });
+      for (const p of await rowProblems()) problems.push(`header at ${width} px with the menu open: ${p}`);
+      for (const mode of MODES) {
+        const link = menu.getByRole('link', { name: mode.name, exact: true });
+        if (!(await link.count())) {
+          problems.push(`menu at ${width} px: no ${mode.name} link`);
+        } else if (bare(await link.getAttribute('href')) !== mode.path) {
+          problems.push(`menu at ${width} px: ${mode.name} links ${await link.getAttribute('href')}`);
+        }
+      }
+      const pages = (await menu.getByRole('link').evaluateAll((links) => links.map((a) => a.getAttribute('href') || '')))
+        .map(bare).filter((href) => href.startsWith('/')).slice(0, PAGE_LINKS.length);
+      if (pages.join(' ') !== PAGE_LINKS.join(' ')) {
+        problems.push(`menu at ${width} px: its first page links are ${pages.join(' ')}, not ${PAGE_LINKS.join(' ')}`);
+      }
+      await page.screenshot({ path: path.join(outDir, `dashboard-menu-check-${width}-light.png`) });
+      console.log(`checked the header row and menu on the dashboard at ${width} px`);
+    } catch (err) {
+      problems.push(`header and menu at ${width} px: ${err.message}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  for (const p of problems) console.error(`failed mode-link check: ${p}`);
   return problems.length;
 }

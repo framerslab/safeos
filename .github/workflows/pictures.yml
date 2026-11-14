@@ -8,7 +8,11 @@
 # header row, the theme button, no notification prompt, heading contrast,
 # the header menu on a short screen, the Security card's link) and the Test
 # Alerts page's alert key (its generated tones start, no sound file is asked
-# for); see scripts/capture-pictures.mjs.
+# for). Both versions capture the dashboard after setup and its header menu
+# open; the pull request's own capture checks that the dashboard's Lost &
+# Found, Security and Wildlife cards open their pages and that the header menu
+# lists all three while the header row stays one row from 320 to 768 pixels;
+# see scripts/capture-pictures.mjs.
 #
 # Opening or updating a pull request captures both versions automatically so changed screens
 # have before and after pictures. Workflow dispatch remains available for other refs.
