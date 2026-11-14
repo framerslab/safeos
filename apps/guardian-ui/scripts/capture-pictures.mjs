@@ -14,8 +14,10 @@
 // the theme button changes the page; no notification prompt appears; and the
 // three headings that measured under 2 to 1 reach 4.5 to 1; at 320 by 480
 // the open menu's last control is on screen or reachable by scrolling the
-// menu, Escape closes the menu and focus returns to the Menu button; and the
-// Security card opens the Security page. Any failure fails the run.
+// menu, Escape closes the menu and focus returns to the Menu button; the
+// Security card opens the Security page; and the alert key on the Test Alerts
+// page starts the alert's two generated tones on a running audio context with
+// no request under /sounds/. Any failure fails the run.
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
@@ -557,6 +559,50 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
       console.log(`checked the Security card: it opens ${address.pathname}`);
     } catch (err) {
       problems.push(`Security card: ${err.message}`);
+    } finally {
+      await context.close();
+    }
+  }
+
+  // The Test Alerts page's alert key plays the generated alert: its two tones
+  // start on a running audio context, and the page asks for no sound file.
+  {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark' });
+    await context.addInitScript(() => {
+      const heard = { started: 0, contexts: new Set() };
+      window.pictureAudio = heard;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function (...args) {
+        heard.started += 1;
+        heard.contexts.add(this.context);
+        return start.apply(this, args);
+      };
+    });
+    const soundFiles = [];
+    context.on('request', (request) => {
+      if (new URL(request.url()).pathname.startsWith('/sounds/')) soundFiles.push(new URL(request.url()).pathname);
+    });
+    const page = await context.newPage();
+    try {
+      await page.goto(new URL('/settings/test-alerts/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+      const soundTests = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Sound Tests', exact: true }) });
+      await soundTests.getByRole('button', { name: /^alert$/i }).click();
+      await page.waitForFunction(() => window.pictureAudio.started >= 2, null, { timeout: 5_000 }).catch(() => {});
+      // Give a file request that the press starts time to show.
+      await page.waitForTimeout(1_000);
+      const heard = await page.evaluate(() => ({
+        started: window.pictureAudio.started,
+        states: [...window.pictureAudio.contexts].map((audio) => audio.state),
+      }));
+      const states = heard.states.join(', ') || 'none';
+      if (heard.started < 2) problems.push(`alert sound: ${heard.started} tones started, the alert has 2`);
+      if (heard.states.length === 0 || heard.states.some((state) => state !== 'running')) {
+        problems.push(`alert sound: audio context state is ${states}, not running`);
+      }
+      if (soundFiles.length) problems.push(`alert sound: the page asked for ${soundFiles.join(', ')}`);
+      console.log(`checked the alert sound: ${heard.started} tones started, audio context ${states}, ${soundFiles.length} sound files asked for`);
+    } catch (err) {
+      problems.push(`alert sound: ${err.message}`);
     } finally {
       await context.close();
     }
