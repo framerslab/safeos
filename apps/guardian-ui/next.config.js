@@ -14,6 +14,8 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '',
     NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL || '',
     NEXT_PUBLIC_STATIC_MODE: process.env.NEXT_PUBLIC_STATIC_MODE || 'false',
+    // The year of the build, for the footer's copyright line.
+    NEXT_PUBLIC_BUILD_YEAR: String(new Date().getFullYear()),
   },
   // Webpack configuration for Transformers.js compatibility
   webpack: (config, { isServer }) => {
