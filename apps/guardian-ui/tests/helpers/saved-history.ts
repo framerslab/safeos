@@ -66,12 +66,13 @@ export function sessionAnswer(token: string, person: object = checked, sessionId
 /**
  * A configured monitoring server. Only the session routes answer; every other request fails as an
  * unreachable server does. `check` answers the GET that asks about a token, `create` the POST,
- * `profile` the PATCH of the profile.
+ * `profile` the PATCH of the profile, `end` the DELETE that ends a session.
  */
 export function server(routes: {
   check?: (token: string) => Answer | Promise<Answer>;
   create?: () => Answer | Promise<Answer>;
   profile?: () => Answer | Promise<Answer>;
+  end?: () => Answer | Promise<Answer>;
 } = {}) {
   localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: API, wsUrl: 'wss://monitor.example.test/ws' }));
   const calls: Array<{ url: string; method: string; token?: string; body?: string }> = [];
@@ -83,6 +84,7 @@ export function server(routes: {
     if (url === `${API}/api/auth/session` && method === 'GET') return (routes.check ?? ((asked: string) => sessionAnswer(asked)))(token || '');
     if (url === `${API}/api/auth/session` && method === 'POST' && routes.create) return routes.create();
     if (url === `${API}/api/auth/profile` && method === 'PATCH' && routes.profile) return routes.profile();
+    if (url === `${API}/api/auth/session` && method === 'DELETE' && routes.end) return routes.end();
     throw new TypeError('Failed to fetch');
   }) as unknown as typeof fetch;
   const sent = (method: string, path = '/api/auth/session') => calls.filter((call) => call.method === method && call.url === `${API}${path}`);
