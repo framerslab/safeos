@@ -79,6 +79,15 @@ class MockAudioElement {
 
 const browser = window as unknown as { AudioContext?: unknown; webkitAudioContext?: unknown };
 
+// This file runs in the node environment, whose window is a bare object. It gets
+// a real event target, as a browser's window is one, so a case can dispatch a gesture.
+const pageEvents = new EventTarget();
+Object.assign(window, {
+  addEventListener: pageEvents.addEventListener.bind(pageEvents),
+  removeEventListener: pageEvents.removeEventListener.bind(pageEvents),
+  dispatchEvent: pageEvents.dispatchEvent.bind(pageEvents),
+});
+
 // =============================================================================
 // Helpers
 // =============================================================================
@@ -966,6 +975,33 @@ describe('Sound Manager', () => {
         expect(through(gain).map(describeOscillator)).toEqual(schedule(pattern('emergency'), at));
       });
     }
+
+    it('a gesture inside the first second starts the waiting loop at once, and the end of the wait schedules nothing twice', async () => {
+      jest.useFakeTimers();
+      const gesture = blockedUntilGesture();
+      const manager = getSoundManager();
+
+      manager.play('emergency', { fadeIn: 0 });
+      await settle();
+      const context = made.contexts[0];
+      const [gain] = soundGains();
+      await runClock(context, 500);
+      expect(started()).toEqual([]);
+
+      gesture.seen = true;
+      const at = context.currentTime;
+      window.dispatchEvent(new Event('mousedown'));
+      await settle();
+      expect(through(gain).map(describeOscillator)).toEqual(schedule(pattern('emergency'), at));
+
+      // The one-second wait ends 500 ms later: two passes are scheduled by then, each once.
+      await runClock(context, 600);
+      expect(made.oscillators.map((oscillator) => round(oscillator.starts[0]))).toEqual(
+        [...schedule(pattern('emergency'), at), ...schedule(pattern('emergency'), at + cycleOf('emergency'))].map(
+          (tone) => tone.start,
+        ),
+      );
+    });
 
     it('after a waiting loop is stopped, a gesture does not resume the context', async () => {
       jest.useFakeTimers();
