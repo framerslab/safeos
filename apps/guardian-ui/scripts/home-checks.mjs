@@ -21,6 +21,8 @@ const PAGE_COLOURS = { light: 'rgb(248, 249, 250)', dark: 'rgb(11, 19, 27)' };
 const PANEL_COLOURS = { light: 'rgb(241, 243, 244)', dark: 'rgb(16, 26, 36)' };
 const INK = { light: 'rgb(15, 18, 21)', dark: 'rgb(244, 245, 246)' };
 const THEME_COLOURS = { light: '#f8f9fa', dark: '#0b131b' };
+// The longest walk takes about fifteen seconds on the CI runner.
+const WALK_LIMIT_MS = 180_000;
 
 // Straight and curly apostrophes are one character to a reader; so are a
 // space and a non-breaking space.
@@ -116,11 +118,20 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     if (setupDone) await context.addInitScript(SETUP_DONE);
     if (script) await context.addInitScript(script);
     const page = await context.newPage();
+    // A call that waits on the page for ever (one that waits for an event
+    // the page never sends) would hold the job until its own time limit.
+    // Each walk gets three minutes; one that runs over is a finding with its
+    // name, and closing its context ends the call it was waiting on.
+    let limit;
+    const ranOver = new Promise((_, reject) => {
+      limit = setTimeout(() => reject(new Error(`did not finish in ${WALK_LIMIT_MS / 1000} seconds`)), WALK_LIMIT_MS);
+    });
     try {
-      await run(page, context);
+      await Promise.race([run(page, context), ranOver]);
     } catch (err) {
       fail(`${options.name || 'home page'} at ${width} px, ${look}: ${err.message.split('\n')[0]}`);
     } finally {
+      clearTimeout(limit);
       await context.close();
     }
   };
@@ -323,7 +334,13 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   for (const width of [820, 1280]) {
     await open({ name: 'header, scripts off, larger text', width, height: 800, javaScriptEnabled: false }, async (page) => {
       await visit(page);
-      await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+      // page.addStyleTag waits for the style element's load event, which a
+      // page with scripts off never sends; the element is added directly.
+      await page.evaluate(() => {
+        const style = document.createElement('style');
+        style.textContent = 'html { font-size: 200% !important; }';
+        document.head.appendChild(style);
+      });
       await page.waitForTimeout(300);
       expect((await sidewaysScroll(page)) <= 0, `header, scripts off, larger text at ${width} px: the page scrolls sideways`);
       const row = await page.evaluate(() => {

@@ -65,6 +65,8 @@ jobs:
       matrix:
         version: ${{ fromJSON(github.event_name == 'pull_request' && '["after","before"]' || '["after"]') }}
     runs-on: ubuntu-latest
+    # A capture takes about seven minutes.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/guardian-ui
