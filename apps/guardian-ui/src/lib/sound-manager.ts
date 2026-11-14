@@ -354,9 +354,14 @@ class SoundManager {
     const config = SOUND_CONFIGS[type];
     const id = `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+    // One gain node carries the sound's volume; its tones play through it.
+    // A context that cannot be made or makes no gain leaves the play unstarted.
     let context: AudioContext;
+    let gain: GainNode;
     try {
       context = getAudioContext();
+      gain = context.createGain();
+      gain.connect(context.destination);
     } catch (error) {
       console.warn('Failed to play sound:', error);
       return id;
@@ -377,9 +382,6 @@ class SoundManager {
     // Stop lower priority sounds if needed
     this.handlePriority(config.priority);
 
-    // One gain node carries the sound's volume; its tones play through it
-    const gain = context.createGain();
-    gain.connect(context.destination);
     const tones: ToneVoice = { gain, oscillators: new Set(), volume, muted, timer: null, stopped: false };
     this.applyGain(tones);
 
