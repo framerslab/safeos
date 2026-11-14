@@ -918,6 +918,77 @@ describe('Sound Manager', () => {
       expect(through(emergencyGain)).toEqual([]);
     });
 
+    // As Chrome and Safari do: a context made before any gesture is suspended, and
+    // resume() goes through only when it is called after one.
+    const blockedUntilGesture = () => {
+      const gesture = { seen: false };
+      audioSetup.state = 'suspended';
+      audioSetup.resume = (context) => {
+        if (!gesture.seen) return new Promise<void>(() => {});
+        context.state = 'running';
+        return Promise.resolve();
+      };
+      return gesture;
+    };
+    const resumeCalls = () => made.log.filter((entry) => entry === 'resume').length;
+    // The events a browser counts as a person's gesture.
+    const GESTURES = ['keydown', 'mousedown', 'pointerdown', 'pointerup', 'touchend'];
+
+    for (const type of GESTURES) {
+      it(`a looping sound that waits for audio starts on the person's next ${type}: resume() is called again and the first pass is scheduled once`, async () => {
+        jest.useFakeTimers();
+        const gesture = blockedUntilGesture();
+        const manager = getSoundManager();
+
+        const id = manager.play('emergency', { fadeIn: 0 });
+        await settle();
+        const context = made.contexts[0];
+        const [gain] = soundGains();
+        await runClock(context, 1500);
+        expect(started()).toEqual([]);
+        expect(manager.isActive(id)).toBe(true);
+        const asked = resumeCalls();
+
+        // The person clicks, taps or presses a key somewhere that plays no sound.
+        gesture.seen = true;
+        const at = context.currentTime;
+        window.dispatchEvent(new Event(type));
+        await settle();
+
+        expect(resumeCalls()).toBe(asked + 1);
+        expect(context.state).toBe('running');
+        expect(through(gain).map(describeOscillator)).toEqual(schedule(pattern('emergency'), at));
+
+        // Audio runs: another gesture asks for nothing and schedules nothing.
+        window.dispatchEvent(new Event(type));
+        await settle();
+        expect(resumeCalls()).toBe(asked + 1);
+        expect(through(gain).map(describeOscillator)).toEqual(schedule(pattern('emergency'), at));
+      });
+    }
+
+    it('after a waiting loop is stopped, a gesture does not resume the context', async () => {
+      jest.useFakeTimers();
+      const gesture = blockedUntilGesture();
+      const manager = getSoundManager();
+
+      const id = manager.play('alarm', { fadeIn: 0 });
+      await settle();
+      const context = made.contexts[0];
+      await runClock(context, 1500);
+      manager.stop(id);
+      expect(manager.getActiveSounds()).toEqual([]);
+      const asked = resumeCalls();
+
+      gesture.seen = true;
+      for (const type of GESTURES) window.dispatchEvent(new Event(type));
+      await settle();
+
+      expect(resumeCalls()).toBe(asked);
+      expect(context.state).toBe('suspended');
+      expect(started()).toEqual([]);
+    });
+
     const cancels: Record<string, (manager: Manager, id: string) => void> = {
       'stop(id)': (manager, id) => manager.stop(id),
       stopByType: (manager) => manager.stopByType('warning'),
