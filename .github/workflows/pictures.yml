@@ -7,8 +7,9 @@
 # pull request's own capture also checks a first visit to the home page (the
 # header row, the theme button, no notification prompt, heading contrast,
 # the header menu on a short screen, the Security card's link) and the Test
-# Alerts page's alert key (its generated tones start, no sound file is asked
-# for); see scripts/capture-pictures.mjs.
+# Alerts page's alert key (its generated tones start, an analyser on the
+# way to the speakers reads signal, no sound file is asked for); see
+# scripts/capture-pictures.mjs.
 #
 # Opening or updating a pull request captures both versions automatically so changed screens
 # have before and after pictures. Workflow dispatch remains available for other refs.

@@ -16,8 +16,9 @@
 // the open menu's last control is on screen or reachable by scrolling the
 // menu, Escape closes the menu and focus returns to the Menu button; the
 // Security card opens the Security page; and the alert key on the Test Alerts
-// page starts the alert's two generated tones on a running audio context with
-// no request under /sounds/. Any failure fails the run.
+// page starts the alert's two generated tones on a running audio context,
+// an analyser on the way to the speakers reads samples that are not all zero,
+// and the page makes no request under /sounds/. Any failure fails the run.
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
@@ -565,17 +566,64 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
   }
 
   // The Test Alerts page's alert key plays the generated alert: its two tones
-  // start on a running audio context, and the page asks for no sound file.
+  // start on a running audio context, signal reaches the speakers, and the
+  // page asks for no sound file.
   {
     const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: 'dark' });
     await context.addInitScript(() => {
-      const heard = { started: 0, contexts: new Set() };
+      // peak: the largest sample that reached the context's destination;
+      // gainPeak: the largest value of a gain connected to the destination.
+      const heard = { started: 0, contexts: new Set(), peak: 0, gainPeak: 0 };
       window.pictureAudio = heard;
       const start = OscillatorNode.prototype.start;
       OscillatorNode.prototype.start = function (...args) {
         heard.started += 1;
         heard.contexts.add(this.context);
         return start.apply(this, args);
+      };
+
+      // Everything the page connects to a context's destination goes through
+      // one bus per context instead; the bus feeds the destination and an
+      // analyser. A node that is disconnected, or a gain held at zero, gives
+      // the analyser nothing but zeros.
+      const connect = AudioNode.prototype.connect;
+      const buses = new Map();
+      const toDestination = new Set();
+      const busFor = (audio) => {
+        if (!buses.has(audio)) {
+          const bus = audio.createGain();
+          const analyser = audio.createAnalyser();
+          const sink = audio.createGain();
+          sink.gain.value = 0;
+          connect.call(bus, audio.destination);
+          connect.call(bus, analyser);
+          // The analyser feeds a silent sink, so the graph pulls it.
+          connect.call(analyser, sink);
+          connect.call(sink, audio.destination);
+          const samples = new Float32Array(analyser.fftSize);
+          setInterval(() => {
+            analyser.getFloatTimeDomainData(samples);
+            for (const sample of samples) heard.peak = Math.max(heard.peak, Math.abs(sample));
+            for (const node of toDestination) {
+              if (node instanceof GainNode) heard.gainPeak = Math.max(heard.gainPeak, node.gain.value);
+            }
+          }, 10);
+          buses.set(audio, bus);
+        }
+        return buses.get(audio);
+      };
+      AudioNode.prototype.connect = function (target, ...rest) {
+        if (target instanceof AudioDestinationNode) {
+          toDestination.add(this);
+          return connect.call(this, busFor(this.context), ...rest);
+        }
+        return connect.call(this, target, ...rest);
+      };
+      const disconnect = AudioNode.prototype.disconnect;
+      AudioNode.prototype.disconnect = function (...args) {
+        if (args.length === 0 || args[0] instanceof AudioDestinationNode) toDestination.delete(this);
+        if (args[0] instanceof AudioDestinationNode) return disconnect.call(this, busFor(this.context), ...args.slice(1));
+        return disconnect.apply(this, args);
       };
     });
     const soundFiles = [];
@@ -593,14 +641,19 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
       const heard = await page.evaluate(() => ({
         started: window.pictureAudio.started,
         states: [...window.pictureAudio.contexts].map((audio) => audio.state),
+        peak: window.pictureAudio.peak,
+        gainPeak: window.pictureAudio.gainPeak,
       }));
       const states = heard.states.join(', ') || 'none';
       if (heard.started < 2) problems.push(`alert sound: ${heard.started} tones started, the alert has 2`);
       if (heard.states.length === 0 || heard.states.some((state) => state !== 'running')) {
         problems.push(`alert sound: audio context state is ${states}, not running`);
       }
+      if (!(heard.peak > 0)) {
+        problems.push(`alert sound: every sample that reached the speakers was zero (largest connected gain ${heard.gainPeak})`);
+      }
       if (soundFiles.length) problems.push(`alert sound: the page asked for ${soundFiles.join(', ')}`);
-      console.log(`checked the alert sound: ${heard.started} tones started, audio context ${states}, ${soundFiles.length} sound files asked for`);
+      console.log(`checked the alert sound: ${heard.started} tones started, audio context ${states}, largest sample ${heard.peak.toFixed(3)}, largest connected gain ${heard.gainPeak}, ${soundFiles.length} sound files asked for`);
     } catch (err) {
       problems.push(`alert sound: ${err.message}`);
     } finally {
