@@ -874,8 +874,9 @@ export const useAuthStore = create<AuthState>()(
     });
 
     // A clear of all local data in another tab reaches this open tab as the storage event of the
-    // account marker: the tab drops its session, its work in flight is void and its next profile
-    // save starts a new queue. A browser sends the event to the other tabs only. An event that
+    // account marker: the tab drops its session, its work in flight is void, its next profile save
+    // starts a new queue, and it is done loading, so a page that waits on set-up does not wait for a
+    // request still in flight. A browser sends the event to the other tabs only. An event that
     // comes late is not about the session the tab holds when that session was set after the clear:
     // under the marker the event brings, or under the marker local storage holds now.
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
@@ -884,7 +885,7 @@ export const useAuthStore = create<AuthState>()(
         if (get().sessionToken !== null && (event.newValue === heldUnder || readAccountClearMarker() === heldUnder)) return;
         clearsToldOf += 1;
         profileSaves = null;
-        set(SIGNED_OUT);
+        set({ ...SIGNED_OUT, isLoading: false, isInitialized: true });
       });
     }
 
