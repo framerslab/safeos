@@ -33,7 +33,8 @@
 // after a refused camera request (setup-camera-refused-<width>-<look>.png).
 // The pull request's own build is then walked from a first visit to the
 // dashboard with no camera: after a refused request, with no camera found and
-// with the runner's own browser, whose camera request nothing answers for it.
+// with the runner's own browser, which has no camera and nothing answering
+// for it.
 // Each walk reads what the step says, presses "Continue without the camera",
 // finishes setup, lands on the dashboard and reloads it, and the dashboard
 // stays. At 320, 390 and 1280 pixels it checks that Back, the request key and
@@ -1029,20 +1030,10 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
         for (const sentence of Object.values(CAMERA_WORDS)) {
           if (await shown(step.getByText(sentence, { exact: true }))) said.push(sentence);
         }
-        if (expected) {
-          primary = 'Try again';
-          if (!(await shown(again))) fail(`after the failed request the request key does not read "Try again"; the step reads: ${await words(step)}`);
-          if (said.length !== 1 || said[0] !== expected) fail(`the step does not say only "${expected}"; it reads: ${await words(step)}`);
-        } else if (said.length === 0 && !(await shown(again))) {
-          // A request the browser leaves open is not a failed request: the
-          // step keeps its first key and the way on is offered all the same.
-          console.log(`${label}: the browser left the camera request unanswered`);
-        } else {
-          primary = 'Try again';
-          if (!(await shown(again))) fail(`after the failed request the request key does not read "Try again"; the step reads: ${await words(step)}`);
-          if (said.length !== 1) fail(`the step says ${said.length} of the sentences for a failed request; it reads: ${await words(step)}`);
-          else console.log(`${label}: the browser's own answer makes the step say "${said[0]}"`);
-        }
+        primary = 'Try again';
+        if (!(await shown(again))) fail(`after the failed request the request key does not read "Try again"; the step reads: ${await words(step)}`);
+        if (said.length !== 1 || said[0] !== expected) fail(`the step does not say only "${expected}"; it reads: ${await words(step)}`);
+        else console.log(`${label}: the step says "${said[0]}"`);
       }
 
       if (!(await shown(skip))) {
@@ -1110,9 +1101,9 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
   await walk({ name: 'camera refused', picture: 'refused', size: DESKTOP, look: 'light', answer: 'NotAllowedError', expected: CAMERA_WORDS.refused });
   // No camera on the device, with "Default camera" chosen.
   await walk({ name: 'no camera found', picture: 'none-found', size: PHONE, look: 'light', answer: 'NotFoundError', expected: CAMERA_WORDS.noneFound });
-  // The runner's own headless browser on a machine with no camera: nothing
-  // answers for it.
-  await walk({ name: "the runner's own browser", picture: 'own-browser', size: DESKTOP, look: 'dark' });
+  // The runner's own headless browser, with nothing answering for it. The
+  // runner has no camera, so its browser finds none.
+  await walk({ name: "the runner's own browser", picture: 'own-browser', size: DESKTOP, look: 'dark', expected: CAMERA_WORDS.noneFound });
   // No request at all, at the narrowest width, by keyboard, with the scenario
   // step's "Continue" on the way.
   await walk({ name: 'no request, by keyboard', picture: 'first', size: NARROW, look: 'dark', request: false, keyboard: true, scenario: true });
