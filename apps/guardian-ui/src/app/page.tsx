@@ -18,6 +18,7 @@ import { Brand } from '@/components/home/Brand';
 import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, pageMetadata, socialImage } from '@/lib/page-metadata';
 import { HOME_LAST_CHANGED } from '@/lib/page-last-changed';
 import { captureSizes } from '@/lib/home-captures';
+import { CAPTURE_PRELOAD_SCRIPT, CAPTURE_PRELOADS_SCRIPTS_OFF } from '@/lib/capture-preload';
 import clip from '../../public/home/sample-clip.json';
 import appPackage from '../../package.json';
 
@@ -41,19 +42,6 @@ const CAPTURE_CROPS: CaptureCrop[] = [
   { name: 'landscape', ...CAPTURE_SIZES.landscape, alt: clip.words.captureAlt.landscape },
   { name: 'portrait', ...CAPTURE_SIZES.portrait, alt: clip.words.captureAlt.portrait },
 ];
-
-// The capture for the device's own look and width is asked for early.
-const CAPTURE_PRELOADS: { crop: string; look: 'dark' | 'light'; media: string }[] = (['dark', 'light'] as const).flatMap(
-  (look) => [
-    { crop: 'phone', look, media: `(max-width: 47.99em) and (prefers-color-scheme: ${look})` },
-    {
-      crop: 'landscape',
-      look,
-      media: `(min-width: 48em) and (max-width: 63.99em) and (prefers-color-scheme: ${look}), (min-width: 90em) and (prefers-color-scheme: ${look})`,
-    },
-    { crop: 'portrait', look, media: `(min-width: 64em) and (max-width: 89.99em) and (prefers-color-scheme: ${look})` },
-  ]
-);
 
 // React's own name for this attribute differs between versions; the HTML name works in all.
 const HIGH_PRIORITY = { fetchpriority: 'high' } as Record<string, string>;
@@ -117,17 +105,22 @@ export default function HomePage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(block) }}
         />
       ))}
-      {CAPTURE_PRELOADS.map(({ crop, look, media }) => (
-        <link
-          key={`${crop}-${look}`}
-          rel="preload"
-          as="image"
-          type="image/webp"
-          href={`/home/capture-${crop}-${look}.webp`}
-          media={media}
-          {...HIGH_PRIORITY}
-        />
-      ))}
+      {/* The capture for the width in the look that is on is asked for early;
+          with scripts off, the device's own look. */}
+      <script dangerouslySetInnerHTML={{ __html: CAPTURE_PRELOAD_SCRIPT }} />
+      <noscript>
+        {CAPTURE_PRELOADS_SCRIPTS_OFF.map(({ crop, look, media }) => (
+          <link
+            key={`${crop}-${look}`}
+            rel="preload"
+            as="image"
+            type="image/webp"
+            href={`/home/capture-${crop}-${look}.webp`}
+            media={media}
+            {...HIGH_PRIORITY}
+          />
+        ))}
+      </noscript>
 
       <section className="home-first" aria-labelledby="home-headline">
         <div className="home-wrap home-first__grid">
