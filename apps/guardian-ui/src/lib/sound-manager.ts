@@ -190,11 +190,12 @@ export const TONE_PATTERNS: Record<SoundType, TonePattern> = {
 
 type AudioContextClass = new () => AudioContext;
 
-// The module's one AudioContext, made on the first play.
+// The module's one AudioContext, made on the first play. A closed context
+// cannot run again, so the next play after it closes makes a new one.
 let audioContext: AudioContext | null = null;
 
 function getAudioContext(): AudioContext {
-  if (!audioContext) {
+  if (!audioContext || audioContext.state === 'closed') {
     const Context: AudioContextClass | undefined = typeof window === 'undefined'
       ? undefined
       : window.AudioContext
@@ -300,15 +301,21 @@ class SoundManager {
    * Set user volume preference (0-100)
    */
   setUserVolume(volume: number): void {
+    const previous = this.userVolume;
     this.userVolume = Math.max(0, Math.min(100, volume));
+    const changed = this.userVolume !== previous;
 
-    // Update volume of currently playing sounds (except emergency, and a sound
-    // fading out to stop). A fade in ends at the new volume.
+    // Update volume of currently playing sounds (except emergency). A fade in
+    // ends at the new volume. A sound fading out to stop ends at once when the
+    // volume changes, so volume 0 is silent from this call on.
     this.activeSounds.forEach((sound) => {
-      if (sound.type !== 'emergency' && !this.emergencyModeActive && !sound.stopping) {
-        this.clearFade(sound);
-        this.setSoundVolume(sound, this.calculateVolume(sound.type));
+      if (sound.type === 'emergency' || this.emergencyModeActive) return;
+      if (sound.stopping) {
+        if (changed) this.end(sound);
+        return;
       }
+      this.clearFade(sound);
+      this.setSoundVolume(sound, this.calculateVolume(sound.type));
     });
   }
 
@@ -323,12 +330,19 @@ class SoundManager {
    * Set global mute (does not affect emergency sounds)
    */
   setGlobalMute(muted: boolean): void {
+    const changed = muted !== this.globalMute;
     this.globalMute = muted;
     
     // Mute/unmute active sounds (except emergency). A fade in ends at its
-    // volume, so it does not go on under the new mute state.
+    // volume, so it does not go on under the new mute state. A sound fading
+    // out to stop ends at once when the mute state changes, so an unmute
+    // brings nothing of it back.
     this.activeSounds.forEach((sound) => {
       if (sound.type !== 'emergency') {
+        if (sound.stopping && changed) {
+          this.end(sound);
+          return;
+        }
         if (muted) {
           this.setSoundMuted(sound, true);
           this.endFade(sound);
@@ -512,14 +526,12 @@ class SoundManager {
       : fadeOut !== undefined ? fadeOut : config.fadeOut;
 
     if (fade > 0) {
+      // A sound that is fading out to stop keeps its first deadline
+      if (sound.stopping && sound.fade) return;
       sound.stopping = true;
-      this.fadeVolume(sound, this.getSoundVolume(sound), 0, fade, () => {
-        this.halt(sound);
-        this.activeSounds.delete(id);
-      });
+      this.fadeVolume(sound, this.getSoundVolume(sound), 0, fade, () => this.end(sound));
     } else {
-      this.halt(sound);
-      this.activeSounds.delete(id);
+      this.end(sound);
     }
   }
 
@@ -848,6 +860,7 @@ class SoundManager {
 
   /**
    * End a fade in at the volume it was going to; a fade out to stop runs on
+   * (a change of volume or mute ends that sound; see setUserVolume and setGlobalMute)
    */
   private endFade(sound: ActiveSound): void {
     if (!sound.fade || sound.stopping) return;
@@ -892,13 +905,24 @@ class SoundManager {
   }
 
   /**
-   * Listen for the context to run, to start the sounds that wait for it
+   * Listen for the context to run, to start the sounds that wait for it, and
+   * for it to close, to end the sounds it holds
    */
   private watch(context: AudioContext): void {
     if (this.watchedContexts.has(context) || typeof context.addEventListener !== 'function') return;
     this.watchedContexts.add(context);
     context.addEventListener('statechange', () => {
       if (context.state === 'running') this.startWaiting(context);
+      if (context.state === 'closed') this.endSoundsOf(context);
+    });
+  }
+
+  /**
+   * A closed context plays nothing more: each sound that plays or waits on it ends
+   */
+  private endSoundsOf(context: AudioContext): void {
+    this.activeSounds.forEach((sound) => {
+      if (sound.tones?.context === context) this.end(sound);
     });
   }
 
@@ -1033,6 +1057,15 @@ class SoundManager {
     if (sound.onEnd) {
       sound.onEnd();
     }
+  }
+
+  /**
+   * End a sound now: silence it and take it off the active list, as the end of
+   * its fade out does
+   */
+  private end(sound: ActiveSound): void {
+    this.halt(sound);
+    this.activeSounds.delete(sound.id);
   }
 
   /**
