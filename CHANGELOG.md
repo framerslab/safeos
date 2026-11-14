@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The notification prompt waits until setup is finished, and appears once it is, with no reload.
 - The header menu scrolls inside itself on a short screen, Escape closes it, and focus goes back to the Menu button when it closes.
 - The home page's Security card opens the Security page, and the other quick-start links name only presets that exist.
+- Lost & Found, Security and Wildlife can be opened from inside the app. The dashboard's Quick Actions link all three after Nap Mode, and the header menu lists them under Dashboard, Monitor, History and Settings. The header row does not gain them, so it stays one row from 320 px; from 1280 px, where the header has no menu, the dashboard's Quick Actions link them.
 - Lost & Found offers a pet or an item; subjects saved with the person type keep showing. The processing choice that only slowed the same matcher is gone.
 
 ### Fixed

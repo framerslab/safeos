@@ -7,7 +7,10 @@
  * One row at every width from 320 px. Below 1280 px the page links, the
  * GitHub button and the keyboard-shortcuts button move into the menu, so the
  * row holds the logo, the theme button, the bell and the menu button, each a
- * 44 px target. From 1280 px everything fits in the row. The open menu is
+ * 44 px target. From 1280 px everything fits in the row. The menu also lists
+ * Lost & Found, Security and Wildlife under its four page links; they never
+ * join the row, so from 1280 px, where the menu is hidden, the dashboard's
+ * Quick Actions are where they are linked. The open menu is
  * never taller than the screen and scrolls inside itself; Escape closes it.
  *
  * @module components/layout/Nav
@@ -30,6 +33,9 @@ import {
   IconHelp,
   IconSun,
   IconMoon,
+  IconPaw,
+  IconShield,
+  IconWildlife,
 } from '../icons';
 import { useTheme } from '../../lib/theme-manager';
 import { showShortcutsHelp } from '../../lib/keyboard-shortcuts';
@@ -53,6 +59,14 @@ const navLinks: NavLink[] = [
   { href: '/monitor', label: 'Monitor', icon: IconCamera },
   { href: '/history', label: 'History', icon: IconHistory },
   { href: '/settings', label: 'Settings', icon: IconSettings },
+];
+
+// In the menu only, under the four page links; the header row does not
+// gain them.
+const menuOnlyLinks: NavLink[] = [
+  { href: '/lost-found', label: 'Lost & Found', icon: IconPaw },
+  { href: '/security', label: 'Security', icon: IconShield },
+  { href: '/wildlife', label: 'Wildlife', icon: IconWildlife },
 ];
 
 // =============================================================================
@@ -259,7 +273,7 @@ export function Nav() {
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
         <div id="nav-menu" className="nav-mobile-menu">
-          {navLinks.map((link) => {
+          {[...navLinks, ...menuOnlyLinks].map((link) => {
             const isActive = mounted && (
               pathname === link.href ||
               (link.href !== '/' && pathname.startsWith(link.href))
