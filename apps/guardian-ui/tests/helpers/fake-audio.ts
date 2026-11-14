@@ -6,8 +6,16 @@
  *
  * Its clock moves only through runClock, and only while the context runs: a
  * suspended context's time stands still. When the clock passes an oscillator's
- * stop time (the last stop() replaces an earlier one), the oscillator's
- * onended runs, once. Setting a context's state fires its statechange event.
+ * stop time, the oscillator's onended runs, once. The stop time is the last
+ * stop()'s (it replaces an earlier one), or the time of that call when the
+ * clock had passed it: stop() and stop(0) are a stop now. The start time plays
+ * no part, so a tone stopped before it starts ends at its stop time and not at
+ * its start, as in the Web Audio API ("If a stop time is reached prior to the
+ * scheduled start time, the sound will not play", and the ended event "is
+ * dispatched when the stop time determined by stop() is reached":
+ * https://webaudio.github.io/web-audio-api/#AudioScheduledSourceNode).
+ * Setting a context's state fires its statechange event; close() sets it to
+ * closed, and a closed context does not resume.
  */
 import { jest } from '@jest/globals';
 
@@ -68,9 +76,12 @@ export class FakeOscillator extends FakeNode {
   type: string = 'sine';
   frequency = new FakeParam(440);
   starts: number[] = [];
+  /** The time given to each stop(), as given. */
   stops: number[] = [];
   ended = false;
   onended: (() => void) | null = null;
+  /** When the last stop() takes effect: its time, or the clock's at the call when that is later. */
+  private stopsAt: number | undefined;
 
   constructor(readonly context: FakeAudioContext) {
     super();
@@ -83,12 +94,13 @@ export class FakeOscillator extends FakeNode {
 
   stop(when = 0): void {
     this.stops.push(when);
+    // A stop after the oscillator ended has no effect.
+    if (!this.ended) this.stopsAt = Math.max(when, this.context.currentTime);
   }
 
-  /** When the oscillator ends: its last stop time, if it started and has one. */
+  /** When the oscillator ends, if it was started and stopped. Its start time plays no part. */
   endsAt(): number | undefined {
-    if (this.starts.length === 0 || this.stops.length === 0) return undefined;
-    return Math.max(this.starts[0], this.stops[this.stops.length - 1]);
+    return this.starts.length === 0 ? undefined : this.stopsAt;
   }
 }
 
@@ -153,8 +165,24 @@ export class FakeAudioContext {
 
   resume(): Promise<void> {
     made.log.push('resume');
+    // A closed context cannot run again: resume() rejects.
+    if (this.current === 'closed') return Promise.reject(invalidState('The context is closed'));
     return audioSetup.resume(this);
   }
+
+  // close() sets the state to closed, which fires statechange; a second close() rejects.
+  close(): Promise<void> {
+    made.log.push('close');
+    if (this.current === 'closed') return Promise.reject(invalidState('The context is closed'));
+    this.state = 'closed';
+    return Promise.resolve();
+  }
+}
+
+function invalidState(message: string): Error {
+  const error = new Error(message);
+  error.name = 'InvalidStateError';
+  return error;
 }
 
 /** Puts the stand-in back as a fresh browser has it, with contexts that start running. */
