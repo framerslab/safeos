@@ -147,7 +147,7 @@ In a processing mode that uses the server, the monitor sends camera frames to th
 
 ### Optional: cloud fallback
 
-When Ollama is down or its analysis of a frame fails, the API server sends that frame to the first cloud provider with a key in `.env`, in this order ([`src/lib/analysis/cloud-fallback.ts`](src/lib/analysis/cloud-fallback.ts)):
+When Ollama is down or its analysis of a frame fails, the API server sends that frame to the cloud providers with a key in `.env`, one after another in this order, until one answers; a frame can therefore reach more than one provider when the first fails ([`src/lib/analysis/cloud-fallback.ts`](src/lib/analysis/cloud-fallback.ts)):
 
 - `google/gemini-2.5-flash` via [OpenRouter](https://openrouter.ai) (`OPENROUTER_API_KEY`)
 - `gpt-5.6-terra` via [OpenAI](https://platform.openai.com) (`OPENAI_API_KEY`)
