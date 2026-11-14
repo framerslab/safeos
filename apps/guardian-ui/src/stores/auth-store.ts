@@ -157,7 +157,11 @@ type SessionWork = {
   counter: number;
   /** How many clears of all local data in another tab this tab had been told of. */
   told: number;
-  /** The account marker every tab shares in local storage. Only a clear of all local data writes it; clearing the alert history does not. */
+  /**
+   * The account marker every tab shares in local storage, as the work counts under it: the marker of
+   * the session the tab holds when the work starts, or the marker read then when it holds none. Only
+   * a clear of all local data writes it; clearing the alert history does not.
+   */
   marker: string;
   /** The session the work expects the tab to hold: the token at its start, then the token the work last set. */
   token: string | null;
@@ -184,8 +188,21 @@ interface SessionState {
 /** Clears of all local data in another tab that this tab was told of, by the account marker's storage event. */
 let clearsToldOf = 0;
 
+/**
+ * The account marker under which the session this tab holds was set. The store reads it whenever
+ * its session token changes: when the writer sets one, and when the one kept in local storage is
+ * restored at load.
+ */
+let heldUnder = readAccountClearMarker();
+
+/**
+ * Begins a piece of work. The marker belongs to the session, not to the work: work on a session
+ * counts under the marker that session was set under, so work that starts after another tab's clear
+ * has finished, and before this tab is told of it, is void from its start. With no session there is
+ * nothing a clear could have made stale, and the work counts under the marker read now.
+ */
 const beginWork = (token: string | null, afterClear: Change | null): SessionWork =>
-  ({ counter: getLocalDataGeneration(), told: clearsToldOf, marker: readAccountClearMarker(), token, afterClear });
+  ({ counter: getLocalDataGeneration(), told: clearsToldOf, marker: token === null ? readAccountClearMarker() : heldUnder, token, afterClear });
 
 /** A clear of all local data, in this tab or another, has landed since the work began. */
 const clearedSince = (work: SessionWork): boolean =>
@@ -824,7 +841,7 @@ async function signOut(session: SessionState): Promise<void> {
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => {
+    (set, get, store) => {
     /**
      * The one way session work changes state after a wait. While the work is current (no clear of all
      * local data since it began, and the tab holds the session the work expects) the change is
@@ -850,12 +867,21 @@ export const useAuthStore = create<AuthState>()(
       isVoid: (work) => clearedSince(work) || get().sessionToken !== work.token,
     };
 
+    // The session the tab holds counts under the account marker read when its token was set. The
+    // first call comes as the token kept in local storage is restored, with no state before it.
+    store.subscribe((state, previous: AuthState | undefined) => {
+      if (state.sessionToken !== previous?.sessionToken) heldUnder = readAccountClearMarker();
+    });
+
     // A clear of all local data in another tab reaches this open tab as the storage event of the
     // account marker: the tab drops its session, its work in flight is void and its next profile
-    // save starts a new queue. A browser sends the event to the other tabs only.
+    // save starts a new queue. A browser sends the event to the other tabs only. An event that
+    // comes late is not about the session the tab holds when that session was set after the clear:
+    // under the marker the event brings, or under the marker local storage holds now.
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       window.addEventListener('storage', (event) => {
         if (event.key !== ACCOUNT_CLEAR_MARKER_KEY) return;
+        if (get().sessionToken !== null && (event.newValue === heldUnder || readAccountClearMarker() === heldUnder)) return;
         clearsToldOf += 1;
         profileSaves = null;
         set(SIGNED_OUT);
