@@ -114,7 +114,7 @@ Repository root (the server):
 | `npm test` | Run the web app's Jest suite (`apps/guardian-ui/tests`) |
 | `npm run lint` | Run `next lint` (`.eslintrc.json`). The lockfile carries no ESLint, so first run `npm install --no-save eslint@8.57.1 eslint-config-next@14.2.35`, the same command CI runs |
 | `npx tsc --noEmit` | Type check the web app |
-| `npm run build` | Build the static export into `out/` |
+| `npm run build` | Build the static export into `out/`. Its `prebuild` step, `node scripts/generate-site-qr.mjs`, first writes the home page's QR code of the site's address (`NEXT_PUBLIC_SITE_URL`, or `https://safeos.sh`) to `public/home/site-qr.svg` with the `qrcode` package; the file is not committed |
 
 ---
 
@@ -353,7 +353,8 @@ prints an error and carries on.
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
 | `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
-| `pictures.yml` | Capture pictures | Screenshots of the web app (see below); runs only when asked |
+| `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the dashboard for the pull request's own build |
+| `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera (see below) |
 
 Concurrency: a newer push to a pull request cancels that pull request's older
 runs, and a pull request never cancels a run on `master`. On `master`, every
@@ -387,6 +388,56 @@ need to be identified separately in the pull request.
 
 Download the artifact from the run's summary page, or with
 `gh run download <run id> -n pictures`.
+
+For the pull request's own build the capture script also checks the home page
+in the browser, part by part (`apps/guardian-ui/scripts/home-checks.mjs`): the
+page with scripts off and with its main script blocked, the visitor header at
+every width from 320 px, the Menu, the look switch, the headline's lines, the
+start key before and after setup, the capture's crop at each width, the layout
+and the words of each part, the footer, the title and cards, sizes and
+contrast against the readable look's figures, and the page offline after one
+visit. It saves the page from top to bottom at 820 and 1920 pixels too. A
+finding fails the run.
+
+#### The home page's own pictures
+
+The home page's first screen shows a capture of the monitor, and nothing on it
+is drawn by hand or made by an image model. The job "Capture the home page
+pictures" makes it:
+
+1. It builds the same commit and converts the committed sample clip,
+   `apps/guardian-ui/public/home/sample-clip.mp4`, to a `.y4m` and a `.wav`
+   file with ffmpeg. Neither is committed.
+2. `apps/guardian-ui/scripts/home-captures.mjs` starts Chromium with
+   `--use-fake-device-for-media-stream`, `--use-file-for-fake-video-capture`
+   and `--use-file-for-fake-audio-capture`, with the camera and microphone
+   granted, so the unchanged monitor reads the clip through its real camera
+   path.
+3. For each look it seeds a finished setup and the Custom preset in
+   `scripts/home-capture-settings.json` (the default preset with pixel
+   detection off), opens `/monitor/`, presses "Start Monitoring" and waits
+   until the alert list holds a motion alert.
+4. It saves the three crops in both looks (`capture-phone-*`,
+   `capture-portrait-*`, `capture-landscape-*`, each a `.png` and a `.webp`),
+   `screenshots/dashboard.png` and `screenshots/monitoring.png` (the two the
+   web app manifest names), the shared-link card `home/card.jpg` (from
+   `scripts/home-card.html`, a page the site does not serve) and
+   `home/provenance.json`: the run, the commit, the clip's sha256 and each
+   file's viewport, width, height and bytes.
+
+The files are uploaded as the run's `home-pictures` artifact. To ship them,
+download it and copy it over `apps/guardian-ui/public/`:
+
+```bash
+gh run download <run id> -n home-pictures -D /tmp/home-pictures
+cp -R /tmp/home-pictures/home /tmp/home-pictures/screenshots apps/guardian-ui/public/
+```
+
+`tests/home-capture-files.test.ts` fails when a capture, the card or an install
+screenshot is missing or differs from `provenance.json`, and when the clip's
+record (`public/home/sample-clip.json`) lacks its source, author, licence or
+words. A pull request that changes what the monitor draws commits the captures
+again from its own run.
 
 ---
 
