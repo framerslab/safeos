@@ -31,8 +31,11 @@ const LINKS: { href: string; label: string; page?: string }[] = [
   { href: '/faq/', label: 'FAQ', page: '/faq' },
 ];
 
-// What takes focus when pressed.
-const TAKES_FOCUS = 'a[href], button, input, select, textarea, summary, label, iframe, video[controls], audio[controls], [tabindex], [contenteditable]';
+// What takes focus when pressed and can be reached with Tab. The main content
+// takes focus on a press too (its tabindex of -1 lets the skip link move focus
+// there), but a press on it counts as a press on the page.
+const TAKES_FOCUS =
+  'a[href], button, input, select, textarea, summary, label, iframe, video[controls], audio[controls], [tabindex]:not([tabindex="-1"]), [contenteditable]';
 
 export function VisitorHeader() {
   const pathname = barePath(usePathname());
