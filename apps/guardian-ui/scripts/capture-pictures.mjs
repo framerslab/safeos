@@ -902,6 +902,13 @@ async function openCameraStep(page, baseUrl) {
   await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 });
 }
 
+// A full-page picture is taken from the top of the page (the fixed header is
+// drawn where the screen is), once the progress bar has finished moving.
+async function settleForPicture(page) {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(400);
+}
+
 // Both versions: the camera step after a refused request, at 390 and 1280
 // pixels in both looks, so the pull request has before and after.
 async function captureCameraStepRefused(browser, baseUrl, outDir) {
@@ -920,6 +927,7 @@ async function captureCameraStepRefused(browser, baseUrl, outDir) {
         // The base build has its own words for a refused request.
         await step.getByText(/^(Permission denied\.|The browser blocked the camera for this site\.)/).waitFor({ timeout: 10_000 });
         const file = path.join(outDir, `setup-camera-refused-${size.width}-${look}.png`);
+        await settleForPicture(page);
         await page.screenshot({ path: file, fullPage: true });
         console.log(`captured ${file}`);
       } catch (err) {
@@ -1014,6 +1022,7 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
         if (Math.abs(back.y - beside.y) > 1 || beside.x < back.x + back.width) {
           fail(`the scenario step's "Continue" is not beside Back (Back at ${Math.round(back.x)}, ${Math.round(back.y)}; Continue at ${Math.round(beside.x)}, ${Math.round(beside.y)})`);
         }
+        await settleForPicture(page);
         await page.screenshot({ path: path.join(outDir, `setup-scenario-continue-${size.width}-${look}.png`), fullPage: true });
         await go.click();
         await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 });
@@ -1046,6 +1055,7 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
         const ratio = await contrastOf(line);
         if (ratio < 4.5) fail(`the contrast of "${CAMERA_LATER}" is ${ratio.toFixed(2)}, below 4.5, in the ${look} look`);
       }
+      await settleForPicture(page);
       await page.screenshot({ path: path.join(outDir, `setup-camera-${picture}-check-${size.width}-${look}.png`), fullPage: true });
 
       if (keyboard) {
