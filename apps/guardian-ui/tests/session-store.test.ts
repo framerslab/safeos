@@ -1146,3 +1146,133 @@ it('clears the browser and signs out once the server has left the sign-out reque
   expect(await stored('local_session')).toEqual([]);
   expect(await stored('profile_cache')).toEqual([]);
 });
+
+/**
+ * A tab that can be told of a storage change by itself, as a browser tells every tab but the one that
+ * wrote. `hears` delivers the storage event of `key` to this tab only; its new value is what local
+ * storage holds unless one is given.
+ */
+async function listeningTab() {
+  const added = jest.spyOn(window, 'addEventListener');
+  try {
+    const made = await tab();
+    const listeners = added.mock.calls.filter(([type]) => type === 'storage')
+      .map(([, listener]) => listener as unknown as (event: StorageEvent) => void);
+    if (listeners.length === 0) throw new Error('The tab listens to no storage event');
+    return { ...made, hears: (key: string, oldValue: string | null, newValue: string | null = localStorage.getItem(key)) => {
+      const event = new StorageEvent('storage', { key, oldValue, newValue });
+      listeners.forEach((listener) => listener(event));
+    } };
+  } finally {
+    added.mockRestore();
+  }
+}
+/** The store's state without its actions. */
+const facts = (state: object): Record<string, unknown> => JSON.parse(JSON.stringify(state));
+
+it.each(['a browser-only session', 'a session on a server'])('writes nothing for a profile save of %s made after another tab cleared all local data and before this tab is told of it', async (kind) => {
+  const onServer = kind.endsWith('server');
+  if (onServer) (await oldTab()).close();
+  const calls = onServer ? server({ profile: tookIt }) : null;
+  const first = await listeningTab();
+  await first.auth.getState().initialize();
+  expect(String(first.auth.getState().sessionToken).startsWith('local-')).toBe(!onServer);
+  expect(first.auth.getState().profile).not.toBeNull();
+  const before = localStorage.getItem(ACCOUNT_MARKER);
+  const other = await tab();
+  await other.clearLocalData({ preserveBackendConfig: true });
+  expect(localStorage.getItem(ACCOUNT_MARKER)).not.toBe(before);
+  expect(localStorage.getItem('safeos-auth')).toBeNull();
+  // The clear has finished and this tab has not been told of it: it holds its old session in memory.
+  expect(first.auth.getState().sessionToken).not.toBeNull();
+  const outcome = await within(outcomeOf(first.auth.getState().updateProfile({ displayName: 'Changed name' })), 5000);
+  expect(await stored('profile_cache')).toEqual([]);
+  expect(await stored('local_session')).toEqual([]);
+  expect(heldToken()).toBeNull();
+  if (calls) expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(0);
+  expect(outcome).toEqual(expect.objectContaining({ name: 'ProfileSaveError', place: 'browser' }));
+  first.hears(ACCOUNT_MARKER, before);
+  expect(first.auth.getState()).toMatchObject({ isAuthenticated: false, sessionToken: null, sessionId: null, profile: null });
+  expect(heldToken()).toBeNull();
+});
+
+it.each(['one clear', 'two clears'])('keeps a session made after %s in another tab when this tab is told of them afterwards, and signs it out at a later clear', async (how) => {
+  const clears = how === 'one clear' ? 1 : 2;
+  server({ create: () => sessionAnswer('new-token', renewed) });
+  const other = await tab();
+  const first = await listeningTab();
+  // The account marker before the clears, then after each one.
+  const markers = [localStorage.getItem(ACCOUNT_MARKER)];
+  for (let done = 0; done < clears; done += 1) {
+    await other.clearLocalData({ preserveBackendConfig: true });
+    markers.push(localStorage.getItem(ACCOUNT_MARKER));
+  }
+  expect(new Set(markers).size).toBe(clears + 1);
+  // The session is made once the clears have finished and before this tab is told of any of them.
+  await first.auth.getState().createSession();
+  expect(first.auth.getState().sessionToken).toBe('new-token');
+  // Each clear's event comes late, with that clear's marker as its new value.
+  for (let told = 1; told <= clears; told += 1) first.hears(ACCOUNT_MARKER, markers[told - 1], markers[told]);
+  expect(first.auth.getState()).toMatchObject({
+    sessionToken: 'new-token', sessionId: 'new-token-session', profile: renewed, isAuthenticated: true,
+  });
+  expect(JSON.parse(localStorage.getItem('safeos-auth') || 'null')?.state).toMatchObject({ sessionToken: 'new-token', sessionId: 'new-token-session' });
+  // A clear after the session was made carries a newer marker: this tab is signed out.
+  await other.clearLocalData({ preserveBackendConfig: true });
+  expect(markers).not.toContain(localStorage.getItem(ACCOUNT_MARKER));
+  first.hears(ACCOUNT_MARKER, markers[clears]);
+  expect(first.auth.getState()).toMatchObject({ isAuthenticated: false, sessionToken: null, sessionId: null, profile: null });
+  expect(heldToken()).toBeNull();
+});
+
+it('refuses a queued profile save whose turn comes under a reload notice set while the save before it waited', async () => {
+  (await oldTab()).close();
+  const patches = answers(2);
+  const calls = server({ profile: patches.route });
+  const { auth, db } = await tab();
+  await auth.getState().initialize();
+  expect(auth.getState().sessionToken).toBe('saved-token');
+  const first = outcomeOf(auth.getState().updateProfile({ displayName: 'First' }));
+  const queued = outcomeOf(auth.getState().updateProfile({ displayName: 'Queued' }));
+  await waitFor(() => expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1), { timeout: 5000 });
+  // The notice is set while the first save waits on the server: a newer release opens the database.
+  const newer = await openDB('safeos-guardian', 8);
+  try {
+    await waitFor(() => expect(db.getDatabaseNotice()).toBe(UPDATED), { timeout: 5000 });
+    patches.settle[0].answer(tookIt());
+    // Answers the queued change, should it be sent.
+    patches.settle[1].answer(tookIt());
+    expect(await within(first, 5000)).toBe('saved');
+    expect(await within(queued, 5000)).toEqual(expect.objectContaining({ name: 'ProfileSaveRefused', message: UPDATED }));
+    expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
+    expect(auth.getState().profile?.displayName).toBe('First');
+  } finally {
+    newer.close();
+  }
+});
+
+it('ends loading at once when this tab is told of another tab’s clear while set-up waits on its session request', async () => {
+  (await oldTab()).close();
+  let answer!: (value: unknown) => void;
+  const pending = new Promise((resolve) => { answer = resolve; });
+  const calls = server({ check: () => pending as never, create: () => sessionAnswer('new-token') });
+  const first = await listeningTab();
+  const setUp = first.auth.getState().initialize();
+  await waitFor(() => expect(calls.checks()).toHaveLength(1), { timeout: 5000 });
+  expect(first.auth.getState()).toMatchObject({ isLoading: true, isInitialized: false });
+  const before = localStorage.getItem(ACCOUNT_MARKER);
+  const other = await tab();
+  await other.clearLocalData({ preserveBackendConfig: true });
+  first.hears(ACCOUNT_MARKER, before);
+  // A page that waits on set-up is let go now, not when the request answers.
+  expect(first.auth.getState()).toMatchObject({
+    isLoading: false, isInitialized: true, isAuthenticated: false, sessionToken: null, sessionId: null, profile: null,
+  });
+  const told = facts(first.auth.getState());
+  answer(sessionAnswer('saved-token'));
+  await setUp;
+  expect(facts(first.auth.getState())).toEqual(told);
+  expect(calls.posts()).toHaveLength(0);
+  expect(heldToken()).toBeNull();
+  expect(await stored('local_session')).toEqual([]);
+});
