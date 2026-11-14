@@ -114,7 +114,7 @@ Repository root (the server):
 | `npm test` | Run the web app's Jest suite (`apps/guardian-ui/tests`) |
 | `npm run lint` | Run `next lint` (`.eslintrc.json`). The lockfile carries no ESLint, so first run `npm install --no-save eslint@8.57.1 eslint-config-next@14.2.35`, the same command CI runs |
 | `npx tsc --noEmit` | Type check the web app |
-| `npm run build` | Build the static export into `out/`. Its `prebuild` step, `node scripts/generate-site-qr.mjs`, first writes the home page's QR code of the site's address (`NEXT_PUBLIC_SITE_URL`, or `https://safeos.sh`) to `public/home/site-qr.svg` with the `qrcode` package; the file is not committed |
+| `npm run build` | Build the static export into `out/`. Its `prebuild` step, `node scripts/generate-site-qr.mjs`, first writes the home page's QR code of the site's address (`NEXT_PUBLIC_SITE_URL`, read from the environment and the same `.env` files Next.js reads, or `https://safeos.sh`) to `public/home/site-qr.svg` with the `qrcode` package; the file is not committed |
 
 ---
 
