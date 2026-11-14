@@ -655,10 +655,10 @@ html:has(.visitor-shell) {
 }
 
 /* Two columns of three groups on a phone; one column when two of at least
-   136 px no longer fit (larger text). */
+   136 px no longer fit (larger text), never wider than the footer. */
 .site-footer__groups {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(max(8.5rem, calc(50% - 8px)), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(8.5rem, calc(50% - 8px))), 1fr));
   gap: 32px 16px;
 }
 
