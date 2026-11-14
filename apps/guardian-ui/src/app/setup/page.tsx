@@ -68,9 +68,7 @@ export default function SetupPage() {
   // Running setup again (/setup/?again=1, the home page's "Run setup again")
   // keeps each answer on this page and saves them all at the last step, so a
   // visitor who leaves part way keeps the setup they had.
-  const [again] = useState(
-    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('again') === '1'
-  );
+  const [again, setAgain] = useState(false);
   const [staged, setStaged] = useState<StagedAnswers>(NO_ANSWERS);
 
   const currentIndex = STEPS.indexOf(currentStep);
@@ -78,12 +76,16 @@ export default function SetupPage() {
 
   // A person whose setup is done goes on to the dashboard, unless they asked
   // to run setup again. Arriving that way resets nothing: the saved setup
-  // stays as it is until the last step is finished.
+  // stays as it is until the last step is finished. The address is read here,
+  // after the page has rendered: on a move from another page of the site the
+  // address bar changes only then.
   useEffect(() => {
-    if (!again && canSkipOnboarding(onboarding)) {
+    const asked = new URLSearchParams(window.location.search).get('again') === '1';
+    setAgain(asked);
+    if (!asked && canSkipOnboarding(onboarding)) {
       router.push('/dashboard');
     }
-  }, [again, onboarding, router]);
+  }, [onboarding, router]);
 
   const goNext = () => {
     const nextIndex = currentIndex + 1;
