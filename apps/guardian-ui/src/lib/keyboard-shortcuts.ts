@@ -224,6 +224,14 @@ export function useKeyboardShortcuts(
   }, [shortcuts, enabled]);
 }
 
+/** The event a control sends to open the shortcuts help that the page's provider renders. */
+const SHORTCUTS_HELP_EVENT = 'safeos:shortcuts-help';
+
+/** Opens the shortcuts help from a control outside the provider, such as a menu button. */
+export function showShortcutsHelp(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(SHORTCUTS_HELP_EVENT));
+}
+
 /**
  * Hook for showing/hiding the shortcuts help modal
  */
@@ -259,8 +267,12 @@ export function useShortcutsHelp() {
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggle, close, isOpen]);
+    window.addEventListener(SHORTCUTS_HELP_EVENT, open);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener(SHORTCUTS_HELP_EVENT, open);
+    };
+  }, [toggle, open, close, isOpen]);
 
   return { isOpen, open, close, toggle };
 }

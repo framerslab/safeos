@@ -127,14 +127,14 @@ export function StatusBanner({ onConfigureClick, dismissible = true }: StatusBan
                 <span className="text-xs text-amber-200/90 hidden sm:inline">
                   {!isMonitoringApiOnline ? (
                     <>
-                      SafeOS is running fully local/offline AI on this device. Remote channels and integrations work when a monitoring server is available.
+                      Alerts run in this browser. Email, SMS and Telegram alerts need a monitoring server.
                     </>
                   ) : !isOllamaOnline ? (
                     <>
-                      Using browser-based vision AI locally. Connect Ollama to enable advanced server-side analysis.
+                      Alerts run in this browser. Connect Ollama to the server for its scene analysis.
                     </>
                   ) : (
-                    <>SafeOS is running fully local/offline AI on this device.</>
+                    <>Alerts run in this browser.</>
                   )}
                 </span>
               </div>

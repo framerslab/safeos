@@ -28,6 +28,7 @@ import {
   IconX,
 } from '../../components/icons';
 import { SafeOSLogo, FrameWordmark } from '../../components/Logo';
+import { SAFE_SLEEP_URL } from '../../components/NotAMedicalDevice';
 
 // =============================================================================
 // Types
@@ -206,7 +207,7 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 
         <h1 className="text-heading-lg mb-2">SafeOS Guardian</h1>
         <p className="text-[var(--color-steel-400)] mb-4 max-w-md mx-auto">
-          Humanitarian AI monitoring for pets, babies, and elderly care.
+          Free motion and sound alerts for pets, babies, and elderly care.
         </p>
         <div className="flex justify-center mb-8">
           <FrameWordmark />
@@ -323,25 +324,26 @@ function ScenarioStep({
     {
       id: 'pet' as const,
       label: 'Pet Monitoring',
-      description: 'Track pet activity, detect barking, escape attempts',
+      description: 'Motion and sound alerts while your pet is in another room',
       icon: <IconPet size={24} />,
     },
     {
       id: 'baby' as const,
       label: 'Baby Monitoring',
-      description: 'Cry detection, movement alerts, sleep monitoring',
+      description:
+        'Motion and sound alerts during a nap you stay nearby for. SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.',
       icon: <IconBaby size={24} />,
     },
     {
       id: 'elderly' as const,
       label: 'Elderly Care',
-      description: 'Fall detection, activity monitoring, wellness checks',
+      description: 'Motion and sound alerts, and an optional alert when nothing has moved for a time you set',
       icon: <IconElderly size={24} />,
     },
     {
       id: 'security' as const,
       label: 'Security Mode',
-      description: 'Intruder detection, person counting, theft prevention',
+      description: 'Motion and sound alerts while the room is empty. The Security page counts the people in view.',
       icon: <IconShield size={24} />,
     },
   ];
@@ -391,6 +393,12 @@ function ScenarioStep({
           ))}
         </div>
 
+        <p className="text-xs text-[var(--color-steel-400)]">
+          <a href={SAFE_SLEEP_URL} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
+            Safe-sleep guidance (NIH)
+          </a>
+        </p>
+
         <div className="flex gap-3 pt-4">
           <button onClick={onBack} className="btn btn-secondary">
             <IconChevronLeft size={16} />
@@ -426,7 +434,7 @@ function PermissionsStep({
       <div className="panel-body space-y-4">
         <p className="text-sm text-[var(--color-steel-400)]">
           Camera and microphone access is required for monitoring.
-          All processing happens locally on your device.
+          Frames are processed in this browser unless you connect a server you run yourself.
         </p>
 
         <CameraPicker refreshKey={status === 'granted'} />

@@ -10,6 +10,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
+import { NotAMedicalDevice } from '../../components/NotAMedicalDevice';
 
 // =============================================================================
 // Types
@@ -38,8 +39,8 @@ const tutorialSteps: TutorialStep[] = [
       </svg>
     ),
     tips: [
-      'This is legally required for all users',
-      'We take safety very seriously',
+      'Setup asks you to accept it before you continue',
+      'Read what SafeOS can and cannot do',
       'Never leave dependents unattended with only this system',
     ],
   },
@@ -53,9 +54,10 @@ const tutorialSteps: TutorialStep[] = [
       </svg>
     ),
     tips: [
-      'Pet: Detects eating, illness, distress',
-      'Baby: Crying, movement, breathing patterns',
-      'Elderly: Falls, confusion, inactivity',
+      'Pet: alerts on movement and loud sound',
+      'Baby: alerts on small movements and loud sound, such as crying',
+      'Elderly: alerts on movement, loud sound, and no movement for a set time',
+      'Tell any adult you watch or listen to, and have their agreement first',
     ],
   },
   {
@@ -70,7 +72,7 @@ const tutorialSteps: TutorialStep[] = [
     tips: [
       'Camera is required for visual monitoring',
       'Microphone is optional but recommended',
-      'All processing happens locally on your device',
+      'Frames stay in your browser unless you connect your own server',
     ],
   },
   {
@@ -92,7 +94,7 @@ const tutorialSteps: TutorialStep[] = [
   {
     id: 5,
     title: 'Start Monitoring',
-    description: 'Click "Start Monitoring" to begin. The AI will analyze frames when motion or audio is detected.',
+    description: 'Click "Start Monitoring" to begin. SafeOS compares frames for motion and measures sound levels in your browser.',
     icon: (
       <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -102,7 +104,7 @@ const tutorialSteps: TutorialStep[] = [
     tips: [
       'First analysis may take a few seconds',
       'Motion detection is done in your browser',
-      'Only significant frames are sent for AI analysis',
+      'Frames go to a server only if you connect one you run yourself',
     ],
   },
   {
@@ -248,10 +250,14 @@ export default function TutorialPage() {
           </div>
         </div>
 
+        <NotAMedicalDevice className="mt-6 text-sm text-slate-400 text-center" />
+
         {/* Quick Links */}
         <div className="mt-8 grid sm:grid-cols-2 gap-4">
-          <Link
-            href="/docs/QUICKSTART.md"
+          <a
+            href="https://github.com/framerslab/safeos/blob/master/docs/QUICKSTART.md"
+            target="_blank"
+            rel="noopener noreferrer"
             className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors"
           >
             <h3 className="text-white font-medium mb-1 flex items-center gap-2">
@@ -262,10 +268,12 @@ export default function TutorialPage() {
               Quick Start Guide
             </h3>
             <p className="text-sm text-slate-400">Detailed setup instructions</p>
-          </Link>
+          </a>
 
-          <Link
-            href="/api/docs"
+          <a
+            href="https://github.com/framerslab/safeos/blob/master/docs/API.md"
+            target="_blank"
+            rel="noopener noreferrer"
             className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 hover:border-slate-600 transition-colors"
           >
             <h3 className="text-white font-medium mb-1 flex items-center gap-2">
@@ -275,7 +283,7 @@ export default function TutorialPage() {
               API Documentation
             </h3>
             <p className="text-sm text-slate-400">Integrate with other systems</p>
-          </Link>
+          </a>
         </div>
       </main>
     </div>

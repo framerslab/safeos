@@ -15,6 +15,7 @@ import {
   IconChevronDown,
   IconSearch,
 } from '../../components/icons';
+import { NotAMedicalDevice } from '../../components/NotAMedicalDevice';
 
 // =============================================================================
 // Types
@@ -42,15 +43,15 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         question: 'What is SafeOS Guardian?',
-        answer: 'SafeOS Guardian is a free, open-source monitoring tool that runs entirely in your browser. It uses your device\'s camera and microphone to detect motion and sound, alerting you when activity is detected. It\'s designed for monitoring babies, pets, elderly family members, or any space that needs attention.',
+        answer: 'SafeOS Guardian is a free, open-source monitoring tool that runs entirely in your browser. It uses your device\'s camera and microphone to detect motion and sound, alerting you when activity is detected. It\'s designed for monitoring babies, pets, elderly family members, or any space that needs attention. If you watch or listen to another adult, tell them and have their agreement first.',
       },
       {
         question: 'How do I set up my first monitor?',
-        answer: 'Setting up is simple: 1) Visit safeos.sh on your device, 2) Allow camera and microphone permissions when prompted, 3) Choose a monitoring scenario (baby, pet, or elderly), 4) Adjust sensitivity settings to your preference, 5) Enable browser notifications for alerts. That\'s it—you\'re ready to start monitoring!',
+        answer: 'Open safeos.sh and press Start Setup. Setup has six steps: a welcome, the safety notice, choosing what you are watching (baby, pet, or elderly relative), allowing the camera and microphone, choosing notifications, and a summary. Then start monitoring. You can change sensitivity in Settings at any time.',
       },
       {
         question: 'Does it work offline?',
-        answer: 'Yes, after preparation. Wait for the service worker to finish installing the app files while online. Motion, pixel, and sound alerts need no model. For Security and Wildlife, complete setup and choose Download detection model to save about 19 MB from Google model storage. Both pages reuse that model offline. Browser storage must be retained; clearing or evicting it requires another online download. Server integrations still need a connection.',
+        answer: 'Yes, after preparation. Wait for the service worker to finish installing the app files while online. Motion, pixel, and sound alerts need no model. For Security and Wildlife, complete setup and choose Download detection model to save about 18.6 MB from Google model storage. Both pages reuse that model offline. Browser storage must be retained; clearing or evicting it requires another online download. Server integrations still need a connection.',
       },
       {
         question: 'What browsers are supported?',
@@ -58,7 +59,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'Is SafeOS Guardian really free?',
-        answer: 'Yes, SafeOS Guardian is completely free and always will be. There are no subscriptions, no hidden fees, and no premium tiers. We believe everyone deserves access to monitoring tools for their loved ones, regardless of their financial situation. The project is supported by the Frame.dev team and optional donations.',
+        answer: 'Yes. SafeOS at safeos.sh is free: there is no account, no paid tier and no subscription on this site. The code is MIT-licensed, so anyone can run it. Frame builds SafeOS and pays for its development.',
       },
     ],
   },
@@ -68,7 +69,7 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         question: 'Is my video/audio data stored anywhere?',
-        answer: 'No. Your video and audio data never leaves your device. All processing happens locally in your browser using TensorFlow.js. We don\'t have servers receiving or storing your camera feed. What the app stores stays in your browser: your settings in localStorage, and saved frames and reference photos in IndexedDB.',
+        answer: 'Not on any server of ours. Without a server of your own, your video and audio stay in your browser: the monitor compares frames and measures sound levels on your device, and Security and Wildlife run a TensorFlow.js model there. What the app stores stays in your browser: your settings in localStorage, and saved frames and reference photos in IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to that server.',
       },
       {
         question: 'Does Frame.dev have access to my camera?',
@@ -76,7 +77,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How does local-first processing work?',
-        answer: 'Local-first means the analysis happens on your device. The monitor compares video frames and measures sound levels in your browser. Security and Wildlife modes also run a TensorFlow.js model in the browser to find people and animals. Without a configured server, your camera frames and sound stay in your browser. The page downloads the detection model from Google, which sees your IP address. The GitHub link contacts GitHub only when you open it. If you connect a server you run yourself, the monitor sends frames to that server.',
+        answer: 'Local-first means the analysis happens on your device. The monitor compares video frames and measures sound levels in your browser. Security and Wildlife modes also run a TensorFlow.js model in the browser to find people and animals. Without a configured server, your camera frames and sound stay in your browser. The page downloads the detection model from Google, which sees your IP address. The GitHub link contacts GitHub only when you open it. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to that server.',
       },
       {
         question: 'Can I use this without any internet connection?',
@@ -102,7 +103,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How sensitive are the alerts?',
-        answer: 'Alert sensitivity is fully customizable. You can adjust motion sensitivity (how much movement triggers an alert), audio sensitivity (how loud sounds need to be), and pixel threshold (for sleep monitoring). We also offer presets like "Infant Sleep Monitor" (ultra-sensitive) and "Pet Watch" (balanced sensitivity).',
+        answer: 'Alert sensitivity is fully customizable. You can adjust motion sensitivity (how much movement triggers an alert), audio sensitivity (how loud sounds need to be), and pixel threshold (for sleep monitoring). We also offer presets like "Infant Sleep Monitor" (ultra-sensitive) and "Pet Sleep Monitor" (sensitive).',
       },
       {
         question: 'Can I customize alert sounds?',
@@ -132,11 +133,11 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'Who builds SafeOS, and why is it free?',
-        answer: 'Frame (Framers Lab, Inc.) builds SafeOS. Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work. GitHub sponsorships support its development; they are not tax-deductible donations.',
+        answer: 'Frame (Framers Lab, Inc.) builds SafeOS and pays for its development. Using it costs nothing and needs no account.',
       },
       {
         question: 'How do I report bugs or request features?',
-        answer: 'We welcome feedback! Report bugs and request features on our GitHub repository at github.com/framerslab/safeos. You can also reach the Frame.dev team directly at team@frame.dev. We actively review all submissions and prioritize based on community impact.',
+        answer: 'Report bugs and request features on our GitHub repository at github.com/framerslab/safeos. You can also reach the Frame.dev team directly at team@frame.dev.',
       },
     ],
   },
@@ -176,7 +177,7 @@ function FAQAccordion({
       </button>
       <div
         className={`overflow-hidden transition-all duration-200 ${
-          isOpen ? 'max-h-96 pb-4' : 'max-h-0'
+          isOpen ? 'max-h-[200rem] pb-4' : 'max-h-0'
         }`}
       >
         <p className="text-slate-300 leading-relaxed">{answer}</p>
@@ -306,6 +307,8 @@ export default function FAQPage() {
             </button>
           </div>
         )}
+
+        <NotAMedicalDevice className="mt-4 text-sm text-slate-400 text-center max-w-2xl mx-auto" />
 
         {/* Still Have Questions? */}
         <section className="mt-16 text-center">

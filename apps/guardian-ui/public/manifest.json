@@ -1,7 +1,7 @@
 {
   "name": "SafeOS Guardian",
   "short_name": "SafeOS",
-  "description": "Free AI monitoring for pets, babies & elderly - By Frame",
+  "description": "Free motion and sound alerts in your browser for pets, babies and older relatives. By Frame.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
@@ -51,7 +51,7 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["utilities", "lifestyle", "health"],
+  "categories": ["utilities", "lifestyle"],
   "screenshots": [
     {
       "src": "/screenshots/dashboard.png",

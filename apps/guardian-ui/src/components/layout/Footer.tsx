@@ -78,13 +78,9 @@ export function Footer() {
               </span>
             </div>
             <p className="text-sm leading-relaxed text-zinc-500 mb-4">
-              Free AI-powered monitoring for pets, babies, and elderly care.
-              Local-first, privacy-preserving. Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
+              Free motion and sound alerts in your browser, on a camera you already own.
+              Local-first, privacy-preserving. Frame builds SafeOS and pays for its development.
             </p>
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-xs font-medium text-emerald-500">
-              <span className="text-sm">♥</span>
-              <span>Humanitarian work</span>
-            </div>
           </div>
 
           {/* Link Sections */}
@@ -123,13 +119,23 @@ export function Footer() {
 
         {/* Bottom Section */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mt-12 pt-6 border-t border-white/5">
-          <span className="text-xs text-zinc-500">
-            © {currentYear} Frame. All rights reserved.
+          <span className="text-sm text-zinc-500">
+            © {currentYear} Frame. SafeOS code is MIT-licensed.
           </span>
-          <div className="inline-flex items-center gap-2 text-xs text-zinc-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_theme(colors.emerald.500)] animate-pulse" />
-            All systems operational
-          </div>
+          <nav aria-label="Legal" className="flex items-center gap-2 text-sm">
+            <Link
+              href="/privacy"
+              className="inline-flex items-center min-h-[44px] px-2 text-zinc-500 hover:text-zinc-100 transition-colors"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="inline-flex items-center min-h-[44px] px-2 text-zinc-500 hover:text-zinc-100 transition-colors"
+            >
+              Terms
+            </Link>
+          </nav>
         </div>
       </div>
     </footer>

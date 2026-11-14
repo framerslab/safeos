@@ -9,12 +9,14 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import {
   IconChevronLeft,
   IconClock,
   IconUser,
   IconExternalLink,
 } from '../../../components/icons';
+import { NotAMedicalDevice } from '../../../components/NotAMedicalDevice';
 
 // =============================================================================
 // Types
@@ -50,19 +52,19 @@ const blogContent: Record<string, BlogContent> = {
     slug: 'how-safeos-guardian-works',
     title: 'How SafeOS Guardian works: motion-gated browser AI that doesn\'t burn your laptop',
     description:
-      'Walking through the safeos.sh pipeline file by file. 200ms screening, gated COCO-SSD + ViT inference, Lost & Found fingerprinting. TensorFlow.js + Transformers.js running in a browser, by design.',
+      'Walking through the safeos.sh pipeline file by file. 200 ms motion screening, COCO-SSD gated on motion, Lost & Found colour matching. TensorFlow.js running in a browser, by design.',
     date: 'January 10, 2026',
     author: 'Johnny Dunn',
-    readTime: '9 min read',
-    tags: ['technical', 'architecture', 'tensorflow.js', 'transformers.js', 'on-device-ai'],
+    readTime: '8 min read',
+    tags: ['technical', 'architecture', 'tensorflow.js', 'on-device-ai'],
     content: (
       <>
         <p className="lead">
           A few years ago, running real-time computer vision in a browser was a thought experiment.
           You&apos;d see a demo at a conference, somebody&apos;d fire up a Codepen, the laptop fan
           would scream, and you&apos;d nod and move on. As of mid-2025, SafeOS Guardian ships exactly
-          that &mdash; a Progressive Web App that runs COCO-SSD and ViT-base on a user&apos;s laptop
-          or phone, no cloud round-trip &mdash; and the fan stays quiet. Here&apos;s how.
+          that &mdash; a Progressive Web App that runs COCO-SSD on a user&apos;s laptop or phone,
+          no cloud round-trip &mdash; and the fan stays quiet. Here&apos;s how.
         </p>
 
         <h2>The two-tier pipeline</h2>
@@ -108,7 +110,7 @@ const blogContent: Record<string, BlogContent> = {
         <h2>The gate</h2>
 
         <p>
-          Object detection only runs when the screening layer says &quot;something happened.&quot; The
+          Object detection waits for the screening layer to say &quot;something happened.&quot; The
           gate is two lines in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
@@ -122,20 +124,20 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
-          <div className="text-slate-500">{`// line 271-272: only run AI detection if motion was detected`}</div>
+          <div className="text-slate-500">{`// lines 260-265: only run AI detection if motion was detected`}</div>
           <div className="text-emerald-400">if (!motionTriggered) return null;</div>
         </div>
 
         <p>
-          No motion, no inference. The GPU stays in its low-power state. COCO-SSD&apos;s{' '}
-          <code>model.detect()</code> only fires when something in the frame moved enough to cross
-          the per-scenario threshold (configurable in settings &mdash; different thresholds for
-          babies, pets, security). The pipeline can theoretically push 10&ndash;30 FPS through
-          COCO-SSD on WebGL/WebGPU, but in practice it averages a fraction of a Hz because most
-          frames don&apos;t pass the gate.
+          While nothing moves, the model does not run and the GPU stays in its low-power state.
+          COCO-SSD&apos;s <code>model.detect()</code> runs only in Security and Wildlife, when
+          something in the frame moved enough to cross the motion threshold, at most twice a second
+          in Security (<code>minDetectionInterval: 500</code>). One exception: while Security is
+          triggered or sounding an alert, it runs the model every five seconds whether or not
+          anything moved, to see if the person is still there (<code>forceDetection</code>).
         </p>
 
-        <h2>Two models, one fallback</h2>
+        <h2>One model in the browser</h2>
 
         <p>
           Primary detector: a quantized{' '}
@@ -156,37 +158,15 @@ const blogContent: Record<string, BlogContent> = {
           >
             TensorFlow.js
           </a>
-          . ~5 MB on the wire, downloaded once on first model load, cached by the service worker
-          forever after. Spots 80+ object classes with bounding boxes. The detection canvas is 320&times;240
-          (model input size) regardless of the source video resolution.
+          . 18.6 MB from Google model storage, downloaded only after you agree on the Security or
+          Wildlife page, then kept in the browser&apos;s Cache Storage for offline use. It knows 80
+          kinds of object; SafeOS uses its person class and ten animal classes. The detection
+          canvas is 320&times;240 regardless of the source video resolution.
         </p>
 
         <p>
-          Tie-breaker: a quantized{' '}
-          <a
-            href="https://huggingface.co/Xenova/vit-base-patch16-224"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:text-emerald-300"
-          >
-            Xenova/vit-base-patch16-224
-          </a>{' '}
-          via{' '}
-          <a
-            href="https://huggingface.co/docs/transformers.js"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:text-emerald-300"
-          >
-            Transformers.js
-          </a>
-          . ~89 MB, downloaded on-demand only when COCO-SSD&apos;s top prediction is below the
-          per-scenario confidence threshold. ViT-base is heavier but better at fine-grained scene
-          labeling, useful for ambiguous frames (&quot;is this person standing or fallen?&quot;).
-        </p>
-
-        <p>
-          For really hard scenes, you can configure an optional bridge to a local{' '}
+          For really hard scenes, the optional SafeOS server you run yourself can send frames to a
+          local{' '}
           <a
             href="https://ollama.com"
             target="_blank"
@@ -196,30 +176,32 @@ const blogContent: Record<string, BlogContent> = {
             Ollama
           </a>{' '}
           install on the same LAN &mdash; moondream, llava:7b, or llama3.2-vision &mdash; for richer
-          scene reasoning. Nothing leaves your network. For when even Ollama isn&apos;t enough you
-          can plug in your own OpenAI / Anthropic / Gemini keys; cloud fallback only fires on the
-          frames the local models couldn&apos;t classify confidently.
+          scene reasoning. If you also give that server your own OpenAI / Anthropic / Gemini key, it
+          sends a frame to that provider when the local analysis is unavailable.
         </p>
 
         <h2>Audio FFT, not an audio model</h2>
 
         <p>
-          Cry detection, distress vocalizations, glass break, sustained silence &mdash; none of
-          these need a model. The Web Audio API&apos;s{' '}
+          The sound alert needs no model. The Web Audio API&apos;s{' '}
           <code>AnalyserNode</code> with <code>fftSize = 256</code> gives 128 frequency bins,
-          sampled every ~100 ms. Threshold the right bins and you get most of what a small audio
-          classifier would give you, at a fraction of the cost. Baby cries cluster in the
-          300&ndash;600 Hz fundamental with characteristic harmonic patterns; glass breaks are
-          mostly high-frequency transients; silence is the absence of energy across the spectrum.
+          sampled every ~100 ms. The alert goes off when the level stays above your threshold,
+          whatever made the sound. A crying pattern (energy around the 300&ndash;600 Hz band, where
+          a baby&apos;s cry has its fundamental) shows in the camera overlay, but it does not raise
+          an alert on its own.
         </p>
 
-        <h2>Lost &amp; Found: 32 + 64 + 1 KB</h2>
+        <NotAMedicalDevice />
+
+        <h2>Lost &amp; Found: colours, not identity</h2>
 
         <p>
           The matcher doesn&apos;t use a deep model at all. Reference photos reduce to three
           signatures: a 32-bin color histogram, the top-5 dominant colors via k-means, and an 8&times;8
-          Sobel-derived edge grid. Total: under 1 KB per reference photo. The matcher samples the
-          live feed at 1&ndash;2 FPS and compares each candidate frame by cosine similarity. Code:{' '}
+          grid of edge strengths taken from differences between neighbouring pixels. Total: under
+          1 KB per reference photo. The matcher samples the live feed at 1&ndash;2 FPS, scores each
+          frame on average colour first, then region by region on a weighted mix: histogram 40%,
+          dominant colours 35%, edges 15%, size 10%. Code:{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/visual-fingerprint.ts"
             target="_blank"
@@ -232,9 +214,9 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <p>
-          Why this matters: a 32-bin histogram + an 8&times;8 edge grid generalizes well enough to
-          match a dog at different angles and distances, without needing a face-embedding model
-          you&apos;d have to keep updated. It&apos;s cheap, transparent, and runs at sample rate.
+          What that means: it matches colours and a coarse outline, so it cannot tell your dog from
+          another dog of the same colour. In exchange there is no model to keep updated, and it is
+          cheap, transparent, and runs at sample rate.
           The full Lost &amp; Found loop lives in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/app/monitor/page.tsx"
@@ -244,7 +226,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             <code>monitor/page.tsx</code>
           </a>{' '}
-          around lines 242&ndash;254.
+          around lines 258&ndash;271.
         </p>
 
         <h2>Same philosophy as AgentOS</h2>
@@ -314,7 +296,8 @@ const blogContent: Record<string, BlogContent> = {
           >
             Zustand
           </a>{' '}
-          (lightweight, persist middleware writes to IndexedDB) and the UI is Next.js 14 + React 18
+          (lightweight; its persist middleware writes settings to localStorage, and saved frames
+          and alerts go to IndexedDB) and the UI is Next.js 14 + React 18
           + Tailwind. No magic. The interesting parts of the codebase are the pipeline files in{' '}
           <code>src/lib/</code>, not the React shell.
         </p>
@@ -323,10 +306,10 @@ const blogContent: Record<string, BlogContent> = {
 
         <p>
           PWA install on iOS is still rough &mdash; Safari&apos;s installation flow isn&apos;t
-          great, and background audio capture has well-known limits. ViT-base&apos;s 89 MB download
-          is real; on slow connections the first load is slow. Browser fingerprint matching
-          isn&apos;t as good as a proper face-embedding model would be, but the trade-off is no
-          model to keep updated and no PII leakage. Most of these are tracked in{' '}
+          great, and background audio capture has well-known limits. The detection model is an
+          18.6 MB download, so on a slow connection the first Security or Wildlife start is slow.
+          The Lost &amp; Found matcher compares colours, not identity, so another animal or an object
+          of the same colour also matches. Most of these are tracked in{' '}
           <a
             href="https://github.com/framerslab/safeos/issues"
             target="_blank"
@@ -375,27 +358,15 @@ export function generateMetadata({
     };
   }
 
-  return {
+  return pageMetadata({
     title: post.title,
     description: post.description,
     keywords: post.tags,
-    alternates: {
-      canonical: `/blog/${post.slug}/`,
-    },
-    openGraph: {
-      type: 'article',
-      title: post.title,
-      description: post.description,
-      url: `/blog/${post.slug}/`,
-      publishedTime: new Date(post.date).toISOString(),
-      authors: [post.author],
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: post.title,
-      description: post.description,
-    },
-  };
+    path: `/blog/${post.slug}/`,
+    type: 'article',
+    publishedTime: new Date(post.date).toISOString(),
+    authors: [post.author],
+  });
 }
 
 // =============================================================================

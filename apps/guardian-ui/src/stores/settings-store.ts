@@ -304,7 +304,7 @@ export const DEFAULT_PRESETS: Record<PresetId, SecurityPreset> = {
   deep_sleep_minimal: {
     id: 'deep_sleep_minimal',
     name: 'Deep Sleep Ultra-Sensitive',
-    description: 'Maximum sensitivity: 3px triggers alert. For critical monitoring where any movement matters. Zero latency.',
+    description: 'Maximum sensitivity: 3px triggers alert. For when any movement at all should raise an alert. Zero latency.',
     motionSensitivity: 100,
     audioSensitivity: 100,
     pixelThreshold: 1,

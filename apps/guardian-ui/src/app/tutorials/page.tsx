@@ -24,6 +24,7 @@ import {
   IconWildlife,
   IconBookOpen,
 } from '../../components/icons';
+import { NotAMedicalDevice } from '../../components/NotAMedicalDevice';
 
 // =============================================================================
 // Types
@@ -56,11 +57,11 @@ const TUTORIALS: TutorialSection[] = [
     steps: [
       {
         title: 'Welcome to SafeOS Guardian',
-        content: `SafeOS Guardian is a browser-based monitoring system that helps you watch over loved ones, pets, and property. Everything runs locally in your browser—no data is sent to external servers.`,
+        content: `SafeOS Guardian is a browser-based monitoring system that helps you watch over loved ones, pets, and property. Monitoring runs in your browser. Nothing is uploaded unless you connect a server you run yourself; Security and Wildlife download their detection model from Google model storage after you agree.`,
         tips: [
-          'Works best in Chrome, Edge, or Firefox',
+          'Needs a browser with camera access and IndexedDB: current Chrome, Edge, Firefox and Safari have both',
           'Ensure camera and microphone permissions are granted',
-          'All data is stored locally in your browser cache',
+          'Settings and saved frames stay in your browser\'s storage',
         ],
       },
       {
@@ -103,13 +104,13 @@ const TUTORIALS: TutorialSection[] = [
         content: `Baby monitoring mode uses ultra-low detection thresholds to catch even the slightest movement or sound. This is ideal for monitoring sleeping infants.`,
         tips: [
           'Position camera to see the entire crib/bed area',
-          'Use night vision if available for dark rooms',
-          'Enable cry detection for audio alerts',
+          'Keep the phone or laptop and its cable well out of reach of the crib',
+          'Turn on sound alerts: they go off when sound, such as crying, stays loud',
         ],
       },
       {
         title: 'Motion Detection for Infants',
-        content: `The infant sleep preset uses a 5-pixel absolute threshold, meaning even tiny movements will be detected. This is perfect for catching subtle signs of distress or waking.`,
+        content: `The infant sleep preset uses a 5-pixel absolute threshold, so even tiny movements, such as stirring or waking, raise an alert.`,
         tips: [
           'Reduce background movement (fans, curtains)',
           'Close doors to prevent pets from triggering alerts',
@@ -117,8 +118,8 @@ const TUTORIALS: TutorialSection[] = [
         ],
       },
       {
-        title: 'Audio Detection & Cry Recognition',
-        content: `Audio detection listens for sounds above the ambient noise level. The system can distinguish between normal sleep sounds and crying or distress calls.`,
+        title: 'Sound Alerts',
+        content: `Sound alerts go off when the sound level stays above your threshold. A crying pattern shows in the camera overlay, but it does not raise an alert on its own.`,
         tips: [
           'Calibrate in a quiet environment first',
           'White noise machines may affect detection',
@@ -140,11 +141,11 @@ const TUTORIALS: TutorialSection[] = [
     id: 'pet-monitoring',
     title: 'Pet Monitoring',
     icon: <IconPaw size={24} />,
-    description: 'Watch over your pets while away, with bark/meow detection and activity tracking.',
+    description: 'Keep an eye on your pet while you are briefly out of the room, with motion and sound alerts.',
     steps: [
       {
         title: 'Pet Monitoring Overview',
-        content: `Pet monitoring mode is calibrated for the typical movement patterns and sounds of household pets. It detects barking, meowing, and unusual activity levels.`,
+        content: `Pet monitoring mode is set for the typical movement and sound levels of household pets. It alerts on motion and on loud sound. Use it for short absences, never to leave a pet alone for long.`,
         tips: [
           'Position camera to cover pet\'s main activity areas',
           'Include food/water bowls in the camera view',
@@ -152,21 +153,20 @@ const TUTORIALS: TutorialSection[] = [
         ],
       },
       {
-        title: 'Sound Detection for Pets',
-        content: `The audio detection system recognizes common pet sounds including barking, meowing, whining, and distress calls. You can adjust sensitivity based on your pet\'s typical behavior.`,
+        title: 'Sound Alerts for Pets',
+        content: `The sound alert measures loudness: it goes off when sound stays above your threshold, whatever made it. You can adjust sensitivity based on your pet\'s typical behavior.`,
         tips: [
-          'Dogs: Set higher bark detection thresholds for vocal breeds',
-          'Cats: Lower sensitivity may work better for quieter cats',
-          'Record baseline sounds during normal behavior',
+          'Dogs: a higher threshold suits vocal breeds',
+          'Cats: a lower threshold may work better for quieter cats',
+          'Test the threshold while your pet behaves normally',
         ],
       },
       {
-        title: 'Activity Tracking',
-        content: `Motion detection tracks your pet\'s activity throughout the day. Review the activity timeline to understand your pet\'s patterns while you\'re away.`,
+        title: 'Alert History',
+        content: `Alerts are saved in your browser and listed in History, so you can see when your pet moved or made noise while you were out of the room.`,
         tips: [
-          'High activity might indicate anxiety or boredom',
-          'Unusual stillness could signal health issues',
-          'Compare activity levels across different days',
+          'Check History after a short absence',
+          'Acknowledged alerts stay in History',
         ],
       },
     ],
@@ -175,11 +175,11 @@ const TUTORIALS: TutorialSection[] = [
     id: 'security-mode',
     title: 'Security & Intrusion Detection',
     icon: <IconShield size={24} />,
-    description: 'Advanced person detection for home security and intrusion alerts.',
+    description: 'Person detection with an alert when more people are in view than you allow.',
     steps: [
       {
         title: 'Security Mode Overview',
-        content: `Security mode uses AI-powered person detection to identify human intruders. You can configure the number of allowed persons and trigger extreme alerts when exceeded.`,
+        content: `Security mode runs the COCO-SSD model in your browser to count the people in view. You set how many people are allowed, and it alerts when more are detected.`,
         tips: [
           'Works best with clear camera angles',
           'AI detection requires a moment to initialize',
@@ -199,9 +199,9 @@ const TUTORIALS: TutorialSection[] = [
         title: 'Alert Modes: Loud vs Silent',
         content: `Choose between extreme alerts (loud alarms, TTS warnings) or silent mode (just saves frames for later review). Extreme mode includes browser TTS speaking warning messages.`,
         tips: [
-          'Extreme mode may deter intruders',
-          'Silent mode is better for discreet monitoring',
-          'Both modes save evidence frames locally',
+          'Extreme mode sounds an alarm and speaks a warning',
+          'Silent mode saves frames without an alarm',
+          'Both modes save frames in your browser',
         ],
       },
       {
@@ -217,13 +217,13 @@ const TUTORIALS: TutorialSection[] = [
   },
   {
     id: 'lost-found',
-    title: 'Lost Pet/Person Watch Mode',
+    title: 'Lost Pet Watch Mode',
     icon: <IconSearch size={24} />,
-    description: 'Upload photos to watch for a missing pet or person and get alerts when detected.',
+    description: 'Upload photos of your lost pet and get an alert when something with the same colouring passes your camera.',
     steps: [
       {
         title: 'How Lost & Found Works',
-        content: `Upload reference photos of the lost pet or person. The system creates a visual fingerprint based on colors, patterns, and size. When monitoring, it compares camera frames against this fingerprint to detect matches.`,
+        content: `Upload reference photos of your lost pet. SafeOS records their colours, a coarse edge grid and size. While the monitor is open, it compares your camera's frames with them. It matches colours, so another animal or an object of similar colour can match too.`,
         tips: [
           'Upload multiple photos from different angles',
           'Include photos in different lighting conditions',
@@ -231,11 +231,11 @@ const TUTORIALS: TutorialSection[] = [
         ],
       },
       {
-        title: 'Creating a Subject Profile',
-        content: `Give your subject a name and type (pet, person, or other). Add a description with identifying features. Upload at least 3-5 reference images for best accuracy.`,
+        title: 'Adding Your Pet',
+        content: `Give your pet a name and add a description with identifying features. Upload 3 to 5 clear reference photos.`,
         tips: [
           'Include distinctive markings or features',
-          'Note collar colors, clothing, or accessories',
+          'Note collar colors',
           'Describe size and build in the description',
         ],
       },
@@ -259,7 +259,7 @@ const TUTORIALS: TutorialSection[] = [
       },
       {
         title: 'No Session Timer',
-        content: `Unlike regular monitoring modes, Lost & Found mode has no mandatory session timer. It can run continuously for as long as needed to find your missing loved one.`,
+        content: `Unlike regular monitoring modes, Lost & Found mode has no mandatory session timer. It can run for as long as the page stays open.`,
         tips: [
           'Check periodically to ensure the system is running',
           'Monitor browser resource usage for long sessions',
@@ -272,32 +272,32 @@ const TUTORIALS: TutorialSection[] = [
     id: 'wildlife',
     title: 'Wildlife Detection',
     icon: <IconWildlife size={20} className="text-emerald-400" />,
-    description: 'Detect and categorize animals with size and danger level classification.',
+    description: 'Detect ten kinds of animal and sort them by size and danger level.',
     steps: [
       {
         title: 'Wildlife Detection Overview',
-        content: `Wildlife detection uses AI to identify animals in the camera feed. Animals are categorized by size (small, medium, large) and assigned danger levels based on species.`,
+        content: `Wildlife detection runs the COCO-SSD model in your browser. It knows ten kinds of animal: dogs, cats, birds, horses, sheep, cows, elephants, bears, zebras and giraffes. Each is given a size (small, medium, large) and a danger level.`,
         tips: [
-          'Works for both domestic and wild animals',
+          'It finds only those ten kinds of animal',
           'Larger animals may be detected from further away',
-          'Night vision helps for nocturnal wildlife',
+          'Good light helps',
         ],
       },
       {
         title: 'Size Categories',
-        content: `Animals are classified as small (rodents, rabbits, birds), medium (dogs, cats, foxes, deer), or large (bears, horses, coyotes). You can enable alerts for specific size categories.`,
+        content: `Cats and birds are small, dogs and sheep medium, and horses, cows, bears, elephants, zebras and giraffes large. You can filter sightings by size.`,
         tips: [
-          'Enable large animal alerts for safety',
-          'Disable small animal alerts in busy areas',
-          'Medium category catches most pets',
+          'Large-animal alerts are on by default',
+          'Filter out small animals in busy areas',
+          'Cats are small and dogs are medium',
         ],
       },
       {
         title: 'Danger Levels',
-        content: `Each animal is assigned a danger level: none, low, medium, high, or extreme. Dangerous animals like bears, wolves, and coyotes trigger more urgent alerts.`,
+        content: `Each animal is given a danger level: none, low, medium, high, or extreme. A bear is extreme and an elephant high; they raise the most urgent alerts.`,
         tips: [
-          'Extreme danger triggers immediate loud alerts',
-          'High danger uses TTS voice warnings',
+          'The alert sound gets more urgent with the danger level',
+          'Voice alerts name the animal',
           'Low/none uses standard notification sounds',
         ],
       },
@@ -311,7 +311,7 @@ const TUTORIALS: TutorialSection[] = [
     steps: [
       {
         title: 'Local-First Storage',
-        content: `All data is stored in your browser\'s IndexedDB. No data is sent to external servers. This means your recordings and settings are private but also only exist on your device.`,
+        content: `Settings are stored in your browser\'s localStorage, and saved frames and photos in its IndexedDB. Nothing is uploaded unless you connect a server you run yourself. This means your saved frames and settings are private but also only exist on your device.`,
         tips: [
           'Data is lost if you clear browser cache',
           'Export important data regularly',
@@ -346,11 +346,11 @@ const TUTORIALS: TutorialSection[] = [
     steps: [
       {
         title: 'Processing Modes',
-        content: `Local processing runs entirely in your browser for instant results. AI-enhanced processing may use more advanced models but can have slight delays.`,
+        content: `Local processing runs entirely in your browser for instant results. The other modes also send frames to a server you run yourself, when one is connected; it can pass them to a vision model, which adds a short delay.`,
         tips: [
-          'Use local mode for critical real-time alerts',
-          'AI mode is better for complex detection',
-          'Hybrid mode balances speed and accuracy',
+          'Local mode needs no server',
+          'The other modes send frames only when your own server is connected',
+          'Hybrid mode checks Lost & Found frames a little less often',
         ],
       },
       {
@@ -364,10 +364,10 @@ const TUTORIALS: TutorialSection[] = [
       },
       {
         title: 'Detection Thresholds',
-        content: `Adjust pixel threshold, motion sensitivity, and audio sensitivity. Lower values are more sensitive but may cause false positives. Higher values reduce noise but may miss events.`,
+        content: `A higher motion or audio sensitivity lowers the trigger threshold, so you get more alerts and more false ones. A lower pixel threshold does the same. For fewer false alerts, lower the sensitivity or raise the pixel threshold; you may then miss small events.`,
         tips: [
           'Start with defaults and adjust based on results',
-          'Lower thresholds for critical monitoring',
+          'Lower thresholds catch smaller movements',
           'Higher thresholds for general surveillance',
         ],
       },
@@ -489,6 +489,7 @@ export default function TutorialsPage() {
             Comprehensive guides to help you get the most out of SafeOS Guardian.
             Click on any section below to expand the detailed tutorials.
           </p>
+          <NotAMedicalDevice className="mt-3 text-sm text-slate-400 max-w-2xl mx-auto" />
         </div>
 
         {/* Quick Links */}
@@ -527,19 +528,19 @@ export default function TutorialsPage() {
             <div>
               <h3 className="font-medium text-emerald-400 mb-1">Is my data private?</h3>
               <p className="text-sm text-slate-400">
-                Yes! All data is stored locally in your browser. Nothing is sent to external servers.
+                Yes. Settings and saved frames stay in your browser. Nothing is uploaded unless you connect a server you run yourself.
               </p>
             </div>
             <div>
               <h3 className="font-medium text-emerald-400 mb-1">Does it work offline?</h3>
               <p className="text-sm text-slate-400">
-                Basic monitoring works offline. AI-enhanced features may require an internet connection.
+                Yes, once the app has installed while online. Security and Wildlife also need their detection model downloaded and saved first.
               </p>
             </div>
             <div>
               <h3 className="font-medium text-emerald-400 mb-1">What browsers are supported?</h3>
               <p className="text-sm text-slate-400">
-                Chrome, Edge, and Firefox are fully supported. Safari has limited WebRTC support.
+                SafeOS needs camera access and IndexedDB: current Chrome, Edge, Firefox and Safari have both.
               </p>
             </div>
             <div>

@@ -8,13 +8,16 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import type { ComponentType } from 'react';
 import { IconShield, IconLock, IconEye, IconDatabase, IconCheck } from '@/components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Privacy',
-  description: 'SafeOS Guardian privacy policy: no tracking, no cookies, local-first by design.',
-};
+  description:
+    'How SafeOS Guardian handles your data: what stays in your browser, what reaches Google or a server you run, and what the host logs.',
+  path: '/privacy/',
+});
 
 // =============================================================================
 // Privacy Features
@@ -30,7 +33,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconDatabase,
     title: 'Local-First Storage',
-    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself, the monitor sends camera frames to that server only.',
+    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends camera frames to that server only.',
   },
   {
     icon: IconEye,
@@ -40,7 +43,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconLock,
     title: 'No Cookies',
-    description: 'We don\'t use cookies. Not for tracking, not for anything. Your browsing remains completely private.',
+    description: 'We don\'t use cookies. Not for tracking, not for anything.',
   },
   {
     icon: IconShield,
@@ -66,7 +69,8 @@ export default function PrivacyPage() {
             Privacy Policy
           </h1>
           <p className="text-lg text-slate-400">
-            The simplest privacy policy you&apos;ll ever read: <span className="text-emerald-400 font-semibold">We collect nothing.</span>
+            <span className="text-emerald-400 font-semibold">safeos.sh runs no tracking and sets no cookies.</span>{' '}
+            Its host, GitHub Pages, logs each visitor&apos;s IP address.
           </p>
         </div>
 
@@ -130,7 +134,8 @@ export default function PrivacyPage() {
                 entirely within your browser using JavaScript. Frames are analyzed locally using 
                 motion detection algorithms and, on the Security and Wildlife pages, the COCO-SSD
                 model. Without a configured server, no video leaves your device. If you connect a server you run
-                yourself, the monitor page sends camera frames to that server.
+                yourself and choose a processing mode that uses it, the monitor page sends camera frames
+                to that server.
               </p>
               <p>
                 <strong className="text-white">Data Storage:</strong> Your preferences are stored in
@@ -166,11 +171,29 @@ export default function PrivacyPage() {
                 tries again.
               </p>
               <p>
-                <strong className="text-white">AI Processing:</strong> When you use AI features, 
-                processing happens either in your browser (TensorFlow.js) or via your local Ollama 
-                installation. We do not provide cloud AI services. Security and Wildlife download
-                the COCO-SSD model from Google&apos;s servers, which see your IP address.
+                <strong className="text-white">AI Processing:</strong> Security and Wildlife run
+                their detection model in your browser (TensorFlow.js) and download it from
+                Google&apos;s servers, which see your IP address. A server you run yourself analyses
+                the frames it receives with Ollama. If you give that server a key for a cloud AI
+                provider, it sends a frame to that provider when Ollama is down or its analysis fails;
+                with no cloud key set, frames stay on your server. safeos.sh offers no cloud AI service.
                 The GitHub link makes no request until you open it.
+              </p>
+              <p>
+                <strong className="text-white">Do Not Track and Global Privacy Control:</strong> safeos.sh
+                runs no tracking and sets no cookies, so these signals have nothing to switch off. The
+                host still logs each visitor&apos;s IP address, as the next paragraph says.
+              </p>
+              <p>
+                <strong className="text-white">Hosting:</strong> safeos.sh is hosted on GitHub Pages.
+                Like any web host, GitHub logs each visitor&apos;s IP address; it{' '}
+                <a
+                  href="https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#data-collection"
+                  className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                  says it stores them for security purposes
+                </a>
+                .
               </p>
               <p>
                 <strong className="text-white">Service Worker:</strong> We use a service worker 
@@ -213,11 +236,11 @@ export default function PrivacyPage() {
         {/* Open Source */}
         <section className="mb-12">
           <h2 className="text-xl font-semibold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
-            Open Source & Humanitarian
+            Open Source
           </h2>
           <div className="text-slate-400 space-y-4">
             <p>
-              Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
+              Frame builds SafeOS and pays for its development.
             </p>
             <p>
               This project is open source. You can inspect our code, verify our privacy claims, 
@@ -232,7 +255,8 @@ export default function PrivacyPage() {
             Questions?
           </h2>
           <p className="text-slate-400">
-            If you have any privacy concerns or questions, reach out at{' '}
+            safeos.sh is operated by Frame (Framers Lab, Inc.). If you have any privacy concerns or
+            questions, reach out at{' '}
             <a
               href="mailto:privacy@frame.dev"
               className="text-emerald-400 hover:text-emerald-300 transition-colors"
