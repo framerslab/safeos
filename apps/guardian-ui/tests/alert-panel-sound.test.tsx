@@ -261,6 +261,35 @@ it('a change of the sound configured for the top level replaces the loop that pl
   expect(new Set(through(soundGains()[1]).map((oscillator) => oscillator.type))).toEqual(new Set(['triangle']));
 });
 
+it('a panel that unmounts ends its loop at once, also for a configured sound with a fade, so a panel mounted next plays the only loop', async () => {
+  const { AlertPanel, getSoundManager, useSettingsStore } = await load();
+  const manager = getSoundManager();
+  const levels = useSettingsStore.getState().alertEscalationLevels;
+  const top = Math.max(...levels.map((level) => level.level));
+  // A notification fades out over 200 ms when it is stopped with its own fade.
+  useSettingsStore.getState().updateAlertEscalationLevel(top, { soundType: 'notification' });
+  const loops = () => manager.getActiveSounds().filter((sound) => sound.loop);
+
+  const first = render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('first')]} />);
+  await act(async () => { await settle(); });
+  expect(loops().map((sound) => sound.type)).toEqual(['notification']);
+  const context = made.contexts[0];
+  const [firstGain] = soundGains();
+  await act(async () => { await runClock(context, 1000); });
+
+  // Unmounted: the loop is gone at that moment, with no fade still running.
+  first.unmount();
+  expect(manager.getActiveSounds()).toEqual([]);
+  expect(firstGain.disconnected).toBe(true);
+
+  // A panel mounted straight after plays the only loop.
+  render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('second')]} />);
+  await act(async () => { await settle(); });
+  expect(loops()).toHaveLength(1);
+  await act(async () => { await runClock(context, 1000); });
+  expect(loops()).toHaveLength(1);
+});
+
 it('a loop whose audio context closes starts again on a new context at the next tick', async () => {
   const { AlertPanel, getSoundManager } = await load();
   const manager = getSoundManager();
