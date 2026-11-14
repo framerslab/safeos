@@ -96,6 +96,42 @@ describe('the Menu', () => {
     expect(menu.hidden).toBe(false);
   });
 
+  it('keeps focus on the Menu key after a press on the page, which the browser moves to the page on the press', () => {
+    const { container } = render(<VisitorHeader />);
+    const key = screen.getByRole('button', { name: 'Menu' });
+    const menu = container.querySelector('#site-menu') as HTMLElement;
+
+    fireEvent.click(key);
+    // A browser's order for a press on the page: pointerdown, then the
+    // browser moves focus to the page, then mouseup and click.
+    fireEvent.pointerDown(document.body);
+    (document.activeElement as HTMLElement).blur();
+    fireEvent.mouseUp(document.body);
+    fireEvent.click(document.body);
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(key);
+  });
+
+  it('leaves focus on what was pressed outside the Menu when that takes focus', () => {
+    const { container } = render(
+      <>
+        <VisitorHeader />
+        <button type="button">Elsewhere</button>
+      </>
+    );
+    const key = screen.getByRole('button', { name: 'Menu' });
+    const menu = container.querySelector('#site-menu') as HTMLElement;
+    const elsewhere = screen.getByRole('button', { name: 'Elsewhere' });
+
+    fireEvent.click(key);
+    fireEvent.pointerDown(elsewhere);
+    elsewhere.focus();
+    fireEvent.mouseUp(elsewhere);
+    fireEvent.click(elsewhere);
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(elsewhere);
+  });
+
   it('closes when one of its rows is pressed', () => {
     const { container } = render(<VisitorHeader />);
     const menu = container.querySelector('#site-menu') as HTMLElement;
