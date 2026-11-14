@@ -89,6 +89,12 @@ Choose **Camera** in this step; the choice is saved in this browser and can be
 changed later on Monitor. Click **Grant Permissions**, allow camera and microphone
 access, then **Continue** to finish Setup. A camera without a microphone is enough.
 
+Setup can be finished without a camera. Until access is granted the step shows
+**Continue without the camera**, which goes on to the next step; Monitor asks
+for the camera when you click **Start Monitoring**. When a request fails, the
+step says what happened (the browser blocked the camera, the camera did not
+start, or no camera was found) and the key reads **Try again**.
+
 On Monitor, click **Start Monitoring**. Monitoring becomes active when the camera is
 ready. **Cancel Starting** cancels a pending request; **Stop Monitoring** releases
 the camera and microphone. A camera error or an unplugged camera leaves monitoring

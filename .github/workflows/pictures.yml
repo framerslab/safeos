@@ -12,7 +12,9 @@
 # versions capture the dashboard after setup and its header menu open; the
 # pull request's own capture checks that the dashboard's Lost & Found,
 # Security and Wildlife cards open their pages and that the header menu
-# lists all three while the header row stays one row from 320 to 768 pixels;
+# lists all three while the header row stays one row from 320 to 768 pixels.
+# Both versions capture setup's camera step after a refused camera request;
+# the pull request's own capture walks setup to the dashboard with no camera;
 # see scripts/capture-pictures.mjs.
 #
 # Opening or updating a pull request captures both versions automatically so changed screens
