@@ -112,6 +112,29 @@ describe('the Menu', () => {
     expect(document.activeElement).toBe(key);
   });
 
+  it('keeps focus on the Menu key after a press on the main content, which the skip link makes focusable', () => {
+    const { container } = render(
+      <>
+        <VisitorHeader />
+        <main id="main-content" tabIndex={-1}>
+          <p>SafeOS adds an alert.</p>
+        </main>
+      </>
+    );
+    const key = screen.getByRole('button', { name: 'Menu' });
+    const menu = container.querySelector('#site-menu') as HTMLElement;
+    const words = screen.getByText('SafeOS adds an alert.');
+
+    fireEvent.click(key);
+    // The browser focuses the main content on the press: it has a tabindex.
+    fireEvent.pointerDown(words);
+    (container.querySelector('main') as HTMLElement).focus();
+    fireEvent.mouseUp(words);
+    fireEvent.click(words);
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(key);
+  });
+
   it('leaves focus on what was pressed outside the Menu when that takes focus', () => {
     const { container } = render(
       <>
