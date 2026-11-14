@@ -10,6 +10,19 @@
 import fs from 'fs';
 import path from 'path';
 import { describe, it, expect, beforeEach, jest, afterEach } from '@jest/globals';
+import {
+  FakeAudioContext,
+  type FakeOscillator,
+  audioSetup,
+  lastStop,
+  made,
+  resetFakeAudio,
+  runClock,
+  settle,
+  soundGains,
+  started,
+  through,
+} from './helpers/fake-audio';
 
 // =============================================================================
 // Mocks
@@ -63,117 +76,6 @@ class MockAudioElement {
 // Global Audio mock
 (global as any).Audio = MockAudioElement;
 
-// A stand-in Web Audio API that records what the sound manager makes: each
-// oscillator's shape, frequency, start and stop times, each gain's value and
-// scheduled changes, and what each node is connected to.
-class FakeParam {
-  events: { kind: 'set' | 'ramp'; value: number; time: number }[] = [];
-
-  constructor(public value: number) {}
-
-  setValueAtTime(value: number, time: number): FakeParam {
-    this.events.push({ kind: 'set', value, time });
-    return this;
-  }
-
-  linearRampToValueAtTime(value: number, time: number): FakeParam {
-    this.events.push({ kind: 'ramp', value, time });
-    return this;
-  }
-
-  cancelScheduledValues(): FakeParam {
-    return this;
-  }
-}
-
-class FakeNode {
-  // Every node this one was connected to; disconnect() only sets the flag.
-  outputs: FakeNode[] = [];
-  disconnected = false;
-
-  connect(target: FakeNode): FakeNode {
-    this.outputs.push(target);
-    return target;
-  }
-
-  disconnect(): void {
-    this.disconnected = true;
-  }
-}
-
-class FakeGain extends FakeNode {
-  gain = new FakeParam(1);
-}
-
-class FakeOscillator extends FakeNode {
-  type: string = 'sine';
-  frequency = new FakeParam(440);
-  starts: number[] = [];
-  stops: number[] = [];
-  onended: (() => void) | null = null;
-
-  constructor(private context: FakeAudioContext) {
-    super();
-  }
-
-  start(when = 0): void {
-    this.starts.push(when);
-    made.log.push(`start:${this.context.state}`);
-  }
-
-  stop(when = 0): void {
-    this.stops.push(when);
-  }
-
-  // The audio clock reaches the oscillator's stop time.
-  end(): void {
-    this.onended?.();
-  }
-}
-
-const made = {
-  contexts: [] as FakeAudioContext[],
-  oscillators: [] as FakeOscillator[],
-  gains: [] as FakeGain[],
-  log: [] as string[],
-};
-
-// How the next context starts and how it answers resume().
-const audioSetup = {
-  state: 'running' as string,
-  resume: (context: FakeAudioContext): Promise<void> => {
-    context.state = 'running';
-    return Promise.resolve();
-  },
-};
-
-class FakeAudioContext {
-  state: string = audioSetup.state;
-  currentTime = 0;
-  destination = new FakeNode();
-
-  constructor() {
-    made.contexts.push(this);
-  }
-
-  createOscillator(): FakeOscillator {
-    const oscillator = new FakeOscillator(this);
-    made.oscillators.push(oscillator);
-    return oscillator;
-  }
-
-  createGain(): FakeGain {
-    const gain = new FakeGain();
-    made.gains.push(gain);
-    return gain;
-  }
-
-  resume(): Promise<void> {
-    made.log.push('resume');
-    return audioSetup.resume(this);
-  }
-}
-
 const browser = window as unknown as { AudioContext?: unknown; webkitAudioContext?: unknown };
 
 // =============================================================================
@@ -190,31 +92,6 @@ const SOUND_ADDRESS = /(?<![\w.-])\/sounds\//;
 
 const round = (seconds: number) => Math.round(seconds * 1e6) / 1e6;
 
-// Lets resume() and the play that waits on it finish.
-async function settle(): Promise<void> {
-  for (let i = 0; i < 10; i += 1) await Promise.resolve();
-}
-
-// Moves the audio clock and the timers on together, 10 ms at a time.
-async function runClock(context: FakeAudioContext, ms: number): Promise<void> {
-  for (let elapsed = 0; elapsed < ms; elapsed += 10) {
-    context.currentTime += 0.01;
-    jest.advanceTimersByTime(10);
-    await settle();
-  }
-}
-
-// The gains that lead to the speakers: one per sound.
-function soundGains(): FakeGain[] {
-  const destination = made.contexts[0]?.destination;
-  return made.gains.filter((gain) => destination !== undefined && gain.outputs.includes(destination));
-}
-
-// The oscillators whose tones reach the given sound gain.
-function through(gain: FakeGain): FakeOscillator[] {
-  return made.oscillators.filter((oscillator) => oscillator.outputs[0]?.outputs.includes(gain));
-}
-
 function describeOscillator(oscillator: FakeOscillator) {
   return {
     type: oscillator.type,
@@ -223,8 +100,6 @@ function describeOscillator(oscillator: FakeOscillator) {
     stop: round(oscillator.stops[0]),
   };
 }
-
-const lastStop = (oscillator: FakeOscillator) => oscillator.stops[oscillator.stops.length - 1];
 
 // One pass of a pattern, starting at `from` seconds on the audio clock.
 function schedule(pattern: PatternShape, from: number) {
@@ -324,15 +199,7 @@ let soundModule: Record<string, unknown>;
 describe('Sound Manager', () => {
   beforeEach(async () => {
     audioSources.length = 0;
-    made.contexts.length = 0;
-    made.oscillators.length = 0;
-    made.gains.length = 0;
-    made.log.length = 0;
-    audioSetup.state = 'running';
-    audioSetup.resume = (context) => {
-      context.state = 'running';
-      return Promise.resolve();
-    };
+    resetFakeAudio();
     browser.AudioContext = FakeAudioContext;
     delete browser.webkitAudioContext;
 
@@ -516,17 +383,18 @@ describe('Sound Manager', () => {
     });
 
     it('should call onEnd callback when sound ends', async () => {
+      jest.useFakeTimers();
       const manager = getSoundManager();
       const onEnd = jest.fn();
 
       manager.play('notification', { onEnd, loop: false });
       await settle();
 
-      // Simulate the last tone ending
+      // The audio clock passes the end of the one 180 ms tone
       expect(made.oscillators).toHaveLength(1);
-      made.oscillators[0].end();
+      await runClock(made.contexts[0], 200);
 
-      expect(onEnd).toHaveBeenCalled();
+      expect(onEnd).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -770,17 +638,22 @@ describe('Sound Manager', () => {
     }
 
     it('removes a sound that does not loop from the active list when its last tone ends', async () => {
+      jest.useFakeTimers();
       const manager = getSoundManager();
       const onEnd = jest.fn();
 
       manager.play('alert', { fadeIn: 0, onEnd });
       await settle();
 
+      // The first tone ends at 160 ms, the last at 490 ms.
       expect(made.oscillators).toHaveLength(2);
-      made.oscillators[0].end();
+      const context = made.contexts[0];
+      await runClock(context, 200);
+      expect(made.oscillators.map((oscillator) => oscillator.ended)).toEqual([true, false]);
       expect(manager.isPlayingType('alert')).toBe(true);
 
-      made.oscillators[1].end();
+      await runClock(context, 300);
+      expect(made.oscillators.map((oscillator) => oscillator.ended)).toEqual([true, true]);
       expect(manager.getActiveSounds()).toHaveLength(0);
       expect(onEnd).toHaveBeenCalledTimes(1);
       expect(soundGains().map((gain) => gain.disconnected)).toEqual([true]);
@@ -878,22 +751,24 @@ describe('Sound Manager', () => {
       jest.useFakeTimers();
       const manager = getSoundManager();
 
-      // A notification fades in over 100 ms and out over 200 ms.
-      const id = manager.play('notification');
+      // A notification fades in over 100 ms and out over 200 ms. Its one tone
+      // lasts 180 ms, so it loops here to be sounding when the fade out ends.
+      const id = manager.play('notification', { loop: true });
       await settle();
 
       expect(soundGains()).toHaveLength(1);
       const [gain] = soundGains();
+      const context = made.contexts[0];
       expect(gain.gain.value).toBe(0);
-      jest.advanceTimersByTime(100);
+      await runClock(context, 100);
       expect(gain.gain.value).toBeCloseTo(0.7);
 
       manager.stop(id);
-      jest.advanceTimersByTime(100);
+      await runClock(context, 100);
       expect(gain.gain.value).toBeCloseTo(0.35);
       expect(manager.isPlaying()).toBe(true);
 
-      jest.advanceTimersByTime(150);
+      await runClock(context, 150);
       expect(gain.gain.value).toBe(0);
       expect(gain.disconnected).toBe(true);
       expect(manager.isPlaying()).toBe(false);
@@ -992,5 +867,163 @@ describe('Sound Manager', () => {
         expect(audioSources).toEqual([]);
       });
     }
+  });
+
+  describe('Waiting for audio, stopping and fading', () => {
+    type Manager = ReturnType<typeof getSoundManager>;
+    const pattern = (type: string) => (soundModule.TONE_PATTERNS as Record<string, PatternShape>)[type];
+    const cycleOf = (type: string) => passLength(pattern(type)) + (pattern(type).repeatPause ?? 0) / 1000;
+
+    it('keeps a looping sound whose context cannot run yet, and schedules its first pass once when the context runs; a loop stopped while waiting and a sound that does not loop never start', async () => {
+      jest.useFakeTimers();
+      audioSetup.state = 'suspended';
+      // A browser that blocks audio leaves the promise of resume() pending.
+      audioSetup.resume = () => new Promise<void>(() => {});
+      const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const manager = getSoundManager();
+
+      const alarm = manager.play('alarm', { fadeIn: 0 });
+      const emergency = manager.play('emergency', { fadeIn: 0 });
+      manager.play('alert', { fadeIn: 0 });
+      await settle();
+      expect(made.contexts).toHaveLength(1);
+      const context = made.contexts[0];
+      const [alarmGain, emergencyGain] = soundGains();
+      await runClock(context, 1500);
+
+      // Past the one-second wait the loops wait, not sounding; the alert, which does not loop, is dropped.
+      expect(manager.getActiveSounds().map((sound) => sound.id).sort()).toEqual([alarm, emergency].sort());
+      expect(started().map(describeOscillator)).toEqual([]);
+      expect(warn).toHaveBeenCalledTimes(1);
+
+      manager.stop(emergency);
+      expect(manager.getActiveSounds().map((sound) => sound.id)).toEqual([alarm]);
+
+      // Audio becomes available: the alarm's first pass is scheduled, once, and a later play does not repeat it.
+      const at = context.currentTime;
+      context.state = 'running';
+      manager.play('notification', { fadeIn: 0 });
+      await settle();
+      expect(through(alarmGain).map(describeOscillator)).toEqual(schedule(pattern('alarm'), at));
+
+      await runClock(context, 100);
+      expect(through(alarmGain).map(describeOscillator)).toEqual([
+        ...schedule(pattern('alarm'), at),
+        ...schedule(pattern('alarm'), at + cycleOf('alarm')),
+      ]);
+      expect(manager.isPlayingType('alarm')).toBe(true);
+
+      await runClock(context, 5000);
+      expect(through(emergencyGain)).toEqual([]);
+    });
+
+    const cancels: Record<string, (manager: Manager, id: string) => void> = {
+      'stop(id)': (manager, id) => manager.stop(id),
+      stopByType: (manager) => manager.stopByType('warning'),
+      stopAll: (manager) => manager.stopAll(),
+    };
+
+    for (const [name, cancel] of Object.entries(cancels)) {
+      it(`${name} before resume resolves cancels the sound at once: no tone starts when resume resolves inside the fade-out time`, async () => {
+        jest.useFakeTimers();
+        let letAudioRun = () => {};
+        audioSetup.state = 'suspended';
+        audioSetup.resume = (context) => new Promise<void>((resolve) => {
+          letAudioRun = () => {
+            context.state = 'running';
+            resolve();
+          };
+        });
+        const manager = getSoundManager();
+
+        // A warning fades out over 100 ms once it sounds.
+        const id = manager.play('warning', { fadeIn: 0 });
+        await settle();
+        const context = made.contexts[0];
+        cancel(manager, id);
+        await runClock(context, 50);
+        letAudioRun();
+        await runClock(context, 2000);
+
+        expect(started().map(describeOscillator)).toEqual([]);
+        expect(manager.getActiveSounds()).toEqual([]);
+      });
+    }
+
+    it('a volume change during a fade in ends the fade at the new value: at volume 0 the gain stays 0', async () => {
+      jest.useFakeTimers();
+      const manager = getSoundManager();
+
+      manager.play('notification', { loop: true, fadeIn: 1000 });
+      await settle();
+      const context = made.contexts[0];
+      const [gain] = soundGains();
+      await runClock(context, 100);
+      expect(gain.gain.value).toBeGreaterThan(0);
+
+      manager.setUserVolume(0);
+      expect(gain.gain.value).toBe(0);
+      const from = gain.gain.writes.length;
+      await runClock(context, 1000);
+
+      expect(gain.gain.writes.slice(from).filter((value) => value !== 0)).toEqual([]);
+      expect(gain.gain.value).toBe(0);
+    });
+
+    const endsDuringFade: Record<string, { loop: boolean; end: (manager: Manager) => void }> = {
+      'stopAll during a fade in': { loop: true, end: (manager) => manager.stopAll() },
+      'a sound that ends during its fade in': { loop: false, end: () => {} },
+    };
+
+    for (const [name, { loop, end }] of Object.entries(endsDuringFade)) {
+      it(`${name}: no later tick writes to the gain`, async () => {
+        jest.useFakeTimers();
+        const manager = getSoundManager();
+
+        // The notification's one tone ends at 180 ms, inside its one-second fade.
+        manager.play('notification', { loop, fadeIn: 1000 });
+        await settle();
+        const context = made.contexts[0];
+        const [gain] = soundGains();
+        await runClock(context, 100);
+        end(manager);
+        await runClock(context, 150);
+        expect(manager.isPlaying()).toBe(false);
+        expect(gain.disconnected).toBe(true);
+
+        const from = gain.gain.writes.length;
+        await runClock(context, 1500);
+        expect(gain.gain.writes.slice(from)).toEqual([]);
+      });
+    }
+
+    it('a looping sound schedules no more passes while its context is suspended, and one chain goes on when it runs again', async () => {
+      jest.useFakeTimers();
+      const manager = getSoundManager();
+
+      manager.play('alarm', { fadeIn: 0 });
+      await settle();
+      const context = made.contexts[0];
+      const cycle = cycleOf('alarm');
+      await runClock(context, 500);
+      // Two passes are scheduled: the one that plays and the next.
+      expect(made.oscillators).toHaveLength(2 * pattern('alarm').tones.length);
+
+      // The context suspends, as when a page goes to the background; timers go on firing for ten passes' time.
+      context.state = 'suspended';
+      const count = made.oscillators.length;
+      await runClock(context, cycle * 10 * 1000);
+      expect(made.oscillators).toHaveLength(count);
+
+      // It runs again: one chain goes on from the third pass, one pass per cycle.
+      // Each pass is scheduled when the one before it starts.
+      context.state = 'running';
+      await runClock(context, 3 * cycle * 1000);
+      expect(made.oscillators.slice(count).map(describeOscillator)).toEqual([
+        ...schedule(pattern('alarm'), 2 * cycle),
+        ...schedule(pattern('alarm'), 3 * cycle),
+        ...schedule(pattern('alarm'), 4 * cycle),
+      ]);
+    });
   });
 });
