@@ -1344,11 +1344,16 @@ describe('Sound Manager', () => {
       // Past the one-second wait the loop waits for its context to run.
       expect(manager.isActive(id)).toBe(true);
       expect(started()).toEqual([]);
+      const removed = jest.spyOn(window, 'removeEventListener');
 
       await context.close();
       expect(manager.isActive(id)).toBe(false);
       expect(manager.getActiveSounds()).toEqual([]);
       expect(gain.disconnected).toBe(true);
+      // The page stops listening for a gesture on behalf of the closed context.
+      expect(removed.mock.calls.map(([type]) => type).sort()).toEqual(
+        ['keydown', 'mousedown', 'pointerdown', 'pointerup', 'touchend'],
+      );
       await runClock(context, 3000);
       expect(made.oscillators).toEqual([]);
 
