@@ -198,11 +198,12 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
     return () => window.clearInterval(interval);
   }, [alerts, escalationConfig, effectiveVolume, muted]);
 
-  // The loop stops when the panel unmounts.
+  // The loop stops when the panel unmounts, at once: a fade would leave it
+  // sounding beside the loop of a panel mounted next.
   useEffect(() => () => {
     const loop = emergencyLoopRef.current;
     if (loop) {
-      getSoundManager().stop(loop.id);
+      getSoundManager().stop(loop.id, 0);
       emergencyLoopRef.current = null;
     }
   }, []);
