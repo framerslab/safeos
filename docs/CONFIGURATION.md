@@ -184,15 +184,17 @@ Analysis results are tagged with one of these concern levels:
 
 ## Alert Escalation
 
-Alert volume escalates over time if not acknowledged:
+In the browser, an alert that nobody acknowledges climbs these levels. Levels 1 to 4 play their sound once as the alert reaches them; level 5 repeats. The table gives the defaults; the Alert Escalation page (`/settings/escalation`) changes each level's wait, volume and sound.
 
-| Level | Delay | Volume Multiplier | Sound |
-|-------|-------|-------------------|-------|
-| 1 | 0s | 0.3x | Soft chime |
-| 2 | 30s | 0.5x | Medium tone |
-| 3 | 60s | 0.7x | Attention tone |
-| 4 | 90s | 0.9x | Urgent tone |
-| 5 | 120s | 1.0x | Continuous alarm |
+| Level | Wait after the level before | From the alert | Volume | Sound |
+|-------|-----------------------------|----------------|--------|-------|
+| 1 | - | 0 s | 1.0x the alert volume (0 when muted, the quiet-hours volume in quiet hours) | Notification: one beep |
+| 2 | 30 s | 30 s | 1.3x | Alert: two rising beeps |
+| 3 | 60 s | 90 s | 1.5x | Warning: three beeps |
+| 4 | 120 s | 210 s | 1.8x | Alarm: two alternating tones, twice |
+| 5 | 180 s | 390 s | Full | Emergency: a higher, faster pair of tones, repeating |
+
+Volumes stop at full. With the panel muted or the volume at 0, levels 1 to 4 make no sound. The top level plays at full volume even then, as one loop for every alert at that level, until each of them is acknowledged. A browser plays sound only once the page is allowed to: a loop that starts before that waits and begins when sound is allowed.
 
 ---
 
