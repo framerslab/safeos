@@ -317,6 +317,54 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     });
   }
 
+  // Scripts off, text at 200 per cent: nothing can move the links into the
+  // Menu, so they scroll sideways inside the row; the page does not, and
+  // every key of the header stays on the screen.
+  for (const width of [820, 1280]) {
+    await open({ name: 'header, scripts off, larger text', width, height: 800, javaScriptEnabled: false }, async (page) => {
+      await visit(page);
+      await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+      await page.waitForTimeout(300);
+      expect((await sidewaysScroll(page)) <= 0, `header, scripts off, larger text at ${width} px: the page scrolls sideways`);
+      const row = await page.evaluate(() => {
+        const screen = document.documentElement.clientWidth;
+        const bar = document.querySelector('nav[aria-label="Site"] .site-header__bar');
+        const links = bar.querySelector('.site-header__links');
+        const shown = [...bar.querySelectorAll('a, button')].filter((element) => element.getBoundingClientRect().width > 0);
+        const off = shown.filter((element) => {
+          const box = element.getBoundingClientRect();
+          return (box.left < -0.5 || box.right > screen + 0.5) && !links.contains(element);
+        }).map((element) => element.getAttribute('aria-label') || element.textContent.trim());
+        const linksBox = links.getBoundingClientRect();
+        return {
+          off,
+          over: bar.scrollWidth > bar.clientWidth + 1,
+          linksInside: linksBox.left >= -0.5 && linksBox.right <= screen + 0.5,
+          linksScroll: links.scrollWidth <= links.clientWidth + 1 || getComputedStyle(links).overflowX === 'auto',
+        };
+      });
+      expect(row.off.length === 0 && !row.over, `header, scripts off, larger text at ${width} px: ${row.off.join(', ') || 'the row'} runs off the screen`);
+      expect(row.linksInside && row.linksScroll, `header, scripts off, larger text at ${width} px: the links do not stay inside the row (inside ${row.linksInside}, scroll ${row.linksScroll})`);
+    });
+  }
+
+  // A visitor who chose the other look asks only for the capture in that look.
+  for (const [device, chosen, choose] of [
+    ['dark', 'light', () => localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: 'light', resolvedTheme: 'light', accessibility: {} }, version: 0 }))],
+    ['light', 'dark', () => localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: 'dark', resolvedTheme: 'dark', accessibility: {} }, version: 0 }))],
+  ]) {
+    await open({ name: 'capture, chosen look', width: 390, look: device }, async (page) => {
+      const asked = [];
+      page.on('request', (request) => {
+        const address = new URL(request.url()).pathname;
+        if (address.startsWith('/home/capture-')) asked.push(address);
+      });
+      await visit(page);
+      expect(asked.length > 0 && asked.every((address) => address.includes(`-${chosen}.`)),
+        `capture: on a ${device} device with the ${chosen} look chosen, the page asked for ${asked.join(', ') || 'no capture'}`);
+    }, { script: choose });
+  }
+
   // The first screen's counts.
   for (const [width, height, controls] of [[390, 844, 4], [1280, 800, 9]]) {
     await open({ name: 'first visit, first screen', width, height, look: 'dark' }, async (page) => {

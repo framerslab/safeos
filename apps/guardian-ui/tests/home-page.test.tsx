@@ -22,6 +22,7 @@ import * as detector from '@/lib/animal-detection';
 import { MODEL_BYTES, MODEL_MANIFEST_BYTES, MODEL_SIZE_MB, MODEL_URL, MODEL_WEIGHTS_BYTES } from '@/lib/detection-model-facts';
 import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
 import { captureSizes, type CaptureCropName } from '@/lib/home-captures';
+import { CAPTURE_PRELOAD_SCRIPT } from '@/lib/capture-preload';
 import { bare, served, words } from './helpers/served-html';
 
 jest.mock('next/navigation', () => ({
@@ -176,8 +177,12 @@ describe('a real capture of SafeOS watching a recorded clip', () => {
     }
   });
 
-  it('asks early for the capture of the device\'s own look and width', () => {
+  it('asks early for the capture of the look that is on, with the device\'s own look when scripts are off', () => {
+    // The page's script asks for the crop for the width in the look that is on.
+    expect(html).toContain(CAPTURE_PRELOAD_SCRIPT);
+    // With scripts off, the device's own look, in each crop's widths.
     const preloads = all('link[rel="preload"][as="image"]');
+    for (const link of preloads) expect(link.closest('noscript')).not.toBeNull();
     expect(preloads.map((link) => link.getAttribute('href')).sort()).toEqual(
       ['phone', 'landscape', 'portrait'].flatMap((crop) => ['dark', 'light'].map((look) => `/home/capture-${crop}-${look}.webp`)).sort()
     );

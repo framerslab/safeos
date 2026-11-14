@@ -162,6 +162,33 @@ describe('the Menu', () => {
     fireEvent.click(within(menu).getByRole('link', { name: 'Uses' }));
     expect(menu.hidden).toBe(true);
   });
+
+  it('closes when the window widens until the row holds the links, and stays closed when it narrows again', () => {
+    const { container } = render(<VisitorHeader />);
+    const menu = container.querySelector('#site-menu') as HTMLElement;
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    within(menu).getByRole('link', { name: 'Uses' }).focus();
+
+    // A tablet width or wider; jsdom measures no overflow, so the row holds the links.
+    const phone = window.matchMedia;
+    window.matchMedia = ((query: string) => ({ ...phone(query), matches: query.includes('min-width: 48em') })) as typeof window.matchMedia;
+    try {
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    } finally {
+      window.matchMedia = phone;
+    }
+    expect(menu.hidden).toBe(true);
+    // Focus leaves the hidden panel for the start key in the row.
+    expect(document.activeElement).toBe(container.querySelector('.site-header__start'));
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(menu.hidden).toBe(true);
+    expect(screen.getByRole('button', { name: 'Menu' }).getAttribute('aria-expanded')).toBe('false');
+  });
 });
 
 describe('look switch', () => {
