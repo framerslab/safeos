@@ -1187,6 +1187,12 @@ html.light .capture__pic--light {
     grid-row: 1;
   }
 
+  /* Three lines at every desktop and wide width: no wider than the seven
+     columns at 1024 px hold it. */
+  .home-headline {
+    max-width: 11.4em;
+  }
+
   .home-first__start {
     grid-row: 2;
     order: 0;

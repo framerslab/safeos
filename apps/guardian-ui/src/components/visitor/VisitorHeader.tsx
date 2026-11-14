@@ -31,6 +31,9 @@ const LINKS: { href: string; label: string; page?: string }[] = [
   { href: '/faq/', label: 'FAQ', page: '/faq' },
 ];
 
+// What takes focus when pressed.
+const TAKES_FOCUS = 'a[href], button, input, select, textarea, summary, label, iframe, video[controls], audio[controls], [tabindex], [contenteditable]';
+
 export function VisitorHeader() {
   const pathname = barePath(usePathname());
   const isHome = pathname === '/';
@@ -61,7 +64,22 @@ export function VisitorHeader() {
       if (event.key === 'Escape') closeMenu();
     };
     const onPointerDown = (event: Event) => {
-      if (navRef.current && event.target instanceof Node && !navRef.current.contains(event.target)) closeMenu();
+      const target = event.target;
+      if (!navRef.current || !(target instanceof Node) || navRef.current.contains(target)) return;
+      closeMenu();
+      // The browser moves focus as part of the press, after this listener:
+      // to what was pressed when that takes focus, otherwise to the page. A
+      // press on the page puts focus back on the Menu key once it has ended;
+      // a press that never ends in a click (a scroll) gives up after a second.
+      if (target instanceof Element && target.closest(TAKES_FOCUS)) return;
+      let timer = 0;
+      const refocus = () => {
+        window.clearTimeout(timer);
+        document.removeEventListener('click', refocus, true);
+        menuKeyRef.current?.focus();
+      };
+      timer = window.setTimeout(() => document.removeEventListener('click', refocus, true), 1000);
+      document.addEventListener('click', refocus, true);
     };
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('pointerdown', onPointerDown);
