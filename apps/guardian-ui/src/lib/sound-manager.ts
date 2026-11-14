@@ -135,6 +135,10 @@ export const DEFAULT_REPEAT_PAUSE_MS = 400;
 /** How long a play waits for a suspended context to resume, in ms. */
 const RESUME_WAIT_MS = 1000;
 
+// The events a browser counts as a person's gesture (the HTML standard's
+// activation triggering input events)
+const GESTURE_EVENTS = ['keydown', 'mousedown', 'pointerdown', 'pointerup', 'touchend'] as const;
+
 /**
  * The five built-in sounds, generated with the Web Audio API. They need no
  * file and play with no connection.
@@ -282,6 +286,8 @@ class SoundManager {
   private isInitialized: boolean = false;
   /** Contexts whose statechange this manager listens to. */
   private watchedContexts = new WeakSet<AudioContext>();
+  /** Contexts a sound waits for, each with the gesture listener that resumes it. */
+  private gestureResumes = new Map<AudioContext, () => void>();
 
   constructor() {
     // The audio context is made on the first play
@@ -911,6 +917,8 @@ class SoundManager {
     const tones = sound.tones!;
     const context = tones.context;
     if (context.state !== 'running') {
+      // While this sound waits, the person's next gesture asks the context to resume
+      this.resumeOnGesture(context);
       // A browser that blocks audio leaves resume() pending; a play waits a second at most
       let wait: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([
@@ -930,10 +938,57 @@ class SoundManager {
       return;
     }
     if (sound.loop && context.state !== 'closed') {
-      // Waits for the context's statechange to running, or a later play that resumes it
+      // Waits for the context's statechange to running: the person's next gesture
+      // resumes it, and so does a later play
       return;
     }
     throw new Error(`The audio context is ${context.state}`);
+  }
+
+  /**
+   * A browser that blocks audio keeps a context suspended until resume() is
+   * called after the person clicks, taps or presses a key; a resume() asked for
+   * before that stays pending. While a sound waits for the context, each gesture
+   * on the page asks again, inside the gesture's own handler.
+   */
+  private resumeOnGesture(context: AudioContext): void {
+    if (this.gestureResumes.has(context)) return;
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+    const listener = () => {
+      if (context.state === 'running' || context.state === 'closed' || !this.hasWaiting(context)) {
+        this.forgetGesture(context);
+        return;
+      }
+      try {
+        void context.resume().catch(() => undefined);
+      } catch {
+        // resume() threw: the next gesture asks again
+      }
+    };
+    this.gestureResumes.set(context, listener);
+    GESTURE_EVENTS.forEach((type) => window.addEventListener(type, listener, true));
+  }
+
+  /**
+   * Stop listening for a gesture on behalf of this context
+   */
+  private forgetGesture(context: AudioContext): void {
+    const listener = this.gestureResumes.get(context);
+    if (!listener) return;
+    this.gestureResumes.delete(context);
+    GESTURE_EVENTS.forEach((type) => window.removeEventListener(type, listener, true));
+  }
+
+  /**
+   * Whether a sound waits for this context to run before its first pass
+   */
+  private hasWaiting(context: AudioContext): boolean {
+    let waiting = false;
+    this.activeSounds.forEach((sound) => {
+      const tones = sound.tones;
+      if (tones && tones.context === context && !tones.stopped && !tones.started) waiting = true;
+    });
+    return waiting;
   }
 
   /**
@@ -941,6 +996,7 @@ class SoundManager {
    * sound paused while it did not run goes on, one pass after another
    */
   private startWaiting(context: AudioContext): void {
+    this.forgetGesture(context);
     this.activeSounds.forEach((sound) => {
       const tones = sound.tones;
       if (!tones || tones.context !== context || tones.stopped) return;
@@ -1057,6 +1113,7 @@ class SoundManager {
       });
       tones.oscillators.clear();
       tones.gain.disconnect();
+      if (!this.hasWaiting(tones.context)) this.forgetGesture(tones.context);
     }
     if (sound.audio) {
       sound.audio.pause();

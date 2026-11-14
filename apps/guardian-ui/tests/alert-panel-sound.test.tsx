@@ -105,10 +105,16 @@ it('two alerts that reach the top level in the same tick start one emergency loo
   expect(made.oscillators.map(lastStop).filter((time) => time > acknowledgedAt)).toEqual([]);
 });
 
-it('an emergency alert present before any gesture sounds once audio becomes available', async () => {
-  // Before a gesture the context starts suspended and a browser that blocks audio leaves resume() pending.
+it("an emergency alert present before any gesture sounds after the person's next click anywhere on the page", async () => {
+  // As Chrome and Safari do: before a gesture the context is suspended, and
+  // resume() goes through only when it is called after one.
+  let gestureSeen = false;
   audioSetup.state = 'suspended';
-  audioSetup.resume = () => new Promise<void>(() => {});
+  audioSetup.resume = (context) => {
+    if (!gestureSeen) return new Promise<void>(() => {});
+    context.state = 'running';
+    return Promise.resolve();
+  };
   jest.spyOn(console, 'warn').mockImplementation(() => {});
   const { AlertPanel } = await load();
 
@@ -119,13 +125,15 @@ it('an emergency alert present before any gesture sounds once audio becomes avai
   await act(async () => { await runClock(context, 3000); });
   expect(started()).toEqual([]);
 
-  // A gesture elsewhere on the page lets the audio context run.
+  // The person clicks a part of the page that plays no sound.
+  gestureSeen = true;
   await act(async () => {
-    context.state = 'running';
+    fireEvent.mouseDown(document.body);
     await runClock(context, 500);
   });
 
-  // The emergency tones play through the panel's one sound.
+  // The context runs, and the emergency tones play through the panel's one sound.
+  expect(context.state).toBe('running');
   expect(started().length).toBeGreaterThan(0);
   expect(soundGains()).toHaveLength(1);
   const [gain] = soundGains();

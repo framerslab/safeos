@@ -194,7 +194,7 @@ In the browser, an alert that nobody acknowledges climbs these levels. Levels 1 
 | 4 | 120 s | 210 s | 1.8x | Alarm: two alternating tones, twice |
 | 5 | 180 s | 390 s | Full | Emergency: a higher, faster pair of tones, repeating |
 
-Volumes stop at full. With the panel muted or the volume at 0, levels 1 to 4 make no sound. The top level plays at full volume even then, as one loop for every alert at that level, until each of them is acknowledged. A browser plays sound only once the page is allowed to: a loop that starts before that waits and begins when sound is allowed.
+Volumes stop at full. With the panel muted or the volume at 0, levels 1 to 4 make no sound. The top level plays at full volume even then, as one loop for every alert at that level, until each of them is acknowledged. A browser may hold a page's sound until a person has clicked, tapped or pressed a key on it: a loop that starts before that waits and begins with their next click, tap or key press.
 
 ---
 
