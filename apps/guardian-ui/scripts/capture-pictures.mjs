@@ -615,6 +615,12 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
       AudioNode.prototype.connect = function (target, ...rest) {
         if (target instanceof AudioDestinationNode) {
           toDestination.add(this);
+          // TEMPORARY, to show the check fails on silence: every gain the page
+          // connects to the speakers is held at zero. Removed in the next commit.
+          if (this instanceof GainNode) {
+            Object.getOwnPropertyDescriptor(AudioParam.prototype, 'value').set.call(this.gain, 0);
+            Object.defineProperty(this.gain, 'value', { configurable: true, get: () => 0, set: () => {} });
+          }
           return connect.call(this, busFor(this.context), ...rest);
         }
         return connect.call(this, target, ...rest);
