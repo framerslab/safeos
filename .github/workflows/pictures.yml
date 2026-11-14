@@ -7,10 +7,11 @@
 # pull request's own capture also checks a first visit to the home page (the
 # header row, the theme button, no notification prompt, heading contrast,
 # the header menu on a short screen, the Security card's link) and the Test
-# Alerts page's alert key (its generated tones start, no sound file is asked
-# for). Both versions capture the dashboard after setup and its header menu
-# open; the pull request's own capture checks that the dashboard's Lost &
-# Found, Security and Wildlife cards open their pages and that the header menu
+# Alerts page's alert key (its generated tones start, an analyser on the
+# way to the speakers reads signal, no sound file is asked for). Both
+# versions capture the dashboard after setup and its header menu open; the
+# pull request's own capture checks that the dashboard's Lost & Found,
+# Security and Wildlife cards open their pages and that the header menu
 # lists all three while the header row stays one row from 320 to 768 pixels;
 # see scripts/capture-pictures.mjs.
 #

@@ -71,18 +71,37 @@ interface ActiveSound {
   startTime: number;
   loop: boolean;
   onEnd?: () => void;
+  /** The fade that changes the sound's volume, while one runs. */
+  fade?: Fade | null;
+  /** Fading out to stop. */
+  stopping?: boolean;
+}
+
+interface Fade {
+  timer: ReturnType<typeof setInterval>;
+  /** The volume the fade ends at. */
+  to: number;
 }
 
 /** The tones of one built-in sound as it plays. */
 interface ToneVoice {
+  context: AudioContext;
+  pattern: TonePattern;
   /** Carries the sound's volume; every tone plays through it. */
   gain: GainNode;
   /** Tones scheduled that have not ended. */
   oscillators: Set<OscillatorNode>;
   volume: number;          // 0-1, before mute
   muted: boolean;
+  /** The first pass is scheduled. Until then the sound waits for its context to run. */
+  started: boolean;
   /** Queues the next pass of a looping sound. */
   timer: ReturnType<typeof setTimeout> | null;
+  /**
+   * A looping sound whose timer fired while its context was not running: the
+   * pass the timer waited for and when the next pass starts, on the audio clock.
+   */
+  paused: { at: number; next: number } | null;
   stopped: boolean;
 }
 
@@ -115,6 +134,10 @@ export const DEFAULT_REPEAT_PAUSE_MS = 400;
 
 /** How long a play waits for a suspended context to resume, in ms. */
 const RESUME_WAIT_MS = 1000;
+
+// The events a browser counts as a person's gesture (the HTML standard's
+// activation triggering input events)
+const GESTURE_EVENTS = ['keydown', 'mousedown', 'pointerdown', 'pointerup', 'touchend'] as const;
 
 /**
  * The five built-in sounds, generated with the Web Audio API. They need no
@@ -261,6 +284,10 @@ class SoundManager {
   private globalMute: boolean = false;
   private emergencyModeActive: boolean = false;
   private isInitialized: boolean = false;
+  /** Contexts whose statechange this manager listens to. */
+  private watchedContexts = new WeakSet<AudioContext>();
+  /** Contexts a sound waits for, each with the gesture listener that resumes it. */
+  private gestureResumes = new Map<AudioContext, () => void>();
 
   constructor() {
     // The audio context is made on the first play
@@ -281,9 +308,11 @@ class SoundManager {
   setUserVolume(volume: number): void {
     this.userVolume = Math.max(0, Math.min(100, volume));
 
-    // Update volume of currently playing sounds (except emergency)
+    // Update volume of currently playing sounds (except emergency, and a sound
+    // fading out to stop). A fade in ends at the new volume.
     this.activeSounds.forEach((sound) => {
-      if (sound.type !== 'emergency' && !this.emergencyModeActive) {
+      if (sound.type !== 'emergency' && !this.emergencyModeActive && !sound.stopping) {
+        this.clearFade(sound);
         this.setSoundVolume(sound, this.calculateVolume(sound.type));
       }
     });
@@ -302,10 +331,17 @@ class SoundManager {
   setGlobalMute(muted: boolean): void {
     this.globalMute = muted;
     
-    // Mute/unmute active sounds (except emergency)
+    // Mute/unmute active sounds (except emergency). A fade in ends at its
+    // volume, so it does not go on under the new mute state.
     this.activeSounds.forEach((sound) => {
       if (sound.type !== 'emergency') {
-        this.setSoundMuted(sound, muted);
+        if (muted) {
+          this.setSoundMuted(sound, true);
+          this.endFade(sound);
+        } else {
+          this.endFade(sound);
+          this.setSoundMuted(sound, false);
+        }
       }
     });
   }
@@ -326,12 +362,16 @@ class SoundManager {
     if (active) {
       // Set all active sounds to max volume
       this.activeSounds.forEach((sound) => {
+        if (sound.stopping) return;
+        this.clearFade(sound);
         this.setSoundVolume(sound, 1.0);
         this.setSoundMuted(sound, false);
       });
     } else {
       // Restore normal volumes
       this.activeSounds.forEach((sound) => {
+        if (sound.stopping) return;
+        this.clearFade(sound);
         this.setSoundVolume(sound, this.calculateVolume(sound.type));
         if (this.globalMute && sound.type !== 'emergency') {
           this.setSoundMuted(sound, true);
@@ -366,6 +406,7 @@ class SoundManager {
       console.warn('Failed to play sound:', error);
       return id;
     }
+    this.watch(context);
 
     // Calculate volume
     let volume = this.calculateVolume(type, options.volume);
@@ -382,7 +423,18 @@ class SoundManager {
     // Stop lower priority sounds if needed
     this.handlePriority(config.priority);
 
-    const tones: ToneVoice = { gain, oscillators: new Set(), volume, muted, timer: null, stopped: false };
+    const tones: ToneVoice = {
+      context,
+      pattern: TONE_PATTERNS[type],
+      gain,
+      oscillators: new Set(),
+      volume,
+      muted,
+      started: false,
+      timer: null,
+      paused: null,
+      stopped: false,
+    };
     this.applyGain(tones);
 
     // Store active sound
@@ -404,7 +456,7 @@ class SoundManager {
     }
 
     // Play
-    this.startTones(context, activeSound, TONE_PATTERNS[type]).catch((error) => {
+    this.startTones(activeSound).catch((error) => {
       console.warn('Failed to play sound:', error);
       this.halt(activeSound);
       this.activeSounds.delete(id);
@@ -460,9 +512,13 @@ class SoundManager {
     if (!sound) return;
 
     const config = SOUND_CONFIGS[sound.type];
-    const fade = fadeOut !== undefined ? fadeOut : config.fadeOut;
+    // A sound that has not started is cancelled at once: the fade-out is for one that sounds.
+    const fade = sound.tones && !sound.tones.started
+      ? 0
+      : fadeOut !== undefined ? fadeOut : config.fadeOut;
 
     if (fade > 0) {
+      sound.stopping = true;
       this.fadeVolume(sound, this.getSoundVolume(sound), 0, fade, () => {
         this.halt(sound);
         this.activeSounds.delete(id);
@@ -498,6 +554,14 @@ class SoundManager {
    */
   getActiveSounds(): ActiveSound[] {
     return Array.from(this.activeSounds.values());
+  }
+
+  /**
+   * Check whether the sound with this id is in the active list: playing, fading
+   * out, or a looping sound that waits for its audio context to run.
+   */
+  isActive(id: string): boolean {
+    return this.activeSounds.has(id);
   }
 
   /**
@@ -759,20 +823,43 @@ class SoundManager {
     const volumeStep = (to - from) / steps;
     let currentStep = 0;
 
+    // A new fade replaces the one that runs
+    this.clearFade(sound);
     this.setSoundVolume(sound, from);
 
-    const fade = setInterval(() => {
+    const timer = setInterval(() => {
       currentStep++;
       this.setSoundVolume(sound, Math.max(0, Math.min(1, from + volumeStep * currentStep)));
 
       if (currentStep >= steps) {
-        clearInterval(fade);
+        this.clearFade(sound);
         this.setSoundVolume(sound, to);
         if (onComplete) {
           onComplete();
         }
       }
     }, stepDuration);
+    sound.fade = { timer, to };
+  }
+
+  /**
+   * Stop the sound's fade where it is
+   */
+  private clearFade(sound: ActiveSound): void {
+    if (sound.fade) {
+      clearInterval(sound.fade.timer);
+      sound.fade = null;
+    }
+  }
+
+  /**
+   * End a fade in at the volume it was going to; a fade out to stop runs on
+   */
+  private endFade(sound: ActiveSound): void {
+    if (!sound.fade || sound.stopping) return;
+    const { to } = sound.fade;
+    this.clearFade(sound);
+    this.setSoundVolume(sound, to);
   }
 
   /**
@@ -811,34 +898,126 @@ class SoundManager {
   }
 
   /**
-   * Resume a suspended context, then schedule the first pass of the pattern
+   * Listen for the context to run, to start the sounds that wait for it
    */
-  private async startTones(context: AudioContext, sound: ActiveSound, pattern: TonePattern): Promise<void> {
-    if (context.state === 'suspended') {
+  private watch(context: AudioContext): void {
+    if (this.watchedContexts.has(context) || typeof context.addEventListener !== 'function') return;
+    this.watchedContexts.add(context);
+    context.addEventListener('statechange', () => {
+      if (context.state === 'running') this.startWaiting(context);
+    });
+  }
+
+  /**
+   * Resume a context that does not run, then schedule the first pass of the pattern.
+   * A looping sound whose context cannot run yet waits, and starts when it runs;
+   * a sound that does not loop is dropped after the wait.
+   */
+  private async startTones(sound: ActiveSound): Promise<void> {
+    const tones = sound.tones!;
+    const context = tones.context;
+    if (context.state !== 'running') {
+      // While this sound waits, the person's next gesture asks the context to resume
+      this.resumeOnGesture(context);
       // A browser that blocks audio leaves resume() pending; a play waits a second at most
       let wait: ReturnType<typeof setTimeout> | undefined;
       await Promise.race([
-        context.resume(),
+        Promise.resolve()
+          .then(() => context.resume())
+          .catch(() => undefined),
         new Promise<void>((resolve) => {
           wait = setTimeout(resolve, RESUME_WAIT_MS);
         }),
       ]).finally(() => clearTimeout(wait));
     }
-    if (context.state !== 'running') {
-      throw new Error(`The audio context is ${context.state}`);
-    }
-    // Stopped while the context resumed
-    if (!sound.tones || sound.tones.stopped) return;
+    // Stopped while the context resumed, or started when it began to run
+    if (tones.stopped || tones.started) return;
 
-    this.scheduleTones(context, sound, pattern, context.currentTime);
+    if (context.state === 'running') {
+      this.startWaiting(context);
+      return;
+    }
+    if (sound.loop && context.state !== 'closed') {
+      // Waits for the context's statechange to running: the person's next gesture
+      // resumes it, and so does a later play
+      return;
+    }
+    throw new Error(`The audio context is ${context.state}`);
+  }
+
+  /**
+   * A browser that blocks audio keeps a context suspended until resume() is
+   * called after the person clicks, taps or presses a key; a resume() asked for
+   * before that stays pending. While a sound waits for the context, each gesture
+   * on the page asks again, inside the gesture's own handler.
+   */
+  private resumeOnGesture(context: AudioContext): void {
+    if (this.gestureResumes.has(context)) return;
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+    const listener = () => {
+      if (context.state === 'running' || context.state === 'closed' || !this.hasWaiting(context)) {
+        this.forgetGesture(context);
+        return;
+      }
+      try {
+        void context.resume().catch(() => undefined);
+      } catch {
+        // resume() threw: the next gesture asks again
+      }
+    };
+    this.gestureResumes.set(context, listener);
+    GESTURE_EVENTS.forEach((type) => window.addEventListener(type, listener, true));
+  }
+
+  /**
+   * Stop listening for a gesture on behalf of this context
+   */
+  private forgetGesture(context: AudioContext): void {
+    const listener = this.gestureResumes.get(context);
+    if (!listener) return;
+    this.gestureResumes.delete(context);
+    GESTURE_EVENTS.forEach((type) => window.removeEventListener(type, listener, true));
+  }
+
+  /**
+   * Whether a sound waits for this context to run before its first pass
+   */
+  private hasWaiting(context: AudioContext): boolean {
+    let waiting = false;
+    this.activeSounds.forEach((sound) => {
+      const tones = sound.tones;
+      if (tones && tones.context === context && !tones.stopped && !tones.started) waiting = true;
+    });
+    return waiting;
+  }
+
+  /**
+   * The context runs: each sound that waits for it starts, and each looping
+   * sound paused while it did not run goes on, one pass after another
+   */
+  private startWaiting(context: AudioContext): void {
+    this.forgetGesture(context);
+    this.activeSounds.forEach((sound) => {
+      const tones = sound.tones;
+      if (!tones || tones.context !== context || tones.stopped) return;
+      if (!tones.started) {
+        tones.started = true;
+        this.scheduleTones(sound, context.currentTime);
+      } else if (tones.paused && tones.timer === null) {
+        const { at, next } = tones.paused;
+        tones.paused = null;
+        this.queueNextPass(sound, at, next);
+      }
+    });
   }
 
   /**
    * Schedule one pass of the pattern on the context's clock, from `at` seconds.
    * A looping sound queues its next pass when this one starts, a whole pass ahead.
    */
-  private scheduleTones(context: AudioContext, sound: ActiveSound, pattern: TonePattern, at: number): void {
+  private scheduleTones(sound: ActiveSound, at: number): void {
     const tones = sound.tones!;
+    const { context, pattern } = tones;
     const ramp = TONE_RAMP_MS / 1000;
     let time = at;
 
@@ -876,12 +1055,27 @@ class SoundManager {
 
     if (sound.loop) {
       const next = time + (pattern.repeatPause ?? DEFAULT_REPEAT_PAUSE_MS) / 1000;
-      tones.timer = setTimeout(() => {
-        tones.timer = null;
-        if (tones.stopped) return;
-        this.scheduleTones(context, sound, pattern, Math.max(next, context.currentTime));
-      }, Math.max(0, (at - context.currentTime) * 1000));
+      this.queueNextPass(sound, at, next);
     }
+  }
+
+  /**
+   * When the pass at `at` starts, schedule the next one from `next`. While the
+   * context does not run its clock stands still, so the loop pauses there and
+   * goes on when the context runs again.
+   */
+  private queueNextPass(sound: ActiveSound, at: number, next: number): void {
+    const tones = sound.tones!;
+    const { context } = tones;
+    tones.timer = setTimeout(() => {
+      tones.timer = null;
+      if (tones.stopped) return;
+      if (context.state !== 'running') {
+        tones.paused = { at, next };
+        return;
+      }
+      this.scheduleTones(sound, Math.max(next, context.currentTime));
+    }, Math.max(0, (at - context.currentTime) * 1000));
   }
 
   /**
@@ -901,9 +1095,11 @@ class SoundManager {
    * Silence a sound: stop its tones and disconnect its gain, or pause its audio element
    */
   private halt(sound: ActiveSound): void {
+    this.clearFade(sound);
     const tones = sound.tones;
     if (tones) {
       tones.stopped = true;
+      tones.paused = null;
       if (tones.timer !== null) {
         clearTimeout(tones.timer);
         tones.timer = null;
@@ -917,6 +1113,7 @@ class SoundManager {
       });
       tones.oscillators.clear();
       tones.gain.disconnect();
+      if (!this.hasWaiting(tones.context)) this.forgetGesture(tones.context);
     }
     if (sound.audio) {
       sound.audio.pause();
