@@ -47,3 +47,6 @@ temp/
 *.pid
 *.seed
 *.pid.lock
+
+# The home page's QR code, made from the site address at build time
+apps/guardian-ui/public/home/site-qr.svg

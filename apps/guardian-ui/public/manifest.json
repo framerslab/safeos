@@ -1,11 +1,11 @@
 {
   "name": "SafeOS Guardian",
   "short_name": "SafeOS",
-  "description": "Free motion and sound alerts in your browser for pets, babies and older relatives. By Frame.",
+  "description": "Motion and sound alerts that run in your browser. By Frame.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#10b981",
+  "background_color": "#0b131b",
+  "theme_color": "#0b131b",
   "orientation": "any",
   "icons": [
     {

@@ -6,6 +6,7 @@
 
 import { MetadataRoute } from 'next';
 import { generateStaticParams as blogPostParams } from './blog/[slug]/page';
+import { PAGE_LAST_CHANGED } from '@/lib/page-last-changed';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://safeos.sh').replace(/\/+$/, '');
@@ -45,7 +46,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     ...staticPages.map((p) => ({
       url: url(p.path),
-      lastModified,
+      // A page with a recorded day of its last change gives that day; the
+      // others give the day of the build.
+      lastModified: PAGE_LAST_CHANGED[p.path] ? new Date(`${PAGE_LAST_CHANGED[p.path]}T00:00:00Z`) : lastModified,
       changeFrequency: p.changeFrequency,
       priority: p.priority,
     })),
