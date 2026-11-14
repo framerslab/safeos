@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import type { ObjectDetection } from '@tensorflow-models/coco-ssd';
 import { useOnboardingStore } from '@/stores/onboarding-store';
+import { MODEL_URL } from './detection-model-facts';
 
 export type DetectionModelStatus = 'idle' | 'loading' | 'ready' | 'error';
 const initialState = { status: 'idle' as DetectionModelStatus, error: null as string | null, saved: true };
@@ -12,7 +13,6 @@ let loading: Promise<ObjectDetection> | null = null;
 let agreed = false;
 // Set when the browser refuses to store a model response during this load.
 let storageRefused = false;
-const MODEL_URL = 'https://storage.googleapis.com/tfjs-models/savedmodel/ssdlite_mobilenet_v2/model.json';
 const MODEL_ROUTE = 'safeos-model://coco-ssd-v1';
 const MODEL_CACHE = 'safeos-detection-model-v1';
 let routerRegistered = false;

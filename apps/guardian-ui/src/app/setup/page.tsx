@@ -29,14 +29,17 @@ import {
 } from '../../components/icons';
 import { SafeOSLogo, FrameWordmark } from '../../components/Logo';
 import { SAFE_SLEEP_URL } from '../../components/NotAMedicalDevice';
+import { SETUP_STEPS, type SetupStep } from '../../lib/setup-steps';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type Step = 'welcome' | 'disclaimer' | 'scenario' | 'permissions' | 'notifications' | 'complete';
+// The steps live in lib/setup-steps so the home page can print how many there
+// are and which one asks for the camera.
+type Step = SetupStep;
 
-const STEPS: Step[] = ['welcome', 'disclaimer', 'scenario', 'permissions', 'notifications', 'complete'];
+const STEPS: Step[] = SETUP_STEPS;
 
 // =============================================================================
 // Setup Page Component
@@ -53,9 +56,13 @@ export default function SetupPage() {
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
 
-  // Check if we can skip onboarding - redirect to dashboard if already complete
+  // A person whose setup is done goes on to the dashboard, unless they asked
+  // to run setup again (/setup/?again=1, the home page's "Run setup again").
+  // Arriving that way resets nothing: the saved setup stays as it is until the
+  // last step is finished.
   useEffect(() => {
-    if (canSkipOnboarding(onboarding)) {
+    const again = new URLSearchParams(window.location.search).get('again') === '1';
+    if (!again && canSkipOnboarding(onboarding)) {
       router.push('/dashboard');
     }
   }, [onboarding, router]);

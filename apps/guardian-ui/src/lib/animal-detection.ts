@@ -8,6 +8,7 @@
  */
 
 import { loadDetectionModel } from './detection-model';
+import { COCO_TO_ANIMAL, COCO_ANIMAL_CLASSES } from './animal-kinds';
 
 // =============================================================================
 // Types
@@ -106,22 +107,9 @@ const ANIMAL_DATABASE: Record<AnimalType, AnimalInfo> = {
   unknown_animal: { displayName: 'Unknown Animal', sizeCategory: 'medium', dangerLevel: 'low', isDomestic: false },
 };
 
-// Map COCO-SSD classes to our animal types
-const COCO_TO_ANIMAL: Record<string, AnimalType> = {
-  'dog': 'dog',
-  'cat': 'cat',
-  'bird': 'bird',
-  'horse': 'horse',
-  'sheep': 'sheep',
-  'cow': 'cow',
-  'elephant': 'elephant',
-  'bear': 'bear',
-  'zebra': 'zebra',
-  'giraffe': 'giraffe',
-};
-
-// All COCO-SSD animal classes
-const COCO_ANIMAL_CLASSES = Object.keys(COCO_TO_ANIMAL);
+// The COCO-SSD classes the detector keeps, and their animal types. The list
+// lives in lib/animal-kinds so pages can print it without loading the detector.
+export { COCO_TO_ANIMAL, COCO_ANIMAL_CLASSES };
 
 // =============================================================================
 // Model Loading

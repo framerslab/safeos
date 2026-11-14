@@ -10,6 +10,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 import {
   useSettingsStore,
   type AlertSeverity,
@@ -227,7 +228,7 @@ export default function DetectionSettingsPage() {
                   <span className="text-sm font-medium text-white">Person Detection</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">AI</span>
                 </div>
-                <div className="text-xs text-slate-400">TensorFlow.js COCO-SSD model (18.6 MB)</div>
+                <div className="text-xs text-slate-400">TensorFlow.js COCO-SSD model ({MODEL_SIZE_MB} MB)</div>
               </div>
               <button
                 role="switch"

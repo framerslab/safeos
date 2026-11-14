@@ -10,6 +10,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 import {
   IconChevronLeft,
   IconChevronDown,
@@ -51,7 +52,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'Does it work offline?',
-        answer: 'Yes, after preparation. Wait for the service worker to finish installing the app files while online. Motion, pixel, and sound alerts need no model. For Security and Wildlife, complete setup and choose Download detection model to save about 18.6 MB from Google model storage. Both pages reuse that model offline. Browser storage must be retained; clearing or evicting it requires another online download. Server integrations still need a connection.',
+        answer: `Yes, after preparation. Wait for the service worker to finish installing the app files while online. Motion, pixel, and sound alerts need no model. For Security and Wildlife, complete setup and choose Download detection model to save about ${MODEL_SIZE_MB} MB from Google model storage. Both pages reuse that model offline. Browser storage must be retained; clearing or evicting it requires another online download. Server integrations still need a connection.`,
       },
       {
         question: 'What browsers are supported?',

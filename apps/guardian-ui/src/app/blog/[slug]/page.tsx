@@ -10,6 +10,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/page-metadata';
+import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 import {
   IconChevronLeft,
   IconClock,
@@ -158,7 +159,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             TensorFlow.js
           </a>
-          . 18.6 MB from Google model storage, downloaded only after you agree on the Security or
+          . {MODEL_SIZE_MB} MB from Google model storage, downloaded only after you agree on the Security or
           Wildlife page, then kept in the browser&apos;s Cache Storage for offline use. It knows 80
           kinds of object; SafeOS uses its person class and ten animal classes. The detection
           canvas is 320&times;240 regardless of the source video resolution.
@@ -306,8 +307,8 @@ const blogContent: Record<string, BlogContent> = {
 
         <p>
           PWA install on iOS is still rough &mdash; Safari&apos;s installation flow isn&apos;t
-          great, and background audio capture has well-known limits. The detection model is an
-          18.6 MB download, so on a slow connection the first Security or Wildlife start is slow.
+          great, and background audio capture has well-known limits. The detection model is an{' '}
+          {MODEL_SIZE_MB} MB download, so on a slow connection the first Security or Wildlife start is slow.
           The Lost &amp; Found matcher compares colours, not identity, so another animal or an object
           of the same colour also matches. Most of these are tracked in{' '}
           <a
