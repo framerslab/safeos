@@ -247,8 +247,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     }));
     expect(marks.mains === 1 && marks.h1s === 1, `first visit: ${marks.mains} main landmarks and ${marks.h1s} H1 headings`);
     expect(marks.navs.join(' | ') === 'Site | Site links', `first visit: the navigation landmarks are ${marks.navs.join(' | ')}`);
-    // The Tab order of the header.
-    await page.reload({ waitUntil: 'networkidle' });
+    // The Tab order of the header, from a fresh visit: a reload would keep
+    // the skip link's #main-content and start Tab there.
+    await visit(page);
     const order = [];
     for (let i = 0; i < 9; i += 1) {
       await page.keyboard.press('Tab');
@@ -530,7 +531,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       const after = await state();
       expect(after.background === PAGE_COLOURS[other], `look switch: after a press the page is ${after.background}, not ${PAGE_COLOURS[other]}`);
       expect(after.said === `${other === 'dark' ? 'Dark' : 'Light'} look on`, `look switch: the press announced "${after.said}"`);
-      expect(after.scheme === other && after.theme === THEME_COLOURS[other], `look switch: after a press color-scheme is ${after.scheme} and theme-color ${after.theme}`);
+      // Every theme-color tag the page carries reads the chosen look's colour.
+      expect(after.scheme === other && !!after.theme && after.theme.split(',').every((colour) => colour === THEME_COLOURS[other]),
+        `look switch: after a press color-scheme is ${after.scheme} and theme-color ${after.theme}`);
       if (after.capture) expect(after.capture.endsWith(`-${other}`), `capture: after a press the capture shown is ${after.capture}`);
       await page.screenshot({ path: path.join(outDir, `home-after-look-switch-390-${look}.png`) });
       // The choice is kept: a reload and another page are in the chosen look.

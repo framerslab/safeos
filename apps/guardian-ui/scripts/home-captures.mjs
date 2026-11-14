@@ -96,7 +96,10 @@ async function watchUntilMotionAlert(page, name) {
   console.log(`${name}: seeded the Custom preset with pixel detection off (motion and sound lines ${100 - saved.globalSettings.motionSensitivity} and ${100 - saved.globalSettings.audioSensitivity})`);
   await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
   console.log(`${name}: pressed "Start Monitoring"`);
-  await page.getByText('LIVE', { exact: true }).waitFor({ timeout: 30_000 });
+  await page.getByText('LIVE', { exact: true }).waitFor({ timeout: 30_000 }).catch(async (err) => {
+    const shown = await page.locator('text=Camera Error').first().locator('xpath=..').textContent().catch(() => null);
+    throw new Error(shown ? `the camera did not start: ${shown.replace(/\s+/g, ' ').trim()}` : err.message);
+  });
   const started = Date.now();
   await page.getByText(MOTION_ALERT).first().waitFor({ timeout: 120_000 });
   const motionAt = ((Date.now() - started) / 1000).toFixed(1);
@@ -124,8 +127,11 @@ async function saveCrop(page, relative, clip, details) {
 await mkdir(path.join(outDir, 'home'), { recursive: true });
 await mkdir(path.join(outDir, 'screenshots'), { recursive: true });
 
+// The headless browser has no prompt to answer a camera request and refuses
+// it ("Not supported") unless the request is granted by the fake prompt.
 const browser = await chromium.launch({
   args: [
+    '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
     `--use-file-for-fake-video-capture=${path.resolve(videoFile)}`,
     `--use-file-for-fake-audio-capture=${path.resolve(audioFile)}`,
