@@ -1,6 +1,6 @@
 /** @jest-environment jsdom */
 /**
- * Running setup again (feature 5)
+ * Running setup again
  *
  * The home page's "Run setup again" links /setup/?again=1. Setup sends a
  * visitor whose setup is done on to the dashboard, unless they arrive with

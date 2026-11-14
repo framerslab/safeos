@@ -3,11 +3,11 @@
  * The home page as it is served
  *
  * Renders the home page to the HTML a browser gets before any script runs
- * and reads it part by part: what the page says before script (feature 1),
- * the headline and the lead (4), the start key, the statement and the closing
- * block (5), the capture (6), the five uses (8), how it works (9), what sets
- * off an alert (10), free and open source (11) and the questions (12). Counts
- * and sizes on the page are held to the code they describe.
+ * and reads it part by part: what the page says before script, the headline
+ * and the lead, the start key, the statement and the closing block, the
+ * capture, the five uses, how it works, what sets off an alert, free and open
+ * source and the questions. Counts and sizes on the page are held to the code
+ * they describe.
  */
 
 import fs from 'fs';
@@ -39,7 +39,7 @@ const one = (selector: string) => page.querySelector(selector);
 const pageWords = words(page.body);
 const count = (needle: string) => pageWords.split(needle).length - 1;
 
-describe('feature 1: the page reads before any script runs and asks for nothing', () => {
+describe('the page reads before any script runs and asks for nothing', () => {
   it('has one main landmark and one H1, with every part\'s heading in the served HTML', () => {
     expect(all('main')).toHaveLength(1);
     expect(all('h1')).toHaveLength(1);
@@ -91,7 +91,7 @@ describe('feature 1: the page reads before any script runs and asks for nothing'
   });
 });
 
-describe('feature 4: headline and lead', () => {
+describe('headline and lead', () => {
   it('says what a visitor gets in one H1 and one lead', () => {
     expect(words(one('h1'))).toBe('Free motion and sound alerts from an old phone or laptop');
     expect(words(one('.home-lead'))).toBe(
@@ -109,7 +109,7 @@ describe('feature 4: headline and lead', () => {
   });
 });
 
-describe('feature 5: start action and the limit statement', () => {
+describe('start action and the limit statement', () => {
   it('serves one key in the first screen, a plain link to setup that reads "Start setup"', () => {
     const keys = all('.home-first a, .home-first button');
     expect(keys).toHaveLength(1);
@@ -145,7 +145,7 @@ describe('feature 5: start action and the limit statement', () => {
   });
 });
 
-describe('feature 6: a real capture of SafeOS watching a recorded clip', () => {
+describe('a real capture of SafeOS watching a recorded clip', () => {
   const sizes = captureSizes();
 
   it('shows the capture in a figure whose caption says what it is', () => {
@@ -193,7 +193,7 @@ describe('feature 6: a real capture of SafeOS watching a recorded clip', () => {
   });
 });
 
-describe('feature 8: what people set it up for', () => {
+describe('what people set it up for', () => {
   const entries = all('#uses ul.home-uses > li');
 
   it('names five situations in order, each with its anchor on its H3', () => {
@@ -260,7 +260,7 @@ describe('feature 8: what people set it up for', () => {
   });
 });
 
-describe('feature 9: how it works', () => {
+describe('how it works', () => {
   it('gives three numbered steps, with the step count and the camera step read from setup\'s list', () => {
     expect(words(one('#how-it-works h2'))).toBe('One device does the watching and the alerting');
     const steps = all('#how-it-works ol.home-steps > li');
@@ -301,7 +301,7 @@ describe('feature 9: how it works', () => {
   });
 });
 
-describe('feature 10: what sets off an alert', () => {
+describe('what sets off an alert', () => {
   const entries = all('#alerts .home-alerts__list > li');
 
   it('names four things in plain words, always shown', () => {
@@ -356,7 +356,7 @@ describe('feature 10: what sets off an alert', () => {
   });
 });
 
-describe('feature 11: free and open source', () => {
+describe('free and open source', () => {
   it('says SafeOS is free on this site, who builds it, its licence and that it is experimental', () => {
     expect(words(one('#free h2'))).toBe('Free on safeos.sh, with the code in the open');
     expect(all('#free .home-free__words p').map(words)).toEqual([
@@ -386,7 +386,7 @@ describe('feature 11: free and open source', () => {
   });
 });
 
-describe('feature 12: questions people ask first', () => {
+describe('questions people ask first', () => {
   const questions = all('#questions details');
 
   it('asks six questions, all closed at the start, built on the browser\'s own details element', () => {
@@ -436,7 +436,7 @@ describe('feature 12: questions people ask first', () => {
 });
 
 describe('the page as a whole', () => {
-  it('holds nothing of the sample clip part: no key or word names it', () => {
+  it('plays nothing: it holds no video, no sound and no key that plays one', () => {
     expect(pageWords).not.toMatch(/sample clip|Try it on|Play the/i);
     expect(all('video, audio')).toHaveLength(0);
   });

@@ -3,10 +3,10 @@
  * The visitor header and footer as they are served
  *
  * Renders both to the HTML a browser gets before any script runs. The header
- * (feature 2) is a navigation named "Site" with the mark, four destinations,
+ * is a navigation named "Site" with the mark, four destinations,
  * the GitHub link and the start key as working links, and Menu as a link to
- * the footer's links; the look switch (feature 3) has only its place held.
- * The footer (feature 13) is six small groups of links in a navigation named
+ * the footer's links; the look switch has only its place held.
+ * The footer is six small groups of links in a navigation named
  * "Site links" and one last line.
  */
 
@@ -31,7 +31,7 @@ const header = (pathname = '/') => {
   return served(renderToStaticMarkup(<VisitorHeader />));
 };
 
-describe('feature 2: visitor header, before script runs', () => {
+describe('visitor header, before script runs', () => {
   it('is a navigation named "Site" whose items are the mark, four links, GitHub and the start key, in that order', () => {
     const page = header();
     const nav = page.querySelector('nav');
@@ -91,7 +91,7 @@ describe('feature 2: visitor header, before script runs', () => {
   });
 });
 
-describe('feature 3: look switch, before script runs', () => {
+describe('look switch, before script runs', () => {
   it('holds the key\'s place empty and shows no switch', () => {
     const page = header();
     expect(page.querySelector('.look-switch')).toBeNull();
@@ -109,7 +109,7 @@ describe('feature 3: look switch, before script runs', () => {
   });
 });
 
-describe('feature 13: footer', () => {
+describe('footer', () => {
   const page = served(renderToStaticMarkup(<VisitorFooter />));
   const groups = Array.from(page.querySelectorAll('nav > div'));
   const links = (group: Element) =>

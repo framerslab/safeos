@@ -3,10 +3,10 @@
  * The visitor header once its script runs
  *
  * Menu becomes a key that opens a panel of rows and closes on Escape or a
- * press outside, with focus back on the key (feature 2). The look switch
+ * press outside, with focus back on the key. The look switch
  * appears, switches the whole page at once, says what it did and sets the
- * browser's own bar colour (feature 3). The start links read "Open dashboard"
- * once setup is done on this device (features 2, 5 and 13).
+ * browser's own bar colour. The start links read "Open dashboard"
+ * once setup is done on this device.
  */
 
 import React from 'react';
@@ -44,7 +44,7 @@ function finishSetup() {
   });
 }
 
-describe('feature 2: the Menu', () => {
+describe('the Menu', () => {
   it('opens a panel that lists the start link, the four links and GitHub, and shows "Close" named "Close menu"', () => {
     const { container } = render(<VisitorHeader />);
     const key = screen.getByRole('button', { name: 'Menu' });
@@ -105,7 +105,7 @@ describe('feature 2: the Menu', () => {
   });
 });
 
-describe('feature 3: look switch', () => {
+describe('look switch', () => {
   it('follows the device until a choice is made, and offers the other look by name', () => {
     render(<VisitorHeader />);
     // tests/setup.ts answers every prefers-color-scheme query with no match: a light device.
@@ -167,7 +167,7 @@ describe('feature 3: look switch', () => {
   });
 });
 
-describe('features 2, 5 and 13: the start links once setup is done on this device', () => {
+describe('the start links once setup is done on this device', () => {
   it('read "Start setup" on a first visit and "Open dashboard" after setup, in the header, its Menu and the footer', () => {
     const { container } = render(
       <>

@@ -1,6 +1,6 @@
 /** @jest-environment node */
 /**
- * What a search result and a shared link show of the home page (feature 14)
+ * What a search result and a shared link show of the home page
  *
  * The title, the description, the canonical address and the cards come from
  * the one owner of titles and cards, lib/page-metadata, which the home page
@@ -34,7 +34,7 @@ const blocks = Array.from(page.querySelectorAll('script[type="application/ld+jso
   (script) => JSON.parse(script.textContent || '{}') as Record<string, unknown>
 );
 
-describe('feature 14: the search result', () => {
+describe('the search result', () => {
   it('titles the page with the H1\'s words and the suffix every public page carries', () => {
     expect(HOME_TITLE).toBe('Free motion and sound alerts from an old phone or laptop');
     expect(HOME_FULL_TITLE).toBe('Free motion and sound alerts from an old phone or laptop | SafeOS Guardian');
@@ -73,7 +73,7 @@ describe('feature 14: the search result', () => {
   });
 });
 
-describe('feature 14: the shared-link card', () => {
+describe('the shared-link card', () => {
   it('is the JPEG saved from the real capture when that file exists, for the Open Graph and the X card alike', () => {
     const withCard = fs.mkdtempSync(path.join(os.tmpdir(), 'safeos-card-'));
     fs.mkdirSync(path.join(withCard, 'home'));
@@ -115,7 +115,7 @@ describe('feature 14: the shared-link card', () => {
   });
 });
 
-describe('feature 14: structured data', () => {
+describe('structured data', () => {
   const application = blocks.find((block) => block['@type'] === 'WebApplication') || {};
   const organization = blocks.find((block) => block['@type'] === 'Organization') || {};
 
@@ -152,7 +152,7 @@ describe('feature 14: structured data', () => {
   });
 });
 
-describe('feature 14: the install entry and the sitemap', () => {
+describe('the install entry and the sitemap', () => {
   it('describes the app in the manifest with the dark page colour and no health category', () => {
     const manifest = JSON.parse(fs.readFileSync(path.join(APP_ROOT, 'public', 'manifest.json'), 'utf8')) as Record<string, unknown>;
     expect(manifest.name).toBe('SafeOS Guardian');

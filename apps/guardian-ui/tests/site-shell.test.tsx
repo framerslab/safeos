@@ -6,7 +6,7 @@
  * navigation named "Site") and footer; app screens keep the app's own header
  * (the navigation named "Main"). The home page shows no notification card and
  * no install sheet, whatever the visitor's state, and its skip link moves
- * focus to the main content (feature 1). Once its script has started the
+ * focus to the main content. Once its script has started the
  * shell marks the document, which hides the home page's line for a page
  * whose script did not start.
  */
