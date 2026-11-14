@@ -112,24 +112,15 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
       const cfg = cfgByLevel.get(level);
       if (!cfg) return;
 
+      // The top level sounds as the panel's one emergency loop, which the tick
+      // below starts and stops for every alert at that level together.
+      if (level >= maxLevel) return;
+
       const soundType = cfg.soundType as SoundType;
-      const isEmergencyLevel = level >= maxLevel;
-      const allowSound = isEmergencyLevel || (!muted && effectiveVolume > 0);
-      if (!allowSound) return;
+      if (muted || effectiveVolume <= 0) return;
 
-      const volume = isEmergencyLevel
-        ? 100
-        : Math.max(0, Math.min(100, effectiveVolume * cfg.volumeMultiplier));
-
-      const id = getSoundManager().play(soundType, {
-        loop: isEmergencyLevel,
-        forceMaxVolume: isEmergencyLevel && soundType === 'emergency',
-        volume,
-      });
-
-      if (isEmergencyLevel && !emergencyLoopSoundIdRef.current) {
-        emergencyLoopSoundIdRef.current = id;
-      }
+      const volume = Math.max(0, Math.min(100, effectiveVolume * cfg.volumeMultiplier));
+      getSoundManager().play(soundType, { loop: false, volume });
     };
 
     const tick = () => {
@@ -169,9 +160,12 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
         setEscalationLevels(nextLevels);
       }
 
+      // One loop sounds while any unacknowledged alert is at the top level. An id
+      // the sound module no longer holds is a loop that is not running.
       const hasEmergency = Array.from(nextLevels.values()).some((level) => level >= maxLevel);
       if (hasEmergency) {
-        if (!emergencyLoopSoundIdRef.current) {
+        const loopId = emergencyLoopSoundIdRef.current;
+        if (!loopId || !getSoundManager().isActive(loopId)) {
           const cfg = cfgByLevel.get(maxLevel);
           const soundType = (cfg?.soundType as SoundType) || 'emergency';
           const volume = 100;
