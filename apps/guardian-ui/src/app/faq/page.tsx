@@ -177,7 +177,7 @@ function FAQAccordion({
       </button>
       <div
         className={`overflow-hidden transition-all duration-200 ${
-          isOpen ? 'max-h-96 pb-4' : 'max-h-0'
+          isOpen ? 'max-h-[200rem] pb-4' : 'max-h-0'
         }`}
       >
         <p className="text-slate-300 leading-relaxed">{answer}</p>

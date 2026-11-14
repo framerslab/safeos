@@ -32,7 +32,7 @@ import {
   IconMoon,
 } from '../icons';
 import { useTheme } from '../../lib/theme-manager';
-import { useShortcutsHelp } from '../../lib/keyboard-shortcuts';
+import { showShortcutsHelp } from '../../lib/keyboard-shortcuts';
 
 // =============================================================================
 // Types
@@ -85,7 +85,8 @@ export function Nav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { isDark, toggleTheme } = useTheme();
-  const { toggle: toggleHelp } = useShortcutsHelp();
+  // The provider in the root layout renders the dialog; this only asks it to open.
+  const toggleHelp = showShortcutsHelp;
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   // Prevent hydration mismatch by rendering placeholder during SSR

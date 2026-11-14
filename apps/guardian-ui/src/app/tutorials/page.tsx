@@ -346,10 +346,10 @@ const TUTORIALS: TutorialSection[] = [
     steps: [
       {
         title: 'Processing Modes',
-        content: `Local processing runs entirely in your browser for instant results. The other modes send frames to a server you run yourself, which can pass them to a vision model and adds a short delay.`,
+        content: `Local processing runs entirely in your browser for instant results. The other modes also send frames to a server you run yourself, when one is connected; it can pass them to a vision model, which adds a short delay.`,
         tips: [
           'Local mode needs no server',
-          'The other modes need your own server',
+          'The other modes send frames only when your own server is connected',
           'Hybrid mode checks Lost & Found frames a little less often',
         ],
       },

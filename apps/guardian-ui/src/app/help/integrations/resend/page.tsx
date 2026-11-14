@@ -240,8 +240,8 @@ SAFEOS_API_PUBLIC_URL=https://safeos-api.yourdomain.com`}
         <Card title="Where your data lives">
           <ul className="list-disc list-inside text-sm text-slate-300 space-y-1.5 leading-relaxed">
             <li>
-              The Resend API key (when BYO) sits in this browser&apos;s local storage. It stays
-              in this browser until you click <em>Send test email</em> or an alert fires.
+              A Resend API key you type on the settings page is sent with the test email and is
+              not saved in this browser. Alerts are sent with the key set on the server.
             </li>
             <li>
               Email content is rendered server-side and POSTed to Resend over HTTPS. SafeOS keeps
