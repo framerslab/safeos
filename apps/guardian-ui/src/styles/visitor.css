@@ -565,6 +565,22 @@ html:has(.visitor-shell) {
     display: none;
   }
 
+  /* Before script runs nothing can move the links into the Menu: when the
+     row cannot hold them (larger text) they scroll sideways inside it, with
+     room for the focus ring. */
+  .site-header:not([data-script]) .site-header__links {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow-x: auto;
+    padding-block: 4px;
+    margin-block: -4px;
+  }
+
+  .site-header:not([data-script]) .site-header__links > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
   .site-menu {
     padding-left: max(32px, env(safe-area-inset-left, 0px));
     padding-right: max(32px, env(safe-area-inset-right, 0px));

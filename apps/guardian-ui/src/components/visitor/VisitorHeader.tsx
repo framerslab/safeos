@@ -132,6 +132,16 @@ export function VisitorHeader() {
       if (wasCompact !== null) nav.setAttribute('data-compact', wasCompact);
       setCollapsed(rowOverflows);
       setCompact(menuRowOverflows);
+      // From the tablet width a row that holds the links shows no Menu: an
+      // open one closes, so it does not come back when the window narrows,
+      // and focus inside it moves to the start key in the row.
+      if (!rowOverflows && window.matchMedia?.('(min-width: 48em)').matches) {
+        if (nav.querySelector('#site-menu')?.contains(document.activeElement)) {
+          nav.removeAttribute('data-collapsed');
+          nav.querySelector<HTMLElement>('.site-header__start')?.focus();
+        }
+        setOpen(false);
+      }
     };
     measure();
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
@@ -153,6 +163,7 @@ export function VisitorHeader() {
       ref={navRef}
       aria-label="Site"
       className="site-header"
+      data-script={scriptArrived ? 'true' : undefined}
       data-collapsed={collapsed ? 'true' : undefined}
       data-compact={compact ? 'true' : undefined}
       data-scrolled={scrolled ? 'true' : undefined}
