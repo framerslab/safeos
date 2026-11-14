@@ -696,6 +696,7 @@ const dropped = () => new ProfileSaveError('browser',
  * One profile save, run when the saves before it have settled. `work` was begun when the save was
  * made: once all local data was cleared since, or the tab holds another session, the save changes
  * nothing, sends nothing, writes nothing and is not saved, and a change it had made is not put back.
+ * A reload notice set while the save waited its turn refuses it before anything is changed or sent.
  * Its change is built on the profile the saves before it settled (a change that was taken stays, one
  * that was not was put back), and a change that is not taken is put back to that profile. A session
  * on a server is decided by the server, within the request's time limit; with no server address set,
@@ -703,6 +704,8 @@ const dropped = () => new ProfileSaveError('browser',
  */
 async function saveProfile(session: SessionState, change: (settled: UserProfile) => Partial<UserProfile>, work: SessionWork): Promise<void> {
   if (session.isVoid(work)) throw dropped();
+  const notice = getDatabaseNotice();
+  if (notice) throw new ProfileSaveRefused(notice);
   const token = work.token;
   const settled = session.get().profile;
   if (!settled) return;
@@ -761,7 +764,8 @@ async function saveProfile(session: SessionState, change: (settled: UserProfile)
 
 /**
  * Queues a profile save, with the work of this moment: the clears so far and the session the tab
- * holds. Under a reload notice nothing is changed or sent, and the caller must be able to say so.
+ * holds. Under a reload notice nothing is changed or sent, and the caller must be able to say so;
+ * the save reads the notice again when its turn comes.
  */
 function queueProfileSave(session: SessionState, change: (settled: UserProfile) => Partial<UserProfile>): Promise<void> {
   const notice = getDatabaseNotice();
