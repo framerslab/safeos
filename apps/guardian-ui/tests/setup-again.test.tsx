@@ -78,6 +78,50 @@ it('resets nothing while the visitor goes on to step 3: setup is still done on t
   expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
 });
 
+it('keeps each answer on the page until the last step: a visitor who leaves part way keeps the saved setup', async () => {
+  window.history.replaceState({}, '', '/setup/?again=1');
+  finishSetup();
+  useOnboardingStore.setState({ disclaimerAcceptedAt: '2026-11-01T00:00:00.000Z', cameraPermissionGranted: false });
+  render(<SetupPage />);
+  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Grant Permissions/ }));
+  await screen.findByRole('button', { name: /Continue/ });
+
+  // The visitor leaves before the last step.
+  cleanup();
+  const saved = useOnboardingStore.getState();
+  expect(saved.isComplete).toBe(true);
+  expect(saved.selectedScenario).toBe('pet');
+  expect(saved.disclaimerAcceptedAt).toBe('2026-11-01T00:00:00.000Z');
+  expect(saved.cameraPermissionGranted).toBe(false);
+});
+
+it('saves the new answers when the visitor finishes the last step', async () => {
+  window.history.replaceState({}, '', '/setup/?again=1');
+  finishSetup();
+  useOnboardingStore.setState({ disclaimerAcceptedAt: '2026-11-01T00:00:00.000Z', cameraPermissionGranted: false });
+  render(<SetupPage />);
+  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Grant Permissions/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Continue/ }));
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: /Skip & Continue/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Launch Dashboard/ }));
+
+  const saved = useOnboardingStore.getState();
+  expect(saved.isComplete).toBe(true);
+  expect(saved.selectedScenario).toBe('baby');
+  expect(saved.disclaimerAcceptedAt).not.toBe('2026-11-01T00:00:00.000Z');
+  expect(saved.cameraPermissionGranted).toBe(true);
+  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
+});
+
 it('still opens at its first step for a first visit, with or without the parameter', () => {
   for (const address of ['/setup/', '/setup/?again=1']) {
     window.history.replaceState({}, '', address);
