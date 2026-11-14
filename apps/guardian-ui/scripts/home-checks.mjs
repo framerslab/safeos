@@ -26,8 +26,12 @@ const THEME_COLOURS = { light: '#f8f9fa', dark: '#0b131b' };
 // space and a non-breaking space.
 const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
 
-// A person who has finished setup on this device.
+// A person who has finished setup on this device. Seeded on the first page of
+// the visit only: later pages read what the earlier ones left, so a page that
+// cleared the saved setup is seen.
 const SETUP_DONE = () => {
+  if (sessionStorage.getItem('home-checks-seeded')) return;
+  sessionStorage.setItem('home-checks-seeded', '1');
   localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
     isComplete: true, selectedScenario: 'pet',
     acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
@@ -498,6 +502,11 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       await page.waitForTimeout(2_000);
       const address = new URL(page.url());
       expect(/^\/setup\/?$/.test(address.pathname) && address.search === '?again=1', `start key: "Run setup again" ended at ${address.pathname}${address.search}`);
+      const kept = await page.evaluate(() => ({
+        complete: JSON.parse(localStorage.getItem('safeos-onboarding') || '{}').state?.isComplete ?? null,
+        flag: localStorage.getItem('guardian-onboarding-complete'),
+      }));
+      expect(kept.complete === true && kept.flag === 'true', `start key: opening "Run setup again" changed the saved setup (${JSON.stringify(kept)})`);
       // Nothing was reset: the home page still says setup is done, and setup
       // with no parameter goes on to the dashboard.
       await visit(page);

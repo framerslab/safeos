@@ -178,8 +178,9 @@ jobs:
       - name: Serve the site and capture the monitor
         env:
           CAPTURE_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CAPTURE_COMMIT: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         run: |
+          # The commit the job checked out and built, whatever the event's own commit.
+          export CAPTURE_COMMIT="$(git rev-parse HEAD)"
           python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:4173/ >/dev/null && break

@@ -103,15 +103,14 @@ async function watchUntilMotionAlert(page, name) {
   const started = Date.now();
   await page.getByText(MOTION_ALERT).first().waitFor({ timeout: 120_000 });
   const motionAt = ((Date.now() - started) / 1000).toFixed(1);
-  const sound = await page.getByText(SOUND_ALERT).count();
-  console.log(`${name}: the alert list holds a motion alert ${motionAt} s after the camera went live, and ${sound} sound alert${sound === 1 ? '' : 's'}`);
+  console.log(`${name}: the alert list holds a motion alert ${motionAt} s after the camera went live`);
   console.log(`${name}: motion alert reads "${(await page.getByText(MOTION_ALERT).first().textContent()).trim()}"`);
   // The Motion indicator turns to its alert colour while the reading is at or
   // over the line; the capture is saved while it is.
   const indicator = page.getByRole('status', { name: /^Motion level/ });
   await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
   console.log(`${name}: Motion indicator before saving: "${await indicator.getAttribute('aria-label')}"`);
-  return { indicator, sound };
+  return { indicator };
 }
 
 async function saveCrop(page, relative, clip, details) {
@@ -182,8 +181,13 @@ try {
       const page = await context.newPage();
       const name = `1280 px monitor, ${look}`;
       try {
-        const { indicator, sound } = await watchUntilMotionAlert(page, name);
-        if (sound === 0) throw new Error(`${name}: the alert list holds no sound alert`);
+        const { indicator } = await watchUntilMotionAlert(page, name);
+        // The landscape crop shows the alert list, which also holds a sound alert.
+        await page.getByText(SOUND_ALERT).first().waitFor({ timeout: 120_000 })
+          .catch(() => { throw new Error(`${name}: the alert list holds no sound alert`); });
+        const sound = await page.getByText(SOUND_ALERT).count();
+        console.log(`${name}: the alert list holds ${sound} sound alert${sound === 1 ? '' : 's'}`);
+        await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
         const grid = await page.locator('main > div.grid').first().boundingBox();
         if (!grid || grid.width < 1100 || grid.width > 1280) throw new Error(`${name}: the monitor's grid is ${grid ? Math.round(grid.width) : 'not'} px wide`);
         const width = Math.floor(grid.width);
