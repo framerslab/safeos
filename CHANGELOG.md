@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lost & Found offers a pet or an item; subjects saved with the person type keep showing. The processing choice that only slowed the same matcher is gone.
 
 ### Fixed
+- The built-in alert sounds play. The browser generates them as tones: one beep for a notification, two rising beeps for an alert, three beeps for a warning, two alternating tones for the alarm and a higher, faster pair for the emergency sound, each pair repeating while it loops. No sound file is fetched, so they play offline too. The five files the site served in their place held placeholder text, so every built-in sound failed to play.
 - A queued action the server confirmed and the browser could not save keeps the server's answer and counts no failed try. The next sync applies that answer without a new request, and the five-try limit does not drop it; if the queue cannot be written either, the action stays as it was.
 - A failed acknowledgement of a saved engine alert is retried with no clear stamp, so Clear all in any tab, which keeps engine alerts, does not cancel it. After Clear All Local Data or a sign-out the record is gone, and the retry writes nothing.
 - Privacy distinguishes browser records from records kept on a configured server; clearing browser data or signing out does not delete server records.
