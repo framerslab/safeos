@@ -175,7 +175,7 @@ Browser push works straight from the static PWA. Email via [Resend](https://rese
 Two ways to wire it up:
 
 1. **Server-wide key (operator pays).** Set `RESEND_API_KEY`, `EMAIL_FROM`, `EMAIL_REPLY_TO` and `SAFEOS_API_PUBLIC_URL` in the API server's `.env`. The server sends alert email with this key only for the operator's own account (the profile with the operator role). Transactional auth email (verification + reset) requires this path.
-2. **Bring your own key (per user).** In the app, go to **Settings → Notifications**, toggle on email alerts, and enable **Use my own Resend account**. Paste a Resend API key and a verified sender. The page sends the key with the test email and does not save it.
+2. **Your own key, for the test email.** In the app, go to **Settings → Notifications**, toggle on email alerts, and enable **Use my own Resend account**. Paste a Resend API key and a verified sender. The page sends the key with the test email and does not save it, so alerts do not use it. For an account that is not the operator's, alert email needs a personal key saved in that profile's notification settings through the API (`emailOverride`).
 
 Alert email goes out only when the profile has email turned **on** and a recipient set. The settings page's test sends one email; saving that page does not turn on alert email. See [`apps/guardian-ui/src/app/help/integrations/resend`](apps/guardian-ui/src/app/help/integrations/resend) for the full setup walkthrough or read [`src/lib/alerts/email.ts`](src/lib/alerts/email.ts) for the implementation.
 
