@@ -916,6 +916,17 @@ describe('Sound Manager', () => {
       'the browser has no AudioContext': () => {
         delete browser.AudioContext;
       },
+      // A partial AudioContext, such as a page's stand-in, that makes no audio nodes.
+      'the context cannot make audio nodes': () => {
+        browser.AudioContext = class {
+          state = 'running';
+          currentTime = 0;
+          destination = {};
+          resume(): Promise<void> {
+            return Promise.resolve();
+          }
+        };
+      },
     };
 
     for (const [name, arrange] of Object.entries(cannotStart)) {
