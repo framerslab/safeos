@@ -12,6 +12,7 @@ import path from 'path';
 import { describe, it, expect, beforeEach, jest, afterEach } from '@jest/globals';
 import {
   FakeAudioContext,
+  type FakeGain,
   type FakeOscillator,
   audioSetup,
   lastStop,
@@ -1013,7 +1014,7 @@ describe('Sound Manager', () => {
       context.state = 'suspended';
       const count = made.oscillators.length;
       await runClock(context, cycle * 10 * 1000);
-      expect(made.oscillators).toHaveLength(count);
+      expect(made.oscillators.length).toBe(count);
 
       // It runs again: one chain goes on from the third pass, one pass per cycle.
       // Each pass is scheduled when the one before it starts.
