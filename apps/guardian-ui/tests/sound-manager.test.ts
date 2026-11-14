@@ -1063,4 +1063,223 @@ describe('Sound Manager', () => {
       ]);
     });
   });
+
+  describe('Stopping during a fade out', () => {
+    // A notification fades out over 200 ms. It loops in these cases so it sounds through the fade.
+    const playLoop = async () => {
+      const manager = getSoundManager();
+      const id = manager.play('notification', { loop: true, fadeIn: 0 });
+      await settle();
+      const gain = soundGains()[soundGains().length - 1];
+      await runClock(made.contexts[0], 300);
+      return { manager, id, gain, context: made.contexts[0] };
+    };
+
+    it('a second stop(id) does not postpone the first: the sound leaves 200 ms after the first stop; stop(id, 0) and stopAll end a fading sound at once', async () => {
+      jest.useFakeTimers();
+      const { manager, id, gain, context } = await playLoop();
+
+      manager.stop(id);
+      await runClock(context, 150);
+      expect(manager.isActive(id)).toBe(true);
+      manager.stop(id);
+      // The first fade goes on from where it was: 17 of its 20 steps are done 170 ms in.
+      await runClock(context, 20);
+      expect(gain.gain.value).toBeCloseTo(0.7 * (3 / 20));
+      await runClock(context, 30);
+      expect(manager.isActive(id)).toBe(false);
+      expect(gain.disconnected).toBe(true);
+
+      const cut = await playLoop();
+      manager.stop(cut.id);
+      await runClock(context, 100);
+      expect(manager.isActive(cut.id)).toBe(true);
+      manager.stop(cut.id, 0);
+      expect(manager.isActive(cut.id)).toBe(false);
+      expect(cut.gain.disconnected).toBe(true);
+
+      const all = await playLoop();
+      manager.stop(all.id);
+      await runClock(context, 100);
+      expect(manager.isActive(all.id)).toBe(true);
+      manager.stopAll();
+      expect(manager.isActive(all.id)).toBe(false);
+      expect(all.gain.disconnected).toBe(true);
+    });
+
+    it('a stop repeated every 150 ms does not keep a sound active', async () => {
+      jest.useFakeTimers();
+      const { manager, id, gain, context } = await playLoop();
+
+      manager.stop(id);
+      await runClock(context, 150);
+      manager.stop(id);
+      await runClock(context, 150);
+      // 300 ms after the first stop, and 100 ms past its fade.
+      expect(manager.isActive(id)).toBe(false);
+      expect(gain.disconnected).toBe(true);
+
+      const count = made.oscillators.length;
+      for (let repeat = 0; repeat < 5; repeat += 1) {
+        manager.stop(id);
+        await runClock(context, 150);
+      }
+      expect(manager.isPlaying()).toBe(false);
+      expect(made.oscillators).toHaveLength(count);
+    });
+  });
+
+  describe('A volume or mute change during a fade out to stop', () => {
+    // An alarm and an emergency sound, both one second into a ten-second fade out to stop.
+    const fadingOut = async () => {
+      const manager = getSoundManager();
+      const alarm = manager.play('alarm', { fadeIn: 0 });
+      const emergency = manager.play('emergency', { fadeIn: 0 });
+      await settle();
+      const context = made.contexts[0];
+      const [alarmGain, emergencyGain] = soundGains();
+      await runClock(context, 500);
+
+      manager.stop(alarm, 10000);
+      manager.stop(emergency, 10000);
+      await runClock(context, 1000);
+      expect(manager.getActiveSounds().map((sound) => sound.id)).toEqual([alarm, emergency]);
+      expect(alarmGain.gain.value).toBeGreaterThan(0);
+      return { manager, alarm, emergency, context, alarmGain, emergencyGain };
+    };
+
+    // The emergency sound is exempt from volume and mute: its fade runs to its own end, ten seconds after its stop.
+    const emergencyFadesToItsEnd = async (
+      { manager, emergency, context, emergencyGain }: Awaited<ReturnType<typeof fadingOut>>,
+      sinceStop: number,
+    ) => {
+      await runClock(context, 9500 - sinceStop);
+      expect(manager.getActiveSounds().map((sound) => sound.id)).toEqual([emergency]);
+      expect(emergencyGain.disconnected).toBe(false);
+      expect(emergencyGain.gain.value).toBeGreaterThan(0);
+      await runClock(context, 600);
+      expect(manager.getActiveSounds()).toEqual([]);
+      expect(emergencyGain.disconnected).toBe(true);
+    };
+
+    it('setUserVolume(0) ends the fading sound at that call: it leaves the active list and its gain is disconnected', async () => {
+      jest.useFakeTimers();
+      const sounds = await fadingOut();
+      const { manager, alarm, emergency, context, alarmGain } = sounds;
+
+      // A call with the volume it already has changes nothing.
+      manager.setUserVolume(manager.getUserVolume());
+      expect(manager.isActive(alarm)).toBe(true);
+      expect(alarmGain.disconnected).toBe(false);
+
+      const at = context.currentTime;
+      manager.setUserVolume(0);
+      expect(manager.getActiveSounds().map((sound) => sound.id)).toEqual([emergency]);
+      expect(alarmGain.disconnected).toBe(true);
+      expect(through(alarmGain).map(lastStop).filter((time) => time > at)).toEqual([]);
+
+      // Nothing of it goes on: no tone is scheduled and its gain is not written again.
+      const tones = through(alarmGain).length;
+      const writes = alarmGain.gain.writes.length;
+      await runClock(context, 3000);
+      expect(through(alarmGain)).toHaveLength(tones);
+      expect(alarmGain.gain.writes).toHaveLength(writes);
+
+      await emergencyFadesToItsEnd(sounds, 4000);
+    });
+
+    it('setGlobalMute(true) ends the fading sound at that call, and setGlobalMute(false) brings nothing of it back', async () => {
+      jest.useFakeTimers();
+      const sounds = await fadingOut();
+      const { manager, alarm, emergency, context, alarmGain } = sounds;
+
+      // A call with the mute state it already has changes nothing.
+      manager.setGlobalMute(false);
+      expect(manager.isActive(alarm)).toBe(true);
+      expect(alarmGain.disconnected).toBe(false);
+
+      const at = context.currentTime;
+      manager.setGlobalMute(true);
+      expect(manager.getActiveSounds().map((sound) => sound.id)).toEqual([emergency]);
+      expect(alarmGain.disconnected).toBe(true);
+      expect(through(alarmGain).map(lastStop).filter((time) => time > at)).toEqual([]);
+
+      const tones = through(alarmGain).length;
+      const writes = alarmGain.gain.writes.length;
+      await runClock(context, 1000);
+      manager.setGlobalMute(false);
+      await runClock(context, 2000);
+      expect(manager.isActive(alarm)).toBe(false);
+      expect(through(alarmGain)).toHaveLength(tones);
+      expect(alarmGain.gain.writes).toHaveLength(writes);
+
+      await emergencyFadesToItsEnd(sounds, 4000);
+    });
+  });
+
+  describe('A closed audio context', () => {
+    const alarmPattern = () => (soundModule.TONE_PATTERNS as Record<string, PatternShape>).alarm;
+    const onContext = (context: FakeAudioContext) =>
+      made.oscillators.filter((oscillator) => oscillator.context === context);
+
+    it('a loop that waits on a suspended context leaves the active list when the context closes, with nothing scheduled; the next play makes a new context and sounds', async () => {
+      jest.useFakeTimers();
+      audioSetup.state = 'suspended';
+      // A browser that blocks audio leaves the promise of resume() pending.
+      audioSetup.resume = () => new Promise<void>(() => {});
+      const manager = getSoundManager();
+
+      const id = manager.play('emergency', { fadeIn: 0 });
+      await settle();
+      const context = made.contexts[0];
+      const [gain] = soundGains();
+      await runClock(context, 1500);
+      // Past the one-second wait the loop waits for its context to run.
+      expect(manager.isActive(id)).toBe(true);
+      expect(started()).toEqual([]);
+
+      await context.close();
+      expect(manager.isActive(id)).toBe(false);
+      expect(manager.getActiveSounds()).toEqual([]);
+      expect(gain.disconnected).toBe(true);
+      await runClock(context, 3000);
+      expect(made.oscillators).toEqual([]);
+
+      // The next play does not use the closed context. A new context starts running.
+      audioSetup.state = 'running';
+      const next = manager.play('alarm', { fadeIn: 0 });
+      await settle();
+      expect(made.contexts).toHaveLength(2);
+      const fresh = made.contexts[1];
+      expect(fresh.state).toBe('running');
+      expect(onContext(context)).toEqual([]);
+      expect(onContext(fresh).map(describeOscillator)).toEqual(schedule(alarmPattern(), 0));
+      expect(manager.isActive(next)).toBe(true);
+      const freshGains = made.gains.filter((node) => node.outputs.includes(fresh.destination));
+      expect(freshGains.map((node) => node.disconnected)).toEqual([false]);
+    });
+
+    it('a loop that sounds leaves the active list when its context closes, and queues no more passes', async () => {
+      jest.useFakeTimers();
+      const manager = getSoundManager();
+
+      const id = manager.play('alarm', { fadeIn: 0 });
+      await settle();
+      const context = made.contexts[0];
+      const [gain] = soundGains();
+      await runClock(context, 500);
+      expect(manager.isActive(id)).toBe(true);
+      const count = made.oscillators.length;
+
+      await context.close();
+      expect(manager.isActive(id)).toBe(false);
+      expect(gain.disconnected).toBe(true);
+
+      // Timers go on for ten passes' time; nothing is scheduled on the closed context.
+      const cycle = passLength(alarmPattern()) + (alarmPattern().repeatPause ?? 0) / 1000;
+      await runClock(context, 10 * cycle * 1000);
+      expect(made.oscillators).toHaveLength(count);
+      expect(made.contexts).toHaveLength(1);
+    });
+  });
 });
