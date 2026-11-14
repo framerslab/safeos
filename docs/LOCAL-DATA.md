@@ -25,10 +25,16 @@ Log Out asks the server to end the session and waits at most 15 seconds for its
 answer; with no answer by then it clears this browser all the same.
 
 Either clear in one tab signs the other open tabs out. The browser tells each
-open tab of the clear; the tab then drops its session and profile, and its
-session requests and profile saves in flight change nothing. A profile change
-made in such a tab afterwards writes nothing: it has no session to save under
-until it makes one or is reloaded.
+open tab of the clear; the tab then drops its session and profile, its session
+requests and profile saves in flight change nothing, and a page that waited on
+session set-up is let go at once. A profile change made in an open tab once the
+clear has finished writes nothing and fails as not saved, also before the
+browser has told that tab; once told, the tab has no session to save under
+until it makes one or is reloaded. A session that a tab made after the clear
+had finished is kept when the tab is told of that clear late. A clear that
+fails partway, which takes a failure of the browser's storage, can have signed
+the other open tabs out already: a tab whose saved session was not deleted
+finds it again at its next load.
 
 A session answer that arrives after either clear, in this tab or another, is
 dropped and leaves the tab signed out, unless the tab has made a new session
@@ -64,10 +70,15 @@ save. With no server address set, such a save fails as when the server did not
 take it. For a session that lives only in this browser, this browser's write
 decides. A profile request that has no answer within 15 seconds counts as not
 taken. Saves under one session run one after another, and a change that was not
-taken is put back to the profile the save before it left. A change made under
-one session is neither sent nor written once the tab holds another session, or
-once all local data was cleared; it fails as not saved, and after such a clear
-the change is not put back. Settings then shows
+taken is put back to the profile the save before it left. A change whose turn
+comes once the tab holds another session, or once all local data was cleared,
+is neither sent nor written and fails as not saved. A change of a browser-only
+session whose write such a clear cancelled fails as not saved too. A change the
+server takes stays taken, also when its answer comes after such a clear: the
+save succeeds, and no copy of it is written to this browser. After such a clear
+no change is put back. A change whose turn comes under a reload notice is
+refused before anything is changed or sent, as one made under the notice is.
+When a change was not saved, Settings shows
 "Failed to save settings." Notification Settings shows "The server did not take
 the change. Save again when you are connected." when the server did not take
 it, and "Notification settings were not saved. Try again." when this browser
