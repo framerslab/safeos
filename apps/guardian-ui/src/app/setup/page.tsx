@@ -39,6 +39,18 @@ import { SETUP_STEPS, type SetupStep } from '../../lib/setup-steps';
 // are and which one asks for the camera.
 type Step = SetupStep;
 
+type Scenario = 'pet' | 'baby' | 'elderly' | 'security';
+
+// The answers a visitor running setup again gives before the last step.
+interface StagedAnswers {
+  disclaimers: boolean;
+  scenario: Scenario | null;
+  camera: boolean | null;
+  microphone: boolean | null;
+}
+
+const NO_ANSWERS: StagedAnswers = { disclaimers: false, scenario: null, camera: null, microphone: null };
+
 const STEPS: Step[] = SETUP_STEPS;
 
 // =============================================================================
@@ -53,19 +65,25 @@ export default function SetupPage() {
   const [permissionStatus, setPermissionStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
+  // Running setup again (/setup/?again=1, the home page's "Run setup again")
+  // keeps each answer on this page and saves them all at the last step, so a
+  // visitor who leaves part way keeps the setup they had.
+  const [again] = useState(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('again') === '1'
+  );
+  const [staged, setStaged] = useState<StagedAnswers>(NO_ANSWERS);
+
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
 
   // A person whose setup is done goes on to the dashboard, unless they asked
-  // to run setup again (/setup/?again=1, the home page's "Run setup again").
-  // Arriving that way resets nothing: the saved setup stays as it is until the
-  // last step is finished.
+  // to run setup again. Arriving that way resets nothing: the saved setup
+  // stays as it is until the last step is finished.
   useEffect(() => {
-    const again = new URLSearchParams(window.location.search).get('again') === '1';
     if (!again && canSkipOnboarding(onboarding)) {
       router.push('/dashboard');
     }
-  }, [onboarding, router]);
+  }, [again, onboarding, router]);
 
   const goNext = () => {
     const nextIndex = currentIndex + 1;
@@ -98,8 +116,13 @@ export default function SetupPage() {
       }
       stream.getTracks().forEach((track) => track.stop());
       setPermissionStatus('granted');
-      onboarding.setCameraPermission(true);
-      onboarding.setMicrophonePermission(microphone && stream.getAudioTracks().length > 0);
+      const heard = microphone && stream.getAudioTracks().length > 0;
+      if (again) {
+        setStaged((answers) => ({ ...answers, camera: true, microphone: heard }));
+      } else {
+        onboarding.setCameraPermission(true);
+        onboarding.setMicrophonePermission(heard);
+      }
     } catch (error) {
       const name = error instanceof Error ? error.name : '';
       const denied = name === 'NotAllowedError' || name === 'SecurityError';
@@ -112,6 +135,12 @@ export default function SetupPage() {
   };
 
   const completeSetup = () => {
+    if (again) {
+      if (staged.disclaimers) onboarding.acceptAllDisclaimers();
+      if (staged.scenario) onboarding.setScenario(staged.scenario);
+      if (staged.camera !== null) onboarding.setCameraPermission(staged.camera);
+      if (staged.microphone !== null) onboarding.setMicrophonePermission(staged.microphone);
+    }
     onboarding.setComplete(true);
     router.push('/dashboard');
   };
@@ -162,7 +191,8 @@ export default function SetupPage() {
           {currentStep === 'disclaimer' && (
             <DisclaimerStep
               onAccept={() => {
-                onboarding.acceptAllDisclaimers();
+                if (again) setStaged((answers) => ({ ...answers, disclaimers: true }));
+                else onboarding.acceptAllDisclaimers();
                 goNext();
               }}
               onBack={goBack}
@@ -170,9 +200,10 @@ export default function SetupPage() {
           )}
           {currentStep === 'scenario' && (
             <ScenarioStep
-              selectedScenario={onboarding.selectedScenario}
+              selectedScenario={staged.scenario ?? onboarding.selectedScenario}
               onSelect={(scenario) => {
-                onboarding.setScenario(scenario);
+                if (again) setStaged((answers) => ({ ...answers, scenario }));
+                else onboarding.setScenario(scenario);
                 goNext();
               }}
               onBack={goBack}
