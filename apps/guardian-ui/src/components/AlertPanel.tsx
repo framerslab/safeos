@@ -77,7 +77,8 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
   const [escalationLevels, setEscalationLevels] = useState<Map<string, number>>(new Map());
   const escalationLevelsRef = useRef<Map<string, number>>(new Map());
   const [muted, setMuted] = useState(false);
-  const emergencyLoopSoundIdRef = useRef<string | null>(null);
+  // The loop that sounds for the top escalation level, and the sound it plays.
+  const emergencyLoopRef = useRef<{ id: string; type: SoundType } | null>(null);
   const effectiveMuted = (muted || globalMute) && !emergencyModeActive;
 
   // Escalation engine (tick-based) so sounds reliably fire at level boundaries.
@@ -160,37 +161,51 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
         setEscalationLevels(nextLevels);
       }
 
-      // One loop sounds while any unacknowledged alert is at the top level. An id
-      // the sound module no longer holds is a loop that is not running.
+      // One loop sounds while any unacknowledged alert is at the top level, and
+      // it plays on through every run of this effect. A loop the sound module
+      // does not hold is one that is not running, and is started again.
       const hasEmergency = Array.from(nextLevels.values()).some((level) => level >= maxLevel);
+      const manager = getSoundManager();
+      const loop = emergencyLoopRef.current;
       if (hasEmergency) {
-        const loopId = emergencyLoopSoundIdRef.current;
-        if (!loopId || !getSoundManager().isActive(loopId)) {
-          const cfg = cfgByLevel.get(maxLevel);
-          const soundType = (cfg?.soundType as SoundType) || 'emergency';
+        const cfg = cfgByLevel.get(maxLevel);
+        const soundType = (cfg?.soundType as SoundType) || 'emergency';
+        const playing = loop && manager.isActive(loop.id) ? loop : null;
+        if (playing && playing.type !== soundType) {
+          // The sound set for the top level changed: the old loop ends at once,
+          // so the two never sound together.
+          manager.stop(playing.id, 0);
+        }
+        if (!playing || playing.type !== soundType) {
           const volume = 100;
-          emergencyLoopSoundIdRef.current = getSoundManager().play(soundType, {
+          const id = manager.play(soundType, {
             loop: true,
             forceMaxVolume: soundType === 'emergency',
             volume,
           });
+          emergencyLoopRef.current = { id, type: soundType };
         }
-      } else if (emergencyLoopSoundIdRef.current) {
-        getSoundManager().stop(emergencyLoopSoundIdRef.current);
-        emergencyLoopSoundIdRef.current = null;
+      } else if (loop) {
+        manager.stop(loop.id);
+        emergencyLoopRef.current = null;
       }
     };
 
     tick();
     const interval = window.setInterval(tick, 500);
-    return () => {
-      window.clearInterval(interval);
-      if (emergencyLoopSoundIdRef.current) {
-        getSoundManager().stop(emergencyLoopSoundIdRef.current);
-        emergencyLoopSoundIdRef.current = null;
-      }
-    };
+    // The loop is not stopped here: a new alert, an acknowledgement, a volume
+    // change or a mute change runs this effect again, and the loop plays on.
+    return () => window.clearInterval(interval);
   }, [alerts, escalationConfig, effectiveVolume, muted]);
+
+  // The loop stops when the panel unmounts.
+  useEffect(() => () => {
+    const loop = emergencyLoopRef.current;
+    if (loop) {
+      getSoundManager().stop(loop.id);
+      emergencyLoopRef.current = null;
+    }
+  }, []);
 
   // Handle acknowledge
   const handleAcknowledge = useCallback(
