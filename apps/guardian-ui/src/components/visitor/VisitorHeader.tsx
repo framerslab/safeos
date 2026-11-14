@@ -132,11 +132,14 @@ export function VisitorHeader() {
       if (wasCompact !== null) nav.setAttribute('data-compact', wasCompact);
       setCollapsed(rowOverflows);
       setCompact(menuRowOverflows);
-      // From the tablet width a row that holds the links shows no Menu: an
-      // open one closes, so it does not come back when the window narrows,
-      // and focus inside it moves to the start key in the row.
+      // From the tablet width a row that holds the links shows no Menu and
+      // no Menu key: an open one closes, so it does not come back when the
+      // window narrows, and focus inside it or on its key moves to the start
+      // key in the row.
       if (!rowOverflows && window.matchMedia?.('(min-width: 48em)').matches) {
-        if (nav.querySelector('#site-menu')?.contains(document.activeElement)) {
+        const focused = document.activeElement;
+        const onMenuKey = !!menuKeyRef.current && focused === menuKeyRef.current;
+        if (onMenuKey || nav.querySelector('#site-menu')?.contains(focused)) {
           nav.removeAttribute('data-collapsed');
           nav.querySelector<HTMLElement>('.site-header__start')?.focus();
         }
