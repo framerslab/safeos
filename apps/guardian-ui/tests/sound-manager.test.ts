@@ -255,6 +255,42 @@ describe('Sound Manager', () => {
       await runClock(context, 1000);
       expect(ended).toEqual(['once', 'sooner', 'later']);
     });
+
+    it('ends an oscillator stopped before its start time when the clock passes the stop time, a stop time in the past counting as the current time', async () => {
+      jest.useFakeTimers();
+      const context = new FakeAudioContext();
+      const ended: string[] = [];
+      const oscillator = (name: string, start: number) => {
+        const node = context.createOscillator();
+        node.onended = () => ended.push(name);
+        node.start(start);
+        return node;
+      };
+
+      // Scheduled to start at 5 s and stopped for 0.1 s: it never plays, and ends at 0.1 s.
+      const cancelled = oscillator('cancelled', 5);
+      cancelled.stop(0.1);
+      expect(cancelled.endsAt()).toBeCloseTo(0.1);
+      await runClock(context, 50);
+      expect(ended).toEqual([]);
+      await runClock(context, 100);
+      expect(ended).toEqual(['cancelled']);
+
+      // The clock is at 0.15 s. A stop time of 0, or one the clock has passed, is a stop now.
+      const now = context.currentTime;
+      const stoppedNow = oscillator('stopped now', 3);
+      stoppedNow.stop();
+      const stoppedInThePast = oscillator('stopped in the past', 3);
+      stoppedInThePast.stop(0.05);
+      expect(stoppedNow.endsAt()).toBeCloseTo(now);
+      expect(stoppedInThePast.endsAt()).toBeCloseTo(now);
+      await runClock(context, 10);
+      expect(ended).toEqual(['cancelled', 'stopped now', 'stopped in the past']);
+
+      // Each end is delivered once: nothing more when the clock passes the start times.
+      await runClock(context, 6000);
+      expect(ended).toEqual(['cancelled', 'stopped now', 'stopped in the past']);
+    });
   });
 
   describe('Singleton Pattern', () => {
