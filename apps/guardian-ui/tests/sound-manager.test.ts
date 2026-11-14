@@ -908,6 +908,11 @@ describe('Sound Manager', () => {
         audioSetup.state = 'suspended';
         audioSetup.resume = () => Promise.resolve();
       },
+      // A browser that blocks audio leaves the promise of resume() pending.
+      'resume does not settle within a second': () => {
+        audioSetup.state = 'suspended';
+        audioSetup.resume = () => new Promise<void>(() => {});
+      },
       'the browser has no AudioContext': () => {
         delete browser.AudioContext;
       },
@@ -915,6 +920,7 @@ describe('Sound Manager', () => {
 
     for (const [name, arrange] of Object.entries(cannotStart)) {
       it(`when ${name}, play does not throw, warns once and leaves no active sound`, async () => {
+        jest.useFakeTimers();
         arrange();
         const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
         const manager = getSoundManager();
@@ -924,6 +930,8 @@ describe('Sound Manager', () => {
           id = manager.play('alert', { fadeIn: 0 });
         }).not.toThrow();
         expect(id).toContain('alert');
+        await settle();
+        jest.advanceTimersByTime(1000);
         await settle();
 
         expect(manager.getActiveSounds()).toHaveLength(0);
