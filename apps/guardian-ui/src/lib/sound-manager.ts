@@ -5,7 +5,8 @@
  * Emergency mode always plays at 100% volume regardless of user settings.
  *
  * FEATURES:
- * - Built-in alert sounds (notification, alert, warning, alarm, emergency)
+ * - Built-in alert sounds (notification, alert, warning, alarm, emergency),
+ *   generated as tones with the Web Audio API: no file, no connection needed
  * - Custom sound support via IndexedDB (see /settings/sounds)
  * - Priority-based playback (higher priority interrupts lower)
  * - Volume control with emergency override
@@ -43,7 +44,6 @@ export type { SoundTrigger } from './custom-sounds-db';
 
 export interface SoundConfig {
   type: SoundType;
-  path: string;
   defaultVolume: number;   // 0-100
   priority: number;        // Higher = more important
   loop: boolean;
@@ -63,11 +63,129 @@ export interface PlayOptions {
 interface ActiveSound {
   id: string;
   type: SoundType;
-  audio: HTMLAudioElement;
+  /** A custom sound plays through an audio element. */
+  audio?: HTMLAudioElement;
+  /** A built-in sound plays generated tones. */
+  tones?: ToneVoice;
   priority: number;
   startTime: number;
   loop: boolean;
   onEnd?: () => void;
+}
+
+/** The tones of one built-in sound as it plays. */
+interface ToneVoice {
+  /** Carries the sound's volume; every tone plays through it. */
+  gain: GainNode;
+  /** Tones scheduled that have not ended. */
+  oscillators: Set<OscillatorNode>;
+  volume: number;          // 0-1, before mute
+  muted: boolean;
+  /** Queues the next pass of a looping sound. */
+  timer: ReturnType<typeof setTimeout> | null;
+  stopped: boolean;
+}
+
+// =============================================================================
+// Generated Tones
+// =============================================================================
+
+export type ToneWave = 'sine' | 'triangle' | 'square';
+
+export interface Tone {
+  frequency: number;       // Hz
+  duration: number;        // ms
+  gapAfter: number;        // ms of silence after the tone
+}
+
+export interface TonePattern {
+  tones: Tone[];
+  wave: ToneWave;
+  /** Peak of each tone before the volume is applied (1 = full scale). */
+  level: number;
+  /** Silence between repeats of a looping sound, in ms. */
+  repeatPause?: number;
+}
+
+/** Every tone ramps in and out over this many ms, so it does not click. */
+export const TONE_RAMP_MS = 10;
+
+/** Silence between repeats, in ms, when a caller loops a sound that has no pause of its own. */
+export const DEFAULT_REPEAT_PAUSE_MS = 400;
+
+/** How long a play waits for a suspended context to resume, in ms. */
+const RESUME_WAIT_MS = 1000;
+
+/**
+ * The five built-in sounds, generated with the Web Audio API. They need no
+ * file and play with no connection.
+ */
+export const TONE_PATTERNS: Record<SoundType, TonePattern> = {
+  notification: {
+    wave: 'sine',
+    level: 1,
+    tones: [{ frequency: 880, duration: 180, gapAfter: 0 }],
+  },
+  alert: {
+    wave: 'sine',
+    level: 1,
+    tones: [
+      { frequency: 880, duration: 160, gapAfter: 110 },
+      { frequency: 1175, duration: 220, gapAfter: 0 },
+    ],
+  },
+  warning: {
+    wave: 'triangle',
+    level: 1,
+    tones: [
+      { frequency: 740, duration: 200, gapAfter: 120 },
+      { frequency: 740, duration: 200, gapAfter: 120 },
+      { frequency: 740, duration: 200, gapAfter: 0 },
+    ],
+  },
+  alarm: {
+    wave: 'triangle',
+    level: 1,
+    repeatPause: 400,
+    tones: [
+      { frequency: 988, duration: 280, gapAfter: 60 },
+      { frequency: 740, duration: 280, gapAfter: 60 },
+      { frequency: 988, duration: 280, gapAfter: 60 },
+      { frequency: 740, duration: 280, gapAfter: 0 },
+    ],
+  },
+  emergency: {
+    wave: 'square',
+    level: 0.6,
+    repeatPause: 250,
+    tones: [
+      { frequency: 1319, duration: 220, gapAfter: 40 },
+      { frequency: 988, duration: 220, gapAfter: 40 },
+      { frequency: 1319, duration: 220, gapAfter: 40 },
+      { frequency: 988, duration: 220, gapAfter: 40 },
+      { frequency: 1319, duration: 220, gapAfter: 40 },
+      { frequency: 988, duration: 220, gapAfter: 0 },
+    ],
+  },
+};
+
+type AudioContextClass = new () => AudioContext;
+
+// The module's one AudioContext, made on the first play.
+let audioContext: AudioContext | null = null;
+
+function getAudioContext(): AudioContext {
+  if (!audioContext) {
+    const Context: AudioContextClass | undefined = typeof window === 'undefined'
+      ? undefined
+      : window.AudioContext
+        || (window as unknown as { webkitAudioContext?: AudioContextClass }).webkitAudioContext;
+    if (!Context) {
+      throw new Error('This browser has no AudioContext');
+    }
+    audioContext = new Context();
+  }
+  return audioContext;
 }
 
 // =============================================================================
@@ -77,7 +195,6 @@ interface ActiveSound {
 const SOUND_CONFIGS: Record<SoundType, SoundConfig> = {
   notification: {
     type: 'notification',
-    path: '/sounds/notification.mp3',
     defaultVolume: 60,
     priority: 1,
     loop: false,
@@ -86,7 +203,6 @@ const SOUND_CONFIGS: Record<SoundType, SoundConfig> = {
   },
   alert: {
     type: 'alert',
-    path: '/sounds/alert.mp3',
     defaultVolume: 70,
     priority: 2,
     loop: false,
@@ -95,7 +211,6 @@ const SOUND_CONFIGS: Record<SoundType, SoundConfig> = {
   },
   warning: {
     type: 'warning',
-    path: '/sounds/warning.mp3',
     defaultVolume: 80,
     priority: 3,
     loop: false,
@@ -104,7 +219,6 @@ const SOUND_CONFIGS: Record<SoundType, SoundConfig> = {
   },
   alarm: {
     type: 'alarm',
-    path: '/sounds/alarm.mp3',
     defaultVolume: 90,
     priority: 4,
     loop: true,
@@ -113,7 +227,6 @@ const SOUND_CONFIGS: Record<SoundType, SoundConfig> = {
   },
   emergency: {
     type: 'emergency',
-    path: '/sounds/emergency.mp3',
     defaultVolume: 100,
     priority: 5,
     loop: true,
@@ -144,34 +257,21 @@ const SEVERITY_VOLUME_MULTIPLIER: Record<AlertSeverity, number> = {
 
 class SoundManager {
   private activeSounds: Map<string, ActiveSound> = new Map();
-  private preloadedAudio: Map<SoundType, HTMLAudioElement> = new Map();
   private userVolume: number = 70;  // 0-100, user preference
   private globalMute: boolean = false;
   private emergencyModeActive: boolean = false;
   private isInitialized: boolean = false;
 
   constructor() {
-    // Preload will be called on first interaction
+    // The audio context is made on the first play
   }
 
   /**
-   * Initialize and preload sounds (call after user interaction)
+   * Initialize (call after user interaction). The built-in sounds are
+   * generated when they play, so there is no file to load.
    */
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
-
-    const preloadPromises = Object.values(SOUND_CONFIGS).map(async (config) => {
-      try {
-        const audio = new Audio(config.path);
-        audio.preload = 'auto';
-        audio.load();
-        this.preloadedAudio.set(config.type, audio);
-      } catch (error) {
-        console.warn(`Failed to preload sound: ${config.type}`, error);
-      }
-    });
-
-    await Promise.all(preloadPromises);
     this.isInitialized = true;
   }
 
@@ -180,11 +280,11 @@ class SoundManager {
    */
   setUserVolume(volume: number): void {
     this.userVolume = Math.max(0, Math.min(100, volume));
-    
+
     // Update volume of currently playing sounds (except emergency)
     this.activeSounds.forEach((sound) => {
       if (sound.type !== 'emergency' && !this.emergencyModeActive) {
-        sound.audio.volume = this.calculateVolume(sound.type);
+        this.setSoundVolume(sound, this.calculateVolume(sound.type));
       }
     });
   }
@@ -205,7 +305,7 @@ class SoundManager {
     // Mute/unmute active sounds (except emergency)
     this.activeSounds.forEach((sound) => {
       if (sound.type !== 'emergency') {
-        sound.audio.muted = muted;
+        this.setSoundMuted(sound, muted);
       }
     });
   }
@@ -226,15 +326,15 @@ class SoundManager {
     if (active) {
       // Set all active sounds to max volume
       this.activeSounds.forEach((sound) => {
-        sound.audio.volume = 1.0;
-        sound.audio.muted = false;
+        this.setSoundVolume(sound, 1.0);
+        this.setSoundMuted(sound, false);
       });
     } else {
       // Restore normal volumes
       this.activeSounds.forEach((sound) => {
-        sound.audio.volume = this.calculateVolume(sound.type);
+        this.setSoundVolume(sound, this.calculateVolume(sound.type));
         if (this.globalMute && sound.type !== 'emergency') {
-          sound.audio.muted = true;
+          this.setSoundMuted(sound, true);
         }
       });
     }
@@ -254,35 +354,45 @@ class SoundManager {
     const config = SOUND_CONFIGS[type];
     const id = `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    // Create audio element
-    const audio = new Audio(config.path);
-    
+    // One gain node carries the sound's volume; its tones play through it.
+    // A context that cannot be made or makes no gain leaves the play unstarted.
+    let context: AudioContext;
+    let gain: GainNode;
+    try {
+      context = getAudioContext();
+      gain = context.createGain();
+      gain.connect(context.destination);
+    } catch (error) {
+      console.warn('Failed to play sound:', error);
+      return id;
+    }
+
     // Calculate volume
     let volume = this.calculateVolume(type, options.volume);
     if (options.forceMaxVolume || this.emergencyModeActive || type === 'emergency') {
       volume = 1.0;
     }
-    audio.volume = volume;
 
     // Set loop
-    audio.loop = options.loop !== undefined ? options.loop : config.loop;
+    const loop = options.loop !== undefined ? options.loop : config.loop;
 
     // Apply mute (never mute emergency)
-    if (this.globalMute && type !== 'emergency' && !this.emergencyModeActive) {
-      audio.muted = true;
-    }
+    const muted = this.globalMute && type !== 'emergency' && !this.emergencyModeActive;
 
     // Stop lower priority sounds if needed
     this.handlePriority(config.priority);
+
+    const tones: ToneVoice = { gain, oscillators: new Set(), volume, muted, timer: null, stopped: false };
+    this.applyGain(tones);
 
     // Store active sound
     const activeSound: ActiveSound = {
       id,
       type,
-      audio,
+      tones,
       priority: config.priority,
       startTime: Date.now(),
-      loop: audio.loop,
+      loop,
       onEnd: options.onEnd,
     };
     this.activeSounds.set(id, activeSound);
@@ -290,23 +400,13 @@ class SoundManager {
     // Handle fade in
     const fadeIn = options.fadeIn !== undefined ? options.fadeIn : config.fadeIn;
     if (fadeIn > 0) {
-      audio.volume = 0;
-      this.fadeVolume(audio, 0, volume, fadeIn);
+      this.fadeVolume(activeSound, 0, volume, fadeIn);
     }
 
-    // Handle end event
-    audio.addEventListener('ended', () => {
-      if (!audio.loop) {
-        this.activeSounds.delete(id);
-        if (options.onEnd) {
-          options.onEnd();
-        }
-      }
-    });
-
     // Play
-    audio.play().catch((error) => {
+    this.startTones(context, activeSound, TONE_PATTERNS[type]).catch((error) => {
       console.warn('Failed to play sound:', error);
+      this.halt(activeSound);
       this.activeSounds.delete(id);
     });
 
@@ -363,14 +463,12 @@ class SoundManager {
     const fade = fadeOut !== undefined ? fadeOut : config.fadeOut;
 
     if (fade > 0) {
-      this.fadeVolume(sound.audio, sound.audio.volume, 0, fade, () => {
-        sound.audio.pause();
-        sound.audio.currentTime = 0;
+      this.fadeVolume(sound, this.getSoundVolume(sound), 0, fade, () => {
+        this.halt(sound);
         this.activeSounds.delete(id);
       });
     } else {
-      sound.audio.pause();
-      sound.audio.currentTime = 0;
+      this.halt(sound);
       this.activeSounds.delete(id);
     }
   }
@@ -650,7 +748,7 @@ class SoundManager {
    * Fade volume smoothly
    */
   private fadeVolume(
-    audio: HTMLAudioElement,
+    sound: ActiveSound,
     from: number,
     to: number,
     duration: number,
@@ -661,20 +759,169 @@ class SoundManager {
     const volumeStep = (to - from) / steps;
     let currentStep = 0;
 
-    audio.volume = from;
+    this.setSoundVolume(sound, from);
 
     const fade = setInterval(() => {
       currentStep++;
-      audio.volume = Math.max(0, Math.min(1, from + volumeStep * currentStep));
+      this.setSoundVolume(sound, Math.max(0, Math.min(1, from + volumeStep * currentStep)));
 
       if (currentStep >= steps) {
         clearInterval(fade);
-        audio.volume = to;
+        this.setSoundVolume(sound, to);
         if (onComplete) {
           onComplete();
         }
       }
     }, stepDuration);
+  }
+
+  /**
+   * Volume of an active sound (0-1), before mute
+   */
+  private getSoundVolume(sound: ActiveSound): number {
+    if (sound.tones) return sound.tones.volume;
+    return sound.audio ? sound.audio.volume : 0;
+  }
+
+  private setSoundVolume(sound: ActiveSound, volume: number): void {
+    if (sound.tones) {
+      sound.tones.volume = volume;
+      this.applyGain(sound.tones);
+    }
+    if (sound.audio) {
+      sound.audio.volume = volume;
+    }
+  }
+
+  private setSoundMuted(sound: ActiveSound, muted: boolean): void {
+    if (sound.tones) {
+      sound.tones.muted = muted;
+      this.applyGain(sound.tones);
+    }
+    if (sound.audio) {
+      sound.audio.muted = muted;
+    }
+  }
+
+  /**
+   * The gain carries the volume, or silence while muted
+   */
+  private applyGain(tones: ToneVoice): void {
+    tones.gain.gain.value = tones.muted ? 0 : tones.volume;
+  }
+
+  /**
+   * Resume a suspended context, then schedule the first pass of the pattern
+   */
+  private async startTones(context: AudioContext, sound: ActiveSound, pattern: TonePattern): Promise<void> {
+    if (context.state === 'suspended') {
+      // A browser that blocks audio leaves resume() pending; a play waits a second at most
+      let wait: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        context.resume(),
+        new Promise<void>((resolve) => {
+          wait = setTimeout(resolve, RESUME_WAIT_MS);
+        }),
+      ]).finally(() => clearTimeout(wait));
+    }
+    if (context.state !== 'running') {
+      throw new Error(`The audio context is ${context.state}`);
+    }
+    // Stopped while the context resumed
+    if (!sound.tones || sound.tones.stopped) return;
+
+    this.scheduleTones(context, sound, pattern, context.currentTime);
+  }
+
+  /**
+   * Schedule one pass of the pattern on the context's clock, from `at` seconds.
+   * A looping sound queues its next pass when this one starts, a whole pass ahead.
+   */
+  private scheduleTones(context: AudioContext, sound: ActiveSound, pattern: TonePattern, at: number): void {
+    const tones = sound.tones!;
+    const ramp = TONE_RAMP_MS / 1000;
+    let time = at;
+
+    pattern.tones.forEach((tone, index) => {
+      const end = time + tone.duration / 1000;
+      const oscillator = context.createOscillator();
+      const envelope = context.createGain();
+      oscillator.type = pattern.wave;
+      oscillator.frequency.value = tone.frequency;
+
+      // Ramp in and out so the tone does not click
+      envelope.gain.setValueAtTime(0, time);
+      envelope.gain.linearRampToValueAtTime(pattern.level, time + ramp);
+      envelope.gain.setValueAtTime(pattern.level, end - ramp);
+      envelope.gain.linearRampToValueAtTime(0, end);
+
+      oscillator.connect(envelope);
+      envelope.connect(tones.gain);
+
+      const isLast = index === pattern.tones.length - 1;
+      oscillator.onended = () => {
+        tones.oscillators.delete(oscillator);
+        oscillator.disconnect();
+        envelope.disconnect();
+        if (isLast && !sound.loop) {
+          this.finishTones(sound);
+        }
+      };
+
+      tones.oscillators.add(oscillator);
+      oscillator.start(time);
+      oscillator.stop(end);
+      time = end + tone.gapAfter / 1000;
+    });
+
+    if (sound.loop) {
+      const next = time + (pattern.repeatPause ?? DEFAULT_REPEAT_PAUSE_MS) / 1000;
+      tones.timer = setTimeout(() => {
+        tones.timer = null;
+        if (tones.stopped) return;
+        this.scheduleTones(context, sound, pattern, Math.max(next, context.currentTime));
+      }, Math.max(0, (at - context.currentTime) * 1000));
+    }
+  }
+
+  /**
+   * A sound that does not loop leaves the active list when its last tone ends
+   */
+  private finishTones(sound: ActiveSound): void {
+    if (!sound.tones || sound.tones.stopped) return;
+
+    this.halt(sound);
+    this.activeSounds.delete(sound.id);
+    if (sound.onEnd) {
+      sound.onEnd();
+    }
+  }
+
+  /**
+   * Silence a sound: stop its tones and disconnect its gain, or pause its audio element
+   */
+  private halt(sound: ActiveSound): void {
+    const tones = sound.tones;
+    if (tones) {
+      tones.stopped = true;
+      if (tones.timer !== null) {
+        clearTimeout(tones.timer);
+        tones.timer = null;
+      }
+      tones.oscillators.forEach((oscillator) => {
+        try {
+          oscillator.stop();
+        } catch {
+          // Not started
+        }
+      });
+      tones.oscillators.clear();
+      tones.gain.disconnect();
+    }
+    if (sound.audio) {
+      sound.audio.pause();
+      sound.audio.currentTime = 0;
+    }
   }
 }
 

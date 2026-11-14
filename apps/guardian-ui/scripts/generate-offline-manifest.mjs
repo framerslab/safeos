@@ -15,8 +15,8 @@ async function walk(directory) {
 const files = (await walk(root)).filter(file => {
   const relative = path.relative(root, file).split(path.sep).join('/');
   // Pages, their scripts and route data, and the images pages and notifications
-  // show (logo, favicons, logos, diagrams). Sounds are left out: audio elements
-  // fetch them with Range requests, which the worker passes to the network.
+  // show (logo, favicons, logos, diagrams). Alert sounds are generated in the
+  // browser, so there is no sound file to install.
   return relative.startsWith('_next/static/') || relative.startsWith('icons/') ||
     /\.(html|txt|css|js|woff2?|svg|png|ico|webp|jpe?g|gif)$/.test(relative) && relative !== 'sw.js' || relative === 'manifest.json';
 }).sort();

@@ -32,7 +32,6 @@ it('installs the images the exported pages and notifications show', () => {
     'out/diagrams/how-it-works.svg': '<svg/>',
     'out/logos/react.svg': '<svg/>',
     'out/icons/icon-192.png': 'png',
-    'out/sounds/alert.mp3': 'mp3',
     'out/sw.js': '',
   });
   expect(urls).toEqual(expect.arrayContaining([

@@ -26,8 +26,8 @@ Offline starts require two completed preparations:
    actual output, using separate path and content-digest records for each file
    and a separate worker record. Installation fails if an asset cannot be saved. Route data the
    router requests with a query (`index.txt?_rsc=...`) is served from the
-   installed copy. Alert sounds are not installed: audio is fetched with Range
-   requests, which the worker leaves to the network.
+   installed copy. Alert sounds need no file: the browser generates them as
+   tones, so they play offline.
 2. For person or animal detection, the agreed model download must finish. The
    model cache is separate from app caches and survives app updates.
 
