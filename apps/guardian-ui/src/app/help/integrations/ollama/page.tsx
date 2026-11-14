@@ -9,12 +9,15 @@
 import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import { IconCpu, IconExternalLink } from '@/components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Ollama local LLM setup',
-  description: 'Run a local vision model with Ollama for richer SafeOS Guardian scene understanding.',
-};
+  description:
+    'Run a local vision model with Ollama for richer SafeOS Guardian scene understanding.',
+  path: '/help/integrations/ollama/',
+});
 
 export default function OllamaHelpPage() {
   return (
@@ -38,8 +41,8 @@ export default function OllamaHelpPage() {
             <h1 className="text-2xl sm:text-3xl font-bold text-white">Ollama local LLM</h1>
           </div>
           <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-            When the in-browser object detector is unsure, the API server can ask a local vision
-            LLM via{' '}
+            In a processing mode that uses the server, the monitor sends camera frames to your API
+            server, which analyses them with a local vision LLM via{' '}
             <a
               href="https://ollama.com"
               target="_blank"
@@ -49,7 +52,10 @@ export default function OllamaHelpPage() {
               Ollama
               <IconExternalLink size={12} />
             </a>
-            . Nothing leaves your LAN. You provide the hardware.
+            . You provide the hardware. With no cloud AI key on the server, frames stay on your LAN.
+            If you set <code>OPENROUTER_API_KEY</code>, <code>OPENAI_API_KEY</code> or{' '}
+            <code>ANTHROPIC_API_KEY</code>, the server sends a frame to that provider when Ollama is
+            down or its analysis fails.
           </p>
         </header>
 

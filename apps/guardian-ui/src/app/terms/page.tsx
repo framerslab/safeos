@@ -2,19 +2,23 @@
  * Terms of Service Page
  *
  * Service disclaimers and usage guidelines.
- * Emphasizes free usage, no warranty, and abuse prevention.
+ * Emphasizes free usage, no warranty, and lawful use.
  *
  * @module app/terms/page
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import type { ReactNode } from 'react';
 import { IconFileText, IconAlertTriangle, IconShield, IconHeart, IconCheck } from '@/components/icons';
+import { SAFE_SLEEP_URL } from '@/components/NotAMedicalDevice';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Terms',
-  description: 'Terms of service and important usage disclaimers for SafeOS Guardian.',
-};
+  description:
+    'Terms of service and important usage disclaimers for SafeOS Guardian.',
+  path: '/terms/',
+});
 
 // =============================================================================
 // Terms Sections
@@ -41,13 +45,12 @@ const termsSections: TermSection[] = [
       <div className="space-y-3">
         <p>
           SafeOS Guardian is a <strong>free, browser-based monitoring tool</strong> for 
-          pets, babies, elderly care, lost & found, and home security. All processing 
-          happens locally on your device.
+          pets, babies, elderly care, lost & found, and home security. Monitoring runs in
+          your browser; nothing is uploaded unless you connect a server you run yourself.
         </p>
         <p>
-          This is a <strong>humanitarian project</strong>. Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.
-          We provide this service at no cost, with no premium tiers,
-          and no hidden monetization.
+          Frame builds SafeOS and pays for its development. We provide this service at
+          safeos.sh at no cost, with no premium tiers, and no hidden monetization.
         </p>
       </div>
     ),
@@ -84,7 +87,16 @@ const termsSections: TermSection[] = [
         <ul className="list-disc list-inside space-y-2 text-slate-400 ml-2">
           <li>
             <strong className="text-white">Baby monitoring:</strong> This does not 
-            replace a caregiver. Babies require constant, attentive human supervision.
+            replace a caregiver. Babies require constant, attentive human supervision.{' '}
+            SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.{' '}
+            <a
+              href={SAFE_SLEEP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              Safe-sleep guidance (NIH)
+            </a>
           </li>
           <li>
             <strong className="text-white">Elderly care:</strong> This is not a 
@@ -95,8 +107,8 @@ const termsSections: TermSection[] = [
             appropriate care, feeding, and attention beyond what any app can provide.
           </li>
           <li>
-            <strong className="text-white">Security:</strong> This is not a 
-            replacement for professional security systems or emergency services.
+            <strong className="text-white">Security:</strong> Security mode adds an alert. It
+            does not replace locks, an alarm service or emergency services.
           </li>
         </ul>
       </div>
@@ -121,11 +133,12 @@ const termsSections: TermSection[] = [
     ),
   },
   {
-    title: '6. Free Forever',
+    title: '6. Free on safeos.sh',
     content: (
       <div className="space-y-3">
         <p>
-          SafeOS Guardian is and will remain <strong className="text-emerald-400">completely free</strong>.
+          SafeOS at safeos.sh is <strong className="text-emerald-400">completely free</strong>. The
+          code is MIT-licensed, so anyone can run it.
         </p>
         <ul className="space-y-2">
           {[
@@ -150,14 +163,14 @@ const termsSections: TermSection[] = [
       <div className="space-y-3">
         <p>You agree to use SafeOS Guardian only for lawful purposes. You may NOT:</p>
         <ul className="list-disc list-inside space-y-2 text-slate-400 ml-2">
-          <li>Use it to monitor anyone without their consent (where legally required)</li>
+          <li>Use it to monitor anyone without their consent where the law requires consent</li>
           <li>Use it for stalking, harassment, or invasion of privacy</li>
           <li>Use it to record others in violation of local laws</li>
           <li>Use it for any illegal surveillance activities</li>
           <li>Attempt to reverse-engineer for malicious purposes</li>
         </ul>
         <p className="text-sm text-slate-500">
-          Note: Since all data stays local, we have no way to enforce these rules 
+          Note: Since your camera feed never reaches us, we have no way to enforce these rules
           technically. This is a moral and legal obligation you accept.
         </p>
       </div>
@@ -218,7 +231,7 @@ export default function TermsPage() {
             Terms of Service
           </h1>
           <p className="text-lg text-slate-400">
-            Plain-language terms for a free, humanitarian service.
+            Plain-language terms for a free service.
           </p>
         </div>
 
@@ -233,8 +246,8 @@ export default function TermsPage() {
                 <IconHeart size={16} className="text-emerald-400" />
               </div>
               <div>
-                <p className="text-sm font-medium text-white">Free Forever</p>
-                <p className="text-xs text-slate-400">No costs, ever</p>
+                <p className="text-sm font-medium text-white">Free on safeos.sh</p>
+                <p className="text-xs text-slate-400">No account, no paid tier</p>
               </div>
             </div>
             <div className="flex items-start gap-3">

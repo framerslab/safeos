@@ -4,12 +4,18 @@
  * Industrial, utilitarian top navigation bar.
  * Consistent across all pages.
  *
+ * One row at every width from 320 px. Below 1280 px the page links, the
+ * GitHub button and the keyboard-shortcuts button move into the menu, so the
+ * row holds the logo, the theme button, the bell and the menu button, each a
+ * 44 px target. From 1280 px everything fits in the row. The open menu is
+ * never taller than the screen and scrolls inside itself; Escape closes it.
+ *
  * @module components/layout/Nav
  */
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Logo } from '../Logo';
@@ -26,7 +32,7 @@ import {
   IconMoon,
 } from '../icons';
 import { useTheme } from '../../lib/theme-manager';
-import { useShortcutsHelp } from '../../lib/keyboard-shortcuts';
+import { showShortcutsHelp } from '../../lib/keyboard-shortcuts';
 
 // =============================================================================
 // Types
@@ -79,18 +85,36 @@ export function Nav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const { isDark, toggleTheme } = useTheme();
-  const { toggle: toggleHelp } = useShortcutsHelp();
+  // The provider in the root layout renders the dialog; this only asks it to open.
+  const toggleHelp = showShortcutsHelp;
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   // Prevent hydration mismatch by rendering placeholder during SSR
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Closing the menu, by Escape or by any of its actions, puts focus back on
+  // the Menu button, so keyboard focus never sits on a control that is gone.
+  const closeMenu = useCallback(() => {
+    setMobileMenuOpen(false);
+    menuButtonRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMenu();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [mobileMenuOpen, closeMenu]);
+
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] bg-[rgba(10,12,15,0.95)] backdrop-blur-xl border-b border-emerald-500/15">
-      <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center justify-between gap-8">
+    <nav aria-label="Main" className="fixed top-0 left-0 right-0 z-[100] bg-[rgba(10,12,15,0.95)] backdrop-blur-xl border-b border-emerald-500/15">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3 xl:gap-6">
         {/* Logo */}
-        <Link href="/" className="flex-shrink-0">
+        <Link href="/" className="flex-shrink-0 flex items-center min-h-[44px]" aria-label="SafeOS Guardian home">
           <Logo size="sm" showSuperCloud={false} />
         </Link>
 
@@ -165,31 +189,31 @@ export function Nav() {
         </div>
 
         {/* Right Side Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           {/* GitHub repository - Desktop */}
           <a
             href={`https://github.com/${GITHUB_REPO}`}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="View SafeOS on GitHub"
-            className="hidden lg:inline-flex items-stretch h-9 rounded-md border border-white/10 hover:border-emerald-500/40 bg-white/[0.02] hover:bg-white/[0.05] overflow-hidden transition-colors group"
+            className="hidden xl:inline-flex items-stretch h-11 rounded-md border border-white/10 hover:border-emerald-500/40 bg-white/[0.02] hover:bg-white/[0.05] overflow-hidden transition-colors group"
           >
-            <span className="flex items-center gap-1.5 px-3 text-xs font-medium text-zinc-300 group-hover:text-white">
+            <span className="flex items-center gap-1.5 px-3 text-sm font-medium text-zinc-300 group-hover:text-white">
               <GitHubIcon size={16} className="text-zinc-300 group-hover:text-white" />
               GitHub
             </span>
-            <span className="flex items-center gap-1 px-3 text-xs font-medium border-l border-white/10 text-zinc-300 group-hover:text-white group-hover:bg-emerald-500/10">
+            <span className="flex items-center gap-1 px-3 text-sm font-medium border-l border-white/10 text-zinc-300 group-hover:text-white group-hover:bg-emerald-500/10">
               <StarIcon size={12} className="text-amber-400" />
               Star
             </span>
           </a>
 
-          <div className="hidden lg:block w-px h-6 bg-white/10 mx-1" />
+          <div className="hidden xl:block w-px h-6 bg-white/10 mx-1" />
 
           {/* Theme Toggle */}
           <button
             onClick={toggleTheme}
-            className="flex items-center justify-center w-10 h-10 rounded-lg
+            className="flex items-center justify-center w-11 h-11 rounded-lg
                        text-zinc-400 hover:text-zinc-100 hover:bg-white/5
                        border border-transparent hover:border-white/10 transition-all"
             aria-label={
@@ -209,7 +233,7 @@ export function Nav() {
           <NotificationDropdown />
           <button
             onClick={toggleHelp}
-            className="flex items-center justify-center w-10 h-10 rounded-lg
+            className="hidden xl:flex items-center justify-center w-11 h-11 rounded-lg
                        text-zinc-400 hover:text-zinc-100 hover:bg-white/5
                        border border-transparent hover:border-white/10 transition-all"
             aria-label="Help"
@@ -220,10 +244,12 @@ export function Nav() {
 
           {/* Mobile Menu Toggle */}
           <button
+            ref={menuButtonRef}
             className="nav-mobile-toggle"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            onClick={() => (mobileMenuOpen ? closeMenu() : setMobileMenuOpen(true))}
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileMenuOpen}
+            aria-controls="nav-menu"
           >
             {mobileMenuOpen ? <IconX size={24} /> : <IconMenu size={24} />}
           </button>
@@ -232,7 +258,7 @@ export function Nav() {
 
       {/* Mobile Navigation */}
       {mobileMenuOpen && (
-        <div className="nav-mobile-menu">
+        <div id="nav-menu" className="nav-mobile-menu">
           {navLinks.map((link) => {
             const isActive = mounted && (
               pathname === link.href ||
@@ -252,7 +278,7 @@ export function Nav() {
                     : 'text-zinc-400 hover:text-zinc-100 hover:bg-white/5'
                   }
                 `}
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={closeMenu}
               >
                 <Icon size={20} className="opacity-80" />
                 <span>{link.label}</span>
@@ -262,13 +288,13 @@ export function Nav() {
 
           {/* Resources - Mobile */}
           <div className="border-t border-white/5 mt-3 pt-3">
-            <span className="block px-4 py-2 text-xs text-zinc-500 uppercase tracking-wider font-medium">
+            <span className="block px-4 py-2 text-sm text-zinc-500 uppercase tracking-wider font-medium">
               Resources
             </span>
             <Link
               href="/about"
               className="flex items-center gap-3 px-4 py-3 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={closeMenu}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
@@ -279,7 +305,7 @@ export function Nav() {
             <Link
               href="/faq"
               className="flex items-center gap-3 px-4 py-3 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={closeMenu}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <circle cx="12" cy="12" r="10" />
@@ -291,7 +317,7 @@ export function Nav() {
             <Link
               href="/blog"
               className="flex items-center gap-3 px-4 py-3 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={closeMenu}
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                 <path d="M12 19l7-7 3 3-7 7-3-3z" />
@@ -308,12 +334,22 @@ export function Nav() {
             <button
               onClick={() => {
                 toggleTheme();
-                setMobileMenuOpen(false);
+                closeMenu();
               }}
               className="flex items-center gap-3 px-4 py-3.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all w-full"
             >
               {isDark ? <IconSun size={20} className="text-amber-400" /> : <IconMoon size={20} className="text-indigo-400" />}
               <span>{isDark ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+            <button
+              onClick={() => {
+                closeMenu();
+                toggleHelp();
+              }}
+              className="flex items-center gap-3 px-4 py-3.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-white/5 transition-all w-full"
+            >
+              <IconHelp size={20} />
+              <span>Keyboard Shortcuts</span>
             </button>
           </div>
 
@@ -324,14 +360,14 @@ export function Nav() {
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-3 px-4 py-3.5 rounded-lg text-zinc-300 hover:text-white hover:bg-white/5 transition-all"
-              onClick={() => setMobileMenuOpen(false)}
+              onClick={closeMenu}
             >
               <GitHubIcon size={20} className="text-zinc-300" />
               <span className="flex flex-col flex-1">
                 <span className="text-sm font-medium">View on GitHub</span>
-                <span className="text-xs text-zinc-500">{GITHUB_REPO}</span>
+                <span className="text-sm text-zinc-500">{GITHUB_REPO}</span>
               </span>
-              <span className="inline-flex items-center gap-1 px-2 py-1 rounded border border-white/10 text-xs text-zinc-300">
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded border border-white/10 text-sm text-zinc-300">
                 <StarIcon size={12} className="text-amber-400" />
                 Star
               </span>

@@ -2,7 +2,7 @@
  * Lost & Found Setup Component
  * 
  * Allows users to upload reference photos and configure
- * the lost pet/person detection settings.
+ * the Lost & Found matcher settings for a lost pet or an item.
  * 
  * @module components/LostFoundSetup
  */
@@ -16,10 +16,7 @@ import {
   IconCheck, 
   IconCamera,
   IconPaw,
-  IconUser,
   IconSearch,
-  IconSettings,
-  IconZap,
 } from './icons';
 import { generateFingerprint, mergeFingerprints, type VisualFingerprint } from '../lib/visual-fingerprint';
 import { useLostFoundStore, createSubjectProfile, type SubjectType } from '../stores/lost-found-store';
@@ -221,7 +218,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
               </p>
             </div>
             
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <TypeCard
                 type="pet"
                 icon={<IconPaw size={32} />}
@@ -229,14 +226,6 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
                 description="Dog, cat, or other animal"
                 selected={subjectType === 'pet'}
                 onClick={() => setSubjectType('pet')}
-              />
-              <TypeCard
-                type="person"
-                icon={<IconUser size={32} />}
-                label="Person"
-                description="Family member or friend"
-                selected={subjectType === 'person'}
-                onClick={() => setSubjectType('person')}
               />
               <TypeCard
                 type="other"
@@ -426,47 +415,6 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
               <p className="text-xs text-[var(--color-steel-500)] mt-1">
                 Minimum confidence to trigger sound/notification
               </p>
-            </div>
-            
-            {/* Processing mode */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-[var(--color-steel-300)]">
-                Processing Mode
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => updateSettings({ processingMode: 'local' })}
-                  className={`p-4 rounded-lg border-2 text-left transition-colors ${
-                    settings.processingMode === 'local'
-                      ? 'border-emerald-500 bg-emerald-500/10'
-                      : 'border-[var(--color-steel-600)] hover:border-[var(--color-steel-500)]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <IconZap size={18} className="text-emerald-400" />
-                    <span className="font-medium text-white">Local Instant</span>
-                  </div>
-                  <p className="text-xs text-[var(--color-steel-400)]">
-                    Fast, offline, works anywhere
-                  </p>
-                </button>
-                <button
-                  onClick={() => updateSettings({ processingMode: 'hybrid' })}
-                  className={`p-4 rounded-lg border-2 text-left transition-colors ${
-                    settings.processingMode === 'hybrid'
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-[var(--color-steel-600)] hover:border-[var(--color-steel-500)]'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <IconSettings size={18} className="text-blue-400" />
-                    <span className="font-medium text-white">AI Enhanced</span>
-                  </div>
-                  <p className="text-xs text-[var(--color-steel-400)]">
-                    Higher accuracy, needs internet
-                  </p>
-                </button>
-              </div>
             </div>
             
             {/* Alert options */}

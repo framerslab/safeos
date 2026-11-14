@@ -270,7 +270,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
               <div className="flex items-center">
                 <span className="text-sm text-white">Person Detection</span>
                 <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">AI</span>
-                <InfoTooltip content="Uses TensorFlow.js COCO-SSD model to detect human shapes. Requires ~45MB model download on first use." />
+                <InfoTooltip content="Uses TensorFlow.js COCO-SSD model to detect human shapes. Requires an 18.6 MB model download on first use." />
               </div>
               <span className="text-xs text-slate-500">AI-powered human detection</span>
             </div>

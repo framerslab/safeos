@@ -10,6 +10,7 @@
 'use client';
 
 import { showBrowserNotification } from '@/lib/browser-notification';
+import { canSkipOnboarding, useOnboardingStore } from '@/stores/onboarding-store';
 import React, { useState, useEffect, useCallback } from 'react';
 import { IconBell, IconX, IconCheck } from './icons';
 
@@ -60,6 +61,9 @@ export function NotificationPermission() {
   const [showPrompt, setShowPrompt] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>('default');
   const [requesting, setRequesting] = useState(false);
+  // Read through the store, so finishing setup in this tab (or the store
+  // loading from storage) runs the check below again with no reload.
+  const setupFinished = useOnboardingStore(canSkipOnboarding);
 
   useEffect(() => {
     setMounted(true);
@@ -68,9 +72,13 @@ export function NotificationPermission() {
     setPermission(status);
 
     // Only show prompt if:
-    // 1. Notifications are supported
-    // 2. Permission hasn't been granted or denied
-    // 3. User hasn't dismissed the prompt recently
+    // 1. Setup is finished, so a first visit to the home page or any other
+    //    page is never asked before the visitor has chosen to set SafeOS up
+    //    (setup has its own notifications step)
+    // 2. Notifications are supported
+    // 3. Permission hasn't been granted or denied
+    // 4. User hasn't dismissed the prompt recently
+    if (!setupFinished) return;
     if (status === 'default' && !isDismissed()) {
       // Delay showing to avoid overwhelming user on first visit
       const timeout = setTimeout(() => {
@@ -78,7 +86,7 @@ export function NotificationPermission() {
       }, 5000);
       return () => clearTimeout(timeout);
     }
-  }, []);
+  }, [setupFinished]);
 
   const handleRequestPermission = useCallback(async () => {
     if (!isNotificationSupported()) return;

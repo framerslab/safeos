@@ -3,7 +3,11 @@
 # Builds the static site, serves it inside the job and captures each route at
 # 390 and 1280 pixels wide in the light and the dark look with Playwright. The
 # PNG files are uploaded as the run's "pictures" artifact. Pull requests also
-# capture the base commit with the same routes as "pictures-before".
+# capture the base commit with the same routes as "pictures-before". The
+# pull request's own capture also checks a first visit to the home page (the
+# header row, the theme button, no notification prompt, heading contrast,
+# the header menu on a short screen, the Security card's link);
+# see scripts/capture-pictures.mjs.
 #
 # Opening or updating a pull request captures both versions automatically so changed screens
 # have before and after pictures. Workflow dispatch remains available for other refs.
@@ -33,7 +37,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/
+  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/ /about/ /blog/ /blog/how-safeos-guardian-works/ /tutorials/ /tutorial/ /donate/ /terms/ /lost-found/ /404.html
 
 jobs:
   pictures:

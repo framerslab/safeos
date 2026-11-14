@@ -6,15 +6,13 @@
  *
  * @module app/page
  */
-import Link from 'next/link';
-import Image from 'next/image';
+import type { Metadata } from 'next';
 import {
   IconShield,
   IconCamera,
   IconBell,
   IconHeart,
   IconWarning,
-  IconInfo,
   IconRadar,
   IconFingerprint,
   IconMic,
@@ -26,8 +24,14 @@ import {
 import { UseCaseShowcase } from '../components/UseCaseShowcase';
 import { HomeCTA } from '@/components/home/HomeCTA';
 import { DiagramZoomable } from '@/components/DiagramZoomable';
+import { NotAMedicalDevice } from '@/components/NotAMedicalDevice';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://safeos.sh').replace(/\/+$/, '');
+
+// The title and description are the root layout's defaults.
+export const metadata: Metadata = {
+  alternates: { canonical: '/' },
+};
 
 // =============================================================================
 // Animated Shield SVG Component
@@ -140,13 +144,14 @@ function LandingPage() {
     browserRequirements: 'Requires JavaScript and a modern browser with WebGL',
     softwareVersion: '1.0',
     license: 'https://opensource.org/license/mit/',
-    keywords: 'free baby monitor, open source baby monitor, AI pet camera no subscription, browser AI monitoring, tensorflow.js webcam, on-device computer vision PWA, non-cloud baby monitor',
+    keywords: 'free baby monitor, open source baby monitor, pet camera no subscription, webcam motion detection, tensorflow.js webcam, on-device computer vision PWA, non-cloud baby monitor',
     description:
-      'Free open-source AI monitor for babies, pets, and elder care. Runs in your browser with TensorFlow.js. Frames stay on your device unless you connect your own server. Built by Frame, the team behind AgentOS.',
+      'Free, open-source monitor that runs in your browser: motion and sound alerts for a baby, a pet or an older relative, and person and animal detection with COCO-SSD in Security and Wildlife. Frames stay on your device unless you connect your own server. Built by Frame.',
     featureList: [
-      'Browser-based AI object detection (COCO-SSD)',
+      'Motion and pixel-change alerts in the browser',
+      'Person and animal detection with COCO-SSD (Security and Wildlife)',
       'Sound-level alerts (Web Audio FFT)',
-      'Lost & Found visual fingerprinting',
+      'Lost & Found colour matching',
       'Severity-tiered alert escalation',
       'Optional Twilio SMS / Telegram / Resend email fan-out',
       'Optional Ollama LAN bridge for richer scene reasoning',
@@ -265,6 +270,7 @@ function LandingPage() {
                   Technology can fail. Always maintain proper supervision of children,
                   pets, and elderly family members.
                 </p>
+                <NotAMedicalDevice className="mt-2 text-sm text-amber-100 leading-relaxed" />
               </div>
             </div>
           </div>
@@ -336,7 +342,7 @@ function LandingPage() {
           <FeatureCard
             icon={IconShield}
             title="Privacy First"
-            description="All processing happens locally on your device. Your data never leaves."
+            description="Monitoring runs in your browser. Nothing is uploaded unless you connect a server you run yourself."
           />
         </div>
 
@@ -379,13 +385,13 @@ function LandingPage() {
               icon={IconRadar}
               title="Real-time object detection"
               tag="COCO-SSD · TensorFlow.js"
-              size="18.0 MB of weights"
-              summary="Security mode runs COCO-SSD when the frame-difference check sees movement and counts the people in view, at most twice a second. Wildlife mode uses the same model to find animals."
+              size="18.6 MB download"
+              summary="Security mode runs COCO-SSD when the frame-difference check sees movement and counts the people in view, at most twice a second, and every five seconds while an alert is on. Wildlife mode uses the same model to find animals."
               details={[
                 'Runs on TensorFlow.js with the WebGL backend, which uses your graphics chip.',
                 'Bounding-box localization plus confidence scoring per class.',
-                'Frame buffer keeps the most recent 5–10 minutes; older frames are discarded automatically.',
-                'Configurable confidence thresholds per scenario (pets, baby, elderly).',
+                'The model downloads from Google model storage only after you agree, then stays in your browser\'s Cache Storage.',
+                'Security and Wildlife each have a confidence threshold setting.',
               ]}
             />
 
@@ -394,19 +400,19 @@ function LandingPage() {
               title="Visual fingerprinting for Lost & Found"
               tag="Color + edge signatures"
               size="< 1 KB / photo"
-              summary="Upload 1–5 reference photos of a missing pet or person. The browser builds a perceptual fingerprint and samples the live feed at 1–2 FPS, matching each candidate frame by cosine similarity."
+              summary="Upload 1–5 reference photos of your pet. The browser records their colours, a coarse edge grid and size, and checks the live feed 1–2 times a second for anything with matching colours. Another animal or an object of similar colour can match too."
               details={[
                 '32-bucket color histogram per reference photo.',
                 'Top-5 dominant colors via k-means clustering.',
-                '8×8 edge signature grid (Sobel-derived) for shape matching.',
+                '8×8 grid of edge strengths, from differences between neighbouring pixels.',
                 'Aspect-ratio and size estimates for sanity-check matching.',
-                'Real-time cosine similarity against the live frame; configurable sensitivity.',
+                'Each frame is scored on colour first, then region by region: histogram 40%, dominant colours 35%, edges 15%, size 10%. The alert threshold is adjustable (70% by default).',
               ]}
             />
 
             <DeepLearningCard
               icon={IconMic}
-              title="Audio distress detection"
+              title="Sound alerts"
               tag="Web Audio API"
               size="No model required"
               summary="An FFT analyzer measures sound levels in the browser and raises an alert when sound stays above your threshold."
@@ -434,14 +440,14 @@ function LandingPage() {
 
             <DeepLearningCard
               icon={IconDatabase}
-              title="Your data never leaves"
+              title="What stays on your device"
               tag="IndexedDB · No telemetry"
-              size="100% local"
-              summary="Frames are analyzed in-place and discarded. Settings, alert metadata, and reference photos stay in your browser's storage."
+              size="Local by default"
+              summary="Frames are compared in your browser. Settings, alerts, reference photos and the frames a mode saves stay in your browser's storage."
               details={[
-                'Rolling video buffer trimmed to 5–10 minutes; older frames overwritten.',
+                'The motion check keeps only the last three frames in memory.',
                 'No analytics, no third-party trackers, no model-improvement uploads.',
-                'Blurred / anonymized previews for any optional human-review handoff.',
+                'Security and Wildlife download the detection model from Google model storage after you agree; Google sees your IP address.',
                 'All optional integrations (Twilio SMS, Telegram, Ollama) are opt-in and run server-side only when you choose to deploy them.',
               ]}
             />
@@ -490,7 +496,7 @@ function LandingPage() {
                   </ul>
                 </div>
                 <a
-                  href="https://github.com/framerslab/safeos#option-b-full-stack-advanced"
+                  href="https://github.com/framerslab/safeos#quickstart"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600/50 rounded-lg transition-colors text-sm"
@@ -510,93 +516,20 @@ function LandingPage() {
           <UseCaseShowcase />
         </div>
 
-        {/* Abuse Prevention Notice */}
-        <div className="mt-12 max-w-3xl mx-auto w-full">
-          <div className="p-4 bg-[var(--color-steel-900)] border border-[var(--color-steel-800)] rounded-lg">
-            <div className="flex items-start gap-3">
-              <IconInfo size={20} className="text-blue-300 flex-shrink-0 mt-0.5" />
-              <div className="text-left">
-                <p className="text-sm text-[var(--color-steel-100)] font-semibold mb-2">
-                  Abuse prevention &amp; rate limiting
-                </p>
-                <p className="text-xs text-[var(--color-steel-300)] leading-relaxed mb-2">
-                  We actively monitor for misuse patterns and inappropriate behavior. Users who
-                  attempt to abuse this service or use it in ways it&apos;s not intended will receive
-                  <strong className="text-[var(--color-steel-100)]"> rate-limitation warnings</strong> and
-                  may be restricted from access.
-                </p>
-                <p className="text-xs text-[var(--color-steel-300)] leading-relaxed mb-2">
-                  <strong className="text-amber-300">Note:</strong> This service may be temporarily
-                  taken offline while we develop better safeguards. We are committed to
-                  responsible deployment and will not rush features that could enable harm.
-                </p>
-                <p className="text-xs text-[var(--color-steel-300)] leading-relaxed">
-                  <strong className="text-blue-300">Future optional service:</strong> we may offer an
-                  administrative service with higher-level alerts, manual operator controls, and
-                  enhanced AI/LLM integrations for users who choose to opt in. This service would be
-                  <strong className="text-[var(--color-steel-100)]"> entirely optional</strong> and may
-                  involve usage-based costs. This is <strong className="text-amber-300">not live yet</strong> and
-                  will only be developed if community demand warrants it.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Discord Community CTA — Wilds.ai community */}
-        <div className="mt-12 max-w-3xl mx-auto w-full">
-          <a
-            href="https://wilds.ai/discord"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="block p-5 bg-gradient-to-br from-[#5865F2]/10 to-slate-900 border border-[#5865F2]/25 rounded-xl hover:border-[#5865F2]/40 hover:shadow-[0_0_24px_rgba(88,101,242,0.12)] transition-all group"
-          >
-            <div className="flex items-center gap-4">
-              <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-slate-900 ring-1 ring-[#5865F2]/30 flex-shrink-0">
-                <Image
-                  src="/logos/wilds-ai.svg"
-                  alt="Wilds.ai"
-                  width={48}
-                  height={48}
-                  className="object-contain"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="text-base font-semibold text-[var(--color-steel-100)] mb-1 flex items-center gap-2">
-                  Join the <span className="text-emerald-400">Wilds.ai</span> Discord
-                  <svg className="w-4 h-4 text-[#7C8BFC]" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286z" />
-                  </svg>
-                </h3>
-                <p className="text-sm text-[var(--color-steel-200)] leading-relaxed">
-                  AI research, tooling, and SafeOS updates. Builders and operators welcome.
-                </p>
-              </div>
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 bg-[#5865F2]/15 border border-[#5865F2]/30 rounded-lg text-sm font-medium text-[#7C8BFC] group-hover:bg-[#5865F2]/25 transition-colors flex-shrink-0">
-                Join
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg>
-              </span>
-            </div>
-          </a>
-        </div>
-
-        {/* Humanitarian Badge + Forever Free */}
+        {/* Who builds it, and what is free */}
         <div className="mt-8 flex flex-col items-center gap-4">
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 px-5 py-2.5
                           bg-emerald-500/10 border border-emerald-500/20
                           rounded-2xl sm:rounded-full text-emerald-400 max-w-[90vw]">
             <IconHeart size={20} className="text-red-400 flex-shrink-0" />
             <span className="text-sm font-medium">
-              Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work
+              Frame builds SafeOS and pays for its development
             </span>
           </div>
           
           <p className="text-sm text-[var(--color-steel-300)] text-center max-w-md">
-            <strong className="text-emerald-400">SafeOS Guardian will always be free.</strong> We will never
-            charge for this humanitarian service. Ever.
+            <strong className="text-emerald-400">SafeOS at safeos.sh is free.</strong> There is no account,
+            no paid tier and no subscription on this site. The code is MIT-licensed, so anyone can run it.
           </p>
         </div>
       </main>

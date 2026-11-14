@@ -807,6 +807,19 @@ html.light .text-emerald-500\/80 {
   color: rgba(4, 120, 87, 0.9) !important;
 }
 
+/* The home hero's "Guardian" and the feature-card tags use emerald-400 at 90%,
+   about 1.7 to 1 on the light surface. The tags sit on a green tint, where
+   emerald-700 is about 4.3 to 1; emerald-800 is about 6 to 1 there. */
+html.light .text-emerald-400\/90 {
+  color: #065f46 !important; /* emerald-800 */
+}
+
+/* Setup's warning heading uses the status amber, about 1.8 to 1 on the light
+   steel-850 box; amber-800 is about 5.9 to 1 there. */
+html.light .text-\[var\(--color-status-warning\)\] {
+  color: #92400e !important; /* amber-800 */
+}
+
 /* amber-200 handled in more specific rule below */
 
 html.light .text-amber-400,

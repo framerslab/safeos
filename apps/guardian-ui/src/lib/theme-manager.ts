@@ -103,23 +103,26 @@ export const useThemeStore = create<ThemeState>()(
       // Persist resolvedTheme alongside themeMode so it's correct on first
       // render after reload. Without this, partialize would drop resolvedTheme
       // and useTheme's effect would race the inline init script in layout.tsx,
-      // overwriting the correct class with the default 'dark' before
-      // onRehydrateStorage gets a chance to recalculate.
+      // overwriting the correct class with the default 'dark' before merge
+      // gets a chance to recalculate.
       partialize: (state) => ({
         themeMode: state.themeMode,
         resolvedTheme: state.resolvedTheme,
         accessibility: state.accessibility,
       }),
-      onRehydrateStorage: () => (state) => {
-        // For 'system' mode, the persisted resolvedTheme may be stale if the
-        // user's OS preference changed since last visit. Recalculate from the
-        // live media query in that case.
-        if (state && typeof window !== 'undefined' && state.themeMode === 'system') {
-          const resolved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-          if (resolved !== state.resolvedTheme) {
-            useThemeStore.setState({ resolvedTheme: resolved });
-          }
+      // For 'system' mode, the persisted resolvedTheme may be stale if the
+      // user's OS preference changed since last visit, and on a first visit
+      // it is the 'dark' default. Recalculate it from the live media query
+      // while merging. This runs inside create() with localStorage, before
+      // useThemeStore exists, so it must not call useThemeStore: a call there
+      // threw, the store never finished hydrating, and the theme button on a
+      // light device changed its icon but not the page.
+      merge: (persisted, current) => {
+        const merged = { ...current, ...(persisted as Partial<ThemeState> | undefined) };
+        if (typeof window !== 'undefined' && merged.themeMode === 'system') {
+          merged.resolvedTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
+        return merged;
       },
     }
   )

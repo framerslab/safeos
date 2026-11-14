@@ -64,9 +64,9 @@ const scenarioColors: Record<string, { bg: string; border: string; text: string 
 };
 
 const scenarioDescriptions: Record<string, string> = {
-  pet: 'Monitor pets for activity, distress, eating, and health indicators.',
-  baby: 'Watch for crying, movement, breathing patterns, and sleep monitoring.',
-  elderly: 'Detect falls, call for help, inactivity, and signs of confusion.',
+  pet: 'Alerts on your pet\'s movement and on loud sound.',
+  baby: 'Alerts on small movements and on loud sound, such as crying.',
+  elderly: 'Alerts on movement, loud sound, and no movement for a set time.',
 };
 
 // =============================================================================

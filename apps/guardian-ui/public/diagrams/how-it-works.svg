@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" role="img" aria-labelledby="diag-title diag-desc" preserveAspectRatio="xMidYMid meet">
   <title id="diag-title">SafeOS Guardian — how it all works</title>
-  <desc id="diag-desc">A two-zone architecture diagram. The browser zone runs entirely on the user's device: camera and microphone feeds plus reference photos flow through a per-frame screening layer (pixel-diff motion detection, audio FFT, and pixel-change counting at roughly 5 to 10 Hz) that gates the detection pipeline below (COCO-SSD via TensorFlow.js with agreed downloads in Cache Storage, Web Audio FFT, and a perceptual color-plus-edge fingerprint). CV models only fire when the screening layer detects activity, keeping the GPU idle otherwise. Detections pass to a severity-tiered alert engine, with IndexedDB and a service worker providing local storage and caching. A second, opt-in zone below shows an optional API server fanning alerts out to Resend email, Twilio SMS, Telegram, an Ollama LAN install, or cloud LLM fallback.</desc>
+  <desc id="diag-desc">A two-zone architecture diagram. The browser zone runs entirely on the user's device: camera and microphone feeds plus reference photos flow through a per-frame screening layer (pixel-diff motion detection, audio FFT, and pixel-change counting at roughly 5 to 10 Hz) that gates the detection pipeline below (COCO-SSD via TensorFlow.js in Security and Wildlife with an agreed download in Cache Storage, Web Audio sound levels, and a color-plus-edge fingerprint). CV models run when the screening layer detects activity, and every five seconds while Security is alerting; otherwise the GPU stays idle. Detections pass to a severity-tiered alert engine, with IndexedDB and a service worker providing local storage and caching. A second, opt-in zone below shows an optional API server fanning alerts out to Resend email, Twilio SMS, Telegram, an Ollama LAN install, or cloud LLM fallback.</desc>
 
   <defs>
     <!-- Page background gradient -->
@@ -146,10 +146,10 @@
           <line x1="11" y1="2" x2="11" y2="20" stroke="#34d399" stroke-width="1.2" stroke-dasharray="2 2"/>
         </g>
         <text x="48" y="22" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#f3f4f6">COCO-SSD</text>
-        <text x="48" y="38" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#94a3b8">TensorFlow.js · ~5 MB</text>
+        <text x="48" y="38" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#94a3b8">TensorFlow.js · 18.6 MB</text>
         <text x="14" y="62" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#cbd5e1">Object detection</text>
-        <text x="14" y="78" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#10b981" font-weight="600">10–30 FPS</text>
-        <text x="14" y="92" font-family="Inter, system-ui, sans-serif" font-size="9.5" fill="#64748b">WebGPU / WebGL</text>
+        <text x="14" y="78" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#10b981" font-weight="600">Up to 2 per second</text>
+        <text x="14" y="92" font-family="Inter, system-ui, sans-serif" font-size="9.5" fill="#64748b">WebGL</text>
       </g>
 
       <!-- Shared model cache -->
@@ -162,7 +162,7 @@
           <circle cx="11" cy="11" r="3.5" fill="#34d399"/>
         </g>
         <text x="48" y="22" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#f3f4f6">Saved detection model</text>
-        <text x="48" y="38" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#94a3b8">Cache Storage · ~19 MB</text>
+        <text x="48" y="38" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#94a3b8">Cache Storage · 18.6 MB</text>
         <text x="14" y="62" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#cbd5e1">Security and Wildlife share weights</text>
         <text x="14" y="78" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#10b981" font-weight="600">Download after agreement</text>
         <text x="14" y="92" font-family="Inter, system-ui, sans-serif" font-size="9.5" fill="#64748b">Offline while storage is retained</text>
@@ -182,7 +182,7 @@
         </g>
         <text x="48" y="22" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#f3f4f6">Web Audio FFT</text>
         <text x="48" y="38" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#94a3b8">native · 0 KB</text>
-        <text x="14" y="62" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#cbd5e1">Cry / distress / silence</text>
+        <text x="14" y="62" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#cbd5e1">Loudness threshold</text>
         <text x="14" y="78" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#10b981" font-weight="600">~50 ms windows</text>
         <text x="14" y="92" font-family="Inter, system-ui, sans-serif" font-size="9.5" fill="#64748b">AnalyserNode · spectral bins</text>
       </g>
@@ -198,10 +198,10 @@
           <path d="M11 14 V22" stroke="#34d399" stroke-width="1.4" stroke-linecap="round"/>
         </g>
         <text x="48" y="22" font-family="Inter, system-ui, sans-serif" font-size="13" font-weight="700" fill="#f3f4f6">Fingerprint</text>
-        <text x="48" y="38" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#94a3b8">Color hist + Sobel edges</text>
+        <text x="48" y="38" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#94a3b8">Color hist + edge grid</text>
         <text x="14" y="62" font-family="Inter, system-ui, sans-serif" font-size="11" fill="#cbd5e1">Lost &amp; Found match</text>
         <text x="14" y="78" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#10b981" font-weight="600">&lt; 1 KB / photo</text>
-        <text x="14" y="92" font-family="Inter, system-ui, sans-serif" font-size="9.5" fill="#64748b">32-bin · 8×8 grid · cosine sim</text>
+        <text x="14" y="92" font-family="Inter, system-ui, sans-serif" font-size="9.5" fill="#64748b">32-bin · 8×8 grid · weighted score</text>
       </g>
 
       <!-- Shared model storage -->
@@ -240,7 +240,7 @@
           <path d="M2 11 V19 C2 20.3 6 21.4 11 21.4 C16 21.4 20 20.3 20 19 V11" fill="none" stroke="#94a3b8" stroke-width="1.3"/>
         </g>
         <text x="46" y="20" font-family="Inter, system-ui, sans-serif" font-size="12" font-weight="600" fill="#e5e7eb">IndexedDB</text>
-        <text x="46" y="34" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#94a3b8">settings · alert history · fingerprints</text>
+        <text x="46" y="34" font-family="Inter, system-ui, sans-serif" font-size="10" fill="#94a3b8">alert history · frames · fingerprints</text>
       </g>
 
       <!-- Service Worker -->
@@ -259,8 +259,8 @@
       <!-- Privacy stamp -->
       <g transform="translate(740, 0)">
         <rect x="0" y="0" width="280" height="42" rx="10" fill="#0d1318" stroke="#10b981" stroke-opacity="0.4" stroke-width="1"/>
-        <text x="20" y="18" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#10b981" letter-spacing="1">PRIVACY GUARANTEE</text>
-        <text x="20" y="34" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#cbd5e1">No frames uploaded. No telemetry.</text>
+        <text x="20" y="18" font-family="Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#10b981" letter-spacing="1">PRIVACY</text>
+        <text x="20" y="34" font-family="Inter, system-ui, sans-serif" font-size="10.5" fill="#cbd5e1">No upload unless you add a server.</text>
       </g>
     </g>
   </g>

@@ -11,6 +11,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { ShortcutList } from '../../hooks/useKeyboardShortcuts';
+import { NotAMedicalDevice } from '../../components/NotAMedicalDevice';
 
 // =============================================================================
 // Types
@@ -83,11 +84,6 @@ const contactIcons: Record<string, React.ReactNode> = {
       <line x1="12" y1="16" x2="12.01" y2="16" />
     </svg>
   ),
-  discord: (
-    <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  ),
   email: (
     <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -102,51 +98,36 @@ const contactIcons: Record<string, React.ReactNode> = {
   ),
 };
 
-// Video icons
-const videoIcon = (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-    <rect x="2" y="7" width="20" height="15" rx="2" ry="2" />
-    <polyline points="17 2 12 7 7 2" />
-  </svg>
-);
-
-const playIcon = (
-  <svg className="w-10 h-10 opacity-50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-    <circle cx="12" cy="12" r="10" />
-    <polygon points="10 8 16 12 10 16 10 8" />
-  </svg>
-);
-
 const faqs: FAQItem[] = [
   {
     category: 'general',
     question: 'What is SafeOS Guardian?',
-    answer: 'SafeOS Guardian is a free, AI-powered monitoring service for pets, babies, and elderly care. It uses your device\'s camera and microphone to detect potential issues and alert you in real-time. Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work.',
+    answer: 'SafeOS Guardian is a free monitoring tool for pets, babies, and elderly care. It uses your device\'s camera and microphone to watch for motion and sound and alerts you in real time. Frame builds SafeOS and pays for its development.',
   },
   {
     category: 'general',
     question: 'Is SafeOS free?',
-    answer: 'Yes. SafeOS is free to use. Frame (Framers Lab, Inc.) pays for its development, and GitHub sponsorships support it.',
+    answer: 'Yes. SafeOS is free to use. Frame (Framers Lab, Inc.) pays for its development.',
   },
   {
     category: 'general',
     question: 'Can SafeOS replace professional care?',
-    answer: 'No. SafeOS is a SUPPLEMENTARY tool only. It should never replace direct human care, professional medical monitoring, or parental supervision. Always ensure proper care is provided.',
+    answer: 'No. SafeOS is a SUPPLEMENTARY tool only. It should never replace direct human care, professional care, or parental supervision. Always ensure proper care is provided.',
   },
   {
     category: 'privacy',
     question: 'What happens to my video data?',
-    answer: 'Video processing happens locally on your device. Frames are only kept for 5-10 minutes in a rolling buffer and are automatically deleted. Only AI-analyzed results (not raw video) may be stored temporarily for alert purposes.',
+    answer: 'Video is processed in your browser. The motion check keeps only the last three frames in memory. Frames that Security, Wildlife or Lost & Found save stay in your browser\'s IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to it.',
   },
   {
     category: 'privacy',
     question: 'Do you store my data on servers?',
-    answer: 'Most data is stored locally in your browser using IndexedDB. Server-side storage is minimal and focused on alerts and session management. No video is stored on servers unless flagged for human review (and even then, it\'s anonymized).',
+    answer: 'No. safeos.sh runs no server of ours. Settings stay in your browser\'s localStorage, and saved frames and alerts in IndexedDB. If you run the optional SafeOS server yourself, it stores what it receives on that server.',
   },
   {
     category: 'privacy',
     question: 'How does human review work?',
-    answer: 'In rare cases where the AI flags concerning content, a human reviewer may review anonymized snapshots. Personal identifying information is blurred or removed before review.',
+    answer: 'safeos.sh sends nothing to anyone for review. Human review is part of the optional SafeOS server, for the people who run that server. It does not blur faces or images.',
   },
   {
     category: 'technical',
@@ -166,7 +147,7 @@ const faqs: FAQItem[] = [
   {
     category: 'alerts',
     question: 'Why are my alerts getting louder?',
-    answer: 'Unacknowledged alerts automatically escalate in volume over time. This is a safety feature to ensure critical alerts are noticed. Simply acknowledge the alert to stop escalation.',
+    answer: 'Unacknowledged alerts automatically escalate in volume over time, so an alert you have not answered is harder to miss. Acknowledge the alert to stop escalation.',
   },
   {
     category: 'alerts',
@@ -176,7 +157,7 @@ const faqs: FAQItem[] = [
   {
     category: 'alerts',
     question: 'Too many false alerts - what should I do?',
-    answer: 'Adjust motion and audio sensitivity in Settings > Detection. Higher sensitivity values mean fewer alerts. You can also try repositioning your camera to reduce background movement.',
+    answer: 'Lower the motion and audio sensitivity in Settings > Detection. A lower sensitivity raises the trigger threshold, so it takes more movement or a louder sound to set off an alert. You can also move the camera away from background movement.',
   },
 ];
 
@@ -301,7 +282,7 @@ export default function HelpPage() {
                       <div>
                         <h3 className="text-white font-medium mb-1">Start Monitoring</h3>
                         <p className="text-sm text-slate-400">
-                          Click &quot;Start Monitoring&quot; and position your camera. The AI will begin analyzing!
+                          Click &quot;Start Monitoring&quot; and position your camera. SafeOS starts watching for motion and sound.
                         </p>
                       </div>
                     </div>
@@ -344,19 +325,7 @@ export default function HelpPage() {
                   </div>
                 </Link>
 
-                {/* Video Tutorial Embed */}
-                <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    {videoIcon}
-                    <span>Video Tutorial</span>
-                  </h3>
-                  <div className="aspect-video bg-slate-700 rounded-lg flex items-center justify-center">
-                    <div className="text-center">
-                      {playIcon}
-                      <p className="text-slate-400 mt-2">Video tutorial coming soon</p>
-                    </div>
-                  </div>
-                </div>
+                <NotAMedicalDevice className="text-sm text-slate-400" />
               </div>
             )}
 
@@ -436,7 +405,7 @@ export default function HelpPage() {
                     </div>
 
                     <div className="p-4 bg-slate-700/30 rounded-lg">
-                      <h3 className="text-white font-medium mb-2">AI analysis not running</h3>
+                      <h3 className="text-white font-medium mb-2">Server AI analysis not running</h3>
                       <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
                         <li>Ensure Ollama is running locally</li>
                         <li>Check that required models are installed</li>
@@ -485,23 +454,12 @@ export default function HelpPage() {
                   </a>
 
                   <a
-                    href="https://wilds.ai/discord"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-4 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors"
-                  >
-                    <span className="text-slate-300">{contactIcons.discord}</span>
-                    <h3 className="text-white font-medium mt-2">Discord Community</h3>
-                    <p className="text-sm text-slate-400">Chat with other users</p>
-                  </a>
-
-                  <a
-                    href="mailto:support@safeos.dev"
+                    href="mailto:team@frame.dev"
                     className="p-4 bg-slate-700/30 rounded-lg hover:bg-slate-700/50 transition-colors"
                   >
                     <span className="text-slate-300">{contactIcons.email}</span>
                     <h3 className="text-white font-medium mt-2">Email Support</h3>
-                    <p className="text-sm text-slate-400">support@safeos.dev</p>
+                    <p className="text-sm text-slate-400">team@frame.dev</p>
                   </a>
 
                   <a

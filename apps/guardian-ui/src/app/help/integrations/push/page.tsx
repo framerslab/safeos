@@ -9,12 +9,15 @@
 import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import { IconBell, IconExternalLink, IconShield } from '@/components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Browser push setup',
-  description: 'Configure VAPID keys for SafeOS Guardian browser push notifications.',
-};
+  description:
+    'Configure VAPID keys for SafeOS Guardian browser push notifications.',
+  path: '/help/integrations/push/',
+});
 
 export default function PushHelpPage() {
   return (

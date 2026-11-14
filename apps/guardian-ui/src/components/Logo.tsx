@@ -221,7 +221,7 @@ export function Logo({ size = 'md', showFrame = true, showSuperCloud, className 
         <span
           className="font-mono font-semibold uppercase tracking-wider leading-tight"
           style={{
-            fontSize: size === 'sm' ? '11px' : size === 'md' ? '13px' : '15px',
+            fontSize: size === 'sm' ? '15px' : size === 'md' ? '15px' : '17px',
             color: 'var(--color-steel-100)'
           }}
         >
@@ -230,7 +230,7 @@ export function Logo({ size = 'md', showFrame = true, showSuperCloud, className 
         <span
           className="font-mono uppercase tracking-widest"
           style={{
-            fontSize: size === 'sm' ? '8px' : size === 'md' ? '9px' : '10px',
+            fontSize: size === 'sm' ? '13px' : size === 'md' ? '13px' : '14px',
             color: 'var(--color-steel-500)'
           }}
         >

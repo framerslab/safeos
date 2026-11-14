@@ -7,6 +7,7 @@
  */
 
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import Link from 'next/link';
 import Image from 'next/image';
 import {
@@ -23,10 +24,12 @@ import {
   IconWarning,
 } from '../../components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'About',
-  description: 'Mission, values, and architecture for SafeOS Guardian.',
-};
+  description:
+    'Who builds SafeOS Guardian, how it runs in your browser, what stays on your device, and how to reach the team.',
+  path: '/about/',
+});
 
 // =============================================================================
 // Components
@@ -168,7 +171,7 @@ export default function AboutPage() {
             SafeOS Guardian
           </h2>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-            A humanitarian tool for protecting what matters most—your loved ones, pets, and home.
+            Free motion and sound alerts in your browser, for the people and pets you look after.
           </p>
         </div>
 
@@ -186,8 +189,8 @@ export default function AboutPage() {
             </p>
             <p className="text-slate-300 leading-relaxed mb-4">
               On safeos.sh, SafeOS runs entirely in your browser. Your recordings, settings, and personal
-              information stay on your device. If you connect a server you run yourself, camera frames and
-              alerts go to that server. If you also give that server a key for a cloud AI provider, it can
+              information stay on your device. If you connect a server you run yourself, alerts go to that
+              server, and camera frames go to it in a processing mode that uses it. If you also give that server a key for a cloud AI provider, it can
               send a frame to that provider when its local analysis is unavailable.
             </p>
             <p className="text-slate-400 leading-relaxed">
@@ -208,7 +211,7 @@ export default function AboutPage() {
             <ValueCard
               icon={<IconDatabase size={24} />}
               title="Privacy First"
-              description="All data stays on your device. We never collect, store, or sell your personal information. Your privacy is non-negotiable."
+              description="Without a server of your own, your data stays on your device. We never collect, store, or sell your personal information."
             />
             <ValueCard
               icon={<IconShield size={24} />}
@@ -217,8 +220,8 @@ export default function AboutPage() {
             />
             <ValueCard
               icon={<IconHeart size={24} />}
-              title="Humanitarian Purpose"
-              description="Frame puts some of its development resources into humanitarian work, and SafeOS is part of that work. It is free to use."
+              title="Free to Use"
+              description="Frame builds SafeOS and pays for its development. Using it costs nothing and needs no account."
             />
             <ValueCard
               icon={<IconGlobe size={24} />}
@@ -228,11 +231,11 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Humanitarian work */}
+        {/* Who builds it */}
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <span className="text-emerald-400">03</span>
-            Humanitarian Work
+            Who Builds It
           </h3>
           <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-emerald-500/30 rounded-xl">
             <div className="flex items-center gap-4 mb-4">
@@ -241,16 +244,12 @@ export default function AboutPage() {
               </div>
               <div>
                 <h4 className="font-semibold text-white">Why SafeOS exists</h4>
-                <p className="text-sm text-slate-400">Development time given to humanitarian work</p>
+                <p className="text-sm text-slate-400">Built and paid for by Frame</p>
               </div>
             </div>
-            <p className="text-slate-300 leading-relaxed mb-4">
-              Frame puts some of its development resources into humanitarian work, and SafeOS is
-              part of that work: a free monitoring tool for families, pets, and the people who care
-              for them.
-            </p>
-            <p className="text-sm text-slate-400">
-              A sponsorship on GitHub supports that development. It is not a tax-deductible donation.
+            <p className="text-slate-300 leading-relaxed">
+              Frame builds SafeOS and pays for its development: a free monitoring tool for families,
+              pets, and the people who care for them.
             </p>
           </div>
         </section>
@@ -262,7 +261,7 @@ export default function AboutPage() {
             Tech Stack
           </h3>
           <p className="text-slate-400 mb-6">
-            SafeOS Guardian is built with cutting-edge, production-ready technologies:
+            SafeOS Guardian is built with:
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             <TechStackItem
@@ -302,15 +301,15 @@ export default function AboutPage() {
             />
             <TechStackItem
               name="Capacitor"
-              description="Mobile apps"
+              description="Native wrapper configuration"
               logo="capacitor.svg"
             />
           </div>
           <div className="mt-6 p-4 bg-slate-800/30 border border-slate-700/50 rounded-xl">
             <p className="text-sm text-slate-400">
-              <span className="text-emerald-400 font-medium">100% Browser-Based:</span>{' '}
-              All ML inference runs locally using TensorFlow.js. No data ever leaves your device
-              unless you explicitly enable optional cloud features.
+              <span className="text-emerald-400 font-medium">Browser-based:</span>{' '}
+              Security and Wildlife run COCO-SSD with TensorFlow.js in your browser. Nothing is
+              uploaded unless you connect a server you run yourself.
             </p>
           </div>
         </section>
@@ -323,21 +322,21 @@ export default function AboutPage() {
           </h3>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-xl">
             <p className="text-slate-300 leading-relaxed mb-6">
-              SafeOS Guardian uses a local-first architecture that keeps your data private while
-              delivering powerful AI-driven monitoring:
+              SafeOS Guardian uses a local-first architecture that keeps your data on your device
+              while it watches for motion and sound:
             </p>
             <div className="space-y-6">
               <ArchitectureStep
                 step={1}
                 icon={<IconCamera size={16} />}
                 title="Camera & Microphone Access"
-                description="Your browser requests permission to access your device's camera and microphone. Video and audio streams never leave your device."
+                description="Your browser requests permission to access your device's camera and microphone. Without a server of your own, video and audio stay in your browser."
               />
               <ArchitectureStep
                 step={2}
                 icon={<IconCpu size={16} />}
-                title="Local AI Processing"
-                description="TensorFlow.js analyzes frames in real-time directly in your browser. Motion detection, cry analysis, and pixel monitoring all happen on your device."
+                title="Local Processing"
+                description="Your browser compares frames for motion and pixel change and measures sound levels. In Security and Wildlife, TensorFlow.js runs COCO-SSD to find people and animals."
               />
               <ArchitectureStep
                 step={3}
@@ -354,8 +353,8 @@ export default function AboutPage() {
               <ArchitectureStep
                 step={5}
                 icon={<IconWifiOff size={16} />}
-                title="Optional Cloud Sync"
-                description="If enabled, only encrypted metadata syncs across your devices. Video and audio data always stays local."
+                title="Optional Server"
+                description="If you connect a server you run yourself, your devices sync through it, and in a processing mode that uses it the monitor sends camera frames to it."
               />
             </div>
             <div className="mt-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
@@ -366,16 +365,15 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Abuse Policy */}
+        {/* Lawful use */}
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <span className="text-emerald-400">06</span>
-            Abuse Prevention
+            Use It Lawfully
           </h3>
           <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl">
             <p className="text-slate-300 leading-relaxed mb-4">
-              SafeOS Guardian is designed for legitimate monitoring purposes only. We actively discourage
-              and track potential abuse of this technology:
+              SafeOS Guardian is for lawful monitoring only:
             </p>
             <ul className="space-y-2 text-slate-400 mb-4">
               <li className="flex items-start gap-2">
@@ -384,11 +382,7 @@ export default function AboutPage() {
               </li>
               <li className="flex items-start gap-2">
                 <IconWarning size={16} className="text-red-400 mt-1 flex-shrink-0" />
-                <span>Rate limitations and warnings are implemented to prevent misuse</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <IconWarning size={16} className="text-red-400 mt-1 flex-shrink-0" />
-                <span>We reserve the right to take down the service if abuse is detected</span>
+                <span>Tell any adult you watch or listen to, and have their agreement first</span>
               </li>
             </ul>
             <p className="text-sm text-slate-500">
@@ -495,14 +489,15 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Forever Free */}
+        {/* Free on this site */}
         <section className="text-center">
           <div className="inline-block p-6 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-emerald-500/30 rounded-2xl">
             <p className="text-lg font-medium text-white mb-2">
-              SafeOS Guardian will always be free.
+              SafeOS at safeos.sh is free.
             </p>
             <p className="text-sm text-slate-400">
-              No subscriptions. No hidden fees. No data selling. Ever.
+              No account, no paid tier and no subscription on this site. The code is MIT-licensed,
+              so anyone can run it.
             </p>
           </div>
         </section>
@@ -514,12 +509,6 @@ export default function AboutPage() {
             className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
           >
             View Tutorials
-          </Link>
-          <Link
-            href="/donate"
-            className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
-          >
-            Support Us
           </Link>
         </div>
       </main>

@@ -11,6 +11,7 @@
 import React from 'react';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/page-metadata';
 import {
   IconMail,
   IconPhone,
@@ -20,10 +21,12 @@ import {
   IconShield,
 } from '@/components/icons';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: 'Integrations',
-  description: 'Setup guides for Resend email, Twilio SMS, Telegram, browser push, and Ollama in SafeOS Guardian.',
-};
+  description:
+    'Setup guides for Resend email, Twilio SMS, Telegram, browser push, and Ollama in SafeOS Guardian.',
+  path: '/help/integrations/',
+});
 
 interface Integration {
   href: string;
@@ -107,10 +110,10 @@ export default function IntegrationsIndexPage() {
             <div className="text-sm text-slate-300 leading-relaxed">
               <p className="font-semibold text-white mb-1">Where your keys live</p>
               <p>
-                When the operator configures a key in <code className="px-1 py-0.5 bg-slate-900 rounded">.env</code> on
-                the API server, every user of that deployment benefits. When you bring your own key
-                (currently supported for Resend), the key stays in this browser&apos;s local storage
-                and is only sent to the server when an alert is dispatched.
+                A key the operator sets in <code className="px-1 py-0.5 bg-slate-900 rounded">.env</code> on
+                the API server stays on that server. For Resend, the server sends alert email with it
+                only for the operator&apos;s own account. A Resend key you type in Settings →
+                Notifications is sent with the test email and is not saved.
               </p>
             </div>
           </div>

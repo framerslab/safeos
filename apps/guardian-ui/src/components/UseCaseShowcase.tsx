@@ -11,8 +11,8 @@
  * 1. Baby Monitoring - Ultra-sensitive sleep monitoring
  * 2. Pet Care - Watch your pets, call them home when detected
  * 3. Elderly Care - Activity monitoring with inactivity alerts
- * 4. Lost & Found - Find missing pets/items with AI detection
- * 5. Security - Intruder detection and person alerts
+ * 4. Lost & Found - Watch the camera for anything with a lost pet's colours
+ * 5. Security - Counts the people in view and alerts
  * 6. Wildlife - Watch backyard wildlife activity
  *
  * @module components/UseCaseShowcase
@@ -48,18 +48,17 @@ const USE_CASES: UseCase[] = [
     description:
       'A supplementary alert layer for when you AND your infant are napping nearby. Provides audio cues if movement or sounds are detected — NOT a replacement for supervision.',
     features: [
-      'SUPPLEMENTARY ONLY — not a babysitter replacement',
+      'Adds an alert; it does not replace a person nearby',
       'Best for short naps when parent is also resting nearby',
       'Audio/visual alerts to wake you if needed',
-      '100% local processing - your data stays private',
-      'Peace of mind as an extra safety layer',
+      'Runs in your browser; frames are not uploaded unless you connect your own server',
     ],
     icon: <BabyIcon />,
     color: 'text-pink-400',
     bgColor: 'bg-pink-500/10',
     borderColor: 'border-pink-500/30',
     presetId: 'infant_sleep',
-    quickStartUrl: '/monitor?preset=infant_sleep&scenario=baby',
+    quickStartUrl: '/monitor?preset=infant_sleep',
   },
   {
     id: 'pet',
@@ -68,29 +67,27 @@ const USE_CASES: UseCase[] = [
     description:
       'A supplementary layer to get alerts about your pets during brief absences from the room. Play custom sounds when detected — but NEVER leave pets unattended for long periods.',
     features: [
-      'SUPPLEMENTARY ONLY — not a pet-sitter replacement',
+      'Adds an alert; it does not replace a person nearby',
       'Best for brief room absences (bathroom, quick errands)',
       'Custom sound recordings for pet recall',
-      'Alerts for unusual activity patterns',
-      'Integrate with Lost & Found for escape alerts',
     ],
     icon: <PetIcon />,
     color: 'text-amber-400',
     bgColor: 'bg-amber-500/10',
     borderColor: 'border-amber-500/30',
     presetId: 'pet_monitoring',
-    quickStartUrl: '/monitor?preset=pet_monitoring&scenario=pet',
+    quickStartUrl: '/monitor',
   },
   {
     id: 'elderly',
     name: 'Elderly Care',
-    tagline: 'Supplemental wellness check-ins',
+    tagline: 'An alert when nothing moves',
     description:
-      'A supplementary alert system for additional peace of mind. Get notified of extended inactivity — but this is NOT a replacement for proper care, medical monitoring, or regular check-ins.',
+      'Turn on the no-movement alert in Settings, and SafeOS alerts you when nothing has moved for the minutes you set. It does not replace care or regular check-ins. Tell the person and have their agreement before you watch or listen.',
     features: [
-      'SUPPLEMENTARY ONLY — not a caregiver replacement',
+      'Adds an alert; it does not replace a person nearby',
       'Additional awareness layer, not primary care',
-      'Inactivity alerts as backup notification',
+      'Optional no-movement alert, turned on in Settings',
       'Privacy-first local processing',
       'Works alongside regular human check-ins',
     ],
@@ -99,18 +96,18 @@ const USE_CASES: UseCase[] = [
     bgColor: 'bg-blue-500/10',
     borderColor: 'border-blue-500/30',
     presetId: 'elderly_care',
-    quickStartUrl: '/monitor?preset=balanced&scenario=elderly',
+    quickStartUrl: '/monitor',
   },
   {
     id: 'lost-found',
     name: 'Lost & Found',
-    tagline: 'Aid in locating missing subjects',
+    tagline: 'Watch your camera for a lost pet',
     description:
-      'Upload a photo to help locate a missing pet or person. This is a supplementary search aid — continue active searching and contact authorities for missing persons.',
+      'Upload photos of your lost pet. SafeOS watches your own camera for anything with the same colouring. It matches colours, so another animal or an object of similar colour can set it off. This is a supplementary search aid — keep searching.',
     features: [
       'SUPPLEMENTARY SEARCH AID — not primary search method',
-      'Helps increase coverage of search area',
-      'Works with pets, people, and objects',
+      'Covers the one spot your camera sees',
+      'Matches colours and size, not identity',
       'Alerts when potential match is spotted',
       'Always continue active searching efforts',
     ],
@@ -119,27 +116,26 @@ const USE_CASES: UseCase[] = [
     bgColor: 'bg-purple-500/10',
     borderColor: 'border-purple-500/30',
     presetId: 'balanced',
-    quickStartUrl: '/lost-found?action=add',
+    quickStartUrl: '/lost-found',
   },
   {
     id: 'security',
     name: 'Security',
-    tagline: 'Supplemental intruder awareness',
+    tagline: 'Counts the people in view',
     description:
-      'A supplementary alert layer for home awareness. Provides motion/person alerts — but is NOT a replacement for proper security systems, locks, or professional monitoring.',
+      'The Security page watches for movement, counts the people in view with COCO-SSD and alerts you with a siren and a browser notification. It adds an alert and does not replace locks or a person nearby.',
     features: [
-      'SUPPLEMENTARY ONLY — not a security system replacement',
-      'Additional awareness layer for peace of mind',
-      'On-device alerts (sound + browser notifications)',
-      'Best used alongside proper locks and security',
-      'Detection zones for focused monitoring',
+      'Adds an alert; it does not replace a person nearby',
+      'Counts the people in view with COCO-SSD',
+      'Siren and browser notification on this device',
+      'Best used alongside locks',
     ],
     icon: <SecurityIcon />,
     color: 'text-red-400',
     bgColor: 'bg-red-500/10',
     borderColor: 'border-red-500/30',
     presetId: 'maximum_sensitivity',
-    quickStartUrl: '/monitor?preset=maximum_sensitivity&scenario=security',
+    quickStartUrl: '/security',
   },
   {
     id: 'wildlife',
@@ -149,17 +145,15 @@ const USE_CASES: UseCase[] = [
       'Capture wildlife activity in your yard. This is for observation and enjoyment — the AI detects animals and logs sightings for nature enthusiasts.',
     features: [
       'Casual observation tool for nature lovers',
-      'Animal detection and classification',
-      'Motion-triggered recording',
-      'Species logging and statistics',
-      'Night vision compatible',
+      'Detects ten kinds of animal with COCO-SSD',
+      'Saves a still frame of each sighting',
     ],
     icon: <WildlifeIcon />,
     color: 'text-emerald-400',
     bgColor: 'bg-emerald-500/10',
     borderColor: 'border-emerald-500/30',
     presetId: 'balanced',
-    quickStartUrl: '/wildlife?setup=true',
+    quickStartUrl: '/wildlife',
   },
 ];
 
@@ -196,7 +190,7 @@ export function UseCaseShowcase({
           </h2>
           <p className="text-slate-400 max-w-2xl mx-auto">
             SafeOS provides <strong className="text-amber-400">additional awareness</strong> as a backup layer.
-            It is <strong className="text-red-400">NOT a replacement</strong> for human supervision, professional care, or proper security systems.
+            It adds an alert and <strong className="text-red-400">does not replace</strong> a person nearby or professional care.
           </p>
         </div>
       )}
