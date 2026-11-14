@@ -3,7 +3,8 @@
 Captured in CI for pull request #25 by the
 [Pictures run](https://github.com/framerslab/safeos/actions/runs/43570858829):
 
-- Before: the base commit on master, from the run's "Capture before pictures" job.
+- Before: master at `25e230cd54ad5cb33503eae1986d0e4bc8e9e6e7`, from the run's
+  "Capture before pictures" job.
 - After: commit `c78a511ff31995038e467e89cf65573b82531996`, from the run's
   "Capture pictures" job.
 
