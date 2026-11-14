@@ -29,6 +29,9 @@ import {
   IconChevronRight,
   IconPulse,
   IconRefresh,
+  IconPaw,
+  IconShield,
+  IconWildlife,
 } from './icons';
 import { SafeOSLogo, SuperCloudLogo } from './Logo';
 
@@ -360,6 +363,27 @@ function QuickActionsPanel({ isStreaming }: QuickActionsPanelProps) {
       href: '/nap',
       icon: <MoonIcon size={20} />,
       highlight: true,
+    },
+    {
+      id: 'lost-found',
+      label: 'Lost & Found',
+      description: 'Watch your camera for a lost pet',
+      href: '/lost-found',
+      icon: <IconPaw size={20} />,
+    },
+    {
+      id: 'security',
+      label: 'Security',
+      description: 'Counts the people in view',
+      href: '/security',
+      icon: <IconShield size={20} />,
+    },
+    {
+      id: 'wildlife',
+      label: 'Wildlife',
+      description: 'Observe backyard visitors',
+      href: '/wildlife',
+      icon: <IconWildlife size={20} />,
     },
     {
       id: 'history',
