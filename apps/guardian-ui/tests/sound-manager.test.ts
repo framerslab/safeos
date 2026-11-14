@@ -349,6 +349,46 @@ describe('Sound Manager', () => {
     jest.restoreAllMocks();
   });
 
+  describe('The stand-in audio clock', () => {
+    it('delivers each scheduled end once when its clock passes the stop time, honours a replacing stop and freezes while suspended', async () => {
+      jest.useFakeTimers();
+      const context = new FakeAudioContext();
+      const ended: string[] = [];
+      const oscillator = (name: string) => {
+        const node = context.createOscillator();
+        node.onended = () => ended.push(name);
+        node.start(0);
+        return node;
+      };
+      oscillator('once').stop(0.2);
+      // A later stop replaces an earlier one that has not been reached.
+      const later = oscillator('later');
+      later.stop(0.1);
+      later.stop(0.5);
+      const sooner = oscillator('sooner');
+      sooner.stop(0.9);
+      sooner.stop(0.3);
+
+      await runClock(context, 250);
+      expect(ended).toEqual(['once']);
+      await runClock(context, 100);
+      expect(ended).toEqual(['once', 'sooner']);
+
+      // A suspended context's time does not move.
+      context.state = 'suspended';
+      const at = context.currentTime;
+      await runClock(context, 1000);
+      expect(context.currentTime).toBe(at);
+      expect(ended).toEqual(['once', 'sooner']);
+
+      context.state = 'running';
+      await runClock(context, 200);
+      expect(ended).toEqual(['once', 'sooner', 'later']);
+      await runClock(context, 1000);
+      expect(ended).toEqual(['once', 'sooner', 'later']);
+    });
+  });
+
   describe('Singleton Pattern', () => {
     it('should return same instance', () => {
       const manager1 = getSoundManager();
