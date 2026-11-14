@@ -17,6 +17,10 @@ const SCRIPT = path.join(__dirname, '..', 'scripts', 'generate-site-qr.mjs');
 function run(dir: string, lifecycle: string) {
   const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: 'production', npm_lifecycle_event: lifecycle };
   delete env.NEXT_PUBLIC_SITE_URL;
+  // Jest's own Next.js setup marks the environment as read when the app's
+  // folder holds an env file; with the mark the script would skip the files
+  // written here.
+  delete env.__NEXT_PROCESSED_ENV;
   const out = path.join(dir, 'qr.svg');
   const said = execFileSync(process.execPath, [SCRIPT, out], { cwd: dir, env, encoding: 'utf8' });
   return { said, svg: fs.readFileSync(out, 'utf8') };

@@ -189,6 +189,34 @@ describe('the Menu', () => {
     expect(menu.hidden).toBe(true);
     expect(screen.getByRole('button', { name: 'Menu' }).getAttribute('aria-expanded')).toBe('false');
   });
+
+  it('moves focus from the Menu key to the start key when the window widens until the row holds the links', () => {
+    // The wider row shows no Menu key, so focus cannot stay on it: with the
+    // Menu open (opened from the keyboard, focus stays on the key) and with
+    // it closed (Escape puts focus back on the key).
+    for (const leaveOpen of [true, false]) {
+      const { container, unmount } = render(<VisitorHeader />);
+      const key = screen.getByRole('button', { name: 'Menu' });
+      key.focus();
+      fireEvent.click(key);
+      if (!leaveOpen) fireEvent.keyDown(document, { key: 'Escape' });
+      expect(document.activeElement).toBe(key);
+
+      // A tablet width or wider; jsdom measures no overflow, so the row holds the links.
+      const phone = window.matchMedia;
+      window.matchMedia = ((query: string) => ({ ...phone(query), matches: query.includes('min-width: 48em') })) as typeof window.matchMedia;
+      try {
+        act(() => {
+          window.dispatchEvent(new Event('resize'));
+        });
+      } finally {
+        window.matchMedia = phone;
+      }
+      expect((container.querySelector('#site-menu') as HTMLElement).hidden).toBe(true);
+      expect(document.activeElement).toBe(container.querySelector('.site-header__start'));
+      unmount();
+    }
+  });
 });
 
 describe('look switch', () => {
