@@ -9,7 +9,7 @@
 
 import { CameraPicker } from '../../components/CameraPicker';
 import { useCameraStore } from '../../stores/camera-store';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboardingStore, canSkipOnboarding } from '../../stores/onboarding-store';
 import {
@@ -74,15 +74,22 @@ export default function SetupPage() {
     }
   };
 
+  // Each camera request has a number. "Continue without the camera" and a newer
+  // request raise it, so an answer that arrives for an earlier request is
+  // dropped: a prompt answered after the person went on changes nothing.
+  const cameraRequest = useRef(0);
+
   // "Continue without the camera": setup goes on with both permissions
   // recorded as off. The Monitor page asks for the camera when monitoring starts.
   const continueWithoutCamera = () => {
+    cameraRequest.current += 1;
     onboarding.setCameraPermission(false);
     onboarding.setMicrophonePermission(false);
     goNext();
   };
 
   const requestPermissions = async () => {
+    const request = ++cameraRequest.current;
     setPermissionError(null);
     setPermissionStatus('pending');
     const video = deviceId ? { deviceId: { exact: deviceId } } : true;
@@ -103,6 +110,10 @@ export default function SetupPage() {
         stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
         microphone = false;
       }
+      if (request !== cameraRequest.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
       stream.getTracks().forEach((track) => track.stop());
       setPermissionStatus('granted');
       onboarding.setCameraPermission(true);
@@ -110,6 +121,7 @@ export default function SetupPage() {
     } catch (error) {
       const name = error instanceof Error ? error.name : '';
       const denied = name === 'NotAllowedError' || name === 'SecurityError';
+      if (request !== cameraRequest.current) return;
       setPermissionStatus(denied ? 'denied' : 'pending');
       setPermissionError(cameraRequestProblem(name, Boolean(deviceId)));
     }
