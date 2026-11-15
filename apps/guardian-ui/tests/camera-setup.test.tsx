@@ -213,3 +213,58 @@ it('the scenario step shows Continue for a scenario saved earlier', async () => 
   expect(screen.getByRole('heading', { name: /Device Access/ })).toBeTruthy();
   expect(useOnboardingStore.getState().selectedScenario).toBe('elderly');
 });
+
+it.each([
+  ['allowed', true],
+  ['refused', false],
+])('a camera request %s after Continue without the camera changes nothing', async (_answer, allowed) => {
+  const browser = firstVisit();
+  // The browser's prompt stays open while the person goes on.
+  let allow!: (stream: MediaStream) => void;
+  let refuse!: (error: Error) => void;
+  browser.getUserMedia.mockReturnValue(new Promise<MediaStream>((resolve, reject) => { allow = resolve; refuse = reject; }));
+  await openCameraStep();
+  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+  await act(async () => {});
+  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
+
+  // The prompt is answered only now.
+  await act(async () => {
+    if (allowed) allow(browser.stream);
+    else refuse(new DOMException('', 'NotAllowedError'));
+  });
+  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
+  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
+  // A camera that did open for the late answer is released.
+  if (allowed) expect(browser.video.stop).toHaveBeenCalled();
+
+  // Back on the camera step, the step asks afresh.
+  fireEvent.click(screen.getByRole('button', { name: /Back/ }));
+  expect(screen.getByRole('heading', { name: /Device Access/ })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Grant Permissions' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  expect(screen.queryByText(REFUSED)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Continue without the camera' })).toBeTruthy();
+});
+
+it('only the newest camera request counts: an older answer that arrives later is dropped', async () => {
+  const browser = firstVisit();
+  let allowFirst!: (stream: MediaStream) => void;
+  browser.getUserMedia
+    .mockReturnValueOnce(new Promise<MediaStream>((resolve) => { allowFirst = resolve; }))
+    .mockRejectedValue(new DOMException('', 'NotReadableError'));
+  await openCameraStep();
+  // Two presses while the first prompt is open; the second request fails.
+  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+  await act(async () => {});
+  expect(screen.getByText(NOT_STARTED)).toBeTruthy();
+  await act(async () => { allowFirst(browser.stream); });
+  // The step keeps the newest answer.
+  expect(screen.getByText(NOT_STARTED)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
+  expect(browser.video.stop).toHaveBeenCalled();
+});
