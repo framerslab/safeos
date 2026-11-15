@@ -109,7 +109,7 @@ it('saves the new answers when the visitor finishes the last step', async () => 
   fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
   fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
   fireEvent.click(await screen.findByRole('button', { name: /Grant Permissions/ }));
-  fireEvent.click(await screen.findByRole('button', { name: /^Continue/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /^Continue$/ }));
   fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.click(screen.getByRole('button', { name: /Skip & Continue/ }));
   fireEvent.click(await screen.findByRole('button', { name: /Launch Dashboard/ }));
