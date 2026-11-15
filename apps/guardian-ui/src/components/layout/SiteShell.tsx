@@ -7,6 +7,9 @@
  * page shows no notification card and no install sheet: they belong to setup
  * and the app, and wait for the visitor to act.
  *
+ * On the other public pages the app's bottom navigation shows on a phone, and
+ * the shell marks itself so the footer ends above it.
+ *
  * Once its script has started, the shell marks the document, which hides the
  * home page's line for a page whose script did not start.
  *
@@ -37,7 +40,7 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
 
   if (isVisitorRoute(pathname)) {
     return (
-      <div className={home ? 'visitor-shell device-look' : 'visitor-shell'}>
+      <div className={home ? 'visitor-shell device-look' : 'visitor-shell visitor-shell--bottom-nav'}>
         <a href="#main-content" className="skip-link">
           Skip to content
         </a>

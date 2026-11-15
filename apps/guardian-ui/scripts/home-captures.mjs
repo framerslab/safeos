@@ -171,9 +171,21 @@ async function portraitFrame(page, name, height) {
   throw new Error(`${name}: no width from 390 to 320 px holds the camera view and two whole rows of readout tiles in a 4:5 frame`);
 }
 
+// Every crop shows the Motion indicator in its alert colour, as its text
+// equivalent says: the picture is taken while the indicator reads "motion
+// detected" and kept only if it still does once the picture is saved;
+// otherwise it is taken again at the next motion, up to five times.
 async function saveCrop(page, relative, clip, details) {
   const file = path.join(outDir, relative);
-  await page.screenshot({ path: file, clip });
+  const indicator = page.getByRole('status', { name: /^Motion level/ });
+  for (let attempt = 1; ; attempt += 1) {
+    await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
+    await page.screenshot({ path: file, clip });
+    const after = (await indicator.getAttribute('aria-label')) || '';
+    if (after.includes('motion detected')) break;
+    if (attempt === 5) throw new Error(`${relative}: the Motion indicator left its alert state while each of five pictures was taken`);
+    console.log(`${relative}: the Motion indicator read "${after}" once the picture was saved; taking it again`);
+  }
   const size = pngSize(await readFile(file));
   await record(relative, { ...details, ...size });
   const webp = relative.replace(/\.png$/, '.webp');
