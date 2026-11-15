@@ -107,6 +107,8 @@ export default function SetupPage() {
       } catch (error) {
         // A camera without a microphone is enough to monitor video.
         if (!(error instanceof Error) || error.name !== 'NotFoundError') throw error;
+        // A request the person has left behind asks the browser nothing more.
+        if (request !== cameraRequest.current) return;
         stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
         microphone = false;
       }
