@@ -19,6 +19,7 @@ import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
 import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
 import { Brand } from './Brand';
+import { Num } from '@/components/visitor/Num';
 
 /** "dog, cat, bird, … zebra and giraffe": the detector's own names, in its order. */
 export const ANIMAL_KINDS = new Intl.ListFormat('en-GB', { style: 'long', type: 'conjunction' }).format(
@@ -95,7 +96,7 @@ export function HomeUses() {
               Backyard wildlife
             </h3>
             <p className="home-p">
-              The Wildlife page uses an object-detection model to spot {COCO_ANIMAL_CLASSES.length} kinds of animal,
+              The Wildlife page uses an object-detection model to spot <Num>{COCO_ANIMAL_CLASSES.length}</Num> kinds of animal,
               birds, cats and dogs among them. It saves a picture of each sighting in your browser.
             </p>
           </li>
@@ -137,7 +138,7 @@ export function HomeHow({ siteAddress }: { siteAddress: string }) {
               <div>
                 <h3 className="home-h3">Go through setup.</h3>
                 <p className="home-p">
-                  It has {SETUP_STEP_COUNT} short steps. You say what you are watching, and at step {SETUP_CAMERA_STEP}{' '}
+                  It has <Num>{SETUP_STEP_COUNT}</Num> short steps. You say what you are watching, and at step <Num>{SETUP_CAMERA_STEP}</Num>{' '}
                   the browser asks for the camera and microphone.
                 </p>
               </div>
@@ -209,7 +210,7 @@ export function HomeAlerts() {
           <li className="home-alert">
             <h3 className="home-h3">Stillness</h3>
             <p className="home-p">
-              Nothing has moved for a time you set, from {STILLNESS_ALERT_MIN_MINUTES} to {STILLNESS_ALERT_MAX_MINUTES}{' '}
+              Nothing has moved for a time you set, from <Num>{STILLNESS_ALERT_MIN_MINUTES}</Num> to <Num>{STILLNESS_ALERT_MAX_MINUTES}</Num>{' '}
               minutes.
             </p>
           </li>
@@ -217,10 +218,10 @@ export function HomeAlerts() {
             <h3 className="home-h3">A person or an animal</h3>
             <p className="home-p">
               The Security and Wildlife pages run an object-detection model in your browser. It finds people and{' '}
-              {COCO_ANIMAL_CLASSES.length} kinds of animal: {ANIMAL_KINDS}.
+              <Num>{COCO_ANIMAL_CLASSES.length}</Num> kinds of animal: {ANIMAL_KINDS}.
             </p>
             <p className="home-p">
-              That model is {MODEL_SIZE_MB}
+              That model is <Num>{MODEL_SIZE_MB}</Num>
               {NBSP}MB, downloaded from <Brand>Google</Brand>’s storage. The download starts only after you agree, and{' '}
               <Brand>Google</Brand> sees your IP address when it does.
             </p>
@@ -377,7 +378,7 @@ export function HomeClosing() {
             Start with the device you have
           </h2>
           <p className="home-p">
-            Setup has {SETUP_STEP_COUNT} short steps and asks for the camera at step {SETUP_CAMERA_STEP}.
+            Setup has <Num>{SETUP_STEP_COUNT}</Num> short steps and asks for the camera at step <Num>{SETUP_CAMERA_STEP}</Num>.
           </p>
         </div>
         <StartLink className="key key--solid key--start" arrow />

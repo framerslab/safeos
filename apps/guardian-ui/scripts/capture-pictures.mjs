@@ -542,6 +542,7 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
       await toggle.click();
       await menu.waitFor({ timeout: 5_000 });
       // The picture shows the Menu as a visitor reads it, after its fade.
+      await menu.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)).then(() => true));
       const drawn = await menu.evaluate((element) => ({
         opacity: getComputedStyle(element).opacity,
         fading: element.getAnimations().filter((animation) => animation.playState === 'running').length,

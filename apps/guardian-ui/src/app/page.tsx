@@ -46,10 +46,12 @@ const CAPTURE_CROPS: CaptureCrop[] = [
 // React's own name for this attribute differs between versions; the HTML name works in all.
 const HIGH_PRIORITY = { fetchpriority: 'high' } as Record<string, string>;
 
-// Hides the line for a page whose script did not start, once the app has
-// marked itself started. With scripts off, blocked or failing, the mark never
-// comes and the line stays.
-const HIDE_NEEDS_SCRIPT = `(function(){var line=document.getElementById('home-needs-script');if(!line)return;var root=document.documentElement;function started(){if(root.getAttribute('data-app-started')==='true'){line.hidden=true;return true}return false}if(started())return;new MutationObserver(function(changes,observer){if(started())observer.disconnect()}).observe(root,{attributes:true,attributeFilter:['data-app-started']})})();`;
+// The line for a page whose script did not start. This script running proves
+// scripts are on, so it hides the line at once; if the app has not marked
+// itself started five seconds later (its scripts blocked or failing), the
+// line shows again. With scripts off this never runs and the line stays. An
+// app that starts later hides the line through CSS.
+const HIDE_NEEDS_SCRIPT = `(function(){var line=document.getElementById('home-needs-script');if(!line)return;var root=document.documentElement;line.hidden=true;setTimeout(function(){if(root.getAttribute('data-app-started')==='true')return;line.hidden=false},5000)})();`;
 
 /** What the page says, for a search engine: the app and who builds it. */
 function structuredData() {
@@ -62,7 +64,7 @@ function structuredData() {
     description: HOME_DESCRIPTION,
     applicationCategory: 'UtilitiesApplication',
     operatingSystem: 'Any, in a web browser',
-    browserRequirements: 'Requires JavaScript, a camera and a microphone',
+    browserRequirements: 'Requires JavaScript and a camera; a microphone adds sound alerts',
     softwareVersion: appPackage.version,
     dateModified: HOME_LAST_CHANGED,
     isAccessibleForFree: true,

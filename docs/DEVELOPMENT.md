@@ -431,7 +431,10 @@ pictures" makes it:
    detection off), opens `/monitor/`, presses "Start Monitoring" and waits
    until the alert list holds a motion alert.
 4. It saves the three crops in both looks (`capture-phone-*`,
-   `capture-portrait-*`, `capture-landscape-*`, each a `.png` and a `.webp`),
+   `capture-portrait-*`, `capture-landscape-*`, each a `.png` and a `.webp`;
+   for the portrait crop it narrows the 390 px monitor until a 4:5 frame holds
+   the camera view and two whole rows of readout tiles, and it fails a frame
+   that cuts a tile),
    `screenshots/dashboard.png` and `screenshots/monitoring.png` (the two the
    web app manifest names), the shared-link card `home/card.jpg` (from
    `scripts/home-card.html`, a page the site does not serve) and

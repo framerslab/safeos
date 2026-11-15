@@ -17,7 +17,8 @@
 // the alert list holds a motion alert. It then saves:
 //
 //   home/capture-phone-<look>.png      the 390 px monitor's camera view, 16:9
-//   home/capture-portrait-<look>.png   the camera view with its readings, 4:5
+//   home/capture-portrait-<look>.png   the camera view with two whole rows of
+//                                      its readout tiles, 4:5
 //   home/capture-landscape-<look>.png  the 1280 px monitor's camera view
 //                                      beside its alert list, 16:10
 //
@@ -131,6 +132,45 @@ async function tilesCutBy(page, frame) {
   }, frame);
 }
 
+// The portrait crop: the camera view and the first two rows of readout
+// tiles, every tile wholly in it or wholly out of it. A 4:5 frame as wide as
+// the column, from the camera view's top, ends inside the third row at 390
+// px; the monitor is narrowed, 2 px at a time and with the camera running,
+// until the frame ends between the second and third rows. Returns the
+// viewport width used and the frame.
+async function portraitFrame(page, name, height) {
+  const margin = 4;
+  for (let width = 390; width >= 320; width -= 2) {
+    await page.setViewportSize({ width, height });
+    await page.waitForTimeout(300);
+    const layout = await page.evaluate(() => {
+      const view = document.querySelector('video')?.parentElement?.getBoundingClientRect();
+      const label = [...document.querySelectorAll('main div')].find((element) => element.children.length === 0 && element.textContent.trim() === 'Stream');
+      const grid = label?.parentElement?.parentElement;
+      if (!view || !grid) return null;
+      const tiles = [...grid.children].map((tile) => tile.getBoundingClientRect());
+      const rows = [...new Set(tiles.map((box) => Math.round(box.top)))].sort((a, b) => a - b);
+      const gridBox = grid.getBoundingClientRect();
+      return {
+        top: view.top,
+        left: Math.min(view.left, gridBox.left),
+        right: Math.max(view.right, gridBox.right),
+        secondBottom: Math.max(...tiles.filter((box) => Math.round(box.top) <= rows[1]).map((box) => box.bottom)),
+        thirdTop: rows.length > 2 ? rows[2] : null,
+      };
+    });
+    if (!layout) throw new Error(`${name}: the camera view or the readout tiles were not found`);
+    const x = Math.floor(layout.left - margin);
+    const frameWidth = Math.ceil(layout.right + margin) - x;
+    const frameHeight = Math.round(frameWidth * 5 / 4);
+    const bottom = layout.top + frameHeight;
+    if (bottom >= layout.secondBottom + margin && (layout.thirdTop === null || bottom <= layout.thirdTop - margin)) {
+      return { width, frame: { x, y: layout.top, width: frameWidth, height: frameHeight } };
+    }
+  }
+  throw new Error(`${name}: no width from 390 to 320 px holds the camera view and two whole rows of readout tiles in a 4:5 frame`);
+}
+
 async function saveCrop(page, relative, clip, details) {
   const file = path.join(outDir, relative);
   await page.screenshot({ path: file, clip });
@@ -159,10 +199,12 @@ const portraitForCard = {};
 try {
   for (const look of LOOKS) {
     // The 390 px monitor: the camera view itself, and the portrait crop that
-    // also holds the readout tiles under it.
+    // also holds two rows of readout tiles under it. The scale gives the
+    // portrait crop, narrowed to fit its tiles, more than twice the width the
+    // desktop page shows it at.
     {
       const viewport = { width: 390, height: 1100 };
-      const scale = 3;
+      const scale = 3.5;
       const context = await seededContext(browser, {
         viewport, deviceScaleFactor: scale, isMobile: true, hasTouch: true, colorScheme: look,
       });
@@ -177,11 +219,14 @@ try {
         await saveCrop(page, `home/capture-phone-${look}.png`,
           { x: view.x, y: view.y, width, height: Math.round(width * 9 / 16) }, { ...details, crop: 'camera view, 16:9' });
         console.log(`${name}: Motion indicator after the camera view was saved: "${await indicator.getAttribute('aria-label')}"`);
+        const narrowed = await portraitFrame(page, name, viewport.height);
+        console.log(`${name}: the portrait crop is taken at ${narrowed.width} px, ${narrowed.frame.width} by ${narrowed.frame.height} CSS px`);
         await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
-        const portrait = { x: view.x, y: view.y, width, height: Math.round(width * 5 / 4) };
+        const portrait = narrowed.frame;
         const cut = await tilesCutBy(page, portrait);
         if (cut.length > 0) throw new Error(`${name}: the portrait crop cuts the readout tiles ${cut.join(', ')}`);
-        await saveCrop(page, `home/capture-portrait-${look}.png`, portrait, { ...details, crop: 'camera view with its readings, 4:5' });
+        await saveCrop(page, `home/capture-portrait-${look}.png`, portrait,
+          { ...details, viewport: `${narrowed.width}x${viewport.height}`, crop: 'camera view with two rows of its readings, 4:5' });
         console.log(`${name}: Motion indicator after the portrait crop was saved: "${await indicator.getAttribute('aria-label')}"`);
         portraitForCard[look] = path.join(outDir, `home/capture-portrait-${look}.png`);
       } catch (err) {

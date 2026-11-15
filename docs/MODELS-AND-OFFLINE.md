@@ -22,7 +22,9 @@ Offline starts require two completed preparations:
 
 1. The service worker installs the exported HTML and all generated scripts,
    styles, fonts, route data and the images pages show (logo, favicons, logos,
-   diagrams). The postbuild script derives the list and cache version from the
+   diagrams, the home page capture's WebP crops in both looks). The home
+   capture's PNG copies, the shared-link card and the install screenshots are
+   left out, so a first visit does not download them. The postbuild script derives the list and cache version from the
    actual output, using separate path and content-digest records for each file
    and a separate worker record. Installation fails if an asset cannot be saved. Route data the
    router requests with a query (`index.txt?_rsc=...`) is served from the

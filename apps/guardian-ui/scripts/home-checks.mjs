@@ -695,6 +695,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       expect(opened.heights.every((height) => height >= 48), `header: the Menu's rows are ${opened.heights.join(', ')} px tall`);
       expect(opened.animation === 'site-menu-in', `header: the Menu panel's animation is ${opened.animation}`);
       // The picture shows the Menu as a visitor reads it, after its fade.
+      await menu.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)).then(() => true));
       const drawn = await menu.evaluate((element) => ({
         opacity: getComputedStyle(element).opacity,
         fading: element.getAnimations().filter((animation) => animation.playState === 'running').length,
@@ -760,12 +761,15 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     await open({ name: 'footer, bottom navigation', width: 390 }, async (page) => {
       await visit(page, new URL(address, baseUrl).toString());
       await page.locator('nav[aria-label="Mobile navigation"]').waitFor({ timeout: 15_000 });
-      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      // The page scrolls smoothly; the walk goes straight to its end.
+      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
       await page.waitForTimeout(500);
       const seen = await page.evaluate(() => ({
+        end: Math.abs(window.scrollY + window.innerHeight - document.documentElement.scrollHeight) <= 1,
         last: document.querySelector('.site-footer__last').getBoundingClientRect().bottom,
         nav: document.querySelector('nav[aria-label="Mobile navigation"]').getBoundingClientRect().top,
       }));
+      expect(seen.end, `footer on ${address} at 390 px: the walk did not reach the end of the page`);
       expect(seen.last <= seen.nav, `footer on ${address} at 390 px: its last line ends at ${Math.round(seen.last)} px, under the bottom navigation from ${Math.round(seen.nav)} px`);
     });
   }

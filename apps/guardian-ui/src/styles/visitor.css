@@ -41,7 +41,6 @@ html:has(.visitor-shell) {
   font-size: var(--type-body-size);
   line-height: var(--type-body-line);
   font-weight: var(--weight-regular);
-  font-variant-numeric: tabular-nums;
   /* A word longer than its column (much larger text on a narrow screen)
      breaks instead of pushing the page sideways. */
   overflow-wrap: anywhere;
@@ -59,8 +58,9 @@ html:has(.visitor-shell) {
 }
 
 /* The focus ring: 2 px in the look's green, 2 px outside the control, on
-   keyboard focus only. */
-.visitor-shell :focus {
+   keyboard focus only. A browser that does not know :focus-visible drops
+   both rules and keeps its own ring. */
+.visitor-shell :focus:not(:focus-visible) {
   outline: none;
 }
 
@@ -94,16 +94,51 @@ html:has(.visitor-shell) {
     --color-steel-500: #868e96;
     --color-steel-400: #5a6270;
     --color-steel-300: #495057;
-    --color-steel-200: #343a40;
+    --color-steel-200: #212529;
     --color-steel-100: #212529;
     --color-steel-50: #0f1215;
     --look-accent: #14532d;
     --look-accent-hover: #052e16;
     --look-on-accent: #ffffff;
     --look-alert: #991b1b;
+    --visitor-panel-ink: #0f1215;
     background: var(--color-steel-950);
     color: var(--color-steel-50);
   }
+}
+
+/* The quiet tone in the light look. Inter at 400 and 16 px draws its strokes
+   at about 0.6 of its colour's contrast, so the light look's #343a40 (10.9:1
+   on the page) read 6.0 to 6.9:1 on the strokes; #212529 (14.7:1 on the page,
+   13.9:1 on the panel) reads over 7:1. */
+html.light .visitor-shell {
+  --color-steel-200: #212529;
+}
+
+/* The ink on the panel-coloured bands and panels of the home page. The dark
+   look's panel is lighter than its page, and 20 px body text on it read 11.8:1
+   on the strokes in the page's ink; white reads over 12:1. The light look
+   keeps its ink. */
+.visitor-shell {
+  --visitor-panel-ink: #ffffff;
+}
+
+html.light .visitor-shell {
+  --visitor-panel-ink: #0f1215;
+}
+
+.home-band,
+.home-qr,
+.home-how__note {
+  --color-steel-50: var(--visitor-panel-ink);
+}
+
+/* Tabular figures for the numbers on the page (counts, sizes, the year and
+   the step numerals) and nothing else: a word set with them takes Inter's
+   figure-width hyphen. */
+.num,
+.home-step__numeral {
+  font-variant-numeric: tabular-nums;
 }
 
 /* =============================================================================
@@ -460,7 +495,15 @@ html:has(.visitor-shell) {
   visibility: hidden;
 }
 
-/* Much larger text on a phone: the mark stands for the wordmark. */
+/* Much larger text on a phone: the wordmark keeps its own size, 16 px, so the
+   row still holds it beside the look switch and Menu. Where even that does
+   not fit (320 px at 200 per cent), the mark stands for it; the link keeps
+   its name. */
+.site-header[data-compact='small'] .wordmark {
+  font-size: 16px;
+  line-height: 18px;
+}
+
 .site-header[data-compact='true'] .wordmark {
   display: none;
 }
@@ -632,7 +675,6 @@ html:has(.visitor-shell) {
   font-family: var(--font-sans);
   font-size: var(--type-word-size);
   line-height: var(--type-word-line);
-  font-variant-numeric: tabular-nums;
 }
 
 .site-footer__inner {
@@ -947,8 +989,9 @@ html:has(.visitor-shell) {
   margin-top: 8px;
 }
 
-/* The line for a page whose script did not start: in the served HTML and
-   visible until the app marks itself started. */
+/* The line for a page whose script did not start: in the served HTML, so it
+   shows with scripts off; its own script hides it at once and shows it again
+   if the app has not marked itself started within five seconds. */
 .home-needs-script[hidden],
 html[data-app-started='true'] .home-needs-script {
   display: none;

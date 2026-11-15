@@ -12,6 +12,7 @@
 import Link from 'next/link';
 import { SiteMark } from './SiteMark';
 import { StartLink } from './StartLink';
+import { Num } from './Num';
 
 interface FooterLink {
   href: string;
@@ -125,7 +126,7 @@ export function VisitorFooter() {
         </nav>
 
         <p className="site-footer__last">
-          © {BUILD_YEAR} <span translate="no">Frame</span>. <span translate="no">SafeOS</span> code is MIT-licensed.
+          © <Num>{BUILD_YEAR}</Num> <span translate="no">Frame</span>. <span translate="no">SafeOS</span> code is MIT-licensed.
         </p>
       </div>
     </footer>

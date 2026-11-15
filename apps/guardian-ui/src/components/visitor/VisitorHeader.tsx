@@ -44,7 +44,8 @@ export function VisitorHeader() {
   const [scriptArrived, setScriptArrived] = useState(false);
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [compact, setCompact] = useState(false);
+  // 'small': the wordmark keeps its own size; 'true': the wordmark leaves the row.
+  const [compact, setCompact] = useState<'small' | 'true' | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -110,7 +111,8 @@ export function VisitorHeader() {
   // The row is measured as it would be with them in it; when it overflows
   // (a narrow window or larger text) they stay in the Menu. When even the
   // mark, the wordmark, the look switch and Menu overflow (much larger text
-  // on a phone), the wordmark leaves the row; the link keeps its name.
+  // on a phone), the wordmark keeps its own size; when that still overflows,
+  // the wordmark leaves the row and the link keeps its name.
   useEffect(() => {
     const nav = navRef.current;
     const bar = barRef.current;
@@ -122,16 +124,20 @@ export function VisitorHeader() {
       nav.removeAttribute('data-collapsed');
       nav.removeAttribute('data-compact');
       const rowOverflows = overflows();
-      let menuRowOverflows = false;
+      let compactRow: 'small' | 'true' | null = null;
       if (rowOverflows) {
         nav.setAttribute('data-collapsed', 'true');
-        menuRowOverflows = overflows();
+        if (overflows()) {
+          nav.setAttribute('data-compact', 'small');
+          compactRow = overflows() ? 'true' : 'small';
+        }
       }
       if (wasCollapsed !== null) nav.setAttribute('data-collapsed', wasCollapsed);
       else nav.removeAttribute('data-collapsed');
       if (wasCompact !== null) nav.setAttribute('data-compact', wasCompact);
+      else nav.removeAttribute('data-compact');
       setCollapsed(rowOverflows);
-      setCompact(menuRowOverflows);
+      setCompact(compactRow);
       // From the tablet width a row that holds the links shows no Menu and
       // no Menu key: an open one closes, so it does not come back when the
       // window narrows, and focus inside it or on its key moves to the start
@@ -168,7 +174,7 @@ export function VisitorHeader() {
       className="site-header"
       data-script={scriptArrived ? 'true' : undefined}
       data-collapsed={collapsed ? 'true' : undefined}
-      data-compact={compact ? 'true' : undefined}
+      data-compact={compact ?? undefined}
       data-scrolled={scrolled ? 'true' : undefined}
     >
       <div ref={barRef} className="site-header__bar">
