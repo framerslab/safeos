@@ -1050,8 +1050,10 @@ html[data-app-started='true'] .home-needs-script {
   border-bottom-width: 2px;
 }
 
-/* One slot for each crop; each holds its box at the crop's ratio while the
-   file loads, in the panel colour, with a bar that grows along its foot. */
+/* One slot for each crop; each holds its box at the ratio of the crop's own
+   file (--capture-box, its height over its width, set on the slot from the
+   capture's record) while the file loads, in the panel colour, with a bar
+   that grows along its foot. */
 .capture__slot {
   position: relative;
   display: none;
@@ -1062,6 +1064,7 @@ html[data-app-started='true'] .home-needs-script {
 .capture__slot::before {
   content: '';
   grid-area: 1 / 1;
+  padding-top: var(--capture-box);
 }
 
 .capture__slot::after {
@@ -1087,18 +1090,6 @@ html[data-app-started='true'] .home-needs-script {
 
 .capture__slot--phone {
   display: grid;
-}
-
-.capture__slot--phone::before {
-  padding-top: 56.25%;
-}
-
-.capture__slot--landscape::before {
-  padding-top: 62.5%;
-}
-
-.capture__slot--portrait::before {
-  padding-top: 125%;
 }
 
 .capture__pic {

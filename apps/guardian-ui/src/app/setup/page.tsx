@@ -108,10 +108,16 @@ export default function SetupPage() {
 
   // "Continue without the camera": setup goes on with both permissions
   // recorded as off. The Monitor page asks for the camera when monitoring starts.
+  // A visitor running setup again keeps that answer on this page, like the
+  // others, until the last step.
   const continueWithoutCamera = () => {
     cameraRequest.current += 1;
-    onboarding.setCameraPermission(false);
-    onboarding.setMicrophonePermission(false);
+    if (again) {
+      setStaged((answers) => ({ ...answers, camera: false, microphone: false }));
+    } else {
+      onboarding.setCameraPermission(false);
+      onboarding.setMicrophonePermission(false);
+    }
     goNext();
   };
 

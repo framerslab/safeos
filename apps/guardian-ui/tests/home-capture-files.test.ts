@@ -169,14 +169,28 @@ describe('the committed captures', () => {
 
   it('are the three crops in both looks, each a .webp with a .png beside it, at the size the page gives them', () => {
     const sizes = captureSizes(PUBLIC);
-    const ratios = { phone: 16 / 9, portrait: 4 / 5, landscape: 16 / 10 };
+    const ratios = { phone: 16 / 9, landscape: 16 / 10 };
     for (const crop of CAPTURE_CROP_NAMES) {
       for (const look of CAPTURE_LOOKS) {
         for (const extension of ['webp', 'png']) {
           expect(pictureSize(fs.readFileSync(file(`home/capture-${crop}-${look}.${extension}`)))).toEqual(sizes[crop]);
         }
       }
-      expect(Math.abs(sizes[crop].width / sizes[crop].height - ratios[crop])).toBeLessThan(0.01);
+      const ratio = sizes[crop].width / sizes[crop].height;
+      if (crop === 'portrait') {
+        // The camera view with two whole rows of readout tiles: its own ratio, near 4:5.
+        expect(ratio).toBeGreaterThan(0.78);
+        expect(ratio).toBeLessThan(0.9);
+      } else {
+        expect(Math.abs(ratio - ratios[crop])).toBeLessThan(0.01);
+      }
+    }
+  });
+
+  it('takes the phone and portrait crops from the 390 px monitor and the landscape crop from the 1280 px monitor', () => {
+    for (const entry of provenance?.files ?? []) {
+      if (/capture-(phone|portrait)-/.test(entry.path)) expect(entry.viewport).toBe('390x1100');
+      if (/capture-landscape-/.test(entry.path)) expect(entry.viewport).toBe('1280x1000');
     }
   });
 

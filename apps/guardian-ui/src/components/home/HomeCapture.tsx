@@ -4,8 +4,9 @@
  * A picture of the product's own monitor, captured by the Pictures workflow
  * while the monitor watched a recorded clip through the camera path. Each
  * width shows its own crop and each look the capture made in that look; CSS
- * picks both, so the right one shows before any script runs. The box keeps
- * its crop's ratio while the file loads, and when the file does not load it
+ * picks both, so the right one shows before any script runs. The box takes
+ * the ratio of its crop's own file (its width and height, from the capture's
+ * record) and keeps it while the file loads; when the file does not load it
  * shows the picture's text equivalent.
  *
  * @module components/home/HomeCapture
@@ -66,7 +67,11 @@ export function HomeCapture({ crops, caption }: { crops: CaptureCrop[]; caption:
     <figure className="home-capture">
       <div className="capture__frame" ref={frameRef}>
         {crops.map((crop) => (
-          <div key={crop.name} className={`capture__slot capture__slot--${crop.name}`}>
+          <div
+            key={crop.name}
+            className={`capture__slot capture__slot--${crop.name}`}
+            style={{ '--capture-box': `${((crop.height / crop.width) * 100).toFixed(3)}%` } as React.CSSProperties}
+          >
             {LOOKS.map((look) => {
               const id = `${crop.name}-${look}`;
               return (

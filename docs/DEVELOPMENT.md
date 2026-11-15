@@ -432,9 +432,10 @@ pictures" makes it:
    until the alert list holds a motion alert.
 4. It saves the three crops in both looks (`capture-phone-*`,
    `capture-portrait-*`, `capture-landscape-*`, each a `.png` and a `.webp`;
-   for the portrait crop it narrows the 390 px monitor until a 4:5 frame holds
-   the camera view and two whole rows of readout tiles, and it fails a frame
-   that cuts a tile),
+   the portrait crop is the 390 px monitor's camera view with two whole rows
+   of readout tiles, at its own ratio, near 4:5, and the job fails a frame
+   that cuts a tile; the home page gives each crop's box the ratio of its
+   file),
    `screenshots/dashboard.png` and `screenshots/monitoring.png` (the two the
    web app manifest names), the shared-link card `home/card.jpg` (from
    `scripts/home-card.html`, a page the site does not serve) and
