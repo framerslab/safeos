@@ -132,6 +132,36 @@ async function tilesCutBy(page, frame) {
   }, frame);
 }
 
+// What collides in the camera view's own overlay at the width a picture is
+// taken at: the LIVE badge under the Motion indicator, or a reading past the
+// edge of the readout strip. The monitor draws both clear at 390 px; a
+// picture of a monitor narrowed until they collide is not kept.
+async function overlayCollisions(page) {
+  return page.evaluate(() => {
+    const out = [];
+    const spans = [...document.querySelectorAll('span')];
+    const live = spans.find((element) => element.textContent.trim() === 'LIVE')?.parentElement?.getBoundingClientRect();
+    const motion = document.querySelector('[role="status"][aria-label^="Motion level"]')?.getBoundingClientRect();
+    if (!live || !motion) out.push('the LIVE badge or the Motion indicator was not found');
+    else if (live.right > motion.left + 0.5) {
+      out.push(`the LIVE badge, which ends at ${Math.round(live.right)} px, runs under the Motion indicator, which starts at ${Math.round(motion.left)} px`);
+    }
+    const cells = spans.find((element) => element.textContent.trim() === 'Threshold:')?.parentElement?.parentElement;
+    const strip = cells?.parentElement;
+    if (!cells || !strip) out.push('the readout strip was not found');
+    else {
+      const edge = strip.getBoundingClientRect().right;
+      for (const cell of cells.children) {
+        const right = Math.max(...[...cell.children].map((element) => element.getBoundingClientRect().right));
+        if (right > edge + 0.5) {
+          out.push(`"${cell.textContent.replace(/:/, ': ').trim()}" runs to ${Math.round(right)} px, past the readout strip's edge at ${Math.round(edge)} px`);
+        }
+      }
+    }
+    return out;
+  });
+}
+
 // The portrait crop: the camera view and the first two rows of readout
 // tiles, every tile wholly in it or wholly out of it. A 4:5 frame as wide as
 // the column, from the camera view's top, ends inside the third row at 390
@@ -228,6 +258,8 @@ try {
         if (!view || view.width < 300 || view.width > 390) throw new Error(`${name}: the camera view is ${view ? Math.round(view.width) : 'not'} px wide`);
         const width = Math.floor(view.width);
         const details = { look, viewport: `${viewport.width}x${viewport.height}`, deviceScaleFactor: scale };
+        const collisionsAtFull = await overlayCollisions(page);
+        if (collisionsAtFull.length > 0) throw new Error(`${name}: ${collisionsAtFull.join('; ')}`);
         await saveCrop(page, `home/capture-phone-${look}.png`,
           { x: view.x, y: view.y, width, height: Math.round(width * 9 / 16) }, { ...details, crop: 'camera view, 16:9' });
         console.log(`${name}: Motion indicator after the camera view was saved: "${await indicator.getAttribute('aria-label')}"`);
@@ -237,6 +269,8 @@ try {
         const portrait = narrowed.frame;
         const cut = await tilesCutBy(page, portrait);
         if (cut.length > 0) throw new Error(`${name}: the portrait crop cuts the readout tiles ${cut.join(', ')}`);
+        const collisions = await overlayCollisions(page);
+        if (collisions.length > 0) throw new Error(`${name}: at ${narrowed.width} px, where the portrait crop is taken, ${collisions.join('; ')}`);
         await saveCrop(page, `home/capture-portrait-${look}.png`, portrait,
           { ...details, viewport: `${narrowed.width}x${viewport.height}`, crop: 'camera view with two rows of its readings, 4:5' });
         console.log(`${name}: Motion indicator after the portrait crop was saved: "${await indicator.getAttribute('aria-label')}"`);

@@ -223,6 +223,15 @@ describe('a real capture of SafeOS watching a recorded clip', () => {
     }
   });
 
+  it.each(crops)('reserves the %s crop\'s box at the ratio of its own file', (crop) => {
+    const box = /--capture-box:\s*([\d.]+)%/.exec(one(`.capture__slot--${crop}`)?.getAttribute('style') || '');
+    expect(box).not.toBeNull();
+    expect(Number(box?.[1])).toBeCloseTo((sizes[crop].height / sizes[crop].width) * 100, 2);
+    // The style sheet reads it, and falls back to no other ratio.
+    expect(source('src', 'styles', 'visitor.css')).toMatch(/\.capture__slot::before\s*\{[^}]*padding-top:\s*var\(--capture-box\);/);
+    expect(source('src', 'styles', 'visitor.css')).not.toMatch(/\.capture__slot--(phone|landscape|portrait)::before/);
+  });
+
   it('asks early for the capture of the look that is on, with the device\'s own look when scripts are off', () => {
     // The page's script asks for the crop for the width in the look that is on.
     expect(html).toContain(CAPTURE_PRELOAD_SCRIPT);

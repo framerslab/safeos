@@ -6,7 +6,9 @@
  * visitor whose setup is done on to the dashboard, unless they arrive with
  * that parameter; then it opens at its first step and stays there. Arriving
  * that way, and going on through the steps, resets nothing: the saved setup
- * stays done until the last step is finished.
+ * stays done until the last step is finished. The camera step's "Continue
+ * without the camera" is one of those answers, and a camera request answered
+ * after the visitor went on, or after a newer request, keeps nothing.
  */
 
 import React from 'react';
@@ -88,7 +90,7 @@ it('keeps each answer on the page until the last step: a visitor who leaves part
   fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
   fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
   fireEvent.click(await screen.findByRole('button', { name: /Grant Permissions/ }));
-  await screen.findByRole('button', { name: /Continue/ });
+  await screen.findByRole('button', { name: /^Continue$/ });
 
   // The visitor leaves before the last step.
   cleanup();
@@ -120,6 +122,106 @@ it('saves the new answers when the visitor finishes the last step', async () => 
   expect(saved.disclaimerAcceptedAt).not.toBe('2026-11-01T00:00:00.000Z');
   expect(saved.cameraPermissionGranted).toBe(true);
   expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
+});
+
+// Through the first three steps of a second run, to the camera step.
+async function openCameraStepAgain() {
+  window.history.replaceState({}, '', '/setup/?again=1');
+  finishSetup();
+  useOnboardingStore.setState({ cameraPermissionGranted: true, microphonePermissionGranted: true });
+  render(<SetupPage />);
+  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
+  await screen.findByRole('heading', { name: /Device Access/ });
+}
+
+// From the notification step to the end of setup.
+async function finishFromNotifications() {
+  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: /Skip & Continue/ }));
+  fireEvent.click(await screen.findByRole('button', { name: /Launch Dashboard/ }));
+}
+
+it('Continue without the camera keeps its answer on the page: a visitor who leaves part way keeps the saved camera and microphone', async () => {
+  await openCameraStepAgain();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+  await act(async () => {});
+  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
+
+  // The visitor leaves before the last step.
+  cleanup();
+  const saved = useOnboardingStore.getState();
+  expect(saved.isComplete).toBe(true);
+  expect(saved.selectedScenario).toBe('pet');
+  expect(saved.cameraPermissionGranted).toBe(true);
+  expect(saved.microphonePermissionGranted).toBe(true);
+});
+
+it('Continue without the camera saves the camera and microphone as off when the visitor finishes the last step', async () => {
+  await openCameraStepAgain();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+  await act(async () => {});
+  await finishFromNotifications();
+
+  const saved = useOnboardingStore.getState();
+  expect(saved.isComplete).toBe(true);
+  expect(saved.selectedScenario).toBe('baby');
+  expect(saved.cameraPermissionGranted).toBe(false);
+  expect(saved.microphonePermissionGranted).toBe(false);
+  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
+});
+
+it('a camera request allowed after Continue without the camera keeps nothing: the saved setup stays, and finishing saves both as off', async () => {
+  const browser = installCameraBrowser();
+  // The browser's prompt stays open while the visitor goes on.
+  let allow!: (stream: MediaStream) => void;
+  browser.getUserMedia.mockReturnValue(new Promise<MediaStream>((resolve) => { allow = resolve; }));
+  await openCameraStepAgain();
+  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+  await act(async () => {});
+
+  // The prompt is answered only now; the camera it opened is released.
+  await act(async () => { allow(browser.stream); });
+  expect(browser.video.stop).toHaveBeenCalled();
+  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(true);
+  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(true);
+
+  // Finishing saves what the visitor chose, not the late answer.
+  await finishFromNotifications();
+  const saved = useOnboardingStore.getState();
+  expect(saved.cameraPermissionGranted).toBe(false);
+  expect(saved.microphonePermissionGranted).toBe(false);
+});
+
+it('an older camera request answered after a newer one failed keeps nothing', async () => {
+  const browser = installCameraBrowser();
+  let allowFirst!: (stream: MediaStream) => void;
+  browser.getUserMedia
+    .mockReturnValueOnce(new Promise<MediaStream>((resolve) => { allowFirst = resolve; }))
+    .mockRejectedValue(new DOMException('', 'NotReadableError'));
+  await openCameraStepAgain();
+  // Two presses while the first prompt is open; the second request fails.
+  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  await act(async () => { allowFirst(browser.stream); });
+  // The step keeps the newest answer and offers no Continue for a granted camera.
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
+  expect(browser.video.stop).toHaveBeenCalled();
+
+  expect(screen.getByRole('button', { name: 'Continue without the camera' })).toBeTruthy();
+
+  // The visitor leaves: the saved setup is as it was.
+  cleanup();
+  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(true);
+  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(true);
 });
 
 it('still opens at its first step for a first visit, with or without the parameter', () => {
