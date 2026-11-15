@@ -6,7 +6,8 @@
  * the old support address, Privacy, Terms, Security, Lost & Found and its
  * match gallery, Setup), every component those pages and the root layout
  * render (listed below with the page that renders it; every file of the home
- * page's and the visitor header's and footer's folders), the root layout's
+ * page's, the visitor header's and footer's, and the app header's and phone
+ * bar's folders), the root layout's
  * metadata, the helper that owns every page's title and cards, the sitemap,
  * the web app manifest, the social card, the README's diagram, the README's
  * product sections and the changelog's Unreleased section. Code comments are
@@ -117,14 +118,15 @@ const PUBLIC_FILES = [
 const README = path.join(REPO_ROOT, 'README.md');
 const CHANGELOG = path.join(REPO_ROOT, 'CHANGELOG.md');
 
-// Every file of the home page's components and of the visitor header and
-// footer is read, so a component added there is read too.
-const HOME_COMPONENT_DIRS = [component('home'), component('visitor')];
+// Every file of the home page's components, of the visitor header and footer
+// and of the app's header and phone bar is read, so a component added there
+// is read too.
+const COMPONENT_DIRS = [component('home'), component('visitor'), component('app')];
 
 const SCANNED = Array.from(new Set([
   ...PUBLIC_FILES,
   ...PUBLIC_ROUTE_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
-  ...HOME_COMPONENT_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
+  ...COMPONENT_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
 ]));
 
 // The sample clip's record and its caption and description files, which say
@@ -483,8 +485,8 @@ describe('the public pages say what the software does', () => {
     const missing = [...PUBLIC_FILES, ...CLIP_FILES, README, CHANGELOG].filter((f) => !fs.existsSync(f)).map(rel);
     expect(missing).toEqual([]);
     expect(SCANNED.length).toBeGreaterThan(PUBLIC_FILES.length);
-    // The home page's and the visitor shell's own files are among them.
-    for (const dir of HOME_COMPONENT_DIRS) expect(SCANNED.some((f) => f.startsWith(dir + path.sep))).toBe(true);
+    // The home page's, the visitor shell's and the app frame's own files are among them.
+    for (const dir of COMPONENT_DIRS) expect([rel(dir), SCANNED.some((f) => f.startsWith(dir + path.sep))]).toEqual([rel(dir), true]);
   });
 
   it('the sample clip\'s record, captions and descriptions use no money word and make no health claim', () => {
