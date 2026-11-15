@@ -1,7 +1,7 @@
 {
-  "run": "https://github.com/framerslab/safeos/actions/runs/43633718142",
-  "commit": "09b260c07a34247e85cf4400288ea6223f683618",
-  "captured": "2026-11-14T19:48:39.644Z",
+  "run": "https://github.com/framerslab/safeos/actions/runs/43675299201",
+  "commit": "fc9c4b727f67522944e22c791a33ca20d35c404c",
+  "captured": "2026-11-15T04:10:57.782Z",
   "playwright": "1.57.0",
   "clip": {
     "path": "home/sample-clip.mp4",
@@ -34,45 +34,45 @@
       "path": "home/capture-phone-light.png",
       "look": "light",
       "viewport": "390x1100",
-      "deviceScaleFactor": 3,
+      "deviceScaleFactor": 3.5,
       "crop": "camera view, 16:9",
-      "width": 1068,
-      "height": 600,
-      "bytes": 379390,
-      "sha256": "3f4c1f51d9f16d28b4a046786f3bc1211e5c1b1d5ff05873ae3e05ae417700ea"
+      "width": 1246,
+      "height": 700,
+      "bytes": 464621,
+      "sha256": "8a2395bbece21365b77e973f4acb0a3dd5b35cdf26a84b51b80ae56aa1ea6d1d"
     },
     {
       "path": "home/capture-phone-light.webp",
       "look": "light",
       "viewport": "390x1100",
-      "deviceScaleFactor": 3,
+      "deviceScaleFactor": 3.5,
       "crop": "camera view, 16:9",
-      "width": 1068,
-      "height": 600,
-      "bytes": 29822,
-      "sha256": "5e6d5aec18474e158278f93ddf310326c26c0c1a9c267e3504f2bc926fbfeb14"
+      "width": 1246,
+      "height": 700,
+      "bytes": 35190,
+      "sha256": "8b9b17d990de714e00c13d569f7b76e244f9ba3b5d29e9b2579d7f95743ec5bf"
     },
     {
       "path": "home/capture-portrait-light.png",
       "look": "light",
       "viewport": "390x1100",
-      "deviceScaleFactor": 3,
-      "crop": "camera view with its readings, 4:5",
-      "width": 1068,
-      "height": 1335,
-      "bytes": 430264,
-      "sha256": "be5940b2789631e47fa4bdc7b5859b2d3045cc08bf0509e6ab205aaa39f7e081"
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view with two rows of its readings, near 4:5",
+      "width": 1271,
+      "height": 1481,
+      "bytes": 522146,
+      "sha256": "44bc87760aa51e57dfb9120ad9ef01d454e6cb503b5100b1f00c3f0197c7a5fb"
     },
     {
       "path": "home/capture-portrait-light.webp",
       "look": "light",
       "viewport": "390x1100",
-      "deviceScaleFactor": 3,
-      "crop": "camera view with its readings, 4:5",
-      "width": 1068,
-      "height": 1335,
-      "bytes": 47592,
-      "sha256": "d23a46591100ea3ce785a63e2f036c71093ad7f236d95e5a31b4b9186abac35d"
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view with two rows of its readings, near 4:5",
+      "width": 1271,
+      "height": 1481,
+      "bytes": 58566,
+      "sha256": "ce4f3ce5957eb3674be8239645f8b8857dbbf42d6e593198caf03bd38b8459df"
     },
     {
       "path": "home/capture-landscape-light.png",
@@ -82,8 +82,8 @@
       "crop": "camera view beside the alert list, 16:10",
       "width": 1824,
       "height": 1140,
-      "bytes": 576119,
-      "sha256": "aa800ddca194c276c62615353bb3afdf85346ede04d912557a0c32934f6ab8a7"
+      "bytes": 576118,
+      "sha256": "552ed56a042847357ec9af9f7676450d723e4258de2593bef7e83e40e7ac4c01"
     },
     {
       "path": "home/capture-landscape-light.webp",
@@ -93,52 +93,52 @@
       "crop": "camera view beside the alert list, 16:10",
       "width": 1824,
       "height": 1140,
-      "bytes": 76618,
-      "sha256": "fb0b8d5014a75eab20bf5c6f34e974deaa990ff7c9189a12f7a0adde218790b1"
+      "bytes": 76610,
+      "sha256": "45d4ffec7d1ce2699ec3885370c6d8322e6f5cb2b6c4d3f68f4a9f3498254493"
     },
     {
       "path": "home/capture-phone-dark.png",
       "look": "dark",
       "viewport": "390x1100",
-      "deviceScaleFactor": 3,
+      "deviceScaleFactor": 3.5,
       "crop": "camera view, 16:9",
-      "width": 1068,
-      "height": 600,
-      "bytes": 361949,
-      "sha256": "f083e71c3773b5817d3db568e3ed05ab2500fce9c85ee1d15583982145f00b08"
+      "width": 1246,
+      "height": 700,
+      "bytes": 445866,
+      "sha256": "40c2cc9adc1d41388a3bce810b0d3b84bfe8b07e590c8e399b20cf09deef5279"
     },
     {
       "path": "home/capture-phone-dark.webp",
       "look": "dark",
       "viewport": "390x1100",
-      "deviceScaleFactor": 3,
+      "deviceScaleFactor": 3.5,
       "crop": "camera view, 16:9",
-      "width": 1068,
-      "height": 600,
-      "bytes": 30426,
-      "sha256": "71d89a78ce6a280f0f7a7c422d3aa7bb46f85b9b133bb28592098ebdff7a1484"
+      "width": 1246,
+      "height": 700,
+      "bytes": 35722,
+      "sha256": "03605e1c904c90172077574ee71cadc369d6e2938894366024a3c610c9225767"
     },
     {
       "path": "home/capture-portrait-dark.png",
       "look": "dark",
       "viewport": "390x1100",
-      "deviceScaleFactor": 3,
-      "crop": "camera view with its readings, 4:5",
-      "width": 1068,
-      "height": 1335,
-      "bytes": 655978,
-      "sha256": "5fb4ae0e7ea24bed431e83370a29c449642088a7a81581058b846e7130a0f770"
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view with two rows of its readings, near 4:5",
+      "width": 1271,
+      "height": 1481,
+      "bytes": 825394,
+      "sha256": "cf388bc0d4d27e038b4e959b88ff92bd7869c4844660fd9ea898ce8b74f54c7d"
     },
     {
       "path": "home/capture-portrait-dark.webp",
       "look": "dark",
       "viewport": "390x1100",
-      "deviceScaleFactor": 3,
-      "crop": "camera view with its readings, 4:5",
-      "width": 1068,
-      "height": 1335,
-      "bytes": 50662,
-      "sha256": "0b791703ed25a59c7d60f389566948e7a9303e8ff5d6fb85fe60170b6f185709"
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view with two rows of its readings, near 4:5",
+      "width": 1271,
+      "height": 1481,
+      "bytes": 61172,
+      "sha256": "35e33ac85c9cb79df79d8d530361bbca516e930345b28f7bb67d92c68f1750d5"
     },
     {
       "path": "home/capture-landscape-dark.png",
@@ -148,8 +148,8 @@
       "crop": "camera view beside the alert list, 16:10",
       "width": 1824,
       "height": 1140,
-      "bytes": 764194,
-      "sha256": "9854d5c8e069e3d17af5b634d0d63a4bc676571cfa054c0e1b72cc1d608fd6dd"
+      "bytes": 779582,
+      "sha256": "caea5bce6560c98c18027b7b6eefba1a010dfb96ebd512d73099c5edb96708ed"
     },
     {
       "path": "home/capture-landscape-dark.webp",
@@ -159,8 +159,8 @@
       "crop": "camera view beside the alert list, 16:10",
       "width": 1824,
       "height": 1140,
-      "bytes": 74068,
-      "sha256": "69db6a499cbe15c8cb4aa130bcb1caf5a58740be07dd0fb9cda5a04ef314ddb8"
+      "bytes": 74952,
+      "sha256": "975160b2b5ee8028096902a22132293a5d832ada074c07275d92cf7686745dd1"
     },
     {
       "path": "screenshots/dashboard.png",
@@ -181,8 +181,8 @@
       "crop": "the monitor while it watches the clip",
       "width": 1280,
       "height": 720,
-      "bytes": 374217,
-      "sha256": "2492f691f287a3cf4122f4be9d8ea55cff0f4945dd3d8d7a1dc14bb4c4e6f694"
+      "bytes": 374175,
+      "sha256": "c05530dff674968e6ad3e7896c8bfe8a695b0d2c706bfbdb47842b437fdf4e40"
     },
     {
       "path": "home/card.jpg",
@@ -192,8 +192,8 @@
       "crop": "the shared-link card",
       "width": 1200,
       "height": 630,
-      "bytes": 79108,
-      "sha256": "ca5d324b7c7b7b5690f9b91ea6e5464aff7a1e35e2da7429cee6e074212c670f"
+      "bytes": 78178,
+      "sha256": "cec1e64895ee0e9b7443eb96a7128dd5d126102f5e2e18e0cd7baf4abeac3fcd"
     }
   ]
 }
