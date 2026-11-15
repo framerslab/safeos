@@ -268,3 +268,22 @@ it('only the newest camera request counts: an older answer that arrives later is
   expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
   expect(browser.video.stop).toHaveBeenCalled();
 });
+
+it('a request left behind before its microphone-free second try asks the browser nothing more', async () => {
+  const browser = firstVisit();
+  // A device with a camera and no microphone, whose first answer is slow.
+  let answerNoMicrophone!: (error: Error) => void;
+  browser.getUserMedia.mockReturnValueOnce(new Promise<MediaStream>((_resolve, reject) => { answerNoMicrophone = reject; }));
+  await openCameraStep();
+  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+  await act(async () => {});
+  await act(async () => { answerNoMicrophone(new DOMException('', 'NotFoundError')); });
+  // No second request, so no camera prompt opens on a later step.
+  expect(browser.getUserMedia).toHaveBeenCalledTimes(1);
+  expect(browser.video.stop).not.toHaveBeenCalled();
+  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
+  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
+  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
+});
