@@ -174,11 +174,11 @@ describe('footer', () => {
 });
 
 describe('the pages that carry the visitor header and footer', () => {
-  it('are the home page and the public pages; app screens keep their own header', () => {
-    for (const pathname of ['/', '/about/', '/faq', '/help/integrations/telegram/', '/tutorials/', '/tutorial', '/blog/how-safeos-guardian-works/', '/privacy/', '/terms/']) {
+  it('are the home page, the reading pages and any address the site does not have; app pages keep their own header', () => {
+    for (const pathname of ['/', '/about/', '/faq', '/tutorials/', '/blog/how-safeos-guardian-works/', '/privacy/', '/terms/', '/donate/', '/tutorialsx', '/no-such-page/']) {
       expect(isVisitorRoute(pathname)).toBe(true);
     }
-    for (const pathname of ['/dashboard/', '/monitor', '/history/', '/settings/notifications/', '/setup/', '/security/', '/wildlife/', '/lost-found/', '/nap/', '/tutorialsx']) {
+    for (const pathname of ['/dashboard/', '/monitor', '/history/', '/settings/notifications/', '/setup/', '/security/', '/wildlife/', '/lost-found/', '/nap/', '/help/', '/help/integrations/telegram/', '/tutorial']) {
       expect(isVisitorRoute(pathname)).toBe(false);
     }
     expect(isHomeRoute('/')).toBe(true);

@@ -70,7 +70,7 @@ it('gives the home page the visitor header and footer, a skip link to the main c
   expect(container.querySelectorAll('main')).toHaveLength(1);
 });
 
-it.each(['/faq/', '/privacy', '/about/', '/blog/how-safeos-guardian-works/', '/help/integrations/telegram/'])(
+it.each(['/faq/', '/privacy', '/about/', '/blog/how-safeos-guardian-works/'])(
   'gives the public page %s the same header and footer',
   (pathname) => {
     const { container } = open(pathname);
@@ -82,12 +82,15 @@ it.each(['/faq/', '/privacy', '/about/', '/blog/how-safeos-guardian-works/', '/h
   }
 );
 
-it.each(['/dashboard/', '/monitor', '/settings/', '/setup/'])('leaves the app screen %s its own header', (pathname) => {
-  const { container } = open(pathname);
-  expect(navigations(container)).toContain('Main');
-  expect(navigations(container)).not.toContain('Site');
-  expect(container.querySelector('.visitor-shell')).toBeNull();
-});
+it.each(['/dashboard/', '/monitor', '/settings/', '/setup/', '/help/integrations/telegram/', '/tutorial/'])(
+  'leaves the app screen %s its own header',
+  (pathname) => {
+    const { container } = open(pathname);
+    expect(navigations(container)).toContain('Main');
+    expect(navigations(container)).not.toContain('Site');
+    expect(container.querySelector('.visitor-shell')).toBeNull();
+  }
+);
 
 it('marks the document once its script has started', () => {
   expect(document.documentElement.hasAttribute('data-app-started')).toBe(false);
