@@ -1,12 +1,12 @@
 # SafeOS Guardian - pictures of the web app
 #
 # Builds the static site, serves it inside the job and captures each route at
-# 390 and 1280 pixels wide in the light and the dark look with Playwright. The
-# PNG files are uploaded as the run's "pictures" artifact. Pull requests also
-# capture the base commit with the same routes as "pictures-before". The
-# pull request's own capture also checks a first visit to the home page (the
-# header row, the look switch, no notification prompt, heading contrast,
-# the Menu on a short screen), walks the home page part by part
+# 390, 820, 1280 and 1920 pixels wide in the light and the dark look with
+# Playwright. The PNG files are uploaded as the run's "pictures" artifact. Pull
+# requests also capture the base commit with the same routes as
+# "pictures-before". The pull request's own capture also checks a first visit
+# to the home page (the header row, the look switch, no notification prompt,
+# heading contrast, the Menu on a short screen), walks the home page part by part
 # (scripts/home-checks.mjs) and checks the Test
 # Alerts page's alert key (its generated tones start, an analyser on the
 # way to the speakers reads signal, no sound file is asked for). Both
@@ -57,7 +57,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/ /about/ /blog/ /blog/how-safeos-guardian-works/ /tutorials/ /tutorial/ /donate/ /terms/ /lost-found/ /404.html
+  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /history/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/ /about/ /blog/ /blog/how-safeos-guardian-works/ /tutorials/ /tutorial/ /donate/ /terms/ /lost-found/ /404.html
 
 jobs:
   pictures:
@@ -67,8 +67,8 @@ jobs:
       matrix:
         version: ${{ fromJSON(github.event_name == 'pull_request' && '["after","before"]' || '["after"]') }}
     runs-on: ubuntu-latest
-    # A capture takes about seven minutes.
-    timeout-minutes: 30
+    # A capture at four widths takes about fifteen minutes.
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: apps/guardian-ui

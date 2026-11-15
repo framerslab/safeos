@@ -26,12 +26,12 @@ const WALK_LIMIT_MS = 180_000;
 
 // Straight and curly apostrophes are one character to a reader; so are a
 // space and a non-breaking space.
-const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+export const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
 
 // A person who has finished setup on this device. Seeded on the first page of
 // the visit only: later pages read what the earlier ones left, so a page that
 // cleared the saved setup is seen.
-const SETUP_DONE = () => {
+export const SETUP_DONE = () => {
   if (sessionStorage.getItem('home-checks-seeded')) return;
   sessionStorage.setItem('home-checks-seeded', '1');
   localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
@@ -44,7 +44,7 @@ const SETUP_DONE = () => {
 // Reads what the readability rule measures: every visible piece of text with
 // its size, face and contrast against the colour behind it, and every element
 // that scrolls sideways.
-function measureText(root) {
+export function measureText(root) {
   const parse = (value) => {
     const n = (value.match(/[\d.]+/g) || ['0', '0', '0', '0']).map(Number);
     return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
@@ -107,7 +107,7 @@ function measureText(root) {
 // core. The strokes' figure keeps the anti-aliased half of each stroke, so a
 // thin face reads under its computed colour; it is the figure the minimum is
 // held to. Returns null when the picture holds too little ink to read.
-function readStrokes(base64) {
+export function readStrokes(base64) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onerror = () => reject(new Error('the picture of the words did not load'));

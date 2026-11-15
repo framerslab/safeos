@@ -2,9 +2,9 @@
 //
 //   node scripts/capture-pictures.mjs <base-url> <out-dir> <route> [<route> ...]
 //
-// Each route is captured at 390 and 1280 pixels wide, in the light and the
-// dark look (the browser's prefers-color-scheme, which the app follows when no
-// theme is saved), as a full-page PNG named <route>-<width>-<look>.png.
+// Each route is captured at 390, 820, 1280 and 1920 pixels wide, in the light
+// and the dark look (the browser's prefers-color-scheme, which the app follows
+// when no theme is saved), as a full-page PNG named <route>-<width>-<look>.png.
 // The pictures workflow (.github/workflows/pictures.yml) runs it in CI.
 //
 // When the home page is captured for the pull request's own build
@@ -27,7 +27,7 @@
 // person who has finished setup sees it (dashboard-setup-<width>-<look>.png)
 // and its header menu open at 390 pixels (dashboard-menu-390-<look>.png). The
 // pull request's own build then checks that the dashboard's Lost & Found,
-// Security and Wildlife cards are visible at 390 and 1280 pixels and each
+// Security and Wildlife cards are visible at each of the four widths and each
 // opens its page, whose own heading shows; and that from 320 to 768 pixels
 // the header row stays one row with none of those three in it, while the open
 // menu lists all three under its four page links.
@@ -55,9 +55,12 @@ if (!baseUrl || !outDir || routes.length === 0) {
   process.exit(2);
 }
 
+// One width for each layout: phone, tablet, desktop and wide.
 const WIDTHS = [
   { width: 390, height: 844, isMobile: true },
+  { width: 820, height: 800, isMobile: false },
   { width: 1280, height: 800, isMobile: false },
+  { width: 1920, height: 1080, isMobile: false },
 ];
 const LOOKS = ['light', 'dark'];
 
@@ -157,6 +160,12 @@ try {
     // request's own build.
     const { checkHomePage } = await import('./home-checks.mjs');
     failures += await checkHomePage(browser, baseUrl, outDir);
+  }
+  // The app's own pages, for the pull request's own build. The base build
+  // has no such file, so it is loaded only here.
+  if (process.env.PICTURE_VERSION === 'after') {
+    const { checkApp } = await import('./app-checks.mjs');
+    failures += await checkApp(browser, baseUrl, outDir);
   }
   if (routes.includes('/dashboard/')) {
     failures += await captureDashboardAfterSetup(browser, baseUrl, outDir);
@@ -363,7 +372,7 @@ try {
           // The whole page, so the message shows wherever it sits. The site's fixed bars are left out,
           // since the Settings message sits at the top right, where the top bar covers it.
           await page.evaluate(() => window.scrollTo(0, 0));
-          await page.screenshot({ path: file, fullPage: true, style: 'nav.fixed { display: none !important; }' });
+          await page.screenshot({ path: file, fullPage: true, style: 'nav.fixed, nav[aria-label="App"], nav.phone-bar { display: none !important; }' });
           console.log(`captured ${file}`);
         } catch (err) {
           failures += 1;
@@ -693,15 +702,19 @@ async function finishedSetupContext(browser, options) {
   return context;
 }
 
+// The dashboard a finished setup opens. It is the redesigned screen, whose
+// first heading says the watching state, or the earlier screen with its Quick
+// Actions panel, so the base commit's build is pictured with the same script.
 async function openDashboard(page, baseUrl) {
   await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+  const state = page.getByRole('heading', { level: 1, name: /^(Not watching|Watching in another tab)$/ });
   const quickActions = page.locator('.panel')
     .filter({ has: page.getByRole('heading', { name: 'Quick Actions', exact: true }) });
-  await quickActions.waitFor({ timeout: 20_000 });
-  return quickActions;
+  await Promise.any([state.waitFor({ timeout: 20_000 }), quickActions.waitFor({ timeout: 20_000 })]);
+  return { redesigned: (await state.count()) > 0, quickActions };
 }
 
-// Both versions: the dashboard at 390 and 1280 pixels in both looks, and its
+// Both versions: the dashboard at each of the four widths in both looks, and its
 // header menu open at 390 pixels, so the pull request has before and after.
 async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
   let failed = 0;
@@ -717,7 +730,7 @@ async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
         const file = path.join(outDir, `dashboard-setup-${size.width}-${look}.png`);
         await page.screenshot({ path: file, fullPage: true });
         console.log(`captured ${file}`);
-        if (size.isMobile) {
+        if (size.isMobile && (await page.locator('nav[aria-label="Main"] button.nav-mobile-toggle').count()) > 0) {
           await page.evaluate(() => window.scrollTo(0, 0));
           await page.locator('nav[aria-label="Main"] button.nav-mobile-toggle').click();
           await page.locator('.nav-mobile-menu').waitFor({ timeout: 5_000 });
@@ -759,7 +772,7 @@ async function checkModeLinks(browser, baseUrl, outDir) {
     try {
       for (const mode of MODES) {
         try {
-          const quickActions = await openDashboard(page, baseUrl);
+          const { quickActions } = await openDashboard(page, baseUrl);
           const card = quickActions.getByRole('link', { name: new RegExp(`^${mode.name}`) });
           if (!(await card.count())) {
             problems.push(`dashboard at ${size.width} px: no ${mode.name} card in Quick Actions`);
@@ -887,8 +900,8 @@ async function settleForPicture(page) {
   await page.waitForTimeout(400);
 }
 
-// Both versions: the camera step after a refused request, at 390 and 1280
-// pixels in both looks, so the pull request has before and after.
+// Both versions: the camera step after a refused request, at each of the four
+// widths in both looks, so the pull request has before and after.
 async function captureCameraStepRefused(browser, baseUrl, outDir) {
   let failed = 0;
   for (const size of WIDTHS) {

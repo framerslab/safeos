@@ -366,9 +366,10 @@ land at once the site and the `latest` images go straight to the newest.
 ### Pictures
 
 `pictures.yml` builds the static site, serves it inside the job, opens each
-route in Chromium with Playwright at 390 and 1280 pixels wide, in the light and
-the dark look, and uploads the full-page PNG files as the run's `pictures`
-artifact (`<route>-<width>-<look>.png`).
+route in Chromium with Playwright at 390, 820, 1280 and 1920 pixels wide (one
+width for each layout), in the light and the dark look, and uploads the
+full-page PNG files as the run's `pictures` artifact
+(`<route>-<width>-<look>.png`).
 
 Pull-request picture runs also capture the base commit with the same routes,
 widths and looks. The `pictures` artifact contains the proposed change and
