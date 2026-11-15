@@ -14,8 +14,10 @@
 /* Import touch optimization styles */
 @import '../styles/touch.css';
 
-/* Import the public pages' header and footer and the home page */
+/* Import the public pages' header and footer and the home page, then the app
+   pages' shell, header and phone bar */
 @import '../styles/visitor.css';
+@import '../styles/app.css';
 
 /* =============================================================================
    Additional Base Styles

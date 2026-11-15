@@ -1,0 +1,525 @@
+/**
+ * App pages: the app's shell, its header, the phone bar and the parts built
+ * in the readable look.
+ *
+ * Every colour is a token of design-system.css: the page (steel-950), the
+ * panel (steel-900), the raised ground (steel-850), the ink (steel-50), the
+ * quiet tone (steel-200), the line (steel-300), one green (--look-accent) and
+ * one alert colour (--look-alert). Sizes are the --type-* tokens. The stops
+ * are 768 px (48em), 1024 px (64em) and 1440 px (90em), written in em so a
+ * larger text size setting moves the page to its narrower layout.
+ */
+
+/* =============================================================================
+   Tokens
+   ============================================================================= */
+
+:root {
+  --phone-bar-height: 4rem; /* 64px */
+  --app-heading-line: 2.875rem; /* 46px */
+  --app-entry-line: 1.875rem; /* 30px */
+}
+
+@media (min-width: 48em) {
+  :root {
+    --app-heading-line: 3.75rem; /* 60px */
+  }
+}
+
+@media (min-width: 64em) {
+  :root {
+    --app-heading-line: 4.5rem; /* 72px */
+  }
+}
+
+@media (min-width: 90em) {
+  :root {
+    --app-heading-line: 4.875rem; /* 78px */
+    --app-entry-line: 2.125rem; /* 34px */
+  }
+}
+
+/* =============================================================================
+   A part built in the look
+   ============================================================================= */
+
+.look-part {
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  /* A word longer than its column (much larger text on a narrow screen)
+     breaks instead of pushing the page sideways. */
+  overflow-wrap: anywhere;
+  --visitor-panel-ink: #ffffff;
+}
+
+/* The quiet tone in the light look. Inter at 400 and 16 px draws its strokes
+   at about 0.6 of its colour's contrast, so the light look's own quiet tone
+   (10.9:1 on the page) read 6.0 to 6.9:1 on the strokes; #212529 (14.7:1 on
+   the page, 13.9:1 on the panel) reads over 7:1. The ink on the panel keeps
+   the light look's ink. */
+html.light .look-part {
+  --color-steel-200: #212529;
+  --visitor-panel-ink: #0f1215;
+}
+
+/* The focus ring: 2 px in the look's green, 2 px outside the control, on
+   keyboard focus only. A browser that does not know :focus-visible drops
+   both rules and keeps its own ring. */
+.look-part :focus:not(:focus-visible) {
+  outline: none;
+}
+
+.look-part :focus-visible {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.look-part .look-switch:focus-visible {
+  border-radius: 50%;
+}
+
+.look-part :is(a, button, summary) {
+  touch-action: manipulation;
+}
+
+/* =============================================================================
+   The shell
+   ============================================================================= */
+
+/* An app page follows the browser's text size setting, and an anchor or a
+   focused control never lands under the fixed header. */
+html:has(.app-shell) {
+  font-size: 100%;
+  scroll-padding-top: calc(var(--site-header-height) + 16px + env(safe-area-inset-top, 0px));
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.app-shell > .app-content {
+  flex: 1 0 auto;
+  padding-top: calc(var(--site-header-height) + env(safe-area-inset-top, 0px));
+  overflow-y: visible;
+}
+
+/* On a phone nothing the page scrolls to, and no part of the footer, sits
+   under the bar at the foot of the screen. */
+@media not all and (min-width: 48em) {
+  html:has(.phone-bar) {
+    scroll-padding-bottom: calc(var(--phone-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell--bar .app-shell__footer .site-footer {
+    padding-bottom: calc(var(--phone-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* =============================================================================
+   The app's header: one row at every width
+   ============================================================================= */
+
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* No line in the first screen; once the page has moved under the bar, a 1 px
+   line in the line colour along its lower edge. */
+.app-header[data-scrolled='true'] {
+  box-shadow: 0 1px 0 var(--color-steel-300);
+}
+
+.app-header__bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--site-header-height);
+  margin-inline: auto;
+  position: relative;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.app-header__bar > * {
+  flex-shrink: 0;
+}
+
+@media (min-width: 48em) {
+  .app-header__bar {
+    padding-left: max(32px, env(safe-area-inset-left, 0px));
+    padding-right: max(32px, env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (min-width: 64em) {
+  .app-header__bar {
+    max-width: 1200px;
+  }
+}
+
+@media (min-width: 90em) {
+  .app-header__bar {
+    max-width: 1320px;
+    padding-left: max(64px, env(safe-area-inset-left, 0px));
+    padding-right: max(64px, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* The brand: on a phone the mark and the wordmark stand plain, since the
+   bar at the foot carries Dashboard; from the tablet width they are a link
+   to the dashboard. */
+.app-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.app-header__brand--link {
+  display: none;
+}
+
+.app-header__brand--link:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header__brand--link:active {
+    transform: none;
+  }
+}
+
+@media (min-width: 48em) {
+  .app-header__brand--link {
+    display: inline-flex;
+  }
+
+  .app-header__brand--plain {
+    display: none;
+  }
+}
+
+/* The row: the four destinations, then More while it is needed and the look
+   switch at the right. */
+.app-header__nav {
+  display: none;
+}
+
+@media (min-width: 48em) {
+  .app-header__nav {
+    display: flex;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 16px;
+  }
+}
+
+.app-header__links {
+  display: flex;
+  gap: 16px;
+}
+
+@media (min-width: 64em) {
+  .app-header__links {
+    gap: 24px;
+  }
+}
+
+/* Wide: the four links sit on the page's middle line. */
+@media (min-width: 90em) {
+  .app-header__links {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* A link: the quiet tone at rest; the ink with a 1 px ink underline under
+   the pointer; the ink and 1 px lower while pressed; the page being read in
+   the ink with a 2 px accent underline, the same under the pointer. */
+.app-header__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  white-space: nowrap;
+}
+
+.app-header__link:hover {
+  color: var(--color-steel-50);
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-steel-50);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 6px;
+}
+
+.app-header__link:active {
+  color: var(--color-steel-50);
+  transform: translateY(1px);
+}
+
+.app-header__link[aria-current] {
+  color: var(--color-steel-50);
+  text-decoration-line: underline;
+  text-decoration-color: var(--look-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+/* The fold, set by the header's script when the row runs short: the
+   wordmark leaves first, then Help moves into More, then Settings; at the
+   last fold the row scrolls inside itself with its right edge faded. */
+.app-header[data-fold='1'] .app-header__brand--link .wordmark,
+.app-header[data-fold='2'] .app-header__brand--link .wordmark,
+.app-header[data-fold='3'] .app-header__brand--link .wordmark,
+.app-header[data-fold='4'] .app-header__brand--link .wordmark {
+  display: none;
+}
+
+.app-header[data-fold='2'] .app-header__link[data-section='/help'],
+.app-header[data-fold='3'] .app-header__link[data-section='/help'],
+.app-header[data-fold='4'] .app-header__link[data-section='/help'] {
+  display: none;
+}
+
+.app-header[data-fold='3'] .app-header__link[data-section='/settings'],
+.app-header[data-fold='4'] .app-header__link[data-section='/settings'] {
+  display: none;
+}
+
+.app-header[data-fold='4'] .app-header__bar {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+}
+
+/* More: the word in the ink at weight 700, no edge, the panel colour under
+   the pointer, 1 px lower while pressed. */
+.app-header__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+}
+
+.app-header__more:hover {
+  background: var(--color-steel-900);
+}
+
+.app-header__more:active {
+  transform: translateY(1px);
+}
+
+/* The open More: a panel under the bar that scrolls inside itself. It is
+   the header's own child, so the bar's scrolling and its mask never clip it. */
+.app-more {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: calc(100vh - var(--site-header-height));
+  max-height: calc(100dvh - var(--site-header-height) - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--color-steel-900);
+  box-shadow: 0 1px 0 var(--color-steel-300);
+  animation: app-more-in 150ms ease-out;
+}
+
+.app-more[hidden] {
+  display: none;
+}
+
+@keyframes app-more-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-more {
+    animation: none;
+  }
+}
+
+@media (min-width: 48em) {
+  .app-more {
+    padding-left: max(32px, env(safe-area-inset-left, 0px));
+    padding-right: max(32px, env(safe-area-inset-right, 0px));
+  }
+}
+
+.app-more__row {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 12px 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+}
+
+.app-more__row + .app-more__row {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.app-more__row:hover {
+  background: var(--color-steel-850);
+}
+
+.app-more__row:active {
+  transform: translateY(1px);
+}
+
+/* =============================================================================
+   The count of new alerts on History
+   ============================================================================= */
+
+.new-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  color: var(--color-steel-50);
+  font-weight: var(--weight-bold);
+}
+
+.problem-mark {
+  fill: var(--look-alert);
+  flex: none;
+}
+
+/* =============================================================================
+   The phone bar
+   ============================================================================= */
+
+.phone-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  box-shadow: 0 -1px 0 var(--color-steel-300);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (min-width: 48em) {
+  .phone-bar {
+    display: none;
+  }
+}
+
+/* Three equal places, each a glyph over its word. A place keeps its words
+   whole: with much larger text the places grow and the bar scrolls inside
+   itself. */
+.phone-bar__place {
+  flex: 1 0 33.333%;
+  min-width: max-content;
+  min-height: var(--phone-bar-height);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+  padding: 0 8px;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  white-space: nowrap;
+}
+
+.phone-bar__glyph {
+  display: flex;
+  color: var(--color-steel-50);
+}
+
+@media (hover: hover) {
+  .phone-bar__place:hover {
+    color: var(--color-steel-50);
+  }
+}
+
+.phone-bar__place:active {
+  background: var(--color-steel-850);
+}
+
+/* The place of the page being read: a 32 px accent line along its top. */
+.phone-bar__place[aria-current]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: calc(50% - 16px);
+  width: 32px;
+  height: 2px;
+  background: var(--look-accent);
+}
+
+/* When the places are wider than the bar it scrolls inside itself, with the
+   right edge faded as the header's row is at its last fold, until its end is
+   reached. A browser that cannot tie an animation to scrolling shows the bar
+   unfaded; it scrolls all the same. */
+@supports (animation-timeline: scroll(self inline)) {
+  .phone-bar {
+    animation-name: phone-bar-edge;
+    animation-duration: auto;
+    animation-timing-function: linear;
+    animation-fill-mode: both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+@keyframes phone-bar-edge {
+  from,
+  99% {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+  }
+  to {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
