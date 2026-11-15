@@ -375,6 +375,19 @@ widths and looks. The `pictures` artifact contains the proposed change and
 a separate manual workflow run. Camera-dependent and authenticated states still
 need to be identified separately in the pull request.
 
+When `/setup/` is among the routes, both versions also capture setup's camera
+step after a refused camera request (`setup-camera-refused-<width>-<look>.png`).
+For the pull request's own build the script then walks setup from a first visit
+to the dashboard with no camera: after a refused request, with no camera found,
+and in the runner's own browser, which has no camera. Each walk reads what the
+step says, presses **Continue without the camera**, finishes setup, lands on the
+dashboard and reloads it. At 320, 390 and 1280 pixels it checks that Back, the
+request key and the new key are whole and on screen, that the new key is reached
+with Tab and pressed with Enter, and that the scenario step shows **Continue**
+beside Back for a scenario already chosen. The headless browser has no prompt,
+so the refused and none-found answers are given to the page's camera request by
+the script; the third walk uses the browser's own answer. A finding fails the run.
+
 - On a pull request: add the label `pictures`. It runs on the labelling and on
   every later push to that pull request, for the routes in `DEFAULT_ROUTES`
   (home, monitoring, setup, dashboard, settings, notifications, models, nap,

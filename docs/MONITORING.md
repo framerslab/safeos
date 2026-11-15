@@ -13,6 +13,20 @@ missing camera leaves monitoring inactive and shows the camera error. A device w
 a camera and no microphone monitors video alone and shows the microphone warning;
 Setup's **Grant Permissions** also completes with the camera alone.
 
+Setup does not need the camera. Until access is granted, its **Device Access**
+step shows **Continue without the camera**, which records camera and microphone
+access as off and goes on; **Start Monitoring** asks for them later. After a
+failed request the step says what happened and its key reads **Try again**:
+
+| What happened | What the step says |
+|---------------|--------------------|
+| The browser or the person refused | The browser blocked the camera for this site. To allow it, open the site settings from the address bar, set Camera to Allow, then press Try again. |
+| The camera did not start | The camera did not start. Another app or tab may be using it. Close it, then press Try again. |
+| No camera, with **Default camera** chosen | No camera was found on this device. |
+| The camera chosen in the menu is gone | The selected camera is unavailable. Choose another camera. |
+| The browser has no camera support on the page | This browser cannot use a camera on this page. |
+| Anything else | Unable to access the camera or microphone. Check the device and try again. |
+
 **Stop Monitoring**, leaving Monitor, or cancelling startup releases all acquired
 tracks and audio analysis resources. A browser permission prompt may remain open
 after cancellation, but its eventual result cannot restart capture. Changing the
