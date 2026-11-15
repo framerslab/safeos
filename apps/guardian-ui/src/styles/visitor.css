@@ -1,0 +1,2105 @@
+/**
+ * Visitor pages: the header and footer of the public pages, and the home page.
+ *
+ * Every colour is a token of design-system.css: the page (steel-950), the
+ * panel (steel-900), the ink (steel-50), the quiet tone (steel-200), the line
+ * (steel-300), one green (--look-accent) and one alert colour (--look-alert).
+ * Sizes are the --type-* tokens. The stops are 768 px (48em), 1024 px (64em)
+ * and 1440 px (90em), written in em so a larger text size setting moves the
+ * page to its narrower layout.
+ */
+
+/* =============================================================================
+   Page-level behaviour
+   ============================================================================= */
+
+:root {
+  --site-header-height: 3.5rem; /* 56px */
+}
+
+@media (min-width: 48em) {
+  :root {
+    --site-header-height: 4rem; /* 64px */
+  }
+}
+
+/* A visitor page follows the browser's text size setting, and an anchor or a
+   focused control never lands under the fixed header. */
+html:has(.visitor-shell) {
+  font-size: 100%;
+  scroll-padding-top: calc(var(--site-header-height) + 16px + env(safe-area-inset-top, 0px));
+}
+
+.visitor-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100svh;
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  /* A word longer than its column (much larger text on a narrow screen)
+     breaks instead of pushing the page sideways. */
+  overflow-wrap: anywhere;
+  -webkit-tap-highlight-color: rgba(74, 222, 128, 0.25);
+}
+
+.visitor-shell a,
+.visitor-shell button,
+.visitor-shell summary {
+  touch-action: manipulation;
+}
+
+.visitor-shell :is(a, button, summary, [id]) {
+  scroll-margin-top: calc(var(--site-header-height) + 16px + env(safe-area-inset-top, 0px));
+}
+
+/* The focus ring: 2 px in the look's green, 2 px outside the control, on
+   keyboard focus only. A browser that does not know :focus-visible drops
+   both rules and keeps its own ring. */
+.visitor-shell :focus:not(:focus-visible) {
+  outline: none;
+}
+
+.visitor-shell :focus-visible {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.visitor-content {
+  flex: 1 0 auto;
+  padding-top: calc(var(--site-header-height) + env(safe-area-inset-top, 0px));
+}
+
+/* With scripts off no look is chosen by script, so the home page takes the
+   light tokens from the device's setting through CSS alone. The values are
+   html.light's (design-system.css). */
+@media (prefers-color-scheme: light) {
+  html:not(.dark):not(.light):has(.device-look) {
+    color-scheme: light;
+  }
+
+  html:not(.dark):not(.light):has(.device-look) body,
+  html:not(.dark):not(.light) .device-look {
+    --color-steel-950: #f8f9fa;
+    --color-steel-900: #f1f3f4;
+    --color-steel-850: #e8ebee;
+    --color-steel-800: #dee2e6;
+    --color-steel-700: #ced4da;
+    --color-steel-600: #adb5bd;
+    --color-steel-500: #868e96;
+    --color-steel-400: #5a6270;
+    --color-steel-300: #495057;
+    --color-steel-200: #212529;
+    --color-steel-100: #212529;
+    --color-steel-50: #0f1215;
+    --look-accent: #14532d;
+    --look-accent-hover: #052e16;
+    --look-on-accent: #ffffff;
+    --look-alert: #991b1b;
+    --visitor-panel-ink: #0f1215;
+    background: var(--color-steel-950);
+    color: var(--color-steel-50);
+  }
+}
+
+/* The quiet tone in the light look. Inter at 400 and 16 px draws its strokes
+   at about 0.6 of its colour's contrast, so the light look's #343a40 (10.9:1
+   on the page) read 6.0 to 6.9:1 on the strokes; #212529 (14.7:1 on the page,
+   13.9:1 on the panel) reads over 7:1. */
+html.light .visitor-shell {
+  --color-steel-200: #212529;
+}
+
+/* The ink on the panel-coloured bands and panels of the home page. The dark
+   look's panel is lighter than its page, and 20 px body text on it read 11.8:1
+   on the strokes in the page's ink; white reads over 12:1. The light look
+   keeps its ink. */
+.visitor-shell {
+  --visitor-panel-ink: #ffffff;
+}
+
+html.light .visitor-shell {
+  --visitor-panel-ink: #0f1215;
+}
+
+.home-band,
+.home-qr,
+.home-how__note {
+  --color-steel-50: var(--visitor-panel-ink);
+}
+
+/* Tabular figures for the numbers on the page (counts, sizes, the year and
+   the step numerals) and nothing else: a word set with them takes Inter's
+   figure-width hyphen. */
+.num,
+.home-step__numeral {
+  font-variant-numeric: tabular-nums;
+}
+
+/* =============================================================================
+   Skip link
+   ============================================================================= */
+
+.skip-link {
+  position: fixed;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  left: 8px;
+  z-index: 300;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  min-height: 44px;
+  padding: 10px 16px;
+  background: var(--look-accent);
+  color: var(--look-on-accent);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  clip-path: inset(50%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  clip-path: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* =============================================================================
+   Keys and links
+   ============================================================================= */
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+  transition: background-color 100ms ease-out;
+}
+
+/* The one key that starts something. */
+.key--solid {
+  background: var(--look-accent);
+  color: var(--look-on-accent);
+}
+
+.key--solid:hover,
+.key--solid:active {
+  background: var(--look-accent-hover);
+}
+
+.key--solid:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .key--solid:active {
+    transform: none;
+  }
+}
+
+.visitor-shell .key--solid:focus-visible {
+  border-radius: 4px;
+}
+
+/* The start key of the first screen and the closing block. Its label stays
+   on one line while the column holds it; when space is short the arrow gives
+   way first. */
+.key--start {
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 8px;
+  font-size: var(--type-key-size);
+  line-height: var(--type-key-line);
+  white-space: normal;
+  overflow-wrap: normal;
+  text-align: center;
+}
+
+.key--start > span {
+  flex: 0 1 auto;
+}
+
+.key__arrow {
+  flex: 0 1000 20px;
+  min-width: 0;
+  width: 20px;
+  height: 20px;
+}
+
+@media (min-width: 48em) {
+  .key--start {
+    width: auto;
+    min-width: 14.5rem;
+    padding: 14px 24px;
+  }
+}
+
+@media (min-width: 90em) {
+  .key--start {
+    min-height: 56px;
+  }
+}
+
+/* A link in the page's body: ink words at weight 700 on their own row, with a
+   2 px underline in the look's green. */
+.link-row {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-bold);
+  text-decoration-line: underline;
+  text-decoration-color: var(--look-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.link-row:hover {
+  text-decoration-thickness: 3px;
+}
+
+/* =============================================================================
+   The mark and the wordmark
+   ============================================================================= */
+
+.site-mark {
+  flex: none;
+  width: 32px;
+  height: 32px;
+}
+
+.site-mark__shield {
+  fill: var(--color-steel-900);
+  stroke: var(--look-accent);
+}
+
+.site-mark__inner {
+  fill: var(--color-steel-850);
+  stroke: var(--look-accent);
+  stroke-opacity: 0.5;
+}
+
+.site-mark__ring,
+.site-mark__line {
+  fill: none;
+  stroke: var(--look-accent);
+}
+
+.site-mark__dot {
+  fill: var(--look-accent);
+}
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-size: var(--type-wordmark-size);
+  line-height: var(--type-wordmark-line);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.wordmark__first {
+  color: var(--color-steel-50);
+  font-weight: var(--weight-bold);
+}
+
+.wordmark__second {
+  color: var(--color-steel-200);
+  font-weight: var(--weight-regular);
+}
+
+/* =============================================================================
+   Visitor header: one row at every width
+   ============================================================================= */
+
+.site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding-top: env(safe-area-inset-top, 0px);
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+}
+
+/* No line in the first screen; once the page has moved under the bar, a 1 px
+   line in the line colour along its lower edge. */
+.site-header[data-scrolled='true'] {
+  box-shadow: 0 1px 0 var(--color-steel-300);
+}
+
+.site-header__bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--site-header-height);
+  margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.site-header__bar > * {
+  flex-shrink: 0;
+}
+
+.site-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.site-header__links {
+  display: none;
+  align-items: center;
+  gap: 24px;
+  margin-left: 16px;
+}
+
+.site-header__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  white-space: nowrap;
+}
+
+.site-header__link:hover {
+  color: var(--color-steel-50);
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-steel-50);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+.site-header__link[aria-current] {
+  color: var(--color-steel-50);
+  text-decoration-line: underline;
+  text-decoration-color: var(--look-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+.site-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.site-header__github,
+.site-header__start {
+  display: none;
+}
+
+.site-header__start {
+  min-width: 10rem;
+}
+
+/* The look switch: a sun or a moon in the ink inside a round 44 px target
+   with no edge. Its place is held before its script arrives. */
+.look-switch,
+.look-switch-place {
+  flex: none;
+  width: 44px;
+  height: 44px;
+}
+
+.look-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-steel-50);
+}
+
+.look-switch:hover {
+  background: var(--color-steel-900);
+}
+
+.visitor-shell .look-switch:focus-visible {
+  border-radius: 50%;
+}
+
+.look-switch svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* The Menu key: the word in the ink at weight 700, no edge, one width in both
+   states. */
+.site-header__menu-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+}
+
+.site-header__menu-key:hover {
+  background: var(--color-steel-900);
+}
+
+.menu-key__words {
+  display: grid;
+  justify-items: center;
+}
+
+.menu-key__words > span {
+  grid-area: 1 / 1;
+}
+
+.menu-key__words > span[aria-hidden='true'] {
+  visibility: hidden;
+}
+
+/* Much larger text on a phone: the wordmark keeps its own size, 16 px, so the
+   row still holds it beside the look switch and Menu. Where even that does
+   not fit (320 px at 200 per cent), the mark stands for it; the link keeps
+   its name. */
+.site-header[data-compact='small'] .wordmark {
+  font-size: 16px;
+  line-height: 18px;
+}
+
+.site-header[data-compact='true'] .wordmark {
+  display: none;
+}
+
+/* The open Menu: a panel under the bar that scrolls inside itself. */
+.site-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: calc(100vh - var(--site-header-height));
+  max-height: calc(100dvh - var(--site-header-height) - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--color-steel-900);
+  box-shadow: 0 1px 0 var(--color-steel-300);
+  animation: site-menu-in 150ms ease-out;
+}
+
+.site-menu[hidden] {
+  display: none;
+}
+
+@keyframes site-menu-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-menu {
+    animation: none;
+  }
+}
+
+.site-menu__row {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 12px 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+}
+
+.site-menu__row + .site-menu__row {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.site-menu__row--start {
+  justify-content: center;
+  min-height: 48px;
+  margin-bottom: 8px;
+  padding: 12px 16px;
+  border-radius: 4px;
+  background: var(--look-accent);
+  color: var(--look-on-accent);
+  font-weight: var(--weight-bold);
+}
+
+.site-menu__row--start:hover {
+  background: var(--look-accent-hover);
+}
+
+.site-menu__row--start + .site-menu__row {
+  border-top: 0;
+}
+
+.site-menu__row:not(.site-menu__row--start):hover {
+  text-decoration-line: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+/* From the tablet width the links and the start key join the row, unless the
+   row cannot hold them (a narrow window or larger text): then they stay in
+   the Menu. */
+@media (min-width: 48em) {
+  .site-header__bar {
+    padding-left: max(32px, env(safe-area-inset-left, 0px));
+    padding-right: max(32px, env(safe-area-inset-right, 0px));
+  }
+
+  .site-header:not([data-collapsed='true']) .site-header__links {
+    display: flex;
+  }
+
+  .site-header:not([data-collapsed='true']) .site-header__start {
+    display: inline-flex;
+  }
+
+  .site-header:not([data-collapsed='true']) .site-header__menu-key {
+    display: none;
+  }
+
+  .site-header:not([data-collapsed='true']) .site-menu {
+    display: none;
+  }
+
+  /* Before script runs nothing can move the links into the Menu: when the
+     row cannot hold them (larger text) they scroll sideways inside it, with
+     room for the focus ring. */
+  .site-header:not([data-script]) .site-header__links {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow-x: auto;
+    padding-block: 4px;
+    margin-block: -4px;
+  }
+
+  .site-header:not([data-script]) .site-header__links > * {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+
+  .site-menu {
+    padding-left: max(32px, env(safe-area-inset-left, 0px));
+    padding-right: max(32px, env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (min-width: 64em) {
+  .site-header__bar {
+    max-width: 1264px;
+  }
+
+  .site-header:not([data-collapsed='true']) .site-header__github {
+    display: inline-flex;
+    margin-right: 8px;
+  }
+}
+
+/* Wide: the four links sit on the page's middle line. */
+@media (min-width: 90em) {
+  .site-header__bar {
+    max-width: 1448px;
+    padding-left: max(64px, env(safe-area-inset-left, 0px));
+    padding-right: max(64px, env(safe-area-inset-right, 0px));
+  }
+
+  .site-header:not([data-collapsed='true']) .site-header__bar {
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  }
+
+  .site-header:not([data-collapsed='true']) .site-header__links {
+    gap: 32px;
+    margin-left: 0;
+  }
+
+  .site-header:not([data-collapsed='true']) .site-header__actions {
+    justify-self: end;
+    margin-left: 0;
+  }
+}
+
+/* =============================================================================
+   Visitor footer
+   ============================================================================= */
+
+.site-footer {
+  background: var(--color-steel-900);
+  color: var(--color-steel-200);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+/* The app's bottom navigation shows on the other public pages below 768 px;
+   the footer's last line ends above it. */
+@media (max-width: 767.98px) {
+  .visitor-shell--bottom-nav .site-footer {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+.site-footer__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  margin-inline: auto;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(32px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+}
+
+/* The rule that sets the footer apart from the part above it. */
+.site-footer__rule {
+  margin-bottom: 8px;
+}
+
+.site-footer__brand {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: center;
+}
+
+.site-footer__name {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-entry-size);
+  line-height: var(--type-entry-line);
+  font-weight: var(--weight-bold);
+}
+
+.site-footer__line {
+  grid-column: 1 / -1;
+  margin: 8px 0 0;
+  color: var(--color-steel-200);
+}
+
+/* Two columns of three groups on a phone; one column when two of at least
+   136 px no longer fit (larger text), never wider than the footer. */
+.site-footer__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, max(8.5rem, calc(50% - 8px))), 1fr));
+  gap: 32px 16px;
+}
+
+.site-footer__title {
+  margin: 0 0 4px;
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+}
+
+.site-footer__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.site-footer__link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-steel-200);
+  font-weight: var(--weight-regular);
+  overflow-wrap: anywhere;
+}
+
+.site-footer__link:hover,
+.site-footer__link:focus-visible {
+  color: var(--color-steel-50);
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-steel-50);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.site-footer__last {
+  margin: 0;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-steel-300);
+  color: var(--color-steel-200);
+}
+
+@media (min-width: 48em) {
+  .site-footer__inner {
+    padding-left: max(32px, env(safe-area-inset-left, 0px));
+    padding-right: max(32px, env(safe-area-inset-right, 0px));
+  }
+
+  .site-footer__groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 32px 24px;
+  }
+
+  .site-footer__link {
+    min-height: 32px;
+  }
+}
+
+@media (min-width: 64em) {
+  .site-footer__inner {
+    max-width: 1264px;
+  }
+
+  .site-footer__groups {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 90em) {
+  .site-footer__inner {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 32px;
+    max-width: 1448px;
+    padding-left: max(64px, env(safe-area-inset-left, 0px));
+    padding-right: max(64px, env(safe-area-inset-right, 0px));
+  }
+
+  .site-footer__brand {
+    grid-column: 1 / span 3;
+    align-content: start;
+  }
+
+  .site-footer__groups {
+    grid-column: 4 / span 9;
+  }
+
+  .site-footer__rule,
+  .site-footer__last {
+    grid-column: 1 / -1;
+  }
+}
+
+/* =============================================================================
+   Home page: shared pieces
+   ============================================================================= */
+
+.home {
+  display: block;
+  color: var(--color-steel-50);
+}
+
+.home-wrap {
+  width: 100%;
+  margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.home-part {
+  padding-block: 40px;
+}
+
+/* A band of the panel colour across the page. */
+.home-band {
+  background: var(--color-steel-900);
+}
+
+.home-h2 {
+  margin: 0 0 24px;
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-part-size);
+  line-height: var(--type-part-line);
+  font-weight: var(--weight-bold);
+  text-wrap: balance;
+}
+
+.home-h3 {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-entry-size);
+  line-height: var(--type-entry-line);
+  font-weight: var(--weight-bold);
+  text-wrap: balance;
+}
+
+.home-p {
+  max-width: 35em;
+  margin: 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  text-wrap: pretty;
+}
+
+.home-p + .home-p {
+  margin-top: 12px;
+}
+
+.home-links {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A rule between two parts of the page: a 1 px line with one tick, 8 px tall
+   and 32 px from its left end, both in the line colour. */
+.tick-rule {
+  position: relative;
+  height: 9px;
+  border-bottom: 1px solid var(--color-steel-300);
+}
+
+.tick-rule::before {
+  content: '';
+  position: absolute;
+  left: 32px;
+  bottom: 0;
+  width: 1px;
+  height: 8px;
+  background: var(--color-steel-300);
+}
+
+@media (min-width: 48em) {
+  .home-wrap {
+    padding-left: max(32px, env(safe-area-inset-left, 0px));
+    padding-right: max(32px, env(safe-area-inset-right, 0px));
+  }
+
+  .home-part {
+    padding-block: 56px;
+  }
+}
+
+@media (min-width: 64em) {
+  .home-wrap {
+    max-width: 1264px;
+  }
+
+  .home-part {
+    padding-block: 72px;
+  }
+
+  .home-h2 {
+    margin-bottom: 32px;
+  }
+}
+
+@media (min-width: 90em) {
+  .home-wrap {
+    max-width: 1448px;
+    padding-left: max(64px, env(safe-area-inset-left, 0px));
+    padding-right: max(64px, env(safe-area-inset-right, 0px));
+  }
+
+  .home-part {
+    padding-block: 80px;
+  }
+}
+
+/* =============================================================================
+   Home page: first screen
+   ============================================================================= */
+
+/* On a phone the first part is at least one screen tall, so the next part
+   begins below the first screen. */
+.home-first {
+  min-height: calc(100svh - var(--site-header-height) - env(safe-area-inset-top, 0px));
+  padding-top: 20px;
+  padding-bottom: 32px;
+}
+
+.home-first__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.home-headline {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-headline-size);
+  line-height: var(--type-headline-line);
+  font-weight: var(--weight-bold);
+  text-wrap: balance;
+}
+
+.home-lead {
+  margin: 12px 0 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  text-wrap: pretty;
+}
+
+.home-first__start {
+  margin-top: 20px;
+}
+
+.home-start__keys {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.home-start__done,
+.home-statement,
+.home-needs-script {
+  margin: 16px 0 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  text-wrap: pretty;
+}
+
+.home-start__done {
+  margin-top: 8px;
+}
+
+/* The line for a page whose script did not start: in the served HTML, so it
+   shows with scripts off; its own script hides it at once and shows it again
+   if the app has not marked itself started within five seconds. */
+.home-needs-script[hidden],
+html[data-app-started='true'] .home-needs-script {
+  display: none;
+}
+
+/* The capture: the product's own monitor, framed by four corner ticks. */
+.home-capture {
+  margin: 20px 0 0;
+}
+
+.capture__frame {
+  position: relative;
+}
+
+.corner-ticks > i {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 0 solid var(--look-accent);
+  pointer-events: none;
+}
+
+.corner-ticks > i:nth-child(1) {
+  top: -6px;
+  left: -6px;
+  border-top-width: 2px;
+  border-left-width: 2px;
+}
+
+.corner-ticks > i:nth-child(2) {
+  top: -6px;
+  right: -6px;
+  border-top-width: 2px;
+  border-right-width: 2px;
+}
+
+.corner-ticks > i:nth-child(3) {
+  bottom: -6px;
+  left: -6px;
+  border-bottom-width: 2px;
+  border-left-width: 2px;
+}
+
+.corner-ticks > i:nth-child(4) {
+  right: -6px;
+  bottom: -6px;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+}
+
+/* One slot for each crop; each holds its box at the ratio of the crop's own
+   file (--capture-box, its height over its width, set on the slot from the
+   capture's record) while the file loads, in the panel colour, with a bar
+   that grows along its foot. */
+.capture__slot {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  background: var(--color-steel-900);
+}
+
+.capture__slot::before {
+  content: '';
+  grid-area: 1 / 1;
+  padding-top: var(--capture-box);
+}
+
+.capture__slot::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--look-accent);
+  transform-origin: left center;
+  animation: capture-loading 1.6s ease-in-out infinite;
+}
+
+@keyframes capture-loading {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.capture__slot--phone {
+  display: grid;
+}
+
+.capture__pic {
+  grid-area: 1 / 1;
+  display: none;
+}
+
+.capture__pic img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+/* The capture made in the look that is on. */
+.capture__pic--dark {
+  display: block;
+}
+
+html.light .capture__pic--dark {
+  display: none;
+}
+
+html.light .capture__pic--light {
+  display: block;
+}
+
+@media (prefers-color-scheme: light) {
+  html:not(.dark):not(.light) .device-look .capture__pic--dark {
+    display: none;
+  }
+
+  html:not(.dark):not(.light) .device-look .capture__pic--light {
+    display: block;
+  }
+}
+
+/* The file did not load: a level line broken by a gap, the problem glyph, and
+   the picture's text equivalent. */
+.capture__error {
+  position: relative;
+  z-index: 2;
+  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-steel-900);
+}
+
+.capture__error-mark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.capture__error-line {
+  flex: 1 1 auto;
+  height: 12px;
+  color: var(--color-steel-300);
+}
+
+.problem-glyph {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  color: var(--look-alert);
+}
+
+.capture__error p {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.capture__caption {
+  margin-top: 8px;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+}
+
+/* Tablet: one text block up to 640 px wide, the key at its own width, then
+   the landscape capture across the container. */
+@media (min-width: 48em) {
+  .home-first {
+    min-height: 0;
+    padding-top: 40px;
+    padding-bottom: 56px;
+  }
+
+  .home-first__text,
+  .home-first__start {
+    max-width: 640px;
+  }
+
+  .home-first__start {
+    order: 2;
+    margin-top: 24px;
+  }
+
+  .home-start__keys {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .home-capture {
+    order: 3;
+    margin-top: 40px;
+  }
+
+  .capture__slot--phone {
+    display: none;
+  }
+
+  .capture__slot--landscape {
+    display: grid;
+  }
+}
+
+/* Desktop: the words in the left seven of twelve columns, the portrait
+   capture in the right five, its top level with the headline's. */
+@media (min-width: 64em) {
+  .home-first {
+    padding-top: 56px;
+    padding-bottom: 72px;
+  }
+
+  .home-first__grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: auto 1fr;
+    column-gap: 24px;
+  }
+
+  .home-first__text,
+  .home-first__start {
+    grid-column: 1 / span 7;
+    max-width: none;
+  }
+
+  .home-first__text {
+    grid-row: 1;
+  }
+
+  /* Three lines at every desktop and wide width: no wider than the seven
+     columns at 1024 px hold it. */
+  .home-headline {
+    max-width: 11.4em;
+  }
+
+  .home-first__start {
+    grid-row: 2;
+    order: 0;
+  }
+
+  .home-statement,
+  .home-needs-script,
+  .home-lead {
+    max-width: 34em;
+  }
+
+  .home-capture {
+    grid-column: 8 / span 5;
+    grid-row: 1 / span 2;
+    order: 0;
+    margin-top: 6px;
+  }
+
+  .capture__slot--landscape {
+    display: none;
+  }
+
+  .capture__slot--portrait {
+    display: grid;
+  }
+}
+
+/* Wide: the words in the left six columns, the landscape capture in the
+   right six. */
+@media (min-width: 90em) {
+  .home-first__grid {
+    column-gap: 32px;
+  }
+
+  .home-first__text,
+  .home-first__start {
+    grid-column: 1 / span 6;
+  }
+
+  .home-capture {
+    grid-column: 7 / span 6;
+  }
+
+  .capture__slot--portrait {
+    display: none;
+  }
+
+  .capture__slot--landscape {
+    display: grid;
+  }
+}
+
+/* =============================================================================
+   Home page: what people set it up for
+   ============================================================================= */
+
+.home-uses {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-use {
+  padding-block: 24px;
+}
+
+.home-use:first-child {
+  padding-top: 0;
+}
+
+.home-use + .home-use {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.home-use .home-p,
+.home-use__medical {
+  margin-top: 8px;
+}
+
+/* The not-a-medical-device sentence, with its link on a row of its own. */
+.home-use__medical {
+  max-width: 35em;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  text-wrap: pretty;
+}
+
+.home-use__medical a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 4px;
+  color: var(--color-steel-50);
+  font-weight: var(--weight-bold);
+  text-decoration-line: underline;
+  text-decoration-color: var(--look-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.home-use__medical a:hover {
+  text-decoration-thickness: 3px;
+}
+
+.home-use .home-links {
+  margin-top: 4px;
+}
+
+/* Tablet: a ruled grid of two columns, the entries in rows of two, two and
+   one. */
+@media (min-width: 48em) and (max-width: 63.99em) {
+  .home-uses {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-use,
+  .home-use:first-child {
+    padding: 24px 0;
+  }
+
+  .home-use + .home-use {
+    border-top: 0;
+  }
+
+  .home-use:nth-child(odd) {
+    padding-right: 24px;
+  }
+
+  .home-use:nth-child(even) {
+    padding-left: 24px;
+    border-left: 1px solid var(--color-steel-300);
+  }
+
+  .home-use:nth-child(n + 3) {
+    border-top: 1px solid var(--color-steel-300);
+  }
+
+  .home-use:nth-child(5) {
+    grid-column: 1 / -1;
+    padding-right: 0;
+  }
+
+  .home-use:nth-child(-n + 2) {
+    padding-top: 0;
+  }
+}
+
+/* Desktop: a ruled grid of six columns, two entries of three columns and
+   then three of two. */
+@media (min-width: 64em) and (max-width: 89.99em) {
+  .home-uses {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .home-use,
+  .home-use:first-child {
+    grid-column: span 2;
+    padding: 32px 24px;
+  }
+
+  .home-use + .home-use {
+    border-top: 0;
+  }
+
+  .home-use:nth-child(-n + 2) {
+    grid-column: span 3;
+    padding-top: 0;
+  }
+
+  .home-use:nth-child(1),
+  .home-use:nth-child(3) {
+    padding-left: 0;
+  }
+
+  .home-use:nth-child(2),
+  .home-use:nth-child(5) {
+    padding-right: 0;
+  }
+
+  .home-use:nth-child(2),
+  .home-use:nth-child(4),
+  .home-use:nth-child(5) {
+    border-left: 1px solid var(--color-steel-300);
+  }
+
+  .home-use:nth-child(n + 3) {
+    border-top: 1px solid var(--color-steel-300);
+  }
+}
+
+/* Wide: a ruled grid of twelve columns, three entries of four columns and
+   then two of six. */
+@media (min-width: 90em) {
+  .home-uses {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .home-use,
+  .home-use:first-child {
+    grid-column: span 4;
+    padding: 32px;
+  }
+
+  .home-use + .home-use {
+    border-top: 0;
+  }
+
+  .home-use:nth-child(-n + 3) {
+    padding-top: 0;
+  }
+
+  .home-use:nth-child(n + 4) {
+    grid-column: span 6;
+    border-top: 1px solid var(--color-steel-300);
+  }
+
+  .home-use:nth-child(1),
+  .home-use:nth-child(4) {
+    padding-left: 0;
+  }
+
+  .home-use:nth-child(3),
+  .home-use:nth-child(5) {
+    padding-right: 0;
+  }
+
+  .home-use:nth-child(2),
+  .home-use:nth-child(3),
+  .home-use:nth-child(5) {
+    border-left: 1px solid var(--color-steel-300);
+  }
+}
+
+/* =============================================================================
+   Home page: how it works
+   ============================================================================= */
+
+.home-how {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'steps'
+    'note';
+  row-gap: 24px;
+}
+
+.home-steps {
+  grid-area: steps;
+  display: grid;
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-step {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+}
+
+.home-step__numeral {
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-numeral-size);
+  line-height: var(--type-numeral-line);
+  font-weight: var(--weight-bold);
+}
+
+.home-step .home-h3 {
+  padding-top: 3px;
+}
+
+.home-step .home-p {
+  margin-top: 4px;
+}
+
+.home-qr {
+  grid-area: qr;
+  display: none;
+  margin: 0;
+  padding: 24px;
+  background: var(--color-steel-900);
+}
+
+.home-qr img {
+  display: block;
+  width: 160px;
+  height: 160px;
+  background: #ffffff;
+  color: #000000;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+.home-qr figcaption {
+  margin-top: 12px;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+.home-how__note {
+  grid-area: note;
+}
+
+/* Tablet: the steps in the left five of eight columns, the QR panel in the
+   right three, the server note under the steps. */
+@media (min-width: 48em) {
+  .home-how {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
+    grid-template-areas:
+      'steps qr'
+      'note note';
+    column-gap: 24px;
+  }
+
+  .home-qr {
+    display: block;
+    align-self: start;
+  }
+}
+
+/* Desktop: the steps in the left seven of twelve columns; in the right five,
+   one panel that holds the QR code, its caption and the server note. */
+@media (min-width: 64em) {
+  .home-how {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'steps qr'
+      'steps note';
+    row-gap: 0;
+  }
+
+  .home-step {
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+  }
+
+  .home-step .home-h3 {
+    padding-top: 9px;
+  }
+
+  .home-qr {
+    align-self: stretch;
+    padding: 32px 32px 0;
+  }
+
+  .home-qr img {
+    width: 200px;
+    height: 200px;
+  }
+
+  .home-how__note {
+    padding: 24px 32px 32px;
+    background: var(--color-steel-900);
+  }
+}
+
+/* Wide: the steps in the left six columns, and two panels side by side in
+   the right six. */
+@media (min-width: 90em) {
+  .home-how {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 3fr) minmax(0, 3fr);
+    grid-template-rows: auto;
+    grid-template-areas: 'steps qr note';
+    column-gap: 32px;
+  }
+
+  .home-qr {
+    padding: 32px;
+  }
+
+  .home-how__note {
+    padding: 32px;
+  }
+}
+
+/* =============================================================================
+   Home page: what sets off an alert
+   ============================================================================= */
+
+.home-alerts {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'head'
+    'list'
+    'aside';
+}
+
+.home-alerts > .home-h2 {
+  grid-area: head;
+}
+
+.home-alerts__list {
+  grid-area: list;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-alert {
+  padding-block: 24px;
+}
+
+.home-alert:first-child {
+  padding-top: 0;
+}
+
+.home-alert + .home-alert {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.home-alert .home-p {
+  margin-top: 8px;
+}
+
+.home-alerts__aside {
+  grid-area: aside;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.home-alerts__aside .link-row {
+  margin-top: 8px;
+}
+
+/* Tablet: a ruled grid of two by two, the everyday-monitor line and the code
+   link across the full width below. */
+@media (min-width: 48em) and (max-width: 63.99em) {
+  .home-alerts__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-alert,
+  .home-alert:first-child {
+    padding: 24px 0;
+  }
+
+  .home-alert + .home-alert {
+    border-top: 0;
+  }
+
+  .home-alert:nth-child(odd) {
+    padding-right: 24px;
+  }
+
+  .home-alert:nth-child(even) {
+    padding-left: 24px;
+    border-left: 1px solid var(--color-steel-300);
+  }
+
+  .home-alert:nth-child(-n + 2) {
+    padding-top: 0;
+  }
+
+  .home-alert:nth-child(n + 3) {
+    border-top: 1px solid var(--color-steel-300);
+  }
+}
+
+/* Desktop: the heading, the everyday-monitor line and the code link in the
+   left four of twelve columns, the ruled grid of two by two in the right
+   eight. */
+@media (min-width: 64em) and (max-width: 89.99em) {
+  .home-alerts {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'head list'
+      'aside list';
+    column-gap: 24px;
+  }
+
+  .home-alerts__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .home-alert,
+  .home-alert:first-child {
+    padding: 24px;
+  }
+
+  .home-alert + .home-alert {
+    border-top: 0;
+  }
+
+  .home-alert:nth-child(odd) {
+    padding-left: 0;
+  }
+
+  .home-alert:nth-child(even) {
+    padding-right: 0;
+    border-left: 1px solid var(--color-steel-300);
+  }
+
+  .home-alert:nth-child(-n + 2) {
+    padding-top: 0;
+  }
+
+  .home-alert:nth-child(n + 3) {
+    border-top: 1px solid var(--color-steel-300);
+  }
+
+  .home-alerts__aside {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+/* Wide: the first three entries in a row of three under the heading, the
+   fourth across the full width with its sentence at the left and the model's
+   note at the right. */
+@media (min-width: 90em) {
+  .home-alerts__list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-alert,
+  .home-alert:first-child {
+    padding: 0 32px 32px;
+  }
+
+  .home-alert + .home-alert {
+    border-top: 0;
+    border-left: 1px solid var(--color-steel-300);
+  }
+
+  .home-alert:nth-child(1) {
+    padding-left: 0;
+  }
+
+  .home-alert:nth-child(3) {
+    padding-right: 0;
+  }
+
+  .home-alert:nth-child(4) {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 32px;
+    padding: 32px 0;
+    border-top: 1px solid var(--color-steel-300);
+    border-left: 0;
+  }
+
+  .home-alert:nth-child(4) .home-h3 {
+    grid-column: 1 / -1;
+  }
+
+  .home-alert:nth-child(4) .home-p + .home-p {
+    margin-top: 8px;
+  }
+}
+
+/* =============================================================================
+   Home page: free and open source
+   ============================================================================= */
+
+.home-free {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'head'
+    'words'
+    'links';
+}
+
+.home-free > .home-h2 {
+  grid-area: head;
+}
+
+.home-free__words {
+  grid-area: words;
+}
+
+.home-free__links {
+  grid-area: links;
+  margin-top: 16px;
+}
+
+/* Tablet: the heading and sentences in the left five of eight columns, the
+   four links as a list in the right three. */
+@media (min-width: 48em) and (max-width: 63.99em) {
+  .home-free {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
+    grid-template-areas:
+      'head links'
+      'words links';
+    column-gap: 24px;
+  }
+
+  .home-free__links {
+    margin-top: 0;
+  }
+}
+
+/* Desktop: the heading and sentences in the left seven columns, the four
+   links in a grid of two by two in the right five. */
+@media (min-width: 64em) and (max-width: 89.99em) {
+  .home-free {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'head links'
+      'words links';
+    column-gap: 24px;
+  }
+
+  .home-free__links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 24px;
+    align-content: start;
+    margin-top: 0;
+  }
+}
+
+/* Wide: the heading in the left five columns, the sentences in the middle
+   four, the links stacked in the right three. */
+@media (min-width: 90em) {
+  .home-free {
+    grid-template-columns: minmax(0, 5fr) minmax(0, 4fr) minmax(0, 3fr);
+    grid-template-areas: 'head words links';
+    column-gap: 32px;
+  }
+
+  .home-free > .home-h2 {
+    margin-bottom: 0;
+  }
+
+  .home-free__links {
+    margin-top: 0;
+  }
+}
+
+/* =============================================================================
+   Home page: questions people ask first
+   ============================================================================= */
+
+.home-questions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'head'
+    'first'
+    'second'
+    'all';
+}
+
+.home-questions > .home-h2 {
+  grid-area: head;
+}
+
+.home-questions__group--first {
+  grid-area: first;
+}
+
+.home-questions__group--second {
+  grid-area: second;
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.home-questions__all {
+  grid-area: all;
+  margin-top: 16px;
+}
+
+.home-q + .home-q {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+/* A question: its words in the ink with a plus or a minus at its right, in a
+   row at least 48 px tall. */
+.home-q > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 48px;
+  padding: 11px 0;
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-entry-size);
+  line-height: var(--type-entry-line);
+  font-weight: var(--weight-bold);
+  cursor: pointer;
+  list-style: none;
+}
+
+.home-q > summary::-webkit-details-marker {
+  display: none;
+}
+
+.home-q > summary:hover {
+  background: var(--color-steel-900);
+}
+
+.home-q__mark {
+  position: relative;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--color-steel-50);
+}
+
+.home-q__mark::before,
+.home-q__mark::after {
+  content: '';
+  position: absolute;
+  top: 9px;
+  left: 2px;
+  width: 16px;
+  height: 2px;
+  background: currentColor;
+}
+
+.home-q__mark::after {
+  transform: rotate(90deg);
+}
+
+.home-q[open] .home-q__mark::after {
+  display: none;
+}
+
+.home-q__answer {
+  padding: 4px 0 20px;
+}
+
+.home-q__answer .link-row {
+  margin-top: 4px;
+}
+
+/* Tablet: the heading at the left and the FAQ link at the right of one line,
+   then two columns of three questions. */
+@media (min-width: 48em) and (max-width: 63.99em) {
+  .home-questions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'head all'
+      'first second';
+    column-gap: 24px;
+  }
+
+  .home-questions__all {
+    justify-self: end;
+    margin-top: 0;
+  }
+
+  .home-questions__group--second {
+    border-top: 0;
+  }
+}
+
+/* Desktop: the heading and the FAQ link in the left four of twelve columns,
+   the six questions in one column in the right eight. */
+@media (min-width: 64em) and (max-width: 89.99em) {
+  .home-questions {
+    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      'head first'
+      'all first'
+      'all second';
+    column-gap: 24px;
+  }
+
+  .home-questions__all {
+    align-self: start;
+    margin-top: 0;
+  }
+}
+
+/* Wide: the heading and the FAQ link in the left three of twelve columns,
+   the questions in two columns of three in the right nine. */
+@media (min-width: 90em) {
+  .home-questions {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 4.5fr) minmax(0, 4.5fr);
+    grid-template-rows: auto 1fr;
+    grid-template-areas:
+      'head first second'
+      'all first second';
+    column-gap: 32px;
+  }
+
+  .home-questions__all {
+    align-self: start;
+    margin-top: 0;
+  }
+
+  .home-questions__group--second {
+    border-top: 0;
+  }
+}
+
+/* =============================================================================
+   Home page: closing block
+   ============================================================================= */
+
+.home-closing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 16px;
+}
+
+.home-closing .home-h2 {
+  margin-bottom: 0;
+}
+
+.home-closing__words {
+  display: grid;
+  row-gap: 8px;
+}
+
+/* Tablet and desktop: centred, with the key under the line. */
+@media (min-width: 48em) {
+  .home-closing {
+    justify-items: center;
+    row-gap: 24px;
+    text-align: center;
+  }
+
+  .home-closing__words {
+    justify-items: center;
+  }
+}
+
+/* Wide: the heading at the left and the key at the right of one row. */
+@media (min-width: 90em) {
+  .home-closing {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    justify-items: start;
+    column-gap: 32px;
+    text-align: left;
+  }
+
+  .home-closing__words {
+    justify-items: start;
+  }
+}
+
+.home-closing__rule {
+  background: var(--color-steel-900);
+}

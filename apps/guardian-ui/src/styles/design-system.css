@@ -10,12 +10,14 @@
    ============================================================================= */
 
 :root {
-  /* Primary Palette - Industrial Steel */
-  --color-steel-950: #0a0c0f;
-  --color-steel-900: #0f1215;
-  --color-steel-850: #14181c;
-  --color-steel-800: #1a1f24;
-  --color-steel-700: #252b33;
+  /* Primary Palette - Industrial Steel. The five darkest are a deep night
+     steel: the page, the panel, the raised ground, a meter's track and the
+     step above it. */
+  --color-steel-950: #0b131b;
+  --color-steel-900: #101a24;
+  --color-steel-850: #15212d;
+  --color-steel-800: #1b2835;
+  --color-steel-700: #263545;
   --color-steel-600: #3a424d;
   --color-steel-500: #5a6270;
   --color-steel-400: #7a8291;
@@ -32,6 +34,42 @@
   --color-accent-500: #22c55e;
   --color-accent-400: #4ade80;
   --color-accent-300: #86efac;
+
+  /* The readable look: one green and one alert colour a look. The page is
+     steel-950 and the panel steel-900; the ink (headings and body text) is
+     steel-50, the quiet tone (captions, hints, navigation words) steel-200
+     and every drawn line steel-300. The green is never the colour of a word:
+     it fills the one key that starts something and draws the focus ring, a
+     link's underline and the corner ticks. The alert colour marks a meter at
+     or over its line and the problem glyph. The light values are under
+     html.light below. */
+  --look-accent: #4ade80;
+  --look-accent-hover: #86efac;
+  --look-on-accent: #0b131b;
+  --look-alert: #fb923c;
+
+  /* The readable look's type: size and line height of each role, in rem so
+     the browser's text size setting scales them. Body text is 18 px on 28 px
+     lines (20 on 30 from 1440 px); every other word is 16 px on 24 px lines,
+     the smallest size; two faces (Space Grotesk, Inter) at two weights. */
+  --type-headline-size: 1.875rem;   /* 30px */
+  --type-headline-line: 2.125rem;   /* 34px */
+  --type-part-size: 1.625rem;       /* 26px */
+  --type-part-line: 2rem;           /* 32px */
+  --type-entry-size: 1.25rem;       /* 20px */
+  --type-entry-line: 1.625rem;      /* 26px */
+  --type-body-size: 1.125rem;       /* 18px */
+  --type-body-line: 1.75rem;        /* 28px */
+  --type-word-size: 1rem;           /* 16px */
+  --type-word-line: 1.5rem;         /* 24px */
+  --type-key-size: 1.125rem;        /* 18px */
+  --type-key-line: 1.5rem;          /* 24px */
+  --type-wordmark-size: 1rem;       /* 16px */
+  --type-wordmark-line: 1.125rem;   /* 18px */
+  --type-numeral-size: 1.75rem;     /* 28px */
+  --type-numeral-line: 2rem;        /* 32px */
+  --weight-regular: 400;
+  --weight-bold: 700;
 
   /* Status Colors */
   --color-status-online: #22c55e;
@@ -95,6 +133,46 @@
   --z-modal: 300;
   --z-toast: 400;
   --z-tooltip: 500;
+}
+
+/* The readable look's type at the tablet (768 px), desktop (1024 px) and wide
+   (1440 px) stops. The stops are in em, so a larger text size setting moves a
+   screen to the narrower layout instead of crowding the wider one. */
+@media (min-width: 48em) {
+  :root {
+    --type-headline-size: 2.5rem;     /* 40px */
+    --type-headline-line: 2.875rem;   /* 46px */
+    --type-part-size: 1.875rem;       /* 30px */
+    --type-part-line: 2.25rem;        /* 36px */
+    --type-numeral-size: 2rem;        /* 32px */
+    --type-numeral-line: 2.25rem;     /* 36px */
+  }
+}
+
+@media (min-width: 64em) {
+  :root {
+    --type-headline-size: 3rem;       /* 48px */
+    --type-headline-line: 3.25rem;    /* 52px */
+    --type-part-size: 2rem;           /* 32px */
+    --type-part-line: 2.5rem;         /* 40px */
+    --type-numeral-size: 2.5rem;      /* 40px */
+    --type-numeral-line: 2.75rem;     /* 44px */
+  }
+}
+
+@media (min-width: 90em) {
+  :root {
+    --type-headline-size: 3.25rem;    /* 52px */
+    --type-headline-line: 3.5rem;     /* 56px */
+    --type-part-size: 2.25rem;        /* 36px */
+    --type-part-line: 2.75rem;        /* 44px */
+    --type-entry-size: 1.375rem;      /* 22px */
+    --type-entry-line: 1.75rem;       /* 28px */
+    --type-body-size: 1.25rem;        /* 20px */
+    --type-body-line: 1.875rem;       /* 30px */
+    --type-wordmark-size: 1.125rem;   /* 18px */
+    --type-wordmark-line: 1.25rem;    /* 20px */
+  }
 }
 
 /* =============================================================================
@@ -566,6 +644,12 @@ html.light {
   --color-steel-200: #343a40;
   --color-steel-100: #212529;
   --color-steel-50: #0f1215;
+
+  /* The readable look's green and alert colour in the light look */
+  --look-accent: #14532d;
+  --look-accent-hover: #052e16;
+  --look-on-accent: #ffffff;
+  --look-alert: #991b1b;
 
   /* Shadows - Softer for light mode */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);

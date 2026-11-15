@@ -17,6 +17,8 @@ import {
 } from '../../stores/settings-store';
 import { ExpandableSection, ToggleSwitch, SettingsSlider } from './ExpandableSection';
 import { InfoTooltip } from './Tooltip';
+import { STILLNESS_ALERT_MIN_MINUTES, STILLNESS_ALERT_MAX_MINUTES } from '@/lib/stillness-bounds';
+import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 
 interface InlineSettingsPanelProps {
   defaultExpanded?: string[];
@@ -270,7 +272,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
               <div className="flex items-center">
                 <span className="text-sm text-white">Person Detection</span>
                 <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">AI</span>
-                <InfoTooltip content="Uses TensorFlow.js COCO-SSD model to detect human shapes. Requires an 18.6 MB model download on first use." />
+                <InfoTooltip content={`Uses TensorFlow.js COCO-SSD model to detect human shapes. Requires an ${MODEL_SIZE_MB} MB model download on first use.`} />
               </div>
               <span className="text-xs text-slate-500">AI-powered human detection</span>
             </div>
@@ -683,8 +685,8 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
               label="Alert After"
               value={detectionFeatureSettings.inactivityAlertMinutes}
               onChange={(v) => updateDetectionFeatureSettings({ inactivityAlertMinutes: v })}
-              min={1}
-              max={60}
+              min={STILLNESS_ALERT_MIN_MINUTES}
+              max={STILLNESS_ALERT_MAX_MINUTES}
               unit=" min"
               color="amber"
             />

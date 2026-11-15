@@ -5,7 +5,9 @@
   "author": "Frame <team@frame.dev>",
   "homepage": "https://safeos.sh",
   "scripts": {
+    "predev": "node scripts/generate-site-qr.mjs",
     "dev": "next dev -p 3000",
+    "prebuild": "node scripts/generate-site-qr.mjs",
     "build": "next build",
     "postbuild": "node scripts/generate-offline-manifest.mjs",
     "start": "next start",
@@ -59,6 +61,7 @@
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
     "postcss": "^8.4.31",
+    "qrcode": "1.5.4",
     "tailwindcss": "^3.3.5",
     "typescript": "^5.3.0"
   }

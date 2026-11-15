@@ -29,14 +29,29 @@ import {
 } from '../../components/icons';
 import { SafeOSLogo, FrameWordmark } from '../../components/Logo';
 import { SAFE_SLEEP_URL } from '../../components/NotAMedicalDevice';
+import { SETUP_STEPS, type SetupStep } from '../../lib/setup-steps';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type Step = 'welcome' | 'disclaimer' | 'scenario' | 'permissions' | 'notifications' | 'complete';
+// The steps live in lib/setup-steps so the home page can print how many there
+// are and which one asks for the camera.
+type Step = SetupStep;
 
-const STEPS: Step[] = ['welcome', 'disclaimer', 'scenario', 'permissions', 'notifications', 'complete'];
+type Scenario = 'pet' | 'baby' | 'elderly' | 'security';
+
+// The answers a visitor running setup again gives before the last step.
+interface StagedAnswers {
+  disclaimers: boolean;
+  scenario: Scenario | null;
+  camera: boolean | null;
+  microphone: boolean | null;
+}
+
+const NO_ANSWERS: StagedAnswers = { disclaimers: false, scenario: null, camera: null, microphone: null };
+
+const STEPS: Step[] = SETUP_STEPS;
 
 // =============================================================================
 // Setup Page Component
@@ -50,12 +65,24 @@ export default function SetupPage() {
   const [permissionStatus, setPermissionStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
   const [permissionError, setPermissionError] = useState<string | null>(null);
 
+  // Running setup again (/setup/?again=1, the home page's "Run setup again")
+  // keeps each answer on this page and saves them all at the last step, so a
+  // visitor who leaves part way keeps the setup they had.
+  const [again, setAgain] = useState(false);
+  const [staged, setStaged] = useState<StagedAnswers>(NO_ANSWERS);
+
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
 
-  // Check if we can skip onboarding - redirect to dashboard if already complete
+  // A person whose setup is done goes on to the dashboard, unless they asked
+  // to run setup again. Arriving that way resets nothing: the saved setup
+  // stays as it is until the last step is finished. The address is read here,
+  // after the page has rendered: on a move from another page of the site the
+  // address bar changes only then.
   useEffect(() => {
-    if (canSkipOnboarding(onboarding)) {
+    const asked = new URLSearchParams(window.location.search).get('again') === '1';
+    setAgain(asked);
+    if (!asked && canSkipOnboarding(onboarding)) {
       router.push('/dashboard');
     }
   }, [onboarding, router]);
@@ -81,10 +108,16 @@ export default function SetupPage() {
 
   // "Continue without the camera": setup goes on with both permissions
   // recorded as off. The Monitor page asks for the camera when monitoring starts.
+  // A visitor running setup again keeps that answer on this page, like the
+  // others, until the last step.
   const continueWithoutCamera = () => {
     cameraRequest.current += 1;
-    onboarding.setCameraPermission(false);
-    onboarding.setMicrophonePermission(false);
+    if (again) {
+      setStaged((answers) => ({ ...answers, camera: false, microphone: false }));
+    } else {
+      onboarding.setCameraPermission(false);
+      onboarding.setMicrophonePermission(false);
+    }
     goNext();
   };
 
@@ -118,8 +151,13 @@ export default function SetupPage() {
       }
       stream.getTracks().forEach((track) => track.stop());
       setPermissionStatus('granted');
-      onboarding.setCameraPermission(true);
-      onboarding.setMicrophonePermission(microphone && stream.getAudioTracks().length > 0);
+      const heard = microphone && stream.getAudioTracks().length > 0;
+      if (again) {
+        setStaged((answers) => ({ ...answers, camera: true, microphone: heard }));
+      } else {
+        onboarding.setCameraPermission(true);
+        onboarding.setMicrophonePermission(heard);
+      }
     } catch (error) {
       const name = error instanceof Error ? error.name : '';
       const denied = name === 'NotAllowedError' || name === 'SecurityError';
@@ -130,6 +168,12 @@ export default function SetupPage() {
   };
 
   const completeSetup = () => {
+    if (again) {
+      if (staged.disclaimers) onboarding.acceptAllDisclaimers();
+      if (staged.scenario) onboarding.setScenario(staged.scenario);
+      if (staged.camera !== null) onboarding.setCameraPermission(staged.camera);
+      if (staged.microphone !== null) onboarding.setMicrophonePermission(staged.microphone);
+    }
     onboarding.setComplete(true);
     router.push('/dashboard');
   };
@@ -180,7 +224,8 @@ export default function SetupPage() {
           {currentStep === 'disclaimer' && (
             <DisclaimerStep
               onAccept={() => {
-                onboarding.acceptAllDisclaimers();
+                if (again) setStaged((answers) => ({ ...answers, disclaimers: true }));
+                else onboarding.acceptAllDisclaimers();
                 goNext();
               }}
               onBack={goBack}
@@ -188,9 +233,10 @@ export default function SetupPage() {
           )}
           {currentStep === 'scenario' && (
             <ScenarioStep
-              selectedScenario={onboarding.selectedScenario}
+              selectedScenario={staged.scenario ?? onboarding.selectedScenario}
               onSelect={(scenario) => {
-                onboarding.setScenario(scenario);
+                if (again) setStaged((answers) => ({ ...answers, scenario }));
+                else onboarding.setScenario(scenario);
                 goNext();
               }}
               onBack={goBack}

@@ -18,6 +18,23 @@ it('leaves Space on the security arm button to native button activation', async 
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
 });
 
+it('leaves Space on a question to the browser, which opens and closes it', () => {
+  jest.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
+  useMonitoringStore.setState({ isStreaming: false });
+  render(
+    <KeyboardShortcutsProvider>
+      <details className="home-q">
+        <summary>Does it need an account?</summary>
+        <p>No.</p>
+      </details>
+    </KeyboardShortcutsProvider>
+  );
+  const summary = screen.getByText('Does it need an account?');
+  summary.focus();
+  expect(fireEvent.keyDown(summary, { key: ' ', code: 'Space', bubbles: true, cancelable: true })).toBe(true);
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+});
+
 it('opens shortcut help from a focused button and closes it with Escape', async () => {
   jest.spyOn(HTMLMediaElement.prototype, 'load').mockImplementation(() => {});
   render(<KeyboardShortcutsProvider><button>Keep focus</button></KeyboardShortcutsProvider>);

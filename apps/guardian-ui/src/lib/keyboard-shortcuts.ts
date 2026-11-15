@@ -117,7 +117,8 @@ class KeyboardManager {
     // Don't trigger shortcuts when typing in inputs
     const target = e.target as HTMLElement;
     // Preserve activation and widget navigation without blocking unrelated shortcuts.
-    const control = target.closest?.('button, a[href], [role="button"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="slider"]');
+    // A question's summary opens and closes on Space and Enter.
+    const control = target.closest?.('button, a[href], summary, [role="button"], [role="switch"], [role="checkbox"], [role="menuitem"], [role="slider"]');
     if (control && (e.key === ' ' || e.key === 'Enter')) return;
     if (control?.matches('[role="slider"], [role="menuitem"]') &&
       ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(e.key)) return;

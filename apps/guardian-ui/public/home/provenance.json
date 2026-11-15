@@ -1,0 +1,199 @@
+{
+  "run": "https://github.com/framerslab/safeos/actions/runs/43675299201",
+  "commit": "fc9c4b727f67522944e22c791a33ca20d35c404c",
+  "captured": "2026-11-15T04:10:57.782Z",
+  "playwright": "1.57.0",
+  "clip": {
+    "path": "home/sample-clip.mp4",
+    "sha256": "c0da07fcc37fb35fd843e1c7c8380ccd4342dd6a8f79eb0a5d41800f20796b5a",
+    "bytes": 1173192
+  },
+  "preset": {
+    "activePresetId": "custom",
+    "globalSettings": {
+      "id": "custom",
+      "name": "Maximum Alert",
+      "description": "High sensitivity (80%), max volume, 5-second intervals.",
+      "motionSensitivity": 80,
+      "audioSensitivity": 80,
+      "pixelThreshold": 20,
+      "absolutePixelThreshold": 50,
+      "analysisInterval": 5,
+      "alertDelay": 30,
+      "alertVolume": 100,
+      "emergencyMode": false,
+      "pixelDetectionEnabled": false,
+      "motionDetectionEnabled": true,
+      "audioDetectionEnabled": true,
+      "processingMode": "hybrid",
+      "useAbsoluteThreshold": false
+    }
+  },
+  "files": [
+    {
+      "path": "home/capture-phone-light.png",
+      "look": "light",
+      "viewport": "390x1100",
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view, 16:9",
+      "width": 1246,
+      "height": 700,
+      "bytes": 464621,
+      "sha256": "8a2395bbece21365b77e973f4acb0a3dd5b35cdf26a84b51b80ae56aa1ea6d1d"
+    },
+    {
+      "path": "home/capture-phone-light.webp",
+      "look": "light",
+      "viewport": "390x1100",
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view, 16:9",
+      "width": 1246,
+      "height": 700,
+      "bytes": 35190,
+      "sha256": "8b9b17d990de714e00c13d569f7b76e244f9ba3b5d29e9b2579d7f95743ec5bf"
+    },
+    {
+      "path": "home/capture-portrait-light.png",
+      "look": "light",
+      "viewport": "390x1100",
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view with two rows of its readings, near 4:5",
+      "width": 1271,
+      "height": 1481,
+      "bytes": 522146,
+      "sha256": "44bc87760aa51e57dfb9120ad9ef01d454e6cb503b5100b1f00c3f0197c7a5fb"
+    },
+    {
+      "path": "home/capture-portrait-light.webp",
+      "look": "light",
+      "viewport": "390x1100",
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view with two rows of its readings, near 4:5",
+      "width": 1271,
+      "height": 1481,
+      "bytes": 58566,
+      "sha256": "ce4f3ce5957eb3674be8239645f8b8857dbbf42d6e593198caf03bd38b8459df"
+    },
+    {
+      "path": "home/capture-landscape-light.png",
+      "look": "light",
+      "viewport": "1280x1000",
+      "deviceScaleFactor": 1.5,
+      "crop": "camera view beside the alert list, 16:10",
+      "width": 1824,
+      "height": 1140,
+      "bytes": 576118,
+      "sha256": "552ed56a042847357ec9af9f7676450d723e4258de2593bef7e83e40e7ac4c01"
+    },
+    {
+      "path": "home/capture-landscape-light.webp",
+      "look": "light",
+      "viewport": "1280x1000",
+      "deviceScaleFactor": 1.5,
+      "crop": "camera view beside the alert list, 16:10",
+      "width": 1824,
+      "height": 1140,
+      "bytes": 76610,
+      "sha256": "45d4ffec7d1ce2699ec3885370c6d8322e6f5cb2b6c4d3f68f4a9f3498254493"
+    },
+    {
+      "path": "home/capture-phone-dark.png",
+      "look": "dark",
+      "viewport": "390x1100",
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view, 16:9",
+      "width": 1246,
+      "height": 700,
+      "bytes": 445866,
+      "sha256": "40c2cc9adc1d41388a3bce810b0d3b84bfe8b07e590c8e399b20cf09deef5279"
+    },
+    {
+      "path": "home/capture-phone-dark.webp",
+      "look": "dark",
+      "viewport": "390x1100",
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view, 16:9",
+      "width": 1246,
+      "height": 700,
+      "bytes": 35722,
+      "sha256": "03605e1c904c90172077574ee71cadc369d6e2938894366024a3c610c9225767"
+    },
+    {
+      "path": "home/capture-portrait-dark.png",
+      "look": "dark",
+      "viewport": "390x1100",
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view with two rows of its readings, near 4:5",
+      "width": 1271,
+      "height": 1481,
+      "bytes": 825394,
+      "sha256": "cf388bc0d4d27e038b4e959b88ff92bd7869c4844660fd9ea898ce8b74f54c7d"
+    },
+    {
+      "path": "home/capture-portrait-dark.webp",
+      "look": "dark",
+      "viewport": "390x1100",
+      "deviceScaleFactor": 3.5,
+      "crop": "camera view with two rows of its readings, near 4:5",
+      "width": 1271,
+      "height": 1481,
+      "bytes": 61172,
+      "sha256": "35e33ac85c9cb79df79d8d530361bbca516e930345b28f7bb67d92c68f1750d5"
+    },
+    {
+      "path": "home/capture-landscape-dark.png",
+      "look": "dark",
+      "viewport": "1280x1000",
+      "deviceScaleFactor": 1.5,
+      "crop": "camera view beside the alert list, 16:10",
+      "width": 1824,
+      "height": 1140,
+      "bytes": 779582,
+      "sha256": "caea5bce6560c98c18027b7b6eefba1a010dfb96ebd512d73099c5edb96708ed"
+    },
+    {
+      "path": "home/capture-landscape-dark.webp",
+      "look": "dark",
+      "viewport": "1280x1000",
+      "deviceScaleFactor": 1.5,
+      "crop": "camera view beside the alert list, 16:10",
+      "width": 1824,
+      "height": 1140,
+      "bytes": 74952,
+      "sha256": "975160b2b5ee8028096902a22132293a5d832ada074c07275d92cf7686745dd1"
+    },
+    {
+      "path": "screenshots/dashboard.png",
+      "look": "dark",
+      "viewport": "1280x720",
+      "deviceScaleFactor": 1,
+      "crop": "the dashboard after setup",
+      "width": 1280,
+      "height": 720,
+      "bytes": 73424,
+      "sha256": "b36be29b212500ed3a8d4e5546e1e5fa81a027474760c1363a7b95b575502e4c"
+    },
+    {
+      "path": "screenshots/monitoring.png",
+      "look": "dark",
+      "viewport": "1280x720",
+      "deviceScaleFactor": 1,
+      "crop": "the monitor while it watches the clip",
+      "width": 1280,
+      "height": 720,
+      "bytes": 374175,
+      "sha256": "c05530dff674968e6ad3e7896c8bfe8a695b0d2c706bfbdb47842b437fdf4e40"
+    },
+    {
+      "path": "home/card.jpg",
+      "look": "dark",
+      "viewport": "1200x630",
+      "deviceScaleFactor": 1,
+      "crop": "the shared-link card",
+      "width": 1200,
+      "height": 630,
+      "bytes": 78178,
+      "sha256": "cec1e64895ee0e9b7443eb96a7128dd5d126102f5e2e18e0cd7baf4abeac3fcd"
+    }
+  ]
+}

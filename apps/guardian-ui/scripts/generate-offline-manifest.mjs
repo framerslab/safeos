@@ -16,7 +16,11 @@ const files = (await walk(root)).filter(file => {
   const relative = path.relative(root, file).split(path.sep).join('/');
   // Pages, their scripts and route data, and the images pages and notifications
   // show (logo, favicons, logos, diagrams). Alert sounds are generated in the
-  // browser, so there is no sound file to install.
+  // browser, so there is no sound file to install. The home page's capture is
+  // installed as the WebP crops it shows; its PNG copies (for a browser
+  // without WebP), the shared-link card and the install dialog's screenshots
+  // are fetched online only, so a first visit does not download them.
+  if (/^home\/capture-.*\.png$/.test(relative) || relative === 'home/card.jpg' || relative.startsWith('screenshots/')) return false;
   return relative.startsWith('_next/static/') || relative.startsWith('icons/') ||
     /\.(html|txt|css|js|woff2?|svg|png|ico|webp|jpe?g|gif)$/.test(relative) && relative !== 'sw.js' || relative === 'manifest.json';
 }).sort();

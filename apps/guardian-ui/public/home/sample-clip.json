@@ -1,0 +1,142 @@
+{
+  "file": "sample-clip.mp4",
+  "bytes": 1173192,
+  "sha256": "c0da07fcc37fb35fd843e1c7c8380ccd4342dd6a8f79eb0a5d41800f20796b5a",
+  "seconds": 28.2,
+  "width": 640,
+  "height": 480,
+  "framesPerSecond": 15,
+  "picture": "H.264 High profile, 640 by 480 (4:3), 15 frames a second",
+  "sound": "AAC LC, mono, 48 kHz",
+  "made": "2026-11-14",
+  "tracks": {
+    "captions": "sample-clip.captions.vtt",
+    "descriptions": "sample-clip.descriptions.vtt"
+  },
+  "licence": {
+    "name": "Creative Commons CC0 1.0 Universal Public Domain Dedication",
+    "shortName": "CC0 1.0",
+    "address": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "legalCode": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.en",
+    "readOn": "2026-11-14",
+    "quoted": "To the greatest extent permitted by, but not in contravention of, applicable law, Affirmer hereby overtly, fully, permanently, irrevocably and unconditionally waives, abandons, and surrenders all of Affirmer's Copyright and Related Rights and associated claims and causes of action, whether now known or unknown (including existing as well as future claims and causes of action), in the Work (i) in all territories worldwide, (ii) for the maximum duration provided by applicable law or treaty (including future time extensions), (iii) in any current or future medium and for any number of copies, and (iv) for any purpose whatsoever, including without limitation commercial, advertising or promotional purposes (the \"Waiver\")."
+  },
+  "sources": [
+    {
+      "role": "picture",
+      "title": "Burmese Kitten Grooming Itself",
+      "author": "Alistair Findlay",
+      "page": "https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm",
+      "file": "https://upload.wikimedia.org/wikipedia/commons/e/ed/Burmese_Kitten_Grooming_Itself.webm",
+      "date": "2019-07-05",
+      "licence": "CC0 1.0",
+      "statement": "Source: Own work. Author: Alistair Findlay. I, the copyright holder of this work, hereby publish it under the following license: This file is made available under the Creative Commons CC0 1.0 Universal Public Domain Dedication.",
+      "original": {
+        "format": "VP9 3840x2160 at 120 frames a second, Opus mono 48 kHz, 45.234 s",
+        "bytes": 256322864,
+        "sha256": "4dd694e1de0851f40083ea799a5cd42710affde3f5da1291bbe829baa78f6641",
+        "sha1": "037b53ec53ddd5e7fb325bfc37fc620ca23b12e8"
+      },
+      "used": "17.0 to 45.2 s of the original (28.2 s)"
+    },
+    {
+      "role": "added sound",
+      "title": "PARQUE PERROS 7 30 AM.wav",
+      "author": "ALWA198426",
+      "page": "https://commons.wikimedia.org/wiki/File:PARQUE_PERROS_7_30_AM.wav",
+      "file": "https://upload.wikimedia.org/wikipedia/commons/b/b2/PARQUE_PERROS_7_30_AM.wav",
+      "date": "2026-02-02",
+      "licence": "CC0 1.0",
+      "statement": "Source: Own work. Author: ALWA198426. I, the copyright holder of this work, hereby publish it under the following license: This file is made available under the Creative Commons CC0 1.0 Universal Public Domain Dedication.",
+      "original": {
+        "format": "WAV, PCM 24-bit, 96 kHz, stereo, 88.584 s",
+        "bytes": 51024428,
+        "sha256": "8a9875f56d39bd08011e509dd8376e2bb933939be0df1a0ffd33e22651bfc31f",
+        "sha1": "08022938db02dcf39c240e93db7a476741116c0c"
+      },
+      "used": "74.40 to 77.40 s of the recording, placed at 6.0 to 9.0 s of the clip"
+    }
+  ],
+  "sounds": [
+    {
+      "start": 6.0,
+      "end": 9.0,
+      "heard": "a dog barks several times, out of view",
+      "note": "The sound from 0:06.0 to 0:09.0 is a separate recording added to the clip. The kitten clip has no loud sound of its own."
+    }
+  ],
+  "changes": [
+    "Trimmed to 17.0 to 45.2 s of the kitten original (28.2 s).",
+    "Frame rate cut from 120 to 15 frames a second.",
+    "Cropped from 16:9 to 4:3: a fixed window 2880 by 2160 from x=640, y=0.",
+    "Scaled down to 640 by 480.",
+    "Temporal noise added on all three planes before the encode, with a fixed seed.",
+    "Re-encoded as H.264 High profile at 230 kb/s average in two passes.",
+    "The kitten's own sound resampled to 48 kHz, its level unchanged.",
+    "The park recording's 74.40 to 77.40 s averaged to one channel, resampled to 48 kHz, faded in and out over 20 ms, and mixed in from 6.0 s with no level change to either track.",
+    "Sound encoded as AAC LC at 96 kb/s, mono, 48 kHz.",
+    "MP4 with the faststart flag; no metadata or chapters copied from the sources."
+  ],
+  "command": [
+    "#!/bin/zsh",
+    "set -eu",
+    "SRC=original/Burmese_Kitten_Grooming_Itself.webm",
+    "BARK=original/PARQUE_PERROS_7_30_AM.wav",
+    "NOISE=\"noise=alls=8:allf=t:all_seed=20261114\"",
+    "VBITRATE=230k",
+    "mkdir -p work",
+    "",
+    "# Stage 1: trim, 15 fps, 4:3 crop, 640x480; lossless working file, picture only.",
+    "if [ ! -s work/scaled.mkv ]; then",
+    "  ffmpeg -nostdin -v error -y -threads 2 -filter_threads 2 \\",
+    "    -ss 17.0 -t 28.2 -i \"$SRC\" \\",
+    "    -an -vf \"fps=15,crop=2880:2160:640:0,scale=640:480:flags=area,format=yuv420p\" \\",
+    "    -c:v libx264 -qp 0 -preset ultrafast -threads 2 \\",
+    "    work/scaled.mkv",
+    "fi",
+    "",
+    "# Stage 2, pass 1.",
+    "ffmpeg -nostdin -v error -y -threads 2 -filter_threads 1 \\",
+    "  -i work/scaled.mkv \\",
+    "  -an -vf \"$NOISE\" \\",
+    "  -c:v libx264 -preset slow -profile:v high -b:v $VBITRATE -maxrate 320k -bufsize 640k -g 30 \\",
+    "  -pass 1 -passlogfile work/x264 -threads 1 \\",
+    "  -f null /dev/null",
+    "",
+    "# Stage 2, pass 2: picture with the same noise, and the sound.",
+    "ffmpeg -nostdin -v error -y -threads 2 -filter_complex_threads 1 \\",
+    "  -i work/scaled.mkv \\",
+    "  -ss 17.0 -t 28.2 -i \"$SRC\" \\",
+    "  -i \"$BARK\" \\",
+    "  -filter_complex \"[0:v]${NOISE}[v];[2:a]atrim=start=74.4:end=77.4,asetpts=PTS-STARTPTS,pan=mono|c0=0.5*c0+0.5*c1,aresample=48000,afade=t=in:st=0:d=0.02,afade=t=out:st=2.98:d=0.02,adelay=6000[b];[1:a]aresample=48000[k];[k][b]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[a]\" \\",
+    "  -map \"[v]\" -map \"[a]\" \\",
+    "  -c:v libx264 -preset slow -profile:v high -b:v $VBITRATE -maxrate 320k -bufsize 640k -g 30 \\",
+    "  -pass 2 -passlogfile work/x264 -threads 1 -pix_fmt yuv420p \\",
+    "  -c:a aac -b:a 96k -ac 1 -ar 48000 \\",
+    "  -movflags +faststart -map_metadata -1 -map_chapters -1 \\",
+    "  sample-clip.mp4",
+    "",
+    "[ \"${KEEP_WORK:-0}\" = 1 ] || rm -rf work"
+  ],
+  "commandNote": "Run with ffmpeg 8.1.1 from a folder that holds the two originals under original/. With one x264 thread, two runs from an empty work folder gave the same bytes.",
+  "credit": {
+    "long": "Sample clip: \"Burmese Kitten Grooming Itself\" by Alistair Findlay (https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm), CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). Changed: trimmed to 28 seconds, cropped and scaled to 640 by 480, cut to 15 frames a second, re-encoded with added noise. The bark at 0:06 is from \"PARQUE PERROS 7 30 AM\" by ALWA198426 (https://commons.wikimedia.org/wiki/File:PARQUE_PERROS_7_30_AM.wav), CC0 1.0, mixed in.",
+    "short": "Sample clip: kitten by Alistair Findlay, bark by ALWA198426, both CC0 1.0 from Wikimedia Commons; trimmed, scaled, re-encoded and mixed."
+  },
+  "words": {
+    "caption": "Sample clip: a kitten grooms itself on a carpet, then walks past the camera. A dog barks at 0:06.",
+    "description": "A light brown kitten sits on a grey carpet close to a camera at floor level, with wooden cabinets and a dark bin behind it, and grooms its chest, paw and face. A dog barks several times out of view from 0:06 to 0:09. At 0:25 the kitten gets up and walks past close to the camera and out of view to the left; the view turns to the right as it passes, then partly back.",
+    "captureCaption": "SafeOS watching a recorded clip of a kitten. Captured from the app while it ran.",
+    "captureAlt": {
+      "phone": "The SafeOS monitor's camera view of a kitten walking past close to the camera, with its Motion indicator in its alert colour.",
+      "portrait": "The SafeOS monitor's camera view of a kitten walking past close to the camera, with its Motion indicator in its alert colour and the monitor's readings under it.",
+      "landscape": "The SafeOS monitor showing a camera view of a kitten walking past close to the camera, its Motion indicator in its alert colour, and a sound alert and a motion alert in its alert list."
+    },
+    "cardAlt": "SafeOS Guardian watching a recorded clip of a kitten, beside the words Free motion and sound alerts from an old phone or laptop."
+  },
+  "notChecked": [
+    "That Alistair Findlay filmed the kitten clip rests on the page's own-work statement and the account's user page.",
+    "That ALWA198426 recorded the park sound rests on the page's own-work statement and the upload comment.",
+    "Neither sound track was heard by a person; both were read from spectrograms."
+  ]
+}

@@ -1,7 +1,7 @@
 /**
  * Theme Provider
  *
- * Provides theme context and applies theme/accessibility settings to the app.
+ * Applies theme and accessibility settings to the app.
  * Must be placed inside Providers but before any themed content.
  *
  * @module components/ThemeProvider
@@ -9,7 +9,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useTheme } from '../lib/theme-manager';
 
 interface ThemeProviderProps {
@@ -17,26 +17,12 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [mounted, setMounted] = useState(false);
-
-  // Use the theme hook to apply theme classes
+  // Use the theme hook to apply theme classes. The inline script in the root
+  // layout sets the look before the first paint, so the page is shown at once:
+  // its words are readable before any script runs and when a script fails.
   useTheme();
 
-  // Prevent flash of wrong theme
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Render children immediately but with opacity transition
-  // This prevents layout shift while avoiding theme flash
-  return (
-    <div
-      className={`transition-opacity duration-200 ${mounted ? 'opacity-100' : 'opacity-0'}`}
-      suppressHydrationWarning
-    >
-      {children}
-    </div>
-  );
+  return <div suppressHydrationWarning>{children}</div>;
 }
 
 export default ThemeProvider;

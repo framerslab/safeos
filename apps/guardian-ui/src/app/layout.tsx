@@ -9,14 +9,13 @@
 
 import type { Metadata, Viewport } from 'next';
 import { Inter, Space_Grotesk, JetBrains_Mono } from 'next/font/google';
-import { Nav, Footer, MobileBottomNav } from '@/components/layout';
+import { SiteShell } from '@/components/layout';
 import { Providers } from '@/components/Providers';
-import { PWAInstallPrompt } from '@/components/PWAInstallPrompt';
-import { NotificationPermission } from '@/components/NotificationPermission';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { KeyboardShortcutsProvider } from '@/components/KeyboardShortcutsProvider';
 import { ThemeProvider } from '@/components/ThemeProvider';
-import { StatusBanner } from '@/components/StatusBanner';
+import { HOME_DESCRIPTION, HOME_FULL_TITLE, socialImage } from '@/lib/page-metadata';
+import { LOOK_PAGE_COLOURS } from '@/lib/look-colours';
 import './globals.css';
 
 // =============================================================================
@@ -45,41 +44,22 @@ const jetbrainsMono = JetBrains_Mono({
 // Metadata
 // =============================================================================
 
+// The defaults for a page that sets no metadata of its own. Every public page
+// sets its title, description, canonical address and cards through
+// lib/page-metadata, the home page included.
+const SOCIAL_IMAGE = socialImage();
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://safeos.sh'),
   title: {
-    default: 'SafeOS Guardian: Free Baby, Pet and Home Monitor in Your Browser',
+    default: HOME_FULL_TITLE,
     template: '%s | SafeOS Guardian',
   },
-  description:
-    'Free, open-source monitor that runs in your browser. Motion and sound alerts for a baby, a pet or an older relative on a camera you already own. No account, no subscription. By Frame.',
-  keywords: [
-    // Primary consumer-intent
-    'free baby monitor app',
-    'open source baby monitor',
-    'baby monitor no subscription',
-    'pet camera no subscription',
-    'non-cloud baby monitor',
-    'baby monitor no WiFi',
-    'privacy first baby monitor',
-    // Primary dev-intent
-    'browser AI monitoring',
-    'tensorflow.js webcam',
-    'on-device computer vision PWA',
-    'COCO-SSD browser',
-    'local-first ML',
-    'self-hosted baby monitor',
-    // Product + ecosystem
-    'SafeOS Guardian',
-    'Frame',
-    'AgentOS',
-    'Ollama',
-    'home security PWA',
-  ],
+  description: HOME_DESCRIPTION,
   authors: [{ name: 'Frame', url: 'https://frame.dev' }],
   creator: 'Frame',
   publisher: 'Frame',
-  
+
   // Icons
   icons: {
     icon: [
@@ -94,38 +74,30 @@ export const metadata: Metadata = {
       { rel: 'mask-icon', url: '/safari-pinned-tab.svg', color: '#22C55E' },
     ],
   },
-  
+
   // PWA Manifest
   manifest: '/manifest.json',
-  
+
   // Open Graph
   openGraph: {
     type: 'website',
     locale: 'en_US',
     url: 'https://safeos.sh',
     siteName: 'SafeOS Guardian',
-    title: 'SafeOS Guardian: Free Baby, Pet and Home Monitor in Your Browser',
-    description: 'Free, open-source monitor that runs in your browser. Motion and sound alerts for a baby, a pet or an older relative on a camera you already own. No account, no subscription. By Frame.',
-    images: [
-      {
-        url: '/og-image.svg',
-        width: 1200,
-        height: 630,
-        alt: 'SafeOS Guardian: free, open-source monitor that runs in your browser, by Frame',
-        type: 'image/svg+xml',
-      },
-    ],
+    title: HOME_FULL_TITLE,
+    description: HOME_DESCRIPTION,
+    images: [SOCIAL_IMAGE],
   },
 
-  // Twitter Card
+  // X card
   twitter: {
     card: 'summary_large_image',
-    title: 'SafeOS Guardian: Free Baby, Pet and Home Monitor in Your Browser',
-    description: 'Motion and sound alerts in your browser on a camera you already own. Free, open source, no account. By Frame.',
-    images: ['/og-image.svg'],
+    title: HOME_FULL_TITLE,
+    description: HOME_DESCRIPTION,
+    images: [{ url: SOCIAL_IMAGE.url, alt: SOCIAL_IMAGE.alt }],
     creator: '@framerslab',
   },
-  
+
   // Robots
   robots: {
     index: true,
@@ -138,17 +110,15 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  
-  // Verification (add your IDs when ready)
-  // verification: {
-  //   google: 'your-google-verification-id',
-  // },
 };
 
+// The browser's own bar takes the page colour of the look: the device's
+// setting on a first visit, and the chosen look after a press of the switch
+// (lib/theme-manager sets it then).
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#0a0c0f' },
-    { media: '(prefers-color-scheme: light)', color: '#f4f5f6' },
+    { media: '(prefers-color-scheme: dark)', color: LOOK_PAGE_COLOURS.dark },
+    { media: '(prefers-color-scheme: light)', color: LOOK_PAGE_COLOURS.light },
   ],
   width: 'device-width',
   initialScale: 1,
@@ -223,26 +193,7 @@ export default function RootLayout({
           <ErrorBoundary>
             <ThemeProvider>
               <KeyboardShortcutsProvider>
-                <a href="#main-content" className="sr-only sr-only-focusable">
-                  Skip to content
-                </a>
-                <Nav />
-                <div id="main-content" className="app-content">
-                  {/* Rendered here (not in Providers) so it sits *below* the
-                      fixed nav, not behind it. */}
-                  <StatusBanner />
-                  {children}
-                </div>
-                <Footer />
-
-                {/* Mobile Bottom Navigation */}
-                <MobileBottomNav />
-
-                {/* PWA Install Prompt */}
-                <PWAInstallPrompt />
-
-                {/* Notification Permission Request */}
-                <NotificationPermission />
+                <SiteShell>{children}</SiteShell>
               </KeyboardShortcutsProvider>
             </ThemeProvider>
           </ErrorBoundary>

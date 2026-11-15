@@ -1,0 +1,21 @@
+{
+  "activePresetId": "custom",
+  "globalSettings": {
+    "id": "custom",
+    "name": "Maximum Alert",
+    "description": "High sensitivity (80%), max volume, 5-second intervals.",
+    "motionSensitivity": 80,
+    "audioSensitivity": 80,
+    "pixelThreshold": 20,
+    "absolutePixelThreshold": 50,
+    "analysisInterval": 5,
+    "alertDelay": 30,
+    "alertVolume": 100,
+    "emergencyMode": false,
+    "pixelDetectionEnabled": false,
+    "motionDetectionEnabled": true,
+    "audioDetectionEnabled": true,
+    "processingMode": "hybrid",
+    "useAbsoluteThreshold": false
+  }
+}

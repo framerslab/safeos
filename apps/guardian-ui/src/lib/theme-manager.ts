@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useEffect, useCallback } from 'react';
+import { LOOK_PAGE_COLOURS } from './look-colours';
 
 // =============================================================================
 // Types
@@ -146,6 +147,12 @@ export function useTheme() {
     root.classList.remove('light', 'dark');
     root.classList.add(resolvedTheme);
     root.style.colorScheme = resolvedTheme;
+    // The browser's own bar takes the page colour of the look that is on,
+    // also after a press of the look switch.
+    document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {
+      meta.setAttribute('content', LOOK_PAGE_COLOURS[resolvedTheme]);
+      meta.removeAttribute('media');
+    });
   }, [resolvedTheme]);
 
   // Apply accessibility settings

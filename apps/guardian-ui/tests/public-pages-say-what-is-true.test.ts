@@ -5,11 +5,13 @@
  * home page, About, FAQ, Help and its guides, Tutorials, Tutorial, the blog,
  * the old support address, Privacy, Terms, Security, Lost & Found and its
  * match gallery, Setup), every component those pages and the root layout
- * render (listed below with the page that renders it), the root layout's
- * metadata, the sitemap, the web app manifest, the social card, the home
- * page's diagram, the README's product sections and the changelog's
- * Unreleased section. Code comments are left out: the check is on what a
- * visitor reads. It fails on any phrase from two lists:
+ * render (listed below with the page that renders it; every file of the home
+ * page's and the visitor header's and footer's folders), the root layout's
+ * metadata, the helper that owns every page's title and cards, the sitemap,
+ * the web app manifest, the social card, the README's diagram, the README's
+ * product sections and the changelog's Unreleased section. Code comments are
+ * left out: the check is on what a visitor reads. It fails on any phrase from
+ * two lists:
  *
  * - money words: SafeOS asks for no money and is not a charity, so no page
  *   says nonprofit, charity, donate, donation, tax-exempt, tax-deductible or
@@ -18,12 +20,17 @@
  * - claims the code does not back: each entry names what the code does
  *   instead, so a failure says why the phrase is untrue.
  *
+ * The sample clip's record and its caption and description files say what is
+ * in the clip (a kitten grooms itself and a dog barks), so they are read with
+ * the money words and the health entries only: a caption that says a dog
+ * barks is no claim that SafeOS recognises a bark, and no page says it does.
+ *
  * It also checks that every page naming babies carries the not-a-medical-
- * device sentence, that each page saying the model waits for movement names
- * the five-second check during a Security alert, that the README names the
- * cloud models the server selects, that every public page has its own title,
- * description, canonical address and social card, that the quick-start links
- * name presets that exist, and that every internal link and every link into
+ * device sentence (the home page is read with the components it renders),
+ * that each file describing the motion gate names the five-second check
+ * during a Security alert, that the README names the cloud models the server
+ * selects, that every public page has its own title, description, canonical
+ * address and social card, and that every internal link and every link into
  * the repository on GitHub has a destination.
  *
  * One sentence is allowed to name breathing and SIDS: the statement that
@@ -75,9 +82,15 @@ const PUBLIC_FILES = [
   app('src', 'app', 'layout.tsx'),
   app('src', 'app', 'sitemap.ts'),
   app('src', 'app', 'not-found.tsx'),
-  component('home', 'HomeCTA.tsx'), // home
-  component('UseCaseShowcase.tsx'), // home
-  component('DiagramZoomable.tsx'), // home
+  component('home', 'HomeSections.tsx'), // home
+  component('home', 'HomeCapture.tsx'), // home
+  component('home', 'HomeStart.tsx'), // home
+  component('visitor', 'VisitorHeader.tsx'), // home and the other public pages
+  component('visitor', 'VisitorFooter.tsx'), // home and the other public pages
+  component('visitor', 'LookSwitch.tsx'), // visitor header
+  component('visitor', 'StartLink.tsx'), // visitor header and footer, home
+  component('layout', 'SiteShell.tsx'), // root layout: every page
+  app('src', 'lib', 'page-metadata.ts'), // every public page's title and cards
   component('NotAMedicalDevice.tsx'), // home, FAQ, Help, Tutorials, Tutorial, blog post, Terms
   component('ModelDownloadProgress.tsx'), // Security
   component('CameraFeed.tsx'), // Security
@@ -89,13 +102,13 @@ const PUBLIC_FILES = [
   component('CameraPicker.tsx'), // Setup
   component('Logo.tsx'), // header, Setup, not-found
   component('StatusBanner.tsx'), // root layout: every page
-  component('NotificationPermission.tsx'), // root layout: every page
-  component('PWAInstallPrompt.tsx'), // root layout: every page
+  component('NotificationPermission.tsx'), // root layout: every page but home
+  component('PWAInstallPrompt.tsx'), // root layout: every page but home
   component('KeyboardShortcutsModal.tsx'), // root layout: every page
-  component('NotificationDropdown.tsx'), // header: every page
-  component('layout', 'Nav.tsx'), // every page
-  component('layout', 'Footer.tsx'), // every page
-  component('layout', 'MobileBottomNav.tsx'), // every page
+  component('NotificationDropdown.tsx'), // app header
+  component('layout', 'Nav.tsx'), // app screens
+  component('layout', 'Footer.tsx'), // app screens
+  component('layout', 'MobileBottomNav.tsx'), // every page but home and Setup
   app('public', 'manifest.json'),
   app('public', 'og-image.svg'),
   app('public', 'diagrams', 'how-it-works.svg'),
@@ -104,9 +117,22 @@ const PUBLIC_FILES = [
 const README = path.join(REPO_ROOT, 'README.md');
 const CHANGELOG = path.join(REPO_ROOT, 'CHANGELOG.md');
 
-const SCANNED = [
+// Every file of the home page's components and of the visitor header and
+// footer is read, so a component added there is read too.
+const HOME_COMPONENT_DIRS = [component('home'), component('visitor')];
+
+const SCANNED = Array.from(new Set([
   ...PUBLIC_FILES,
   ...PUBLIC_ROUTE_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
+  ...HOME_COMPONENT_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
+]));
+
+// The sample clip's record and its caption and description files, which say
+// what is in the clip.
+const CLIP_FILES = [
+  app('public', 'home', 'sample-clip.json'),
+  app('public', 'home', 'sample-clip.captions.vtt'),
+  app('public', 'home', 'sample-clip.descriptions.vtt'),
 ];
 
 // The one statement that may name breathing and SIDS (the not-a-medical-device
@@ -127,6 +153,19 @@ const MONEY_WORDS: Phrase[] = [
   { pattern: /\bsponsor(s|ship|ships)?\b/i, why: 'safeos.sh asks for no sponsorship' },
   { pattern: /Support Us/, why: 'safeos.sh asks for no money' },
   { pattern: /\/donate\b/, why: 'the old support address is linked from nowhere' },
+];
+
+// Health: nothing measures breathing, illness, falls or confusion. These are
+// also the claims the sample clip's own words are held to.
+const HEALTH_CLAIMS: Phrase[] = [
+  { pattern: /breath/i, why: 'nothing monitors breathing' },
+  { pattern: /\billness|\bsick\b/i, why: 'nothing detects illness' },
+  { pattern: /\b(falls|fallen|fall detection)\b(?!\s+back)/i, why: 'nothing detects falls' },
+  { pattern: /\bconfusion\b/i, why: 'nothing detects confusion' },
+  { pattern: /\bwellness\b/i, why: 'nothing checks anyone\'s wellbeing; the alerts are motion, sound and no movement' },
+  { pattern: /health issue|vital signs?|\bapnea\b|heart rate|\bSIDS\b/i, why: 'SafeOS measures no health sign' },
+  { pattern: /medical monitoring|medical[- ]device|\bclinical\b|critical[- ]care/i, why: 'SafeOS is not a medical device; only the one sentence says so' },
+  { pattern: /"health"/, why: 'the web app is not a health app' },
 ];
 
 const UNBACKED_CLAIMS: Phrase[] = [
@@ -227,15 +266,7 @@ const UNBACKED_CLAIMS: Phrase[] = [
     pattern: /higher sensitivity[^.]{0,60}fewer alerts|fewer alerts[^.]{0,60}higher sensitivity|Lower values are more sensitive/i,
     why: 'a higher sensitivity lowers the threshold and gives more alerts',
   },
-  // Health: nothing measures breathing, illness, falls or confusion
-  { pattern: /breath/i, why: 'nothing monitors breathing' },
-  { pattern: /\billness|\bsick\b/i, why: 'nothing detects illness' },
-  { pattern: /\b(falls|fallen|fall detection)\b(?!\s+back)/i, why: 'nothing detects falls' },
-  { pattern: /\bconfusion\b/i, why: 'nothing detects confusion' },
-  { pattern: /\bwellness\b/i, why: 'nothing checks anyone\'s wellbeing; the alerts are motion, sound and no movement' },
-  { pattern: /health issue|vital signs?|\bapnea\b|heart rate|\bSIDS\b/i, why: 'SafeOS measures no health sign' },
-  { pattern: /medical monitoring|medical[- ]device|\bclinical\b|critical[- ]care/i, why: 'SafeOS is not a medical device; only the one sentence says so' },
-  { pattern: /"health"/, why: 'the web app is not a health app' },
+  ...HEALTH_CLAIMS,
   // What SafeOS is called
   { pattern: /babysit/i, why: 'SafeOS is never called a babysitter, not even in the negative' },
   { pattern: /\bcarers?\b/i, why: 'SafeOS is never called a carer' },
@@ -449,9 +480,23 @@ function metadataProblems(): string[] {
 
 describe('the public pages say what the software does', () => {
   it('reads every file it names', () => {
-    const missing = [...PUBLIC_FILES, README, CHANGELOG].filter((f) => !fs.existsSync(f)).map(rel);
+    const missing = [...PUBLIC_FILES, ...CLIP_FILES, README, CHANGELOG].filter((f) => !fs.existsSync(f)).map(rel);
     expect(missing).toEqual([]);
     expect(SCANNED.length).toBeGreaterThan(PUBLIC_FILES.length);
+    // The home page's and the visitor shell's own files are among them.
+    for (const dir of HOME_COMPONENT_DIRS) expect(SCANNED.some((f) => f.startsWith(dir + path.sep))).toBe(true);
+  });
+
+  it('the sample clip\'s record, captions and descriptions use no money word and make no health claim', () => {
+    expect(HEALTH_CLAIMS.length).toBe(8);
+    expect(findPhrases([...MONEY_WORDS, ...HEALTH_CLAIMS], CLIP_FILES)).toEqual([]);
+  });
+
+  it('the clip\'s words say what is in the clip, and no page says SafeOS recognises a sound', () => {
+    // A caption may say a dog barks; that entry of the list is for pages.
+    const clipWords = CLIP_FILES.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+    expect(clipWords).toMatch(/a dog barks/);
+    expect(clipWords).not.toMatch(/recogni[sz]e|detects? (a |the )?bark|SafeOS (hears|knows)/i);
   });
 
   it('no page uses a money word or asks for money', () => {
@@ -463,29 +508,33 @@ describe('the public pages say what the software does', () => {
   });
 
   it('every page that names babies says SafeOS is not a medical device', () => {
+    const home = app('src', 'app', 'page.tsx');
     const pages = [
-      app('src', 'app', 'page.tsx'),
+      home,
       ...PUBLIC_ROUTE_DIRS.flatMap((d) => listFiles(d, ['page.tsx'])),
     ];
+    // The home page's words are in the components it renders, so it is read with them.
+    const homeComponents = listFiles(component('home'), ['.tsx']);
     const missing: string[] = [];
     for (const page of pages) {
       const layout = path.join(path.dirname(page), 'layout.tsx');
-      const own = [page, ...(fs.existsSync(layout) && page !== app('src', 'app', 'page.tsx') ? [layout] : [])]
-        .map((f) => stripComments(f, fs.readFileSync(f, 'utf8')))
-        .join('\n');
+      const files = page === home ? [page, ...homeComponents] : [page, ...(fs.existsSync(layout) ? [layout] : [])];
+      const own = files.map((f) => stripComments(f, fs.readFileSync(f, 'utf8'))).join('\n');
       if (!/\bbab(y|ies)\b/i.test(own)) continue;
-      const source = fs.readFileSync(page, 'utf8');
+      const source = (page === home ? files : [page]).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
       if (!source.includes('<NotAMedicalDevice') && !source.includes(MEDICAL_SENTENCE)) missing.push(rel(page));
     }
     if (/\bbab(y|ies)\b/i.test(readable(README)) && !fs.readFileSync(README, 'utf8').includes(MEDICAL_SENTENCE)) {
       missing.push(rel(README));
     }
     expect(missing).toEqual([]);
+    // The home page names babies, and carries the sentence under its baby entry.
+    expect(homeComponents.some((f) => /\bbab(y|ies)\b/i.test(fs.readFileSync(f, 'utf8')))).toBe(true);
   });
 
   it('every description of the motion gate names the five-second check during a Security alert', () => {
+    // The home page describes no gate: it names the four things that set off an alert.
     const describing = [
-      app('src', 'app', 'page.tsx'),
       app('src', 'app', 'blog', '[slug]', 'page.tsx'),
       app('public', 'diagrams', 'how-it-works.svg'),
     ];
@@ -499,17 +548,6 @@ describe('the public pages say what the software does', () => {
     expect(models.length).toBe(3);
     const readme = readable(README);
     expect(models.filter((m) => !readme.includes(m))).toEqual([]);
-  });
-
-  it('the quick-start links name presets that exist and Security opens the Security page', () => {
-    const showcase = fs.readFileSync(component('UseCaseShowcase.tsx'), 'utf8');
-    const settings = fs.readFileSync(app('src', 'stores', 'settings-store.ts'), 'utf8');
-    const unknown = Array.from(showcase.matchAll(/preset=([\w-]+)/g))
-      .map((m) => m[1])
-      .filter((id) => !new RegExp(`^\\s+${id}: \\{`, 'm').test(settings));
-    expect(unknown).toEqual([]);
-    const security = showcase.match(/id: 'security'[\s\S]*?quickStartUrl: '([^']+)'/);
-    expect(security?.[1].split('?')[0]).toBe('/security');
   });
 
   it('every internal link and every link into the repository has a destination', () => {
