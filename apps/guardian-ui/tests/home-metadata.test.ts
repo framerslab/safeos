@@ -135,6 +135,13 @@ describe('structured data', () => {
     expect((application.featureList as string[]).length).toBeGreaterThanOrEqual(4);
   });
 
+  it('asks for what setup asks for: a camera, with a microphone for sound alerts only', () => {
+    // Setup tries again without the microphone when a device has none, and
+    // the monitor watches with the camera alone.
+    expect(fs.readFileSync(path.join(APP_ROOT, 'src', 'app', 'setup', 'page.tsx'), 'utf8')).toContain('audio: false');
+    expect(application.browserRequirements).toBe('Requires JavaScript and a camera; a microphone adds sound alerts');
+  });
+
   it('reads the version from the app\'s package file and the day of the last change from the page\'s own constant', () => {
     expect(application.softwareVersion).toBe(appPackage.version);
     expect(application.dateModified).toBe(HOME_LAST_CHANGED);

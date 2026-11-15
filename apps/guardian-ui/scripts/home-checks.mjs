@@ -99,6 +99,90 @@ function measureText(root) {
   return out;
 }
 
+// Reads a picture of words the way the readability rule measures it, in a
+// blank page of its own: the ground is the picture's commonest colour; the
+// ink is every pixel on the words' side of the ground at 1.5:1 or more; the
+// core is the median of the ink's strongest 4 per cent; the strokes are the
+// median of the ink at least half way (in contrast) from the ground to the
+// core. The strokes' figure keeps the anti-aliased half of each stroke, so a
+// thin face reads under its computed colour; it is the figure the minimum is
+// held to. Returns null when the picture holds too little ink to read.
+function readStrokes(base64) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onerror = () => reject(new Error('the picture of the words did not load'));
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const drawing = canvas.getContext('2d');
+      drawing.drawImage(image, 0, 0);
+      const { data, width, height } = drawing.getImageData(0, 0, canvas.width, canvas.height);
+      const count = width * height;
+      const linear = (value) => { const s = value / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
+      const luminance = (r, g, b) => 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+      const ratio = (a, b) => (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      const medianOf = (indexes) => [0, 1, 2].map((channel) => {
+        const values = indexes.map((i) => data[i * 4 + channel]).sort((a, b) => a - b);
+        return values[Math.floor(values.length / 2)];
+      });
+      // The ground: the commonest colour to 16 levels a channel, then the
+      // median of every pixel within 12 levels of it.
+      const buckets = new Map();
+      for (let i = 0; i < count; i += 1) {
+        const key = ((data[i * 4] >> 4) << 8) | ((data[i * 4 + 1] >> 4) << 4) | (data[i * 4 + 2] >> 4);
+        buckets.set(key, (buckets.get(key) || 0) + 1);
+      }
+      const top = [...buckets.entries()].sort((a, b) => b[1] - a[1])[0][0];
+      const first = medianOf([...Array(count).keys()].filter((i) => (((data[i * 4] >> 4) << 8) | ((data[i * 4 + 1] >> 4) << 4) | (data[i * 4 + 2] >> 4)) === top));
+      const ground = medianOf([...Array(count).keys()].filter((i) => [0, 1, 2].every((c) => Math.abs(data[i * 4 + c] - first[c]) <= 12)));
+      const groundLight = luminance(...ground);
+      const lights = new Float64Array(count);
+      let lighter = 0;
+      let darker = 0;
+      for (let i = 0; i < count; i += 1) {
+        lights[i] = luminance(data[i * 4], data[i * 4 + 1], data[i * 4 + 2]);
+        if (ratio(lights[i], groundLight) >= 1.5) {
+          if (lights[i] > groundLight) lighter += 1;
+          else darker += 1;
+        }
+      }
+      const wordsLighter = lighter >= darker;
+      const ink = new Uint8Array(count);
+      for (let i = 0; i < count; i += 1) {
+        ink[i] = ratio(lights[i], groundLight) >= 1.5 && (lights[i] > groundLight) === wordsLighter ? 1 : 0;
+      }
+      // A thin run of rows that is nearly all ink is a rule or an underline, not words.
+      if (width >= 40) {
+        let start = -1;
+        for (let y = 0; y <= height; y += 1) {
+          let filled = 0;
+          if (y < height) for (let x = 0; x < width; x += 1) filled += ink[y * width + x];
+          const full = y < height && filled >= 0.85 * width;
+          if (full && start < 0) start = y;
+          if (!full && start >= 0) {
+            if (y - start <= 4) for (let r = start; r < y; r += 1) ink.fill(0, r * width, (r + 1) * width);
+            start = -1;
+          }
+        }
+      }
+      const inked = [];
+      for (let i = 0; i < count; i += 1) if (ink[i]) inked.push(i);
+      if (inked.length < Math.max(20, 0.002 * count)) { resolve(null); return; }
+      const distance = (i) => Math.abs(Math.log(ratio(lights[i], groundLight)));
+      const distances = inked.map(distance).sort((a, b) => b - a);
+      const strongest = Math.max(Math.min(inked.length, 6), Math.round(inked.length * 0.04));
+      const cut = distances[strongest - 1];
+      const core = medianOf(inked.filter((i) => distance(i) >= cut));
+      const coreRatio = ratio(luminance(...core), groundLight);
+      const half = inked.filter((i) => distance(i) >= 0.5 * Math.log(coreRatio));
+      const strokes = half.length ? medianOf(half) : core;
+      resolve({ core: coreRatio, strokes: ratio(luminance(...strokes), groundLight) });
+    };
+    image.src = `data:image/png;base64,${base64}`;
+  });
+}
+
 export async function checkHomePage(browser, baseUrl, outDir) {
   const problems = [];
   const home = new URL('/', baseUrl).toString();
@@ -190,7 +274,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     await open({ name: 'first visit, main script blocked', width: 390, look }, async (page, context) => {
       await context.route('**/_next/static/chunks/**', (route) => route.abort());
       await page.goto(home, { waitUntil: 'load', timeout: 60_000 });
-      await page.waitForTimeout(1_500);
+      // The line comes back once the page has waited five seconds for the app.
+      await page.waitForTimeout(7_000);
       const seen = await page.evaluate(() => {
         let opacity = 1;
         for (let node = document.querySelector('h1'); node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
@@ -201,6 +286,22 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       expect(seen.line, `first visit, main script blocked, ${look}: "${NEEDS_SCRIPT}" does not show`);
     });
   }
+
+  // Scripts on and the app still loading (a slow phone or connection): the
+  // line does not tell this visitor that setup needs JavaScript.
+  await open({ name: 'first visit, app still loading', width: 390 }, async (page, context) => {
+    await context.route('**/_next/static/chunks/**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 3_000));
+      await route.continue().catch(() => {});
+    });
+    await page.goto(home, { waitUntil: 'commit', timeout: 60_000 });
+    await page.waitForFunction(() => document.getElementById('home-needs-script')?.nextElementSibling?.tagName === 'SCRIPT', null, { timeout: 30_000 });
+    const seen = await page.evaluate(() => {
+      const line = document.getElementById('home-needs-script');
+      return { shown: !!line && line.getBoundingClientRect().height > 0, started: document.documentElement.getAttribute('data-app-started') };
+    });
+    expect(!seen.shown, `first visit, app still loading: "${NEEDS_SCRIPT}" shows to a visitor whose scripts run (app started: ${seen.started})`);
+  });
 
   // Nothing blocked: the line hides once the app has started; every request
   // stays on the site; no cookie; no card or sheet appears, however long the
@@ -299,9 +400,90 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           if (!['400', '700'].includes(text.weight)) fail(`readability ${where} has weight ${text.weight}`);
           if (text.body && text.tag === 'p' && text.size < bodySize) fail(`readability ${where} is body text at ${text.size} px, under ${bodySize}`);
           if (text.contrast < (text.body ? 12 : 7)) fail(`readability ${where} has contrast ${text.contrast.toFixed(2)}, under ${text.body ? 12 : 7}`);
-          if (/\d/.test(text.words) && !/tabular-nums/.test(text.figures)) fail(`readability ${where} holds a number without tabular figures`);
         }
         expect(texts.length > 60, `readability at ${width} px, ${look}: only ${texts.length} pieces of text were measured`);
+        // Tabular figures for the numbers only: a word set with them takes
+        // Inter's figure-width hyphen ("loud - sound").
+        const figures = await page.evaluate(() => {
+          const out = { numbers: [], hyphens: [] };
+          const walker = document.createTreeWalker(document.querySelector('.visitor-shell'), NodeFilter.SHOW_TEXT);
+          while (walker.nextNode()) {
+            const words = walker.currentNode.textContent;
+            const element = walker.currentNode.parentElement;
+            if (!element || !words.trim() || element.closest('script, style, [hidden], .sr-only')) continue;
+            if (element.getBoundingClientRect().width === 0 || getComputedStyle(element).visibility === 'hidden') continue;
+            const tabular = /tabular-nums/.test(getComputedStyle(element).fontVariantNumeric);
+            if (/\d/.test(words) && !tabular) out.numbers.push(words.trim().slice(0, 40));
+            if (/\p{L}-\p{L}/u.test(words) && tabular) out.hyphens.push(words.trim().slice(0, 40));
+          }
+          return out;
+        });
+        for (const words of figures.numbers) fail(`readability at ${width} px, ${look}: "${words}" holds a number without tabular figures`);
+        for (const words of figures.hyphens) fail(`readability at ${width} px, ${look}: "${words}" is set with tabular figures, which widen its hyphen`);
+      });
+    }
+  }
+
+  // The words measured from their own pixels, as the readability rule
+  // measures them: body text and headings at 12:1 or more on their strokes,
+  // every other word in the quiet tone at 7:1 or more. A computed colour can
+  // pass while a thin face's strokes read under it.
+  for (const width of [390, 820, 1280, 1920]) {
+    for (const look of LOOKS) {
+      await open({ name: 'readable, measured from the pixels', width, height: width >= 1440 ? 900 : width >= 768 ? 800 : 844, look }, async (page, context) => {
+        await visit(page);
+        await page.evaluate(() => document.fonts.ready);
+        await page.evaluate(() => document.querySelectorAll('details').forEach((details) => { details.open = true; }));
+        const marked = await page.evaluate(() => {
+          const shell = document.querySelector('.visitor-shell');
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--color-steel-200)';
+          shell.appendChild(probe);
+          const quiet = getComputedStyle(probe).color;
+          probe.remove();
+          const blocks = new Set();
+          const walker = document.createTreeWalker(shell, NodeFilter.SHOW_TEXT);
+          while (walker.nextNode()) {
+            if (!walker.currentNode.textContent.trim()) continue;
+            let element = walker.currentNode.parentElement;
+            // Words inside a sentence (a name, a number) are measured with it.
+            while (element && element !== shell && getComputedStyle(element).display === 'inline') element = element.parentElement;
+            if (element && element !== shell) blocks.add(element);
+          }
+          const out = [];
+          for (const element of blocks) {
+            if (element.closest('script, style, [hidden], .sr-only, .skip-link, #site-menu')) continue;
+            const box = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            if (box.width < 4 || box.height < 4 || style.visibility === 'hidden' || style.opacity === '0') continue;
+            const body = !!element.closest('main') && !!element.closest('h1, h2, h3, p, summary') && !element.closest('a, figcaption');
+            if (!body && style.color !== quiet) continue;
+            element.setAttribute('data-measure', String(out.length));
+            out.push({ words: element.textContent.trim().replace(/\s+/g, ' ').slice(0, 40), body, header: !!element.closest('nav[aria-label="Site"]') });
+          }
+          return out;
+        });
+        const scratch = await context.newPage();
+        let headerHidden = false;
+        for (const [index, item] of [...marked.entries()].sort((a, b) => Number(b[1].header) - Number(a[1].header))) {
+          if (!item.header && !headerHidden) {
+            // The fixed bar would cover words scrolled under it, and links
+            // inside a sentence are measured as links, not as its words.
+            await page.evaluate(() => {
+              const style = document.createElement('style');
+              style.textContent = 'nav[aria-label="Site"] { visibility: hidden !important; } main p a { color: transparent !important; text-decoration-color: transparent !important; }';
+              document.head.appendChild(style);
+            });
+            headerHidden = true;
+          }
+          const picture = await page.locator(`[data-measure="${index}"]`).screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
+          const read = await scratch.evaluate(readStrokes, picture.toString('base64'));
+          if (!read) continue;
+          const least = item.body ? 12 : 7;
+          if (read.strokes < least) fail(`readability at ${width} px, ${look}: "${item.words}" measures ${read.strokes.toFixed(2)}:1 on its strokes (core ${read.core.toFixed(2)}:1), under ${least}`);
+        }
+        await scratch.close();
+        expect(marked.length > 30, `readability at ${width} px, ${look}: only ${marked.length} pieces of text were measured from the pixels`);
       });
     }
   }
@@ -319,9 +501,21 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         const tops = [...bar.querySelectorAll('a, button')].filter((element) => element.getBoundingClientRect().width > 0)
           .map((element) => { const box = element.getBoundingClientRect(); return Math.round(box.top + box.height / 2); });
         const cut = [...document.querySelectorAll('main a.key, main .link-row, main summary')].filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => element.textContent.trim());
-        return { rows: new Set(tops).size, over: bar.scrollWidth > bar.clientWidth + 1, menu: !!document.querySelector('.site-header__menu-key')?.getBoundingClientRect().width, cut };
+        const wordmark = bar.querySelector('.wordmark');
+        return {
+          rows: new Set(tops).size,
+          over: bar.scrollWidth > bar.clientWidth + 1,
+          menu: !!document.querySelector('.site-header__menu-key')?.getBoundingClientRect().width,
+          cut,
+          wordmark: !!wordmark && wordmark.getBoundingClientRect().width > 0 && getComputedStyle(wordmark).visibility !== 'hidden',
+        };
       });
       expect(row.rows === 1 && !row.over, `header, larger text at ${width} px: the header is not one row`);
+      // The row keeps the mark, the wordmark, the look switch and Menu; only
+      // the links move into the Menu. At 320 px a Menu key in 200 per cent
+      // text leaves no room for the wordmark beside the look switch.
+      if (width >= 390) expect(row.wordmark, `header, larger text at ${width} px: the wordmark left the row`);
+      else console.log(`header, larger text at ${width} px: the wordmark is ${row.wordmark ? 'in' : 'out of'} the row`);
       if (width === 820) expect(row.menu, 'header, larger text at 820 px: the links did not move into the Menu');
       expect(row.cut.length === 0, `larger text at ${width} px: cut labels: ${row.cut.join(', ')}`);
       await page.screenshot({ path: path.join(outDir, `home-larger-text-${width}-light.png`) });
@@ -370,15 +564,31 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     ['dark', 'light', () => localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: 'light', resolvedTheme: 'light', accessibility: {} }, version: 0 }))],
     ['light', 'dark', () => localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: 'dark', resolvedTheme: 'dark', accessibility: {} }, version: 0 }))],
   ]) {
-    await open({ name: 'capture, chosen look', width: 390, look: device }, async (page) => {
+    await open({ name: 'capture, chosen look', width: 390, look: device }, async (page, context) => {
       const asked = [];
+      const installed = [];
       page.on('request', (request) => {
         const address = new URL(request.url()).pathname;
         if (address.startsWith('/home/capture-')) asked.push(address);
       });
+      // The service worker's own requests: the installed copy it saves.
+      context.on('request', (request) => {
+        if (request.serviceWorker()) installed.push(new URL(request.url()).pathname);
+      });
       await visit(page);
       expect(asked.length > 0 && asked.every((address) => address.includes(`-${chosen}.`)),
         `capture: on a ${device} device with the ${chosen} look chosen, the page asked for ${asked.join(', ') || 'no capture'}`);
+      await page.evaluate(() => Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('the installed copy was not ready within 60 seconds')), 60_000)),
+      ]));
+      // The installed copy holds the WebP crops the page and the look switch
+      // show; a phone does not download the PNG copies, the card or the
+      // install screenshots with it.
+      const heavy = installed.filter((address) => /^\/home\/capture-.*\.png$|^\/home\/card\.jpg$|^\/screenshots\//.test(address));
+      expect(installed.some((address) => address.startsWith('/home/capture-') && address.endsWith('.webp')),
+        `capture: the installed copy asked for no capture (${installed.length} service worker requests seen)`);
+      expect(heavy.length === 0, `capture: the installed copy downloads ${heavy.join(', ')}`);
     }, { script: choose });
   }
 
@@ -484,6 +694,12 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       expect(opened.rows.join(', ') === 'Start setup, How it works, Uses, Privacy, FAQ, GitHub', `header: the Menu's rows are ${opened.rows.join(', ')}`);
       expect(opened.heights.every((height) => height >= 48), `header: the Menu's rows are ${opened.heights.join(', ')} px tall`);
       expect(opened.animation === 'site-menu-in', `header: the Menu panel's animation is ${opened.animation}`);
+      // The picture shows the Menu as a visitor reads it, after its fade.
+      const drawn = await menu.evaluate((element) => ({
+        opacity: getComputedStyle(element).opacity,
+        fading: element.getAnimations().filter((animation) => animation.playState === 'running').length,
+      }));
+      expect(drawn.opacity === '1' && drawn.fading === 0, `header: the open Menu is pictured while its panel fades in (opacity ${drawn.opacity})`);
       await page.screenshot({ path: path.join(outDir, `home-menu-open-390-${look}.png`) });
       await page.keyboard.press('Escape');
       expect(await menu.isHidden(), 'header: Escape leaves the Menu open');
@@ -537,6 +753,22 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect((await github.getAttribute('href')) === 'https://github.com/framerslab/safeos' && !(await github.getAttribute('target')),
       'header: the GitHub link does not open the repository in the same tab');
   });
+
+  // The other public pages carry the app's bottom navigation on a phone; the
+  // footer's last line still reads above it at the end of the page.
+  for (const address of ['/faq/', '/privacy/']) {
+    await open({ name: 'footer, bottom navigation', width: 390 }, async (page) => {
+      await visit(page, new URL(address, baseUrl).toString());
+      await page.locator('nav[aria-label="Mobile navigation"]').waitFor({ timeout: 15_000 });
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await page.waitForTimeout(500);
+      const seen = await page.evaluate(() => ({
+        last: document.querySelector('.site-footer__last').getBoundingClientRect().bottom,
+        nav: document.querySelector('nav[aria-label="Mobile navigation"]').getBoundingClientRect().top,
+      }));
+      expect(seen.last <= seen.nav, `footer on ${address} at 390 px: its last line ends at ${Math.round(seen.last)} px, under the bottom navigation from ${Math.round(seen.nav)} px`);
+    });
+  }
 
   // After setup the start key reads "Open dashboard" in the header, the first
   // screen, the closing block, the Menu and the footer.

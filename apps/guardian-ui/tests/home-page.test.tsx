@@ -68,6 +68,52 @@ describe('the page reads before any script runs and asks for nothing', () => {
     expect(source('src', 'components', 'layout', 'SiteShell.tsx')).toContain("setAttribute('data-app-started', 'true')");
   });
 
+  describe('the line\'s own script, run in a page', () => {
+    // Runs the script served beside the line in a page of its own. The page's
+    // timers are held so a test can say when the wait for the app has ended.
+    function runLineScript() {
+      const script = one('#home-needs-script')?.nextElementSibling?.textContent || '';
+      const timers: (() => void)[] = [];
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { JSDOM } = require('jsdom') as {
+        JSDOM: new (html: string, options: { runScripts: string; beforeParse: (window: { setTimeout: unknown }) => void }) => { window: { document: Document } };
+      };
+      const dom = new JSDOM(
+        `<!doctype html><html><body><p id="home-needs-script">Setup needs JavaScript.</p><script>${script}</script></body></html>`,
+        {
+          runScripts: 'dangerously',
+          beforeParse(window) {
+            window.setTimeout = (callback: () => void) => {
+              timers.push(callback);
+              return timers.length;
+            };
+          },
+        }
+      );
+      const document = dom.window.document;
+      return { document, line: document.getElementById('home-needs-script') as HTMLElement, endWait: () => timers.splice(0).forEach((callback) => callback()) };
+    }
+
+    it('hides the line at once, since a script that runs proves scripts are on', () => {
+      const { line } = runLineScript();
+      expect(line.hidden).toBe(true);
+    });
+
+    it('shows it again when the app has not marked itself started by the end of the wait', () => {
+      const { line, endWait } = runLineScript();
+      endWait();
+      expect(line.hidden).toBe(false);
+    });
+
+    it('keeps it hidden once the app has marked itself started', async () => {
+      const { document, line, endWait } = runLineScript();
+      document.documentElement.setAttribute('data-app-started', 'true');
+      await new Promise((resolve) => setImmediate(resolve));
+      endWait();
+      expect(line.hidden).toBe(true);
+    });
+  });
+
   it('holds no wrapper that waits for script before the page is shown', () => {
     expect(source('src', 'components', 'ThemeProvider.tsx')).not.toMatch(/opacity-0/);
     expect(html).not.toMatch(/opacity-0/);

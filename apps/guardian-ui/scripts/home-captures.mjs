@@ -113,6 +113,24 @@ async function watchUntilMotionAlert(page, name) {
   return { indicator };
 }
 
+// The monitor's readout tiles (Motion, Audio, Pixel, Stream, Mode) that a
+// crop would cut: a tile is wholly in the picture or wholly out of it.
+async function tilesCutBy(page, frame) {
+  return page.evaluate((f) => {
+    const label = [...document.querySelectorAll('main div')].find((element) => element.children.length === 0 && element.textContent.trim() === 'Stream');
+    const grid = label?.parentElement?.parentElement;
+    if (!grid) return ['(the readout tiles were not found)'];
+    return [...grid.children].filter((tile) => {
+      const box = tile.getBoundingClientRect();
+      const right = f.x + f.width;
+      const bottom = f.y + f.height;
+      const inside = box.left >= f.x - 0.5 && box.right <= right + 0.5 && box.top >= f.y - 0.5 && box.bottom <= bottom + 0.5;
+      const apart = box.right <= f.x + 0.5 || box.left >= right - 0.5 || box.bottom <= f.y + 0.5 || box.top >= bottom - 0.5;
+      return !inside && !apart;
+    }).map((tile) => tile.firstElementChild?.textContent.trim() || tile.textContent.trim().slice(0, 20));
+  }, frame);
+}
+
 async function saveCrop(page, relative, clip, details) {
   const file = path.join(outDir, relative);
   await page.screenshot({ path: file, clip });
@@ -160,8 +178,10 @@ try {
           { x: view.x, y: view.y, width, height: Math.round(width * 9 / 16) }, { ...details, crop: 'camera view, 16:9' });
         console.log(`${name}: Motion indicator after the camera view was saved: "${await indicator.getAttribute('aria-label')}"`);
         await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
-        await saveCrop(page, `home/capture-portrait-${look}.png`,
-          { x: view.x, y: view.y, width, height: Math.round(width * 5 / 4) }, { ...details, crop: 'camera view with its readings, 4:5' });
+        const portrait = { x: view.x, y: view.y, width, height: Math.round(width * 5 / 4) };
+        const cut = await tilesCutBy(page, portrait);
+        if (cut.length > 0) throw new Error(`${name}: the portrait crop cuts the readout tiles ${cut.join(', ')}`);
+        await saveCrop(page, `home/capture-portrait-${look}.png`, portrait, { ...details, crop: 'camera view with its readings, 4:5' });
         console.log(`${name}: Motion indicator after the portrait crop was saved: "${await indicator.getAttribute('aria-label')}"`);
         portraitForCard[look] = path.join(outDir, `home/capture-portrait-${look}.png`);
       } catch (err) {

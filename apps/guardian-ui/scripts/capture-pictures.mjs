@@ -541,6 +541,14 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
       const menu = page.locator('#site-menu');
       await toggle.click();
       await menu.waitFor({ timeout: 5_000 });
+      // The picture shows the Menu as a visitor reads it, after its fade.
+      const drawn = await menu.evaluate((element) => ({
+        opacity: getComputedStyle(element).opacity,
+        fading: element.getAnimations().filter((animation) => animation.playState === 'running').length,
+      }));
+      if (drawn.opacity !== '1' || drawn.fading !== 0) {
+        problems.push(`menu at 320 by 480: the open Menu is pictured while its panel fades in (opacity ${drawn.opacity})`);
+      }
       await page.screenshot({ path: path.join(outDir, 'menu-open-320x480-light.png') });
       const last = await menu.evaluate((element) => {
         element.scrollTop = element.scrollHeight;
