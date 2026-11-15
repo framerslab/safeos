@@ -9,7 +9,7 @@
 
 import { CameraPicker } from '../../components/CameraPicker';
 import { useCameraStore } from '../../stores/camera-store';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboardingStore, canSkipOnboarding } from '../../stores/onboarding-store';
 import {
@@ -101,10 +101,31 @@ export default function SetupPage() {
     }
   };
 
+  // Each camera request has a number. "Continue without the camera" and a newer
+  // request raise it, so an answer that arrives for an earlier request is
+  // dropped: a prompt answered after the person went on changes nothing.
+  const cameraRequest = useRef(0);
+
+  // "Continue without the camera": setup goes on with both permissions
+  // recorded as off. The Monitor page asks for the camera when monitoring starts.
+  const continueWithoutCamera = () => {
+    cameraRequest.current += 1;
+    onboarding.setCameraPermission(false);
+    onboarding.setMicrophonePermission(false);
+    goNext();
+  };
+
   const requestPermissions = async () => {
+    const request = ++cameraRequest.current;
     setPermissionError(null);
     setPermissionStatus('pending');
     const video = deviceId ? { deviceId: { exact: deviceId } } : true;
+    // An old browser, or a page not served over https, has no camera request.
+    const media: MediaDevices | undefined = navigator.mediaDevices;
+    if (!media || typeof media.getUserMedia !== 'function') {
+      setPermissionError('This browser cannot use a camera on this page.');
+      return;
+    }
     try {
       let microphone = true;
       let stream: MediaStream;
@@ -113,8 +134,14 @@ export default function SetupPage() {
       } catch (error) {
         // A camera without a microphone is enough to monitor video.
         if (!(error instanceof Error) || error.name !== 'NotFoundError') throw error;
+        // A request the person has left behind asks the browser nothing more.
+        if (request !== cameraRequest.current) return;
         stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
         microphone = false;
+      }
+      if (request !== cameraRequest.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
       }
       stream.getTracks().forEach((track) => track.stop());
       setPermissionStatus('granted');
@@ -128,11 +155,9 @@ export default function SetupPage() {
     } catch (error) {
       const name = error instanceof Error ? error.name : '';
       const denied = name === 'NotAllowedError' || name === 'SecurityError';
+      if (request !== cameraRequest.current) return;
       setPermissionStatus(denied ? 'denied' : 'pending');
-      setPermissionError(name === 'OverconstrainedError' || name === 'NotFoundError'
-        ? 'The selected camera is unavailable. Choose another camera.'
-        : denied ? 'Permission denied. Please enable camera/microphone access in your browser settings.'
-          : 'Unable to access the camera or microphone. Check the device and try again.');
+      setPermissionError(cameraRequestProblem(name, Boolean(deviceId)));
     }
   };
 
@@ -217,6 +242,7 @@ export default function SetupPage() {
               errorMessage={permissionError}
               onRequest={requestPermissions}
               onContinue={goNext}
+              onSkip={continueWithoutCamera}
               onBack={goBack}
             />
           )}
@@ -233,6 +259,29 @@ export default function SetupPage() {
       </main>
     </div>
   );
+}
+
+/**
+ * What the camera step says after a failed request, by the error's name.
+ * `cameraChosen` is false while the menu is on "Default camera".
+ */
+function cameraRequestProblem(name: string, cameraChosen: boolean): string {
+  switch (name) {
+    case 'NotAllowedError':
+    case 'SecurityError':
+      return 'The browser blocked the camera for this site. To allow it, open the site settings from the address bar, set Camera to Allow, then press Try again.';
+    case 'NotReadableError':
+    case 'AbortError':
+    case 'TrackStartError':
+      return 'The camera did not start. Another app or tab may be using it. Close it, then press Try again.';
+    case 'NotFoundError':
+    case 'OverconstrainedError':
+      return cameraChosen
+        ? 'The selected camera is unavailable. Choose another camera.'
+        : 'No camera was found on this device.';
+    default:
+      return 'Unable to access the camera or microphone. Check the device and try again.';
+  }
 }
 
 // =============================================================================
@@ -387,6 +436,9 @@ function ScenarioStep({
       icon: <IconShield size={24} />,
     },
   ];
+  // A scenario already chosen (saved earlier, or chosen before Back) is
+  // confirmed with Continue.
+  const chosen = selectedScenario;
 
   return (
     <div className="panel">
@@ -444,6 +496,12 @@ function ScenarioStep({
             <IconChevronLeft size={16} />
             Back
           </button>
+          {chosen && (
+            <button onClick={() => onSelect(chosen)} className="btn btn-primary flex-1">
+              Continue
+              <IconChevronRight size={16} />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -455,14 +513,21 @@ function PermissionsStep({
   errorMessage,
   onRequest,
   onContinue,
+  onSkip,
   onBack,
 }: {
   status: 'pending' | 'granted' | 'denied';
   errorMessage: string | null;
   onRequest: () => void;
   onContinue: () => void;
+  onSkip: () => void;
   onBack: () => void;
 }) {
+  // Once a request has failed, the request key reads "Try again", also while
+  // the next request waits for its answer.
+  const [failedBefore, setFailedBefore] = useState(false);
+  if (errorMessage && !failedBefore) setFailedBefore(true);
+
   return (
     <div className="panel">
       <div className="panel-header">
@@ -496,7 +561,7 @@ function PermissionsStep({
         </div>
 
         {errorMessage && (
-          <div className="p-3 rounded bg-[var(--color-alert-critical)]/10 border border-[var(--color-alert-critical)]/30">
+          <div role="alert" className="p-3 rounded bg-[var(--color-alert-critical)]/10 border border-[var(--color-alert-critical)]/30">
             <p className="text-sm text-[var(--color-alert-critical)]">
               {errorMessage}
             </p>
@@ -515,10 +580,22 @@ function PermissionsStep({
             </button>
           ) : (
             <button onClick={onRequest} className="btn btn-primary flex-1">
-              Grant Permissions
+              {failedBefore ? 'Try again' : 'Grant Permissions'}
             </button>
           )}
         </div>
+
+        {status !== 'granted' && (
+          <>
+            <button type="button" onClick={onSkip} className="btn btn-secondary w-full min-h-11">
+              Continue without the camera
+              <IconChevronRight size={16} />
+            </button>
+            <p className="text-base text-[var(--color-steel-300)]">
+              You can allow the camera later, on the Monitor page.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
