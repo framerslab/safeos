@@ -1,15 +1,12 @@
 /** @jest-environment jsdom */
 /**
  * Lost & Found, Security and Wildlife can be reached from inside the app: the
- * dashboard's Quick Actions link each of them after Nap Mode, and the header's
- * menu lists them under its four page links. The header row (the page links
- * that show from 1280 px) does not gain them.
+ * dashboard's Quick Actions link each of them after Nap Mode.
  */
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import './helpers/browser-data';
 import DashboardPage from '@/app/dashboard/page';
-import { Nav } from '@/components/layout/Nav';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 const replace = jest.fn();
@@ -57,31 +54,4 @@ it('links Lost & Found, Security and Wildlife from the Quick Actions of a dashbo
   expect(panel.getAllByRole('link').map(path)).toEqual(
     ['/monitor', '/nap', '/lost-found', '/security', '/wildlife', '/history', '/settings'],
   );
-});
-
-it.each([
-  ['a phone', 390],
-  ['a desktop', 1024],
-])('lists Lost & Found, Security and Wildlife under the four page links in the open header menu at %s width (%i px)', (_, width) => {
-  act(() => {
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
-    window.dispatchEvent(new Event('resize'));
-  });
-  const { container } = render(<Nav />);
-  fireEvent.click(screen.getByRole('button', { name: 'Open menu' }));
-  const menu = container.querySelector('#nav-menu') as HTMLElement;
-  expect(menu).not.toBeNull();
-  for (const mode of MODES) {
-    const link = within(menu).getByRole('link', { name: mode.name });
-    expect(path(link)).toBe(mode.href);
-  }
-  const pages = within(menu).getAllByRole('link').map(path).filter((href) => href.startsWith('/'));
-  expect(pages.slice(0, 7)).toEqual(
-    ['/dashboard', '/monitor', '/history', '/settings', '/lost-found', '/security', '/wildlife'],
-  );
-  // The header row itself does not gain them.
-  const row = container.querySelector('nav[aria-label="Main"] > div') as HTMLElement;
-  for (const mode of MODES) {
-    expect(row.querySelector(`a[href="${mode.href}"], a[href="${mode.href}/"]`)).toBeNull();
-  }
 });

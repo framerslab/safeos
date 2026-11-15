@@ -1,14 +1,18 @@
 /** @jest-environment jsdom */
 /**
- * The shell picks the header and footer by route
+ * The shell picks the frame by route
  *
- * The home page and the other public pages carry the visitor header (the
- * navigation named "Site") and footer; app screens keep the app's own header
- * (the navigation named "Main"). The home page shows no notification card and
- * no install sheet, whatever the visitor's state, and its skip link moves
- * focus to the main content. Once its script has started the
- * shell marks the document, which hides the home page's line for a page
- * whose script did not start.
+ * The home page and the other pages a visitor reads carry the visitor header
+ * (the navigation named "Site") and the site footer, and no phone bar. Every
+ * app page carries the app's header (the navigation named "App"), the same
+ * site footer and, on every app page but Setup, the phone bar (a second
+ * navigation named "App"). A page built in the readable look marks its whole
+ * body, so it follows the device's light or dark setting before script runs;
+ * on the other app pages the header, the footer's wrapper and the phone bar
+ * carry the look themselves. No page shows a notification card or an install
+ * sheet, whatever the visitor's state, and the skip link moves focus to the
+ * main content. Once its script has started the shell marks the document,
+ * which hides the line for a page whose script did not start.
  */
 
 import React from 'react';
@@ -70,27 +74,55 @@ it('gives the home page the visitor header and footer, a skip link to the main c
   expect(container.querySelectorAll('main')).toHaveLength(1);
 });
 
-it.each(['/faq/', '/privacy', '/about/', '/blog/how-safeos-guardian-works/'])(
-  'gives the public page %s the same header and footer',
+it.each(['/faq/', '/privacy', '/about/', '/blog/how-safeos-guardian-works/', '/no-such-page/'])(
+  'gives the reading page %s the visitor header and footer and no phone bar',
   (pathname) => {
     const { container } = open(pathname);
-    expect(navigations(container).slice(0, 1)).toEqual(['Site']);
-    expect(navigations(container)).toContain('Site links');
-    expect(navigations(container)).not.toContain('Main');
+    expect(navigations(container)).toEqual(['Site', 'Site links']);
+    expect(container.querySelector('.phone-bar')).toBeNull();
     // Only the home page follows the device through CSS with scripts off.
     expect(container.querySelector('.device-look')).toBeNull();
   }
 );
 
-it.each(['/dashboard/', '/monitor', '/settings/', '/setup/', '/help/integrations/telegram/', '/tutorial/'])(
-  'leaves the app screen %s its own header',
+it.each(['/dashboard/', '/monitor', '/settings/', '/help/integrations/telegram/', '/tutorial/'])(
+  'gives the app page %s the app header, the site footer and the phone bar',
   (pathname) => {
     const { container } = open(pathname);
-    expect(navigations(container)).toContain('Main');
+    expect(navigations(container)).toEqual(['App', 'Site links', 'App']);
     expect(navigations(container)).not.toContain('Site');
+    expect(navigations(container)).not.toContain('Main');
+    expect(container.querySelectorAll('header.app-header')).toHaveLength(1);
+    expect(container.querySelectorAll('footer')).toHaveLength(1);
+    // The skip link is the first control of the page, and its target takes focus.
+    const skip = screen.getByRole('link', { name: 'Skip to content' });
+    expect(skip.getAttribute('href')).toBe('#main-content');
+    expect(container.querySelector('a, button')).toBe(skip);
+    const target = container.querySelector('#main-content') as HTMLElement;
+    expect(target.getAttribute('tabindex')).toBe('-1');
+    expect(target.contains(screen.getByRole('heading', { name: 'Page' }))).toBe(true);
     expect(container.querySelector('.visitor-shell')).toBeNull();
   }
 );
+
+it('gives Setup the app header and no phone bar', () => {
+  const { container } = open('/setup/');
+  expect(navigations(container)).toEqual(['App', 'Site links']);
+});
+
+it('marks a page built in the readable look, so its whole body follows the device before script', () => {
+  for (const pathname of ['/dashboard/', '/nap/']) {
+    const { container } = open(pathname);
+    expect([pathname, container.querySelector('.app-shell--look.look-part') !== null]).toEqual([pathname, true]);
+    cleanup();
+  }
+  const { container } = open('/history/');
+  expect(container.querySelector('.app-shell--look.look-part')).toBeNull();
+  // The parts of the frame carry the look themselves.
+  expect(container.querySelector('header.app-header')?.classList.contains('look-part')).toBe(true);
+  expect(container.querySelector('.app-shell__footer')?.classList.contains('look-part')).toBe(true);
+  expect(container.querySelector('nav.phone-bar')?.classList.contains('look-part')).toBe(true);
+});
 
 it('marks the document once its script has started', () => {
   expect(document.documentElement.hasAttribute('data-app-started')).toBe(false);
@@ -98,7 +130,7 @@ it('marks the document once its script has started', () => {
   expect(document.documentElement.getAttribute('data-app-started')).toBe('true');
 });
 
-it('shows no notification card and no install sheet on the home page, before setup or after it, however long the visitor stays', () => {
+it('shows no notification card and no install sheet on any page, however long a person stays', () => {
   jest.useFakeTimers();
   // A browser that can notify and has not been asked yet.
   const constructor = jest.fn();
@@ -112,20 +144,13 @@ it('shows no notification card and no install sheet on the home page, before set
       acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
     });
   });
-  open('/');
-  act(() => {
-    window.dispatchEvent(new Event('beforeinstallprompt'));
-    jest.advanceTimersByTime(15_000);
-  });
-  expect(screen.queryByText('Enable notifications')).toBeNull();
-  expect(screen.queryByText('Install SafeOS')).toBeNull();
-  cleanup();
-
-  // The same visitor on an app screen is asked: the card belongs to the app.
-  open('/dashboard/');
-  act(() => {
-    jest.advanceTimersByTime(15_000);
-  });
-  expect(screen.queryByText('Enable notifications')).not.toBeNull();
-  jest.useRealTimers();
+  for (const pathname of ['/', '/faq/', '/dashboard/', '/history/']) {
+    open(pathname);
+    act(() => {
+      window.dispatchEvent(new Event('beforeinstallprompt'));
+      jest.advanceTimersByTime(15_000);
+    });
+    expect([pathname, screen.queryByText('Enable notifications'), screen.queryByText('Install SafeOS')]).toEqual([pathname, null, null]);
+    cleanup();
+  }
 });

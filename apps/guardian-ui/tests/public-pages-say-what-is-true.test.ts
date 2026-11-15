@@ -4,10 +4,11 @@
  * Reads the source of every page a visitor can open before using the app (the
  * home page, About, FAQ, Help and its guides, Tutorials, Tutorial, the blog,
  * the old support address, Privacy, Terms, Security, Lost & Found and its
- * match gallery, Setup), every component those pages and the root layout
- * render (listed below with the page that renders it; every file of the home
- * page's, the visitor header's and footer's, and the app header's and phone
- * bar's folders), the root layout's
+ * match gallery, Setup, the dashboard and Nap Mode), every component those
+ * pages and the root layout render (listed below with the page that renders
+ * it; every file of the folders of the components built in the readable
+ * look: the home page's, the visitor header's and footer's, and the app
+ * header's and phone bar's), the root layout's
  * metadata, the helper that owns every page's title and cards, the sitemap,
  * the web app manifest, the social card, the README's diagram, the README's
  * product sections and the changelog's Unreleased section. Code comments are
@@ -73,6 +74,8 @@ const PUBLIC_ROUTES = [
   'security',
   'lost-found',
   'setup',
+  'dashboard',
+  'nap',
 ];
 const PUBLIC_ROUTE_DIRS = PUBLIC_ROUTES.map((r) => app('src', 'app', r));
 
@@ -103,13 +106,9 @@ const PUBLIC_FILES = [
   component('CameraPicker.tsx'), // Setup
   component('Logo.tsx'), // header, Setup, not-found
   component('StatusBanner.tsx'), // root layout: every page
-  component('NotificationPermission.tsx'), // root layout: every page but home
-  component('PWAInstallPrompt.tsx'), // root layout: every page but home
   component('KeyboardShortcutsModal.tsx'), // root layout: every page
-  component('NotificationDropdown.tsx'), // app header
-  component('layout', 'Nav.tsx'), // app screens
-  component('layout', 'Footer.tsx'), // app screens
-  component('layout', 'MobileBottomNav.tsx'), // every page but home and Setup
+  component('app', 'AppHeader.tsx'), // app pages
+  component('app', 'PhoneBar.tsx'), // app pages but Setup
   app('public', 'manifest.json'),
   app('public', 'og-image.svg'),
   app('public', 'diagrams', 'how-it-works.svg'),
@@ -118,15 +117,14 @@ const PUBLIC_FILES = [
 const README = path.join(REPO_ROOT, 'README.md');
 const CHANGELOG = path.join(REPO_ROOT, 'CHANGELOG.md');
 
-// Every file of the home page's components, of the visitor header and footer
-// and of the app's header and phone bar is read, so a component added there
-// is read too.
-const COMPONENT_DIRS = [component('home'), component('visitor'), component('app')];
+// Every file of the components built in the readable look is read, so one
+// added there is read too.
+const LOOK_COMPONENT_DIRS = [component('home'), component('visitor'), component('app')];
 
 const SCANNED = Array.from(new Set([
   ...PUBLIC_FILES,
   ...PUBLIC_ROUTE_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
-  ...COMPONENT_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
+  ...LOOK_COMPONENT_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
 ]));
 
 // The sample clip's record and its caption and description files, which say
@@ -486,7 +484,7 @@ describe('the public pages say what the software does', () => {
     expect(missing).toEqual([]);
     expect(SCANNED.length).toBeGreaterThan(PUBLIC_FILES.length);
     // The home page's, the visitor shell's and the app frame's own files are among them.
-    for (const dir of COMPONENT_DIRS) expect([rel(dir), SCANNED.some((f) => f.startsWith(dir + path.sep))]).toEqual([rel(dir), true]);
+    for (const dir of LOOK_COMPONENT_DIRS) expect([rel(dir), SCANNED.some((f) => f.startsWith(dir + path.sep))]).toEqual([rel(dir), true]);
   });
 
   it('the sample clip\'s record, captions and descriptions use no money word and make no health claim', () => {

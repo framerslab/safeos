@@ -3,7 +3,6 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import HistoryPage from '@/app/history/page';
-import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { AlertPanel } from '@/components/AlertPanel';
 import { openDB } from 'idb';
 import { useMonitoringStore } from '@/stores/monitoring-store';
@@ -71,7 +70,7 @@ it('does not import other alert producers into the monitoring timeline', async (
   expect(useMonitoringStore.getState().alerts).toEqual([]);
 });
 
-it('clears monitoring notifications without deleting another producers cached alerts', async () => {
+it('clearing the monitor\'s alerts leaves another producer\'s cached alerts', async () => {
   await cacheAlert({ id: 'engine-owned', streamId: 'engine', severity: 'low',
     message: 'Engine-owned alert', acknowledged: true, createdAt: new Date().toISOString() });
   const view = render(<MonitorPage />);
@@ -81,9 +80,7 @@ it('clears monitoring notifications without deleting another producers cached al
   } }));
   await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
   view.unmount();
-  render(<NotificationDropdown />);
-  fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+  act(() => { useMonitoringStore.getState().clearAlerts(); });
   await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
   expect(await getCachedAlerts()).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'engine-owned' })]));
   expect((await getCachedAlerts()).some(alert => alert.id === 'monitor-owned')).toBe(false);
