@@ -143,6 +143,14 @@ export function normalizeBrightness(color: RGB, targetLightness: number = 50): R
 }
 
 /**
+ * The number of levels each of red, green and blue is cut into for a
+ * histogram of up to `buckets` buckets: 4 levels, each 64 wide, for 32.
+ */
+function histogramLevels(buckets: number): number {
+  return Math.max(1, Math.ceil(Math.cbrt(buckets)));
+}
+
+/**
  * Quantize color to reduce to bucket
  */
 function quantizeColor(r: number, g: number, b: number, levels: number): string {
@@ -202,7 +210,7 @@ export function extractColorHistogram(
   buckets: number = 32
 ): ColorBucket[] {
   const colorCounts = new Map<string, { color: RGB; count: number }>();
-  const levels = Math.ceil(Math.cbrt(buckets)); // Levels per channel
+  const levels = histogramLevels(buckets); // Levels per channel
   
   const { data, width, height } = imageData;
   const totalPixels = width * height;
@@ -534,9 +542,100 @@ export async function generateFingerprint(
 }
 
 /**
- * Merge multiple fingerprints into one (for multiple reference images)
+ * Merge the colour histograms of several photos into one of up to `buckets`
+ * buckets.
+ *
+ * A bucket's colour is the average of the pixels that fell in it, so two
+ * photos of one animal rarely give a bucket the very same colour. Buckets are
+ * therefore put together by nearest colour: each bucket of a further photo
+ * joins the merged bucket nearest to it, when the two colours are closer than
+ * one bucket is wide and no nearer bucket of the same photo has taken it.
+ * Buckets of one photo are never put together with each other.
+ *
+ * Each photo counts the same: a merged bucket's share is the mean of its
+ * share in every photo (0 in a photo that lacks the colour), so the shares
+ * add up to the mean of the photos' own totals.
  */
-export function mergeFingerprints(fingerprints: VisualFingerprint[]): VisualFingerprint {
+function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBucket[] {
+  const tolerance = 256 / histogramLevels(buckets);
+  // Colour sums are weighted by share, so each photo pulls a merged colour
+  // by the share it holds of that colour.
+  const merged: { r: number; g: number; b: number; weight: number; color: RGB; count: number; percentage: number }[] = [];
+
+  for (const histogram of histograms) {
+    // Every pairing of a merged bucket with one of this photo's buckets that
+    // is within the tolerance, nearest first.
+    const pairs: { mergedIdx: number; bucketIdx: number; distance: number }[] = [];
+    for (let mergedIdx = 0; mergedIdx < merged.length; mergedIdx++) {
+      for (let bucketIdx = 0; bucketIdx < histogram.length; bucketIdx++) {
+        const distance = colorDistance(merged[mergedIdx].color, histogram[bucketIdx].color);
+        if (distance < tolerance) {
+          pairs.push({ mergedIdx, bucketIdx, distance });
+        }
+      }
+    }
+    pairs.sort((a, b) => a.distance - b.distance);
+
+    const target = new Array<number>(histogram.length).fill(-1);
+    const taken = new Set<number>();
+    for (const { mergedIdx, bucketIdx } of pairs) {
+      if (target[bucketIdx] === -1 && !taken.has(mergedIdx)) {
+        target[bucketIdx] = mergedIdx;
+        taken.add(mergedIdx);
+      }
+    }
+
+    histogram.forEach((bucket, bucketIdx) => {
+      const weight = Math.max(bucket.percentage, 0);
+      if (target[bucketIdx] === -1) {
+        merged.push({
+          r: bucket.color.r * weight,
+          g: bucket.color.g * weight,
+          b: bucket.color.b * weight,
+          weight,
+          color: { ...bucket.color },
+          count: bucket.count,
+          percentage: bucket.percentage,
+        });
+        return;
+      }
+
+      const into = merged[target[bucketIdx]];
+      into.r += bucket.color.r * weight;
+      into.g += bucket.color.g * weight;
+      into.b += bucket.color.b * weight;
+      into.weight += weight;
+      into.count += bucket.count;
+      into.percentage += bucket.percentage;
+      if (into.weight > 0) {
+        into.color = {
+          r: Math.round(into.r / into.weight),
+          g: Math.round(into.g / into.weight),
+          b: Math.round(into.b / into.weight),
+        };
+      }
+    });
+  }
+
+  return merged
+    .map(({ color, count, percentage }) => ({
+      color,
+      count: Math.round(count / histograms.length),
+      percentage: percentage / histograms.length,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, buckets);
+}
+
+/**
+ * Merge multiple fingerprints into one (for multiple reference images).
+ * `options.histogramBuckets` is the bucket count the photos' histograms were
+ * made with; leave it out for photos read with generateFingerprint's default.
+ */
+export function mergeFingerprints(
+  fingerprints: VisualFingerprint[],
+  options: Partial<FingerprintOptions> = {}
+): VisualFingerprint {
   if (fingerprints.length === 0) {
     throw new Error('No fingerprints to merge');
   }
@@ -545,33 +644,14 @@ export function mergeFingerprints(fingerprints: VisualFingerprint[]): VisualFing
     return fingerprints[0];
   }
   
+  const opts = { ...DEFAULT_OPTIONS, ...options };
   const base = fingerprints[0];
   
-  // Merge color histograms (average counts)
-  const histogramMap = new Map<string, ColorBucket>();
-  
-  for (const fp of fingerprints) {
-    for (const bucket of fp.colorHistogram) {
-      const key = `${bucket.color.r}-${bucket.color.g}-${bucket.color.b}`;
-      const existing = histogramMap.get(key);
-      
-      if (existing) {
-        existing.count += bucket.count;
-        existing.percentage += bucket.percentage;
-      } else {
-        histogramMap.set(key, { ...bucket });
-      }
-    }
-  }
-  
-  const mergedHistogram = Array.from(histogramMap.values())
-    .map(b => ({
-      ...b,
-      count: Math.round(b.count / fingerprints.length),
-      percentage: b.percentage / fingerprints.length,
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, base.colorHistogram.length);
+  // Merge color histograms (nearest colours together, shares averaged)
+  const mergedHistogram = mergeHistograms(
+    fingerprints.map(fp => fp.colorHistogram),
+    opts.histogramBuckets
+  );
   
   // Merge dominant colors (find most common across all)
   const allDominant = fingerprints.flatMap(fp => fp.dominantColors);
