@@ -761,10 +761,69 @@ function compareDominantColors(d1: RGB[], d2: RGB[]): number {
 }
 
 /**
- * Compare edge signatures
+ * Read a square edge signature on a coarser square grid. Each coarse cell is
+ * the mean of the fine cells it covers, weighted by how much of each it
+ * covers, and the result is scaled so its strongest cell reads 100, as a
+ * signature read straight from pixels is.
+ */
+export function poolEdgeSignature(signature: number[], side: number): number[] {
+  const from = edgeGridSide(signature);
+  if (from === 0 || side <= 0 || side >= from) {
+    return signature;
+  }
+
+  const scale = from / side;
+  const pooled: number[] = [];
+
+  for (let cy = 0; cy < side; cy++) {
+    const top = cy * scale;
+    const bottom = (cy + 1) * scale;
+
+    for (let cx = 0; cx < side; cx++) {
+      const left = cx * scale;
+      const right = (cx + 1) * scale;
+      let sum = 0;
+      let weight = 0;
+
+      for (let fy = Math.floor(top); fy < from && fy < bottom; fy++) {
+        const rows = Math.min(bottom, fy + 1) - Math.max(top, fy);
+        if (rows <= 0) continue;
+
+        for (let fx = Math.floor(left); fx < from && fx < right; fx++) {
+          const columns = Math.min(right, fx + 1) - Math.max(left, fx);
+          if (columns <= 0) continue;
+
+          sum += signature[fy * from + fx] * rows * columns;
+          weight += rows * columns;
+        }
+      }
+
+      pooled.push(weight > 0 ? sum / weight : 0);
+    }
+  }
+
+  const strongest = Math.max(...pooled);
+  return strongest > 0 ? pooled.map(e => (e / strongest) * 100) : pooled;
+}
+
+/**
+ * Compare edge signatures cell by cell. Two signatures read on different
+ * square grids are compared on the coarser of the two: the finer one is
+ * pooled down to it. A signature that is empty or is not a square grid has no
+ * cells to line up with the other's, and scores 0.
  */
 function compareEdgeSignatures(e1: number[], e2: number[]): number {
-  if (e1.length !== e2.length || e1.length === 0) {
+  if (e1.length !== e2.length) {
+    const side1 = edgeGridSide(e1);
+    const side2 = edgeGridSide(e2);
+    if (side1 === 0 || side2 === 0) {
+      return 0;
+    }
+    const side = Math.min(side1, side2);
+    return compareEdgeSignatures(poolEdgeSignature(e1, side), poolEdgeSignature(e2, side));
+  }
+
+  if (e1.length === 0) {
     return 0;
   }
   
