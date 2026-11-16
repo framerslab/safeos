@@ -51,6 +51,20 @@ export const flat = (width: number, height: number, colour: Colour): ImageData =
   picture(width, height, () => colour);
 
 /**
+ * One colour with a centred block of another: the block spans the middle half
+ * of the width and of the height, a quarter of the picture.
+ */
+export const centredBlock = (
+  width: number,
+  height: number,
+  around: Colour,
+  block: Colour
+): ImageData =>
+  picture(width, height, (x, y) =>
+    x >= width / 4 && x < (width * 3) / 4 && y >= height / 4 && y < (height * 3) / 4 ? block : around
+  );
+
+/**
  * The fingerprint generateFingerprint stores for a picture: the same
  * extractors with the same defaults (32 buckets, 5 colours, an 8 by 8 edge
  * grid), without the image loading a browser does first.

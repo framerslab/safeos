@@ -21,7 +21,7 @@ import {
   type MatchRegion,
 } from '../src/lib/subject-matcher';
 import type { VisualFingerprint } from '../src/lib/visual-fingerprint';
-import { canvasOf, enrol, stripes } from './helpers/pictures';
+import { canvasOf, enrol, flat, installCanvasDocument, stripes, videoOf } from './helpers/pictures';
 
 // =============================================================================
 // Mock Data
@@ -471,5 +471,62 @@ describe('Colour sensitivity', () => {
     expect(lenient).toBeGreaterThanOrEqual(neutral);
     expect(strict).toBeLessThan(neutral);
     expect(strict).toBeGreaterThan(0);
+  });
+});
+
+describe('Adaptive lighting', () => {
+  let removeDocument: () => void;
+
+  beforeEach(() => {
+    removeDocument = installCanvasDocument();
+  });
+
+  afterEach(() => {
+    removeDocument();
+  });
+
+  it('never lets a scene unlike the subject through the gate, however long it is watched', () => {
+    const subject = enrol(flat(128, 128, [200, 30, 30]));
+    const scene = flat(128, 128, [30, 30, 200]);
+
+    // The scene's regions score above the record line of 40, so a frame that
+    // passes the gate comes back as a match. A record line of 0 leaves the
+    // gate open.
+    const ungated = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: false, motionPriority: false });
+    ungated.setFingerprint(subject);
+    ungated.setActive(true);
+    expect(ungated.processCanvas(canvasOf(scene))?.confidence).toBeGreaterThanOrEqual(40);
+
+    const matcher = new SubjectMatcher({ minConfidenceForRecord: 40, adaptiveLighting: true, motionPriority: false });
+    matcher.setFingerprint(subject);
+    matcher.setActive(true);
+
+    const matchedFrames: number[] = [];
+    for (let frame = 0; frame < 60; frame++) {
+      if (matcher.processFrame(videoOf(scene))) {
+        matchedFrames.push(frame);
+      }
+    }
+
+    expect(matchedFrames).toEqual([]);
+  });
+
+  it('scores the frame it corrected, not the one the camera gave', () => {
+    // The subject in even light, and the same picture 60 levels darker.
+    const lit = stripes(128, 128, [68, 68, 68], [188, 188, 188]);
+    const dim = stripes(128, 128, [8, 8, 8], [128, 128, 128]);
+    const lastOfWatch = (adaptiveLighting: boolean) => {
+      const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting, motionPriority: false });
+      matcher.setFingerprint(enrol(lit));
+      matcher.setActive(true);
+      let last: MatchResult | null = null;
+      for (let frame = 0; frame < 80; frame++) {
+        last = matcher.processFrame(videoOf(dim));
+      }
+      return last;
+    };
+
+    expect(lastOfWatch(false)?.confidence).toBeLessThan(100);
+    expect(lastOfWatch(true)?.confidence).toBe(100);
   });
 });
