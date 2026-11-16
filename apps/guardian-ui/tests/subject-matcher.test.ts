@@ -20,7 +20,15 @@ import {
   type MatcherState,
   type MatchRegion,
 } from '../src/lib/subject-matcher';
-import type { VisualFingerprint } from '../src/lib/visual-fingerprint';
+import {
+  calculateAverageColor,
+  calculateColorVariance,
+  estimateSizeRatio,
+  extractColorHistogram,
+  extractDominantColors,
+  extractEdgeSignature,
+  type VisualFingerprint,
+} from '../src/lib/visual-fingerprint';
 
 // =============================================================================
 // Mock Data
@@ -408,5 +416,79 @@ describe('Edge Cases', () => {
     
     const settings = matcher.getSettings();
     expect(settings.scanGridSize).toBe(16);
+  });
+});
+
+// =============================================================================
+// Scoring real pixels
+// =============================================================================
+
+type Colour = [number, number, number];
+
+/** A picture whose pixel at (x, y) has the colour `colourAt` returns. */
+function picture(width: number, height: number, colourAt: (x: number, y: number) => Colour): ImageData {
+  const data = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const [r, g, b] = colourAt(x, y);
+      const i = (y * width + x) * 4;
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = 255;
+    }
+  }
+  return new ImageData(data, width, height);
+}
+
+/** Vertical stripes one pixel wide: even columns black, odd columns white. */
+const stripes = (width: number, height: number): ImageData =>
+  picture(width, height, (x) => (x % 2 === 0 ? [0, 0, 0] : [255, 255, 255]));
+
+/**
+ * The fingerprint generateFingerprint stores for a picture: the same
+ * extractors with the same defaults (32 buckets, 5 colours, an 8 by 8 edge
+ * grid), without the image loading a browser does first.
+ */
+function enrol(pixels: ImageData): VisualFingerprint {
+  const averageColor = calculateAverageColor(pixels);
+  return {
+    id: 'subject',
+    name: 'subject',
+    referenceImages: [],
+    createdAt: '',
+    colorHistogram: extractColorHistogram(pixels, 32),
+    dominantColors: extractDominantColors(pixels, 5),
+    averageColor,
+    colorVariance: calculateColorVariance(pixels, averageColor),
+    estimatedSizeRatio: estimateSizeRatio(pixels),
+    edgeSignature: extractEdgeSignature(pixels, 8),
+  };
+}
+
+/** A canvas that hands processCanvas the given pixels. */
+const canvasOf = (pixels: ImageData): HTMLCanvasElement =>
+  ({
+    width: pixels.width,
+    height: pixels.height,
+    getContext: () => ({ getImageData: () => pixels }),
+  }) as unknown as HTMLCanvasElement;
+
+describe('Edge term on the enrolled grid', () => {
+  it('scores the enrolled picture 100 on edges and 100 overall', () => {
+    const pixels = stripes(128, 128);
+    const enrolled = enrol(pixels);
+    const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: false, motionPriority: false });
+    matcher.setFingerprint(enrolled);
+    matcher.setActive(true);
+
+    const result = matcher.processCanvas(canvasOf(pixels));
+
+    // Enrolment keeps one edge value per cell of an 8 by 8 grid.
+    expect(enrolled.edgeSignature).toHaveLength(64);
+    // Every sampled pixel of the stripes has the same horizontal step, so
+    // every cell of the subject and of each scanned region reads 100.
+    expect(result?.details.edgeMatch).toBe(100);
+    expect(result?.confidence).toBe(100);
   });
 });
