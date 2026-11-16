@@ -25,6 +25,7 @@ import {
   BLACK,
   WHITE,
   canvasOf,
+  centredBlock,
   enrol,
   flat,
   installCanvasDocument,
@@ -583,5 +584,44 @@ describe('Motion priority', () => {
 
   it('scans nothing when nothing moved', () => {
     expect(watch(flat(128, 128, GREY))).toBeNull();
+  });
+});
+
+describe('Size tolerance', () => {
+  // The subject fills a quarter of its photo: a white block on black. A flat
+  // black frame has no foreground in any region, so the two sizes are 25
+  // points of the picture apart.
+  const sizeTermAt = (sizeTolerance: number): number | undefined => {
+    const matcher = new SubjectMatcher({
+      sizeTolerance,
+      minConfidenceForRecord: 0,
+      adaptiveLighting: false,
+      motionPriority: false,
+    });
+    matcher.setFingerprint(enrol(centredBlock(128, 128, BLACK, WHITE)));
+    matcher.setActive(true);
+    return matcher.processCanvas(canvasOf(flat(128, 128, BLACK)))?.details.sizeMatch;
+  };
+
+  it('is the size difference at which the size term reaches 0', () => {
+    // 25 points apart is half of a tolerance of 50, a quarter of 100, and all
+    // of 25.
+    expect(sizeTermAt(50)).toBe(50);
+    expect(sizeTermAt(100)).toBe(75);
+    expect(sizeTermAt(25)).toBe(0);
+  });
+
+  it('at 0 gives the size term only to a region of the subject\'s size', () => {
+    expect(sizeTermAt(0)).toBe(0);
+
+    const matcher = new SubjectMatcher({
+      sizeTolerance: 0,
+      minConfidenceForRecord: 0,
+      adaptiveLighting: false,
+      motionPriority: false,
+    });
+    matcher.setFingerprint(enrol(stripes(128, 128)));
+    matcher.setActive(true);
+    expect(matcher.processCanvas(canvasOf(stripes(128, 128)))?.details.sizeMatch).toBe(100);
   });
 });
