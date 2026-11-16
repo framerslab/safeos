@@ -661,8 +661,16 @@ export interface ComparisonResult {
   details: string;
 }
 
+/** The size tolerance used when the caller gives none. */
+export const DEFAULT_SIZE_TOLERANCE = 50;
+
 /**
- * Compare two fingerprints
+ * Compare two fingerprints.
+ *
+ * `sizeTolerance` (0 to 100) is the difference between the two size ratios,
+ * in points of the picture, at which the size term reaches 0. Equal sizes
+ * score 100 at every tolerance; at 50 a difference of 25 points scores 50; at
+ * 0 only equal sizes score.
  */
 export function compareFingerprints(
   fp1: VisualFingerprint,
@@ -672,7 +680,8 @@ export function compareFingerprints(
     dominant: 0.35,
     edge: 0.15,
     size: 0.1,
-  }
+  },
+  sizeTolerance: number = DEFAULT_SIZE_TOLERANCE
 ): ComparisonResult {
   // Color histogram match (Earth Mover's Distance approximation)
   const colorMatch = compareHistograms(fp1.colorHistogram, fp2.colorHistogram);
@@ -684,8 +693,7 @@ export function compareFingerprints(
   const edgeMatch = compareEdgeSignatures(fp1.edgeSignature, fp2.edgeSignature);
   
   // Size ratio match
-  const sizeDiff = Math.abs(fp1.estimatedSizeRatio - fp2.estimatedSizeRatio);
-  const sizeMatch = Math.max(0, 100 - sizeDiff * 200);
+  const sizeMatch = compareSizeRatios(fp1.estimatedSizeRatio, fp2.estimatedSizeRatio, sizeTolerance);
   
   // Weighted overall score
   const overall = Math.round(
@@ -834,6 +842,21 @@ function compareEdgeSignatures(e1: number[], e2: number[]): number {
   
   const avgDiff = diff / e1.length;
   return Math.max(0, 100 - avgDiff);
+}
+
+/**
+ * Compare size ratios (each 0 to 1). The score falls in a straight line from
+ * 100 for equal ratios to 0 at a difference of `tolerance` points.
+ */
+function compareSizeRatios(ratio1: number, ratio2: number, tolerance: number): number {
+  const sizeDiff = Math.abs(ratio1 - ratio2);
+  const allowed = Math.max(0, Math.min(100, tolerance));
+
+  if (allowed === 0) {
+    return sizeDiff === 0 ? 100 : 0;
+  }
+
+  return Math.max(0, 100 - sizeDiff * (10000 / allowed));
 }
 
 /**

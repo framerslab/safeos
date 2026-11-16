@@ -53,7 +53,7 @@ export interface MatcherSettings {
   minConfidenceForAlert: number;      // 0-100, trigger sound/notification
   minConfidenceForRecord: number;     // 0-100, save frame to gallery
   colorSensitivity: number;           // 0-100, higher = more strict
-  sizeTolerance: number;              // 0-100, how much size variation allowed
+  sizeTolerance: number;              // 0-100, the size difference (points of the picture) at which the size term reaches 0
   scanGridSize: number;               // Grid size for region scanning (4-16)
   processingMode: 'local' | 'hybrid'; // Local only or AI-enhanced
   adaptiveLighting: boolean;          // Adjust for lighting variations
@@ -375,7 +375,12 @@ export class SubjectMatcher {
 
         // Compare region to fingerprint
         const regionFingerprint = this.createQuickFingerprint(regionData);
-        const comparison = compareFingerprints(this.fingerprint, regionFingerprint);
+        const comparison = compareFingerprints(
+          this.fingerprint,
+          regionFingerprint,
+          undefined,
+          this.settings.sizeTolerance
+        );
 
         // Apply sensitivity adjustment
         const adjustedConfidence = this.applySensitivity(comparison.overall);
