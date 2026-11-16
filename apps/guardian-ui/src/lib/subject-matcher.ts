@@ -339,10 +339,18 @@ export class SubjectMatcher {
     // Scan grid cells
     for (let gy = 0; gy < gridSize - 1; gy++) {
       for (let gx = 0; gx < gridSize - 1; gx++) {
-        // Skip if no motion in this region (when motion priority enabled)
+        // Skip if no motion in this region (when motion priority enabled).
+        // A region covers four cells of the motion mask; it is scanned when
+        // any of them moved, so motion in the last column or row of cells is
+        // covered by the regions that end there.
         if (this.settings.motionPriority && this.motionMask.length > 0) {
           const maskIdx = gy * gridSize + gx;
-          if (!this.motionMask[maskIdx]) {
+          const moved =
+            this.motionMask[maskIdx] ||
+            this.motionMask[maskIdx + 1] ||
+            this.motionMask[maskIdx + gridSize] ||
+            this.motionMask[maskIdx + gridSize + 1];
+          if (!moved) {
             continue;
           }
         }
