@@ -18,7 +18,6 @@ import {
   estimateSizeRatio,
   edgeGridSide,
   DEFAULT_EDGE_GRID_SIZE,
-  RGB,
   colorDistance,
 } from './visual-fingerprint';
 
@@ -80,6 +79,19 @@ const DEFAULT_SETTINGS: MatcherSettings = {
   motionPriority: true,
 };
 
+/**
+ * Adaptive lighting moves a frame's average brightness toward mid-grey, the
+ * brightness a camera's own exposure aims for. The reference is fixed: it
+ * does not depend on the subject being watched for.
+ */
+const NEUTRAL_BRIGHTNESS = 128;
+
+/** The most a frame is brightened or darkened, in levels of 0 to 255. */
+const MAX_LIGHTING_CORRECTION = 64;
+
+/** The share of each new frame's own correction taken into the running one. */
+const LIGHTING_SMOOTHING = 0.1;
+
 // =============================================================================
 // Subject Matcher Engine
 // =============================================================================
@@ -91,7 +103,7 @@ export class SubjectMatcher {
   private previousFrame: ImageData | null = null;
   private motionMask: boolean[] = [];
   private frameCount: number = 0;
-  private lightingOffset: RGB = { r: 0, g: 0, b: 0 };
+  private lightingOffset: number = 0;
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
 
@@ -187,7 +199,7 @@ export class SubjectMatcher {
     this.previousFrame = null;
     this.motionMask = [];
     this.frameCount = 0;
-    this.lightingOffset = { r: 0, g: 0, b: 0 };
+    this.lightingOffset = 0;
   }
 
   /**
@@ -223,8 +235,11 @@ export class SubjectMatcher {
     this.previousFrame = this.cloneImageData(frameData);
     this.frameCount++;
 
+    // The gate and the region scores read one frame: the corrected one.
+    const litFrame = this.correctLighting(frameData);
+
     // Quick full-frame check first
-    const quickScore = this.quickFrameCheck(frameData);
+    const quickScore = this.quickFrameCheck(litFrame);
     
     if (quickScore < this.settings.minConfidenceForRecord / 2) {
       // No potential match, skip detailed analysis
@@ -232,7 +247,7 @@ export class SubjectMatcher {
     }
 
     // Detailed region scanning
-    const result = this.scanRegions(frameData, this.canvas.width, this.canvas.height, startTime);
+    const result = this.scanRegions(litFrame, this.canvas.width, this.canvas.height, startTime);
 
     if (result) {
       // Update state
@@ -259,7 +274,9 @@ export class SubjectMatcher {
   }
 
   /**
-   * Process a canvas element directly
+   * Process a canvas element directly. A single picture says nothing about
+   * how the light is changing, so this applies the lighting correction the
+   * watched frames have built up and leaves it as it is.
    */
   processCanvas(canvas: HTMLCanvasElement): MatchResult | null {
     if (!this.state.isActive || !this.fingerprint) {
@@ -272,7 +289,7 @@ export class SubjectMatcher {
       return null;
     }
 
-    const frameData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const frameData = this.correctLighting(ctx.getImageData(0, 0, canvas.width, canvas.height));
 
     // Quick check
     const quickScore = this.quickFrameCheck(frameData);
@@ -288,13 +305,17 @@ export class SubjectMatcher {
    */
   private quickFrameCheck(frameData: ImageData): number {
     if (!this.fingerprint) return 0;
-    
-    // Apply lighting offset if enabled
-    const adjustedFrame = this.settings.adaptiveLighting
-      ? this.adjustLighting(frameData)
-      : frameData;
 
-    return quickCompare(this.fingerprint, adjustedFrame);
+    return quickCompare(this.fingerprint, frameData);
+  }
+
+  /**
+   * The frame the gate and the region scores read: the camera's frame with
+   * the lighting correction applied, or the camera's frame itself when
+   * adaptive lighting is off.
+   */
+  private correctLighting(frameData: ImageData): ImageData {
+    return this.settings.adaptiveLighting ? this.adjustLighting(frameData) : frameData;
   }
 
   /**
@@ -485,39 +506,41 @@ export class SubjectMatcher {
   }
 
   /**
-   * Update lighting offset for adaptive lighting
+   * Update lighting offset for adaptive lighting. The offset is the number of
+   * levels that brings the frame's average brightness to mid-grey, limited to
+   * MAX_LIGHTING_CORRECTION and smoothed over frames. It follows the scene's
+   * light only: the subject's colours play no part, so no scene is moved
+   * toward the subject.
    */
   private updateLightingOffset(frameData: ImageData): void {
-    if (!this.fingerprint) return;
-
     const frameAvg = calculateAverageColor(frameData);
-    const refAvg = this.fingerprint.averageColor;
+    const brightness = (frameAvg.r + frameAvg.g + frameAvg.b) / 3;
+    const wanted = Math.max(
+      -MAX_LIGHTING_CORRECTION,
+      Math.min(MAX_LIGHTING_CORRECTION, NEUTRAL_BRIGHTNESS - brightness)
+    );
 
-    // Calculate offset (smooth update)
-    const alpha = 0.1; // Smoothing factor
-    this.lightingOffset = {
-      r: Math.round(this.lightingOffset.r * (1 - alpha) + (refAvg.r - frameAvg.r) * alpha),
-      g: Math.round(this.lightingOffset.g * (1 - alpha) + (refAvg.g - frameAvg.g) * alpha),
-      b: Math.round(this.lightingOffset.b * (1 - alpha) + (refAvg.b - frameAvg.b) * alpha),
-    };
+    this.lightingOffset =
+      this.lightingOffset * (1 - LIGHTING_SMOOTHING) + wanted * LIGHTING_SMOOTHING;
   }
 
   /**
-   * Apply lighting adjustment to frame
+   * Apply lighting adjustment to frame: the same number of levels on red,
+   * green and blue, so the frame gets brighter or darker and keeps its
+   * colours.
    */
   private adjustLighting(frameData: ImageData): ImageData {
-    if (this.lightingOffset.r === 0 && 
-        this.lightingOffset.g === 0 && 
-        this.lightingOffset.b === 0) {
+    const offset = Math.round(this.lightingOffset);
+    if (offset === 0) {
       return frameData;
     }
 
     const adjusted = new Uint8ClampedArray(frameData.data.length);
     
     for (let i = 0; i < frameData.data.length; i += 4) {
-      adjusted[i] = Math.max(0, Math.min(255, frameData.data[i] + this.lightingOffset.r));
-      adjusted[i + 1] = Math.max(0, Math.min(255, frameData.data[i + 1] + this.lightingOffset.g));
-      adjusted[i + 2] = Math.max(0, Math.min(255, frameData.data[i + 2] + this.lightingOffset.b));
+      adjusted[i] = Math.max(0, Math.min(255, frameData.data[i] + offset));
+      adjusted[i + 1] = Math.max(0, Math.min(255, frameData.data[i + 1] + offset));
+      adjusted[i + 2] = Math.max(0, Math.min(255, frameData.data[i + 2] + offset));
       adjusted[i + 3] = frameData.data[i + 3];
     }
 
