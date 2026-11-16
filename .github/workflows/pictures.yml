@@ -10,10 +10,11 @@
 # (scripts/home-checks.mjs) and checks the Test
 # Alerts page's alert key (its generated tones start, an analyser on the
 # way to the speakers reads signal, no sound file is asked for). Both
-# versions capture the dashboard after setup and its header menu open; the
-# pull request's own capture checks that the dashboard's Lost & Found,
-# Security and Wildlife cards open their pages and that the header menu
-# lists all three while the header row stays one row from 320 to 768 pixels.
+# versions capture the dashboard after setup and, on a build with the earlier
+# header, its menu open; the pull request's own capture checks that the
+# dashboard's Lost & Found, Security and Wildlife cards open their pages.
+# The app's header, phone bar and footer are checked by
+# scripts/app-checks.mjs.
 # Both versions capture setup's camera step after a refused camera request;
 # the pull request's own capture walks setup to the dashboard with no camera;
 # see scripts/capture-pictures.mjs.

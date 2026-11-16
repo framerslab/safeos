@@ -25,12 +25,12 @@
 //
 // When /dashboard/ is captured, both versions also capture the dashboard as a
 // person who has finished setup sees it (dashboard-setup-<width>-<look>.png)
-// and its header menu open at 390 pixels (dashboard-menu-390-<look>.png). The
-// pull request's own build then checks that the dashboard's Lost & Found,
-// Security and Wildlife cards are visible at each of the four widths and each
-// opens its page, whose own heading shows; and that from 320 to 768 pixels
-// the header row stays one row with none of those three in it, while the open
-// menu lists all three under its four page links.
+// and, on a build with the earlier header, its menu open at 390 pixels
+// (dashboard-menu-390-<look>.png). The pull request's own build then checks
+// that the dashboard's Lost & Found, Security and Wildlife cards are visible
+// at each of the four widths and each opens its page, whose own heading
+// shows. The app's header, phone bar and footer are checked by
+// scripts/app-checks.mjs.
 //
 // When /setup/ is captured, both versions also capture setup's camera step
 // after a refused camera request (setup-camera-refused-<width>-<look>.png).
@@ -169,7 +169,7 @@ try {
   }
   if (routes.includes('/dashboard/')) {
     failures += await captureDashboardAfterSetup(browser, baseUrl, outDir);
-    if (process.env.PICTURE_VERSION === 'after') failures += await checkModeLinks(browser, baseUrl, outDir);
+    if (process.env.PICTURE_VERSION === 'after') failures += await checkModeLinks(browser, baseUrl);
   }
   // Setup's camera step after a refused request, in both versions. The pull
   // request's own build is then walked to the dashboard with no camera.
@@ -750,15 +750,13 @@ async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
 }
 
 // Pull request build only: Lost & Found, Security and Wildlife are reachable
-// from the dashboard and from the header menu, and the header row stays one row.
-async function checkModeLinks(browser, baseUrl, outDir) {
+// from the dashboard.
+async function checkModeLinks(browser, baseUrl) {
   const MODES = [
     { name: 'Lost & Found', path: '/lost-found', heading: 'Lost & Found' },
     { name: 'Security', path: '/security', heading: 'Security Mode' },
     { name: 'Wildlife', path: '/wildlife', heading: 'Wildlife Detection' },
   ];
-  const MENU_WIDTHS = [320, 360, 390, 430, 480, 768];
-  const PAGE_LINKS = ['/dashboard', '/monitor', '/history', '/settings', ...MODES.map((mode) => mode.path)];
   const problems = [];
   const bare = (href) => (href || '').replace(/\/$/, '');
 
@@ -792,58 +790,6 @@ async function checkModeLinks(browser, baseUrl, outDir) {
           problems.push(`dashboard at ${size.width} px, ${mode.name} card: ${err.message}`);
         }
       }
-    } finally {
-      await context.close();
-    }
-  }
-
-  // The header row is one row with none of the three in it; the open menu
-  // lists them under its four page links.
-  for (const width of MENU_WIDTHS) {
-    const context = await finishedSetupContext(browser, {
-      viewport: { width, height: 800 },
-      isMobile: width < 768, hasTouch: width < 768, colorScheme: 'light',
-    });
-    const page = await context.newPage();
-    try {
-      await openDashboard(page, baseUrl);
-      const header = page.locator('nav[aria-label="Main"]');
-      const rowProblems = () => header.evaluate((nav, paths) => {
-        const out = [];
-        const row = nav.firstElementChild;
-        const rowBox = row.getBoundingClientRect();
-        if (rowBox.height > 64.5) out.push(`row is ${Math.round(rowBox.height)} px tall`);
-        for (const el of row.querySelectorAll('a, button')) {
-          const box = el.getBoundingClientRect();
-          if (box.width === 0 || box.height === 0 || getComputedStyle(el).visibility === 'hidden') continue;
-          const name = el.getAttribute('aria-label') || el.textContent.trim() || el.tagName;
-          if (box.top < rowBox.top - 0.5 || box.bottom > rowBox.bottom + 0.5) out.push(`${name} is outside the row`);
-          if (paths.includes((el.getAttribute('href') || '').replace(/\/$/, ''))) out.push(`${name} is in the row`);
-        }
-        return out;
-      }, MODES.map((mode) => mode.path));
-      for (const p of await rowProblems()) problems.push(`header at ${width} px: ${p}`);
-      await header.locator('button.nav-mobile-toggle').click();
-      const menu = page.locator('.nav-mobile-menu');
-      await menu.waitFor({ timeout: 5_000 });
-      for (const p of await rowProblems()) problems.push(`header at ${width} px with the menu open: ${p}`);
-      for (const mode of MODES) {
-        const link = menu.getByRole('link', { name: mode.name, exact: true });
-        if (!(await link.count())) {
-          problems.push(`menu at ${width} px: no ${mode.name} link`);
-        } else if (bare(await link.getAttribute('href')) !== mode.path) {
-          problems.push(`menu at ${width} px: ${mode.name} links ${await link.getAttribute('href')}`);
-        }
-      }
-      const pages = (await menu.getByRole('link').evaluateAll((links) => links.map((a) => a.getAttribute('href') || '')))
-        .map(bare).filter((href) => href.startsWith('/')).slice(0, PAGE_LINKS.length);
-      if (pages.join(' ') !== PAGE_LINKS.join(' ')) {
-        problems.push(`menu at ${width} px: its first page links are ${pages.join(' ')}, not ${PAGE_LINKS.join(' ')}`);
-      }
-      await page.screenshot({ path: path.join(outDir, `dashboard-menu-check-${width}-light.png`) });
-      console.log(`checked the header row and menu on the dashboard at ${width} px`);
-    } catch (err) {
-      problems.push(`header and menu at ${width} px: ${err.message}`);
     } finally {
       await context.close();
     }

@@ -755,25 +755,6 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       'header: the GitHub link does not open the repository in the same tab');
   });
 
-  // The other public pages carry the app's bottom navigation on a phone; the
-  // footer's last line still reads above it at the end of the page.
-  for (const address of ['/faq/', '/privacy/']) {
-    await open({ name: 'footer, bottom navigation', width: 390 }, async (page) => {
-      await visit(page, new URL(address, baseUrl).toString());
-      await page.locator('nav[aria-label="Mobile navigation"]').waitFor({ timeout: 15_000 });
-      // The page scrolls smoothly; the walk goes straight to its end.
-      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
-      await page.waitForTimeout(500);
-      const seen = await page.evaluate(() => ({
-        end: Math.abs(window.scrollY + window.innerHeight - document.documentElement.scrollHeight) <= 1,
-        last: document.querySelector('.site-footer__last').getBoundingClientRect().bottom,
-        nav: document.querySelector('nav[aria-label="Mobile navigation"]').getBoundingClientRect().top,
-      }));
-      expect(seen.end, `footer on ${address} at 390 px: the walk did not reach the end of the page`);
-      expect(seen.last <= seen.nav, `footer on ${address} at 390 px: its last line ends at ${Math.round(seen.last)} px, under the bottom navigation from ${Math.round(seen.nav)} px`);
-    });
-  }
-
   // After setup the start key reads "Open dashboard" in the header, the first
   // screen, the closing block, the Menu and the footer.
   for (const width of [390, 1280]) {
