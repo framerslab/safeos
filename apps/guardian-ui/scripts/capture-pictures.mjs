@@ -710,7 +710,11 @@ async function openDashboard(page, baseUrl) {
   const state = page.getByRole('heading', { level: 1, name: /^(Not watching|Watching in another tab)$/ });
   const quickActions = page.locator('.panel')
     .filter({ has: page.getByRole('heading', { name: 'Quick Actions', exact: true }) });
-  await Promise.any([state.waitFor({ timeout: 20_000 }), quickActions.waitFor({ timeout: 20_000 })]);
+  // When neither shows, the error names why each wait ended.
+  await Promise.any([state.waitFor({ timeout: 20_000 }), quickActions.waitFor({ timeout: 20_000 })]).catch((err) => {
+    const reasons = (err.errors || [err]).map((reason) => reason.message.split('\n')[0]);
+    throw new Error(`the dashboard showed neither its watching state nor Quick Actions: ${reasons.join('; ')}`);
+  });
   return { redesigned: (await state.count()) > 0, quickActions };
 }
 
