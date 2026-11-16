@@ -16,6 +16,8 @@ import {
   extractColorHistogram,
   extractEdgeSignature,
   estimateSizeRatio,
+  edgeGridSide,
+  DEFAULT_EDGE_GRID_SIZE,
   RGB,
   colorDistance,
 } from './visual-fingerprint';
@@ -422,7 +424,12 @@ export class SubjectMatcher {
     const colorHistogram = extractColorHistogram(imageData, 16);
     const dominantColors = extractDominantColors(imageData, 3);
     const averageColor = calculateAverageColor(imageData);
-    const edgeSignature = extractEdgeSignature(imageData, 4);
+    // Edge signatures are compared cell by cell, so the region is read on the
+    // grid the subject was enrolled on. A subject whose signature is not a
+    // square grid has no cells to line up with; its region is read on the
+    // default grid and its edge term is 0.
+    const edgeGrid = edgeGridSide(this.fingerprint?.edgeSignature ?? []) || DEFAULT_EDGE_GRID_SIZE;
+    const edgeSignature = extractEdgeSignature(imageData, edgeGrid);
     const sizeRatio = estimateSizeRatio(imageData);
 
     return {

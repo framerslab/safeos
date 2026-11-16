@@ -49,10 +49,13 @@ export interface FingerprintOptions {
   downsampleFactor: number;
 }
 
+/** The edge grid a reference photo is read on unless the caller asks for another. */
+export const DEFAULT_EDGE_GRID_SIZE = 8;
+
 const DEFAULT_OPTIONS: FingerprintOptions = {
   histogramBuckets: 32,
   dominantColorCount: 5,
-  edgeGridSize: 8,
+  edgeGridSize: DEFAULT_EDGE_GRID_SIZE,
   downsampleFactor: 4,
 };
 
@@ -408,6 +411,16 @@ export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8)
   // Normalize signature
   const maxEdge = Math.max(...signature, 1);
   return signature.map(e => Math.round((e / maxEdge) * 100));
+}
+
+/**
+ * The side of the square grid an edge signature was read on: 8 for the 64
+ * values of an 8 by 8 grid. Returns 0 when the signature is empty or its
+ * length is not a square number.
+ */
+export function edgeGridSide(signature: number[]): number {
+  const side = Math.round(Math.sqrt(signature.length));
+  return side * side === signature.length ? side : 0;
 }
 
 /**
