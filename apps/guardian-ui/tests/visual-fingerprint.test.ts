@@ -25,7 +25,8 @@ import {
   type VisualFingerprint,
   type ColorBucket,
 } from '../src/lib/visual-fingerprint';
-import { BLACK, WHITE, picture, stripes } from './helpers/pictures';
+import { SubjectMatcher } from '../src/lib/subject-matcher';
+import { BLACK, WHITE, canvasOf, enrol, flat, picture, stripes } from './helpers/pictures';
 
 // =============================================================================
 // Mock ImageData for testing
@@ -445,5 +446,60 @@ describe('Edge signatures read on different grids', () => {
     const odd = withEdges([100, 100, 100, 100, 0, 0, 0, 0]);
 
     expect(compareFingerprints(fine, odd).edgeMatch).toBe(0);
+  });
+});
+
+// =============================================================================
+// Merging reference photos
+// =============================================================================
+
+describe('Merging the colour histograms of reference photos', () => {
+  const photo = stripes(128, 128, [40, 40, 40], [200, 200, 200]);
+  // The same picture one level brighter, as a second photo of one animal is.
+  const brighter = stripes(128, 128, [41, 41, 41], [201, 201, 201]);
+
+  const shares = (fingerprint: VisualFingerprint): number[] =>
+    fingerprint.colorHistogram.map((bucket) => bucket.percentage);
+  const total = (fingerprint: VisualFingerprint): number =>
+    shares(fingerprint).reduce((sum, share) => sum + share, 0);
+
+  it('gives one photo\'s histogram when the photos are identical', () => {
+    const one = enrol(photo);
+    const merged = mergeFingerprints([one, enrol(photo)]);
+
+    expect(merged.colorHistogram).toEqual(one.colorHistogram);
+  });
+
+  it('puts buckets a level apart together and keeps their share', () => {
+    const merged = mergeFingerprints([enrol(photo), enrol(brighter)]);
+
+    // Half dark and half light in both photos: half and half merged.
+    expect(shares(merged)).toEqual([50, 50]);
+  });
+
+  it('keeps the colours of every photo, with shares that add up as one photo\'s do', () => {
+    const striped = enrol(stripes(128, 128));
+    const red = enrol(flat(128, 128, [200, 30, 30]));
+    const merged = mergeFingerprints([striped, red]);
+
+    expect(total(striped)).toBe(100);
+    expect(total(red)).toBe(100);
+    // Red from one photo of two, black and white from the other.
+    expect(shares(merged)).toEqual([50, 25, 25]);
+    expect(total(merged)).toBe(100);
+  });
+
+  it('scores a picture the same against one photo and against two that are a level apart', () => {
+    const one = enrol(photo);
+    const merged = mergeFingerprints([one, enrol(brighter)]);
+    const colourTerm = (subject: VisualFingerprint): number | undefined => {
+      const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: false, motionPriority: false });
+      matcher.setFingerprint(subject);
+      matcher.setActive(true);
+      return matcher.processCanvas(canvasOf(photo))?.details.colorMatch;
+    };
+
+    expect(colourTerm(one)).toBe(100);
+    expect(colourTerm(merged)).toBe(100);
   });
 });
