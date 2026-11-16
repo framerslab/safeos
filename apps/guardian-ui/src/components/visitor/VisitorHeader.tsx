@@ -6,7 +6,7 @@
  * at every width from 320 px. On a phone, and whenever the links do not fit
  * the row (a narrow window or larger text), the links and the start key are
  * rows of the Menu. Before script runs every link works and Menu is a link to
- * the footer's links. App screens keep their own header (layout/Nav).
+ * the footer's links. App pages carry the app's header (components/app).
  *
  * @module components/visitor/VisitorHeader
  */
