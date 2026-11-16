@@ -21,7 +21,18 @@ import {
   type MatchRegion,
 } from '../src/lib/subject-matcher';
 import type { VisualFingerprint } from '../src/lib/visual-fingerprint';
-import { canvasOf, enrol, flat, installCanvasDocument, stripes, videoOf } from './helpers/pictures';
+import {
+  BLACK,
+  WHITE,
+  canvasOf,
+  enrol,
+  flat,
+  installCanvasDocument,
+  picture,
+  stripes,
+  videoOf,
+  type Colour,
+} from './helpers/pictures';
 
 // =============================================================================
 // Mock Data
@@ -528,5 +539,49 @@ describe('Adaptive lighting', () => {
 
     expect(lastOfWatch(false)?.confidence).toBeLessThan(100);
     expect(lastOfWatch(true)?.confidence).toBe(100);
+  });
+});
+
+describe('Motion priority', () => {
+  let removeDocument: () => void;
+
+  beforeEach(() => {
+    removeDocument = installCanvasDocument();
+  });
+
+  afterEach(() => {
+    removeDocument();
+  });
+
+  const GREY: Colour = [128, 128, 128];
+  const striped = (x: number): Colour => (x % 2 === 0 ? BLACK : WHITE);
+
+  // A 128 pixel frame on the default grid of 8 has cells 16 pixels wide: the
+  // last column and the last row of cells start at pixel 112. Regions are two
+  // cells wide and tall, so the last one starts at pixel 96.
+  const watch = (arrived: ImageData) => {
+    const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: false, motionPriority: true });
+    matcher.setFingerprint(enrol(stripes(128, 128)));
+    matcher.setActive(true);
+    matcher.processFrame(videoOf(flat(128, 128, GREY)));
+    return matcher.processFrame(videoOf(arrived));
+  };
+
+  it('scans the region that covers motion in the last column of cells', () => {
+    const result = watch(picture(128, 128, (x) => (x < 112 ? GREY : striped(x))));
+
+    expect(result).not.toBeNull();
+    expect(result?.region?.x).toBe(96);
+  });
+
+  it('scans the region that covers motion in the last row of cells', () => {
+    const result = watch(picture(128, 128, (x, y) => (y < 112 ? GREY : striped(x))));
+
+    expect(result).not.toBeNull();
+    expect(result?.region?.y).toBe(96);
+  });
+
+  it('scans nothing when nothing moved', () => {
+    expect(watch(flat(128, 128, GREY))).toBeNull();
   });
 });
