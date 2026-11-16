@@ -130,6 +130,12 @@ export async function checkApp(browser, baseUrl, outDir) {
       const box = node.getBoundingClientRect();
       return box.width > 0 && box.height > 0 && getComputedStyle(node).visibility !== 'hidden';
     };
+    // The lines a control's words take: one, unless a word broke.
+    const linesOf = (node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return new Set([...range.getClientRects()].filter((rect) => rect.width > 0).map((rect) => Math.round(rect.top))).size;
+    };
     const barBox = bar.getBoundingClientRect();
     const wordmark = header.querySelector('.app-header__brand--link .wordmark');
     return {
@@ -147,6 +153,7 @@ export async function checkApp(browser, baseUrl, outDir) {
             name: node.getAttribute('aria-label') || node.textContent.trim(),
             top: box.top, bottom: box.bottom, left: box.left, right: box.right, width: box.width, height: box.height,
             cut: node.scrollWidth > node.clientWidth + 0.5,
+            lines: kind === 'link' || kind === 'more' ? linesOf(node) : 1,
           };
         }),
     };
@@ -513,6 +520,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(!!lookKey && lookKey.left >= more.right - 0.5 && lookKey.right >= Math.max(...row.items.map((item) => item.right)) - 0.5,
         'the look switch is not the row\'s right-most item after More');
       check(Math.max(...row.items.map((item) => item.top)) < Math.min(...row.items.map((item) => item.bottom)), 'the row is more than one line');
+      for (const item of row.items) check(item.lines === 1, `${item.name}'s words break over ${item.lines} lines (fold ${row.fold})`);
       await page.locator('header.app-header button.app-header__more').click();
       const panel = page.locator('#app-more');
       await panel.waitFor({ state: 'visible', timeout: 5_000 });
@@ -565,6 +573,22 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(closed, 'a press outside More\'s panel did not close it with focus on More');
     });
   }
+
+  // Larger text at every tablet width: a row that runs short folds or
+  // scrolls inside itself, and no word in it, More's included, breaks.
+  await open({ name: 'header, larger text, every tablet width', width: 768, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/history/');
+    await largerText(page);
+    for (let width = 768; width < 1024; width += 8) {
+      await page.setViewportSize({ width, height: 800 });
+      await page.waitForTimeout(300);
+      const row = await page.evaluate(readRow);
+      if (!row) throw new Error('no app header');
+      for (const item of row.items.filter((one) => one.lines > 1)) {
+        check(false, `at ${width} px ${item.name}'s words break over ${item.lines} lines (fold ${row.fold})`);
+      }
+    }
+  });
 
   // Larger text on a phone: the bar keeps one row and scrolls inside itself.
   for (const look of LOOKS) {
