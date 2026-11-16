@@ -12,7 +12,7 @@
  * @module e2e/lost-found-edge.spec
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -62,6 +62,45 @@ function stripedClip(): Buffer {
 
 const CAMERA_FILE = path.join(mkdtempSync(path.join(tmpdir(), 'lost-found-camera-')), 'stripes.y4m');
 writeFileSync(CAMERA_FILE, stripedClip());
+
+// =============================================================================
+// The saved matches
+// =============================================================================
+
+/**
+ * How many matches the browser's database holds. The monitor reports a match
+ * on any frame that scores, and saves one only when the score reaches the
+ * record line, a moment later (it makes a thumbnail first). Leaving the
+ * monitor before that would leave the gallery empty.
+ */
+const savedMatches = (page: Page): Promise<number> =>
+  page.evaluate(async () => {
+    const known = await indexedDB.databases();
+    if (!known.some((database) => database.name === 'safeos-guardian')) {
+      return 0;
+    }
+    return new Promise<number>((resolve) => {
+      const opening = indexedDB.open('safeos-guardian');
+      opening.onerror = () => resolve(0);
+      opening.onsuccess = () => {
+        const database = opening.result;
+        if (!database.objectStoreNames.contains('match_frame')) {
+          database.close();
+          resolve(0);
+          return;
+        }
+        const counting = database.transaction('match_frame').objectStore('match_frame').count();
+        counting.onsuccess = () => {
+          database.close();
+          resolve(counting.result);
+        };
+        counting.onerror = () => {
+          database.close();
+          resolve(0);
+        };
+      };
+    });
+  });
 
 // =============================================================================
 // The test
@@ -148,8 +187,10 @@ test('a match saved from a striped camera picture shows an Edge value above 0', 
   await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/consecutive match/).first()).toBeVisible({ timeout: 60_000 });
 
-  // The match is written to the browser's database a moment after it is
-  // reported; the gallery reads the database when it opens.
+  // Stay on the monitor until a match is in the browser's database; the
+  // gallery reads the database when it opens.
+  await expect.poll(() => savedMatches(page), { timeout: 60_000 }).toBeGreaterThan(0);
+
   const openMatch = page.getByRole('button', { name: 'View match details' }).first();
   await expect(async () => {
     await page.goto('/lost-found/gallery/', { waitUntil: 'networkidle', timeout: 30_000 });
@@ -158,8 +199,19 @@ test('a match saved from a striped camera picture shows an Edge value above 0', 
   await openMatch.click();
 
   // The four scores sit in a row, each a value over its label.
-  const edge = page.getByText('Edge', { exact: true }).locator('xpath=..').locator('p').first();
+  const score = (label: string) =>
+    page.getByText(label, { exact: true }).locator('xpath=..').locator('p').first();
+  const edge = score('Edge');
   await expect(edge).toHaveText(/^\d+(\.\d+)?%$/);
+
+  // The run's log keeps what the gallery showed.
+  const shownScores: string[] = [];
+  for (const label of ['Confidence', 'Color', 'Dominant', 'Edge', 'Size']) {
+    const value = score(label);
+    shownScores.push(`${label} ${(await value.count()) === 1 ? await value.textContent() : 'not read'}`);
+  }
+  console.log(`The saved match shows: ${shownScores.join(', ')}`);
+
   const shown = (await edge.textContent()) ?? '';
   expect(Number.parseFloat(shown)).toBeGreaterThan(0);
 });
