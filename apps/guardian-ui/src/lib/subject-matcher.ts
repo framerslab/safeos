@@ -52,12 +52,12 @@ export interface MatchRegion {
 export interface MatcherSettings {
   minConfidenceForAlert: number;      // 0-100, trigger sound/notification
   minConfidenceForRecord: number;     // 0-100, save frame to gallery
-  colorSensitivity: number;           // 0-100, higher = more strict
+  colorSensitivity: number;           // 0-100: 50 leaves scores as they are, lower raises them, higher lowers near matches (an exact match stays 100)
   sizeTolerance: number;              // 0-100, the size difference (points of the picture) at which the size term reaches 0
   scanGridSize: number;               // Grid size for region scanning (4-16)
   processingMode: 'local' | 'hybrid'; // Local only or AI-enhanced
-  adaptiveLighting: boolean;          // Adjust for lighting variations
-  motionPriority: boolean;            // Focus on moving regions
+  adaptiveLighting: boolean;          // Brighten or darken each frame toward mid-grey before it is scored
+  motionPriority: boolean;            // Score only regions that cover a moving cell
 }
 
 export interface MatcherState {
