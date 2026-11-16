@@ -434,3 +434,42 @@ describe('Edge term on the enrolled grid', () => {
     expect(result?.confidence).toBe(100);
   });
 });
+
+describe('Colour sensitivity', () => {
+  it('still matches the enrolled picture at 100', () => {
+    const pixels = stripes(128, 128);
+    const matcher = new SubjectMatcher({ colorSensitivity: 100, adaptiveLighting: false, motionPriority: false });
+    matcher.setFingerprint(enrol(pixels));
+    matcher.setActive(true);
+
+    const result = matcher.processCanvas(canvasOf(pixels));
+
+    expect(result).not.toBeNull();
+    expect(result?.confidence).toBe(100);
+  });
+
+  it('lowers a near match as it rises, without ever dropping it to 0', () => {
+    const subject = enrol(stripes(128, 128));
+    // The subject's stripes with light grey where the subject is white.
+    const near = stripes(128, 128, [0, 0, 0], [200, 200, 200]);
+    const confidenceAt = (colorSensitivity: number): number => {
+      const matcher = new SubjectMatcher({
+        colorSensitivity,
+        minConfidenceForRecord: 0,
+        adaptiveLighting: false,
+        motionPriority: false,
+      });
+      matcher.setFingerprint(subject);
+      matcher.setActive(true);
+      return matcher.processCanvas(canvasOf(near))?.confidence ?? 0;
+    };
+
+    const lenient = confidenceAt(0);
+    const neutral = confidenceAt(50);
+    const strict = confidenceAt(100);
+
+    expect(lenient).toBeGreaterThanOrEqual(neutral);
+    expect(strict).toBeLessThan(neutral);
+    expect(strict).toBeGreaterThan(0);
+  });
+});
