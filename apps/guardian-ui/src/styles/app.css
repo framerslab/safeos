@@ -230,14 +230,17 @@ html:has(.app-shell) {
   }
 }
 
+/* The links stand one text size apart: 16 px at the usual size, and as far
+   again as the text grows, so under larger text they keep their distance
+   and a row that runs short folds instead of crowding its words. */
 .app-header__links {
   display: flex;
-  gap: 16px;
+  gap: 1rem; /* 16px */
 }
 
 @media (min-width: 64em) {
   .app-header__links {
-    gap: 24px;
+    gap: 1.5rem; /* 24px */
   }
 }
 
