@@ -215,7 +215,8 @@ html:has(.app-shell) {
 }
 
 /* The row: the four destinations, then More while it is needed and the look
-   switch at the right. */
+   switch at the right. The navigation never shrinks: a row that runs short
+   runs past the bar, so the header's script moves to the next fold. */
 .app-header__nav {
   display: none;
 }
@@ -223,7 +224,7 @@ html:has(.app-shell) {
 @media (min-width: 48em) {
   .app-header__nav {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1 0 auto;
     align-items: center;
     gap: 16px;
   }
@@ -317,8 +318,8 @@ html:has(.app-shell) {
   mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
 }
 
-/* More: the word in the ink at weight 700, no edge, the panel colour under
-   the pointer, 1 px lower while pressed. */
+/* More: the word in the ink at weight 700, on one line, no edge, the panel
+   colour under the pointer, 1 px lower while pressed. */
 .app-header__more {
   display: inline-flex;
   align-items: center;
@@ -326,6 +327,7 @@ html:has(.app-shell) {
   min-width: 64px;
   min-height: 44px;
   padding: 0 12px;
+  white-space: nowrap;
   border: 0;
   border-radius: 4px;
   background: transparent;
