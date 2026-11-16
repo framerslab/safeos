@@ -25,6 +25,7 @@ import {
   type VisualFingerprint,
   type ColorBucket,
 } from '../src/lib/visual-fingerprint';
+import { BLACK, WHITE, picture, stripes } from './helpers/pictures';
 
 // =============================================================================
 // Mock ImageData for testing
@@ -395,5 +396,54 @@ describe('Brightness Normalization', () => {
       // Should be darker
       expect(normalized.r).toBeLessThan(bright.r);
     });
+  });
+});
+
+// =============================================================================
+// Edge signatures read on different grids
+// =============================================================================
+
+describe('Edge signatures read on different grids', () => {
+  const withEdges = (edgeSignature: number[]): VisualFingerprint => ({
+    id: 'edges',
+    name: 'Edges',
+    colorHistogram: [{ color: { r: 100, g: 50, b: 25 }, count: 100, percentage: 100 }],
+    dominantColors: [{ r: 100, g: 50, b: 25 }],
+    averageColor: { r: 100, g: 50, b: 25 },
+    colorVariance: 0,
+    estimatedSizeRatio: 0.3,
+    edgeSignature,
+    referenceImages: [],
+    createdAt: '',
+  });
+
+  // Stripes on the left half, one flat colour on the right half: the left
+  // cells of any even grid read 100 and the right cells read 0.
+  const halfStriped = picture(128, 128, (x) => (x < 64 && x % 2 === 1 ? WHITE : BLACK));
+
+  it('pools the finer grid down to the coarser one', () => {
+    const fine = withEdges(extractEdgeSignature(halfStriped, 8));
+    const coarse = withEdges(extractEdgeSignature(halfStriped, 4));
+
+    expect(fine.edgeSignature).toHaveLength(64);
+    expect(coarse.edgeSignature).toHaveLength(16);
+    // The same picture read on two grids is the same picture.
+    expect(compareFingerprints(fine, coarse).edgeMatch).toBe(100);
+    expect(compareFingerprints(coarse, fine).edgeMatch).toBe(100);
+  });
+
+  it('still tells different edges apart across grids', () => {
+    const fine = withEdges(extractEdgeSignature(halfStriped, 8));
+    const striped = withEdges(extractEdgeSignature(stripes(128, 128), 4));
+
+    // Half of the pooled cells read 0 where the striped picture reads 100.
+    expect(compareFingerprints(fine, striped).edgeMatch).toBe(50);
+  });
+
+  it('scores 0 against a signature that is not a square grid', () => {
+    const fine = withEdges(extractEdgeSignature(halfStriped, 8));
+    const odd = withEdges([100, 100, 100, 100, 0, 0, 0, 0]);
+
+    expect(compareFingerprints(fine, odd).edgeMatch).toBe(0);
   });
 });
