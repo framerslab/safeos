@@ -530,15 +530,18 @@ export class SubjectMatcher {
   private applySensitivity(rawConfidence: number): number {
     // colorSensitivity: 0 = very lenient, 100 = very strict
     // At 50, no adjustment
-    const sensitivityFactor = (100 - this.settings.colorSensitivity) / 50;
-    
-    if (sensitivityFactor > 1) {
-      // Lenient - boost scores
-      return Math.min(100, rawConfidence * sensitivityFactor);
-    } else {
-      // Strict - reduce scores
-      return rawConfidence * sensitivityFactor;
+    const sensitivity = Math.max(0, Math.min(100, this.settings.colorSensitivity));
+
+    if (sensitivity < 50) {
+      // Lenient - boost scores, up to double at 0
+      return Math.round(Math.min(100, rawConfidence * ((100 - sensitivity) / 50)));
     }
+
+    // Strict - a score loses more of its distance from a perfect match, up
+    // to twice that distance at 100. A perfect match reads 100 at every
+    // setting, so the strict end lowers near matches and never turns
+    // matching off.
+    return Math.round(Math.max(0, 100 - (100 - rawConfidence) * (sensitivity / 50)));
   }
 
   /**
