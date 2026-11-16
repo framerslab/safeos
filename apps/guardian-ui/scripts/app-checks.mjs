@@ -533,6 +533,14 @@ export async function checkApp(browser, baseUrl, outDir) {
       await page.locator('header.app-header button.app-header__more').click();
       const panel = page.locator('#app-more');
       await panel.waitFor({ state: 'visible', timeout: 5_000 });
+      // The panel fades in. It is pictured once its own animation has ended,
+      // so the picture holds the rows; a panel left short of drawn in full is
+      // a finding.
+      const drawn = await panel.evaluate(async (node) => {
+        await Promise.all(node.getAnimations().map((animation) => animation.finished.catch(() => {})));
+        return getComputedStyle(node).opacity;
+      });
+      check(drawn === '1', `More's open panel is drawn at opacity ${drawn}, not 1`);
       await page.screenshot({ path: path.join(outDir, `header-more-820-${look}.png`) });
       const rows = await page.evaluate(() => {
         const bar = document.querySelector('header.app-header .app-header__bar').getBoundingClientRect();
