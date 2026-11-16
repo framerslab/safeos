@@ -23,6 +23,29 @@ export async function checkApp(browser, baseUrl, outDir) {
   const expect = (ok, message) => { if (!ok) fail(message); };
   const address = (route) => new URL(route, baseUrl).toString();
 
+  // One walk, timed: `start` makes its context and its page, `run` walks
+  // them. Anything that throws, the context's own setup included, is a
+  // finding of this walk; whatever was made is closed, and the next walk runs.
+  const walk = async ({ name, width, look }, start, run, check) => {
+    const made = {};
+    let limit;
+    const ranOver = new Promise((_, reject) => {
+      limit = setTimeout(() => reject(new Error(`did not finish in ${WALK_LIMIT_MS / 1000} seconds`)), WALK_LIMIT_MS);
+    });
+    try {
+      await Promise.race([(async () => {
+        const page = await start(made);
+        await run(page, made.context, check);
+      })(), ranOver]);
+    } catch (err) {
+      fail(`${name} at ${width} px, ${look}: ${err.message.split('\n')[0]}`);
+    } finally {
+      clearTimeout(limit);
+      if (made.context) await made.context.close().catch((err) => fail(`${name} at ${width} px, ${look}: its browser did not close: ${err.message.split('\n')[0]}`));
+      if (made.folder) await rm(made.folder, { recursive: true, force: true });
+    }
+  };
+
   // One walk in a context of its own. `state` seeds the device before the
   // first page loads: 'set-up' (a finished setup), 'new' (nothing saved).
   // The walk is given the page, its context and check(ok, what), which
@@ -30,44 +53,30 @@ export async function checkApp(browser, baseUrl, outDir) {
   const open = async (options, run, { state = 'set-up', script = null, permissions = ['camera', 'microphone', 'notifications'] } = {}) => {
     const { name, width, height = heightOf(width), look = 'light', ...rest } = options;
     const check = (ok, what) => expect(ok, `${name} at ${width} px, ${look}: ${what}`);
-    const context = await browser.newContext({
-      viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768, colorScheme: look, ...rest,
-    });
-    await context.grantPermissions(permissions, { origin: new URL(baseUrl).origin });
-    if (state === 'set-up') await context.addInitScript(SETUP_DONE);
-    if (script) await context.addInitScript(script);
-    const page = await context.newPage();
-    let limit;
-    const ranOver = new Promise((_, reject) => {
-      limit = setTimeout(() => reject(new Error(`did not finish in ${WALK_LIMIT_MS / 1000} seconds`)), WALK_LIMIT_MS);
-    });
-    try {
-      await Promise.race([run(page, context, check), ranOver]);
-    } catch (err) {
-      fail(`${name} at ${width} px, ${look}: ${err.message.split('\n')[0]}`);
-    } finally {
-      clearTimeout(limit);
-      await context.close();
-    }
+    await walk({ name, width, look }, async (made) => {
+      made.context = await browser.newContext({
+        viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768, colorScheme: look, ...rest,
+      });
+      await made.context.grantPermissions(permissions, { origin: new URL(baseUrl).origin });
+      if (state === 'set-up') await made.context.addInitScript(SETUP_DONE);
+      if (script) await made.context.addInitScript(script);
+      return made.context.newPage();
+    }, run, check);
   };
 
   // A walk in a browser profile kept on disk, as a person's own window is.
   // A context made with newContext keeps nothing after it closes.
   const openKept = async (options, run) => {
     const { name, width, height = heightOf(width), look = 'light' } = options;
-    const folder = await mkdtemp(path.join(os.tmpdir(), 'safeos-profile-'));
-    const context = await chromium.launchPersistentContext(folder, {
-      viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768, colorScheme: look,
-      permissions: ['camera', 'microphone', 'notifications'],
-    });
-    try {
-      await run(context.pages()[0] || await context.newPage(), context);
-    } catch (err) {
-      fail(`${name} at ${width} px, ${look}: ${err.message.split('\n')[0]}`);
-    } finally {
-      await context.close();
-      await rm(folder, { recursive: true, force: true });
-    }
+    const check = (ok, what) => expect(ok, `${name} at ${width} px, ${look}: ${what}`);
+    await walk({ name, width, look }, async (made) => {
+      made.folder = await mkdtemp(path.join(os.tmpdir(), 'safeos-profile-'));
+      made.context = await chromium.launchPersistentContext(made.folder, {
+        viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768, colorScheme: look,
+        permissions: ['camera', 'microphone', 'notifications'],
+      });
+      return made.context.pages()[0] || made.context.newPage();
+    }, run, check);
   };
 
   const visit = (page, route) => page.goto(address(route), { waitUntil: 'networkidle', timeout: 60_000 });
