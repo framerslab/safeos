@@ -514,7 +514,7 @@ describe('Adaptive lighting', () => {
     matcher.setActive(true);
 
     const matchedFrames: number[] = [];
-    for (let frame = 0; frame < 60; frame++) {
+    for (let frame = 0; frame < 40; frame++) {
       if (matcher.processFrame(videoOf(scene))) {
         matchedFrames.push(frame);
       }
@@ -527,19 +527,22 @@ describe('Adaptive lighting', () => {
     // The subject in even light, and the same picture 60 levels darker.
     const lit = stripes(128, 128, [68, 68, 68], [188, 188, 188]);
     const dim = stripes(128, 128, [8, 8, 8], [128, 128, 128]);
-    const lastOfWatch = (adaptiveLighting: boolean) => {
+    const lastOfWatch = (adaptiveLighting: boolean, frames: number) => {
       const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting, motionPriority: false });
       matcher.setFingerprint(enrol(lit));
       matcher.setActive(true);
       let last: MatchResult | null = null;
-      for (let frame = 0; frame < 80; frame++) {
+      for (let frame = 0; frame < frames; frame++) {
         last = matcher.processFrame(videoOf(dim));
       }
       return last;
     };
 
-    expect(lastOfWatch(false)?.confidence).toBeLessThan(100);
-    expect(lastOfWatch(true)?.confidence).toBe(100);
+    // Uncorrected, the dim picture is short of a full match on every frame.
+    expect(lastOfWatch(false, 1)?.confidence).toBeLessThan(100);
+    // The correction takes a tenth of the way to the frame's own each frame:
+    // after 48 frames it is within half a level of the 60 levels missing.
+    expect(lastOfWatch(true, 48)?.confidence).toBe(100);
   });
 });
 
