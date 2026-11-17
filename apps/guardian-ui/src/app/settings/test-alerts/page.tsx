@@ -65,6 +65,10 @@ export default function TestAlertsPage() {
 
   const soundManager = useSoundManager();
   const notifications = useNotifications();
+  // The Preview Volume slider's own value, 0 to 100; the alert volume the watch
+  // uses stays as the person set it.
+  const [previewVolume, setPreviewVolume] = useState<number | null>(null);
+  const shownVolume = previewVolume ?? globalSettings.alertVolume;
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -451,28 +455,29 @@ export default function TestAlertsPage() {
           {/* Volume Preview Control */}
           <div className="mb-6 p-4 bg-slate-900/50 rounded-lg">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-sm font-medium text-slate-300">
-                Preview Volume: {globalSettings.alertVolume}%
+              <label htmlFor="preview-volume" className="text-sm font-medium text-slate-300">
+                Preview Volume: {shownVolume}%
               </label>
               <span className="text-xs text-slate-500">
-                Current setting from preferences
+                {previewVolume === null ? 'Current setting from preferences' : 'Preview only; your alert volume stays as set'}
               </span>
             </div>
             <div className="flex items-center gap-4">
               <IconVolume2 size={18} className="text-slate-400" />
               <input
+                id="preview-volume"
                 type="range"
                 min="0"
                 max="100"
-                value={globalSettings.alertVolume}
+                value={shownVolume}
                 onChange={(e) => {
-                  // Preview volume (doesn't save)
-                  soundManager.updateVolume(Number(e.target.value) / 100);
+                  // Preview volume (doesn't save): the sound buttons below play at it.
+                  setPreviewVolume(Number(e.target.value));
                 }}
                 className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
               />
               <span className="text-sm text-white font-mono w-12 text-right">
-                {globalSettings.alertVolume}%
+                {shownVolume}%
               </span>
             </div>
           </div>
@@ -485,7 +490,8 @@ export default function TestAlertsPage() {
                 type={type}
                 onPlay={() => {
                   const start = performance.now();
-                  soundManager.test(type);
+                  // As test() plays it, at the preview volume.
+                  soundManager.play(type, { loop: false, fadeIn: 0, fadeOut: 200, volume: shownVolume });
                   return start;
                 }}
               />

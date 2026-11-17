@@ -34,6 +34,7 @@ import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } fro
 import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
+import { clearNapSession, napTimeIsUp, readNapSession, takeNapStart } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -375,6 +376,44 @@ export default function MonitorPage() {
     if (serverRequestedRef.current) sendMessage({ type: 'stop-stream' });
     serverRequestedRef.current = false;
   };
+
+  // The person's Stop. Stopping a watch started from Nap Mode ends the nap, and
+  // the Nap preset gives way, as I'm Awake did on the nap screen, while it is
+  // the setting in use; a setting the person chose during the nap stays. A
+  // camera failure stops the watch without ending the nap, so starting again
+  // keeps its setting.
+  const stopWatching = () => {
+    if (readNapSession()) {
+      clearNapSession();
+      const settings = useSettingsStore.getState();
+      if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
+    }
+    stopStream();
+  };
+
+  // A watch started from Nap Mode starts on arrival, once. The ref keeps this
+  // mount's answer, so React's Strict Mode, which runs the effect again after
+  // the unmount cleanup below has cleared captureRequestedRef, requests the
+  // capture again instead of finding the nap's start already taken.
+  const napStartRef = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (napStartRef.current === null) napStartRef.current = takeNapStart(Date.now());
+    if (!napStartRef.current) return;
+    captureRequestedRef.current = true;
+    setCaptureRequested(true);
+    setVideoSeen(false);
+  }, []);
+
+  // Once the nap's planned minutes have passed, the warning plays every 30
+  // seconds while the watch runs, as the nap screen did.
+  useEffect(() => {
+    if (!captureRequested) return;
+    const interval = window.setInterval(() => {
+      const nap = readNapSession();
+      if (nap && napTimeIsUp(nap, Date.now())) getSoundManager().play('warning');
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  }, [captureRequested]);
 
   const handleVideoReady = (video: HTMLVideoElement | null) => {
     videoRef.current = video;
@@ -1084,7 +1123,7 @@ export default function MonitorPage() {
 
               {captureRequested && (
                 <button
-                  onClick={stopStream}
+                  onClick={stopWatching}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
                 >
                   {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
