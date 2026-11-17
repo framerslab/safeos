@@ -15,10 +15,23 @@
  * three samples out of four, so the motion reading is three quarters of the
  * redrawn part, on every sample, with no dip under the line.
  *
+ * The times are read inside the page: an observer notes the moment the
+ * alert list's count of each kind of card goes up, so the gap between two
+ * alerts does not depend on how often the test looks.
+ *
  * Run in CI by ci.yml's "Web app alert walk" job against the static export.
  */
 
-import { test, expect, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+type Kind = 'motion' | 'pixel';
+
+declare global {
+  interface Window {
+    /** When the alert list's count of each kind of card went up (Date.now()). */
+    __alertTimes?: Record<Kind, number[]>;
+  }
+}
 
 interface Camera {
   /** The share of the picture's width that changes, from the left edge (0 to 1). */
@@ -76,6 +89,23 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
 
+    // An alert card's message line starts with its kind; the screen-reader
+    // summary starts "New ..." and is not counted.
+    const times: Record<Kind, number[]> = { motion: [], pixel: [] };
+    window.__alertTimes = times;
+    const KINDS: Array<[Kind, RegExp]> = [
+      ['motion', /^Motion detected: \d+%/],
+      ['pixel', /^Pixel movement detected/],
+    ];
+    const count = () => {
+      const lines = Array.from(document.querySelectorAll('p'), (p) => p.textContent || '');
+      for (const [kind, pattern] of KINDS) {
+        const shown = lines.filter((line) => pattern.test(line)).length;
+        while (times[kind].length < shown) times[kind].push(Date.now());
+      }
+    };
+    new MutationObserver(count).observe(document, { childList: true, subtree: true, characterData: true });
+
     const W = 320;
     const H = 240;
     const LEVELS = [0, 85, 170, 255];
@@ -122,29 +152,29 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
 }
 
 /**
- * Waits for the first card matching `cards`, then watches the list for
- * `cooldownMs + slackMs`. Returns how many milliseconds after the first
- * card each later card appeared.
+ * Waits for the first alert of `kind`, then lets the page run until
+ * `cooldownMs + slackMs` after it. Returns how many milliseconds after the
+ * first alert each later one appeared.
  */
-async function laterAlerts(page: Page, cards: Locator, cooldownMs: number, slackMs: number): Promise<number[]> {
-  await expect(cards.first()).toBeVisible({ timeout: 60_000 });
-  const first = Date.now();
-  const later: number[] = [];
-  let seen = 1;
-  while (Date.now() - first < cooldownMs + slackMs) {
-    const count = await cards.count();
-    for (; seen < count; seen++) later.push(Date.now() - first);
-    await page.waitForTimeout(100);
-  }
-  return later;
+async function laterAlerts(page: Page, kind: Kind, cooldownMs: number, slackMs: number): Promise<number[]> {
+  await expect
+    .poll(() => page.evaluate((k) => window.__alertTimes?.[k].length ?? 0, kind), { timeout: 60_000 })
+    .toBeGreaterThanOrEqual(1);
+  const first = await page.evaluate((k) => window.__alertTimes![k][0], kind);
+  await page.waitForFunction(
+    ([at, wait]) => Date.now() >= at + wait,
+    [first, cooldownMs + slackMs],
+    { polling: 250, timeout: cooldownMs + slackMs + 30_000 },
+  );
+  const all = await page.evaluate((k) => window.__alertTimes![k], kind);
+  return all.slice(1).map((t) => t - first);
 }
 
-// The alert cards' message lines (the screen-reader summary starts "New ...").
 const motionCards = (page: Page) => page.locator('p', { hasText: /^Motion detected: \d+%/ });
-const pixelCards = (page: Page) => page.locator('p', { hasText: /^Pixel movement detected/ });
 
-// A second alert may be seen up to one 100 ms look, plus one 200 ms motion
-// sample, early or late against the first; it has this long to arrive.
+// The page draws the first alert's card while it is busiest (the list's first
+// render, the sounds), so a later card may be drawn a little sooner after its
+// alert than the first was; it has this long to arrive.
 const EARLY_MS = 750;
 const LATE_MS = 6_000;
 
@@ -161,9 +191,8 @@ test.describe('Alerts repeat while the activity goes on', () => {
     // A third of the width changes: a motion reading of 25 % on a 20 % line,
     // 5 points over it, which is a low alert (cooldown 10 s by default).
     await openMonitor(page, { settings: MOTION_ONLY, camera: { changingWidth: 1 / 3 } });
-    const cards = motionCards(page);
-    const later = await laterAlerts(page, cards, 10_000, LATE_MS);
-    await expect(cards.first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
+    const later = await laterAlerts(page, 'motion', 10_000, LATE_MS);
+    await expect(motionCards(page).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
 
     expect(later.length, `a second motion alert while the motion went on (seen at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(1);
     expect(later[0], 'the second motion alert waited for the low cooldown').toBeGreaterThanOrEqual(10_000 - EARLY_MS);
@@ -179,9 +208,8 @@ test.describe('Alerts repeat while the activity goes on', () => {
       settings: { ...MOTION_ONLY, timingSettings: REPEAT_EVERY_10_S },
       camera: { changingWidth: 1 },
     });
-    const cards = motionCards(page);
-    const later = await laterAlerts(page, cards, 10_000, LATE_MS);
-    await expect(cards.first()).toHaveText(/^Motion detected: [6-9]\d% \(threshold: 20%/);
+    const later = await laterAlerts(page, 'motion', 10_000, LATE_MS);
+    await expect(motionCards(page).first()).toHaveText(/^Motion detected: [6-9]\d% \(threshold: 20%/);
 
     expect(later.length, `a second motion alert while the motion went on (seen at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(1);
     expect(later[0], 'the second motion alert waited for the repeat period').toBeGreaterThanOrEqual(10_000 - EARLY_MS);
@@ -197,8 +225,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
       settings: { timingSettings: REPEAT_EVERY_10_S },
       camera: { changingWidth: 1 },
     });
-    const cards = pixelCards(page);
-    const later = await laterAlerts(page, cards, 10_000, LATE_MS);
+    const later = await laterAlerts(page, 'pixel', 10_000, LATE_MS);
 
     expect(later.length, `a second pixel alert while the picture kept changing (seen at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(1);
     expect(later[0], 'the second pixel alert waited for the repeat period').toBeGreaterThanOrEqual(10_000 - EARLY_MS);
