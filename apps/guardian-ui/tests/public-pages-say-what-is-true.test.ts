@@ -119,7 +119,7 @@ const CHANGELOG = path.join(REPO_ROOT, 'CHANGELOG.md');
 
 // Every file of the components built in the readable look is read, so one
 // added there is read too.
-const LOOK_COMPONENT_DIRS = [component('home'), component('visitor'), component('app')];
+const LOOK_COMPONENT_DIRS = [component('home'), component('visitor'), component('app'), component('settings')];
 
 const SCANNED = Array.from(new Set([
   ...PUBLIC_FILES,
@@ -483,7 +483,8 @@ describe('the public pages say what the software does', () => {
     const missing = [...PUBLIC_FILES, ...CLIP_FILES, README, CHANGELOG].filter((f) => !fs.existsSync(f)).map(rel);
     expect(missing).toEqual([]);
     expect(SCANNED.length).toBeGreaterThan(PUBLIC_FILES.length);
-    // The home page's, the visitor shell's and the app frame's own files are among them.
+    // The home page's, the visitor shell's, the app frame's and Settings' own
+    // rows' files are among them.
     for (const dir of LOOK_COMPONENT_DIRS) expect([rel(dir), SCANNED.some((f) => f.startsWith(dir + path.sep))]).toEqual([rel(dir), true]);
   });
 
