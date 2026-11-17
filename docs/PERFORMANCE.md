@@ -1,0 +1,104 @@
+# Performance
+
+## Measurements on slowed devices
+
+The Measure workflow (`.github/workflows/measure.yml`) records how fast the
+web app's watch, its detection model and Lost & Found matching run in
+Chromium with the CPU slowed. It runs on each push to `master` and when it is
+started by hand (Actions, Measure, Run workflow). It does not run on pull
+requests. It records and does not judge: a slow number never fails the run,
+and a part that could not be measured is written down with the reason.
+
+Each run shows a table in its summary and keeps the `measurements` artifact:
+`measurements.json` holds one object per device class and slow-down, and
+every number in it carries its unit.
+
+### The runner
+
+A GitHub-hosted `ubuntu-latest` runner. The job's first step prints the
+runner's CPU model, its logical CPU count, its memory and its image, and the
+script writes the CPU and memory into `measurements.json`. Numbers from runs
+on different CPU models are not comparable.
+
+The runner has no graphics card, so Chromium draws WebGL in software. The
+model measurement records the TensorFlow.js backend it got and the WebGL
+renderer.
+
+### The device classes
+
+| Class | Viewport | Touch | CPU slow-down |
+|---|---|---|---|
+| Phone | 390 by 844 CSS px, 3 device px per CSS px | yes | 4 times and 6 times |
+| Laptop | 1280 by 800 CSS px, 1 device px per CSS px | no | none (1) and 2 times |
+
+The slow-down is the Chrome DevTools Protocol's
+`Emulation.setCPUThrottlingRate`, which "Enables CPU throttling to emulate
+slow CPUs" with a "slowdown factor (1 is no throttle, 2 is 2x slowdown,
+etc)" ([protocol definition](https://github.com/ChromeDevTools/devtools-protocol/blob/master/pdl/domains/Emulation.pdl)).
+It is an approximation of a slower device, not a measurement on a named
+phone or laptop: a phone's graphics chip, its memory, its heat limits and its
+camera are not modelled. Each measured page times one fixed loop on its main
+thread first (`calibrationLoop`), so each run shows how much slower the
+slowed page really ran.
+
+### The camera
+
+Chromium's fake camera and microphone, fed from the committed sample clip
+(`apps/guardian-ui/public/home/sample-clip.mp4`, made into a `.y4m` and a
+`.wav` file with ffmpeg inside the job, as the Pictures workflow does), so
+each page reads the clip through its real camera path. The clip loops.
+
+### What is measured, and how
+
+The script is `apps/guardian-ui/scripts/measure-devices.mjs`. It serves the
+static export inside the job and gives each class and slow-down three fresh
+browser contexts.
+
+- **The watch (motion and sound).** `/monitor/` with motion and sound on and
+  pixel detection off (`apps/guardian-ui/scripts/home-capture-settings.json`),
+  started with its own Start Monitoring button and watched for 60 s from its
+  first analysed frame. A script added before the page's own scripts times
+  each tick of the page's interval timers, inside the page. A tick that reads
+  the camera's pixels (`getImageData`) is one analysed frame; a tick that
+  reads the microphone's analyser is one sound reading. From these come the
+  frames analysed per second, and the per-frame analysis time as a median and
+  95th percentile: the tick itself, in which the frame is drawn, its pixels
+  are read and compared with the last frame, and the alert check runs. The
+  same figure with the microtasks the tick queued is kept beside it. The
+  watch also records the time from pressing Start Monitoring to the first
+  alert card on the page, the JS heap in use after the 60 s
+  (`performance.memory` with Chromium's precise memory figures on, and
+  DevTools' `Runtime.getHeapUsage`), and the main thread's long tasks (over
+  50 ms) in the 60 s.
+- **The detection model (COCO-SSD, used by Security and Wildlife).** A page
+  the script hands to the browser loads the TensorFlow.js and COCO-SSD builds
+  the app installs (`@tensorflow/tfjs/dist/tf.min.js`,
+  `@tensorflow-models/coco-ssd/dist/coco-ssd.min.js`), picks the WebGL
+  backend and loads `lite_mobilenet_v2` from the address in
+  `apps/guardian-ui/src/lib/detection-model-facts.ts`, as
+  `src/lib/detection-model.ts` does. The bytes are the model host's responses
+  in Chromium's network log: the bodies after decoding, and the bytes on the
+  wire with their headers. The load time runs from the start of the two
+  script loads to the end of COCO-SSD's `load`, which runs the model once on
+  an empty 300 by 300 picture before it returns
+  ([2.2.3 build](https://unpkg.com/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js)).
+  The inference time is `detect` on a 320 by 240 copy of the camera's frame,
+  with at most 10 boxes at a 0.5 score line, as Security's person detector
+  calls it. It runs 41 times back to back: the first run is reported on its
+  own, and the median and 95th percentile come from the other 40. The app
+  keeps the model files in the browser's Cache Storage after the first load;
+  this page does not, so each load is a first load.
+- **Lost & Found.** One subject is enrolled through Lost & Found's own form
+  from a still of the clip (at 1 s), and the monitor is started from it. The
+  matching timer's ticks are timed the same way for 30 s: the per-frame
+  matching time as a median and 95th percentile, and the frames matched per
+  second.
+
+### Reading a run
+
+The table is on the run's summary page on GitHub. From a terminal:
+
+```bash
+gh run list --workflow measure.yml
+gh run download <run-id> -n measurements  # measurements.json and summary.md
+```
