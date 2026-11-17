@@ -45,9 +45,12 @@ it('opens Motion and sound with the infant_sleep preset after the check, and sto
   fireEvent.click(await screen.findByRole('checkbox'));
   fireEvent.click(screen.getByRole('button', { name: 'Continue to Pre-Nap Test' }));
   fireEvent.click(screen.getAllByRole('button', { name: 'Start' })[0]);
-  // The camera passes, the motion check starts half a second later and passes on its first changed frame.
+  // The camera passes; the motion check starts half a second later and passes on its first changed frame,
+  // which enables the sound check's Start.
   await waitFor(() => expect(screen.getAllByRole('button', { name: 'Start' })).toHaveLength(1), { timeout: 3000 });
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Start' }) as HTMLButtonElement).disabled).toBe(false), { timeout: 3000 });
   fireEvent.click(screen.getByRole('button', { name: 'Start' }));
+  // The sound check passes after two seconds, and the last key reads Start Nap Mode.
   const start = await screen.findByRole('button', { name: 'Start Nap Mode' }, { timeout: 4000 });
   await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false), { timeout: 4000 });
   fireEvent.click(start);
