@@ -1106,6 +1106,165 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // Settings' first rows on a phone. The phone's top bar holds the brand
+  // alone, so Settings opens with the look row and then the Help row; from
+  // the tablet width the header row holds both and the rows are not shown.
+  const SETTINGS_LOOK_ROW = '.settings-phone-rows button.settings-row';
+  const SETTINGS_HELP_ROW = '.settings-phone-rows a.settings-row';
+  // The first two controls in the page's own content, with their boxes and
+  // the style of the words they show.
+  const firstControls = () => {
+    const main = document.getElementById('main-content');
+    if (!main) return [];
+    return [...main.querySelectorAll('a[href], button:not([disabled]), input, select, textarea, summary, [tabindex]:not([tabindex="-1"])')]
+      .filter((control) => {
+        const box = control.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && getComputedStyle(control).visibility !== 'hidden';
+      })
+      .slice(0, 2)
+      .map((control) => {
+        const box = control.getBoundingClientRect();
+        const holder = [...control.querySelectorAll('span')].find((span) => span.textContent.trim()) || control;
+        const style = getComputedStyle(holder);
+        return {
+          tag: control.tagName.toLowerCase(),
+          name: (control.getAttribute('aria-label') || control.textContent || '').replace(/\s+/g, ' ').trim(),
+          href: control.getAttribute('href'),
+          width: box.width,
+          height: box.height,
+          words: { family: style.fontFamily, weight: style.fontWeight, size: style.fontSize, color: style.color },
+        };
+      });
+  };
+  const controlSeen = (control) => (control ? `the ${control.tag === 'a' ? 'link' : control.tag} "${control.name}"` : 'nothing');
+  // Where the focused control's ring is cut: by a box round it that clips
+  // what overflows it, or by the fixed header drawn over it.
+  const ringCut = () => {
+    const element = document.activeElement;
+    if (!element || element === document.body) return ['nothing is focused'];
+    const style = getComputedStyle(element);
+    const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+    const box = element.getBoundingClientRect();
+    const ring = { top: box.top - reach, left: box.left - reach, right: box.right + reach, bottom: box.bottom + reach };
+    const cuts = [];
+    for (let node = element.parentElement; node && node !== document.body; node = node.parentElement) {
+      const own = getComputedStyle(node);
+      if (own.overflowX === 'visible' && own.overflowY === 'visible') continue;
+      const edge = node.getBoundingClientRect();
+      const top = edge.top + node.clientTop;
+      const left = edge.left + node.clientLeft;
+      const past = { top: top - ring.top, left: left - ring.left, right: ring.right - (left + node.clientWidth), foot: ring.bottom - (top + node.clientHeight) };
+      const named = `${node.tagName.toLowerCase()}${typeof node.className === 'string' && node.className.trim() ? `.${node.className.trim().split(/\s+/).slice(0, 3).join('.')}` : ''}`;
+      for (const [side, px] of Object.entries(past)) if (px > 0.5) cuts.push(`${px.toFixed(1)} px past the ${side} of ${named}`);
+    }
+    const header = document.querySelector('header.app-header');
+    const foot = header ? header.getBoundingClientRect().bottom : 0;
+    if (ring.top < foot - 0.5) cuts.push(`${(foot - ring.top).toFixed(1)} px under the top bar`);
+    return cuts;
+  };
+
+  for (const look of LOOKS) {
+    await open({ name: 'settings rows on a phone', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/settings/');
+      // The look row takes its place once the page's script has run.
+      await page.locator(SETTINGS_LOOK_ROW).waitFor({ timeout: 10_000 }).catch(() => {});
+      await page.evaluate(() => document.fonts.ready);
+      const [first, second] = await page.evaluate(firstControls);
+      const named = `Switch to the ${OTHER[look]} look`;
+      if (!first || first.tag !== 'button' || first.name !== named) {
+        throw new Error(`the first control in the page is ${controlSeen(first)}, not the button "${named}"`);
+      }
+      const helpPath = second?.href ? new URL(second.href, page.url()).pathname : '';
+      check(second?.tag === 'a' && second.name === 'Help' && helpPath === '/help/', `the second control in the page is ${controlSeen(second)} to "${helpPath}", not the link "Help" to /help/`);
+      for (const control of [first, second].filter(Boolean)) {
+        check(control.height >= 47.5 && control.width >= 357.5, `${controlSeen(control)} is ${control.width.toFixed(1)} px wide and ${control.height.toFixed(1)} px tall, not 358 by 48 or more`);
+        const { family, weight, size, color } = control.words;
+        check(isInter(family) && weight === '700' && size === '16px' && color === INK[look],
+          `the words of ${controlSeen(control)} are ${face(family)} ${weight} at ${size} in ${color}, not Inter 700 at 16px in ${INK[look]}`);
+      }
+      await page.screenshot({ path: path.join(outDir, `settings-rows-390-${look}.png`) });
+      // Held down, each row is drawn 1 px lower with its words at full strength.
+      for (const [what, selector] of [['the look row', SETTINGS_LOOK_ROW], ['the Help row', SETTINGS_HELP_ROW]]) {
+        const seen = await held(page, page.locator(selector), drawnAs);
+        if (!seen) { check(false, `${what} has no box`); continue; }
+        check(seen.opacity === '1' && seen.transform === 'matrix(1, 0, 0, 1, 0, 1)', `${what} held down is drawn at opacity ${seen.opacity} with ${seen.transform}, not 1 px lower at opacity 1`);
+      }
+      // A press turns the page and the rows' ground to the other look in the
+      // frame that follows it.
+      const pressed = await page.evaluate((selector) => new Promise((resolve) => {
+        const rows = document.querySelector('.settings-phone-rows');
+        const read = () => ({ classes: document.documentElement.className, ground: getComputedStyle(rows).backgroundColor });
+        const before = read();
+        document.querySelector(selector).click();
+        requestAnimationFrame(() => resolve({ before, after: read() }));
+      }), SETTINGS_LOOK_ROW);
+      const next = OTHER[look];
+      const classes = pressed.after.classes.split(/\s+/);
+      check(pressed.before.ground === PAGE[look], `the rows stand on ${pressed.before.ground} before the press, not ${PAGE[look]}`);
+      check(classes.includes(next) && !classes.includes(look) && pressed.after.ground === PAGE[next],
+        `the frame after the press has the class "${pressed.after.classes}" and the rows stand on ${pressed.after.ground}, not ${next} and ${PAGE[next]}`);
+      const said = ((await page.locator('.settings-phone-rows [role="status"]').textContent()) || '').trim();
+      const wanted = next === 'dark' ? 'Dark look on' : 'Light look on';
+      check(said === wanted, `after the press the status reads "${said}", not "${wanted}"`);
+      await page.locator(SETTINGS_HELP_ROW).click();
+      await page.waitForURL((url) => url.pathname === '/help/', { timeout: 20_000 }).catch(() => {});
+      check(new URL(page.url()).pathname === '/help/', `a press on the Help row opened ${page.url()}`);
+    });
+  }
+  await open({ name: 'settings rows, larger text', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    const row = page.locator(SETTINGS_LOOK_ROW);
+    await row.waitFor({ timeout: 10_000 });
+    await largerText(page);
+    const seen = await row.evaluate((element) => ({ past: element.scrollWidth - element.clientWidth, height: element.getBoundingClientRect().height }));
+    check(seen.past <= 0, `the look row's words run ${seen.past} px past the row`);
+    check(seen.height > 48, `the look row is ${seen.height.toFixed(1)} px tall, not taller than 48 px`);
+    const sideways = await sidewaysScroll(page);
+    if (sideways > 0) check(false, `the page scrolls ${sideways} px sideways: ${await widest(page)}`);
+  });
+  for (const width of [820, 1280]) {
+    await open({ name: 'settings rows, from the tablet', width, look: 'light' }, async (page, context, check) => {
+      await visit(page, '/settings/');
+      await page.locator('header.app-header button.look-switch').waitFor({ timeout: 10_000 });
+      const rows = await page.evaluate(() => {
+        const part = document.querySelector('.settings-phone-rows');
+        return part ? { height: part.getBoundingClientRect().height, display: getComputedStyle(part).display } : null;
+      });
+      check(!!rows, 'the page has no look row and Help row to leave out');
+      if (rows) check(rows.height === 0, `the look row and the Help row show: their part is ${rows.height.toFixed(1)} px tall (display ${rows.display})`);
+      const row = await page.evaluate(readRow);
+      if (!row) throw new Error('no app header');
+      check(row.items.some((item) => item.kind === 'switch') && row.items.some((item) => item.kind === 'link' && item.name === 'Help'),
+        `the header row holds ${row.items.map((item) => item.name).join(', ')}, not the look switch and Help`);
+    });
+  }
+  await open({ name: 'settings rows, focus', width: 390, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    await page.locator(SETTINGS_LOOK_ROW).waitFor({ timeout: 10_000 }).catch(() => {});
+    // Tab past the header's stops to the first stop in the page.
+    const passed = [];
+    let reached = null;
+    for (let i = 0; i < 12; i += 1) {
+      await page.keyboard.press('Tab');
+      const item = await page.evaluate(stop);
+      if (item?.inMain) { reached = item; break; }
+      passed.push(item?.name ?? 'nothing');
+    }
+    for (const [i, wanted] of ['Switch to the light look', 'Help'].entries()) {
+      if (i > 0) {
+        await page.keyboard.press('Tab');
+        reached = await page.evaluate(stop);
+      }
+      if (!reached || reached.name !== wanted) {
+        throw new Error(`Tab after ${passed.join(' > ') || 'nothing'} reaches ${reached?.name ?? 'nothing in the page'}, not "${wanted}"`);
+      }
+      passed.push(reached.name);
+      check(reached.ring === `solid 2px ${ACCENT.dark}`, `"${wanted}" is ringed ${reached.ring}, not solid 2px ${ACCENT.dark}`);
+      const cut = await page.evaluate(ringCut);
+      check(cut.length === 0, `the ring round "${wanted}" is cut: it is drawn ${cut.join(', ')}`);
+    }
+  });
+
   // An element shows only when it and every element round it are opaque:
   // the browser counts an element with opacity 0 as visible.
   const opacityOf = (page, selector) => page.evaluate((s) => {
