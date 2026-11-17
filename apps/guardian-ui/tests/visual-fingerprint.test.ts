@@ -21,11 +21,14 @@ import {
   quickCompare,
   mergeFingerprints,
   normalizeBrightness,
+  poolEdgeSignature,
+  upgradeFingerprint,
+  addReferencePhotos,
   type RGB,
   type VisualFingerprint,
   type ColorBucket,
 } from '../src/lib/visual-fingerprint';
-import { SubjectMatcher } from '../src/lib/subject-matcher';
+import { SubjectMatcher, regionEdgeSignature } from '../src/lib/subject-matcher';
 import { BLACK, WHITE, canvasOf, enrol, flat, picture, stripes } from './helpers/pictures';
 
 // =============================================================================
@@ -459,6 +462,25 @@ describe('Edge signatures read on different grids', () => {
     expect(compareFingerprints(weakFine, weakCoarse).edgeMatch).toBe(100);
   });
 
+  it('pools a region\'s weak edges to what the coarser grid reads', () => {
+    // On a 16 by 16 grid, the left half's 2 by 2 blocks of cells each hold one
+    // cell of one-level dither and three flat cells.
+    const dotted = picture(128, 128, (x, y) => {
+      const dithered = x < 64 && Math.floor(x / 8) % 2 === 0 && Math.floor(y / 8) % 2 === 0;
+      return dithered && (x + y) % 2 === 1 ? [129, 129, 129] : [128, 128, 128];
+    });
+    const fine = regionEdgeSignature(dotted, 16);
+    const coarse = regionEdgeSignature(dotted, 8);
+    const pooled = poolEdgeSignature(fine, 8);
+
+    expect(pooled).toHaveLength(64);
+    // Each pooled cell reads what the coarser grid reads, give or take the
+    // rounding of the finer cells.
+    pooled.forEach((cell, i) => {
+      expect(Math.abs(cell - coarse[i])).toBeLessThanOrEqual(1);
+    });
+  });
+
   it('scores 0 against a signature that is not a square grid', () => {
     const fine = withEdges(extractEdgeSignature(halfStriped, 8));
     const odd = withEdges([100, 100, 100, 100, 0, 0, 0, 0]);
@@ -546,6 +568,72 @@ describe('Merging the colour histograms of reference photos', () => {
     expect(added.edgeSignature).toEqual(together.edgeSignature);
     expect(added.estimatedSizeRatio).toBeCloseTo(together.estimatedSizeRatio, 10);
     expect(added.colorVariance).toBeCloseTo(together.colorVariance, 10);
+  });
+
+  // Photos stand in by name for the saved pictures generateFingerprint reads.
+  const COLOURS: Record<string, [number, number, number]> = {
+    red: [200, 30, 30],
+    blue: [30, 30, 200],
+    green: [30, 200, 30],
+    black: [0, 0, 0],
+  };
+  const PICTURES: Record<string, ImageData> = {
+    ...Object.fromEntries(Object.entries(COLOURS).map(([name, colour]) => [name, flat(64, 64, colour)])),
+    wall: picture(128, 128, (x, y) => ((x + y) % 2 === 1 ? [129, 129, 129] : [128, 128, 128])),
+  };
+  const read = async (photo: string): Promise<VisualFingerprint> => ({
+    ...enrol(PICTURES[photo]),
+    referenceImages: [photo],
+  });
+  const shareOf = (fingerprint: VisualFingerprint, name: string): number | undefined => {
+    const [r, g, b] = COLOURS[name];
+    return fingerprint.colorHistogram.find((bucket) => colorDistance(bucket.color, { r, g, b }) === 0)?.percentage;
+  };
+
+  it('rebuilds a subject saved by the version before from its photos when a photo is added', async () => {
+    // Saved by the version before: two red photos enrolled together, then
+    // blue added, then green, each added photo counted as much as all the
+    // photos before it. Red, blue and green hold 25, 25 and 50.
+    const bucket = (name: string, percentage: number): ColorBucket => {
+      const [r, g, b] = COLOURS[name];
+      return { color: { r, g, b }, count: 1024, percentage };
+    };
+    const photos = ['red', 'red', 'blue', 'green'];
+    const savedBefore: VisualFingerprint = {
+      ...(await read('red')),
+      colorHistogram: [bucket('green', 50), bucket('red', 25), bucket('blue', 25)],
+      referenceImages: photos,
+      version: undefined,
+    };
+
+    const added = await addReferencePhotos(savedBefore, photos, ['black'], read);
+
+    // Five photos, each counted once: two of them red.
+    expect(['red', 'blue', 'green', 'black'].map((name) => shareOf(added, name))).toEqual([40, 20, 20, 20]);
+  });
+
+  it('rebuilds a subject saved by the version before from its saved photos', async () => {
+    const savedBefore: VisualFingerprint = {
+      ...(await read('wall')),
+      id: 'saved',
+      name: 'Saved',
+      createdAt: 'then',
+      // That version scaled a photo's edges to its own strongest cell.
+      edgeSignature: new Array(64).fill(100),
+      version: undefined,
+    };
+
+    const upgraded = await upgradeFingerprint(savedBefore, ['wall'], read);
+
+    expect(upgraded.version).toBe(2);
+    expect(upgraded.edgeSignature).toEqual(enrol(PICTURES.wall).edgeSignature);
+    expect([upgraded.id, upgraded.name, upgraded.createdAt]).toEqual(['saved', 'Saved', 'then']);
+  });
+
+  it('keeps a saved subject that has no photos as it was', async () => {
+    const savedBefore: VisualFingerprint = { ...(await read('red')), version: undefined };
+
+    expect(await upgradeFingerprint(savedBefore, [], read)).toBe(savedBefore);
   });
 
   it('scores a picture the same against one photo and against two that are a level apart', () => {

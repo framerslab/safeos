@@ -13,7 +13,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { IconPaw, IconUser, IconSearch, IconX, IconCheck } from './icons';
 import { useLostFoundStore } from '../stores/lost-found-store';
 import { getMatchQuality } from '../lib/subject-matcher';
-import { generateFingerprint, mergeFingerprints } from '../lib/visual-fingerprint';
+import { addReferencePhotos, generateFingerprint } from '../lib/visual-fingerprint';
 import { createThumbnailFromSource, readFileAsDataUrl } from '../lib/image-utils';
 import { saveSubjectProfile } from '../lib/client-db';
 
@@ -94,7 +94,6 @@ export function SubjectPreview({
     setIsUpdatingReferences(true);
 
     try {
-      const newFingerprints = [];
       const newReferenceImages: string[] = [];
 
       for (const file of imageFiles) {
@@ -106,10 +105,14 @@ export function SubjectPreview({
           mimeType: 'image/jpeg',
         });
         newReferenceImages.push(thumb);
-        newFingerprints.push(await generateFingerprint(thumb, activeSubject.name));
       }
 
-      const mergedFingerprint = mergeFingerprints([activeSubject.fingerprint, ...newFingerprints]);
+      const mergedFingerprint = await addReferencePhotos(
+        activeSubject.fingerprint,
+        activeSubject.referenceImages,
+        newReferenceImages,
+        (photo) => generateFingerprint(photo, activeSubject.name)
+      );
       const updatedReferenceImages = [...activeSubject.referenceImages, ...newReferenceImages].slice(0, maxImages);
       const lastActiveAt = new Date().toISOString();
 

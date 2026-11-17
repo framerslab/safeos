@@ -4,12 +4,7 @@
  */
 
 import {
-  calculateAverageColor,
-  calculateColorVariance,
-  estimateSizeRatio,
-  extractColorHistogram,
-  extractDominantColors,
-  extractEdgeSignature,
+  fingerprintOfPixels,
   type VisualFingerprint,
 } from '../../src/lib/visual-fingerprint';
 
@@ -65,24 +60,11 @@ export const centredBlock = (
   );
 
 /**
- * The fingerprint generateFingerprint stores for a picture: the same
- * extractors with the same defaults (32 buckets, 5 colours, an 8 by 8 edge
- * grid), without the image loading a browser does first.
+ * The fingerprint generateFingerprint stores for a picture, without the image
+ * loading a browser does first and without its thumbnail.
  */
 export function enrol(pixels: ImageData): VisualFingerprint {
-  const averageColor = calculateAverageColor(pixels);
-  return {
-    id: 'subject',
-    name: 'subject',
-    referenceImages: [],
-    createdAt: '',
-    colorHistogram: extractColorHistogram(pixels, 32),
-    dominantColors: extractDominantColors(pixels, 5),
-    averageColor,
-    colorVariance: calculateColorVariance(pixels, averageColor),
-    estimatedSizeRatio: estimateSizeRatio(pixels),
-    edgeSignature: extractEdgeSignature(pixels, 8),
-  };
+  return { ...fingerprintOfPixels(pixels, 'subject'), id: 'subject', createdAt: '' };
 }
 
 /** A canvas that hands processCanvas the given pixels. */

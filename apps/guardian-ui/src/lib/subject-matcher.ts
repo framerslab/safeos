@@ -90,6 +90,11 @@ const DEFAULT_SETTINGS: MatcherSettings = {
  */
 const REGION_EDGE_FLOOR = 32;
 
+/** The edge signature a region of the camera's frame is read as, on a `gridSize` by `gridSize` grid. */
+export function regionEdgeSignature(imageData: ImageData, gridSize: number): number[] {
+  return extractEdgeSignature(imageData, gridSize, REGION_EDGE_FLOOR);
+}
+
 /**
  * Adaptive lighting holds each frame at the brightness the scene has settled
  * at, so a light switched on or off changes the scores less. The brightness
@@ -580,7 +585,7 @@ export class SubjectMatcher {
     // square grid has no cells to line up with; its region is read on the
     // default grid and its edge term is 0.
     const edgeGrid = edgeGridSide(this.fingerprint?.edgeSignature ?? []) || DEFAULT_EDGE_GRID_SIZE;
-    const edgeSignature = extractEdgeSignature(imageData, edgeGrid, REGION_EDGE_FLOOR);
+    const edgeSignature = regionEdgeSignature(imageData, edgeGrid);
     const sizeRatio = estimateSizeRatio(imageData);
 
     return {

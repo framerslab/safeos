@@ -40,6 +40,8 @@ export interface VisualFingerprint {
   edgeSignature: number[];
   referenceImages: string[];
   createdAt: string;
+  /** The version of the fingerprint's form; a fingerprint saved without one is version 1. */
+  version?: number;
 }
 
 export interface FingerprintOptions {
@@ -507,34 +509,23 @@ export function estimateSizeRatio(imageData: ImageData): number {
 // =============================================================================
 
 /**
- * Generate a visual fingerprint from an image
+ * The fingerprint of a picture's pixels, without the thumbnail
+ * generateFingerprint adds: `referenceImages` is empty.
  */
-export async function generateFingerprint(
-  imageSource: string,
+export function fingerprintOfPixels(
+  imageData: ImageData,
   name: string,
   options: Partial<FingerprintOptions> = {}
-): Promise<VisualFingerprint> {
+): VisualFingerprint {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  
-  const img = await loadImage(imageSource);
-  const imageData = getImageData(img, 256, 256);
-  
+
   const colorHistogram = extractColorHistogram(imageData, opts.histogramBuckets);
   const dominantColors = extractDominantColors(imageData, opts.dominantColorCount);
   const averageColor = calculateAverageColor(imageData);
   const colorVariance = calculateColorVariance(imageData, averageColor);
   const edgeSignature = extractEdgeSignature(imageData, opts.edgeGridSize);
   const estimatedSizeRatio = estimateSizeRatio(imageData);
-  
-  // Create thumbnail
-  const thumbCanvas = document.createElement('canvas');
-  thumbCanvas.width = 64;
-  thumbCanvas.height = 64;
-  const thumbCtx = thumbCanvas.getContext('2d');
-  if (thumbCtx) {
-    thumbCtx.drawImage(img, 0, 0, 64, 64);
-  }
-  
+
   return {
     id: `fp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     name,
@@ -544,9 +535,33 @@ export async function generateFingerprint(
     colorVariance,
     estimatedSizeRatio,
     edgeSignature,
-    referenceImages: [thumbCanvas.toDataURL('image/jpeg', 0.8)],
+    referenceImages: [],
     createdAt: new Date().toISOString(),
   };
+}
+
+/**
+ * Generate a visual fingerprint from an image
+ */
+export async function generateFingerprint(
+  imageSource: string,
+  name: string,
+  options: Partial<FingerprintOptions> = {}
+): Promise<VisualFingerprint> {
+  const img = await loadImage(imageSource);
+  const imageData = getImageData(img, 256, 256);
+  const fingerprint = fingerprintOfPixels(imageData, name, options);
+
+  // Create thumbnail
+  const thumbCanvas = document.createElement('canvas');
+  thumbCanvas.width = 64;
+  thumbCanvas.height = 64;
+  const thumbCtx = thumbCanvas.getContext('2d');
+  if (thumbCtx) {
+    thumbCtx.drawImage(img, 0, 0, 64, 64);
+  }
+
+  return { ...fingerprint, referenceImages: [thumbCanvas.toDataURL('image/jpeg', 0.8)] };
 }
 
 /**
@@ -720,6 +735,39 @@ export function mergeFingerprints(
     referenceImages: allImages.slice(0, 5), // Keep up to 5 reference images
     createdAt: base.createdAt,
   };
+}
+
+/** Reads one reference photo into its fingerprint: generateFingerprint in the app. */
+export type ReadPhoto = (photo: string) => Promise<VisualFingerprint>;
+
+/**
+ * A saved subject's fingerprint in the current form. Saved fingerprints are
+ * used as they are.
+ */
+export async function upgradeFingerprint(
+  saved: VisualFingerprint,
+  _photos: string[],
+  _read: ReadPhoto
+): Promise<VisualFingerprint> {
+  return saved;
+}
+
+/**
+ * A saved subject's fingerprint with `newPhotos` added: each new photo is
+ * read and merged with the saved fingerprint, which counts as the photos it
+ * was made from.
+ */
+export async function addReferencePhotos(
+  saved: VisualFingerprint,
+  _savedPhotos: string[],
+  newPhotos: string[],
+  read: ReadPhoto
+): Promise<VisualFingerprint> {
+  const added: VisualFingerprint[] = [];
+  for (const photo of newPhotos) {
+    added.push(await read(photo));
+  }
+  return mergeFingerprints([saved, ...added]);
 }
 
 /**
