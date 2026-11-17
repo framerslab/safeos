@@ -3,6 +3,7 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import { useMonitoringStore } from '@/stores/monitoring-store';
+import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { BrowserSocket, installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 
@@ -20,6 +21,8 @@ beforeEach(() => {
   useMonitoringStore.getState().reset();
   useSettingsStore.setState({ globalMute: true });
   useSettingsStore.getState().updateGlobalSettings({ processingMode: 'local', analysisInterval: 1 });
+  useSettingsStore.setState({ scenarioOverrides: {} });
+  useOnboardingStore.setState({ selectedScenario: null });
   browser = installCameraBrowser();
 });
 afterEach(() => { cleanup(); jest.useRealTimers(); jest.restoreAllMocks(); });
@@ -121,6 +124,37 @@ it('does not claim normal monitoring in the empty alert panel before camera star
   expect(browser.getUserMedia).not.toHaveBeenCalled();
 });
 
+
+// Settings > Detection saves only Motion and Audio for a use; a processing mode
+// in a saved or imported override does not decide where the watch's frames go.
+it('keeps a use on device when the preset is local and a saved override for the use names hybrid', async () => {
+  useOnboardingStore.getState().setScenario('baby');
+  useSettingsStore.setState({ scenarioOverrides: { baby: { processingMode: 'hybrid' } } });
+  render(<MonitorPage />);
+  await act(async () => {});
+  act(() => BrowserSocket.instances.at(-1)!.onopen?.());
+  await startMonitoring();
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'stream-started', payload: { streamId: 'server' } }));
+  await act(async () => { jest.advanceTimersByTime(1500); });
+  const sent = BrowserSocket.instances.flatMap(s => s.sent);
+  expect(sent.filter(m => m.type === 'start-stream')).toHaveLength(0);
+  expect(sent.filter(m => m.type === 'frame')).toEqual([]);
+});
+
+it('sends a use\'s frames to the server when the preset is hybrid and a saved override for the use names local', async () => {
+  useSettingsStore.getState().updateGlobalSettings({ processingMode: 'hybrid' });
+  useOnboardingStore.getState().setScenario('baby');
+  useSettingsStore.setState({ scenarioOverrides: { baby: { processingMode: 'local' } } });
+  render(<MonitorPage />);
+  await act(async () => {});
+  act(() => BrowserSocket.instances.at(-1)!.onopen?.());
+  await startMonitoring();
+  const socket = BrowserSocket.instances.at(-1)!;
+  expect(socket.sent.filter(m => m.type === 'start-stream')).toHaveLength(1);
+  act(() => socket.receive({ type: 'stream-started', payload: { streamId: 'server' } }));
+  await act(async () => { jest.advanceTimersByTime(1500); });
+  expect(socket.sent.filter(m => m.type === 'frame').length).toBeGreaterThan(0);
+});
 
 it('starts server analysis when the connection arrives after camera startup', async () => {
   useSettingsStore.getState().updateGlobalSettings({ processingMode: 'hybrid' });
