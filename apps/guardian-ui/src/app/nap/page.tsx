@@ -1,24 +1,21 @@
 /**
  * Nap Mode Page
  *
- * Dedicated page for activating sleep monitoring when a caregiver
- * needs to take a brief nap while a child sleeps nearby.
- *
- * Features:
- * - Prominent safety warnings
- * - Pre-nap test to verify detection
- * - Acknowledgment requirement
- * - Large "I'm Awake" deactivation button
+ * The way into a nap watch: the safety warnings, an acknowledgment, and a
+ * check of the camera, motion and sound. Start Nap Mode applies the
+ * infant_sleep preset and opens Motion and sound (the monitor), which does
+ * the watching and sounds the alerts. This page runs no detector of its own
+ * once its check is done.
  *
  * @module app/nap/page
  */
 
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useSettingsStore, SLEEP_PRESETS } from '../../stores/settings-store';
+import { useSettingsStore } from '../../stores/settings-store';
 import { useSoundManager } from '../../lib/sound-manager';
 import { NAP_MODE_DISCLAIMER } from '../../lib/disclaimers';
 import { getPixelDetectionEngine, resetPixelDetectionEngine } from '../../lib/pixel-detection';
@@ -40,16 +37,13 @@ interface TestStatus {
 export default function NapModePage() {
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
-    const [step, setStep] = useState<'warning' | 'test' | 'active'>('warning');
+    const [step, setStep] = useState<'warning' | 'test'>('warning');
     const [acknowledged, setAcknowledged] = useState(false);
     const [testStatus, setTestStatus] = useState<TestStatus>({
         camera: 'pending',
         motion: 'pending',
         audio: 'pending',
     });
-    const [napDuration, setNapDuration] = useState(30); // minutes
-    const [napStartTime, setNapStartTime] = useState<Date | null>(null);
-    const [elapsedMinutes, setElapsedMinutes] = useState(0);
     const [motionDetected, setMotionDetected] = useState(false);
     const [testSoundId, setTestSoundId] = useState<string | null>(null);
 
@@ -58,9 +52,9 @@ export default function NapModePage() {
     const streamRef = useRef<MediaStream | null>(null);
     const animationRef = useRef<number | null>(null);
 
-    const { activateSleepMode, deactivateSleepMode, globalSettings } = useSettingsStore();
+    const { activateSleepMode } = useSettingsStore();
     const soundManager = useSoundManager();
-    const { stopAll, play } = soundManager;
+    const { stopAll } = soundManager;
 
     useEffect(() => {
         setMounted(true);
@@ -76,23 +70,6 @@ export default function NapModePage() {
             stopAll();
         };
     }, [stopAll]);
-
-    // Elapsed time counter when nap is active
-    useEffect(() => {
-        if (step !== 'active' || !napStartTime) return;
-
-        const interval = setInterval(() => {
-            const elapsed = Math.floor((Date.now() - napStartTime.getTime()) / 60000);
-            setElapsedMinutes(elapsed);
-
-            // Warning at max duration
-            if (elapsed >= napDuration) {
-                play('warning');
-            }
-        }, 30000);
-
-        return () => clearInterval(interval);
-    }, [step, napStartTime, napDuration, play]);
 
     if (!mounted) {
         return <LoadingScreen />;
@@ -211,36 +188,26 @@ export default function NapModePage() {
         }
         stopAll(); // Ensure no sounds are playing
 
-        activateSleepMode('infant_sleep');
-        soundManager.updateVolume(1); // Ensure max volume
-        setNapStartTime(new Date());
-        setStep('active');
-    };
-
-    const deactivateNapMode = () => {
-        deactivateSleepMode();
+        // The check is done: its loop and its camera stop here, and the
+        // monitor opens its own camera when the person starts the watch.
+        if (animationRef.current) {
+            cancelAnimationFrame(animationRef.current);
+            animationRef.current = null;
+        }
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => t.stop());
+            streamRef.current = null;
         }
         resetPixelDetectionEngine();
-        router.push('/');
+
+        activateSleepMode('infant_sleep');
+        soundManager.updateVolume(1); // Ensure max volume
+        router.push('/monitor/');
     };
 
     // ==========================================================================
     // Render
     // ==========================================================================
-
-    if (step === 'active') {
-        return (
-            <NapModeActive
-                elapsedMinutes={elapsedMinutes}
-                maxMinutes={napDuration}
-                onWakeUp={deactivateNapMode}
-                motionDetected={motionDetected}
-                videoRef={videoRef}
-            />
-        );
-    }
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -370,33 +337,6 @@ export default function NapModePage() {
                             </span>
                         </label>
 
-                        {/* Nap Duration */}
-                        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
-                            <label className="block text-sm font-medium text-slate-300 mb-3">
-                                Planned nap duration: {napDuration} minutes
-                            </label>
-                            <input
-                                type="range"
-                                min="15"
-                                max="90"
-                                step="15"
-                                value={napDuration}
-                                onChange={(e) => setNapDuration(Number(e.target.value))}
-                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
-                            />
-                            <div className="flex justify-between text-xs text-slate-500 mt-2">
-                                <span>15 min</span>
-                                <span>30 min</span>
-                                <span>45 min</span>
-                                <span>60 min</span>
-                                <span>90 min</span>
-                            </div>
-                            <p className="text-xs text-slate-500 mt-3 flex items-center gap-1.5">
-                                <LightbulbIcon className="w-4 h-4 text-amber-400 flex-shrink-0" aria-hidden="true" />
-                                We&apos;ll remind you when your planned nap time is up
-                            </p>
-                        </div>
-
                         {/* Continue Button */}
                         <button
                             onClick={() => setStep('test')}
@@ -510,108 +450,6 @@ export default function NapModePage() {
                         </div>
                     </>
                 )}
-            </div>
-        </div>
-    );
-}
-
-// =============================================================================
-// Nap Mode Active Screen
-// =============================================================================
-
-interface NapModeActiveProps {
-    elapsedMinutes: number;
-    maxMinutes: number;
-    onWakeUp: () => void;
-    motionDetected: boolean;
-    videoRef: React.RefObject<HTMLVideoElement>;
-}
-
-function NapModeActive({ elapsedMinutes, maxMinutes, onWakeUp, motionDetected, videoRef }: NapModeActiveProps) {
-    const [showConfirm, setShowConfirm] = useState(false);
-
-    return (
-        <div className="min-h-screen bg-slate-950 flex flex-col">
-            {/* Status Bar */}
-            <div className="p-4 bg-indigo-900/50 border-b border-indigo-700/50">
-                <div className="max-w-lg mx-auto flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 bg-emerald-500 rounded-full animate-pulse" />
-                        <span className="text-indigo-200 font-medium">Nap Mode Active</span>
-                    </div>
-                    <div className="text-sm text-indigo-300">
-                        {elapsedMinutes} / {maxMinutes} min
-                    </div>
-                </div>
-            </div>
-
-            {/* Main Content */}
-            <div className="flex-1 flex flex-col items-center justify-center p-6">
-                {/* Motion Alert */}
-                {motionDetected && (
-                    <div className="mb-8 p-4 bg-red-500/20 border-2 border-red-500 rounded-xl animate-pulse">
-                        <p className="text-lg font-bold text-red-400 text-center flex items-center justify-center gap-2">
-                            <AlertIcon className="w-6 h-6 flex-shrink-0" aria-hidden="true" />
-                            Movement Detected!
-                        </p>
-                    </div>
-                )}
-
-                {/* Time Remaining */}
-                <div className="text-center mb-12">
-                    <p className="text-slate-400 text-sm mb-2">Time remaining</p>
-                    <p className="text-6xl font-bold text-white">
-                        {Math.max(0, maxMinutes - elapsedMinutes)}
-                    </p>
-                    <p className="text-slate-400">minutes</p>
-                </div>
-
-                {/* Camera Preview (Small) */}
-                <div className="w-48 h-36 rounded-xl overflow-hidden border-2 border-slate-700 mb-12">
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="w-full h-full object-cover"
-                    />
-                </div>
-
-                {/* Wake Up Button */}
-                {!showConfirm ? (
-                    <button
-                        onClick={() => setShowConfirm(true)}
-                        className="w-64 h-64 rounded-full bg-gradient-to-br from-indigo-600 to-indigo-800 hover:from-indigo-500 hover:to-indigo-700 text-white font-bold text-2xl shadow-2xl shadow-indigo-500/30 transition-all active:scale-95"
-                    >
-                        I&apos;m Awake
-                    </button>
-                ) : (
-                    <div className="text-center">
-                        <p className="text-slate-300 mb-4">End Nap Mode?</p>
-                        <div className="flex gap-4">
-                            <button
-                                onClick={() => setShowConfirm(false)}
-                                className="px-8 py-3 rounded-xl border border-slate-700 text-slate-300"
-                            >
-                                Continue Nap
-                            </button>
-                            <button
-                                onClick={onWakeUp}
-                                className="px-8 py-3 rounded-xl bg-emerald-600 text-white font-semibold"
-                            >
-                                Yes, I&apos;m Awake
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Footer Warning */}
-            <div className="p-4 bg-amber-900/30 border-t border-amber-700/30">
-                <p className="text-center text-xs text-amber-200/70 flex items-center justify-center gap-1.5">
-                    <WarningIcon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-                    This is a supplementary tool only. Check on your child regularly.
-                </p>
             </div>
         </div>
     );
@@ -753,19 +591,4 @@ function VolumeIcon({ className = '' }: { className?: string }) {
     );
 }
 
-function AlertIcon({ className = '' }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            <circle cx="12" cy="5" r="3" fill="currentColor" />
-        </svg>
-    );
-}
 
-function LightbulbIcon({ className = '' }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-        </svg>
-    );
-}
