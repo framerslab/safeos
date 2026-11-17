@@ -1036,6 +1036,29 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // What Settings says after a save shows: the message stands clear of the
+  // header at the top of the screen, whether the save was taken or refused.
+  for (const width of [390, 1280]) {
+    await open({ name: 'Settings, the message after a save', width, look: 'dark' }, async (page, context, check) => {
+      await visit(page, '/settings/');
+      await page.getByRole('button', { name: 'Save Changes', exact: true }).click();
+      const message = page.getByText(/^(Settings saved!|Failed to save settings\.)$/);
+      await message.waitFor({ timeout: 10_000 });
+      const seen = await message.evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        const frame = hit?.closest('header.app-header, nav.phone-bar');
+        return {
+          words: node.textContent.trim(),
+          top: Math.round(box.top),
+          shows: !!hit && node.contains(hit),
+          over: frame ? (frame.matches('nav') ? 'the phone bar' : 'the app header') : hit ? hit.tagName.toLowerCase() : 'nothing',
+        };
+      });
+      check(seen.shows, `"${seen.words}", ${seen.top} px from the top of the screen, is drawn under ${seen.over}`);
+    });
+  }
+
   // Before setup the header is the same as after it.
   for (const width of [390, 1280]) {
     for (const look of LOOKS) {
