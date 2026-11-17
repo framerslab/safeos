@@ -14,24 +14,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: '*',
         allow: '/',
-        disallow: [
-          '/api/',
-          '/admin/',
-          '/dashboard/',
-          '/monitor/',
-          '/history/',
-          '/settings/',
-          '/profiles/',
-          '/export/',
-          '/analytics/',
-          '/webhooks/',
-          '/lost-found/',
-          '/wildlife/',
-          '/security/',
-          '/setup/',
-          '/nap/',
-          '/private/',
-        ],
+        // The app's own pages are not listed here: each carries a noindex
+        // tag, and a crawler that may not fetch a page never reads its tag.
+        disallow: ['/api/', '/admin/', '/profiles/', '/export/', '/analytics/', '/webhooks/', '/nap/', '/private/'],
       },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,
