@@ -144,7 +144,8 @@ export default function MonitorPage() {
   const detectionFeatureSettings = useSettingsStore((state) => state.detectionFeatureSettings);
   const detectionZones = useSettingsStore((state) => state.detectionZones);
   // The watch runs at the preset, with the Motion and Audio set for this use on Settings > Detection laid over it.
-  const { watchSettings: currentPreset, tuneWatch, resetWatch } = useWatchSettings();
+  const { watchSettings: currentPreset, keptForUse, tuneWatch, resetWatch } = useWatchSettings();
+  const keptNames = keptForUse.map((field) => (field === 'motionSensitivity' ? 'Motion' : 'Audio')).join(' and ');
   const [showOverrides, setShowOverrides] = useState(false);
 
   // URL parameter handling is done via PresetInitializer component below
@@ -1247,7 +1248,9 @@ export default function MonitorPage() {
               {showOverrides && (
                 <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-4 animate-fade-in">
                   <p className="text-xs sm:text-[10px] text-gray-500 uppercase tracking-wider">
-                    Override until preset changes
+                    {keptNames
+                      ? `${keptNames} kept for this use until Reset · the rest until the preset changes`
+                      : 'Override until preset changes'}
                   </p>
 
                   {/* Motion Sensitivity Slider */}

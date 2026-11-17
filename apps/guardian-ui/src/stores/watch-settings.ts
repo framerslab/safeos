@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useMemo } from 'react';
-import { effectiveSettings, useSettingsStore, type SecurityPreset } from './settings-store';
+import { effectiveSettings, useSettingsStore, valuesSetForUse, type SecurityPreset, type UseSettingField } from './settings-store';
 import { useOnboardingStore } from './onboarding-store';
 import { useMonitoringStore } from './monitoring-store';
 
@@ -25,6 +25,11 @@ export function useWatchSettings() {
     () => effectiveSettings(globalSettings, scenarioOverrides, watchUse),
     [globalSettings, scenarioOverrides, watchUse],
   );
+  // The Motion and Audio set for the use on Detection: a preset change keeps them, Reset clears them.
+  const keptForUse = useMemo(
+    () => (watchUse ? (Object.keys(valuesSetForUse(scenarioOverrides[watchUse])) as UseSettingField[]) : []),
+    [scenarioOverrides, watchUse],
+  );
   // A Motion or Audio set for the use on Settings > Detection moves there; every other value moves the preset.
   const tuneWatch = useCallback(
     (changes: Partial<SecurityPreset>) => tuneScenario(watchUse, changes),
@@ -33,5 +38,5 @@ export function useWatchSettings() {
   // The preset's values, and nothing set for the use on Detection.
   const resetWatch = useCallback(() => resetScenarioToPreset(watchUse), [resetScenarioToPreset, watchUse]);
 
-  return { watchUse, watchSettings, tuneWatch, resetWatch };
+  return { watchUse, watchSettings, keptForUse, tuneWatch, resetWatch };
 }

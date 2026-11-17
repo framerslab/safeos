@@ -151,7 +151,7 @@ export function isSleepPreset(presetId: PresetId): presetId is SleepPresetId {
 export const USE_SETTING_FIELDS = ['motionSensitivity', 'audioSensitivity'] as const;
 export type UseSettingField = (typeof USE_SETTING_FIELDS)[number];
 
-function valuesSetForUse(override: Partial<SecurityPreset> | null | undefined): Partial<Pick<SecurityPreset, UseSettingField>> {
+export function valuesSetForUse(override: Partial<SecurityPreset> | null | undefined): Partial<Pick<SecurityPreset, UseSettingField>> {
   const chosen: Partial<Pick<SecurityPreset, UseSettingField>> = {};
   if (!override) return chosen;
   for (const field of USE_SETTING_FIELDS) {
