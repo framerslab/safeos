@@ -443,11 +443,11 @@ const METADATA_ROUTES: { route: string; index: boolean }[] = [
   { route: 'blog/[slug]', index: true },
   { route: 'privacy', index: true },
   { route: 'terms', index: true },
-  { route: 'security', index: true },
-  { route: 'lost-found', index: true },
+  { route: 'security', index: false },
+  { route: 'lost-found', index: false },
   { route: 'lost-found/gallery', index: true },
-  { route: 'wildlife', index: true },
-  { route: 'setup', index: true },
+  { route: 'wildlife', index: false },
+  { route: 'setup', index: false },
   { route: 'donate', index: false },
 ];
 
@@ -465,11 +465,12 @@ function metadataProblems(): string[] {
       continue;
     }
     // pageMetadata() sets the title, description, canonical address, Open
-    // Graph and X card from one set of values.
-    if (!/pageMetadata\(/.test(source)) {
-      problems.push(`/${route}: its social card is not its own (no pageMetadata call)`);
+    // Graph and X card from one set of values. appPageMetadata() sets the
+    // same fields and always asks search engines not to index the page.
+    if (!/\b(?:pageMetadata|appPageMetadata)\(/.test(source)) {
+      problems.push(`/${route}: its social card is not its own (no pageMetadata or appPageMetadata call)`);
     }
-    if (!index && !/noIndex:\s*true/.test(source)) problems.push(`/${route}: not marked noindex`);
+    if (!index && !/noIndex:\s*true|\bappPageMetadata\(/.test(source)) problems.push(`/${route}: not marked noindex`);
   }
   return problems;
 }
