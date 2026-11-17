@@ -884,8 +884,9 @@ function compareDominantColors(d1: RGB[], d2: RGB[]): number {
 /**
  * Read a square edge signature on a coarser square grid. Each coarse cell is
  * the mean of the fine cells it covers, weighted by how much of each it
- * covers, and the result is scaled so its strongest cell reads 100, as a
- * signature read straight from pixels is.
+ * covers, and the result is scaled so its strongest cell reads what the finer
+ * signature's strongest cell read: 100 for a picture scaled to its own
+ * strongest cell, less for weak edges scaled against a floor.
  */
 export function poolEdgeSignature(signature: number[], side: number): number[] {
   const from = edgeGridSide(signature);
@@ -923,8 +924,13 @@ export function poolEdgeSignature(signature: number[], side: number): number[] {
     }
   }
 
+  // Pooling averages cells, which lowers the strongest one. Scaling back to
+  // the strongest fine cell keeps a signature that read 100 at 100, and keeps
+  // weak edges weak: a region's frame scaled against a floor (13 a cell for a
+  // near-blank wall) reads 13 on the coarser grid too, not 100.
   const strongest = Math.max(...pooled);
-  return strongest > 0 ? pooled.map(e => (e / strongest) * 100) : pooled;
+  const ceiling = Math.max(...signature);
+  return strongest > 0 ? pooled.map(e => (e / strongest) * ceiling) : pooled;
 }
 
 /**
