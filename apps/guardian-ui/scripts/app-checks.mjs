@@ -1106,6 +1106,145 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // An element shows only when it and every element round it are opaque:
+  // the browser counts an element with opacity 0 as visible.
+  const opacityOf = (page, selector) => page.evaluate((s) => {
+    const element = document.querySelector(s);
+    if (!element) return -1;
+    let opacity = 1;
+    for (let node = element; node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+    return opacity;
+  }, selector);
+  // The look's other values; the page, the ink, the quiet tone, the raised
+  // ground and the accent are read from the frame's own above.
+  const PANEL = { light: 'rgb(241, 243, 244)', dark: 'rgb(16, 26, 36)' };
+  const LINE = { light: 'rgb(73, 80, 87)', dark: 'rgb(156, 163, 175)' };
+  const ACCENT_HOVER = { light: 'rgb(5, 46, 22)', dark: 'rgb(134, 239, 172)' };
+  const ALERT = { light: 'rgb(153, 27, 27)', dark: 'rgb(251, 146, 60)' };
+  void PANEL; void LINE; void ACCENT_HOVER; void ALERT;
+
+  // ---------------------------------------------------------------------------
+  // The page before script runs
+  // ---------------------------------------------------------------------------
+  // The header, the phone bar and the footer are in the served HTML and in
+  // the device's look, so an app page reads and its links work with scripts
+  // off, while its script is on its way and when its script never arrives.
+
+  const HEADER_ROW = ['Dashboard', 'History', 'Settings', 'Help'];
+  const headerLink = (words) => `header.app-header .app-header__links a[data-section="/${words.toLowerCase()}"]`;
+
+  for (const look of LOOKS) {
+    await open({ name: 'app page, scripts off', width: 1280, look, javaScriptEnabled: false }, async (page, context, check) => {
+      await visit(page, '/history/');
+      for (const selector of ['header.app-header .app-header__brand--link', ...HEADER_ROW.map(headerLink)]) {
+        const opacity = await opacityOf(page, selector);
+        check(opacity === 1, `${selector} is drawn at opacity ${opacity}, not 1`);
+      }
+      const seen = await page.evaluate((link) => {
+        const header = document.querySelector('header.app-header');
+        const place = document.querySelector('header.app-header .look-switch-place');
+        return {
+          words: [...document.querySelectorAll('header.app-header .app-header__links a')].map((a) => a.textContent.trim()),
+          ground: header ? getComputedStyle(header).backgroundColor : 'no header',
+          colour: getComputedStyle(document.querySelector(link)).color,
+          current: document.querySelector('header.app-header [aria-current="page"]')?.textContent.trim() || 'none',
+          switches: document.querySelectorAll('.look-switch').length,
+          place: place ? place.getBoundingClientRect().width : 0,
+        };
+      }, headerLink('Dashboard'));
+      check(seen.words.join(', ') === HEADER_ROW.join(', '), `the header's links read ${seen.words.join(', ')}`);
+      check(seen.ground === PAGE[look], `the header's background is ${seen.ground}, not ${PAGE[look]}`);
+      check(seen.colour === QUIET[look], `Dashboard in the header is ${seen.colour}, not ${QUIET[look]}`);
+      check(seen.current === 'History', `the page marked as being read is ${seen.current}, not History`);
+      check(seen.switches === 0, `${seen.switches} look switches show before script`);
+      check(seen.place === 44, `the look switch's place is ${seen.place} px wide, not 44`);
+      const footer = await opacityOf(page, 'footer nav[aria-label="Site links"]');
+      check(footer === 1, `the footer's "Site links" is drawn at opacity ${footer}, not 1`);
+      await page.screenshot({ path: path.join(outDir, `frame-scripts-off-1280-${look}.png`), fullPage: true });
+      await page.locator(headerLink('Settings')).click();
+      await page.waitForLoadState('load');
+      check(new URL(page.url()).pathname === '/settings/', `a press on Settings opened ${page.url()}`);
+    });
+
+    await open({ name: 'phone bar, scripts off', width: 390, look, javaScriptEnabled: false }, async (page, context, check) => {
+      await visit(page, '/history/');
+      const opacity = await opacityOf(page, 'nav.phone-bar');
+      check(opacity === 1, `the phone bar is drawn at opacity ${opacity}, not 1`);
+      const seen = await page.evaluate(() => {
+        const bar = document.querySelector('nav.phone-bar');
+        if (!bar) return null;
+        return {
+          foot: bar.getBoundingClientRect().bottom,
+          screen: window.innerHeight,
+          ground: getComputedStyle(bar).backgroundColor,
+          words: [...bar.querySelectorAll('a')].map((a) => (a.querySelector('.phone-bar__word') || a).textContent.trim()),
+          counts: bar.querySelectorAll('.new-count').length,
+        };
+      });
+      if (!seen) throw new Error('/history/ has no phone bar');
+      check(Math.abs(seen.foot - seen.screen) <= 0.5, `the bar's foot is at ${seen.foot} px, not at the screen's foot (${seen.screen} px)`);
+      check(seen.ground === PAGE[look], `the bar's background is ${seen.ground}, not ${PAGE[look]}`);
+      check(seen.words.join(', ') === 'Dashboard, History, Settings', `the bar's places read ${seen.words.join(', ')}`);
+      check(seen.counts === 0, `the bar shows ${seen.counts} counts of new alerts before script`);
+      await page.locator('nav.phone-bar a').filter({ hasText: 'Dashboard' }).click();
+      await page.waitForLoadState('load');
+      check(new URL(page.url()).pathname === '/dashboard/', `a press on Dashboard opened ${page.url()}`);
+    });
+
+    await open({ name: 'header, script held', width: 1280, look }, async (page, context, check) => {
+      await context.route('**/_next/static/chunks/**', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await route.continue().catch(() => {});
+      });
+      await page.goto(address('/history/'), { waitUntil: 'commit', timeout: 60_000 });
+      // The stylesheet and the fonts have arrived; the script has not.
+      await page.waitForFunction(() => {
+        const header = document.querySelector('header.app-header');
+        return !!header && getComputedStyle(header).position === 'fixed';
+      }, null, { timeout: 30_000 });
+      await page.evaluate(() => document.fonts.ready);
+      const read = () => page.evaluate((selectors) => ({
+        lefts: selectors.map((s) => document.querySelector(s)?.getBoundingClientRect().left ?? null),
+        hrefs: selectors.map((s) => document.querySelector(s)?.getAttribute('href') || ''),
+        history: document.querySelector('header.app-header .app-header__links a[data-section="/history"]')?.textContent.trim() || '',
+        place: document.querySelector('header.app-header .look-switch-place')?.getBoundingClientRect().width ?? 0,
+        switched: !!document.querySelector('header.app-header .look-switch'),
+      }), HEADER_ROW.map(headerLink));
+      const before = await read();
+      check(!before.switched, 'the look switch showed before the held script arrived, so this walk read the page after its script');
+      for (const selector of ['header.app-header .app-header__brand--link', ...HEADER_ROW.map(headerLink)]) {
+        const opacity = await opacityOf(page, selector);
+        check(opacity === 1, `while the script is held, ${selector} is drawn at opacity ${opacity}, not 1`);
+      }
+      HEADER_ROW.forEach((words, i) => check(before.hrefs[i] !== '', `while the script is held, ${words} has no address`));
+      check(before.place === 44, `while the script is held, the look switch's place is ${before.place} px wide, not 44`);
+      check(before.history === 'History', `while the script is held, History reads "${before.history}"`);
+      await page.locator('header.app-header .look-switch').waitFor({ timeout: 30_000 });
+      const after = await read();
+      HEADER_ROW.forEach((words, i) => {
+        const moved = before.lefts[i] === null || after.lefts[i] === null ? Infinity : Math.abs(after.lefts[i] - before.lefts[i]);
+        check(moved <= 0.5, `${words} moved ${moved} px once the script arrived (${before.lefts[i]} to ${after.lefts[i]})`);
+      });
+    });
+  }
+
+  await open({ name: 'app page, script blocked', width: 390, look: 'light' }, async (page, context, check) => {
+    await context.route('**/_next/static/chunks/**', (route) => route.abort());
+    await page.goto(address('/history/'), { waitUntil: 'load', timeout: 60_000 });
+    await page.waitForTimeout(2_000);
+    const parts = [
+      ['the header\'s brand', 'header.app-header .app-header__brand--plain'],
+      ['Dashboard in the phone bar', 'nav.phone-bar a[href^="/dashboard"]'],
+      ['History in the phone bar', 'nav.phone-bar a[href^="/history"]'],
+      ['Settings in the phone bar', 'nav.phone-bar a[href^="/settings"]'],
+      ['the footer\'s "Site links"', 'footer nav[aria-label="Site links"]'],
+    ];
+    for (const [name, selector] of parts) {
+      const opacity = await opacityOf(page, selector);
+      check(opacity === 1, `with its script blocked, ${name} is drawn at opacity ${opacity}, not 1`);
+    }
+  });
+
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
 }
