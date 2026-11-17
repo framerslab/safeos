@@ -34,26 +34,73 @@ const LIGHT_TOKENS = [
   '#991b1b',
 ];
 
-// Each font size a stylesheet sets that is under 16 px.
+// The colours CSS knows by name.
+const NAMED_COLOURS = new Set(
+  (
+    'aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood ' +
+    'cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray ' +
+    'darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen ' +
+    'darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue ' +
+    'firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew ' +
+    'hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan ' +
+    'lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray ' +
+    'lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue ' +
+    'mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred ' +
+    'midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid ' +
+    'palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple ' +
+    'rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue ' +
+    'slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white ' +
+    'whitesmoke yellow yellowgreen'
+  ).split(' ')
+);
+
+// Each rule of a stylesheet as its selector and its declarations, the rules
+// inside a media or a supports block included.
+function rulesOf(css: string): { selector: string; declarations: [string, string][] }[] {
+  return Array.from(withoutComments(css).matchAll(/([^{}]+)\{([^{}]*)\}/g), (found) => ({
+    selector: found[1].replace(/\s+/g, ' ').trim(),
+    declarations: found[2]
+      .split(';')
+      .map((line) => line.trim())
+      .filter((line) => line.includes(':'))
+      .map((line): [string, string] => [line.slice(0, line.indexOf(':')).trim(), line.slice(line.indexOf(':') + 1).trim()]),
+  }));
+}
+
+// Each font size a stylesheet sets that is not a size token, the shell's
+// 100% (the browser's own text size) or a rem or px value of 16 px or more.
 function sizeFaults(css: string): string[] {
   const faults: string[] = [];
-  const sizes = Array.from(withoutComments(css).matchAll(/font-size\s*:\s*([^;}]+)/g), (found) => found[1].trim());
-  for (const size of sizes) {
-    for (const [, value, unit] of Array.from(size.matchAll(/(\d*\.?\d+)(rem|px)\b/g))) {
-      const px = unit === 'rem' ? Number(value) * 16 : Number(value);
-      if (px < 16) faults.push(size);
+  for (const { selector, declarations } of rulesOf(css)) {
+    for (const [property, value] of declarations) {
+      if (property !== 'font-size') continue;
+      const number = value.match(/^(\d*\.?\d+)(rem|px)$/);
+      const px = number ? (number[2] === 'rem' ? Number(number[1]) * 16 : Number(number[1])) : 0;
+      const ok = /^var\(--type-[\w-]+\)$/.test(value) || (value === '100%' && selector === 'html:has(.app-shell)') || px >= 16;
+      if (!ok) faults.push(value);
     }
   }
   return faults;
 }
 
-// Each colour a stylesheet writes itself instead of taking it from a token.
+// Each colour a stylesheet writes itself instead of taking it from a token:
+// a hex value that is not one of the light look's tokens, a colour function
+// that states a colour, and a colour's name. A mask's black and transparent
+// are not colours a person sees, and transparent names none.
 function colourFaults(css: string): string[] {
   const hexes = css.match(/#[0-9a-f]{3,8}(?![\w-])/gi) ?? [];
-  return [
-    ...hexes.filter((hex) => !LIGHT_TOKENS.includes(hex.toLowerCase())),
-    ...(withoutComments(css).match(/rgba?\(/g) ?? []),
-  ];
+  const faults = hexes.filter((hex) => !LIGHT_TOKENS.includes(hex.toLowerCase()));
+  for (const { declarations } of rulesOf(css)) {
+    for (const [property, value] of declarations) {
+      const plain = value.replace(/var\(--[\w-]+\)/g, ' ').toLowerCase();
+      faults.push(...(plain.match(/(?<![\w-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(/g) ?? []));
+      const mask = /^(-webkit-)?mask(-image)?$/.test(property);
+      for (const word of plain.match(/(?<![\w-])[a-z]+(?![\w(-])/g) ?? []) {
+        if (NAMED_COLOURS.has(word) && !(mask && word === 'black')) faults.push(word);
+      }
+    }
+  }
+  return faults;
 }
 
 it("the app's stylesheet is loaded after the visitor pages'", () => {
