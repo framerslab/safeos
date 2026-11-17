@@ -6,7 +6,7 @@
  * threshold and sound sensitivity the watch reports in its own alerts.
  */
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import DetectionSettingsPage from '@/app/settings/detection/page';
 import { useMonitoringStore } from '@/stores/monitoring-store';
@@ -95,30 +95,43 @@ it('watches a baby with the Motion and Sound set for a baby on Detection', async
   expect(await watch()).toEqual({ motionThreshold: 40, soundSensitivity: 55 });
 });
 
-it('keeps the preset for a use with no override and after Reset on Detection', async () => {
-  const preset = DEFAULT_PRESETS.infant_sleep;
-  const presetValues = { motionThreshold: 100 - preset.motionSensitivity, soundSensitivity: preset.audioSensitivity };
+const preset = DEFAULT_PRESETS.infant_sleep;
+const presetValues = { motionThreshold: 100 - preset.motionSensitivity, soundSensitivity: preset.audioSensitivity };
 
-  tuneOnDetection('Pet Monitoring', 60, 55);
-  expect(await watch()).toEqual(presetValues);
-
-  tuneOnDetection('Baby Monitoring', 60, 55);
-  resetOnDetection('Baby Monitoring');
-  expect(await watch()).toEqual(presetValues);
-});
-
-it('applies an override saved by an earlier version, and the preset for what it leaves out', async () => {
+/** Saves settings as an earlier version or an import left them, and loads them. */
+async function loadSaved(scenarioOverrides: Record<string, unknown>) {
   localStorage.setItem('safeos-settings', JSON.stringify({
     state: {
       activePresetId: 'infant_sleep',
       activeSleepPreset: 'infant_sleep',
       globalSettings: { ...DEFAULT_PRESETS.infant_sleep },
-      scenarioOverrides: { baby: { motionSensitivity: 60 }, pet: null },
+      scenarioOverrides,
       globalMute: true,
     },
     version: 0,
   }));
   await useSettingsStore.persist.rehydrate();
+}
+
+/** Opens Fine-Tune on the Monitor page and returns its Motion, Audio, Pixel and Interval sliders. */
+function openFineTune() {
+  fireEvent.click(screen.getByRole('button', { name: /Fine-Tune Settings/ }));
+  const panel = screen.getByText('Override until preset changes').parentElement!;
+  return within(panel).getAllByRole('slider') as HTMLInputElement[];
+}
+
+it('keeps the preset for a use with no override, and returns to it after Reset on Detection', async () => {
+  tuneOnDetection('Pet Monitoring', 60, 55);
+  expect(await watch()).toEqual(presetValues);
+
+  tuneOnDetection('Baby Monitoring', 60, 55);
+  expect(await watch()).toEqual({ motionThreshold: 40, soundSensitivity: 55 });
+  resetOnDetection('Baby Monitoring');
+  expect(await watch()).toEqual(presetValues);
+});
+
+it('applies an override saved by an earlier version, and the preset for what it leaves out', async () => {
+  await loadSaved({ baby: { motionSensitivity: 60 }, pet: null });
 
   expect(await watch()).toEqual({ motionThreshold: 40, soundSensitivity: DEFAULT_PRESETS.infant_sleep.audioSensitivity });
 });
@@ -135,4 +148,52 @@ it('moves the watch with its own Motion slider when the use has an override', as
   view.unmount();
 
   expect((await watch()).motionThreshold).toBe(30);
+});
+
+it('shows and moves the use\'s Motion and Audio in Quick Settings, and leaves the preset for other uses', async () => {
+  tuneOnDetection('Baby Monitoring', 60, 55);
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Quick Settings/ }));
+  const quick = screen.getByRole('dialog', { name: 'Quick Settings' });
+  fireEvent.click(within(quick).getByRole('button', { name: 'More options' }));
+  expect((within(quick).getByRole('slider', { name: 'Motion sensitivity' }) as HTMLInputElement).value).toBe('60');
+  const audio = within(quick).getByRole('slider', { name: 'Audio sensitivity' }) as HTMLInputElement;
+  expect(audio.value).toBe('55');
+  fireEvent.change(audio, { target: { value: '70' } });
+  view.unmount();
+
+  expect(await watch()).toEqual({ motionThreshold: 40, soundSensitivity: 70 });
+  useOnboardingStore.getState().setScenario('pet');
+  expect(await watch()).toEqual(presetValues);
+});
+
+it('returns the watch to the preset with Fine-Tune\'s Reset, clearing the use\'s Motion and Audio', async () => {
+  tuneOnDetection('Baby Monitoring', 60, 55);
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  const [motion] = openFineTune();
+  fireEvent.change(motion, { target: { value: '70' } });
+  fireEvent.click(screen.getByRole('button', { name: /^Reset to .* Defaults$/ }));
+  view.unmount();
+
+  expect(await watch()).toEqual(presetValues);
+});
+
+it('runs at the preset\'s pixel threshold and interval, which the Sensitivity and Fine-Tune sliders move, whatever a saved override holds', async () => {
+  await loadSaved({ baby: { absolutePixelThreshold: 20, analysisInterval: 5 } });
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.getByText(`Threshold ${preset.absolutePixelThreshold}px`)).toBeTruthy();
+
+  fireEvent.click(screen.getByRole('button', { name: /^Sensitivity/ }));
+  fireEvent.change(screen.getByRole('slider', { name: 'Pixel Threshold' }), { target: { value: '40' } });
+  expect(screen.getByText('Threshold 40px')).toBeTruthy();
+
+  const [, , pixel, interval] = openFineTune();
+  expect(pixel.value).toBe('40');
+  fireEvent.change(pixel, { target: { value: '30' } });
+  fireEvent.change(interval, { target: { value: '10' } });
+  expect(screen.getByText('Threshold 30px')).toBeTruthy();
+  expect(useSettingsStore.getState().getEffectiveSettings('baby')).toMatchObject({ absolutePixelThreshold: 30, analysisInterval: 10 });
 });
