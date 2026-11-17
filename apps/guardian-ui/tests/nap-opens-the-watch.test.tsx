@@ -24,7 +24,8 @@ jest.mock('@/lib/sound-manager', () => ({ useSoundManager: () => mockSound }));
 beforeEach(() => {
   mockPush.mockClear();
   jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
-  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({ drawImage: jest.fn() } as unknown as CanvasRenderingContext2D);
+  // getContext is overloaded; type the spy loosely so the 2D context fake fits.
+  (jest.spyOn(HTMLCanvasElement.prototype, 'getContext') as unknown as jest.SpyInstance).mockReturnValue({ drawImage: jest.fn() });
 });
 
 it('offers no planned nap duration, since the watch keeps no nap timer', async () => {
@@ -48,7 +49,7 @@ it('opens Motion and sound with the infant_sleep preset after the check, and sto
   await waitFor(() => expect(screen.getAllByRole('button', { name: 'Start' })).toHaveLength(1), { timeout: 3000 });
   fireEvent.click(screen.getByRole('button', { name: 'Start' }));
   const start = await screen.findByRole('button', { name: 'Start Nap Mode' }, { timeout: 4000 });
-  await waitFor(() => expect(start).toBeEnabled(), { timeout: 4000 });
+  await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false), { timeout: 4000 });
   fireEvent.click(start);
 
   expect(mockPush).toHaveBeenCalledWith('/monitor/');
