@@ -1,0 +1,43 @@
+# SafeOS Guardian - measurements on slowed devices
+#
+# Records how the watch, the COCO-SSD model and Lost & Found matching run in
+# Chromium at two device classes with the CPU slowed. It runs on each push to
+# master and on a manual run, never on a pull request push. It records: a slow
+# number never fails the run. See docs/PERFORMANCE.md.
+
+name: Measure
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: measure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  measure:
+    name: Measure the watch on slowed devices
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read the runner's CPU and memory
+        run: |
+          {
+            echo "### Runner"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Image | ${ImageOS:-unknown} ${ImageVersion:-} |"
+            echo "| CPU | $(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -n 1) |"
+            echo "| Logical CPUs | $(nproc) |"
+            echo "| Memory | $(awk '/^MemTotal:/ { printf "%.1f GiB", $2 / 1048576 }' /proc/meminfo) |"
+            echo "| Architecture | $(uname -m) |"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
