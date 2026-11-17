@@ -567,3 +567,66 @@ html:has(.app-shell) {
   -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
   mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
 }
+
+/* =============================================================================
+   Settings' first rows on a phone
+   ============================================================================= */
+
+.settings-phone-rows {
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+}
+
+@media (min-width: 48em) {
+  .settings-phone-rows {
+    display: none;
+  }
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  text-align: left;
+}
+
+.settings-row:hover {
+  background: var(--color-steel-900);
+}
+
+.settings-row:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-row:active {
+    transform: none;
+  }
+}
+
+.settings-row__glyph {
+  flex: none;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+}
+
+.settings-row__glyph svg {
+  width: 22px;
+  height: 22px;
+}
+
+.settings-row .key__arrow {
+  flex: none;
+  margin-left: auto;
+}
