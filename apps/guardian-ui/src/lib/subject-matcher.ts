@@ -192,6 +192,8 @@ export class SubjectMatcher {
   private frameCount: number = 0;
   /** The scene's settled brightness of each lighting cell, 0 to 255; null until a frame is watched. */
   private sceneBrightness: number[] | null = null;
+  /** The stream the watched frames come from: the video element's `srcObject`. */
+  private frameSource: unknown = null;
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
 
@@ -305,6 +307,17 @@ export class SubjectMatcher {
 
     if (!this.ensureCanvasSize(width, height) || !this.canvas || !this.ctx) {
       return null;
+    }
+
+    // A camera started again, or another camera, gives the video a new
+    // stream, and its frames start a new scene: the last frame and the
+    // settled brightness belong to the stream before.
+    const source = video.srcObject ?? null;
+    if (source !== this.frameSource) {
+      this.frameSource = source;
+      this.previousFrame = null;
+      this.motionMask = [];
+      this.sceneBrightness = null;
     }
 
     this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
