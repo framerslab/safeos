@@ -108,6 +108,16 @@ const SOUND_ONLY = {
   },
 };
 
+// Only the pixel detector raises alerts, at the default preset's 50 px line.
+const PIXEL_ONLY = {
+  activePresetId: 'custom',
+  globalSettings: {
+    ...CUSTOM,
+    pixelDetectionEnabled: true,
+    motionDetectionEnabled: false,
+  },
+};
+
 // The store's timing defaults with the Cooldown Period at `seconds`.
 const cooldownPeriod = (seconds: number) => ({
   cooldownPeriod: seconds,
@@ -476,5 +486,34 @@ test.describe('Alerts repeat while the activity goes on', () => {
     expect(afterStart.length, `an alert after Start (alerts at ${JSON.stringify(walk.alerts.motion.map((t) => t - first))} ms after the first, Start at ${restartedAt - first} ms)`).toBeGreaterThanOrEqual(1);
     expect.soft(afterStart[0]).toBeLessThanOrEqual(5_000);
     expect.soft(walk.cards.motion, 'the new session\'s event has its own card').toBe(2);
+  });
+
+  test('turning a detector off ends its event: turned on again, a new event alerts at once and does not wait for the Cooldown Period', async ({ page }) => {
+    test.setTimeout(120_000);
+    // A critical pixel event, Cooldown Period 60 s. Pixel detection is
+    // turned off 2 s after the alert, on the monitor's own switch, and on
+    // again 1 s later while the picture keeps changing. While it is off the
+    // camera hands the page no pixel readings, so only the switch can end
+    // the event. Turned on again, that is a new event, and critical has no
+    // cooldown.
+    await openMonitor(page, {
+      settings: { ...PIXEL_ONLY, timingSettings: cooldownPeriod(60) },
+      camera: { changingWidth: 1 },
+    });
+    const first = await firstAlert(page, 'pixel');
+    await runUntil(page, first + 2_000);
+    const pixelSwitch = page.getByRole('switch', { name: 'Toggle pixel detection' });
+    await pixelSwitch.click();
+    await expect(pixelSwitch).toHaveAttribute('aria-checked', 'false');
+    await runUntil(page, (await pageNow(page)) + 1_000);
+    await pixelSwitch.click();
+    await expect(pixelSwitch).toHaveAttribute('aria-checked', 'true');
+    const onAgainAt = await pageNow(page);
+    await runUntil(page, onAgainAt + 8_000);
+    const walk = await walkOf(page);
+    const afterOn = walk.alerts.pixel.filter((t) => t > onAgainAt).map((t) => t - onAgainAt);
+    expect(afterOn.length, `a pixel alert after pixel detection was turned on again (alerts at ${JSON.stringify(walk.alerts.pixel.map((t) => t - first))} ms after the first, on again at ${onAgainAt - first} ms)`).toBeGreaterThanOrEqual(1);
+    expect.soft(afterOn[0]).toBeLessThanOrEqual(5_000);
+    expect.soft(walk.cards.pixel, 'the new event has its own card').toBe(2);
   });
 });
