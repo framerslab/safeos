@@ -77,6 +77,8 @@ interface SafeOSDB extends DBSchema {
       acknowledgedAt: string | null;
       createdAt: string;
       syncedAt: string;
+      /** How many times a monitor event alerted again after its card was made. */
+      repeats?: number;
     };
     indexes: {
       'by-stream': string;
@@ -782,6 +784,7 @@ async function writeAlert(
       acknowledgedAt: merged.acknowledgedAt,
       createdAt,
       syncedAt: new Date().toISOString(),
+      ...(typeof merged.repeats === 'number' && merged.repeats > 0 ? { repeats: merged.repeats } : {}),
     });
     if (producer === 'monitoring') await pruneMonitoringAlerts(alerts);
     await pruneNewAlerts(alerts);

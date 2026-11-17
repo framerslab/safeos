@@ -23,9 +23,13 @@ export interface Alert {
   severity: 'info' | 'low' | 'medium' | 'high' | 'critical';
   message: string;
   thumbnailUrl?: string;
+  /** When the alert was raised: for a monitor event's card, when the event began. */
   createdAt?: string;
+  /** For a monitor event's card, the time of its newest alert. */
   timestamp?: string;
   acknowledged: boolean;
+  /** How many times the event alerted again after its card was made. */
+  repeats?: number;
 }
 
 export type MonitoringScenario = 'pet' | 'baby' | 'elderly' | 'security';

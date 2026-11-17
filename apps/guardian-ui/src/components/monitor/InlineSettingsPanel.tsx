@@ -608,7 +608,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
           color="blue"
         />
         <div className="text-[10px] text-slate-500 -mt-2">
-          Minimum time between alerts of the same type
+          Shortest time between repeated alerts for one event; a rise in severity alerts sooner
         </div>
 
         <SettingsSlider
