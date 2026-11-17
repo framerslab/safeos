@@ -489,6 +489,23 @@ describe('Merging the colour histograms of reference photos', () => {
     expect(total(merged)).toBe(100);
   });
 
+  it('keeps a small photo\'s colour when a larger photo fills every bucket', () => {
+    // 32 bands of 8 rows, each a colour of its own bucket: 2048 pixels each.
+    const levels = [0, 85, 170, 255];
+    const many = picture(256, 256, (_x, y) => {
+      const band = Math.floor(y / 8);
+      return [levels[band >> 4], levels[(band >> 2) & 3], levels[band & 3]];
+    });
+    // One colour far from all of them, over 1024 pixels.
+    const small = flat(32, 32, WHITE);
+    const merged = mergeFingerprints([enrol(many), enrol(small)]);
+
+    expect(enrol(many).colorHistogram).toHaveLength(32);
+    expect(merged.colorHistogram).toHaveLength(32);
+    // Half of the subject is white in one photo of two.
+    expect(merged.colorHistogram[0]).toEqual({ color: { r: 255, g: 255, b: 255 }, count: 512, percentage: 50 });
+  });
+
   it('scores a picture the same against one photo and against two that are a level apart', () => {
     const one = enrol(photo);
     const merged = mergeFingerprints([one, enrol(brighter)]);
