@@ -98,10 +98,12 @@ export function regionEdgeSignature(imageData: ImageData, gridSize: number): num
  * each cell of an 8 by 8 grid.
  *
  * A change of light is judged among the background cells: those not taken up
- * by something that came into view. A cell becomes foreground when, after the
- * frame's correction, it stays more than FOREGROUND_LEVELS from where it
- * settled; it leaves the judging, and the settled brightness, until it comes
- * back or has held for FOREGROUND_FRAMES_TO_SETTLE frames. A frame is moved
+ * by something that came into view. A cell becomes foreground when it is more
+ * than FOREGROUND_LEVELS from where it settled and did not move with the
+ * frame's change of light (the same way, by half to twice as much, give or
+ * take FOREGROUND_LEVELS); it leaves the judging, and the settled brightness,
+ * until it comes back or has held for FOREGROUND_FRAMES_TO_SETTLE frames.
+ * With fewer than MIN_BACKGROUND_CELLS background cells, nothing is judged. A frame is moved
  * back when seven in eight of the background cells moved the same way, or
  * when half of them moved the same way and kept their texture, as a lit or
  * shaded wall, floor or shelf does and a subject in front of them does not;
@@ -135,10 +137,10 @@ const LIGHTING_CELLS = LIGHTING_GRID * LIGHTING_GRID;
 const CELL_MOVED_LEVELS = 2;
 
 /**
- * A change of light is judged on at least this many background cells, a
- * quarter of the grid; with fewer, on every cell.
+ * A change of light is judged on at least this many background cells, an
+ * eighth of the grid; with fewer, the frame is scored as the camera gives it.
  */
-const MIN_BACKGROUND_CELLS = 16;
+const MIN_BACKGROUND_CELLS = 8;
 
 /**
  * A cell has texture to judge when the brightness of its pixels spreads this
@@ -146,7 +148,10 @@ const MIN_BACKGROUND_CELLS = 16;
  */
 const TEXTURE_LEVELS = 4;
 
-/** A cell more than this many levels from where it settled, after the frame's correction, is foreground. */
+/**
+ * A cell more than this many levels from where it settled, that did not move
+ * with the frame's change of light, is foreground.
+ */
 const FOREGROUND_LEVELS = 10;
 
 /**
@@ -207,7 +212,11 @@ export class SubjectMatcher {
   private cellMoves = new Int8Array(LIGHTING_CELLS);
   /** The differences the frame's correction is the median of. */
   private lightingDifferences = new Float64Array(LIGHTING_CELLS);
-  /** The way the frame's light changed: 1 darker, -1 brighter, 0 when it did not. */
+  /**
+   * The levels the frame's light took away from the settled brightness, the
+   * median before it is capped at MAX_LIGHTING_CORRECTION: positive when the
+   * light dropped, negative when it rose, 0 when it did not change.
+   */
   private lightChange = 0;
   /** The stream the watched frames come from: the video element's `srcObject`. */
   private frameSource: unknown = null;
@@ -457,7 +466,7 @@ export class SubjectMatcher {
 
     const correction = Math.round(this.lightingCorrection());
     if (learn) {
-      this.learnScene(correction);
+      this.learnScene();
     }
     return this.adjustLighting(frameData, correction);
   }
@@ -509,12 +518,15 @@ export class SubjectMatcher {
     const cells = this.cellBrightness;
     const foreground = this.foregroundFrames;
 
-    let background = 0;
+    let judged = 0;
     for (let i = 0; i < LIGHTING_CELLS; i++) {
-      if (foreground[i] === 0) background++;
+      if (foreground[i] === 0) judged++;
     }
-    const everyCell = background < MIN_BACKGROUND_CELLS;
-    const judged = everyCell ? LIGHTING_CELLS : background;
+    this.lightChange = 0;
+    if (judged < MIN_BACKGROUND_CELLS) {
+      this.cellMoves.fill(0);
+      return 0;
+    }
 
     let darker = 0;
     let brighter = 0;
@@ -522,7 +534,7 @@ export class SubjectMatcher {
     let texturedBrighter = 0;
     for (let i = 0; i < LIGHTING_CELLS; i++) {
       this.cellMoves[i] = 0;
-      if (!everyCell && foreground[i] > 0) continue;
+      if (foreground[i] > 0) continue;
       const difference = settled[i] - cells[i];
       if (Math.abs(difference) <= CELL_MOVED_LEVELS) continue;
       const kept = textureKept(this.sceneTexture[i], settled[i], this.cellTexture[i], cells[i]);
@@ -552,7 +564,6 @@ export class SubjectMatcher {
       direction = -1;
       texturedOnly = true;
     }
-    this.lightChange = direction;
     if (direction === 0) {
       return 0;
     }
@@ -570,28 +581,36 @@ export class SubjectMatcher {
     differences.sort();
     const middle = Math.floor(count / 2);
     const median = count % 2 === 1 ? differences[middle] : (differences[middle - 1] + differences[middle]) / 2;
+    this.lightChange = median;
     return Math.max(-MAX_LIGHTING_CORRECTION, Math.min(MAX_LIGHTING_CORRECTION, median));
   }
 
   /**
-   * Take the frame read into cellBrightness into the scene, once it has been
-   * moved by `correction` levels. A cell that moved with the change of light,
-   * or is within FOREGROUND_LEVELS of where it settled, is background: its
-   * settled brightness and texture follow it slowly. Any other cell is
-   * foreground and leaves the settled brightness as it is, until it has been
-   * foreground for FOREGROUND_FRAMES_TO_SETTLE frames, when its brightness
-   * becomes the settled one.
+   * Take the frame read into cellBrightness into the scene. A cell within
+   * FOREGROUND_LEVELS of where it settled, or that moved with the frame's
+   * change of light (lightChange), is background: its settled brightness and
+   * texture follow it slowly. Any other cell, such as a subject that came into
+   * view as the light changed, is foreground and leaves the settled brightness
+   * as it is, until it has been foreground for FOREGROUND_FRAMES_TO_SETTLE
+   * frames, when its brightness becomes the settled one.
    */
-  private learnScene(correction: number): void {
+  private learnScene(): void {
     const settled = this.sceneBrightness;
     const texture = this.sceneTexture;
     const cells = this.cellBrightness;
     const foreground = this.foregroundFrames;
 
+    const light = this.lightChange;
+    const lightLevels = Math.abs(light);
     for (let i = 0; i < LIGHTING_CELLS; i++) {
-      const movedWithLight = this.lightChange !== 0 && Math.sign(this.cellMoves[i]) === this.lightChange;
-      const left = settled[i] - (cells[i] + correction);
-      if (!movedWithLight && Math.abs(left) > FOREGROUND_LEVELS) {
+      const difference = settled[i] - cells[i];
+      const levels = Math.abs(difference);
+      const movedWithLight =
+        light !== 0 &&
+        Math.sign(difference) === Math.sign(light) &&
+        levels >= lightLevels / 2 - FOREGROUND_LEVELS &&
+        levels <= lightLevels * 2 + FOREGROUND_LEVELS;
+      if (levels > FOREGROUND_LEVELS && !movedWithLight) {
         if (foreground[i] + 1 >= FOREGROUND_FRAMES_TO_SETTLE) {
           settled[i] = cells[i];
           texture[i] = this.cellTexture[i];
