@@ -16,6 +16,7 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import { clearLocalData } from '@/lib/local-data';
 import { FeatureDisabledBadge } from '@/components/StatusBanner';
+import { PhoneRows } from '@/components/settings/PhoneRows';
 
 // =============================================================================
 // Types
@@ -357,6 +358,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-x-hidden">
+      <PhoneRows />
       {/* Header */}
       <header className="p-4 sm:p-6 border-b border-slate-700/50">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
