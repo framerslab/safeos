@@ -118,3 +118,28 @@ it('keeps the setting of a watch not started from Nap Mode when it stops', async
 
   expect(useSettingsStore.getState().activePresetId).toBe('night');
 });
+
+it('keeps a setting the person chose during the nap when the watch stops', async () => {
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  napStarted(0, 30, true);
+  render(<MonitorPage />);
+  await act(async () => {});
+  await watching();
+  act(() => { useSettingsStore.getState().setActivePreset('night'); });
+
+  fireEvent.click(stopKey() as HTMLElement);
+  await act(async () => {});
+
+  expect(useSettingsStore.getState().activePresetId).toBe('night');
+  expect(sessionStorage.getItem(NAP)).toBeNull();
+});
+
+it('starts on arrival under React Strict Mode, which runs effects twice in development', async () => {
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  napStarted(0, 30, true);
+  render(<React.StrictMode><MonitorPage /></React.StrictMode>);
+  await act(async () => {});
+
+  expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+});
