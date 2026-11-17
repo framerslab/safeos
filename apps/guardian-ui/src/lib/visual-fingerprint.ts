@@ -369,9 +369,17 @@ export function calculateColorVariance(imageData: ImageData, avgColor: RGB): num
 }
 
 /**
- * Extract edge signature using simple gradient detection
+ * Extract edge signature using simple gradient detection: one value per cell
+ * of a `gridSize` by `gridSize` grid, scaled so the strongest cell reads 100.
+ *
+ * `floor` is the least edge strength the strongest cell is scaled against. A
+ * cell's strength is the mean, over its samples, of the step to the next
+ * pixel right and down, summed over red, green and blue: a step from black to
+ * white is 765. With a floor of 32, a picture whose strongest cell reads 4 (a
+ * flat wall with one level of noise) gives 13 a cell, not 100. The default of
+ * 1 scales every picture to its own strongest cell.
  */
-export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8): number[] {
+export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8, floor: number = 1): number[] {
   const { data, width, height } = imageData;
   const signature: number[] = [];
   
@@ -417,7 +425,7 @@ export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8)
   }
   
   // Normalize signature
-  const maxEdge = Math.max(...signature, 1);
+  const maxEdge = Math.max(...signature, floor, 1);
   return signature.map(e => Math.round((e / maxEdge) * 100));
 }
 

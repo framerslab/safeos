@@ -80,6 +80,17 @@ const DEFAULT_SETTINGS: MatcherSettings = {
 };
 
 /**
+ * The least edge strength a region's strongest cell is scaled against. A
+ * subject's photos are scaled to their own strongest cell; a region of the
+ * camera's frame is scaled to at least this, so a wall, a floor or the sky,
+ * whose only edges are the camera's noise, reads weak edges instead of edges
+ * as strong as the subject's. 32 is the strength of a cell in which every
+ * sample steps about 11 levels in red, green and blue to its neighbour; a step
+ * from black to white is 765.
+ */
+const REGION_EDGE_FLOOR = 32;
+
+/**
  * Adaptive lighting holds each frame at the brightness the scene has settled
  * at, so a light switched on or off changes the scores less. The brightness
  * is kept for each cell of an 8 by 8 grid. A change of light moves every cell
@@ -556,7 +567,7 @@ export class SubjectMatcher {
     // square grid has no cells to line up with; its region is read on the
     // default grid and its edge term is 0.
     const edgeGrid = edgeGridSide(this.fingerprint?.edgeSignature ?? []) || DEFAULT_EDGE_GRID_SIZE;
-    const edgeSignature = extractEdgeSignature(imageData, edgeGrid);
+    const edgeSignature = extractEdgeSignature(imageData, edgeGrid, REGION_EDGE_FLOOR);
     const sizeRatio = estimateSizeRatio(imageData);
 
     return {
