@@ -904,7 +904,7 @@ function compareEdgeSignatures(e1: number[], e2: number[]): number {
   if (e1.length !== e2.length) {
     const side1 = edgeGridSide(e1);
     const side2 = edgeGridSide(e2);
-    if (side1 !== side2 || side1 === 0 || side2 === 0) {
+    if (side1 === 0 || side2 === 0) {
       return 0;
     }
     const side = Math.min(side1, side2);

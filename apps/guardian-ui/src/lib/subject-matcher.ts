@@ -463,7 +463,7 @@ export class SubjectMatcher {
     // square grid has no cells to line up with; its region is read on the
     // default grid and its edge term is 0.
     const edgeGrid = edgeGridSide(this.fingerprint?.edgeSignature ?? []) || DEFAULT_EDGE_GRID_SIZE;
-    const edgeSignature = extractEdgeSignature(imageData, Math.min(edgeGrid, 4));
+    const edgeSignature = extractEdgeSignature(imageData, edgeGrid);
     const sizeRatio = estimateSizeRatio(imageData);
 
     return {
