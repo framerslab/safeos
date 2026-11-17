@@ -457,7 +457,9 @@ html:has(.app-shell) {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
-  box-shadow: 0 -1px 0 var(--color-steel-300);
+  /* The top line is drawn inside the bar, where the faded edge does not cut
+     it away. */
+  box-shadow: inset 0 1px 0 var(--color-steel-300);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -521,26 +523,9 @@ html:has(.app-shell) {
 
 /* When the places are wider than the bar it scrolls inside itself, with the
    right edge faded as the header's row is at its last fold, until its end is
-   reached. A browser that cannot tie an animation to scrolling shows the bar
-   unfaded; it scrolls all the same. */
-@supports (animation-timeline: scroll(self inline)) {
-  .phone-bar {
-    animation-name: phone-bar-edge;
-    animation-duration: auto;
-    animation-timing-function: linear;
-    animation-fill-mode: both;
-    animation-timeline: scroll(self inline);
-  }
-}
-
-@keyframes phone-bar-edge {
-  from,
-  99% {
-    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
-    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
-  }
-  to {
-    -webkit-mask-image: none;
-    mask-image: none;
-  }
+   reached. The bar's script sets data-overflow while places lie past that
+   edge, so the fade shows in every browser. */
+.phone-bar[data-overflow] {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
 }
