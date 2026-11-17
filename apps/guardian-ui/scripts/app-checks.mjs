@@ -933,6 +933,10 @@ export async function checkApp(browser, baseUrl, outDir) {
   for (const look of LOOKS) {
     await open({ name: 'no floating card', width: 390, look, userAgent: IPHONE_SAFARI }, async (page, context, check) => {
       await visit(page, '/dashboard/');
+      // A card that asks for notifications shows only where the browser has
+      // not been asked yet; in any other state this walk could not find one.
+      const asked = await page.evaluate(() => (typeof Notification === 'undefined' ? 'not known to this browser' : Notification.permission));
+      check(asked === 'default', `notifications are ${asked} here, not waiting to be asked for, so a card that asks for them would not show`);
       await page.waitForTimeout(10_000);
       for (const words of ['Install SafeOS', 'Enable notifications']) {
         check((await page.getByText(words).count()) === 0, `"${words}" shows after 10 seconds`);
