@@ -723,6 +723,33 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
   }
 
+  // A focused place's ring is drawn whole. The bar scrolls inside itself,
+  // so whatever is drawn outside the bar's own box is cut away.
+  await open({ name: 'phone bar, focus ring', width: 390, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/dashboard/');
+    for (let i = 0; i < 3; i += 1) {
+      await page.keyboard.press('Shift+Tab');
+      const seen = await page.evaluate(() => {
+        const place = document.activeElement;
+        const bar = place?.closest('nav.phone-bar');
+        if (!bar) return null;
+        const style = getComputedStyle(place);
+        const reach = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
+        const box = place.getBoundingClientRect();
+        const edge = bar.getBoundingClientRect();
+        return {
+          name: (place.querySelector('.phone-bar__word') || place).textContent.trim(),
+          ring: `${style.outlineStyle} ${style.outlineWidth}`,
+          past: { top: edge.top - (box.top - reach), left: edge.left - (box.left - reach), right: box.right + reach - edge.right, foot: box.bottom + reach - edge.bottom },
+        };
+      });
+      if (!seen) throw new Error(`Shift+Tab pressed ${i + 1} times from the top did not reach the phone bar`);
+      check(seen.ring === 'solid 2px', `${seen.name} is ringed ${seen.ring}`);
+      const cut = Object.entries(seen.past).filter(([, px]) => px > 0.5).map(([side, px]) => `${px.toFixed(1)} px past the bar's ${side}`);
+      check(cut.length === 0, `the ring round ${seen.name} is cut: it is drawn ${cut.join(', ')}`);
+    }
+  });
+
   // One site footer on every app page, outside the main content, with its
   // six groups, its last line and links that answer.
   const footerRuns = [
