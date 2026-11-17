@@ -730,9 +730,10 @@ class SoundManager {
 
       audio.addEventListener('ended', () => {
         if (sound.loop) {
-          // Continuous loop
-          audio.currentTime = 0;
-          audio.play();
+          // Continuous loop. A pass the browser refuses to play ends the
+          // copy, as a refused first pass does, so the next alert that plays
+          // this sound starts a new copy instead of finding this one.
+          playOnce();
         } else if (repeatCount < maxRepeats) {
           // Repeat with delay
           repeatCount++;

@@ -355,6 +355,15 @@ test.use({
   },
 });
 
+// The test camera and microphone need desktop Chromium: the flags above, and
+// the camera and microphone grants, which Playwright's Firefox does not take
+// (it throws "Unknown permission: camera"). CI walks it in Chromium; under
+// the other projects in playwright.config.ts it skips.
+test.skip(
+  ({ browserName, isMobile }) => browserName !== 'chromium' || isMobile,
+  'the alert walk runs in desktop Chromium',
+);
+
 test.describe('Alerts repeat while the activity goes on', () => {
   test('a low motion alert comes again after the Cooldown Period when that is longer than low\'s 10 s, on the same card', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
