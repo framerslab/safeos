@@ -889,7 +889,8 @@ export async function checkApp(browser, baseUrl, outDir) {
   }
 
   // The reading pages keep the visitor header, with no app navigation and
-  // no phone bar.
+  // no bar at the foot of the screen, whatever it is called: their only
+  // navigations are the header's and the footer's.
   for (const route of ['/', '/about/', '/faq/', '/blog/', '/privacy/', '/terms/']) {
     for (const width of [390, 1280]) {
       for (const look of LOOKS) {
@@ -912,6 +913,18 @@ export async function checkApp(browser, baseUrl, outDir) {
               app: document.querySelectorAll('nav[aria-label="App"]').length,
               bar: document.querySelectorAll('nav.phone-bar').length,
               words: nav.textContent,
+              navigations: [...document.querySelectorAll('nav, [role="navigation"]')].map((one) => one.getAttribute('aria-label') || 'one with no name').sort(),
+              // What the foot of the screen shows: a navigation fixed there,
+              // under whatever class or name, is a bar this page does not carry.
+              foot: (() => {
+                const fixed = [];
+                for (let node = document.elementFromPoint(document.documentElement.clientWidth / 2, window.innerHeight - 2); node; node = node.parentElement) {
+                  if (getComputedStyle(node).position === 'fixed' && node.matches('nav, [role="navigation"]')) {
+                    fixed.push(node.getAttribute('aria-label') || node.className || node.tagName.toLowerCase());
+                  }
+                }
+                return fixed.join(', ');
+              })(),
             };
           });
           const destinations = seen.links.map((link) => link.words).join(', ');
@@ -921,6 +934,8 @@ export async function checkApp(browser, baseUrl, outDir) {
           check(seen.start === 'Open dashboard', `on ${route} the start key reads "${seen.start}"`);
           check(seen.app === 0, `${route} has ${seen.app} navigations named "App"`);
           check(seen.bar === 0, `${route} has a phone bar`);
+          check(seen.navigations.join(', ') === 'Site, Site links', `the navigations on ${route} are ${seen.navigations.join(', ')}, not Site and Site links alone`);
+          check(!seen.foot, `a navigation is fixed at the foot of the screen on ${route}: ${seen.foot}`);
           check(!/\b(Monitor|Security)\b/.test(seen.words), `the header on ${route} names Monitor or Security`);
         });
       }
