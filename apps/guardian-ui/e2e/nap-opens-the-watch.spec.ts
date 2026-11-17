@@ -67,4 +67,6 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   await expect(page.getByRole('button', { name: 'Start Monitoring', exact: true })).toHaveCount(0);
   // Chromium's fake camera shows a moving picture, so the Nap preset's pixel check alerts.
   await expect(page.getByText(/Pixel movement detected/).first()).toBeVisible({ timeout: 45_000 });
+  // The watch as it runs after Start Nap Mode, kept as the pull request's picture.
+  await page.screenshot({ path: test.info().outputPath('nap-watch-1280.png') });
 });

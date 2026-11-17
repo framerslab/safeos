@@ -296,6 +296,15 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Upload the picture of the watch after Nap Mode
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nap-watch-picture
+          path: apps/guardian-ui/test-results/**/nap-watch-1280.png
+          if-no-files-found: warn
+          retention-days: 14
+
   # ---------------------------------------------------------------------------
   # Compose files: only the reverse proxy publishes a port beyond loopback.
   # Docker's published ports bypass the host firewall, so Ollama, Redis and the
