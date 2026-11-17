@@ -445,6 +445,24 @@ describe('Edge term on the enrolled grid', () => {
     expect(result?.details.edgeMatch).toBe(100);
     expect(result?.confidence).toBe(100);
   });
+
+  it('reads a near-blank wall as near-blank, not as strongly as the subject\'s stripes', () => {
+    const subject = enrol(stripes(128, 128));
+    // A flat grey wall with one level of dither, as a camera's noise gives it.
+    const wall = picture(128, 128, (x, y) => ((x + y) % 2 === 1 ? [129, 129, 129] : [128, 128, 128]));
+    const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: false, motionPriority: false });
+    matcher.setFingerprint(subject);
+    matcher.setActive(true);
+
+    const result = matcher.processCanvas(canvasOf(wall));
+
+    // Every sample of the wall steps one level right and down, an edge
+    // strength of 4, where a step from black to white is 765. A region is
+    // scaled against an edge strength of at least 32, so the wall's cells read
+    // 13 (4 of 32) where the stripes' read 100.
+    expect(result).not.toBeNull();
+    expect(result?.details.edgeMatch).toBe(13);
+  });
 });
 
 describe('Colour sensitivity', () => {
