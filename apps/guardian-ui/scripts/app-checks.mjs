@@ -968,7 +968,16 @@ export async function checkApp(browser, baseUrl, outDir) {
         return element ? `${element.tagName.toLowerCase()}${typeof element.className === 'string' && element.className ? `.${element.className.trim().split(/\s+/).join('.')}` : ''}` : 'nothing';
       });
       check(!hit, `the middle of the phone bar shows ${hit}`);
-    }, { permissions: ['camera', 'microphone'] });
+    }, {
+      permissions: ['camera', 'microphone'],
+      // Headless Chromium says notifications are denied where they are not
+      // granted; a person's browser that has not been asked says 'default'.
+      script: () => {
+        if (typeof Notification === 'undefined') return;
+        Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'default' });
+        Notification.requestPermission = () => Promise.resolve('default');
+      },
+    });
   }
 
   // The frame holds the screen's edges: while an app page scrolls, no part of
