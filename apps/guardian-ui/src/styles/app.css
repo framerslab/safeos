@@ -131,6 +131,44 @@ html:has(.app-shell) {
 }
 
 /* =============================================================================
+   Before script
+   ============================================================================= */
+
+/* With scripts off no look is chosen by script, so a part built in the look
+   takes the light tokens from the device's setting through CSS alone, as the
+   home page does. The values are html.light's (design-system.css) with the
+   visitor pages' quiet tone. A page this stylesheet does not build keeps the
+   values it was written for. */
+@media (prefers-color-scheme: light) {
+  html:not(.dark):not(.light):has(.app-shell--look) {
+    color-scheme: light;
+  }
+
+  html:not(.dark):not(.light):has(.app-shell--look) body,
+  html:not(.dark):not(.light) .look-part {
+    --color-steel-950: #f8f9fa;
+    --color-steel-900: #f1f3f4;
+    --color-steel-850: #e8ebee;
+    --color-steel-800: #dee2e6;
+    --color-steel-700: #ced4da;
+    --color-steel-600: #adb5bd;
+    --color-steel-500: #868e96;
+    --color-steel-400: #5a6270;
+    --color-steel-300: #495057;
+    --color-steel-200: #212529;
+    --color-steel-100: #212529;
+    --color-steel-50: #0f1215;
+    --look-accent: #14532d;
+    --look-accent-hover: #052e16;
+    --look-on-accent: #ffffff;
+    --look-alert: #991b1b;
+    --visitor-panel-ink: #0f1215;
+    background: var(--color-steel-950);
+    color: var(--color-steel-50);
+  }
+}
+
+/* =============================================================================
    The app's header: one row at every width
    ============================================================================= */
 
