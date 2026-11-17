@@ -34,6 +34,28 @@ const LIGHT_TOKENS = [
   '#991b1b',
 ];
 
+// Each font size a stylesheet sets that is under 16 px.
+function sizeFaults(css: string): string[] {
+  const faults: string[] = [];
+  const sizes = Array.from(withoutComments(css).matchAll(/font-size\s*:\s*([^;}]+)/g), (found) => found[1].trim());
+  for (const size of sizes) {
+    for (const [, value, unit] of Array.from(size.matchAll(/(\d*\.?\d+)(rem|px)\b/g))) {
+      const px = unit === 'rem' ? Number(value) * 16 : Number(value);
+      if (px < 16) faults.push(size);
+    }
+  }
+  return faults;
+}
+
+// Each colour a stylesheet writes itself instead of taking it from a token.
+function colourFaults(css: string): string[] {
+  const hexes = css.match(/#[0-9a-f]{3,8}(?![\w-])/gi) ?? [];
+  return [
+    ...hexes.filter((hex) => !LIGHT_TOKENS.includes(hex.toLowerCase())),
+    ...(withoutComments(css).match(/rgba?\(/g) ?? []),
+  ];
+}
+
 it("the app's stylesheet is loaded after the visitor pages'", () => {
   const globals = read('app/globals.css');
   const visitor = globals.indexOf("@import '../styles/visitor.css';");
@@ -43,21 +65,33 @@ it("the app's stylesheet is loaded after the visitor pages'", () => {
 });
 
 it('takes every colour from a token', () => {
-  const css = read('styles/app.css');
-  const hexes = css.match(/#[0-9a-f]{3,8}(?![\w-])/gi) ?? [];
-  for (const hex of hexes) expect([hex, LIGHT_TOKENS.includes(hex.toLowerCase())]).toEqual([hex, true]);
-  expect(withoutComments(css)).not.toMatch(/rgba?\(/);
+  expect(colourFaults(read('styles/app.css'))).toEqual([]);
 });
 
 it('names no monospaced face and no size under 16 px', () => {
   const css = read('styles/app.css');
   expect(css).not.toContain('--font-mono');
   expect(css).not.toContain('monospace');
-  const sizes = Array.from(withoutComments(css).matchAll(/font-size\s*:\s*([^;}]+)/g), (found) => found[1].trim());
-  for (const size of sizes) {
-    for (const [, value, unit] of Array.from(size.matchAll(/(\d*\.?\d+)(rem|px)\b/g))) {
-      const px = unit === 'rem' ? Number(value) * 16 : Number(value);
-      expect([size, px >= 16]).toEqual([size, true]);
-    }
-  }
+  expect(sizeFaults(css)).toEqual([]);
+});
+
+it('finds a size that is not a token and a colour that is not one, however each is written', () => {
+  expect(sizeFaults('.app-more__row { font-size: 0.875em; }')).toEqual(['0.875em']);
+  expect(sizeFaults('.app-more__row { font-size: 90%; }')).toEqual(['90%']);
+  expect(sizeFaults('.app-more__row { font-size: small; }')).toEqual(['small']);
+  expect(sizeFaults('@media (min-width: 48em) { .app-more__row { font-size: 0.9375rem; } }')).toEqual(['0.9375rem']);
+  expect(
+    sizeFaults('html:has(.app-shell) { font-size: 100%; } .a { font-size: var(--type-word-size); } .b { font-size: 1rem; } .c { font-size: 18px; }')
+  ).toEqual([]);
+  expect(colourFaults('.app-more__row { color: hsl(0 0% 100%); }')).toEqual(['hsl(']);
+  expect(colourFaults('.app-more__row { background: oklch(0.7 0.1 150); }')).toEqual(['oklch(']);
+  expect(colourFaults('.app-more__row { color: white; border-bottom: 1px solid RebeccaPurple; }')).toEqual(['white', 'rebeccapurple']);
+  expect(colourFaults('.app-more__row { color: #123456; }')).toEqual(['#123456']);
+  expect(colourFaults('.app-more__row { background: linear-gradient(to right, black, transparent); }')).toEqual(['black']);
+  expect(
+    colourFaults(
+      '.a { mask-image: linear-gradient(to right, black calc(100% - 24px), transparent); color: var(--color-steel-50); background: transparent; }' +
+        ' .b { background: color-mix(in srgb, var(--color-steel-950) 80%, transparent); white-space: nowrap; }'
+    )
+  ).toEqual([]);
 });
