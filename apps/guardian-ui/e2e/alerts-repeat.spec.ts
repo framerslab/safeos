@@ -1,11 +1,13 @@
 /**
- * Alerts keep coming while the activity goes on.
+ * Alerts keep coming while the activity goes on, on one card per event.
  *
  * Opens the monitor with a camera whose picture changes on every frame,
  * presses "Start Monitoring" and keeps the change going. The first alert
  * comes after the sustained-detection window; while the change goes on, the
- * next alert of that kind is due once the cooldown has passed since the last
- * one, and not before.
+ * next alert of that kind is due once the longer of its severity's cooldown
+ * and the Cooldown Period has passed since the last one, and not before. It
+ * updates the event's card, which counts its repeats, and it alerts again:
+ * a repeat notification is shown with `renotify`.
  *
  * The camera is a canvas stream handed to the page in place of
  * getUserMedia's: the page's own motion and pixel detectors read it the way
@@ -13,68 +15,107 @@
  * 0, 85, 170 and 255 at random every 40 ms. Two samples of the same point
  * differ by 85 or more (over the motion detector's 30 grey-level line) in
  * three samples out of four, so the motion reading is three quarters of the
- * redrawn part, on every sample, with no dip under the line.
+ * redrawn part, on every sample, with no dip under the line. The test can
+ * widen the redrawn part, or hold the picture still for a moment now and
+ * then. The microphone is silent, or a sawtooth tone at full gain.
  *
  * The times are read inside the page: an observer notes the moment the
- * alert list's count of each kind of card goes up, so the gap between two
- * alerts does not depend on how often the test looks.
+ * alert list's count of each kind of alert goes up (a new card, or a card's
+ * "Repeated N times" going up), and each value the Motion, Pixel and Audio
+ * readouts show, so the gap between two alerts does not depend on how often
+ * the test looks.
  *
  * Run in CI by ci.yml's "Web app alert walk" job against the static export.
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type TestInfo } from '@playwright/test';
 
-type Kind = 'motion' | 'pixel';
+type Kind = 'motion' | 'pixel' | 'audio';
 
-declare global {
-  interface Window {
-    /** When the alert list's count of each kind of card went up (Date.now()). */
-    __alertTimes?: Record<Kind, number[]>;
-  }
+interface Shown {
+  at: number;
+  title: string;
+  tag?: string;
+  renotify?: boolean;
+}
+
+interface Walk {
+  /** When the count of alerts of each kind went up (Date.now()). */
+  alerts: Record<Kind, number[]>;
+  /** How many cards of each kind the alert list shows. */
+  cards: Record<Kind, number>;
+  /** Each value a readout showed, with when it showed it. */
+  readings: Record<Kind, Array<[number, number]>>;
+  /** The system notifications the page asked for. */
+  notifications: Shown[];
 }
 
 interface Camera {
   /** The share of the picture's width that changes, from the left edge (0 to 1). */
   changingWidth: number;
+  /** Hold the picture still for `stillForMs` out of every `stillEveryMs` (0: never). */
+  stillEveryMs: number;
+  stillForMs: number;
+  /** A sawtooth tone at full gain on the microphone, in place of silence. */
+  tone: boolean;
+}
+
+declare global {
+  interface Window {
+    __walk?: Walk;
+    __walkCamera?: Camera;
+  }
 }
 
 interface Seed {
   /** The persisted settings to start from (merged over the store's defaults). */
   settings: Record<string, unknown> | null;
-  camera: Camera;
+  camera: Partial<Camera>;
+  /** Grant notifications and record each one the page shows. */
+  notify?: boolean;
 }
 
 // The Custom preset with pixel detection and sound detection off: only the
 // motion detector raises alerts. Motion line 20 % (sensitivity 80).
-const MOTION_ONLY = {
+const CUSTOM = {
+  id: 'custom',
+  name: 'Maximum Alert',
+  description: 'High sensitivity (80%), max volume, 5-second intervals.',
+  motionSensitivity: 80,
+  audioSensitivity: 80,
+  pixelThreshold: 20,
+  absolutePixelThreshold: 50,
+  analysisInterval: 5,
+  alertDelay: 30,
+  alertVolume: 100,
+  emergencyMode: false,
+  pixelDetectionEnabled: false,
+  motionDetectionEnabled: true,
+  audioDetectionEnabled: false,
+  processingMode: 'hybrid',
+  useAbsoluteThreshold: false,
+};
+const MOTION_ONLY = { activePresetId: 'custom', globalSettings: CUSTOM };
+
+// Only the sound detector raises alerts. Sound line 5 % (sensitivity 95).
+const SOUND_ONLY = {
   activePresetId: 'custom',
   globalSettings: {
-    id: 'custom',
-    name: 'Maximum Alert',
-    description: 'High sensitivity (80%), max volume, 5-second intervals.',
-    motionSensitivity: 80,
-    audioSensitivity: 80,
-    pixelThreshold: 20,
-    absolutePixelThreshold: 50,
-    analysisInterval: 5,
-    alertDelay: 30,
-    alertVolume: 100,
-    emergencyMode: false,
-    pixelDetectionEnabled: false,
-    motionDetectionEnabled: true,
-    audioDetectionEnabled: false,
-    processingMode: 'hybrid',
-    useAbsoluteThreshold: false,
+    ...CUSTOM,
+    audioSensitivity: 95,
+    motionDetectionEnabled: false,
+    audioDetectionEnabled: true,
   },
 };
 
-// The store's timing defaults, with the time between repeated alerts for one
-// event at its settings slider's lowest value.
-const REPEAT_EVERY_10_S = {
-  cooldownPeriod: 10,
+// The store's timing defaults with the Cooldown Period at `seconds`.
+const cooldownPeriod = (seconds: number) => ({
+  cooldownPeriod: seconds,
   minimumMotionDuration: 500,
   emergencyEscalationDelay: 300,
-};
+});
+
+const LINES: Record<Kind, number> = { motion: 20, pixel: 50, audio: 5 };
 
 async function openMonitor(page: Page, seed: Seed): Promise<void> {
   await page.addInitScript((s: Seed) => {
@@ -89,27 +130,83 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
 
+    const walk: Walk = {
+      alerts: { motion: [], pixel: [], audio: [] },
+      cards: { motion: 0, pixel: 0, audio: 0 },
+      readings: { motion: [], pixel: [], audio: [] },
+      notifications: [],
+    };
+    window.__walk = walk;
+    window.__walkCamera = { changingWidth: 0, stillEveryMs: 0, stillForMs: 0, tone: false, ...s.camera };
+
+    if (s.notify) {
+      const shown = walk.notifications;
+      const record = (title: string, options?: NotificationOptions) => {
+        const o = (options || {}) as NotificationOptions & { renotify?: boolean };
+        shown.push({ at: Date.now(), title, tag: o.tag, renotify: o.renotify });
+      };
+      class RecordedNotification extends EventTarget {
+        static permission = 'granted';
+        static requestPermission = async () => 'granted';
+        onclick: unknown = null;
+        onclose: unknown = null;
+        onerror: unknown = null;
+        onshow: unknown = null;
+        constructor(title: string, options?: NotificationOptions) {
+          super();
+          record(title, options);
+        }
+        close() {}
+      }
+      Object.defineProperty(window, 'Notification', { value: RecordedNotification, configurable: true, writable: true });
+      if ('ServiceWorkerRegistration' in window) {
+        ServiceWorkerRegistration.prototype.showNotification = async function (title: string, options?: NotificationOptions) {
+          record(title, options);
+        };
+      }
+    }
+
     // An alert card's message line starts with its kind; the screen-reader
-    // summary starts "New ..." and is not counted.
-    const times: Record<Kind, number[]> = { motion: [], pixel: [] };
-    window.__alertTimes = times;
+    // summary starts "New ..." and is not counted. A card that counts its
+    // repeats says "Repeated N times" beside its level.
     const KINDS: Array<[Kind, RegExp]> = [
       ['motion', /^Motion detected: \d+%/],
       ['pixel', /^Pixel movement detected/],
+      ['audio', /^Audio detected: \d+%/],
     ];
-    const count = () => {
-      const lines = Array.from(document.querySelectorAll('p'), (p) => p.textContent || '');
+    const READOUTS: Array<[Kind, string]> = [['motion', 'Motion'], ['pixel', 'Pixel'], ['audio', 'Audio']];
+    const look = () => {
+      const now = Date.now();
+      const lines = Array.from(document.querySelectorAll('p'));
       for (const [kind, pattern] of KINDS) {
-        const shown = lines.filter((line) => pattern.test(line)).length;
-        while (times[kind].length < shown) times[kind].push(Date.now());
+        let cards = 0;
+        let alerts = 0;
+        for (const p of lines) {
+          if (!pattern.test(p.textContent || '')) continue;
+          cards += 1;
+          const repeats = /Repeated (\d+) times?/.exec(p.parentElement?.textContent || '');
+          alerts += 1 + (repeats ? Number(repeats[1]) : 0);
+        }
+        walk.cards[kind] = cards;
+        while (walk.alerts[kind].length < alerts) walk.alerts[kind].push(now);
+      }
+      const heads = Array.from(document.querySelectorAll('div.uppercase'));
+      for (const [kind, label] of READOUTS) {
+        const head = heads.find((d) => d.textContent === label && d.nextElementSibling?.classList.contains('text-xl'));
+        if (!head) continue;
+        const value = parseFloat(head.nextElementSibling?.textContent || '');
+        if (!Number.isFinite(value)) continue;
+        const list = walk.readings[kind];
+        if (list.length === 0 || list[list.length - 1][1] !== value) list.push([now, value]);
       }
     };
-    new MutationObserver(count).observe(document, { childList: true, subtree: true, characterData: true });
+    new MutationObserver(look).observe(document, { childList: true, subtree: true, characterData: true });
 
     const W = 320;
     const H = 240;
     const LEVELS = [0, 85, 170, 255];
     navigator.mediaDevices.getUserMedia = async (constraints?: MediaStreamConstraints) => {
+      const camera = window.__walkCamera!;
       const canvas = document.createElement('canvas');
       canvas.width = W;
       canvas.height = H;
@@ -118,8 +215,10 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('no 2d context for the test camera');
       const image = ctx.createImageData(W, H);
-      const changing = Math.round(W * s.camera.changingWidth);
+      const startedAt = Date.now();
       const draw = () => {
+        if (camera.stillEveryMs > 0 && (Date.now() - startedAt) % camera.stillEveryMs < camera.stillForMs) return;
+        const changing = Math.round(W * camera.changingWidth);
         const d = image.data;
         for (let y = 0; y < H; y++) {
           for (let x = 0; x < W; x++) {
@@ -137,40 +236,95 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
       setInterval(draw, 40);
       const stream = canvas.captureStream(25);
       if (constraints && constraints.audio) {
-        // A silent microphone: the sound detector reads nothing.
         const audio = new AudioContext();
-        const silent = audio.createMediaStreamDestination();
-        for (const track of silent.stream.getAudioTracks()) stream.addTrack(track);
+        const microphone = audio.createMediaStreamDestination();
+        if (camera.tone) {
+          // A sawtooth has a harmonic in nearly every band the sound
+          // detector reads, so its level is far over a 5 % line.
+          const tone = audio.createOscillator();
+          tone.type = 'sawtooth';
+          tone.frequency.value = 440;
+          const gain = audio.createGain();
+          gain.gain.value = 1;
+          tone.connect(gain).connect(microphone);
+          tone.start();
+        }
+        void audio.resume();
+        for (const track of microphone.stream.getAudioTracks()) stream.addTrack(track);
       }
       return stream;
     };
   }, seed);
 
   await page.goto('/monitor/', { waitUntil: 'networkidle' });
+  await startMonitoring(page);
+}
+
+async function startMonitoring(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
   await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
-/**
- * Waits for the first alert of `kind`, then lets the page run until
- * `cooldownMs + slackMs` after it. Returns how many milliseconds after the
- * first alert each later one appeared.
- */
-async function laterAlerts(page: Page, kind: Kind, cooldownMs: number, slackMs: number): Promise<number[]> {
+const walkOf = (page: Page) => page.evaluate(() => window.__walk!);
+const pageNow = (page: Page) => page.evaluate(() => Date.now());
+
+/** Waits for the first alert of `kind` and returns its time. */
+async function firstAlert(page: Page, kind: Kind): Promise<number> {
   await expect
-    .poll(() => page.evaluate((k) => window.__alertTimes?.[k].length ?? 0, kind), { timeout: 60_000 })
+    .poll(() => page.evaluate((k) => window.__walk?.alerts[k].length ?? 0, kind), { timeout: 60_000 })
     .toBeGreaterThanOrEqual(1);
-  const first = await page.evaluate((k) => window.__alertTimes![k][0], kind);
-  await page.waitForFunction(
-    ([at, wait]) => Date.now() >= at + wait,
-    [first, cooldownMs + slackMs],
-    { polling: 250, timeout: cooldownMs + slackMs + 30_000 },
-  );
-  const all = await page.evaluate((k) => window.__alertTimes![k], kind);
-  return all.slice(1).map((t) => t - first);
+  return page.evaluate((k) => window.__walk!.alerts[k][0], kind);
 }
 
-const motionCards = (page: Page) => page.locator('p', { hasText: /^Motion detected: \d+%/ });
+/** Lets the page run until its clock reads `at`. */
+async function runUntil(page: Page, at: number): Promise<void> {
+  const left = at - (await pageNow(page));
+  if (left <= 0) return;
+  await page.waitForFunction((t) => Date.now() >= t, at, { polling: 250, timeout: left + 30_000 });
+}
+
+/** The lowest value the readout showed from `from` to `to`, the value it showed at `from` included. */
+function lowestReading(walk: Walk, kind: Kind, from: number, to: number): number {
+  const list = walk.readings[kind];
+  let lowest = Infinity;
+  for (let i = 0; i < list.length; i++) {
+    const [at, value] = list[i];
+    const next = i + 1 < list.length ? list[i + 1][0] : Infinity;
+    if (next > from && at <= to) lowest = Math.min(lowest, value);
+  }
+  return lowest;
+}
+
+/** A picture of the alert list, kept with the walk's report. */
+async function pictureOfAlerts(page: Page, testInfo: TestInfo, name: string): Promise<void> {
+  const panel = page.locator('div.rounded-xl', { has: page.getByRole('heading', { name: /^Alerts/ }) }).last();
+  await panel.screenshot({ path: testInfo.outputPath(`${name}.png`), timeout: 5_000 }).catch(() => undefined);
+}
+
+const cardsOf = (page: Page, pattern: RegExp) => page.locator('p', { hasText: pattern });
+const MOTION_CARD = /^Motion detected: \d+%/;
+
+/**
+ * Checks one event that went on: its second alert came `periodMs` after the
+ * first (no sooner, and not much later), the readout stayed over the line in
+ * between, and the alert updated the event's one card.
+ */
+async function expectRepeat(page: Page, kind: Kind, first: number, periodMs: number, what: string): Promise<number> {
+  await runUntil(page, first + periodMs + LATE_MS);
+  const walk = await walkOf(page);
+  const later = walk.alerts[kind].slice(1).map((t) => t - first);
+  expect(later.length, `a second ${kind} alert while the ${what} went on (seen at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(1);
+  const second = later[0] ?? Infinity;
+  expect.soft(second, `the second ${kind} alert waited ${periodMs} ms`).toBeGreaterThanOrEqual(periodMs - EARLY_MS);
+  expect.soft(second).toBeLessThanOrEqual(periodMs + LATE_MS);
+  expect.soft(walk.readings[kind].length, `the ${kind} readout was read`).toBeGreaterThan(0);
+  expect.soft(
+    lowestReading(walk, kind, first, first + second),
+    `the ${kind} reading stayed over its ${LINES[kind]} line between the two alerts`,
+  ).toBeGreaterThanOrEqual(LINES[kind]);
+  expect.soft(walk.cards[kind], `one card for the one ${kind} event (alerts at ${JSON.stringify(later)} ms)`).toBe(1);
+  return second;
+}
 
 // The page draws the first alert's card while it is busiest (the list's first
 // render, the sounds), so a later card may be drawn a little sooner after its
@@ -182,53 +336,145 @@ const LATE_MS = 6_000;
 // device gives it one to list. The stream itself comes from the canvas.
 test.use({
   permissions: ['camera', 'microphone'],
-  launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] },
+  launchOptions: {
+    args: [
+      '--use-fake-ui-for-media-stream',
+      '--use-fake-device-for-media-stream',
+      '--autoplay-policy=no-user-gesture-required',
+    ],
+  },
 });
 
 test.describe('Alerts repeat while the activity goes on', () => {
-  test('a low motion alert comes again once its 10 s cooldown has passed, and not before', async ({ page }) => {
+  test('a low motion alert comes again after the Cooldown Period when that is longer than low\'s 10 s, on the same card', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     // A third of the width changes: a motion reading of 25 % on a 20 % line,
-    // 5 points over it, which is a low alert (cooldown 10 s by default).
-    await openMonitor(page, { settings: MOTION_ONLY, camera: { changingWidth: 1 / 3 } });
-    const later = await laterAlerts(page, 'motion', 10_000, LATE_MS);
-    await expect(motionCards(page).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
-
-    expect(later.length, `a second motion alert while the motion went on (seen at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(1);
-    expect(later[0], 'the second motion alert waited for the low cooldown').toBeGreaterThanOrEqual(10_000 - EARLY_MS);
-    expect(later[0]).toBeLessThanOrEqual(10_000 + LATE_MS);
+    // 5 points over it, which is a low alert (cooldown 10 s by default). The
+    // Cooldown Period is 20 s, so the same event waits 20 s.
+    await openMonitor(page, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(20) },
+      camera: { changingWidth: 1 / 3 },
+    });
+    const first = await firstAlert(page, 'motion');
+    await expect(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
+    await expectRepeat(page, 'motion', first, 20_000, 'motion');
+    await expect.soft(page.getByText('Repeated 1 time', { exact: true })).toBeVisible();
+    await pictureOfAlerts(page, testInfo, 'low-motion-repeated');
   });
 
-  test('a critical motion alert, whose cooldown is 0, comes again at the repeat period, and not before', async ({ page }) => {
+  test('a critical motion alert, whose cooldown is 0, comes again at the Cooldown Period, on the same card, and notifies again', async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     // The whole picture changes: a reading of 75 % on a 20 % line, a
     // critical alert. Its cooldown is 0, so one event repeats at the
-    // "Cooldown Period" setting (10 s here), not on every sample.
+    // Cooldown Period (10 s here), not on every sample.
     await openMonitor(page, {
-      settings: { ...MOTION_ONLY, timingSettings: REPEAT_EVERY_10_S },
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
       camera: { changingWidth: 1 },
+      notify: true,
     });
-    const later = await laterAlerts(page, 'motion', 10_000, LATE_MS);
-    await expect(motionCards(page).first()).toHaveText(/^Motion detected: [6-9]\d% \(threshold: 20%/);
+    const first = await firstAlert(page, 'motion');
+    await expect(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: [6-9]\d% \(threshold: 20%/);
+    await expectRepeat(page, 'motion', first, 10_000, 'motion');
+    await expect.soft(page.getByText('Repeated 1 time', { exact: true })).toBeVisible();
+    await pictureOfAlerts(page, testInfo, 'critical-motion-repeated');
 
-    expect(later.length, `a second motion alert while the motion went on (seen at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(1);
-    expect(later[0], 'the second motion alert waited for the repeat period').toBeGreaterThanOrEqual(10_000 - EARLY_MS);
-    expect(later[0]).toBeLessThanOrEqual(10_000 + LATE_MS);
+    // The repeat replaces the first notification (same tag) and alerts again.
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    expect.soft(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
+    expect.soft(shown[1]?.tag).toBe(shown[0]?.tag);
+    expect.soft(shown[1]?.renotify, 'the repeat notification sets renotify, so it alerts again').toBe(true);
   });
 
-  test('on the default preset a pixel alert comes again at the repeat period while the picture keeps changing', async ({ page }) => {
+  test('on the default preset a pixel alert comes again at the Cooldown Period while the picture keeps changing', async ({ page }) => {
     test.setTimeout(120_000);
     // The default preset (Maximum Alert) has pixel detection on with a 50 px
     // line. Three quarters of the whole picture changes on every frame, far
     // over ten times the line: a critical pixel alert, cooldown 0.
     await openMonitor(page, {
-      settings: { timingSettings: REPEAT_EVERY_10_S },
+      settings: { timingSettings: cooldownPeriod(10) },
       camera: { changingWidth: 1 },
     });
-    const later = await laterAlerts(page, 'pixel', 10_000, LATE_MS);
+    const first = await firstAlert(page, 'pixel');
+    await expectRepeat(page, 'pixel', first, 10_000, 'picture change');
+  });
 
-    expect(later.length, `a second pixel alert while the picture kept changing (seen at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(1);
-    expect(later[0], 'the second pixel alert waited for the repeat period').toBeGreaterThanOrEqual(10_000 - EARLY_MS);
-    expect(later[0]).toBeLessThanOrEqual(10_000 + LATE_MS);
+  test('a sound that goes on alerts again at the Cooldown Period, on the same card', async ({ page }) => {
+    test.setTimeout(120_000);
+    // A sawtooth tone at full gain on a 5 % line: a critical sound alert,
+    // cooldown 0, so the event repeats at the Cooldown Period (10 s here).
+    await openMonitor(page, {
+      settings: { ...SOUND_ONLY, timingSettings: cooldownPeriod(10) },
+      camera: { changingWidth: 0, tone: true },
+    });
+    const first = await firstAlert(page, 'audio');
+    await expect(cardsOf(page, /^Audio detected: \d+%/).first()).toHaveText(/^Audio detected: (4[5-9]|[5-9]\d|100)% \(threshold: 5%/);
+    await expectRepeat(page, 'audio', first, 10_000, 'sound');
+  });
+
+  test('a rise to critical during a continuing event alerts at once, on the event\'s card', async ({ page }) => {
+    test.setTimeout(120_000);
+    // A low event (25 % on a 20 % line) goes on; 3 s after its alert the
+    // whole picture starts changing (75 %, critical). Motion never falls
+    // under the line, and critical has no cooldown: the rise alerts at once,
+    // not after the Cooldown Period (30 s by default).
+    await openMonitor(page, { settings: MOTION_ONLY, camera: { changingWidth: 1 / 3 } });
+    const first = await firstAlert(page, 'motion');
+    await expect(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
+    await runUntil(page, first + 3_000);
+    const roseAt = await page.evaluate(() => {
+      window.__walkCamera!.changingWidth = 1;
+      return Date.now();
+    });
+    await runUntil(page, roseAt + 6_000);
+    const walk = await walkOf(page);
+    const afterRise = walk.alerts.motion.filter((t) => t > roseAt).map((t) => t - roseAt);
+    expect(afterRise.length, `an alert after the rise (alerts at ${JSON.stringify(walk.alerts.motion.map((t) => t - first))} ms after the first)`).toBeGreaterThanOrEqual(1);
+    expect.soft(afterRise[0], 'the critical alert came within 3 s of the rise').toBeLessThanOrEqual(3_000);
+    expect.soft(lowestReading(walk, 'motion', first, roseAt + afterRise[0]), 'motion stayed over the line').toBeGreaterThanOrEqual(20);
+    expect.soft(walk.cards.motion, 'the rise updated the event\'s card').toBe(1);
+    await expect.soft(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: [6-9]\d% \(threshold: 20%/);
+  });
+
+  test('a scene that holds still for a moment now and then is one event, which repeats at the Cooldown Period', async ({ page }) => {
+    test.setTimeout(120_000);
+    // The whole picture changes (critical), but holds still for 450 ms out
+    // of every 1.5 s, so a sample or two reads 0 %. That is shorter than the
+    // 500 ms sustained window: the event goes on and repeats at the Cooldown
+    // Period (10 s here), not after each still moment.
+    await openMonitor(page, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
+      camera: { changingWidth: 1, stillEveryMs: 1_500, stillForMs: 450 },
+    });
+    const first = await firstAlert(page, 'motion');
+    await runUntil(page, first + 10_000 + LATE_MS);
+    const walk = await walkOf(page);
+    const later = walk.alerts.motion.slice(1).map((t) => t - first);
+    expect(later.length, `a second motion alert (seen at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(1);
+    expect.soft(later[0], `the second alert waited for the Cooldown Period (alerts at ${JSON.stringify(later)} ms)`).toBeGreaterThanOrEqual(10_000 - EARLY_MS);
+    expect.soft(lowestReading(walk, 'motion', first, first + later[0]), 'the still moments reached the detector').toBeLessThan(20);
+    expect.soft(walk.cards.motion, 'one card for the one event').toBe(1);
+  });
+
+  test('after Stop and Start a new event alerts at once and does not wait for the last session\'s Cooldown Period', async ({ page }) => {
+    test.setTimeout(120_000);
+    // A critical event, Cooldown Period 60 s. Monitoring stops 2 s after its
+    // alert and starts again while the picture keeps changing: that is a new
+    // event, and critical has no cooldown.
+    await openMonitor(page, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(60) },
+      camera: { changingWidth: 1 },
+    });
+    const first = await firstAlert(page, 'motion');
+    await runUntil(page, first + 2_000);
+    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+    await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 10_000 });
+    await startMonitoring(page);
+    const restartedAt = await pageNow(page);
+    await runUntil(page, restartedAt + 8_000);
+    const walk = await walkOf(page);
+    const afterStart = walk.alerts.motion.filter((t) => t > restartedAt).map((t) => t - restartedAt);
+    expect(afterStart.length, `an alert after Start (alerts at ${JSON.stringify(walk.alerts.motion.map((t) => t - first))} ms after the first, Start at ${restartedAt - first} ms)`).toBeGreaterThanOrEqual(1);
+    expect.soft(afterStart[0]).toBeLessThanOrEqual(5_000);
+    expect.soft(walk.cards.motion, 'the new session\'s event has its own card').toBe(2);
   });
 });
