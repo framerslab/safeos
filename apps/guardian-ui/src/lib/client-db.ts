@@ -12,6 +12,7 @@ import {
   writeAccountClearMarker, writeLocalClearMarker, type ClearStamp,
 } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
+import { isCurrentFingerprint } from './visual-fingerprint';
 
 // =============================================================================
 // Database Schema
@@ -1088,6 +1089,33 @@ export async function saveSubjectProfile(profile: SubjectProfileDB): Promise<voi
     await db.put('subject_profile', profile);
   } catch (error) {
     console.warn('[ClientDB] Failed to save subject profile:', error);
+  }
+}
+
+/**
+ * Save the fingerprint a saved subject was rebuilt into. `snapshot` is the
+ * subject as it was when the rebuild began; only its id is read. In one
+ * transaction the saved subject is read and only its fingerprint replaced,
+ * so photos, matches and activity saved meanwhile stay. Nothing is written
+ * when the subject was deleted meanwhile or its saved fingerprint is already
+ * in the current form (a photo added on its page rebuilds it too).
+ */
+export async function saveUpgradedSubjectFingerprint(
+  snapshot: SubjectProfileDB,
+  fingerprint: SubjectProfileDB['fingerprint']
+): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['subject_profile'], 'readwrite'> | undefined;
+  try {
+    const db = await getDB();
+    tx = db.transaction('subject_profile', 'readwrite');
+    const saved = await tx.store.get(snapshot.id);
+    if (saved && !isCurrentFingerprint(saved.fingerprint)) {
+      await tx.store.put({ ...saved, fingerprint });
+    }
+    await tx.done;
+  } catch (error) {
+    console.warn('[ClientDB] Failed to save rebuilt subject fingerprint:', error);
+    await abandonTransaction(tx);
   }
 }
 

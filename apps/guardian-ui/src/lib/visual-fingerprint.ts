@@ -40,6 +40,25 @@ export interface VisualFingerprint {
   edgeSignature: number[];
   referenceImages: string[];
   createdAt: string;
+  /**
+   * The version of the fingerprint's form, FINGERPRINT_VERSION for one made
+   * now. A fingerprint saved without one is version 1: its edges were scaled
+   * to each photo's own strongest cell, and its histogram may weigh photos
+   * unequally.
+   */
+  version?: number;
+}
+
+/**
+ * The version of the fingerprint's form that generateFingerprint and
+ * mergeFingerprints make. Version 2 reads edges on one fixed scale
+ * (extractEdgeSignature) and weighs every photo the same.
+ */
+export const FINGERPRINT_VERSION = 2;
+
+/** True for a fingerprint in the current form; false for one saved by an earlier version. */
+export function isCurrentFingerprint(fingerprint: VisualFingerprint): boolean {
+  return (fingerprint.version ?? 1) >= FINGERPRINT_VERSION;
 }
 
 export interface FingerprintOptions {
@@ -369,64 +388,92 @@ export function calculateColorVariance(imageData: ImageData, avgColor: RGB): num
 }
 
 /**
- * Extract edge signature using simple gradient detection: one value per cell
- * of a `gridSize` by `gridSize` grid, scaled so the strongest cell reads 100.
- *
- * `floor` is the least edge strength the strongest cell is scaled against. A
- * cell's strength is the mean, over its samples, of the step to the next
- * pixel right and down, summed over red, green and blue: a step from black to
- * white is 765. With a floor of 32, a picture whose strongest cell reads 4 (a
- * flat wall with one level of noise) gives 13 a cell, not 100. The default of
- * 1 scales every picture to its own strongest cell.
+ * The edge strength that reads 100. A cell's strength is the mean, over its
+ * samples, of the step to the next pixel right and down, summed over red,
+ * green and blue and taken as the length of the two steps: a cell in which
+ * every sample steps 60 levels in each colour, right and down, reads 255.
  */
-export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8, floor: number = 1): number[] {
+export const FULL_EDGE_STRENGTH = 255;
+
+/**
+ * The edge strength of each cell of a `gridSize` by `gridSize` grid over the
+ * picture, row by row, as described at FULL_EDGE_STRENGTH: 0 for a flat cell,
+ * about 1082 at most.
+ */
+export function extractEdgeStrengths(imageData: ImageData, gridSize: number = 8): number[] {
   const { data, width, height } = imageData;
-  const signature: number[] = [];
-  
+  const strengths: number[] = [];
+
   const cellWidth = Math.floor(width / gridSize);
   const cellHeight = Math.floor(height / gridSize);
-  
+
   for (let gy = 0; gy < gridSize; gy++) {
     for (let gx = 0; gx < gridSize; gx++) {
       let edgeStrength = 0;
       let samples = 0;
-      
+
       const startX = gx * cellWidth;
       const startY = gy * cellHeight;
       const endX = Math.min(startX + cellWidth, width - 1);
       const endY = Math.min(startY + cellHeight, height - 1);
-      
+
       // Sample edges in this cell
       for (let y = startY; y < endY; y += 2) {
         for (let x = startX; x < endX; x += 2) {
           const idx = (y * width + x) * 4;
           const idxRight = idx + 4;
           const idxDown = idx + width * 4;
-          
+
           if (idxRight < data.length && idxDown < data.length) {
             // Horizontal gradient
             const hGrad = Math.abs(data[idx] - data[idxRight]) +
                          Math.abs(data[idx + 1] - data[idxRight + 1]) +
                          Math.abs(data[idx + 2] - data[idxRight + 2]);
-            
+
             // Vertical gradient
             const vGrad = Math.abs(data[idx] - data[idxDown]) +
                          Math.abs(data[idx + 1] - data[idxDown + 1]) +
                          Math.abs(data[idx + 2] - data[idxDown + 2]);
-            
+
             edgeStrength += Math.sqrt(hGrad * hGrad + vGrad * vGrad);
             samples++;
           }
         }
       }
-      
-      signature.push(samples > 0 ? Math.round(edgeStrength / samples) : 0);
+
+      strengths.push(samples > 0 ? edgeStrength / samples : 0);
     }
   }
-  
-  // Normalize signature
-  const maxEdge = Math.max(...signature, floor, 1);
-  return signature.map(e => Math.round((e / maxEdge) * 100));
+
+  return strengths;
+}
+
+/**
+ * Extract edge signature: one value per cell of a `gridSize` by `gridSize`
+ * grid, the cell's edge strength on a fixed scale where FULL_EDGE_STRENGTH
+ * reads 100 (stronger cells read 100 too). A subject's photos and each region
+ * of the camera's frame are read on this one scale, so the same pixels give
+ * the same signature on both sides, and a camera's noise reads as weak as it
+ * is: a blank wall whose pixels alternate 8 levels reads 13 a cell, where
+ * black and white stripes read 100. Below 100 the scale is a straight line,
+ * so the mean of a block of cells is what the block reads as one cell.
+ */
+export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8): number[] {
+  return extractEdgeStrengths(imageData, gridSize).map((strength) =>
+    Math.min(100, Math.round((strength / FULL_EDGE_STRENGTH) * 100))
+  );
+}
+
+/**
+ * The edge signature version 1 saved: each cell's strength, rounded, scaled
+ * so the picture's strongest cell reads 100. The matcher reads the camera's
+ * regions this way for a subject saved by that version that has not been rebuilt
+ * from its photos, so the two sides are read on one scale.
+ */
+export function extractVersion1EdgeSignature(imageData: ImageData, gridSize: number = 8): number[] {
+  const strengths = extractEdgeStrengths(imageData, gridSize).map((strength) => Math.round(strength));
+  const strongest = Math.max(...strengths, 1);
+  return strengths.map((strength) => Math.round((strength / strongest) * 100));
 }
 
 /**
@@ -507,34 +554,23 @@ export function estimateSizeRatio(imageData: ImageData): number {
 // =============================================================================
 
 /**
- * Generate a visual fingerprint from an image
+ * The fingerprint of a picture's pixels, without the thumbnail
+ * generateFingerprint adds: `referenceImages` is empty.
  */
-export async function generateFingerprint(
-  imageSource: string,
+export function fingerprintOfPixels(
+  imageData: ImageData,
   name: string,
   options: Partial<FingerprintOptions> = {}
-): Promise<VisualFingerprint> {
+): VisualFingerprint {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  
-  const img = await loadImage(imageSource);
-  const imageData = getImageData(img, 256, 256);
-  
+
   const colorHistogram = extractColorHistogram(imageData, opts.histogramBuckets);
   const dominantColors = extractDominantColors(imageData, opts.dominantColorCount);
   const averageColor = calculateAverageColor(imageData);
   const colorVariance = calculateColorVariance(imageData, averageColor);
   const edgeSignature = extractEdgeSignature(imageData, opts.edgeGridSize);
   const estimatedSizeRatio = estimateSizeRatio(imageData);
-  
-  // Create thumbnail
-  const thumbCanvas = document.createElement('canvas');
-  thumbCanvas.width = 64;
-  thumbCanvas.height = 64;
-  const thumbCtx = thumbCanvas.getContext('2d');
-  if (thumbCtx) {
-    thumbCtx.drawImage(img, 0, 0, 64, 64);
-  }
-  
+
   return {
     id: `fp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     name,
@@ -544,9 +580,34 @@ export async function generateFingerprint(
     colorVariance,
     estimatedSizeRatio,
     edgeSignature,
-    referenceImages: [thumbCanvas.toDataURL('image/jpeg', 0.8)],
+    referenceImages: [],
     createdAt: new Date().toISOString(),
+    version: FINGERPRINT_VERSION,
   };
+}
+
+/**
+ * Generate a visual fingerprint from an image
+ */
+export async function generateFingerprint(
+  imageSource: string,
+  name: string,
+  options: Partial<FingerprintOptions> = {}
+): Promise<VisualFingerprint> {
+  const img = await loadImage(imageSource);
+  const imageData = getImageData(img, 256, 256);
+  const fingerprint = fingerprintOfPixels(imageData, name, options);
+
+  // Create thumbnail
+  const thumbCanvas = document.createElement('canvas');
+  thumbCanvas.width = 64;
+  thumbCanvas.height = 64;
+  const thumbCtx = thumbCanvas.getContext('2d');
+  if (thumbCtx) {
+    thumbCtx.drawImage(img, 0, 0, 64, 64);
+  }
+
+  return { ...fingerprint, referenceImages: [thumbCanvas.toDataURL('image/jpeg', 0.8)] };
 }
 
 /**
@@ -655,7 +716,9 @@ function photosIn(fingerprint: VisualFingerprint): number {
  * Merge multiple fingerprints into one (for multiple reference images).
  * Every photo counts the same: a fingerprint already merged from several
  * photos, such as a saved subject's when photos are added to it, counts as
- * that many photos in the histogram and in the averaged values.
+ * that many photos in the histogram and in the averaged values. That holds
+ * for fingerprints in the current form; one saved by version 1 may already
+ * weigh its photos unequally, so addReferencePhotos rebuilds it first.
  * `options.histogramBuckets` is the bucket count the photos' histograms were
  * made with; leave it out for photos read with generateFingerprint's default.
  */
@@ -719,6 +782,78 @@ export function mergeFingerprints(
     edgeSignature: avgEdge,
     referenceImages: allImages.slice(0, 5), // Keep up to 5 reference images
     createdAt: base.createdAt,
+    // Photos of an earlier version's form leave the merge in that form.
+    version: fingerprints.every(isCurrentFingerprint) ? FINGERPRINT_VERSION : undefined,
+  };
+}
+
+/** Reads one reference photo into its fingerprint: generateFingerprint in the app. */
+export type ReadPhoto = (photo: string) => Promise<VisualFingerprint>;
+
+/**
+ * A saved subject's fingerprint in the current form. A fingerprint saved by
+ * version 1 is made again from the subject's saved photos, `photos`, each
+ * read with `read` and each counted once; it keeps its id, name and creation
+ * time. A current fingerprint, a subject with no saved photos and a photo
+ * that cannot be read leave the saved fingerprint as it is: the matcher reads
+ * a version 1 fingerprint's edges on that version's scale.
+ */
+export async function upgradeFingerprint(
+  saved: VisualFingerprint,
+  photos: string[],
+  read: ReadPhoto
+): Promise<VisualFingerprint> {
+  if (isCurrentFingerprint(saved) || photos.length === 0) {
+    return saved;
+  }
+
+  let rebuilt: VisualFingerprint;
+  try {
+    const fingerprints: VisualFingerprint[] = [];
+    for (const photo of photos) {
+      fingerprints.push(await read(photo));
+    }
+    rebuilt = mergeFingerprints(fingerprints);
+  } catch {
+    return saved;
+  }
+
+  if (!isCurrentFingerprint(rebuilt)) {
+    return saved;
+  }
+  return { ...rebuilt, id: saved.id, name: saved.name, createdAt: saved.createdAt };
+}
+
+/**
+ * A saved subject's fingerprint with `newPhotos` added, each photo counted
+ * once. A fingerprint saved by version 1 is first rebuilt from the subject's
+ * saved photos, `savedPhotos` (upgradeFingerprint). When it cannot be, its
+ * colours count as the photos it was made from and its edges, read on
+ * version 1's scale, are left out: the result's edges are the new photos'.
+ */
+export async function addReferencePhotos(
+  saved: VisualFingerprint,
+  savedPhotos: string[],
+  newPhotos: string[],
+  read: ReadPhoto
+): Promise<VisualFingerprint> {
+  const base = await upgradeFingerprint(saved, savedPhotos, read);
+  const added: VisualFingerprint[] = [];
+  for (const photo of newPhotos) {
+    added.push(await read(photo));
+  }
+  if (added.length === 0) {
+    return base;
+  }
+
+  const merged = mergeFingerprints([base, ...added]);
+  if (isCurrentFingerprint(base) || !added.every(isCurrentFingerprint)) {
+    return merged;
+  }
+  return {
+    ...merged,
+    edgeSignature: mergeFingerprints(added).edgeSignature,
+    version: FINGERPRINT_VERSION,
   };
 }
 
@@ -803,7 +938,12 @@ export function compareFingerprints(
   const dominantMatch = compareDominantColors(fp1.dominantColors, fp2.dominantColors);
   
   // Edge signature match
-  const edgeMatch = compareEdgeSignatures(fp1.edgeSignature, fp2.edgeSignature);
+  const edgeMatch = compareEdgeSignatures(
+    fp1.edgeSignature,
+    fp2.edgeSignature,
+    !isCurrentFingerprint(fp1),
+    !isCurrentFingerprint(fp2)
+  );
   
   // Size ratio match
   const sizeMatch = compareSizeRatios(fp1.estimatedSizeRatio, fp2.estimatedSizeRatio, sizeTolerance);
@@ -884,11 +1024,13 @@ function compareDominantColors(d1: RGB[], d2: RGB[]): number {
 /**
  * Read a square edge signature on a coarser square grid. Each coarse cell is
  * the mean of the fine cells it covers, weighted by how much of each it
- * covers, and the result is scaled so its strongest cell reads what the finer
- * signature's strongest cell read: 100 for a picture scaled to its own
- * strongest cell, less for weak edges scaled against a floor.
+ * covers. On the fixed scale of extractEdgeSignature that is what the coarser
+ * grid reads, so weak edges stay as weak as they are. `scaledToStrongest` is
+ * for a signature scaled to its picture's strongest cell, as version 1 saved
+ * them: the result is scaled back so its strongest cell reads what the finer
+ * signature's strongest cell read.
  */
-export function poolEdgeSignature(signature: number[], side: number): number[] {
+export function poolEdgeSignature(signature: number[], side: number, scaledToStrongest: boolean = false): number[] {
   const from = edgeGridSide(signature);
   if (from === 0 || side <= 0 || side >= from) {
     return signature;
@@ -924,10 +1066,12 @@ export function poolEdgeSignature(signature: number[], side: number): number[] {
     }
   }
 
-  // Pooling averages cells, which lowers the strongest one. Scaling back to
-  // the strongest fine cell keeps a signature that read 100 at 100, and keeps
-  // weak edges weak: a region's frame scaled against a floor (13 a cell for a
-  // near-blank wall) reads 13 on the coarser grid too, not 100.
+  if (!scaledToStrongest) {
+    return pooled;
+  }
+
+  // Pooling averages cells, which lowers the strongest one; a signature
+  // scaled to its own strongest cell reads 100 there on any grid.
   const strongest = Math.max(...pooled);
   const ceiling = Math.max(...signature);
   return strongest > 0 ? pooled.map(e => (e / strongest) * ceiling) : pooled;
@@ -936,10 +1080,17 @@ export function poolEdgeSignature(signature: number[], side: number): number[] {
 /**
  * Compare edge signatures cell by cell. Two signatures read on different
  * square grids are compared on the coarser of the two: the finer one is
- * pooled down to it. A signature that is empty or is not a square grid has no
- * cells to line up with the other's, and scores 0.
+ * pooled down to it, as a signature of version 1's scale when
+ * `scaledToStrongest1` or `scaledToStrongest2` says so. A signature that is
+ * empty or is not a square grid has no cells to line up with the other's, and
+ * scores 0.
  */
-function compareEdgeSignatures(e1: number[], e2: number[]): number {
+function compareEdgeSignatures(
+  e1: number[],
+  e2: number[],
+  scaledToStrongest1: boolean = false,
+  scaledToStrongest2: boolean = false
+): number {
   if (e1.length !== e2.length) {
     const side1 = edgeGridSide(e1);
     const side2 = edgeGridSide(e2);
@@ -947,7 +1098,10 @@ function compareEdgeSignatures(e1: number[], e2: number[]): number {
       return 0;
     }
     const side = Math.min(side1, side2);
-    return compareEdgeSignatures(poolEdgeSignature(e1, side), poolEdgeSignature(e2, side));
+    return compareEdgeSignatures(
+      poolEdgeSignature(e1, side, scaledToStrongest1),
+      poolEdgeSignature(e2, side, scaledToStrongest2)
+    );
   }
 
   if (e1.length === 0) {
