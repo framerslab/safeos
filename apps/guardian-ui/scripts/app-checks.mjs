@@ -743,8 +743,11 @@ export async function checkApp(browser, baseUrl, outDir) {
   // so whatever is drawn outside the bar's own box is cut away.
   await open({ name: 'phone bar, focus ring', width: 390, look: 'dark' }, async (page, context, check) => {
     await visit(page, '/dashboard/');
-    for (let i = 0; i < 3; i += 1) {
-      await page.keyboard.press('Shift+Tab');
+    // From the bar's first place the keyboard reaches History, Settings,
+    // History again and Dashboard.
+    await page.locator('nav.phone-bar a').first().focus();
+    for (const key of ['Tab', 'Tab', 'Shift+Tab', 'Shift+Tab']) {
+      await page.keyboard.press(key);
       const seen = await page.evaluate(() => {
         const place = document.activeElement;
         const bar = place?.closest('nav.phone-bar');
@@ -759,7 +762,7 @@ export async function checkApp(browser, baseUrl, outDir) {
           past: { top: edge.top - (box.top - reach), left: edge.left - (box.left - reach), right: box.right + reach - edge.right, foot: box.bottom + reach - edge.bottom },
         };
       });
-      if (!seen) throw new Error(`Shift+Tab pressed ${i + 1} times from the top did not reach the phone bar`);
+      if (!seen) throw new Error(`${key} from a place of the phone bar left the bar`);
       check(seen.ring === 'solid 2px', `${seen.name} is ringed ${seen.ring}`);
       const cut = Object.entries(seen.past).filter(([, px]) => px > 0.5).map(([side, px]) => `${px.toFixed(1)} px past the bar's ${side}`);
       check(cut.length === 0, `the ring round ${seen.name} is cut: it is drawn ${cut.join(', ')}`);
