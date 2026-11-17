@@ -11,7 +11,7 @@
 import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
-import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CameraPicker } from '../../components/CameraPicker';
@@ -25,7 +25,7 @@ import { InlineSettingsPanel } from '../../components/monitor';
 import { IconSearch, IconFingerprint, IconRadar, IconChevronDown, IconShield } from '../../components/icons';
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
-import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from '../../stores/settings-store';
+import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset, effectiveSettings, type SecurityPreset } from '../../stores/settings-store';
 import { useLostFoundStore, createMatchFrame, getMatcherSettings } from '../../stores/lost-found-store';
 import { getSubjectMatcher, type MatchResult } from '../../lib/subject-matcher';
 import { saveMatchFrame, type MatchFrameDB } from '../../lib/client-db';
@@ -142,7 +142,15 @@ export default function MonitorPage() {
   const { activePresetId, setActivePreset, activeSleepPreset, globalSettings, updateGlobalSettings, globalMute, toggleGlobalMute, timingSettings, getCooldownForSeverity } = useSettingsStore();
   const detectionFeatureSettings = useSettingsStore((state) => state.detectionFeatureSettings);
   const detectionZones = useSettingsStore((state) => state.detectionZones);
-  const currentPreset = globalSettings; // Use globalSettings to reflect slider overrides
+  const scenarioOverrides = useSettingsStore((state) => state.scenarioOverrides);
+  const tuneScenario = useSettingsStore((state) => state.tuneScenario);
+  // The watch runs at the preset, with what was set for this use on Settings > Detection laid over it.
+  const watchUse = selectedScenario || scenario || null;
+  const currentPreset = useMemo(
+    () => effectiveSettings(globalSettings, scenarioOverrides, watchUse),
+    [globalSettings, scenarioOverrides, watchUse],
+  );
+  const tuneWatch = (changes: Partial<SecurityPreset>) => tuneScenario(watchUse, changes);
   const [showOverrides, setShowOverrides] = useState(false);
 
   // URL parameter handling is done via PresetInitializer component below
@@ -1259,7 +1267,7 @@ export default function MonitorPage() {
                       min={0}
                       max={100}
                       value={currentPreset.motionSensitivity}
-                      onChange={(e) => updateGlobalSettings({ motionSensitivity: Number(e.target.value) })}
+                      onChange={(e) => tuneWatch({ motionSensitivity: Number(e.target.value) })}
                       className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
                                  [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-blue-500
@@ -1278,7 +1286,7 @@ export default function MonitorPage() {
                       min={0}
                       max={100}
                       value={currentPreset.audioSensitivity}
-                      onChange={(e) => updateGlobalSettings({ audioSensitivity: Number(e.target.value) })}
+                      onChange={(e) => tuneWatch({ audioSensitivity: Number(e.target.value) })}
                       className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
                                  [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-purple-500
@@ -1477,7 +1485,7 @@ export default function MonitorPage() {
                 disabled={!calibrationResult || calibrationRunning}
                 onClick={() => {
                   if (!calibrationResult) return;
-                  updateGlobalSettings({
+                  tuneWatch({
                     motionSensitivity: calibrationResult.motionSensitivity,
                     audioSensitivity: calibrationResult.audioSensitivity,
                     absolutePixelThreshold: calibrationResult.absolutePixelThreshold,

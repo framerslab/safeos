@@ -7,14 +7,17 @@
 
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   useSettingsStore,
   DEFAULT_PRESETS,
   isSleepPreset,
+  effectiveSettings,
   type PresetId,
   type AlertSeverity,
 } from '../../stores/settings-store';
+import { useOnboardingStore } from '../../stores/onboarding-store';
+import { useMonitoringStore } from '../../stores/monitoring-store';
 import { ExpandableSection, ToggleSwitch, SettingsSlider } from './ExpandableSection';
 import { InfoTooltip } from './Tooltip';
 import { STILLNESS_ALERT_MIN_MINUTES, STILLNESS_ALERT_MAX_MINUTES } from '@/lib/stillness-bounds';
@@ -124,7 +127,18 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
     updateDetectionFeatureSettings,
     globalMute,
     toggleGlobalMute,
+    scenarioOverrides,
+    tuneScenario,
   } = useSettingsStore();
+
+  // Motion and Audio show and move what the watch runs at for its use, as the watch does.
+  const selectedScenario = useOnboardingStore((state) => state.selectedScenario);
+  const monitoringScenario = useMonitoringStore((state) => state.scenario);
+  const watchUse = selectedScenario || monitoringScenario || null;
+  const watchSettings = useMemo(
+    () => effectiveSettings(globalSettings, scenarioOverrides, watchUse),
+    [globalSettings, scenarioOverrides, watchUse],
+  );
 
   useEffect(() => {
     setMounted(true);
@@ -313,7 +327,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
         }
         summary={
           <span>
-            Motion: {globalSettings.motionSensitivity}% | Audio: {globalSettings.audioSensitivity}% | Pixel: {globalSettings.absolutePixelThreshold}px
+            Motion: {watchSettings.motionSensitivity}% | Audio: {watchSettings.audioSensitivity}% | Pixel: {globalSettings.absolutePixelThreshold}px
           </span>
         }
         defaultExpanded={expandedSections.has('sensitivity')}
@@ -321,8 +335,8 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
       >
         <SettingsSlider
           label="Motion Sensitivity"
-          value={globalSettings.motionSensitivity}
-          onChange={(v) => updateGlobalSettings({ motionSensitivity: v })}
+          value={watchSettings.motionSensitivity}
+          onChange={(v) => tuneScenario(watchUse, { motionSensitivity: v })}
           min={0}
           max={100}
           unit="%"
@@ -330,8 +344,8 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
         />
         <SettingsSlider
           label="Audio Sensitivity"
-          value={globalSettings.audioSensitivity}
-          onChange={(v) => updateGlobalSettings({ audioSensitivity: v })}
+          value={watchSettings.audioSensitivity}
+          onChange={(v) => tuneScenario(watchUse, { audioSensitivity: v })}
           min={0}
           max={100}
           unit="%"

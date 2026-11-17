@@ -144,6 +144,25 @@ export function isSleepPreset(presetId: PresetId): presetId is SleepPresetId {
 }
 
 /**
+ * The settings a watch for one use runs at: the active preset, with what the
+ * person set for that use on Settings > Detection laid over it. A use with no
+ * saved choice, or a choice cleared by Reset (saved as null), keeps the preset.
+ * A saved choice that names only some values keeps the preset for the rest.
+ */
+export function effectiveSettings(
+  globalSettings: SecurityPreset,
+  scenarioOverrides: ScenarioOverrides,
+  scenario?: ScenarioType | null,
+): SecurityPreset {
+  const override = scenario ? scenarioOverrides[scenario] : undefined;
+  if (!override) return globalSettings;
+  const chosen = Object.fromEntries(
+    Object.entries(override).filter(([, value]) => value !== undefined && value !== null),
+  );
+  return { ...globalSettings, ...chosen } as SecurityPreset;
+}
+
+/**
  * Get the processing mode badge info
  */
 export function getProcessingModeInfo(mode: ProcessingMode): {
@@ -495,7 +514,9 @@ interface SettingsState {
   deactivateSleepMode: () => void;
   updateGlobalSettings: (settings: Partial<SecurityPreset>) => void;
   setScenarioOverride: (scenario: ScenarioType, overrides: Partial<SecurityPreset> | null) => void;
-  getEffectiveSettings: (scenario?: ScenarioType) => SecurityPreset;
+  getEffectiveSettings: (scenario?: ScenarioType | null) => SecurityPreset;
+  /** Moves the watch for a use: a value set for that use on Detection moves there, any other moves the preset. */
+  tuneScenario: (scenario: ScenarioType | null | undefined, changes: Partial<SecurityPreset>) => void;
   
   // Detection zone actions
   updateDetectionZone: (zoneId: string, updates: Partial<DetectionZone>) => void;
@@ -660,16 +681,19 @@ export const useSettingsStore = create<SettingsState>()(
       
       getEffectiveSettings: (scenario) => {
         const state = get();
-        const base = state.globalSettings;
-        
-        if (!scenario || !state.scenarioOverrides[scenario]) {
-          return base;
+        return effectiveSettings(state.globalSettings, state.scenarioOverrides, scenario);
+      },
+
+      tuneScenario: (scenario, changes) => {
+        const override = scenario ? get().scenarioOverrides[scenario] : null;
+        const forUse: Partial<SecurityPreset> = {};
+        const forPreset: Partial<SecurityPreset> = {};
+        for (const field of Object.keys(changes) as (keyof SecurityPreset)[]) {
+          const setForUse = override?.[field];
+          Object.assign(setForUse !== undefined && setForUse !== null ? forUse : forPreset, { [field]: changes[field] });
         }
-        
-        return {
-          ...base,
-          ...state.scenarioOverrides[scenario],
-        } as SecurityPreset;
+        if (scenario && Object.keys(forUse).length > 0) get().setScenarioOverride(scenario, { ...override, ...forUse });
+        if (Object.keys(forPreset).length > 0) get().updateGlobalSettings(forPreset);
       },
       
       // Detection zone actions

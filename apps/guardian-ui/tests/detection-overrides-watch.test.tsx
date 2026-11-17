@@ -59,6 +59,9 @@ function resetOnDetection(use: string) {
  * returns the motion threshold and the sound sensitivity its alerts name.
  */
 async function watch() {
+  // A fresh camera and microphone for each watch: closing the last one stopped its tracks.
+  installCameraBrowser();
+  loudMicrophone();
   useMonitoringStore.getState().reset();
   const view = render(<MonitorPage />);
   await act(async () => {});

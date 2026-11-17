@@ -119,6 +119,8 @@ In the sidebar, adjust:
 - **Audio Sensitivity**: Higher = more alerts on sounds
 - **Alert Volume**: How loud escalating alerts play
 
+Settings > Detection holds Motion and Audio Sensitivity for each use (Baby Monitoring, Pet Monitoring, Elderly Care and Security). The watch for that use runs at them in place of the preset's, and **Reset to defaults** there returns the use to the preset.
+
 ---
 
 ## 🎛️ Configuration Guide
