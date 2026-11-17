@@ -666,6 +666,9 @@ export default function MonitorPage() {
       return;
     }
 
+    // Check only, reverted next: the latch return this pull request removed, put back in the sound branch alone.
+    if (audioEventRef.current.active) return;
+
     const audioThreshold = sensitivityToThreshold(currentPreset.audioSensitivity);
     const now = Date.now();
 
