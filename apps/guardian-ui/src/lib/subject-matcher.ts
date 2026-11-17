@@ -81,11 +81,14 @@ const DEFAULT_SETTINGS: MatcherSettings = {
 
 /**
  * Adaptive lighting holds each frame at the brightness the scene has settled
- * at. A frame brighter or darker than that is moved back by the difference,
- * so a light switched on or off changes the scores less. The settled
- * brightness follows the scene slowly: a scene whose light holds is scored as
- * the camera gives it, and a lasting change becomes the new settled
- * brightness. The subject plays no part in it.
+ * at, so a light switched on or off changes the scores less. The brightness
+ * is kept for each cell of an 8 by 8 grid. A change of light moves every cell
+ * the same way; a subject coming into view moves only the cells it covers. So
+ * a frame is moved back only when nearly every cell is brighter, or nearly
+ * every cell is darker, than where it settled, and then by the median of the
+ * cells' differences. The settled brightness follows the scene slowly: a
+ * scene whose light holds is scored as the camera gives it, and a lasting
+ * change becomes the new settled brightness.
  */
 
 /** The most a frame is brightened or darkened, in levels of 0 to 255. */
@@ -102,12 +105,20 @@ const SCENE_ADAPTATION = 0.02;
 const LIGHTING_GRID = 8;
 
 /**
- * A frame's brightness as the light sets it, 0 to 255: the median of the mean
- * brightness of each cell of an 8 by 8 grid. A subject over fewer than half of
- * the cells moves it little; a change of light moves every cell, and so moves
- * it by as much.
+ * The cells, of the grid's 64, that must have moved the same way for a frame
+ * to be read as a change of light: seven in eight. A subject over fewer cells
+ * leaves the frame as the camera gives it.
  */
-function sceneBrightnessOf(frameData: ImageData): number {
+const LIGHT_CHANGE_CELLS = 56;
+
+/** A cell has moved when its brightness is more than this many levels from where it settled. */
+const CELL_MOVED_LEVELS = 2;
+
+/**
+ * The mean brightness, 0 to 255, of each cell of an 8 by 8 grid over the
+ * frame, row by row.
+ */
+function cellBrightnessOf(frameData: ImageData): number[] {
   const { data, width, height } = frameData;
   const cells: number[] = [];
 
@@ -126,18 +137,35 @@ function sceneBrightnessOf(frameData: ImageData): number {
           pixels++;
         }
       }
-      if (pixels > 0) {
-        cells.push(sum / (pixels * 3));
-      }
+      // A frame smaller than the grid has empty cells; they read as black in
+      // every frame, so they never move.
+      cells.push(pixels > 0 ? sum / (pixels * 3) : 0);
     }
   }
 
-  if (cells.length === 0) {
+  return cells;
+}
+
+/**
+ * The levels to add to a frame whose cells read `cells` to bring it back to
+ * the scene's settled cells: the median of the cells' differences when at
+ * least LIGHT_CHANGE_CELLS of them moved the same way, and 0 otherwise.
+ */
+function lightingCorrectionOf(settled: number[], cells: number[]): number {
+  const differences = settled.map((level, i) => level - cells[i]);
+  const darker = differences.filter((d) => d > CELL_MOVED_LEVELS).length;
+  const brighter = differences.filter((d) => d < -CELL_MOVED_LEVELS).length;
+  if (darker < LIGHT_CHANGE_CELLS && brighter < LIGHT_CHANGE_CELLS) {
     return 0;
   }
-  cells.sort((a, b) => a - b);
-  const middle = Math.floor(cells.length / 2);
-  return cells.length % 2 === 1 ? cells[middle] : (cells[middle - 1] + cells[middle]) / 2;
+
+  differences.sort((a, b) => a - b);
+  const middle = Math.floor(differences.length / 2);
+  const median =
+    differences.length % 2 === 1
+      ? differences[middle]
+      : (differences[middle - 1] + differences[middle]) / 2;
+  return Math.max(-MAX_LIGHTING_CORRECTION, Math.min(MAX_LIGHTING_CORRECTION, median));
 }
 
 // =============================================================================
@@ -151,8 +179,8 @@ export class SubjectMatcher {
   private previousFrame: ImageData | null = null;
   private motionMask: boolean[] = [];
   private frameCount: number = 0;
-  /** The scene's settled brightness, 0 to 255; null until a frame is watched. */
-  private sceneBrightness: number | null = null;
+  /** The scene's settled brightness of each lighting cell, 0 to 255; null until a frame is watched. */
+  private sceneBrightness: number[] | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
 
@@ -357,30 +385,30 @@ export class SubjectMatcher {
   /**
    * The frame the gate and the region scores read: the camera's frame moved
    * back to the scene's settled brightness, by up to MAX_LIGHTING_CORRECTION
-   * levels. The camera's frame itself when adaptive lighting is off, and on
-   * the first frame watched, which sets the settled brightness. With `learn`,
-   * the frame's brightness is then taken into the settled brightness.
+   * levels, when nearly every cell moved the same way (a change of light).
+   * The camera's frame itself when adaptive lighting is off, when fewer cells
+   * moved (a subject coming into view), and on the first frame watched, which
+   * sets the settled brightness. With `learn`, each cell's brightness is then
+   * taken into its settled brightness.
    */
   private correctLighting(frameData: ImageData, learn: boolean): ImageData {
     if (!this.settings.adaptiveLighting) {
       return frameData;
     }
 
-    const brightness = sceneBrightnessOf(frameData);
+    const cells = cellBrightnessOf(frameData);
     const settled = this.sceneBrightness;
     if (learn) {
       this.sceneBrightness =
-        settled === null ? brightness : settled + (brightness - settled) * SCENE_ADAPTATION;
+        settled === null
+          ? cells
+          : settled.map((level, i) => level + (cells[i] - level) * SCENE_ADAPTATION);
     }
     if (settled === null) {
       return frameData;
     }
 
-    const offset = Math.max(
-      -MAX_LIGHTING_CORRECTION,
-      Math.min(MAX_LIGHTING_CORRECTION, settled - brightness)
-    );
-    return this.adjustLighting(frameData, Math.round(offset));
+    return this.adjustLighting(frameData, Math.round(lightingCorrectionOf(settled, cells)));
   }
 
   /**
