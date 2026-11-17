@@ -115,9 +115,9 @@ async function loadSaved(scenarioOverrides: Record<string, unknown>) {
 
 /** Opens Fine-Tune on the Monitor page and returns its Motion, Audio, Pixel and Interval sliders. */
 function openFineTune() {
-  fireEvent.click(screen.getByRole('button', { name: /Fine-Tune Settings/ }));
-  const panel = screen.getByText('Override until preset changes').parentElement!;
-  return within(panel).getAllByRole('slider') as HTMLInputElement[];
+  const toggle = screen.getByRole('button', { name: /Fine-Tune Settings/ });
+  fireEvent.click(toggle);
+  return within(toggle.nextElementSibling as HTMLElement).getAllByRole('slider') as HTMLInputElement[];
 }
 
 it('keeps the preset for a use with no override, and returns to it after Reset on Detection', async () => {
@@ -196,4 +196,24 @@ it('runs at the preset\'s pixel threshold and interval, which the Sensitivity an
   fireEvent.change(interval, { target: { value: '10' } });
   expect(screen.getByText('Threshold 30px')).toBeTruthy();
   expect(useSettingsStore.getState().getEffectiveSettings('baby')).toMatchObject({ absolutePixelThreshold: 30, analysisInterval: 10 });
+});
+
+it('says in Fine-Tune which values the use keeps through a preset change, and keeps them', async () => {
+  tuneOnDetection('Baby Monitoring', 60, 55);
+  render(<MonitorPage />);
+  await act(async () => {});
+  openFineTune();
+  expect(screen.getByText('Motion and Audio kept for this use until Reset · the rest until the preset changes')).toBeTruthy();
+  expect(screen.queryByText('Override until preset changes')).toBeNull();
+
+  act(() => { useSettingsStore.getState().setActivePreset('maximum'); });
+  const [motion, audio] = within(screen.getByRole('button', { name: /Hide Fine-Tuning/ }).nextElementSibling as HTMLElement).getAllByRole('slider') as HTMLInputElement[];
+  expect([motion.value, audio.value]).toEqual(['60', '55']);
+});
+
+it('says in Fine-Tune that its values last until the preset changes for a use with none kept', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  openFineTune();
+  expect(screen.getByText('Override until preset changes')).toBeTruthy();
 });
