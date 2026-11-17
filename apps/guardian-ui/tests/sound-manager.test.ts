@@ -629,6 +629,46 @@ describe('Sound Manager', () => {
       const sounds = manager.getActiveSounds();
       expect(sounds[0].loop).toBe(true);
     });
+
+    // A monitor event alerts again while it goes on, and each alert plays the
+    // custom sounds set for its trigger.
+    describe('a custom sound played again by a repeat alert', () => {
+      const customSound = (loop: boolean) => ({
+        id: 'dog-bark', name: 'Bark', description: '',
+        audioBlob: new Blob(['bark']), mimeType: 'audio/webm', durationSeconds: 1, fileSizeBytes: 4,
+        source: 'upload' as const, uploadedAt: '2026-11-01T00:00:00.000Z',
+        volume: 80, loop, repeatCount: 0, repeatDelayMs: 1000, fadeInMs: 0, fadeOutMs: 200,
+        triggers: ['motion_detected' as const], priority: 5, enabled: true, playCount: 0,
+      });
+      const madeFor = (url: string) => audioSources.filter((src) => src === url).length;
+
+      beforeEach(() => {
+        Object.defineProperty(URL, 'createObjectURL', { configurable: true, writable: true, value: () => 'blob:dog-bark' });
+        Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, writable: true, value: () => undefined });
+      });
+
+      it('keeps one copy of a looping sound while that copy plays', async () => {
+        const manager = getSoundManager();
+        const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+        const first = await manager.playCustomSound(customSound(true));
+        now.mockReturnValue(31_000);
+        const second = await manager.playCustomSound(customSound(true));
+
+        expect(madeFor('blob:dog-bark')).toBe(1);
+        expect(second).toBe(first);
+        expect(manager.getActiveSounds().filter((sound) => sound.loop)).toHaveLength(1);
+      });
+
+      it('plays a sound that does not loop again for each alert', async () => {
+        const manager = getSoundManager();
+        const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+        await manager.playCustomSound(customSound(false));
+        now.mockReturnValue(31_000);
+        await manager.playCustomSound(customSound(false));
+
+        expect(madeFor('blob:dog-bark')).toBe(2);
+      });
+    });
   });
 
   describe('Sound files', () => {
