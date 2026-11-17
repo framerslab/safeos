@@ -572,8 +572,10 @@ html:has(.app-shell) {
    Settings' first rows on a phone
    ============================================================================= */
 
+/* The room above the first row keeps its focus ring whole: the page's own
+   column clips what is drawn above its top, and the top bar ends there. */
 .settings-phone-rows {
-  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+  padding: 0.5rem max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
 }
 
 @media (min-width: 48em) {
