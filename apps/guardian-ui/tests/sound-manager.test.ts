@@ -668,6 +668,27 @@ describe('Sound Manager', () => {
 
         expect(madeFor('blob:dog-bark')).toBe(2);
       });
+
+      it('plays a looping sound again when the browser refused to go on with its copy', async () => {
+        const manager = getSoundManager();
+        const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+        const first = await manager.playCustomSound(customSound(true));
+        const copy = manager.getActiveSounds().find((sound) => sound.loop)?.audio as unknown as MockAudioElement;
+        expect(copy).toBeDefined();
+
+        // The copy ends one pass, and the browser refuses to play it again.
+        const refused = Promise.reject(new Error('NotAllowedError'));
+        refused.catch(() => undefined);
+        jest.spyOn(copy, 'play').mockReturnValue(refused);
+        copy.simulateEnd();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        now.mockReturnValue(31_000);
+        const second = await manager.playCustomSound(customSound(true));
+
+        expect(madeFor('blob:dog-bark')).toBe(2);
+        expect(second).not.toBe(first);
+      });
     });
   });
 

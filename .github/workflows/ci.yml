@@ -216,6 +216,15 @@ jobs:
           done
           PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts --project=chromium --retries=0 --reporter=list
 
+      # `npm run e2e` runs every project in playwright.config.ts. The walk
+      # needs desktop Chromium, so under Firefox it skips instead of failing.
+      # Its own output folder keeps the walk's pictures above for the upload.
+      - name: The walk skips under Firefox
+        if: always()
+        run: |
+          npx playwright install --with-deps firefox
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts --project=firefox --retries=0 --reporter=list --output="$RUNNER_TEMP/walk-firefox"
+
       - name: Upload the walk's report and pictures
         if: always()
         uses: actions/upload-artifact@v4
