@@ -10,7 +10,7 @@
 // Chromium's fake camera and microphone are fed from the committed sample
 // clip (public/home/sample-clip.mp4, converted to .y4m and .wav inside the
 // job), as the Pictures workflow feeds them, so the unchanged pages read the
-// clip through their real camera path. <subject.png> is one still of the same
+// clip through their real camera path. <subject.png> is one frame of the same
 // clip, the reference photo Lost & Found is given.
 //
 // Each class and slow-down gets three fresh browser contexts:
@@ -26,8 +26,8 @@
 //               lite_mobilenet_v2, WebGL), then runs detect on a 320 by 240
 //               copy of the camera's frame, as Security's person detector
 //               does, back to back.
-//   lost-found  a subject enrolled through Lost & Found's own form from the
-//               still, then the monitor's matching ticks for 30 s.
+//   lost-found  a subject enrolled through Lost & Found's own form from one
+//               frame of the clip, then the monitor's matching ticks for 30 s.
 //
 // It records and does not judge: a slow number is written down, and a part
 // that could not be measured is written down with the reason. It exits
@@ -85,7 +85,7 @@ const CLASSES = [
 const WATCH_MS = 60_000;
 const LOST_FOUND_MS = 30_000;
 const INFERENCES = 40;
-const INFERENCE_LIMIT_MS = 60_000;
+const INFERENCE_LIMIT_MS = 120_000;
 const CALIBRATION_STEPS = 20_000_000;
 
 // =============================================================================
@@ -138,7 +138,7 @@ function seed(settings) {
  * the first alert card is drawn, and keeps the main thread's long tasks.
  */
 function instrument() {
-  const m = { ticks: [], startPressedAt: null, firstAlert: null, longTasks: [] };
+  const m = { ticks: [], startPressedAt: null, alerts: {}, longTasks: [] };
   window.__measure = m;
   let current = null;
 
@@ -183,9 +183,9 @@ function instrument() {
   }, true);
 
   // An alert card's message line starts with its kind; the screen-reader
-  // summary starts "New ..." and does not match. The observer stops at the
-  // first card, so it adds no work for the rest of the watch.
-  const ALERT = /^(Motion detected|Audio detected|Pixel movement detected): /;
+  // summary starts "New ..." and does not match. The observer stops once it
+  // has seen a motion card and a sound card, so it adds no work after that.
+  const KINDS = [['motion', /^Motion detected: /], ['sound', /^Audio detected: /]];
   const observer = new MutationObserver((records) => {
     if (m.startPressedAt === null) return;
     for (const record of records) {
@@ -194,14 +194,13 @@ function instrument() {
         const lines = node.matches('p') ? [node] : node.querySelectorAll('p');
         for (const line of lines) {
           const text = (line.textContent || '').trim();
-          if (ALERT.test(text)) {
-            m.firstAlert = { at: performance.now(), text: text.slice(0, 120) };
-            observer.disconnect();
-            return;
+          for (const [kind, pattern] of KINDS) {
+            if (!m.alerts[kind] && pattern.test(text)) m.alerts[kind] = { at: performance.now(), text: text.slice(0, 120) };
           }
         }
       }
     }
+    if (m.alerts.motion && m.alerts.sound) observer.disconnect();
   });
   observer.observe(document, { childList: true, subtree: true });
 
@@ -303,15 +302,22 @@ async function measureWatch(browser, cls, rate, name) {
         video: video ? { width: video.videoWidth, height: video.videoHeight } : null,
       };
     });
+    // The same heap once a garbage collection has run: what the page holds on to.
+    await cdp.send('HeapProfiler.collectGarbage').catch(() => undefined);
+    const usedAfterGc = await page.evaluate(() => performance.memory?.usedJSHeapSize ?? null);
     const cdpHeap = await cdp.send('Runtime.getHeapUsage').catch(() => null);
 
     const inWindow = (t) => t.at >= first.at && t.at < end;
     const frames = read.ticks.filter((t) => t.reads > 0 && t.delay === first.delay && inWindow(t));
     const sound = read.ticks.filter((t) => t.reads === 0 && t.sound > 0 && inWindow(t));
     const longTasks = read.longTasks ? read.longTasks.filter((t) => t.at >= first.at && t.at < end) : null;
-    const alertAfter = read.firstAlert && read.startPressedAt !== null && read.firstAlert.at <= end
-      ? (read.firstAlert.at - read.startPressedAt) / 1000
-      : null;
+    const after = (alert) => (alert && read.startPressedAt !== null && alert.at <= end ? (alert.at - read.startPressedAt) / 1000 : null);
+    const motionAfter = after(read.alerts.motion);
+    const soundAfter = after(read.alerts.sound);
+    const firstKind = motionAfter === null && soundAfter === null
+      ? null
+      : soundAfter === null || (motionAfter !== null && motionAfter <= soundAfter) ? 'motion' : 'sound';
+    const noAlert = `no alert within the ${WATCH_MS / 1000} s`;
 
     console.log(`${name}: watch read ${frames.length} frames in ${WATCH_MS / 1000} s`);
     return {
@@ -324,11 +330,16 @@ async function measureWatch(browser, cls, rate, name) {
       frameAnalysisTimeWithQueuedMicrotasks: spread(frames.filter((t) => t.settledMs !== null).map((t) => t.settledMs), 'ms'),
       soundReadingsPerSecond: q(sound.length / (WATCH_MS / 1000), 'readings/s'),
       soundReadingTime: spread(sound.map((t) => t.ms), 'ms'),
-      timeToFirstAlert: q(alertAfter, 's'),
-      firstAlert: alertAfter === null ? `no alert within the ${WATCH_MS / 1000} s` : read.firstAlert.text,
+      timeToFirstAlert: q(firstKind === 'motion' ? motionAfter : soundAfter, 's'),
+      firstAlertKind: firstKind ?? noAlert,
+      timeToFirstMotionAlert: q(motionAfter, 's'),
+      firstMotionAlert: motionAfter === null ? noAlert : read.alerts.motion.text,
+      timeToFirstSoundAlert: q(soundAfter, 's'),
+      firstSoundAlert: soundAfter === null ? noAlert : read.alerts.sound.text,
       jsHeapUsedAfter60s: q(read.heap ? MB(read.heap.used) : null, 'MB'),
       jsHeapTotalAfter60s: q(read.heap ? MB(read.heap.total) : null, 'MB'),
-      jsHeapUsedAfter60sByDevTools: q(cdpHeap ? MB(cdpHeap.usedSize) : null, 'MB'),
+      jsHeapUsedAfter60sAndGarbageCollection: q(usedAfterGc === null ? null : MB(usedAfterGc), 'MB'),
+      jsHeapUsedAfter60sAndGarbageCollectionByDevTools: q(cdpHeap ? MB(cdpHeap.usedSize) : null, 'MB'),
       longTasks: longTasks
         ? { count: q(longTasks.length, 'tasks', 0), total: q(longTasks.reduce((sum, t) => sum + t.ms, 0), 'ms', 0) }
         : null,
@@ -361,6 +372,11 @@ async function measureModel(browser, cls, rate, name) {
     return route.fulfill({ status: 404, body: '' });
   });
   const { page, cdp } = await slowedPage(context, rate);
+  // TensorFlow.js says on the console why a backend it was asked for did not start.
+  const warnings = [];
+  page.on('console', (message) => {
+    if (['warning', 'error'].includes(message.type()) && warnings.length < 5) warnings.push(message.text().slice(0, 300));
+  });
 
   // The network log: each response from the model's host, with the bytes
   // that crossed the wire (headers and body) and the body's decoded bytes.
@@ -450,6 +466,7 @@ async function measureModel(browser, cls, rate, name) {
       calibrationLoop: q(calibration.ms, 'ms', 1),
       libraries: `@tensorflow/tfjs ${TFJS_VERSION}, @tensorflow-models/coco-ssd ${COCO_VERSION}`,
       backend: read.backend,
+      backendWarnings: warnings,
       renderer: read.renderer,
       camera: { width: q(read.camera.width, 'px', 0), height: q(read.camera.height, 'px', 0) },
       files: q(files.length, 'files', 0),
@@ -486,7 +503,7 @@ async function measureLostFound(browser, cls, rate, name, watchDelay) {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate });
     const calibration = await calibrate(page, CALIBRATION_STEPS);
 
-    // Enrol one subject from the still, through the form a person uses.
+    // Enrol one subject from that frame, through the form a person uses.
     await page.getByText('Add New Subject to Watch').click({ timeout: 120_000 });
     await page.getByText('What are you looking for?').waitFor({ timeout: 120_000 });
     await page.getByRole('button', { name: 'Continue', exact: true }).click({ timeout: 120_000 });
@@ -530,7 +547,8 @@ async function measureLostFound(browser, cls, rate, name, watchDelay) {
 // =============================================================================
 
 const show = (n) => (n ? `${n.value} ${n.unit}` : 'not read');
-const showSpread = (s) => (s && s.median ? `${s.median.value} / ${s.p95.value} ${s.median.unit}` : 'not read');
+const showSpread = (s) =>
+  s && s.median ? `${s.median.value} / ${s.p95.value} ${s.median.unit} (${s.samples.value} samples)` : 'not read';
 
 function table(results) {
   const runs = results.runs;
@@ -543,8 +561,9 @@ function table(results) {
   row('Watch: frames analysed per second', (r) => part(r, 'watch', (w) => show(w.framesAnalysedPerSecond)));
   row('Watch: frame analysis time, median / 95th percentile', (r) => part(r, 'watch', (w) => showSpread(w.frameAnalysisTime)));
   row('Watch: sound reading time, median / 95th percentile', (r) => part(r, 'watch', (w) => showSpread(w.soundReadingTime)));
-  row('Watch: time from Start Monitoring to the first alert', (r) => part(r, 'watch', (w) => (w.timeToFirstAlert ? show(w.timeToFirstAlert) : w.firstAlert)));
-  row('Watch: JS heap used after 60 s', (r) => part(r, 'watch', (w) => show(w.jsHeapUsedAfter60s)));
+  row('Watch: time from Start Monitoring to the first alert', (r) => part(r, 'watch', (w) => (w.timeToFirstAlert ? `${show(w.timeToFirstAlert)} (${w.firstAlertKind})` : w.firstAlertKind)));
+  row('Watch: time from Start Monitoring to the first motion alert', (r) => part(r, 'watch', (w) => (w.timeToFirstMotionAlert ? show(w.timeToFirstMotionAlert) : w.firstMotionAlert)));
+  row('Watch: JS heap used after 60 s (as read, after a garbage collection)', (r) => part(r, 'watch', (w) => `${show(w.jsHeapUsedAfter60s)}, ${show(w.jsHeapUsedAfter60sAndGarbageCollection)}`));
   row('Watch: long tasks in 60 s (count, total)', (r) => part(r, 'watch', (w) => (w.longTasks ? `${w.longTasks.count.value}, ${show(w.longTasks.total)}` : 'not read')));
   row('Model: downloaded (decoded, on the wire)', (r) => part(r, 'model', (m) => `${(m.downloadDecoded.value / 1e6).toFixed(2)} MB, ${(m.downloadOnTheWire.value / 1e6).toFixed(2)} MB`));
   row('Model: load time (scripts, model)', (r) => part(r, 'model', (m) => `${show(m.loadTime)} (${m.scriptLoadTime.value}, ${m.modelLoadTime.value})`));
@@ -555,6 +574,7 @@ function table(results) {
   row('Lost & Found: frames matched per second', (r) => part(r, 'lostFound', (l) => show(l.framesMatchedPerSecond)));
 
   const renderer = runs.map((r) => r.model?.renderer).find(Boolean);
+  const warning = runs.flatMap((r) => r.model?.backendWarnings ?? []).find((text) => /backend|webgl/i.test(text));
   return [
     '### Measurements on slowed devices',
     '',
@@ -567,6 +587,7 @@ function table(results) {
     ...rows,
     '',
     renderer ? `WebGL renderer: ${renderer}.` : 'WebGL renderer: not read.',
+    warning ? `TensorFlow.js on the console: ${warning.replace(/\s+/g, ' ')}` : '',
     '',
   ].join('\n');
 }

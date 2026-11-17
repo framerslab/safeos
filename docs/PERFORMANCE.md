@@ -20,9 +20,17 @@ runner's CPU model, its logical CPU count, its memory and its image, and the
 script writes the CPU and memory into `measurements.json`. Numbers from runs
 on different CPU models are not comparable.
 
-The runner has no graphics card, so Chromium draws WebGL in software. The
-model measurement records the TensorFlow.js backend it got and the WebGL
-renderer.
+The runner has no graphics card. Chromium offers WebGL there through
+SwiftShader, its software renderer, and TensorFlow.js asks for its WebGL
+context with `failIfMajorPerformanceCaveat` unless its `SOFTWARE_WEBGL_ENABLED`
+flag is set
+([canvas_util.ts at 4.22.0](https://github.com/tensorflow/tfjs/blob/tfjs-v4.22.0/tfjs-backend-webgl/src/canvas_util.ts)).
+The app does not set that flag, so on the runner the model runs on
+TensorFlow.js's CPU backend, as it does on a device whose browser offers only
+software WebGL. The model figures are that backend's. A device with WebGL on a
+graphics chip runs the model on WebGL, and these runs do not measure that.
+The model measurement records the backend it got, the WebGL renderer and what
+TensorFlow.js printed on the console.
 
 ### The device classes
 
@@ -61,15 +69,18 @@ browser contexts.
   each tick of the page's interval timers, inside the page. A tick that reads
   the camera's pixels (`getImageData`) is one analysed frame; a tick that
   reads the microphone's analyser is one sound reading. From these come the
-  frames analysed per second, and the per-frame analysis time as a median and
-  95th percentile: the tick itself, in which the frame is drawn, its pixels
+  frames analysed per second (the motion timer runs every 200 ms, so 5 is the
+  most), and the per-frame analysis time as a median and 95th percentile: the tick itself, in which the frame is drawn, its pixels
   are read and compared with the last frame, and the alert check runs. The
   same figure with the microtasks the tick queued is kept beside it. The
   watch also records the time from pressing Start Monitoring to the first
-  alert card on the page, the JS heap in use after the 60 s
-  (`performance.memory` with Chromium's precise memory figures on, and
-  DevTools' `Runtime.getHeapUsage`), and the main thread's long tasks (over
-  50 ms) in the 60 s.
+  alert card on the page, and to the first motion and the first sound card
+  apart. That time depends on when the clip first moves or sounds over the
+  line as much as on the device. It records the JS heap in use after the 60 s
+  (`performance.memory` with Chromium's precise memory figures on), as read
+  and again after DevTools has run a garbage collection
+  (`HeapProfiler.collectGarbage`, with `Runtime.getHeapUsage` beside it), and
+  the main thread's long tasks (over 50 ms) in the 60 s.
 - **The detection model (COCO-SSD, used by Security and Wildlife).** A page
   the script hands to the browser loads the TensorFlow.js and COCO-SSD builds
   the app installs (`@tensorflow/tfjs/dist/tf.min.js`,
@@ -84,12 +95,13 @@ browser contexts.
   ([2.2.3 build](https://unpkg.com/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js)).
   The inference time is `detect` on a 320 by 240 copy of the camera's frame,
   with at most 10 boxes at a 0.5 score line, as Security's person detector
-  calls it. It runs 41 times back to back: the first run is reported on its
-  own, and the median and 95th percentile come from the other 40. The app
+  calls it. It runs back to back, 41 times or for 120 s, whichever ends
+  first: the first run is reported on its own, and the median and 95th
+  percentile come from the others (the table gives how many). The app
   keeps the model files in the browser's Cache Storage after the first load;
   this page does not, so each load is a first load.
 - **Lost & Found.** One subject is enrolled through Lost & Found's own form
-  from a still of the clip (at 1 s), and the monitor is started from it. The
+  from one frame of the clip (at 1 s), and the monitor is started from it. The
   matching timer's ticks are timed the same way for 30 s: the per-frame
   matching time as a median and 95th percentile, and the frames matched per
   second.

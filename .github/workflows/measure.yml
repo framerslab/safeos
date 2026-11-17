@@ -9,7 +9,7 @@ name: Measure
 
 on:
   push:
-    branches: [master, ci/measure-watch-on-slow-devices]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -71,7 +71,7 @@ jobs:
 
       # Chromium's fake camera reads a .y4m file and its fake microphone a
       # .wav file, made here from the committed sample clip as the Pictures
-      # workflow makes them. The still is Lost & Found's reference photo.
+      # workflow makes them. The frame at 1 s is Lost & Found's reference photo.
       - name: Make the fake camera's files from the sample clip
         working-directory: apps/guardian-ui
         run: |
