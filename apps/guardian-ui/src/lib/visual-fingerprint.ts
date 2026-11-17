@@ -554,7 +554,8 @@ export async function generateFingerprint(
  *
  * Each photo counts the same: a merged bucket's share is the mean of its
  * share in every photo (0 in a photo that lacks the colour), so the shares
- * add up to the mean of the photos' own totals.
+ * add up to the mean of the photos' own totals. When there are more merged
+ * buckets than `buckets`, those with the largest shares are kept.
  */
 function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBucket[] {
   const tolerance = 256 / histogramLevels(buckets);
@@ -623,7 +624,9 @@ function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBuc
       count: Math.round(count / histograms.length),
       percentage: percentage / histograms.length,
     }))
-    .sort((a, b) => b.count - a.count)
+    // Largest share first: a photo with fewer pixels counts as much as one
+    // with more.
+    .sort((a, b) => b.percentage - a.percentage)
     .slice(0, buckets);
 }
 
