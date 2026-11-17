@@ -65,6 +65,8 @@ interface ActiveSound {
   type: SoundType;
   /** A custom sound plays through an audio element. */
   audio?: HTMLAudioElement;
+  /** The custom sound this copy plays (its id in the sound library). */
+  customSoundId?: string;
   /** A built-in sound plays generated tones. */
   tones?: ToneVoice;
   priority: number;
@@ -665,10 +667,21 @@ class SoundManager {
    * Play a specific custom sound
    *
    * @param sound - The custom sound configuration from IndexedDB
-   * @returns Sound ID or null if failed
+   * @returns Sound ID or null if failed. For a looping sound that is already
+   *   playing, the ID of the copy that plays: no second copy is started.
    */
   async playCustomSound(sound: CustomSound): Promise<string | null> {
     try {
+      // A looping sound that is playing keeps its one copy. An alert event
+      // that goes on plays its trigger again on each repeat, and a second
+      // copy would loop on top of the first.
+      if (sound.loop) {
+        const playing = Array.from(this.activeSounds.values()).find(
+          (active) => active.customSoundId === sound.id && active.loop && !active.stopping
+        );
+        if (playing) return playing.id;
+      }
+
       const id = `custom-${sound.id}-${Date.now()}`;
 
       // Create audio from blob
@@ -695,6 +708,7 @@ class SoundManager {
         id,
         type: 'notification', // Map custom to notification for typing
         audio,
+        customSoundId: sound.id,
         priority: sound.priority,
         startTime: Date.now(),
         loop: sound.loop,
@@ -716,9 +730,10 @@ class SoundManager {
 
       audio.addEventListener('ended', () => {
         if (sound.loop) {
-          // Continuous loop
-          audio.currentTime = 0;
-          audio.play();
+          // Continuous loop. A pass the browser refuses to play ends the
+          // copy, as a refused first pass does, so the next alert that plays
+          // this sound starts a new copy instead of finding this one.
+          playOnce();
         } else if (repeatCount < maxRepeats) {
           // Repeat with delay
           repeatCount++;
