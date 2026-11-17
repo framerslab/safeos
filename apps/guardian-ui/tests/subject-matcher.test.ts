@@ -577,6 +577,21 @@ describe('Adaptive lighting', () => {
     expect(corrected?.confidence).toBe(uncorrected?.confidence);
     expect(corrected?.details).toEqual(uncorrected?.details);
   });
+
+  it('does not brighten or darken a subject that covers most of the scene', () => {
+    // A grey room, then a light subject over its left three quarters: 48 of
+    // the 64 cells the light is read on.
+    const room = flat(128, 128, [60, 60, 60]);
+    const arrived = picture(128, 128, (x) => (x < 96 ? [200, 200, 200] : [60, 60, 60]));
+    const subject = enrol(flat(64, 64, [200, 200, 200]));
+    const frames = [...times(room, 10), arrived];
+
+    const corrected = watch(subject, frames, true)[10];
+    const uncorrected = watch(subject, frames, false)[10];
+    expect(uncorrected?.confidence).toBe(100);
+    expect(corrected?.confidence).toBe(100);
+    expect(corrected?.details).toEqual(uncorrected?.details);
+  });
 });
 
 describe('Motion priority', () => {
