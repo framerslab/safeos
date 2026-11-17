@@ -2,10 +2,12 @@
 /**
  * Nap Mode hands the watch to Motion and sound
  *
- * After its check, Start Nap Mode applies the infant_sleep preset, stops the
- * check's camera and opens the monitor, which does the watching. The page
- * itself runs no detector once the check is done, and it offers no planned
- * duration, since nothing would use one.
+ * The nap page offers a planned duration. After its check, Start Nap Mode
+ * stops the check's camera, applies the infant_sleep preset, records the nap
+ * for this tab under safeos-nap (when it began, its planned minutes, and that
+ * the watch starts on arrival) and opens the monitor, which does the watching.
+ * The sound check plays at the Nap preset's alert volume, 100 of 100, and
+ * nothing on the page sets the volume to 1.
  */
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -21,28 +23,25 @@ jest.mock('@/lib/pixel-detection', () => ({
 const mockSound = { stopAll: jest.fn(), play: jest.fn(), stop: jest.fn(), test: jest.fn(() => 'test-sound'), updateVolume: jest.fn() };
 jest.mock('@/lib/sound-manager', () => ({ useSoundManager: () => mockSound }));
 
+let stop: jest.Mock;
+
 beforeEach(() => {
   mockPush.mockClear();
+  mockSound.updateVolume.mockClear();
+  sessionStorage.clear();
+  stop = jest.fn();
+  Object.defineProperty(navigator, 'mediaDevices', {
+    configurable: true,
+    value: { getUserMedia: jest.fn().mockResolvedValue({ getTracks: () => [{ stop }] }) },
+  });
   jest.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue();
   // getContext is overloaded; type the spy loosely so the 2D context fake fits.
   (jest.spyOn(HTMLCanvasElement.prototype, 'getContext') as unknown as jest.SpyInstance).mockReturnValue({ drawImage: jest.fn() });
 });
 
-it('offers no planned nap duration, since the watch keeps no nap timer', async () => {
-  render(<NapPage />);
-  await screen.findByRole('checkbox');
-  expect(screen.queryByRole('slider')).toBeNull();
-  expect(screen.queryByText(/Planned nap duration/)).toBeNull();
-});
-
-it('opens Motion and sound with the infant_sleep preset after the check, and stops the check camera', async () => {
-  const stop = jest.fn();
-  Object.defineProperty(navigator, 'mediaDevices', {
-    configurable: true,
-    value: { getUserMedia: jest.fn().mockResolvedValue({ getTracks: () => [{ stop }] }) },
-  });
-  render(<NapPage />);
-  fireEvent.click(await screen.findByRole('checkbox'));
+/** Accepts the notice, passes the camera, motion and sound checks and presses Start Nap Mode. */
+async function startNap() {
+  fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.click(screen.getByRole('button', { name: 'Continue to Pre-Nap Test' }));
   fireEvent.click(screen.getAllByRole('button', { name: 'Start' })[0]);
   // The camera passes; the motion check starts half a second later and passes on its first changed frame,
@@ -54,9 +53,30 @@ it('opens Motion and sound with the infant_sleep preset after the check, and sto
   const start = await screen.findByRole('button', { name: 'Start Nap Mode' }, { timeout: 4000 });
   await waitFor(() => expect((start as HTMLButtonElement).disabled).toBe(false), { timeout: 4000 });
   fireEvent.click(start);
+}
+
+it('opens Motion and sound with the infant_sleep preset, records the nap and keeps the volume', async () => {
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  await startNap();
 
   expect(mockPush).toHaveBeenCalledWith('/monitor/');
   expect(useSettingsStore.getState().activePresetId).toBe('infant_sleep');
   expect(stop).toHaveBeenCalled();
-  expect(screen.queryByText('Nap Mode Active')).toBeNull();
+  // The sound check plays at the Nap preset's alert volume; 1 would be one hundredth of it.
+  expect(mockSound.updateVolume).toHaveBeenCalledWith(100);
+  expect(mockSound.updateVolume).not.toHaveBeenCalledWith(1);
+  const nap = JSON.parse(sessionStorage.getItem('safeos-nap') || 'null');
+  expect(nap).toMatchObject({ minutes: 30, start: true });
+  expect(typeof nap.startedAt).toBe('number');
+});
+
+it('offers a planned nap duration and records the one chosen, for the reminder on the watch', async () => {
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  expect(screen.getByText(/remind you when your planned nap time is up/)).toBeTruthy();
+  fireEvent.change(screen.getByRole('slider'), { target: { value: '45' } });
+  await startNap();
+
+  expect(JSON.parse(sessionStorage.getItem('safeos-nap') || 'null')).toMatchObject({ minutes: 45, start: true });
 });

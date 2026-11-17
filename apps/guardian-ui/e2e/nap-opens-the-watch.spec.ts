@@ -1,10 +1,11 @@
 /**
  * Nap Mode opens the watch
  *
- * Walks /nap/ in Chromium with its fake camera: the warning, the check of the
- * camera, motion and sound, then Start Nap Mode. The address becomes
- * /monitor/ and the saved settings hold the infant_sleep preset, so Motion and
- * sound does the watching.
+ * Walks /nap/ in Chromium with its fake camera: the warning with its planned
+ * duration, the check of the camera, motion and sound, then Start Nap Mode.
+ * The address becomes /monitor/, the saved settings hold the infant_sleep
+ * preset, the watch starts with no second press, and the fake camera's moving
+ * picture raises a pixel alert there, so Motion and sound does the watching.
  *
  * @module e2e/nap-opens-the-watch.spec
  */
@@ -38,7 +39,9 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   });
 
   await page.goto('/nap/', { waitUntil: 'networkidle', timeout: 60_000 });
-  await expect(page.getByRole('slider')).toHaveCount(0);
+  // The planned duration stays: the watch reminds when it has passed.
+  await expect(page.getByRole('slider')).toHaveCount(1);
+  await page.getByRole('slider').fill('15');
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Continue to Pre-Nap Test', exact: true }).click();
 
@@ -54,4 +57,12 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   await expect(page).toHaveURL(/\/monitor\/?$/, { timeout: 30_000 });
   const preset = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-settings') || '{}')?.state?.activePresetId);
   expect(preset).toBe('infant_sleep');
+  const nap = await page.evaluate(() => JSON.parse(sessionStorage.getItem('safeos-nap') || 'null'));
+  expect(nap).toMatchObject({ minutes: 15, start: false });
+
+  // The watch starts on arrival, with no second press.
+  await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Start Monitoring', exact: true })).toHaveCount(0);
+  // Chromium's fake camera shows a moving picture, so the Nap preset's pixel check alerts.
+  await expect(page.getByText(/Pixel movement detected/).first()).toBeVisible({ timeout: 45_000 });
 });
