@@ -30,7 +30,7 @@ import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from 
 import { useWatchSettings } from '../../stores/watch-settings';
 import { useLostFoundStore, createMatchFrame, getMatcherSettings } from '../../stores/lost-found-store';
 import { getSubjectMatcher, type MatchResult } from '../../lib/subject-matcher';
-import { saveMatchFrame, saveSubjectProfile, type MatchFrameDB } from '../../lib/client-db';
+import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } from '../../lib/client-db';
 import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
@@ -183,17 +183,20 @@ export default function MonitorPage() {
     ).then(async (fingerprint) => {
       if (cancelled || !isCurrentFingerprint(fingerprint)) return;
       updateSubject(subject.id, { fingerprint });
-      await saveSubjectProfile({
-        id: subject.id,
-        name: subject.name,
-        type: subject.type,
-        description: subject.description,
-        fingerprint,
-        referenceImages: subject.referenceImages,
-        createdAt: subject.createdAt,
-        lastActiveAt: subject.lastActiveAt,
-        matchCount: subject.matchCount,
-      });
+      await saveUpgradedSubjectFingerprint(
+        {
+          id: subject.id,
+          name: subject.name,
+          type: subject.type,
+          description: subject.description,
+          fingerprint: subject.fingerprint,
+          referenceImages: subject.referenceImages,
+          createdAt: subject.createdAt,
+          lastActiveAt: subject.lastActiveAt,
+          matchCount: subject.matchCount,
+        },
+        fingerprint
+      );
     });
     return () => {
       cancelled = true;

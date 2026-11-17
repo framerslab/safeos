@@ -703,6 +703,40 @@ describe('Adaptive lighting', () => {
     expect(watch(subject, frames, true)[110]?.confidence).toBe(100);
   });
 
+  it('corrects a change of light while a subject covers all but 15 cells', () => {
+    // A grey room; a light subject over 49 of its 64 cells; then the light
+    // drops by 20 levels on the room and on the subject.
+    const covers = (x: number, y: number): boolean => x < 96 || (x < 112 && y < 16);
+    const room = flat(128, 128, [60, 60, 60]);
+    const visitor = picture(128, 128, (x, y) => (covers(x, y) ? [200, 200, 200] : [60, 60, 60]));
+    const dimmed = picture(128, 128, (x, y) => (covers(x, y) ? [180, 180, 180] : [40, 40, 40]));
+    const subject = enrol(room);
+    const frames = [...times(room, 10), ...times(visitor, 20), dimmed];
+
+    expect(watch(subject, frames, false)[30]?.confidence).toBeLessThan(100);
+    // Moved back by the 20 levels the 15 room cells dropped, the room reads as it was.
+    expect(watch(subject, frames, true)[30]?.confidence).toBe(100);
+  });
+
+  it('keeps a subject that comes into view as the room brightens out of the settled brightness', () => {
+    // A grey room brightens by 30 levels as a light subject comes into view
+    // over its middle 16 cells.
+    const room = flat(128, 128, [60, 60, 60]);
+    const brighter = centredBlock(128, 128, [90, 90, 90], [200, 200, 200]);
+    const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: true, motionPriority: false });
+    matcher.setFingerprint(enrol(room));
+    matcher.setActive(true);
+    for (const frame of [...times(room, 10), brighter]) {
+      matcher.processFrame(videoOf(frame));
+    }
+    const settled = (matcher as unknown as { sceneBrightness: ArrayLike<number> }).sceneBrightness;
+
+    // A room cell takes in its share of the change of light.
+    expect(settled[0]).toBeCloseTo(60 + 30 * 0.02, 6);
+    // A cell of the subject (row 3, column 3) keeps the room's settled brightness.
+    expect(settled[3 * 8 + 3]).toBe(60);
+  });
+
   it('reads the light into the same buffers on every frame', () => {
     // A scene unlike the subject: the gate turns every frame away.
     const matcher = new SubjectMatcher({ adaptiveLighting: true, motionPriority: false });

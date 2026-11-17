@@ -1091,6 +1091,17 @@ export async function saveSubjectProfile(profile: SubjectProfileDB): Promise<voi
   }
 }
 
+/**
+ * Save the fingerprint a saved subject was rebuilt into, from `snapshot`, the
+ * subject as it was when the rebuild began.
+ */
+export async function saveUpgradedSubjectFingerprint(
+  snapshot: SubjectProfileDB,
+  fingerprint: SubjectProfileDB['fingerprint']
+): Promise<void> {
+  await saveSubjectProfile({ ...snapshot, fingerprint });
+}
+
 export async function getSubjectProfile(id: string): Promise<SubjectProfileDB | null> {
   try {
     const db = await getDB();
