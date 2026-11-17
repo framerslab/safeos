@@ -9,7 +9,7 @@ name: Measure
 
 on:
   push:
-    branches: [master]
+    branches: [master, ci/measure-watch-on-slow-devices]
   workflow_dispatch:
 
 permissions:
