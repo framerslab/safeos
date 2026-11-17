@@ -128,6 +128,12 @@ html:has(.app-shell) {
   .app-shell--bar .app-shell__footer .site-footer {
     padding-bottom: calc(var(--phone-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
   }
+
+  /* A part a page fixes to the foot of the screen stands above the bar:
+     Motion and sound's Quick Settings key and the panel it opens. */
+  html:has(.phone-bar) .quick-settings {
+    bottom: calc(var(--phone-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* =============================================================================
