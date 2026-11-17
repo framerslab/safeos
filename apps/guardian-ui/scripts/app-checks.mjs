@@ -869,6 +869,39 @@ export async function checkApp(browser, baseUrl, outDir) {
     }, { permissions: ['camera', 'microphone'] });
   }
 
+  // The frame holds the screen's edges: while an app page scrolls, no part of
+  // the page's own content stays at the top of the screen under the header,
+  // or at its foot over the page's words and under the bar.
+  for (const width of [390, 1280]) {
+    for (const route of ['/settings/notifications/', '/monitor/', '/security/', '/wildlife/', '/admin/']) {
+      await open({ name: 'page parts while the page scrolls', width, look: 'dark' }, async (page, context, check) => {
+        await visit(page, route);
+        const stuck = await page.evaluate(async () => {
+          const main = document.getElementById('main-content');
+          if (!main) return null;
+          const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+          const named = (element) => `${element.tagName.toLowerCase()}${typeof element.className === 'string' && element.className ? `.${element.className.trim().split(/\s+/).slice(0, 3).join('.')}` : ''}`;
+          // A part in the page's flow keeps its place on the page wherever
+          // the page is scrolled to; a part that sticks moves with the screen.
+          const parts = [...main.querySelectorAll('*')].filter((element) => getComputedStyle(element).position === 'sticky');
+          const reach = document.documentElement.scrollHeight - window.innerHeight;
+          const places = parts.map(() => []);
+          for (const top of [0, Math.min(300, reach), Math.round(reach / 2)]) {
+            window.scrollTo({ top, behavior: 'instant' });
+            await frame();
+            parts.forEach((part, i) => places[i].push(part.getBoundingClientRect().top + window.scrollY));
+          }
+          return parts
+            .map((part, i) => ({ name: named(part), moved: Math.max(...places[i]) - Math.min(...places[i]) }))
+            .filter((part) => part.moved > 0.5)
+            .map((part) => `${part.name} moves ${Math.round(part.moved)} px with the screen`);
+        });
+        if (!stuck) throw new Error(`${route} has no main content`);
+        for (const part of stuck) check(false, `on ${route}, as the page scrolls, ${part}`);
+      });
+    }
+  }
+
   // Before setup the header is the same as after it.
   for (const width of [390, 1280]) {
     for (const look of LOOKS) {
