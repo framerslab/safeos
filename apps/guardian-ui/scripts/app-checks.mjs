@@ -750,6 +750,43 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   });
 
+  // A held press leaves a link's and a key's words at their full strength,
+  // and More moves 1 px down at its own size.
+  const held = async (page, control, read) => {
+    const box = await control.boundingBox();
+    if (!box) return null;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(400);
+    const seen = await control.evaluate(read);
+    // Released off the control, so nothing opens.
+    await page.mouse.move(box.x + box.width / 2, box.y > 400 ? box.y - 300 : box.y + 300);
+    await page.mouse.up();
+    return seen;
+  };
+  const drawnAs = (element) => ({ opacity: getComputedStyle(element).opacity, transform: getComputedStyle(element).transform });
+  for (const look of LOOKS) {
+    await open({ name: 'pressed states', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/dashboard/');
+      for (const word of ['Dashboard', 'History', 'Settings']) {
+        const seen = await held(page, page.locator('nav.phone-bar').getByRole('link', { name: word, exact: true }), drawnAs);
+        if (!seen) { check(false, `${word} has no box in the phone bar`); continue; }
+        check(seen.opacity === '1', `${word} held down in the phone bar is drawn at opacity ${seen.opacity}, not 1`);
+      }
+    });
+    await open({ name: 'pressed states', width: 820, look }, async (page, context, check) => {
+      await visit(page, '/history/');
+      await largerText(page);
+      const more = await held(page, page.locator('header.app-header button.app-header__more'), drawnAs);
+      if (!more) throw new Error('no More key in the row under larger text');
+      check(more.opacity === '1', `More held down is drawn at opacity ${more.opacity}, not 1`);
+      check(more.transform === 'matrix(1, 0, 0, 1, 0, 1)', `More held down is drawn with ${more.transform}, not 1 px lower at its own size`);
+      const link = await held(page, page.locator('header.app-header .app-header__links').getByRole('link', { name: 'Dashboard', exact: true }), drawnAs);
+      if (!link) throw new Error('Dashboard has no box in the header row');
+      check(link.opacity === '1', `Dashboard held down in the header row is drawn at opacity ${link.opacity}, not 1`);
+    });
+  }
+
   // One site footer on every app page, outside the main content, with its
   // six groups, its last line and links that answer.
   const footerRuns = [
