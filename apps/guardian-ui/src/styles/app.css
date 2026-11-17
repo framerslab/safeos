@@ -492,6 +492,12 @@ html:has(.app-shell) {
   background: var(--color-steel-850);
 }
 
+/* The bar scrolls inside itself, so whatever is drawn outside its box is cut
+   away: a focused place draws its 2 px ring inside its own edge. */
+.phone-bar__place:focus-visible {
+  outline-offset: -4px;
+}
+
 /* The place of the page being read: a 32 px accent line along its top. */
 .phone-bar__place[aria-current]::before {
   content: '';
