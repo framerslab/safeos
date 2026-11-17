@@ -506,6 +506,30 @@ describe('Merging the colour histograms of reference photos', () => {
     expect(merged.colorHistogram[0]).toEqual({ color: { r: 255, g: 255, b: 255 }, count: 512, percentage: 50 });
   });
 
+  it('counts a photo added to a saved subject as one photo of the subject\'s photos', () => {
+    // Each photo's fingerprint holds its one thumbnail, as generateFingerprint's does.
+    const photoOf = (pixels: ImageData): VisualFingerprint => ({ ...enrol(pixels), referenceImages: ['thumbnail'] });
+    const red = photoOf(flat(128, 128, [200, 30, 30]));
+    const striped = photoOf(stripes(128, 128));
+
+    // Four red photos saved together, then a striped one added on the
+    // subject's page, which merges the saved fingerprint with the new photo's.
+    const saved = mergeFingerprints([red, red, red, red]);
+    const added = mergeFingerprints([saved, striped]);
+    const together = mergeFingerprints([red, red, red, red, striped]);
+
+    expect(saved.referenceImages).toHaveLength(4);
+    // Red in four photos of five; black and white each half of one photo.
+    expect(shares(added)).toEqual([80, 10, 10]);
+    expect(added.edgeSignature.every((cell) => cell === 20)).toBe(true);
+    // The same subject as the five photos saved together.
+    expect(added.colorHistogram).toEqual(together.colorHistogram);
+    expect(added.averageColor).toEqual(together.averageColor);
+    expect(added.edgeSignature).toEqual(together.edgeSignature);
+    expect(added.estimatedSizeRatio).toBeCloseTo(together.estimatedSizeRatio, 10);
+    expect(added.colorVariance).toBeCloseTo(together.colorVariance, 10);
+  });
+
   it('scores a picture the same against one photo and against two that are a level apart', () => {
     const one = enrol(photo);
     const merged = mergeFingerprints([one, enrol(brighter)]);
