@@ -15,10 +15,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useSettingsStore } from '../../stores/settings-store';
+import { DEFAULT_PRESETS, useSettingsStore } from '../../stores/settings-store';
 import { useSoundManager } from '../../lib/sound-manager';
 import { NAP_MODE_DISCLAIMER } from '../../lib/disclaimers';
 import { getPixelDetectionEngine, resetPixelDetectionEngine } from '../../lib/pixel-detection';
+import { writeNapSession } from '../../lib/nap-session';
 
 // =============================================================================
 // Types
@@ -44,6 +45,7 @@ export default function NapModePage() {
         motion: 'pending',
         audio: 'pending',
     });
+    const [napDuration, setNapDuration] = useState(30); // minutes
     const [motionDetected, setMotionDetected] = useState(false);
     const [testSoundId, setTestSoundId] = useState<string | null>(null);
 
@@ -161,7 +163,8 @@ export default function NapModePage() {
         }
 
         setTestStatus(prev => ({ ...prev, audio: 'testing' }));
-        soundManager.updateVolume(1); // Max volume for test
+        // The check plays at the volume the Nap preset gives its alerts, 0 to 100.
+        soundManager.updateVolume(DEFAULT_PRESETS.infant_sleep.alertVolume);
 
         // Use test() instead of play() - test() forces loop: false
         const id = soundManager.test('alarm');
@@ -189,7 +192,7 @@ export default function NapModePage() {
         stopAll(); // Ensure no sounds are playing
 
         // The check is done: its loop and its camera stop here, and the
-        // monitor opens its own camera when the person starts the watch.
+        // monitor opens its own camera, starting the watch on arrival.
         if (animationRef.current) {
             cancelAnimationFrame(animationRef.current);
             animationRef.current = null;
@@ -200,8 +203,9 @@ export default function NapModePage() {
         }
         resetPixelDetectionEngine();
 
+        // The preset's own alert volume applies; the settings subscriber sets it.
         activateSleepMode('infant_sleep');
-        soundManager.updateVolume(1); // Ensure max volume
+        writeNapSession({ startedAt: Date.now(), minutes: napDuration, start: true });
         router.push('/monitor/');
     };
 
@@ -336,6 +340,34 @@ export default function NapModePage() {
                                 safety of any children under my care.
                             </span>
                         </label>
+
+                        {/* Nap Duration */}
+                        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
+                            <label htmlFor="nap-duration" className="block text-sm font-medium text-slate-300 mb-3">
+                                Planned nap duration: {napDuration} minutes
+                            </label>
+                            <input
+                                id="nap-duration"
+                                type="range"
+                                min="15"
+                                max="90"
+                                step="15"
+                                value={napDuration}
+                                onChange={(e) => setNapDuration(Number(e.target.value))}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                            />
+                            <div className="flex justify-between text-xs text-slate-500 mt-2">
+                                <span>15 min</span>
+                                <span>30 min</span>
+                                <span>45 min</span>
+                                <span>60 min</span>
+                                <span>90 min</span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-3 flex items-center gap-1.5">
+                                <LightbulbIcon className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                                We&apos;ll remind you when your planned nap time is up
+                            </p>
+                        </div>
 
                         {/* Continue Button */}
                         <button
@@ -545,6 +577,14 @@ function CheckIcon({ className = '' }: { className?: string }) {
     return (
         <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+    );
+}
+
+function LightbulbIcon({ className = '' }: { className?: string }) {
+    return (
+        <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
         </svg>
     );
 }

@@ -41,7 +41,9 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   await page.goto('/nap/', { waitUntil: 'networkidle', timeout: 60_000 });
   // The planned duration stays: the watch reminds when it has passed.
   await expect(page.getByRole('slider')).toHaveCount(1);
-  await page.getByRole('slider').fill('15');
+  // One step down from 30 minutes, by the keyboard as a person moves it.
+  await page.getByRole('slider').press('ArrowLeft');
+  await expect(page.getByText('Planned nap duration: 15 minutes')).toBeVisible();
   await page.getByRole('checkbox').check();
   await page.getByRole('button', { name: 'Continue to Pre-Nap Test', exact: true }).click();
 

@@ -467,7 +467,7 @@ export default function TestAlertsPage() {
                 value={globalSettings.alertVolume}
                 onChange={(e) => {
                   // Preview volume (doesn't save)
-                  soundManager.updateVolume(Number(e.target.value) / 100);
+                  soundManager.updateVolume(Number(e.target.value));
                 }}
                 className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
               />
