@@ -121,6 +121,8 @@ In the sidebar, adjust:
 
 Settings > Detection holds Motion and Audio Sensitivity for each use (Baby Monitoring, Pet Monitoring, Elderly Care and Security). The watch for that use runs at them in place of the preset's, and **Reset to defaults** there returns the use to the preset.
 
+On the Monitor page, the Motion and Audio sliders (Fine-Tune, Sensitivity and Quick Settings) show and move the values set for the use while it has them. Fine-Tune's **Reset to** the preset's **Defaults** clears them and returns the preset's values. Pixel Threshold, Analysis Interval and the processing mode belong to the preset and are the same for every use.
+
 ---
 
 ## 🎛️ Configuration Guide
