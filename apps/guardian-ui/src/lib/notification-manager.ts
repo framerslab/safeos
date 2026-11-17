@@ -22,6 +22,12 @@ export interface NotificationOptions {
   icon?: string;
   badge?: string;
   tag?: string;
+  /**
+   * Alert the person again when this notification replaces an earlier one
+   * with the same tag. Needs a tag: the browser throws on renotify without
+   * one. https://developer.mozilla.org/en-US/docs/Web/API/Notification/Notification
+   */
+  renotify?: boolean;
   requireInteraction?: boolean;
   silent?: boolean;
   actions?: NotificationAction[];
@@ -136,6 +142,11 @@ class NotificationManager {
     // Add vibration if supported and provided
     if (options.vibrate && 'vibrate' in navigator) {
       (notificationOptions as Record<string, unknown>).vibrate = options.vibrate;
+    }
+
+    // Set like vibrate and image below, and only with a tag: renotify without one throws.
+    if (options.renotify && options.tag) {
+      (notificationOptions as Record<string, unknown>).renotify = true;
     }
 
     // Add image if provided

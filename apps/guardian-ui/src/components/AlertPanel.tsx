@@ -341,7 +341,9 @@ interface AlertCardProps {
 function AlertCard({ alert, escalationLevel, onAcknowledge }: AlertCardProps) {
   const colors = SEVERITY_COLORS[alert.severity];
   const IconComponent = SEVERITY_ICONS[alert.severity];
-  const alertTime = alert.createdAt || alert.timestamp || new Date().toISOString();
+  // A card that counts repeats shows the time of its newest alert.
+  const repeats = alert.repeats ?? 0;
+  const alertTime = (repeats > 0 && alert.timestamp) || alert.createdAt || alert.timestamp || new Date().toISOString();
   const timeAgo = getTimeAgo(alertTime);
 
   // Escalation indicator
@@ -390,6 +392,12 @@ function AlertCard({ alert, escalationLevel, onAcknowledge }: AlertCardProps) {
           <div className="flex items-center justify-between mt-2">
             <span className="text-xs text-slate-500">
               Level {escalationLevel}
+              {repeats > 0 && (
+                <>
+                  {' · '}
+                  <span>Repeated {repeats} {repeats === 1 ? 'time' : 'times'}</span>
+                </>
+              )}
             </span>
             <button
               onClick={() => onAcknowledge(alert.id)}
