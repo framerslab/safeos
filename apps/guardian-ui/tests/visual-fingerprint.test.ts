@@ -24,6 +24,7 @@ import {
   poolEdgeSignature,
   upgradeFingerprint,
   addReferencePhotos,
+  FINGERPRINT_VERSION,
   type RGB,
   type VisualFingerprint,
   type ColorBucket,
@@ -419,6 +420,7 @@ describe('Edge signatures read on different grids', () => {
     edgeSignature,
     referenceImages: [],
     createdAt: '',
+    version: FINGERPRINT_VERSION,
   });
 
   // Stripes on the left half, one flat colour on the right half: the left
@@ -445,19 +447,19 @@ describe('Edge signatures read on different grids', () => {
   });
 
   it('keeps weak edges weak when it pools them', () => {
-    // A flat grey wall with one level of dither, read as the camera's frame
-    // is: scaled against an edge strength of at least 32, so every cell reads
-    // 13 on any grid, where black and white stripes read 100.
+    // A flat grey wall with one level of dither, as a camera's noise gives
+    // it: every cell reads 2 on any grid, where black and white stripes read
+    // 100.
     const wall = picture(128, 128, (x, y) => ((x + y) % 2 === 1 ? [129, 129, 129] : [128, 128, 128]));
-    const weakFine = withEdges(extractEdgeSignature(wall, 8, 32));
-    const weakCoarse = withEdges(extractEdgeSignature(wall, 4, 32));
+    const weakFine = withEdges(extractEdgeSignature(wall, 8));
+    const weakCoarse = withEdges(extractEdgeSignature(wall, 4));
     const strongCoarse = withEdges(extractEdgeSignature(stripes(128, 128), 4));
 
-    expect(weakFine.edgeSignature.every((cell) => cell === 13)).toBe(true);
-    expect(weakCoarse.edgeSignature.every((cell) => cell === 13)).toBe(true);
-    // Weak edges against strong ones score as they do on one grid: 13.
-    expect(compareFingerprints(weakFine, strongCoarse).edgeMatch).toBe(13);
-    expect(compareFingerprints(strongCoarse, weakFine).edgeMatch).toBe(13);
+    expect(weakFine.edgeSignature.every((cell) => cell === 2)).toBe(true);
+    expect(weakCoarse.edgeSignature.every((cell) => cell === 2)).toBe(true);
+    // Weak edges against strong ones score as they do on one grid: 2.
+    expect(compareFingerprints(weakFine, strongCoarse).edgeMatch).toBe(2);
+    expect(compareFingerprints(strongCoarse, weakFine).edgeMatch).toBe(2);
     // The same wall read on two grids is the same wall.
     expect(compareFingerprints(weakFine, weakCoarse).edgeMatch).toBe(100);
   });

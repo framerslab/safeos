@@ -457,11 +457,11 @@ describe('Edge term on the enrolled grid', () => {
     const result = matcher.processCanvas(canvasOf(wall));
 
     // Every sample of the wall steps one level right and down, an edge
-    // strength of 4, where a step from black to white is 765. A region is
-    // scaled against an edge strength of at least 32, so the wall's cells read
-    // 13 (4 of 32) where the stripes' read 100.
+    // strength of 4, where a step from black to white is 765. On the scale
+    // where a strength of 255 reads 100, the wall's cells read 2 where the
+    // stripes' read 100.
     expect(result).not.toBeNull();
-    expect(result?.details.edgeMatch).toBe(13);
+    expect(result?.details.edgeMatch).toBe(2);
   });
 });
 
