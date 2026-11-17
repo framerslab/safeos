@@ -562,16 +562,20 @@ export async function generateFingerprint(
  *
  * Each photo counts the same: a merged bucket's share is the mean of its
  * share in every photo (0 in a photo that lacks the colour), so the shares
- * add up to the mean of the photos' own totals. When there are more merged
- * buckets than `buckets`, those with the largest shares are kept.
+ * add up to the mean of the photos' own totals. `photos[i]` is the number of
+ * photos `histograms[i]` was made from, so a histogram already merged from
+ * four photos counts as four. When there are more merged buckets than
+ * `buckets`, those with the largest shares are kept.
  */
-function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBucket[] {
+function mergeHistograms(histograms: ColorBucket[][], photos: number[], buckets: number): ColorBucket[] {
   const tolerance = 256 / histogramLevels(buckets);
+  const totalPhotos = photos.reduce((sum, count) => sum + count, 0);
   // Colour sums are weighted by share, so each photo pulls a merged colour
   // by the share it holds of that colour.
   const merged: { r: number; g: number; b: number; weight: number; color: RGB; count: number; percentage: number }[] = [];
 
-  for (const histogram of histograms) {
+  histograms.forEach((histogram, histogramIdx) => {
+    const photoCount = photos[histogramIdx];
     // Every pairing of a merged bucket with one of this photo's buckets that
     // is within the tolerance, nearest first.
     const pairs: { mergedIdx: number; bucketIdx: number; distance: number }[] = [];
@@ -595,7 +599,7 @@ function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBuc
     }
 
     histogram.forEach((bucket, bucketIdx) => {
-      const weight = Math.max(bucket.percentage, 0);
+      const weight = Math.max(bucket.percentage, 0) * photoCount;
       if (target[bucketIdx] === -1) {
         merged.push({
           r: bucket.color.r * weight,
@@ -603,8 +607,8 @@ function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBuc
           b: bucket.color.b * weight,
           weight,
           color: { ...bucket.color },
-          count: bucket.count,
-          percentage: bucket.percentage,
+          count: bucket.count * photoCount,
+          percentage: bucket.percentage * photoCount,
         });
         return;
       }
@@ -614,8 +618,8 @@ function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBuc
       into.g += bucket.color.g * weight;
       into.b += bucket.color.b * weight;
       into.weight += weight;
-      into.count += bucket.count;
-      into.percentage += bucket.percentage;
+      into.count += bucket.count * photoCount;
+      into.percentage += bucket.percentage * photoCount;
       if (into.weight > 0) {
         into.color = {
           r: Math.round(into.r / into.weight),
@@ -624,13 +628,13 @@ function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBuc
         };
       }
     });
-  }
+  });
 
   return merged
     .map(({ color, count, percentage }) => ({
       color,
-      count: Math.round(count / histograms.length),
-      percentage: percentage / histograms.length,
+      count: Math.round(count / totalPhotos),
+      percentage: percentage / totalPhotos,
     }))
     // Largest share first: a photo with fewer pixels counts as much as one
     // with more.
@@ -639,7 +643,19 @@ function mergeHistograms(histograms: ColorBucket[][], buckets: number): ColorBuc
 }
 
 /**
+ * The number of photos a fingerprint was made from: one for a photo's own
+ * fingerprint, which keeps its one thumbnail, and for a merged fingerprint the
+ * thumbnails it kept, one a photo (up to 5, the most a subject holds).
+ */
+function photosIn(fingerprint: VisualFingerprint): number {
+  return Math.max(1, fingerprint.referenceImages?.length ?? 0);
+}
+
+/**
  * Merge multiple fingerprints into one (for multiple reference images).
+ * Every photo counts the same: a fingerprint already merged from several
+ * photos, such as a saved subject's when photos are added to it, counts as
+ * that many photos in the histogram and in the averaged values.
  * `options.histogramBuckets` is the bucket count the photos' histograms were
  * made with; leave it out for photos read with generateFingerprint's default.
  */
@@ -657,10 +673,16 @@ export function mergeFingerprints(
   
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const base = fingerprints[0];
+  const photos = fingerprints.map(photosIn);
+  const totalPhotos = photos.reduce((sum, count) => sum + count, 0);
+  // The mean over every photo of one value of each fingerprint.
+  const perPhoto = (value: (fp: VisualFingerprint) => number): number =>
+    fingerprints.reduce((sum, fp, i) => sum + value(fp) * photos[i], 0) / totalPhotos;
   
   // Merge color histograms (nearest colours together, shares averaged)
   const mergedHistogram = mergeHistograms(
     fingerprints.map(fp => fp.colorHistogram),
+    photos,
     opts.histogramBuckets
   );
   
@@ -670,17 +692,17 @@ export function mergeFingerprints(
   
   // Average other properties
   const avgAvgColor = {
-    r: Math.round(fingerprints.reduce((s, fp) => s + fp.averageColor.r, 0) / fingerprints.length),
-    g: Math.round(fingerprints.reduce((s, fp) => s + fp.averageColor.g, 0) / fingerprints.length),
-    b: Math.round(fingerprints.reduce((s, fp) => s + fp.averageColor.b, 0) / fingerprints.length),
+    r: Math.round(perPhoto(fp => fp.averageColor.r)),
+    g: Math.round(perPhoto(fp => fp.averageColor.g)),
+    b: Math.round(perPhoto(fp => fp.averageColor.b)),
   };
   
-  const avgVariance = fingerprints.reduce((s, fp) => s + fp.colorVariance, 0) / fingerprints.length;
-  const avgSizeRatio = fingerprints.reduce((s, fp) => s + fp.estimatedSizeRatio, 0) / fingerprints.length;
+  const avgVariance = perPhoto(fp => fp.colorVariance);
+  const avgSizeRatio = perPhoto(fp => fp.estimatedSizeRatio);
   
   // Average edge signatures
   const avgEdge = base.edgeSignature.map((_, i) =>
-    Math.round(fingerprints.reduce((s, fp) => s + (fp.edgeSignature[i] || 0), 0) / fingerprints.length)
+    Math.round(perPhoto(fp => fp.edgeSignature[i] || 0))
   );
   
   // Collect all reference images
