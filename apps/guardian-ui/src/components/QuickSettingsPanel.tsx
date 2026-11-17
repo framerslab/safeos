@@ -11,6 +11,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSettingsStore, DEFAULT_PRESETS, PresetId, isSleepPreset } from '../stores/settings-store';
+import { useWatchSettings } from '../stores/watch-settings';
 import { useSoundManager } from '../lib/sound-manager';
 import { PresetInfoModal } from './PresetInfoModal';
 import {
@@ -53,6 +54,8 @@ export function QuickSettingsPanel({ className = '' }: QuickSettingsPanelProps) 
     activateEmergencyMode,
     deactivateEmergencyMode,
   } = useSettingsStore();
+  // Motion and Audio show and move what the watch runs at for its use.
+  const { watchSettings, tuneWatch } = useWatchSettings();
 
   const soundManager = useSoundManager();
 
@@ -270,13 +273,13 @@ export function QuickSettingsPanel({ className = '' }: QuickSettingsPanelProps) 
                 <div className="space-y-2">
                   <SensitivitySlider
                     label="Motion"
-                    value={globalSettings.motionSensitivity}
-                    onChange={(value) => updateGlobalSettings({ motionSensitivity: value })}
+                    value={watchSettings.motionSensitivity}
+                    onChange={(value) => tuneWatch({ motionSensitivity: value })}
                   />
                   <SensitivitySlider
                     label="Audio"
-                    value={globalSettings.audioSensitivity}
-                    onChange={(value) => updateGlobalSettings({ audioSensitivity: value })}
+                    value={watchSettings.audioSensitivity}
+                    onChange={(value) => tuneWatch({ audioSensitivity: value })}
                   />
                 </div>
 

@@ -26,6 +26,7 @@ import { IconSearch, IconFingerprint, IconRadar, IconChevronDown, IconShield } f
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from '../../stores/settings-store';
+import { useWatchSettings } from '../../stores/watch-settings';
 import { useLostFoundStore, createMatchFrame, getMatcherSettings } from '../../stores/lost-found-store';
 import { getSubjectMatcher, type MatchResult } from '../../lib/subject-matcher';
 import { saveMatchFrame, type MatchFrameDB } from '../../lib/client-db';
@@ -153,10 +154,12 @@ export default function MonitorPage() {
   const modeDropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Settings store for security modes/presets
-  const { activePresetId, setActivePreset, activeSleepPreset, globalSettings, updateGlobalSettings, globalMute, toggleGlobalMute, timingSettings, getCooldownForSeverity } = useSettingsStore();
+  const { activePresetId, setActivePreset, activeSleepPreset, globalSettings, globalMute, toggleGlobalMute, timingSettings, getCooldownForSeverity } = useSettingsStore();
   const detectionFeatureSettings = useSettingsStore((state) => state.detectionFeatureSettings);
   const detectionZones = useSettingsStore((state) => state.detectionZones);
-  const currentPreset = globalSettings; // Use globalSettings to reflect slider overrides
+  // The watch runs at the preset, with the Motion and Audio set for this use on Settings > Detection laid over it.
+  const { watchSettings: currentPreset, keptForUse, tuneWatch, resetWatch } = useWatchSettings();
+  const keptNames = keptForUse.map((field) => (field === 'motionSensitivity' ? 'Motion' : 'Audio')).join(' and ');
   const [showOverrides, setShowOverrides] = useState(false);
 
   // URL parameter handling is done via PresetInitializer component below
@@ -363,14 +366,14 @@ export default function MonitorPage() {
   };
 
   useEffect(() => {
-    if (!isStreaming || !wsConnected || currentPreset.processingMode === 'local') return;
+    if (!isStreaming || !wsConnected || globalSettings.processingMode === 'local') return;
     serverRequestedRef.current = true;
     sendMessage({ type: 'start-stream', payload: { scenario: selectedScenario || scenario } });
     return () => {
       if (serverRequestedRef.current) sendMessage({ type: 'stop-stream' });
       serverRequestedRef.current = false;
     };
-  }, [isStreaming, wsConnected, currentPreset.processingMode, selectedScenario, scenario, sendMessage]);
+  }, [isStreaming, wsConnected, globalSettings.processingMode, selectedScenario, scenario, sendMessage]);
 
   useEffect(() => () => {
     captureRequestedRef.current = false;
@@ -1271,7 +1274,9 @@ export default function MonitorPage() {
               {showOverrides && (
                 <div className="mt-3 pt-3 border-t border-gray-700/50 space-y-4 animate-fade-in">
                   <p className="text-xs sm:text-[10px] text-gray-500 uppercase tracking-wider">
-                    Override until preset changes
+                    {keptNames
+                      ? `${keptNames} kept for this use until Reset · the rest until the preset changes`
+                      : 'Override until preset changes'}
                   </p>
 
                   {/* Motion Sensitivity Slider */}
@@ -1285,7 +1290,7 @@ export default function MonitorPage() {
                       min={0}
                       max={100}
                       value={currentPreset.motionSensitivity}
-                      onChange={(e) => updateGlobalSettings({ motionSensitivity: Number(e.target.value) })}
+                      onChange={(e) => tuneWatch({ motionSensitivity: Number(e.target.value) })}
                       className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
                                  [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-blue-500
@@ -1304,7 +1309,7 @@ export default function MonitorPage() {
                       min={0}
                       max={100}
                       value={currentPreset.audioSensitivity}
-                      onChange={(e) => updateGlobalSettings({ audioSensitivity: Number(e.target.value) })}
+                      onChange={(e) => tuneWatch({ audioSensitivity: Number(e.target.value) })}
                       className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
                                  [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-purple-500
@@ -1323,7 +1328,7 @@ export default function MonitorPage() {
                       min={1}
                       max={100}
                       value={currentPreset.absolutePixelThreshold}
-                      onChange={(e) => updateGlobalSettings({ absolutePixelThreshold: Number(e.target.value) })}
+                      onChange={(e) => tuneWatch({ absolutePixelThreshold: Number(e.target.value) })}
                       className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
                                  [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-emerald-500
@@ -1342,7 +1347,7 @@ export default function MonitorPage() {
                       min={1}
                       max={60}
                       value={currentPreset.analysisInterval}
-                      onChange={(e) => updateGlobalSettings({ analysisInterval: Number(e.target.value) })}
+                      onChange={(e) => tuneWatch({ analysisInterval: Number(e.target.value) })}
                       className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
                                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
                                  [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-amber-500
@@ -1352,7 +1357,7 @@ export default function MonitorPage() {
 
                   {/* Reset to Preset Defaults */}
                   <button
-                    onClick={() => setActivePreset(activePresetId)}
+                    onClick={resetWatch}
                     className="w-full py-2 text-xs text-gray-400 hover:text-white
                                bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors"
                   >
@@ -1503,7 +1508,7 @@ export default function MonitorPage() {
                 disabled={!calibrationResult || calibrationRunning}
                 onClick={() => {
                   if (!calibrationResult) return;
-                  updateGlobalSettings({
+                  tuneWatch({
                     motionSensitivity: calibrationResult.motionSensitivity,
                     audioSensitivity: calibrationResult.audioSensitivity,
                     absolutePixelThreshold: calibrationResult.absolutePixelThreshold,
