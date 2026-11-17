@@ -64,6 +64,8 @@ again, and updates the event's card in the alert list in place: the card shows t
 newest severity, reading and time, and "Repeated N times". Escalation counts from
 the event's first alert, so one event climbs the escalation levels once. A card
 that has been acknowledged stays as it is, and the next repeat makes a new card.
+A custom sound set to loop for the alert's trigger plays one copy while it loops: a
+repeat does not start a second copy on top of it.
 
 The event ends once the readings have stayed under the line for the same short
 window, so a sample or two under the line (a scene that holds still for a moment)

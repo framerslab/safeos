@@ -400,6 +400,19 @@ export default function MonitorPage() {
     endDetectorEvent(pixelEventRef.current);
   }, [isStreaming]);
 
+  // An event also ends when its detector is turned off or on. While pixel
+  // detection is off the camera hands the page no pixel readings, so the
+  // handler's own check never runs; the switch has to end the event.
+  useEffect(() => {
+    endDetectorEvent(motionEventRef.current);
+  }, [currentPreset.motionDetectionEnabled]);
+  useEffect(() => {
+    endDetectorEvent(audioEventRef.current);
+  }, [currentPreset.audioDetectionEnabled]);
+  useEffect(() => {
+    endDetectorEvent(pixelEventRef.current);
+  }, [currentPreset.pixelDetectionEnabled]);
+
   const [pixelChangePercent, setPixelChangePercent] = useState(0);
   const [pixelChangedPixels, setPixelChangedPixels] = useState(0);
   const [pixelZoneStatus, setPixelZoneStatus] = useState<null | {
