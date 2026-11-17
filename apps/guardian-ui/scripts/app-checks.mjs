@@ -980,9 +980,31 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
   }
 
+  // The page's own parts that are fixed to the screen with the frame drawn
+  // over their middle: the header covers a part fixed at the top, the bar one
+  // fixed at the foot, and a press there reaches the frame, not the part.
+  const underFrame = () => {
+    const main = document.getElementById('main-content');
+    if (!main) return [];
+    const named = (element) => `${element.tagName.toLowerCase()}${typeof element.className === 'string' && element.className ? `.${element.className.trim().split(/\s+/).slice(0, 4).join('.')}` : ''}`;
+    const covered = [];
+    for (const part of main.querySelectorAll('*')) {
+      const style = getComputedStyle(part);
+      if (style.position !== 'fixed' || style.visibility === 'hidden') continue;
+      const box = part.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      if (box.width === 0 || box.height === 0 || x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight) continue;
+      const frame = document.elementFromPoint(x, y)?.closest('header.app-header, nav.phone-bar');
+      if (frame) covered.push(`${named(part)} is fixed to the screen under ${frame.matches('nav') ? 'the phone bar' : 'the app header'}`);
+    }
+    return covered;
+  };
+
   // The frame holds the screen's edges: while an app page scrolls, no part of
   // the page's own content stays at the top of the screen under the header,
-  // or at its foot over the page's words and under the bar.
+  // or at its foot over the page's words and under the bar, and no part the
+  // page fixes to the screen lies under either.
   for (const width of [390, 1280]) {
     for (const route of ['/settings/notifications/', '/monitor/', '/security/', '/wildlife/', '/admin/']) {
       await open({ name: 'page parts while the page scrolls', width, look: 'dark' }, async (page, context, check) => {
@@ -1009,6 +1031,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         });
         if (!stuck) throw new Error(`${route} has no main content`);
         for (const part of stuck) check(false, `on ${route}, as the page scrolls, ${part}`);
+        for (const part of await page.evaluate(underFrame)) check(false, `on ${route}, ${part}`);
       });
     }
   }
