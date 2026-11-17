@@ -1265,6 +1265,60 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   });
 
+  // Titles and robots tags: each app page is titled with its own name and
+  // " | SafeOS" and asks search engines not to index it. robots.txt keeps a
+  // crawler from none of them, since a crawler that may not fetch a page
+  // never reads its tag, and the sitemap lists none of them. A page that
+  // carries the site's own pattern in its title keeps it.
+  await open({ name: 'titles and robots tags', width: 1280, look: 'light' }, async (page, context, check) => {
+    const titles = [
+      ['/dashboard/', 'Dashboard | SafeOS'],
+      ['/monitor/', 'Motion and sound | SafeOS'],
+      ['/lost-found/', 'Lost and Found | SafeOS'],
+      ['/security/', 'People | SafeOS'],
+      ['/wildlife/', 'Wildlife | SafeOS'],
+      ['/history/', 'History | SafeOS'],
+      ['/settings/', 'Settings | SafeOS'],
+      ['/settings/detection/', 'Settings | SafeOS'],
+      ['/setup/?again=1', 'Setup | SafeOS'],
+    ];
+    const head = () => ({
+      title: document.title,
+      robots: [...document.querySelectorAll('meta[name="robots"]')].map((tag) => tag.getAttribute('content') || '').join('; '),
+    });
+    for (const [route, title] of titles) {
+      await visit(page, route);
+      const seen = await page.evaluate(head);
+      check(seen.title === title, `${route} is titled "${seen.title}", not "${title}"`);
+      check(/\bnoindex\b/.test(seen.robots), `${route} carries ${seen.robots ? `the robots tag "${seen.robots}"` : 'no robots tag'}, not one that holds noindex`);
+    }
+    // A reading page, and the page under a way's page that titles itself.
+    for (const route of ['/about/', '/lost-found/gallery/']) {
+      await visit(page, route);
+      const seen = await page.evaluate(head);
+      check(seen.title.endsWith(' | SafeOS Guardian'), `${route} is titled "${seen.title}", which does not end " | SafeOS Guardian"`);
+    }
+
+    const sections = [...new Set(titles.map(([route]) => `/${route.split('/')[1]}/`))];
+    const read = async (file) => {
+      const response = await context.request.get(address(file), { timeout: 30_000 });
+      if (!response.ok()) throw new Error(`${file} answers ${response.status()}`);
+      return response.text();
+    };
+    // A Disallow line keeps a crawler from every address that starts with it.
+    const kept = (await read('/robots.txt')).split('\n').map((line) => line.match(/^\s*Disallow:\s*(\S+)/i)?.[1]).filter(Boolean);
+    for (const section of sections) {
+      const rule = kept.find((start) => section.startsWith(start));
+      check(!rule, `robots.txt keeps a crawler from ${section} with "Disallow: ${rule}", so the page's noindex tag is never read`);
+    }
+    const listed = [...(await read('/sitemap.xml')).matchAll(/<loc>([^<]+)<\/loc>/g)].map((entry) => new URL(entry[1].trim()).pathname);
+    for (const wanted of ['/', '/help/']) check(listed.includes(wanted), `the sitemap does not list ${wanted}`);
+    for (const section of sections) {
+      const found = listed.filter((pathname) => pathname.startsWith(section));
+      check(found.length === 0, `the sitemap lists ${found.join(', ')}`);
+    }
+  });
+
   // An element shows only when it and every element round it are opaque:
   // the browser counts an element with opacity 0 as visible.
   const opacityOf = (page, selector) => page.evaluate((s) => {
