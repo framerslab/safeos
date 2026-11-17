@@ -93,11 +93,16 @@ export const canvasOf = (pixels: ImageData): HTMLCanvasElement =>
     getContext: () => ({ getImageData: () => pixels }),
   }) as unknown as HTMLCanvasElement;
 
-/** A video element that shows the given pixels to processFrame. */
-export const videoOf = (pixels: ImageData): HTMLVideoElement =>
+/**
+ * A video element that shows the given pixels to processFrame. `stream`
+ * stands for the camera's stream, the element's `srcObject`: a camera started
+ * again or another camera gives the element a new one.
+ */
+export const videoOf = (pixels: ImageData, stream: object | null = null): HTMLVideoElement =>
   ({
     videoWidth: pixels.width,
     videoHeight: pixels.height,
+    srcObject: stream,
     pixels,
   }) as unknown as HTMLVideoElement;
 

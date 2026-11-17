@@ -596,6 +596,28 @@ describe('Adaptive lighting', () => {
     expect(corrected?.details).toEqual(uncorrected?.details);
   });
 
+  it('starts the scene afresh when the frames come from another camera', () => {
+    // One camera watches a lit room; another, darker everywhere, then shows
+    // the subject as it was photographed.
+    const lit = stripes(128, 128, [68, 68, 68], [188, 188, 188]);
+    const dim = stripes(128, 128, [8, 8, 8], [128, 128, 128]);
+    const subject = enrol(dim);
+    const firstCamera = {};
+    const secondCamera = {};
+    const watchFrom = (frames: [ImageData, object][]): (MatchResult | null)[] => {
+      const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: true, motionPriority: false });
+      matcher.setFingerprint(subject);
+      matcher.setActive(true);
+      return frames.map(([frame, stream]) => matcher.processFrame(videoOf(frame, stream)));
+    };
+    const litFrames: [ImageData, object][] = new Array(5).fill([lit, firstCamera]);
+
+    // From one camera, the dim frame is a drop in light and is moved back.
+    expect(watchFrom([...litFrames, [dim, firstCamera]])[5]?.confidence).toBeLessThan(100);
+    // From another camera, it is the first frame of a new scene.
+    expect(watchFrom([...litFrames, [dim, secondCamera]])[5]?.confidence).toBe(100);
+  });
+
   it('does not brighten or darken a subject that covers most of the scene', () => {
     // A grey room, then a light subject over its left three quarters: 48 of
     // the 64 cells the light is read on.
