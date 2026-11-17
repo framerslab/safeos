@@ -12,7 +12,9 @@ import { test, expect, type Page } from '@playwright/test';
 // Test Configuration
 // =============================================================================
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+// The address playwright.config.ts tests: PLAYWRIGHT_BASE_URL when a site is
+// already being served there, and the development server otherwise.
+const BASE_URL = process.env.PLAYWRIGHT_BASE_URL || process.env.BASE_URL || 'http://localhost:3000';
 
 // =============================================================================
 // Helper Functions

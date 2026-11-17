@@ -49,10 +49,13 @@ export interface FingerprintOptions {
   downsampleFactor: number;
 }
 
+/** The edge grid a reference photo is read on unless the caller asks for another. */
+export const DEFAULT_EDGE_GRID_SIZE = 8;
+
 const DEFAULT_OPTIONS: FingerprintOptions = {
   histogramBuckets: 32,
   dominantColorCount: 5,
-  edgeGridSize: 8,
+  edgeGridSize: DEFAULT_EDGE_GRID_SIZE,
   downsampleFactor: 4,
 };
 
@@ -140,6 +143,14 @@ export function normalizeBrightness(color: RGB, targetLightness: number = 50): R
 }
 
 /**
+ * The number of levels each of red, green and blue is cut into for a
+ * histogram of up to `buckets` buckets: 4 levels, each 64 wide, for 32.
+ */
+function histogramLevels(buckets: number): number {
+  return Math.max(1, Math.ceil(Math.cbrt(buckets)));
+}
+
+/**
  * Quantize color to reduce to bucket
  */
 function quantizeColor(r: number, g: number, b: number, levels: number): string {
@@ -199,7 +210,7 @@ export function extractColorHistogram(
   buckets: number = 32
 ): ColorBucket[] {
   const colorCounts = new Map<string, { color: RGB; count: number }>();
-  const levels = Math.ceil(Math.cbrt(buckets)); // Levels per channel
+  const levels = histogramLevels(buckets); // Levels per channel
   
   const { data, width, height } = imageData;
   const totalPixels = width * height;
@@ -358,9 +369,17 @@ export function calculateColorVariance(imageData: ImageData, avgColor: RGB): num
 }
 
 /**
- * Extract edge signature using simple gradient detection
+ * Extract edge signature using simple gradient detection: one value per cell
+ * of a `gridSize` by `gridSize` grid, scaled so the strongest cell reads 100.
+ *
+ * `floor` is the least edge strength the strongest cell is scaled against. A
+ * cell's strength is the mean, over its samples, of the step to the next
+ * pixel right and down, summed over red, green and blue: a step from black to
+ * white is 765. With a floor of 32, a picture whose strongest cell reads 4 (a
+ * flat wall with one level of noise) gives 13 a cell, not 100. The default of
+ * 1 scales every picture to its own strongest cell.
  */
-export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8): number[] {
+export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8, floor: number = 1): number[] {
   const { data, width, height } = imageData;
   const signature: number[] = [];
   
@@ -406,8 +425,18 @@ export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8)
   }
   
   // Normalize signature
-  const maxEdge = Math.max(...signature, 1);
+  const maxEdge = Math.max(...signature, floor, 1);
   return signature.map(e => Math.round((e / maxEdge) * 100));
+}
+
+/**
+ * The side of the square grid an edge signature was read on: 8 for the 64
+ * values of an 8 by 8 grid. Returns 0 when the signature is empty or its
+ * length is not a square number.
+ */
+export function edgeGridSide(signature: number[]): number {
+  const side = Math.round(Math.sqrt(signature.length));
+  return side * side === signature.length ? side : 0;
 }
 
 /**
@@ -521,9 +550,119 @@ export async function generateFingerprint(
 }
 
 /**
- * Merge multiple fingerprints into one (for multiple reference images)
+ * Merge the colour histograms of several photos into one of up to `buckets`
+ * buckets.
+ *
+ * A bucket's colour is the average of the pixels that fell in it, so two
+ * photos of one animal rarely give a bucket the very same colour. Buckets are
+ * therefore put together by nearest colour: each bucket of a further photo
+ * joins the merged bucket nearest to it, when the two colours are closer than
+ * one bucket is wide and no nearer bucket of the same photo has taken it.
+ * Buckets of one photo are never put together with each other.
+ *
+ * Each photo counts the same: a merged bucket's share is the mean of its
+ * share in every photo (0 in a photo that lacks the colour), so the shares
+ * add up to the mean of the photos' own totals. `photos[i]` is the number of
+ * photos `histograms[i]` was made from, so a histogram already merged from
+ * four photos counts as four. When there are more merged buckets than
+ * `buckets`, those with the largest shares are kept.
  */
-export function mergeFingerprints(fingerprints: VisualFingerprint[]): VisualFingerprint {
+function mergeHistograms(histograms: ColorBucket[][], photos: number[], buckets: number): ColorBucket[] {
+  const tolerance = 256 / histogramLevels(buckets);
+  const totalPhotos = photos.reduce((sum, count) => sum + count, 0);
+  // Colour sums are weighted by share, so each photo pulls a merged colour
+  // by the share it holds of that colour.
+  const merged: { r: number; g: number; b: number; weight: number; color: RGB; count: number; percentage: number }[] = [];
+
+  histograms.forEach((histogram, histogramIdx) => {
+    const photoCount = photos[histogramIdx];
+    // Every pairing of a merged bucket with one of this photo's buckets that
+    // is within the tolerance, nearest first.
+    const pairs: { mergedIdx: number; bucketIdx: number; distance: number }[] = [];
+    for (let mergedIdx = 0; mergedIdx < merged.length; mergedIdx++) {
+      for (let bucketIdx = 0; bucketIdx < histogram.length; bucketIdx++) {
+        const distance = colorDistance(merged[mergedIdx].color, histogram[bucketIdx].color);
+        if (distance < tolerance) {
+          pairs.push({ mergedIdx, bucketIdx, distance });
+        }
+      }
+    }
+    pairs.sort((a, b) => a.distance - b.distance);
+
+    const target = new Array<number>(histogram.length).fill(-1);
+    const taken = new Set<number>();
+    for (const { mergedIdx, bucketIdx } of pairs) {
+      if (target[bucketIdx] === -1 && !taken.has(mergedIdx)) {
+        target[bucketIdx] = mergedIdx;
+        taken.add(mergedIdx);
+      }
+    }
+
+    histogram.forEach((bucket, bucketIdx) => {
+      const weight = Math.max(bucket.percentage, 0) * photoCount;
+      if (target[bucketIdx] === -1) {
+        merged.push({
+          r: bucket.color.r * weight,
+          g: bucket.color.g * weight,
+          b: bucket.color.b * weight,
+          weight,
+          color: { ...bucket.color },
+          count: bucket.count * photoCount,
+          percentage: bucket.percentage * photoCount,
+        });
+        return;
+      }
+
+      const into = merged[target[bucketIdx]];
+      into.r += bucket.color.r * weight;
+      into.g += bucket.color.g * weight;
+      into.b += bucket.color.b * weight;
+      into.weight += weight;
+      into.count += bucket.count * photoCount;
+      into.percentage += bucket.percentage * photoCount;
+      if (into.weight > 0) {
+        into.color = {
+          r: Math.round(into.r / into.weight),
+          g: Math.round(into.g / into.weight),
+          b: Math.round(into.b / into.weight),
+        };
+      }
+    });
+  });
+
+  return merged
+    .map(({ color, count, percentage }) => ({
+      color,
+      count: Math.round(count / totalPhotos),
+      percentage: percentage / totalPhotos,
+    }))
+    // Largest share first: a photo with fewer pixels counts as much as one
+    // with more.
+    .sort((a, b) => b.percentage - a.percentage)
+    .slice(0, buckets);
+}
+
+/**
+ * The number of photos a fingerprint was made from: one for a photo's own
+ * fingerprint, which keeps its one thumbnail, and for a merged fingerprint the
+ * thumbnails it kept, one a photo (up to 5, the most a subject holds).
+ */
+function photosIn(fingerprint: VisualFingerprint): number {
+  return Math.max(1, fingerprint.referenceImages?.length ?? 0);
+}
+
+/**
+ * Merge multiple fingerprints into one (for multiple reference images).
+ * Every photo counts the same: a fingerprint already merged from several
+ * photos, such as a saved subject's when photos are added to it, counts as
+ * that many photos in the histogram and in the averaged values.
+ * `options.histogramBuckets` is the bucket count the photos' histograms were
+ * made with; leave it out for photos read with generateFingerprint's default.
+ */
+export function mergeFingerprints(
+  fingerprints: VisualFingerprint[],
+  options: Partial<FingerprintOptions> = {}
+): VisualFingerprint {
   if (fingerprints.length === 0) {
     throw new Error('No fingerprints to merge');
   }
@@ -532,33 +671,20 @@ export function mergeFingerprints(fingerprints: VisualFingerprint[]): VisualFing
     return fingerprints[0];
   }
   
+  const opts = { ...DEFAULT_OPTIONS, ...options };
   const base = fingerprints[0];
+  const photos = fingerprints.map(photosIn);
+  const totalPhotos = photos.reduce((sum, count) => sum + count, 0);
+  // The mean over every photo of one value of each fingerprint.
+  const perPhoto = (value: (fp: VisualFingerprint) => number): number =>
+    fingerprints.reduce((sum, fp, i) => sum + value(fp) * photos[i], 0) / totalPhotos;
   
-  // Merge color histograms (average counts)
-  const histogramMap = new Map<string, ColorBucket>();
-  
-  for (const fp of fingerprints) {
-    for (const bucket of fp.colorHistogram) {
-      const key = `${bucket.color.r}-${bucket.color.g}-${bucket.color.b}`;
-      const existing = histogramMap.get(key);
-      
-      if (existing) {
-        existing.count += bucket.count;
-        existing.percentage += bucket.percentage;
-      } else {
-        histogramMap.set(key, { ...bucket });
-      }
-    }
-  }
-  
-  const mergedHistogram = Array.from(histogramMap.values())
-    .map(b => ({
-      ...b,
-      count: Math.round(b.count / fingerprints.length),
-      percentage: b.percentage / fingerprints.length,
-    }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, base.colorHistogram.length);
+  // Merge color histograms (nearest colours together, shares averaged)
+  const mergedHistogram = mergeHistograms(
+    fingerprints.map(fp => fp.colorHistogram),
+    photos,
+    opts.histogramBuckets
+  );
   
   // Merge dominant colors (find most common across all)
   const allDominant = fingerprints.flatMap(fp => fp.dominantColors);
@@ -566,17 +692,17 @@ export function mergeFingerprints(fingerprints: VisualFingerprint[]): VisualFing
   
   // Average other properties
   const avgAvgColor = {
-    r: Math.round(fingerprints.reduce((s, fp) => s + fp.averageColor.r, 0) / fingerprints.length),
-    g: Math.round(fingerprints.reduce((s, fp) => s + fp.averageColor.g, 0) / fingerprints.length),
-    b: Math.round(fingerprints.reduce((s, fp) => s + fp.averageColor.b, 0) / fingerprints.length),
+    r: Math.round(perPhoto(fp => fp.averageColor.r)),
+    g: Math.round(perPhoto(fp => fp.averageColor.g)),
+    b: Math.round(perPhoto(fp => fp.averageColor.b)),
   };
   
-  const avgVariance = fingerprints.reduce((s, fp) => s + fp.colorVariance, 0) / fingerprints.length;
-  const avgSizeRatio = fingerprints.reduce((s, fp) => s + fp.estimatedSizeRatio, 0) / fingerprints.length;
+  const avgVariance = perPhoto(fp => fp.colorVariance);
+  const avgSizeRatio = perPhoto(fp => fp.estimatedSizeRatio);
   
   // Average edge signatures
   const avgEdge = base.edgeSignature.map((_, i) =>
-    Math.round(fingerprints.reduce((s, fp) => s + (fp.edgeSignature[i] || 0), 0) / fingerprints.length)
+    Math.round(perPhoto(fp => fp.edgeSignature[i] || 0))
   );
   
   // Collect all reference images
@@ -648,8 +774,16 @@ export interface ComparisonResult {
   details: string;
 }
 
+/** The size tolerance used when the caller gives none. */
+export const DEFAULT_SIZE_TOLERANCE = 50;
+
 /**
- * Compare two fingerprints
+ * Compare two fingerprints.
+ *
+ * `sizeTolerance` (0 to 100) is the difference between the two size ratios,
+ * in points of the picture, at which the size term reaches 0. Equal sizes
+ * score 100 at every tolerance; at 50 a difference of 25 points scores 50; at
+ * 0 only equal sizes score.
  */
 export function compareFingerprints(
   fp1: VisualFingerprint,
@@ -659,7 +793,8 @@ export function compareFingerprints(
     dominant: 0.35,
     edge: 0.15,
     size: 0.1,
-  }
+  },
+  sizeTolerance: number = DEFAULT_SIZE_TOLERANCE
 ): ComparisonResult {
   // Color histogram match (Earth Mover's Distance approximation)
   const colorMatch = compareHistograms(fp1.colorHistogram, fp2.colorHistogram);
@@ -671,8 +806,7 @@ export function compareFingerprints(
   const edgeMatch = compareEdgeSignatures(fp1.edgeSignature, fp2.edgeSignature);
   
   // Size ratio match
-  const sizeDiff = Math.abs(fp1.estimatedSizeRatio - fp2.estimatedSizeRatio);
-  const sizeMatch = Math.max(0, 100 - sizeDiff * 200);
+  const sizeMatch = compareSizeRatios(fp1.estimatedSizeRatio, fp2.estimatedSizeRatio, sizeTolerance);
   
   // Weighted overall score
   const overall = Math.round(
@@ -748,10 +882,75 @@ function compareDominantColors(d1: RGB[], d2: RGB[]): number {
 }
 
 /**
- * Compare edge signatures
+ * Read a square edge signature on a coarser square grid. Each coarse cell is
+ * the mean of the fine cells it covers, weighted by how much of each it
+ * covers, and the result is scaled so its strongest cell reads what the finer
+ * signature's strongest cell read: 100 for a picture scaled to its own
+ * strongest cell, less for weak edges scaled against a floor.
+ */
+export function poolEdgeSignature(signature: number[], side: number): number[] {
+  const from = edgeGridSide(signature);
+  if (from === 0 || side <= 0 || side >= from) {
+    return signature;
+  }
+
+  const scale = from / side;
+  const pooled: number[] = [];
+
+  for (let cy = 0; cy < side; cy++) {
+    const top = cy * scale;
+    const bottom = (cy + 1) * scale;
+
+    for (let cx = 0; cx < side; cx++) {
+      const left = cx * scale;
+      const right = (cx + 1) * scale;
+      let sum = 0;
+      let weight = 0;
+
+      for (let fy = Math.floor(top); fy < from && fy < bottom; fy++) {
+        const rows = Math.min(bottom, fy + 1) - Math.max(top, fy);
+        if (rows <= 0) continue;
+
+        for (let fx = Math.floor(left); fx < from && fx < right; fx++) {
+          const columns = Math.min(right, fx + 1) - Math.max(left, fx);
+          if (columns <= 0) continue;
+
+          sum += signature[fy * from + fx] * rows * columns;
+          weight += rows * columns;
+        }
+      }
+
+      pooled.push(weight > 0 ? sum / weight : 0);
+    }
+  }
+
+  // Pooling averages cells, which lowers the strongest one. Scaling back to
+  // the strongest fine cell keeps a signature that read 100 at 100, and keeps
+  // weak edges weak: a region's frame scaled against a floor (13 a cell for a
+  // near-blank wall) reads 13 on the coarser grid too, not 100.
+  const strongest = Math.max(...pooled);
+  const ceiling = Math.max(...signature);
+  return strongest > 0 ? pooled.map(e => (e / strongest) * ceiling) : pooled;
+}
+
+/**
+ * Compare edge signatures cell by cell. Two signatures read on different
+ * square grids are compared on the coarser of the two: the finer one is
+ * pooled down to it. A signature that is empty or is not a square grid has no
+ * cells to line up with the other's, and scores 0.
  */
 function compareEdgeSignatures(e1: number[], e2: number[]): number {
-  if (e1.length !== e2.length || e1.length === 0) {
+  if (e1.length !== e2.length) {
+    const side1 = edgeGridSide(e1);
+    const side2 = edgeGridSide(e2);
+    if (side1 === 0 || side2 === 0) {
+      return 0;
+    }
+    const side = Math.min(side1, side2);
+    return compareEdgeSignatures(poolEdgeSignature(e1, side), poolEdgeSignature(e2, side));
+  }
+
+  if (e1.length === 0) {
     return 0;
   }
   
@@ -762,6 +961,21 @@ function compareEdgeSignatures(e1: number[], e2: number[]): number {
   
   const avgDiff = diff / e1.length;
   return Math.max(0, 100 - avgDiff);
+}
+
+/**
+ * Compare size ratios (each 0 to 1). The score falls in a straight line from
+ * 100 for equal ratios to 0 at a difference of `tolerance` points.
+ */
+function compareSizeRatios(ratio1: number, ratio2: number, tolerance: number): number {
+  const sizeDiff = Math.abs(ratio1 - ratio2);
+  const allowed = Math.max(0, Math.min(100, tolerance));
+
+  if (allowed === 0) {
+    return sizeDiff === 0 ? 100 : 0;
+  }
+
+  return Math.max(0, 100 - sizeDiff * (10000 / allowed));
 }
 
 /**

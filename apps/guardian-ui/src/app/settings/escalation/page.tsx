@@ -232,7 +232,7 @@ export default function EscalationSettingsPage() {
                                 className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer"
                             />
                             <p className="text-xs text-slate-500 mt-1">
-                                Time between repeated alerts for the same event
+                                Shortest time between repeated alerts for one event; a rise in severity alerts sooner
                             </p>
                         </div>
 

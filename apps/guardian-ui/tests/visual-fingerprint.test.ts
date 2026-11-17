@@ -25,6 +25,8 @@ import {
   type VisualFingerprint,
   type ColorBucket,
 } from '../src/lib/visual-fingerprint';
+import { SubjectMatcher } from '../src/lib/subject-matcher';
+import { BLACK, WHITE, canvasOf, enrol, flat, picture, stripes } from './helpers/pictures';
 
 // =============================================================================
 // Mock ImageData for testing
@@ -395,5 +397,168 @@ describe('Brightness Normalization', () => {
       // Should be darker
       expect(normalized.r).toBeLessThan(bright.r);
     });
+  });
+});
+
+// =============================================================================
+// Edge signatures read on different grids
+// =============================================================================
+
+describe('Edge signatures read on different grids', () => {
+  const withEdges = (edgeSignature: number[]): VisualFingerprint => ({
+    id: 'edges',
+    name: 'Edges',
+    colorHistogram: [{ color: { r: 100, g: 50, b: 25 }, count: 100, percentage: 100 }],
+    dominantColors: [{ r: 100, g: 50, b: 25 }],
+    averageColor: { r: 100, g: 50, b: 25 },
+    colorVariance: 0,
+    estimatedSizeRatio: 0.3,
+    edgeSignature,
+    referenceImages: [],
+    createdAt: '',
+  });
+
+  // Stripes on the left half, one flat colour on the right half: the left
+  // cells of any even grid read 100 and the right cells read 0.
+  const halfStriped = picture(128, 128, (x) => (x < 64 && x % 2 === 1 ? WHITE : BLACK));
+
+  it('pools the finer grid down to the coarser one', () => {
+    const fine = withEdges(extractEdgeSignature(halfStriped, 8));
+    const coarse = withEdges(extractEdgeSignature(halfStriped, 4));
+
+    expect(fine.edgeSignature).toHaveLength(64);
+    expect(coarse.edgeSignature).toHaveLength(16);
+    // The same picture read on two grids is the same picture.
+    expect(compareFingerprints(fine, coarse).edgeMatch).toBe(100);
+    expect(compareFingerprints(coarse, fine).edgeMatch).toBe(100);
+  });
+
+  it('still tells different edges apart across grids', () => {
+    const fine = withEdges(extractEdgeSignature(halfStriped, 8));
+    const striped = withEdges(extractEdgeSignature(stripes(128, 128), 4));
+
+    // Half of the pooled cells read 0 where the striped picture reads 100.
+    expect(compareFingerprints(fine, striped).edgeMatch).toBe(50);
+  });
+
+  it('keeps weak edges weak when it pools them', () => {
+    // A flat grey wall with one level of dither, read as the camera's frame
+    // is: scaled against an edge strength of at least 32, so every cell reads
+    // 13 on any grid, where black and white stripes read 100.
+    const wall = picture(128, 128, (x, y) => ((x + y) % 2 === 1 ? [129, 129, 129] : [128, 128, 128]));
+    const weakFine = withEdges(extractEdgeSignature(wall, 8, 32));
+    const weakCoarse = withEdges(extractEdgeSignature(wall, 4, 32));
+    const strongCoarse = withEdges(extractEdgeSignature(stripes(128, 128), 4));
+
+    expect(weakFine.edgeSignature.every((cell) => cell === 13)).toBe(true);
+    expect(weakCoarse.edgeSignature.every((cell) => cell === 13)).toBe(true);
+    // Weak edges against strong ones score as they do on one grid: 13.
+    expect(compareFingerprints(weakFine, strongCoarse).edgeMatch).toBe(13);
+    expect(compareFingerprints(strongCoarse, weakFine).edgeMatch).toBe(13);
+    // The same wall read on two grids is the same wall.
+    expect(compareFingerprints(weakFine, weakCoarse).edgeMatch).toBe(100);
+  });
+
+  it('scores 0 against a signature that is not a square grid', () => {
+    const fine = withEdges(extractEdgeSignature(halfStriped, 8));
+    const odd = withEdges([100, 100, 100, 100, 0, 0, 0, 0]);
+
+    expect(compareFingerprints(fine, odd).edgeMatch).toBe(0);
+  });
+});
+
+// =============================================================================
+// Merging reference photos
+// =============================================================================
+
+describe('Merging the colour histograms of reference photos', () => {
+  const photo = stripes(128, 128, [40, 40, 40], [200, 200, 200]);
+  // The same picture one level brighter, as a second photo of one animal is.
+  const brighter = stripes(128, 128, [41, 41, 41], [201, 201, 201]);
+
+  const shares = (fingerprint: VisualFingerprint): number[] =>
+    fingerprint.colorHistogram.map((bucket) => bucket.percentage);
+  const total = (fingerprint: VisualFingerprint): number =>
+    shares(fingerprint).reduce((sum, share) => sum + share, 0);
+
+  it('gives one photo\'s histogram when the photos are identical', () => {
+    const one = enrol(photo);
+    const merged = mergeFingerprints([one, enrol(photo)]);
+
+    expect(merged.colorHistogram).toEqual(one.colorHistogram);
+  });
+
+  it('puts buckets a level apart together and keeps their share', () => {
+    const merged = mergeFingerprints([enrol(photo), enrol(brighter)]);
+
+    // Half dark and half light in both photos: half and half merged.
+    expect(shares(merged)).toEqual([50, 50]);
+  });
+
+  it('keeps the colours of every photo, with shares that add up as one photo\'s do', () => {
+    const striped = enrol(stripes(128, 128));
+    const red = enrol(flat(128, 128, [200, 30, 30]));
+    const merged = mergeFingerprints([striped, red]);
+
+    expect(total(striped)).toBe(100);
+    expect(total(red)).toBe(100);
+    // Red from one photo of two, black and white from the other.
+    expect(shares(merged)).toEqual([50, 25, 25]);
+    expect(total(merged)).toBe(100);
+  });
+
+  it('keeps a small photo\'s colour when a larger photo fills every bucket', () => {
+    // 32 bands of 8 rows, each a colour of its own bucket: 2048 pixels each.
+    const levels = [0, 85, 170, 255];
+    const many = picture(256, 256, (_x, y) => {
+      const band = Math.floor(y / 8);
+      return [levels[band >> 4], levels[(band >> 2) & 3], levels[band & 3]];
+    });
+    // One colour far from all of them, over 1024 pixels.
+    const small = flat(32, 32, WHITE);
+    const merged = mergeFingerprints([enrol(many), enrol(small)]);
+
+    expect(enrol(many).colorHistogram).toHaveLength(32);
+    expect(merged.colorHistogram).toHaveLength(32);
+    // Half of the subject is white in one photo of two.
+    expect(merged.colorHistogram[0]).toEqual({ color: { r: 255, g: 255, b: 255 }, count: 512, percentage: 50 });
+  });
+
+  it('counts a photo added to a saved subject as one photo of the subject\'s photos', () => {
+    // Each photo's fingerprint holds its one thumbnail, as generateFingerprint's does.
+    const photoOf = (pixels: ImageData): VisualFingerprint => ({ ...enrol(pixels), referenceImages: ['thumbnail'] });
+    const red = photoOf(flat(128, 128, [200, 30, 30]));
+    const striped = photoOf(stripes(128, 128));
+
+    // Four red photos saved together, then a striped one added on the
+    // subject's page, which merges the saved fingerprint with the new photo's.
+    const saved = mergeFingerprints([red, red, red, red]);
+    const added = mergeFingerprints([saved, striped]);
+    const together = mergeFingerprints([red, red, red, red, striped]);
+
+    expect(saved.referenceImages).toHaveLength(4);
+    // Red in four photos of five; black and white each half of one photo.
+    expect(shares(added)).toEqual([80, 10, 10]);
+    expect(added.edgeSignature.every((cell) => cell === 20)).toBe(true);
+    // The same subject as the five photos saved together.
+    expect(added.colorHistogram).toEqual(together.colorHistogram);
+    expect(added.averageColor).toEqual(together.averageColor);
+    expect(added.edgeSignature).toEqual(together.edgeSignature);
+    expect(added.estimatedSizeRatio).toBeCloseTo(together.estimatedSizeRatio, 10);
+    expect(added.colorVariance).toBeCloseTo(together.colorVariance, 10);
+  });
+
+  it('scores a picture the same against one photo and against two that are a level apart', () => {
+    const one = enrol(photo);
+    const merged = mergeFingerprints([one, enrol(brighter)]);
+    const colourTerm = (subject: VisualFingerprint): number | undefined => {
+      const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: false, motionPriority: false });
+      matcher.setFingerprint(subject);
+      matcher.setActive(true);
+      return matcher.processCanvas(canvasOf(photo))?.details.colorMatch;
+    };
+
+    expect(colourTerm(one)).toBe(100);
+    expect(colourTerm(merged)).toBe(100);
   });
 });
