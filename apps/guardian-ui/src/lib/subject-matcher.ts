@@ -56,7 +56,7 @@ export interface MatcherSettings {
   sizeTolerance: number;              // 0-100, the size difference (points of the picture) at which the size term reaches 0
   scanGridSize: number;               // Grid size for region scanning (4-16)
   processingMode: 'local' | 'hybrid'; // Local only or AI-enhanced
-  adaptiveLighting: boolean;          // Brighten or darken each frame toward mid-grey before it is scored
+  adaptiveLighting: boolean;          // Move a brighter or darker frame back to the scene's settled brightness before it is scored
   motionPriority: boolean;            // Score only regions that cover a moving cell
 }
 
@@ -80,17 +80,65 @@ const DEFAULT_SETTINGS: MatcherSettings = {
 };
 
 /**
- * Adaptive lighting moves a frame's average brightness toward mid-grey, the
- * brightness a camera's own exposure aims for. The reference is fixed: it
- * does not depend on the subject being watched for.
+ * Adaptive lighting holds each frame at the brightness the scene has settled
+ * at. A frame brighter or darker than that is moved back by the difference,
+ * so a light switched on or off changes the scores less. The settled
+ * brightness follows the scene slowly: a scene whose light holds is scored as
+ * the camera gives it, and a lasting change becomes the new settled
+ * brightness. The subject plays no part in it.
  */
-const NEUTRAL_BRIGHTNESS = 128;
 
 /** The most a frame is brightened or darkened, in levels of 0 to 255. */
 const MAX_LIGHTING_CORRECTION = 64;
 
-/** The share of each new frame's own correction taken into the running one. */
-const LIGHTING_SMOOTHING = 0.1;
+/**
+ * The share of each frame's brightness taken into the settled brightness. At
+ * the one or two frames a second the monitor scores, half of a lasting change
+ * is taken in after about 35 frames.
+ */
+const SCENE_ADAPTATION = 0.02;
+
+/** The scene's brightness is read on a grid of this many cells a side. */
+const LIGHTING_GRID = 8;
+
+/**
+ * A frame's brightness as the light sets it, 0 to 255: the median of the mean
+ * brightness of each cell of an 8 by 8 grid. A subject over fewer than half of
+ * the cells moves it little; a change of light moves every cell, and so moves
+ * it by as much.
+ */
+function sceneBrightnessOf(frameData: ImageData): number {
+  const { data, width, height } = frameData;
+  const cells: number[] = [];
+
+  for (let gy = 0; gy < LIGHTING_GRID; gy++) {
+    const y0 = Math.floor((gy * height) / LIGHTING_GRID);
+    const y1 = Math.floor(((gy + 1) * height) / LIGHTING_GRID);
+    for (let gx = 0; gx < LIGHTING_GRID; gx++) {
+      const x0 = Math.floor((gx * width) / LIGHTING_GRID);
+      const x1 = Math.floor(((gx + 1) * width) / LIGHTING_GRID);
+      let sum = 0;
+      let pixels = 0;
+      for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+          const i = (y * width + x) * 4;
+          sum += data[i] + data[i + 1] + data[i + 2];
+          pixels++;
+        }
+      }
+      if (pixels > 0) {
+        cells.push(sum / (pixels * 3));
+      }
+    }
+  }
+
+  if (cells.length === 0) {
+    return 0;
+  }
+  cells.sort((a, b) => a - b);
+  const middle = Math.floor(cells.length / 2);
+  return cells.length % 2 === 1 ? cells[middle] : (cells[middle - 1] + cells[middle]) / 2;
+}
 
 // =============================================================================
 // Subject Matcher Engine
@@ -103,7 +151,8 @@ export class SubjectMatcher {
   private previousFrame: ImageData | null = null;
   private motionMask: boolean[] = [];
   private frameCount: number = 0;
-  private lightingOffset: number = 0;
+  /** The scene's settled brightness, 0 to 255; null until a frame is watched. */
+  private sceneBrightness: number | null = null;
   private canvas: HTMLCanvasElement | null = null;
   private ctx: CanvasRenderingContext2D | null = null;
 
@@ -199,7 +248,7 @@ export class SubjectMatcher {
     this.previousFrame = null;
     this.motionMask = [];
     this.frameCount = 0;
-    this.lightingOffset = 0;
+    this.sceneBrightness = null;
   }
 
   /**
@@ -227,16 +276,12 @@ export class SubjectMatcher {
       this.updateMotionMask(frameData, this.previousFrame);
     }
 
-    // Update lighting offset for adaptive lighting
-    if (this.settings.adaptiveLighting) {
-      this.updateLightingOffset(frameData);
-    }
-
     this.previousFrame = this.cloneImageData(frameData);
     this.frameCount++;
 
-    // The gate and the region scores read one frame: the corrected one.
-    const litFrame = this.correctLighting(frameData);
+    // The gate and the region scores read one frame: the corrected one. The
+    // frame's brightness is then taken into the scene's settled brightness.
+    const litFrame = this.correctLighting(frameData, true);
 
     // Quick full-frame check first
     const quickScore = this.quickFrameCheck(litFrame);
@@ -275,8 +320,8 @@ export class SubjectMatcher {
 
   /**
    * Process a canvas element directly. A single picture says nothing about
-   * how the light is changing, so this applies the lighting correction the
-   * watched frames have built up and leaves it as it is.
+   * how the light is changing, so it is held at the brightness the watched
+   * frames settled at, and the settled brightness is left as it is.
    */
   processCanvas(canvas: HTMLCanvasElement): MatchResult | null {
     if (!this.state.isActive || !this.fingerprint) {
@@ -289,7 +334,7 @@ export class SubjectMatcher {
       return null;
     }
 
-    const frameData = this.correctLighting(ctx.getImageData(0, 0, canvas.width, canvas.height));
+    const frameData = this.correctLighting(ctx.getImageData(0, 0, canvas.width, canvas.height), false);
 
     // Quick check
     const quickScore = this.quickFrameCheck(frameData);
@@ -310,12 +355,32 @@ export class SubjectMatcher {
   }
 
   /**
-   * The frame the gate and the region scores read: the camera's frame with
-   * the lighting correction applied, or the camera's frame itself when
-   * adaptive lighting is off.
+   * The frame the gate and the region scores read: the camera's frame moved
+   * back to the scene's settled brightness, by up to MAX_LIGHTING_CORRECTION
+   * levels. The camera's frame itself when adaptive lighting is off, and on
+   * the first frame watched, which sets the settled brightness. With `learn`,
+   * the frame's brightness is then taken into the settled brightness.
    */
-  private correctLighting(frameData: ImageData): ImageData {
-    return this.settings.adaptiveLighting ? this.adjustLighting(frameData) : frameData;
+  private correctLighting(frameData: ImageData, learn: boolean): ImageData {
+    if (!this.settings.adaptiveLighting) {
+      return frameData;
+    }
+
+    const brightness = sceneBrightnessOf(frameData);
+    const settled = this.sceneBrightness;
+    if (learn) {
+      this.sceneBrightness =
+        settled === null ? brightness : settled + (brightness - settled) * SCENE_ADAPTATION;
+    }
+    if (settled === null) {
+      return frameData;
+    }
+
+    const offset = Math.max(
+      -MAX_LIGHTING_CORRECTION,
+      Math.min(MAX_LIGHTING_CORRECTION, settled - brightness)
+    );
+    return this.adjustLighting(frameData, Math.round(offset));
   }
 
   /**
@@ -519,31 +584,11 @@ export class SubjectMatcher {
   }
 
   /**
-   * Update lighting offset for adaptive lighting. The offset is the number of
-   * levels that brings the frame's average brightness to mid-grey, limited to
-   * MAX_LIGHTING_CORRECTION and smoothed over frames. It follows the scene's
-   * light only: the subject's colours play no part, so no scene is moved
-   * toward the subject.
-   */
-  private updateLightingOffset(frameData: ImageData): void {
-    const frameAvg = calculateAverageColor(frameData);
-    const brightness = (frameAvg.r + frameAvg.g + frameAvg.b) / 3;
-    const wanted = Math.max(
-      -MAX_LIGHTING_CORRECTION,
-      Math.min(MAX_LIGHTING_CORRECTION, NEUTRAL_BRIGHTNESS - brightness)
-    );
-
-    this.lightingOffset =
-      this.lightingOffset * (1 - LIGHTING_SMOOTHING) + wanted * LIGHTING_SMOOTHING;
-  }
-
-  /**
    * Apply lighting adjustment to frame: the same number of levels on red,
    * green and blue, so the frame gets brighter or darker and keeps its
    * colours.
    */
-  private adjustLighting(frameData: ImageData): ImageData {
-    const offset = Math.round(this.lightingOffset);
+  private adjustLighting(frameData: ImageData, offset: number): ImageData {
     if (offset === 0) {
       return frameData;
     }
