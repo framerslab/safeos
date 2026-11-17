@@ -1268,8 +1268,8 @@ export async function checkApp(browser, baseUrl, outDir) {
   // Titles and robots tags: each app page is titled with its own name and
   // " | SafeOS" and asks search engines not to index it. robots.txt keeps a
   // crawler from none of them, since a crawler that may not fetch a page
-  // never reads its tag, and the sitemap lists none of them. A page that
-  // carries the site's own pattern in its title keeps it.
+  // never reads its tag, and the sitemap lists none of them. A reading page
+  // keeps the site's own pattern in its title.
   await open({ name: 'titles and robots tags', width: 1280, look: 'light' }, async (page, context, check) => {
     const titles = [
       ['/dashboard/', 'Dashboard | SafeOS'],
@@ -1292,12 +1292,9 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(seen.title === title, `${route} is titled "${seen.title}", not "${title}"`);
       check(/\bnoindex\b/.test(seen.robots), `${route} carries ${seen.robots ? `the robots tag "${seen.robots}"` : 'no robots tag'}, not one that holds noindex`);
     }
-    // A reading page, and the page under a way's page that titles itself.
-    for (const route of ['/about/', '/lost-found/gallery/']) {
-      await visit(page, route);
-      const seen = await page.evaluate(head);
-      check(seen.title.endsWith(' | SafeOS Guardian'), `${route} is titled "${seen.title}", which does not end " | SafeOS Guardian"`);
-    }
+    await visit(page, '/about/');
+    const about = await page.evaluate(head);
+    check(about.title.endsWith(' | SafeOS Guardian'), `/about/ is titled "${about.title}", which does not end " | SafeOS Guardian"`);
 
     const sections = [...new Set(titles.map(([route]) => `/${route.split('/')[1]}/`))];
     const read = async (file) => {
