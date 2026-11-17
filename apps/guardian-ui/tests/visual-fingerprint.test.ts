@@ -441,6 +441,24 @@ describe('Edge signatures read on different grids', () => {
     expect(compareFingerprints(fine, striped).edgeMatch).toBe(50);
   });
 
+  it('keeps weak edges weak when it pools them', () => {
+    // A flat grey wall with one level of dither, read as the camera's frame
+    // is: scaled against an edge strength of at least 32, so every cell reads
+    // 13 on any grid, where black and white stripes read 100.
+    const wall = picture(128, 128, (x, y) => ((x + y) % 2 === 1 ? [129, 129, 129] : [128, 128, 128]));
+    const weakFine = withEdges(extractEdgeSignature(wall, 8, 32));
+    const weakCoarse = withEdges(extractEdgeSignature(wall, 4, 32));
+    const strongCoarse = withEdges(extractEdgeSignature(stripes(128, 128), 4));
+
+    expect(weakFine.edgeSignature.every((cell) => cell === 13)).toBe(true);
+    expect(weakCoarse.edgeSignature.every((cell) => cell === 13)).toBe(true);
+    // Weak edges against strong ones score as they do on one grid: 13.
+    expect(compareFingerprints(weakFine, strongCoarse).edgeMatch).toBe(13);
+    expect(compareFingerprints(strongCoarse, weakFine).edgeMatch).toBe(13);
+    // The same wall read on two grids is the same wall.
+    expect(compareFingerprints(weakFine, weakCoarse).edgeMatch).toBe(100);
+  });
+
   it('scores 0 against a signature that is not a square grid', () => {
     const fine = withEdges(extractEdgeSignature(halfStriped, 8));
     const odd = withEdges([100, 100, 100, 100, 0, 0, 0, 0]);
