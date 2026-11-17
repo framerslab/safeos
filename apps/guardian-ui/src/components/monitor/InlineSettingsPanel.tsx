@@ -15,6 +15,7 @@ import {
   type PresetId,
   type AlertSeverity,
 } from '../../stores/settings-store';
+import { useWatchSettings } from '../../stores/watch-settings';
 import { ExpandableSection, ToggleSwitch, SettingsSlider } from './ExpandableSection';
 import { InfoTooltip } from './Tooltip';
 import { STILLNESS_ALERT_MIN_MINUTES, STILLNESS_ALERT_MAX_MINUTES } from '@/lib/stillness-bounds';
@@ -125,6 +126,9 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
     globalMute,
     toggleGlobalMute,
   } = useSettingsStore();
+
+  // Sensitivity shows and moves what the watch runs at for its use, as the watch does.
+  const { watchSettings, tuneWatch } = useWatchSettings();
 
   useEffect(() => {
     setMounted(true);
@@ -313,7 +317,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
         }
         summary={
           <span>
-            Motion: {globalSettings.motionSensitivity}% | Audio: {globalSettings.audioSensitivity}% | Pixel: {globalSettings.absolutePixelThreshold}px
+            Motion: {watchSettings.motionSensitivity}% | Audio: {watchSettings.audioSensitivity}% | Pixel: {watchSettings.absolutePixelThreshold}px
           </span>
         }
         defaultExpanded={expandedSections.has('sensitivity')}
@@ -321,8 +325,8 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
       >
         <SettingsSlider
           label="Motion Sensitivity"
-          value={globalSettings.motionSensitivity}
-          onChange={(v) => updateGlobalSettings({ motionSensitivity: v })}
+          value={watchSettings.motionSensitivity}
+          onChange={(v) => tuneWatch({ motionSensitivity: v })}
           min={0}
           max={100}
           unit="%"
@@ -330,8 +334,8 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
         />
         <SettingsSlider
           label="Audio Sensitivity"
-          value={globalSettings.audioSensitivity}
-          onChange={(v) => updateGlobalSettings({ audioSensitivity: v })}
+          value={watchSettings.audioSensitivity}
+          onChange={(v) => tuneWatch({ audioSensitivity: v })}
           min={0}
           max={100}
           unit="%"
@@ -339,8 +343,8 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
         />
         <SettingsSlider
           label="Pixel Threshold"
-          value={globalSettings.absolutePixelThreshold}
-          onChange={(v) => updateGlobalSettings({ absolutePixelThreshold: v })}
+          value={watchSettings.absolutePixelThreshold}
+          onChange={(v) => tuneWatch({ absolutePixelThreshold: v })}
           min={1}
           max={100}
           unit="px"
@@ -351,8 +355,8 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
         </div>
         <SettingsSlider
           label="Analysis Interval"
-          value={globalSettings.analysisInterval}
-          onChange={(v) => updateGlobalSettings({ analysisInterval: v })}
+          value={watchSettings.analysisInterval}
+          onChange={(v) => tuneWatch({ analysisInterval: v })}
           min={1}
           max={60}
           unit="s"
