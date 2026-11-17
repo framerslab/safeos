@@ -79,6 +79,20 @@ async function createThumbnail(frameData: string): Promise<string> {
   });
 }
 
+/**
+ * Milliseconds that must pass after a detector's last alert before it alerts
+ * again. A new event waits for its severity's cooldown (critical has none by
+ * default, so a new critical event alerts at once). While the event that
+ * raised the last alert goes on (the detector is latched), the same cooldown
+ * applies; where it is 0, the event repeats at the Cooldown Period setting,
+ * so one continuing event does not alert on every reading.
+ */
+function alertCooldownMs(severitySeconds: number | undefined, sameEvent: boolean, repeatSeconds: number): number {
+  const seconds = severitySeconds ?? 10;
+  if (seconds > 0 || !sameEvent) return seconds * 1000;
+  return (repeatSeconds > 0 ? repeatSeconds : 30) * 1000;
+}
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -579,16 +593,20 @@ export default function MonitorPage() {
       return;
     }
 
-    if (motionLatchedRef.current) return;
+    // Latched: the motion that raised the last alert goes on. It needs no new
+    // sustained window and alerts again once its cooldown has passed.
+    const sameEvent = motionLatchedRef.current;
 
-    if (!motionAboveSinceRef.current) {
-      motionAboveSinceRef.current = now;
-      return;
-    }
+    if (!sameEvent) {
+      if (!motionAboveSinceRef.current) {
+        motionAboveSinceRef.current = now;
+        return;
+      }
 
-    // Require sustained motion to avoid single-frame spikes / lighting flicker
-    if (now - motionAboveSinceRef.current < timingSettings.minimumMotionDuration) {
-      return;
+      // Require sustained motion to avoid single-frame spikes / lighting flicker
+      if (now - motionAboveSinceRef.current < timingSettings.minimumMotionDuration) {
+        return;
+      }
     }
 
     // Mark activity for inactivity monitoring (even if we end up throttled by cooldown)
@@ -596,7 +614,7 @@ export default function MonitorPage() {
     inactivityAlertedRef.current = false;
 
     const severity = classifyDeltaSeverity(best.score, best.threshold);
-    const cooldownMs = (getCooldownForSeverity(severity) ?? 10) * 1000;
+    const cooldownMs = alertCooldownMs(getCooldownForSeverity(severity), sameEvent, timingSettings.cooldownPeriod);
     if (cooldownMs > 0 && now - lastMotionAlertRef.current < cooldownMs) return;
 
     lastMotionAlertRef.current = now;
@@ -624,6 +642,7 @@ export default function MonitorPage() {
     detectionZones,
     getCooldownForSeverity,
     streamId,
+    timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
   ]);
 
@@ -647,20 +666,23 @@ export default function MonitorPage() {
       return;
     }
 
-    if (audioLatchedRef.current) return;
+    // Latched: the sound that raised the last alert goes on (see handleMotionZones).
+    const sameEvent = audioLatchedRef.current;
 
-    if (!audioAboveSinceRef.current) {
-      audioAboveSinceRef.current = now;
-      return;
-    }
+    if (!sameEvent) {
+      if (!audioAboveSinceRef.current) {
+        audioAboveSinceRef.current = now;
+        return;
+      }
 
-    // Require sustained audio to avoid one-sample spikes
-    if (now - audioAboveSinceRef.current < Math.max(200, timingSettings.minimumMotionDuration)) {
-      return;
+      // Require sustained audio to avoid one-sample spikes
+      if (now - audioAboveSinceRef.current < Math.max(200, timingSettings.minimumMotionDuration)) {
+        return;
+      }
     }
 
     const severity = classifyDeltaSeverity(level, audioThreshold);
-    const cooldownMs = (getCooldownForSeverity(severity) ?? 10) * 1000;
+    const cooldownMs = alertCooldownMs(getCooldownForSeverity(severity), sameEvent, timingSettings.cooldownPeriod);
     if (cooldownMs > 0 && now - lastAudioAlertRef.current < cooldownMs) return;
 
     lastAudioAlertRef.current = now;
@@ -682,7 +704,7 @@ export default function MonitorPage() {
       getSoundManager().playForSeverity(severity === 'critical' ? 'critical' : severity, { loop: false });
       maybeHaptic(severity);
       maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity);
-  }, [addAlert, isStreaming, streamId, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, timingSettings.minimumMotionDuration]);
+  }, [addAlert, isStreaming, streamId, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
 
   const handlePixel = useCallback((result: PixelDetectionResult) => {
     setPixelChangePercent(result.difference);
@@ -744,16 +766,19 @@ export default function MonitorPage() {
       return;
     }
 
-    if (pixelLatchedRef.current) return;
+    // Latched: the change that raised the last alert goes on (see handleMotionZones).
+    const sameEvent = pixelLatchedRef.current;
 
-    if (!pixelAboveSinceRef.current) {
-      pixelAboveSinceRef.current = now;
-      return;
-    }
+    if (!sameEvent) {
+      if (!pixelAboveSinceRef.current) {
+        pixelAboveSinceRef.current = now;
+        return;
+      }
 
-    // Require sustained pixel change (especially for very low thresholds)
-    if (now - pixelAboveSinceRef.current < Math.max(150, timingSettings.minimumMotionDuration / 2)) {
-      return;
+      // Require sustained pixel change (especially for very low thresholds)
+      if (now - pixelAboveSinceRef.current < Math.max(150, timingSettings.minimumMotionDuration / 2)) {
+        return;
+      }
     }
 
     // Mark activity for inactivity monitoring (pixel is a proxy for motion)
@@ -763,7 +788,7 @@ export default function MonitorPage() {
     const severity: 'low' | 'medium' | 'high' | 'critical' =
       ratioNow >= 10 ? 'critical' : ratioNow >= 5 ? 'high' : ratioNow >= 2 ? 'medium' : 'low';
 
-    const cooldownMs = (getCooldownForSeverity(severity) ?? 10) * 1000;
+    const cooldownMs = alertCooldownMs(getCooldownForSeverity(severity), sameEvent, timingSettings.cooldownPeriod);
     if (cooldownMs > 0 && now - lastPixelAlertRef.current < cooldownMs) return;
 
     lastPixelAlertRef.current = now;
@@ -792,6 +817,7 @@ export default function MonitorPage() {
     detectionZones,
     getCooldownForSeverity,
     streamId,
+    timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
   ]);
 

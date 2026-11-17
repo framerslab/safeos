@@ -40,6 +40,23 @@ for a while) removes **LIVE**, shows **Camera paused**, sets the stream to
 its own. An ended or muted microphone stops audio analysis and shows a warning while
 video monitoring continues.
 
+## When an alert comes again
+
+Monitor has three detectors: motion, sound and pixel change. Each raises its first
+alert for an event once its readings have stayed at or over its line for a short
+window (half a second for motion and sound, a quarter of a second for pixel
+change). While the readings stay over the line, the same event alerts again each
+time the cooldown for the reading's severity has passed since that detector's last
+alert. The cooldowns are set on **Alert Escalation** (`/settings/escalation/`)
+under **Per-Severity Cooldowns**: info 5 s, low 10 s, medium 30 s, high 60 s and
+critical 0 s by default. A severity whose cooldown is 0 repeats a continuing event
+after the **Cooldown Period** on the same page (30 s by default), so a long event
+does not alert on every reading.
+
+A reading under the line ends the event. The next reading over it starts a new
+event: it waits the short window and its severity's cooldown since that detector's
+last alert, so a new critical event alerts at once.
+
 ## Processing and connection
 
 The Monitor preset's **Local** processing mode keeps camera frames on the device,
