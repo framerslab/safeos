@@ -178,7 +178,8 @@ jobs:
   # inside the job and runs e2e/lost-found-edge.spec.ts in Chromium. The spec
   # enrols a subject from a striped picture, feeds Chromium's fake camera the
   # same stripes from a clip it writes itself, and reads the Edge value of the
-  # match the monitor saves. The other specs in e2e/ are not run here.
+  # match the monitor saves. It also walks /nap/ to the watch
+  # (e2e/nap-opens-the-watch.spec.ts). The other specs in e2e/ are not run here.
   # ---------------------------------------------------------------------------
   web-lost-found:
     name: Web app Lost & Found browser test
@@ -221,7 +222,7 @@ jobs:
             curl -sf http://127.0.0.1:4173/ >/dev/null && break
             sleep 1
           done
-          npx playwright test e2e/lost-found-edge.spec.ts --project=chromium
+          npx playwright test e2e/lost-found-edge.spec.ts e2e/nap-opens-the-watch.spec.ts --project=chromium
 
       - name: Upload the test's report
         if: failure()
