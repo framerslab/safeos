@@ -377,20 +377,28 @@ export default function MonitorPage() {
     serverRequestedRef.current = false;
   };
 
-  // The person's Stop. Stopping a watch started from Nap Mode ends the nap: the
-  // Nap preset gives way, as I'm Awake did on the nap screen. A camera failure
-  // stops the watch without ending the nap, so starting again keeps its setting.
+  // The person's Stop. Stopping a watch started from Nap Mode ends the nap, and
+  // the Nap preset gives way, as I'm Awake did on the nap screen, while it is
+  // the setting in use; a setting the person chose during the nap stays. A
+  // camera failure stops the watch without ending the nap, so starting again
+  // keeps its setting.
   const stopWatching = () => {
     if (readNapSession()) {
       clearNapSession();
-      useSettingsStore.getState().deactivateSleepMode();
+      const settings = useSettingsStore.getState();
+      if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
     }
     stopStream();
   };
 
-  // A watch started from Nap Mode starts on arrival, once.
+  // A watch started from Nap Mode starts on arrival, once. The ref keeps this
+  // mount's answer, so React's Strict Mode, which runs the effect again after
+  // the unmount cleanup below has cleared captureRequestedRef, requests the
+  // capture again instead of finding the nap's start already taken.
+  const napStartRef = useRef<boolean | null>(null);
   useEffect(() => {
-    if (!takeNapStart(Date.now())) return;
+    if (napStartRef.current === null) napStartRef.current = takeNapStart(Date.now());
+    if (!napStartRef.current) return;
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
