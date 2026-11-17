@@ -619,6 +619,8 @@ export async function checkApp(browser, baseUrl, outDir) {
           screen: document.documentElement.clientWidth,
           scrollWidth: nav.scrollWidth,
           clientWidth: nav.clientWidth,
+          line: getComputedStyle(nav).boxShadow,
+          edge: getComputedStyle(nav).maskImage,
           places: [...nav.querySelectorAll('a')].map((a) => {
             const box = a.getBoundingClientRect();
             const word = a.querySelector('.phone-bar__word') || a;
@@ -632,6 +634,20 @@ export async function checkApp(browser, baseUrl, outDir) {
       for (const place of seen.places) check(!place.cut, `${place.word} is cut`);
       const width = Math.max(...seen.places.map((place) => place.right)) - Math.min(...seen.places.map((place) => place.left));
       if (width > seen.screen + 0.5) check(seen.scrollWidth > seen.clientWidth, `the places take ${Math.round(width)} px and the bar does not scroll inside itself`);
+      // The bar's top line is drawn inside the bar, where the faded edge
+      // does not cut it away; the edge is faded while places lie past it and
+      // plain once the bar is scrolled to its end.
+      check(/inset/.test(seen.line), `the bar's top line is drawn outside the bar (${seen.line}), where a faded edge cuts it away`);
+      if (seen.scrollWidth > seen.clientWidth) {
+        check(/gradient/.test(seen.edge), `places lie past the bar's right edge and the edge is not faded (${seen.edge})`);
+        const atEnd = await page.evaluate(async () => {
+          const nav = document.querySelector('nav.phone-bar');
+          nav.scrollTo({ left: nav.scrollWidth, behavior: 'instant' });
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          return getComputedStyle(nav).maskImage;
+        });
+        check(atEnd === 'none', `the bar scrolled to its end keeps a faded edge (${atEnd})`);
+      }
       const sideways = await sidewaysScroll(page);
       if (sideways > 0) check(false, `the page scrolls ${sideways} px sideways: ${await widest(page)}`);
     });
