@@ -4,7 +4,8 @@
  *
  * Read as text: it loads after the visitor pages' stylesheet, takes every
  * colour from a token of the look, and names no monospaced face and no size
- * under 16 px.
+ * under 16 px. On a light device whose script set no look, a part built in
+ * the look takes the light values the home page takes.
  */
 
 import fs from 'fs';
@@ -65,6 +66,34 @@ function rulesOf(css: string): { selector: string; declarations: [string, string
       .filter((line) => line.includes(':'))
       .map((line): [string, string] => [line.slice(0, line.indexOf(':')).trim(), line.slice(line.indexOf(':') + 1).trim()]),
   }));
+}
+
+// The rules inside a stylesheet's blocks for a light device.
+function deviceRules(css: string): { selector: string; declarations: [string, string][] }[] {
+  const plain = withoutComments(css);
+  const rules: { selector: string; declarations: [string, string][] }[] = [];
+  for (const media of Array.from(plain.matchAll(/@media\s*\(\s*prefers-color-scheme\s*:\s*light\s*\)\s*\{/g))) {
+    const start = (media.index ?? 0) + media[0].length;
+    let end = start;
+    for (let depth = 1; depth > 0 && end < plain.length; end += 1) {
+      if (plain[end] === '{') depth += 1;
+      else if (plain[end] === '}') depth -= 1;
+    }
+    rules.push(...rulesOf(plain.slice(start, end - 1)));
+  }
+  return rules;
+}
+
+const selectorsOf = (rule: { selector: string }) => rule.selector.split(',').map((one) => one.trim());
+
+// The declarations of the rule for a light device whose selector list holds
+// `selector`, as a map of property to value.
+function deviceBlock(css: string, selector: string): Record<string, string> {
+  const found: Record<string, string> = {};
+  for (const rule of deviceRules(css).filter((one) => selectorsOf(one).includes(selector))) {
+    for (const [property, value] of rule.declarations) found[property] = value;
+  }
+  return found;
 }
 
 // Each font size a stylesheet sets that is not a size token, the shell's
@@ -141,4 +170,18 @@ it('finds a size that is not a token and a colour that is not one, however each 
         ' .b { background: color-mix(in srgb, var(--color-steel-950) 80%, transparent); white-space: nowrap; }'
     )
   ).toEqual([]);
+});
+
+it('gives a part built in the look the light values on a light device whose script set no look', () => {
+  const home = deviceBlock(read('styles/visitor.css'), 'html:not(.dark):not(.light) .device-look');
+  // The sixteen tokens, the panel's ink, the ground and the words.
+  expect(Object.keys(home)).toHaveLength(19);
+  expect(deviceBlock(read('styles/app.css'), 'html:not(.dark):not(.light) .look-part')).toEqual(home);
+});
+
+it("turns the browser's own controls light on a page whose whole body is built in the look", () => {
+  const app = read('styles/app.css');
+  expect(deviceBlock(app, 'html:not(.dark):not(.light):has(.app-shell--look)')['color-scheme']).toBe('light');
+  const tokens = deviceRules(app).find((rule) => selectorsOf(rule).includes('html:not(.dark):not(.light) .look-part'));
+  expect(tokens ? selectorsOf(tokens) : []).toContain('html:not(.dark):not(.light):has(.app-shell--look) body');
 });
