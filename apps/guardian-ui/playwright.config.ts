@@ -46,7 +46,9 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
+  // With PLAYWRIGHT_BASE_URL set, the tests run against a site served
+  // elsewhere (CI serves the static export) and no dev server is started.
+  webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     // Bind to loopback to avoid sandboxed environments rejecting 0.0.0.0.
     command: 'npm run dev -- -H 127.0.0.1',
     url: 'http://localhost:3000',
