@@ -11,6 +11,7 @@
 import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
+import { newDetectorEvent, endDetectorEvent, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -78,20 +79,6 @@ async function createThumbnail(frameData: string): Promise<string> {
     };
     img.src = frameData;
   });
-}
-
-/**
- * Milliseconds that must pass after a detector's last alert before it alerts
- * again. A new event waits for its severity's cooldown (critical has none by
- * default, so a new critical event alerts at once). While the event that
- * raised the last alert goes on (the detector is latched), the same cooldown
- * applies; where it is 0, the event repeats at the Cooldown Period setting,
- * so one continuing event does not alert on every reading.
- */
-function alertCooldownMs(severitySeconds: number | undefined, sameEvent: boolean, repeatSeconds: number): number {
-  const seconds = severitySeconds ?? 10;
-  if (seconds > 0 || !sameEvent) return seconds * 1000;
-  return (repeatSeconds > 0 ? repeatSeconds : 30) * 1000;
 }
 
 // =============================================================================
@@ -399,16 +386,19 @@ export default function MonitorPage() {
   // Local Alerting (Motion/Audio/Pixel) - sustained detection + per-severity cooldown
   // ---------------------------------------------------------------------------
 
-  const motionAboveSinceRef = useRef<number | null>(null);
-  const audioAboveSinceRef = useRef<number | null>(null);
-  const pixelAboveSinceRef = useRef<number | null>(null);
-  const motionLatchedRef = useRef(false);
-  const audioLatchedRef = useRef(false);
-  const pixelLatchedRef = useRef(false);
+  // Each detector's event: when its reading went over or under the line, the
+  // time and severity of its last alert, and the card the event updates.
+  const motionEventRef = useRef<DetectorEvent>(newDetectorEvent());
+  const audioEventRef = useRef<DetectorEvent>(newDetectorEvent());
+  const pixelEventRef = useRef<DetectorEvent>(newDetectorEvent());
 
-  const lastMotionAlertRef = useRef<number>(0);
-  const lastAudioAlertRef = useRef<number>(0);
-  const lastPixelAlertRef = useRef<number>(0);
+  // An event ends when monitoring stops or starts, so a new session's first
+  // reading starts a new event with its own sustained window and card.
+  useEffect(() => {
+    endDetectorEvent(motionEventRef.current);
+    endDetectorEvent(audioEventRef.current);
+    endDetectorEvent(pixelEventRef.current);
+  }, [isStreaming]);
 
   const [pixelChangePercent, setPixelChangePercent] = useState(0);
   const [pixelChangedPixels, setPixelChangedPixels] = useState(0);
@@ -553,6 +543,10 @@ export default function MonitorPage() {
     await getNotificationManager().show(title, {
       body,
       tag: `safeos-${severity}-${title}`,
+      // A repeat replaces the earlier notification with the same tag; renotify
+      // makes it alert again. Without it the replacement is silent:
+      // https://developer.mozilla.org/en-US/docs/Web/API/Notification/Notification
+      renotify: true,
       requireInteraction,
       data: { title, severity },
       vibrate: severity === 'critical' ? [250, 100, 250, 100, 250] : severity === 'high' ? [200, 80, 200] : undefined,
@@ -565,15 +559,55 @@ export default function MonitorPage() {
     else if (severity === 'high') navigator.vibrate([200, 80, 200]);
   };
 
+  /**
+   * Shows a detector's alert on its event's card. The event's first alert
+   * makes the card; each repeat updates it in place with the new severity,
+   * message and time and counts the repeat, while the card is in the list and
+   * not acknowledged. The card keeps the event's start as its creation time,
+   * so escalation runs once per event. An acknowledged card is left as it is
+   * and the next repeat makes a new one.
+   */
+  const showDetectorAlert = useCallback((
+    event: DetectorEvent,
+    source: 'motion' | 'audio' | 'pixel',
+    now: number,
+    repeat: boolean,
+    severity: AlertSeverity,
+    message: string,
+  ) => {
+    const card = event.alertId
+      ? useMonitoringStore.getState().alerts.find((a) => a.id === event.alertId)
+      : undefined;
+    let id = event.alertId;
+    let startedAt = event.startedAt;
+    if (!repeat || !card || card.acknowledged || !id || !startedAt) {
+      id = newAlertId(source, now);
+      startedAt = new Date(now).toISOString();
+      event.repeats = 0;
+    } else {
+      event.repeats += 1;
+    }
+    event.alertId = id;
+    event.startedAt = startedAt;
+    addAlert({
+      id,
+      streamId: streamId || 'local',
+      severity,
+      message,
+      createdAt: startedAt,
+      timestamp: new Date(now).toISOString(),
+      acknowledged: false,
+      repeats: event.repeats > 0 ? event.repeats : undefined,
+    });
+  }, [addAlert, streamId]);
+
   const handleMotion = useCallback((score: number) => {
     setMotionScore(score);
   }, [setMotionScore]);
 
   const handleMotionZones = useCallback((zones: Array<{ id: string; name: string; score: number }>) => {
-    if (!currentPreset.motionDetectionEnabled) return;
-    if (!isStreaming) {
-      motionAboveSinceRef.current = null;
-      motionLatchedRef.current = false;
+    if (!currentPreset.motionDetectionEnabled || !isStreaming) {
+      endDetectorEvent(motionEventRef.current);
       return;
     }
 
@@ -590,61 +624,36 @@ export default function MonitorPage() {
       }
     }
 
-    if (!best) {
-      motionAboveSinceRef.current = null;
-      motionLatchedRef.current = false;
-      return;
-    }
-
-    // Latched: the motion that raised the last alert goes on. It needs no new
-    // sustained window and alerts again once its cooldown has passed.
-    const sameEvent = motionLatchedRef.current;
-
-    if (!sameEvent) {
-      if (!motionAboveSinceRef.current) {
-        motionAboveSinceRef.current = now;
-        return;
-      }
-
-      // Require sustained motion to avoid single-frame spikes / lighting flicker
-      if (now - motionAboveSinceRef.current < timingSettings.minimumMotionDuration) {
-        return;
-      }
-    }
+    const severity = best ? classifyDeltaSeverity(best.score, best.threshold) : null;
+    const outcome = readDetector(motionEventRef.current, now, severity, {
+      severitySeconds: severity ? getCooldownForSeverity(severity) : undefined,
+      cooldownPeriodSeconds: timingSettings.cooldownPeriod,
+      sustainedMs: timingSettings.minimumMotionDuration,
+    });
+    if (outcome.kind === 'quiet' || !best || !severity) return;
 
     // Mark activity for inactivity monitoring (even if we end up throttled by cooldown)
     lastActivityRef.current = now;
     inactivityAlertedRef.current = false;
 
-    const severity = classifyDeltaSeverity(best.score, best.threshold);
-    const cooldownMs = alertCooldownMs(getCooldownForSeverity(severity), sameEvent, timingSettings.cooldownPeriod);
-    if (cooldownMs > 0 && now - lastMotionAlertRef.current < cooldownMs) return;
+    if (outcome.kind !== 'alert') return;
 
-    lastMotionAlertRef.current = now;
-    motionLatchedRef.current = true;
-    motionAboveSinceRef.current = null;
-
-    addAlert({
-      id: newAlertId('motion', now),
-      streamId: streamId || 'local',
-      severity,
-      message: `Motion detected: ${best.score}% (threshold: ${best.threshold}% · zone: ${best.name})`,
-      timestamp: new Date().toISOString(),
-      acknowledged: false,
-    });
+    showDetectorAlert(
+      motionEventRef.current, 'motion', now, outcome.repeat, severity,
+      `Motion detected: ${best.score}% (threshold: ${best.threshold}% · zone: ${best.name})`,
+    );
 
     getSoundManager().playForTrigger('motion_detected');
     getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
     maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity);
   }, [
-    addAlert,
     isStreaming,
     currentPreset.motionDetectionEnabled,
     currentPreset.motionSensitivity,
     detectionZones,
     getCooldownForSeverity,
-    streamId,
+    showDetectorAlert,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
   ]);
@@ -652,75 +661,44 @@ export default function MonitorPage() {
   const handleAudio = useCallback((level: number) => {
     setAudioLevel(level);
 
-    if (!isStreaming) {
-      audioAboveSinceRef.current = null;
-      audioLatchedRef.current = false;
+    if (!isStreaming || !currentPreset.audioDetectionEnabled) {
+      endDetectorEvent(audioEventRef.current);
       return;
     }
-
-    if (!currentPreset.audioDetectionEnabled) return;
 
     const audioThreshold = sensitivityToThreshold(currentPreset.audioSensitivity);
     const now = Date.now();
 
-    if (level < audioThreshold) {
-      audioAboveSinceRef.current = null;
-      audioLatchedRef.current = false;
-      return;
-    }
-
-    // Latched: the sound that raised the last alert goes on (see handleMotionZones).
-    const sameEvent = audioLatchedRef.current;
-
-    if (!sameEvent) {
-      if (!audioAboveSinceRef.current) {
-        audioAboveSinceRef.current = now;
-        return;
-      }
-
+    const severity = level < audioThreshold ? null : classifyDeltaSeverity(level, audioThreshold);
+    const outcome = readDetector(audioEventRef.current, now, severity, {
+      severitySeconds: severity ? getCooldownForSeverity(severity) : undefined,
+      cooldownPeriodSeconds: timingSettings.cooldownPeriod,
       // Require sustained audio to avoid one-sample spikes
-      if (now - audioAboveSinceRef.current < Math.max(200, timingSettings.minimumMotionDuration)) {
-        return;
-      }
-    }
+      sustainedMs: Math.max(200, timingSettings.minimumMotionDuration),
+    });
+    if (outcome.kind !== 'alert' || !severity) return;
 
-    const severity = classifyDeltaSeverity(level, audioThreshold);
-    const cooldownMs = alertCooldownMs(getCooldownForSeverity(severity), sameEvent, timingSettings.cooldownPeriod);
-    if (cooldownMs > 0 && now - lastAudioAlertRef.current < cooldownMs) return;
+    showDetectorAlert(
+      audioEventRef.current, 'audio', now, outcome.repeat, severity,
+      `Audio detected: ${level}% (threshold: ${audioThreshold}% · sensitivity: ${currentPreset.audioSensitivity}%)`,
+    );
 
-    lastAudioAlertRef.current = now;
-    audioLatchedRef.current = true;
-    audioAboveSinceRef.current = null;
-
-      // Add alert
-      addAlert({
-        id: newAlertId('audio', now),
-        streamId: streamId || 'local',
-        severity,
-        message: `Audio detected: ${level}% (threshold: ${audioThreshold}% · sensitivity: ${currentPreset.audioSensitivity}%)`,
-        timestamp: new Date().toISOString(),
-        acknowledged: false,
-      });
-
-      // Play sound (unless muted)
-      getSoundManager().playForTrigger('audio_detected');
-      getSoundManager().playForSeverity(severity === 'critical' ? 'critical' : severity, { loop: false });
-      maybeHaptic(severity);
-      maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity);
-  }, [addAlert, isStreaming, streamId, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
+    // Play sound (unless muted)
+    getSoundManager().playForTrigger('audio_detected');
+    getSoundManager().playForSeverity(severity, { loop: false });
+    maybeHaptic(severity);
+    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity);
+  }, [isStreaming, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, showDetectorAlert, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
 
   const handlePixel = useCallback((result: PixelDetectionResult) => {
     setPixelChangePercent(result.difference);
     setPixelChangedPixels(result.changedPixelCount);
     pixelChangedPixelsRef.current = result.changedPixelCount;
 
-    if (!isStreaming) {
-      pixelAboveSinceRef.current = null;
-      pixelLatchedRef.current = false;
+    if (!isStreaming || !currentPreset.pixelDetectionEnabled) {
+      endDetectorEvent(pixelEventRef.current);
       return;
     }
-
-    if (!currentPreset.pixelDetectionEnabled) return;
 
     const now = Date.now();
     const thresholdPx = Math.max(1, currentPreset.absolutePixelThreshold);
@@ -763,63 +741,40 @@ export default function MonitorPage() {
       triggered,
     });
 
-    if (!triggered) {
-      pixelAboveSinceRef.current = null;
-      pixelLatchedRef.current = false;
-      return;
-    }
-
-    // Latched: the change that raised the last alert goes on (see handleMotionZones).
-    const sameEvent = pixelLatchedRef.current;
-
-    if (!sameEvent) {
-      if (!pixelAboveSinceRef.current) {
-        pixelAboveSinceRef.current = now;
-        return;
-      }
-
+    const severity: AlertSeverity | null = !triggered
+      ? null
+      : ratioNow >= 10 ? 'critical' : ratioNow >= 5 ? 'high' : ratioNow >= 2 ? 'medium' : 'low';
+    const outcome = readDetector(pixelEventRef.current, now, severity, {
+      severitySeconds: severity ? getCooldownForSeverity(severity) : undefined,
+      cooldownPeriodSeconds: timingSettings.cooldownPeriod,
       // Require sustained pixel change (especially for very low thresholds)
-      if (now - pixelAboveSinceRef.current < Math.max(150, timingSettings.minimumMotionDuration / 2)) {
-        return;
-      }
-    }
+      sustainedMs: Math.max(150, timingSettings.minimumMotionDuration / 2),
+    });
+    if (outcome.kind === 'quiet' || !severity) return;
 
     // Mark activity for inactivity monitoring (pixel is a proxy for motion)
     lastActivityRef.current = now;
     inactivityAlertedRef.current = false;
 
-    const severity: 'low' | 'medium' | 'high' | 'critical' =
-      ratioNow >= 10 ? 'critical' : ratioNow >= 5 ? 'high' : ratioNow >= 2 ? 'medium' : 'low';
+    if (outcome.kind !== 'alert') return;
 
-    const cooldownMs = alertCooldownMs(getCooldownForSeverity(severity), sameEvent, timingSettings.cooldownPeriod);
-    if (cooldownMs > 0 && now - lastPixelAlertRef.current < cooldownMs) return;
-
-    lastPixelAlertRef.current = now;
-    pixelLatchedRef.current = true;
-    pixelAboveSinceRef.current = null;
-
-    addAlert({
-      id: newAlertId('pixel', now),
-      streamId: streamId || 'local',
-      severity,
-      message: `Pixel movement detected${chosenZoneName ? ` in ${chosenZoneName}` : ''}: ${chosenChangedPx}px (threshold: ${chosenThresholdPx}px)`,
-      timestamp: new Date().toISOString(),
-      acknowledged: false,
-    });
+    showDetectorAlert(
+      pixelEventRef.current, 'pixel', now, outcome.repeat, severity,
+      `Pixel movement detected${chosenZoneName ? ` in ${chosenZoneName}` : ''}: ${chosenChangedPx}px (threshold: ${chosenThresholdPx}px)`,
+    );
 
     getSoundManager().playForTrigger('motion_detected');
-    getSoundManager().playForSeverity(severity === 'critical' ? 'critical' : severity, { loop: false });
+    getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
     maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity);
   }, [
-    addAlert,
     isStreaming,
     currentPreset.absolutePixelThreshold,
     currentPreset.pixelDetectionEnabled,
     currentPreset.useAbsoluteThreshold,
     detectionZones,
     getCooldownForSeverity,
-    streamId,
+    showDetectorAlert,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
   ]);

@@ -42,20 +42,34 @@ video monitoring continues.
 
 ## When an alert comes again
 
-Monitor has three detectors: motion, sound and pixel change. Each raises its first
-alert for an event once its readings have stayed at or over its line for a short
-window (half a second for motion and sound, a quarter of a second for pixel
-change). While the readings stay over the line, the same event alerts again each
-time the cooldown for the reading's severity has passed since that detector's last
-alert. The cooldowns are set on **Alert Escalation** (`/settings/escalation/`)
-under **Per-Severity Cooldowns**: info 5 s, low 10 s, medium 30 s, high 60 s and
-critical 0 s by default. A severity whose cooldown is 0 repeats a continuing event
-after the **Cooldown Period** on the same page (30 s by default), so a long event
-does not alert on every reading.
+Monitor has three detectors: motion, sound and pixel change. Each detector's event
+starts once its readings have stayed at or over its line for a short window (half a
+second for motion and sound, a quarter of a second for pixel change). Its first
+alert comes once the cooldown for the reading's severity has passed since that
+detector's last alert. The cooldowns are set on **Alert Escalation**
+(`/settings/escalation/`) under **Per-Severity Cooldowns**: info 5 s, low 10 s,
+medium 30 s, high 60 s and critical 0 s by default, so a new critical event alerts
+at once.
 
-A reading under the line ends the event. The next reading over it starts a new
-event: it waits the short window and its severity's cooldown since that detector's
-last alert, so a new critical event alerts at once.
+While the readings stay over the line, the same event alerts again each time the
+longer of two waits has passed since its last alert: the cooldown for the reading's
+severity, and the **Cooldown Period** (30 s by default, set on the same page and as
+**Alert Cooldown** in the Monitor page's settings). With the defaults a continuing
+event repeats every 30 s at low, medium and critical, and every 60 s at high. When
+the reading's severity rises above that of the event's last alert, the wait is the
+new severity's cooldown alone, so a rise to critical alerts at once.
+
+Each repeat plays the alert sounds, vibrates and shows the system notification
+again, and updates the event's card in the alert list in place: the card shows the
+newest severity, reading and time, and "Repeated N times". Escalation counts from
+the event's first alert, so one event climbs the escalation levels once. A card
+that has been acknowledged stays as it is, and the next repeat makes a new card.
+
+The event ends once the readings have stayed under the line for the same short
+window, so a sample or two under the line (a scene that holds still for a moment)
+does not start a new event. It also ends when monitoring stops or starts, and when
+its detector is turned off. A new event after that gets a new card and waits the
+short window and its severity's cooldown.
 
 ## Processing and connection
 
