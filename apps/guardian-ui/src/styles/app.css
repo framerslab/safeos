@@ -604,12 +604,14 @@ html:has(.app-shell) {
   background: var(--color-steel-900);
 }
 
-.settings-row:active {
+/* Written under .look-part so it outranks the touch rule that shrinks every
+   pressed button. */
+.look-part .settings-row:active {
   transform: translateY(1px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .settings-row:active {
+  .look-part .settings-row:active {
     transform: none;
   }
 }
