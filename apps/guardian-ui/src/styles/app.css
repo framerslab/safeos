@@ -87,6 +87,14 @@ html.light .look-part {
   touch-action: manipulation;
 }
 
+/* A pressed link or key keeps its words at full strength. The site's touch
+   rules dim every pressed link and key (html.light a:active is the strongest
+   of them), which would take the quiet tone on the raised ground under 7:1;
+   this rule outranks them. */
+:root .look-part :is(a, button):active {
+  opacity: 1;
+}
+
 /* =============================================================================
    The shell
    ============================================================================= */
@@ -345,7 +353,9 @@ html:has(.app-shell) {
   background: var(--color-steel-900);
 }
 
-.app-header__more:active {
+/* Written under .look-part so it outranks the touch rule that shrinks every
+   pressed button. */
+.look-part .app-header__more:active {
   transform: translateY(1px);
 }
 
