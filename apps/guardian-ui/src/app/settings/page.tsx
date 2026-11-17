@@ -393,13 +393,16 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      {/* Save Message */}
+      {/* Save Message: under the app's header, which is fixed at the top of the screen */}
       {saveMessage && (
-        <div className={`
-          fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50
+        <div
+          className={`
+          fixed right-4 px-4 py-2 rounded-lg shadow-lg z-50
           ${saveMessage.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}
           text-white
-        `}>
+        `}
+          style={{ top: 'calc(var(--site-header-height) + 16px + env(safe-area-inset-top, 0px))' }}
+        >
           {saveMessage.text}
         </div>
       )}
