@@ -30,7 +30,8 @@ import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from 
 import { useWatchSettings } from '../../stores/watch-settings';
 import { useLostFoundStore, createMatchFrame, getMatcherSettings } from '../../stores/lost-found-store';
 import { getSubjectMatcher, type MatchResult } from '../../lib/subject-matcher';
-import { saveMatchFrame, type MatchFrameDB } from '../../lib/client-db';
+import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } from '../../lib/client-db';
+import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
 import { clearNapSession, napTimeIsUp, readNapSession, takeNapStart } from '../../lib/nap-session';
@@ -120,6 +121,7 @@ export default function MonitorPage() {
     addMatchFrame: addMatchFrameToStore,
     addRecentMatch,
     recordAlert: recordLostFoundAlert,
+    updateSubject,
   } = useLostFoundStore();
 
   const [captureRequested, setCaptureRequested] = useState(false);
@@ -166,6 +168,41 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
   // Lost & Found Integration
   // ---------------------------------------------------------------------------
+
+  // A subject saved by an earlier version is rebuilt once from its saved
+  // photos, so its edges are read on the scale the camera's regions are read
+  // on and each photo counts once. Until then, or when it has no photos or
+  // they cannot be read, the matcher reads its edges on that version's scale.
+  useEffect(() => {
+    if (!activeSubject || isCurrentFingerprint(activeSubject.fingerprint) || activeSubject.referenceImages.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    const subject = activeSubject;
+    void upgradeFingerprint(subject.fingerprint, subject.referenceImages, (photo) =>
+      generateFingerprint(photo, subject.name)
+    ).then(async (fingerprint) => {
+      if (cancelled || !isCurrentFingerprint(fingerprint)) return;
+      updateSubject(subject.id, { fingerprint });
+      await saveUpgradedSubjectFingerprint(
+        {
+          id: subject.id,
+          name: subject.name,
+          type: subject.type,
+          description: subject.description,
+          fingerprint: subject.fingerprint,
+          referenceImages: subject.referenceImages,
+          createdAt: subject.createdAt,
+          lastActiveAt: subject.lastActiveAt,
+          matchCount: subject.matchCount,
+        },
+        fingerprint
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSubject, updateSubject]);
 
   // Update matcher when settings change
   useEffect(() => {
