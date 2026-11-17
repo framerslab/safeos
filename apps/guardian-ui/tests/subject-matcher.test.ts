@@ -523,26 +523,59 @@ describe('Adaptive lighting', () => {
     expect(matchedFrames).toEqual([]);
   });
 
+  // A watch of `frames`: the matcher's result on each frame, in order.
+  const watch = (
+    subject: VisualFingerprint,
+    frames: ImageData[],
+    adaptiveLighting: boolean
+  ): (MatchResult | null)[] => {
+    const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting, motionPriority: false });
+    matcher.setFingerprint(subject);
+    matcher.setActive(true);
+    return frames.map((frame) => matcher.processFrame(videoOf(frame)));
+  };
+  const times = (frame: ImageData, count: number): ImageData[] => new Array(count).fill(frame);
+
   it('scores the frame it corrected, not the one the camera gave', () => {
-    // The subject in even light, and the same picture 60 levels darker.
+    // The subject in the scene's light, and the same picture once the light
+    // drops by 60 levels.
     const lit = stripes(128, 128, [68, 68, 68], [188, 188, 188]);
     const dim = stripes(128, 128, [8, 8, 8], [128, 128, 128]);
-    const lastOfWatch = (adaptiveLighting: boolean, frames: number) => {
-      const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting, motionPriority: false });
-      matcher.setFingerprint(enrol(lit));
-      matcher.setActive(true);
-      let last: MatchResult | null = null;
-      for (let frame = 0; frame < frames; frame++) {
-        last = matcher.processFrame(videoOf(dim));
-      }
-      return last;
-    };
+    const subject = enrol(lit);
+    const frames = [...times(lit, 5), dim];
 
-    // Uncorrected, the dim picture is short of a full match on every frame.
-    expect(lastOfWatch(false, 1)?.confidence).toBeLessThan(100);
-    // The correction takes a tenth of the way to the frame's own each frame:
-    // after 48 frames it is within half a level of the 60 levels missing.
-    expect(lastOfWatch(true, 48)?.confidence).toBe(100);
+    // Uncorrected, the dim picture is short of a full match.
+    expect(watch(subject, frames, false)[5]?.confidence).toBeLessThan(100);
+    // Corrected, the first dim frame is moved back to the light the scene had.
+    expect(watch(subject, frames, true)[5]?.confidence).toBe(100);
+  });
+
+  it.each([
+    ['a dark', flat(128, 128, [32, 32, 32])],
+    ['a bright', stripes(128, 128, [150, 150, 150], [210, 210, 210])],
+  ])('leaves %s scene whose light holds as the camera gives it', (_name, scene) => {
+    // The subject photographed in the scene's own light.
+    const subject = enrol(scene);
+    const frames = times(scene, 48);
+
+    const corrected = watch(subject, frames, true)[47];
+    const uncorrected = watch(subject, frames, false)[47];
+    expect(uncorrected?.confidence).toBe(100);
+    expect(corrected?.confidence).toBe(uncorrected?.confidence);
+  });
+
+  it('does not brighten or darken a subject that comes into the scene', () => {
+    // A grey room, then a light subject over a quarter of it.
+    const room = flat(128, 128, [60, 60, 60]);
+    const arrived = centredBlock(128, 128, [60, 60, 60], [200, 200, 200]);
+    const subject = enrol(flat(64, 64, [200, 200, 200]));
+    const frames = [...times(room, 10), arrived];
+
+    const corrected = watch(subject, frames, true)[10];
+    const uncorrected = watch(subject, frames, false)[10];
+    expect(uncorrected).not.toBeNull();
+    expect(corrected?.confidence).toBe(uncorrected?.confidence);
+    expect(corrected?.details).toEqual(uncorrected?.details);
   });
 });
 
