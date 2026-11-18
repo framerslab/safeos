@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Monitor Page
+ * Motion and sound page
  *
- * Live monitoring interface with Lost & Found detection.
+ * The watch for motion and sound, which also runs Lost and Found's check.
  *
  * @module app/monitor/page
  */
@@ -1001,7 +1001,7 @@ export default function MonitorPage() {
               >
                 <IconShield size={28} />
               </Link>
-              <h1 className="text-xl font-bold text-white">Live Monitor</h1>
+              <h1 className="text-xl font-bold text-white">Motion and sound</h1>
             </div>
 
             <KeyRow>

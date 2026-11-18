@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Wildlife Detection Page
+ * Wildlife page
  * 
  * Main interface for animal/wildlife detection and monitoring.
  * Features dual alert controls for large and small animals.
@@ -358,7 +358,7 @@ export default function WildlifePage() {
               </Link>
               <div className="flex items-center gap-2">
                 <IconWildlife size={22} className="text-emerald-400" />
-                <h1 className="text-xl font-bold text-white">Wildlife Detection</h1>
+                <h1 className="text-xl font-bold text-white">Wildlife</h1>
               </div>
             </div>
 

@@ -1,5 +1,5 @@
 /**
- * Lost & Found Page
+ * Lost and Found page
  * 
  * Setup page for watching your own camera for anything with a lost pet's colouring.
  * 
@@ -121,7 +121,7 @@ export default function LostFoundPage() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white mb-2">
-            Lost & Found
+            Lost and Found
           </h1>
           <p className="text-[var(--color-steel-400)]">
             Watch your camera for anything with your lost pet&apos;s colouring

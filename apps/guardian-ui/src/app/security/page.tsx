@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Security Mode Page
+ * People page
  * 
  * Main interface for the anti-theft/intruder detection system.
  * Combines live camera feed, person detection, and alert controls.
@@ -427,7 +427,7 @@ export default function SecurityPage() {
               </Link>
               <div className="flex items-center gap-2">
                 <IconShield size={24} className="text-emerald-400" />
-                <h1 className="text-xl font-bold text-white">Security Mode</h1>
+                <h1 className="text-xl font-bold text-white">People</h1>
               </div>
             </div>
 
