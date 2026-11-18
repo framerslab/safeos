@@ -6,11 +6,13 @@
  * The address becomes /monitor/, the saved settings hold the infant_sleep
  * preset, the watch starts with no second press, and the fake camera's moving
  * picture raises a pixel alert there, so Motion and sound does the watching.
+ * A second walk reads the warning quiet hours bring, and ends a nap whose
+ * camera the browser refuses.
  *
  * @module e2e/nap-opens-the-watch.spec
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
 test.use({
   viewport: { width: 1280, height: 1000 },
@@ -25,8 +27,8 @@ test.skip(
   'The fake camera is a Chromium switch; the walk runs at desktop width'
 );
 
-test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async ({ page, context }) => {
-  test.setTimeout(120_000);
+/** A device that has finished setup, with the camera and microphone allowed. */
+async function setUpDevice(context: BrowserContext) {
   await context.grantPermissions(['camera', 'microphone']);
   await context.addInitScript(() => {
     localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
@@ -37,6 +39,26 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
   });
+}
+
+/** From the nap page's notice through the three checks, to the enabled last key. */
+async function passChecks(page: Page) {
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: 'Continue to Pre-Nap Test', exact: true }).click();
+
+  // The camera check; the motion check starts by itself and passes on lasting change or after 300 frames.
+  await page.getByRole('button', { name: 'Start', exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Start', exact: true })).toHaveCount(1, { timeout: 30_000 });
+  // The sound check.
+  await page.getByRole('button', { name: 'Start', exact: true }).click();
+  const start = page.getByRole('button', { name: 'Start Nap Mode', exact: true });
+  await expect(start).toBeEnabled({ timeout: 15_000 });
+  return start;
+}
+
+test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async ({ page, context }) => {
+  test.setTimeout(120_000);
+  await setUpDevice(context);
 
   await page.goto('/nap/', { waitUntil: 'networkidle', timeout: 60_000 });
   // The planned duration stays: the watch reminds when it has passed.
@@ -44,17 +66,7 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   // One step down from 30 minutes, by the keyboard as a person moves it.
   await page.getByRole('slider').press('ArrowLeft');
   await expect(page.getByText('Planned nap duration: 15 minutes')).toBeVisible();
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: 'Continue to Pre-Nap Test', exact: true }).click();
-
-  // The camera check; the motion check starts by itself and passes on a changed frame or after 300 frames.
-  await page.getByRole('button', { name: 'Start', exact: true }).first().click();
-  await expect(page.getByRole('button', { name: 'Start', exact: true })).toHaveCount(1, { timeout: 30_000 });
-  // The sound check.
-  await page.getByRole('button', { name: 'Start', exact: true }).click();
-  const start = page.getByRole('button', { name: 'Start Nap Mode', exact: true });
-  await expect(start).toBeEnabled({ timeout: 15_000 });
-  await start.click();
+  await (await passChecks(page)).click();
 
   // The monitor reads the planned nap from the address once, then drops it.
   await expect(page).toHaveURL(/\/monitor\/?$/, { timeout: 30_000 });
@@ -68,4 +80,39 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   await expect(page.getByText(/Pixel movement detected/).first()).toBeVisible({ timeout: 45_000 });
   // The watch as it runs after Start Nap Mode, kept as the pull request's picture.
   await page.screenshot({ path: test.info().outputPath('nap-watch-1280.png') });
+});
+
+test('says when quiet hours will silence a nap, and End nap ends a nap whose camera failed', async ({ page, context }) => {
+  test.setTimeout(120_000);
+  await setUpDevice(context);
+  await context.addInitScript(() => {
+    // Silent quiet hours from an hour ago to an hour from now, every day.
+    const clock = (minutes: number) => {
+      const at = new Date(Date.now() + minutes * 60_000);
+      return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+    };
+    localStorage.setItem('safeos-settings', JSON.stringify({ state: {
+      quietHoursSettings: {
+        enabled: true, startTime: clock(-60), endTime: clock(60), days: [0, 1, 2, 3, 4, 5, 6], mode: 'silent', reducedVolume: 30,
+      },
+    }, version: 0 }));
+  });
+
+  await page.goto('/nap/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await passChecks(page);
+  await expect(page.getByText(/this nap's alerts will be silent/)).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('nap-quiet-hours-1280.png') });
+
+  // The monitor opened for a nap with a camera the browser refuses.
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Blocked', 'NotAllowedError'));
+  });
+  await page.goto('/monitor/?nap=15', { waitUntil: 'networkidle', timeout: 60_000 });
+  await expect(page).toHaveURL(/\/monitor\/?$/, { timeout: 30_000 });
+  const endNap = page.getByRole('button', { name: 'End nap', exact: true });
+  await expect(endNap).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Start Monitoring', exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('nap-camera-failed-1280.png') });
+  await endNap.click();
+  await expect(endNap).toHaveCount(0);
 });
