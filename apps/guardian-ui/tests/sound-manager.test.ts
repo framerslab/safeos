@@ -553,6 +553,15 @@ describe('Sound Manager', () => {
       expect(sounds[0].loop).toBe(false);
     });
 
+    it('plays a test sound at exactly the current volume, with no minimum under an alarm', () => {
+      const manager = getSoundManager();
+      manager.setUserVolume(20);
+
+      manager.test('alarm');
+
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+    });
+
     it('should test emergency for 2 seconds', () => {
       jest.useFakeTimers();
       const manager = getSoundManager();
@@ -597,6 +606,38 @@ describe('Sound Manager', () => {
 
       // In emergency mode, volume should be 1.0 (100%)
       expect(soundGains().map((gain) => gain.gain.value)).toEqual([1]);
+    });
+
+    it('keeps a one-shot sound at the volume it was played at when the user volume changes', () => {
+      const manager = getSoundManager();
+      manager.setUserVolume(40);
+      manager.play('alarm', { volume: 20, loop: false, fadeIn: 0 });
+
+      manager.setUserVolume(80);
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+
+      manager.setEmergencyMode(true);
+      manager.setEmergencyMode(false);
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+    });
+
+    it('silences a one-shot sound played at a named volume when the user volume goes to 0', () => {
+      const manager = getSoundManager();
+      manager.play('alarm', { volume: 20, loop: false, fadeIn: 0 });
+
+      manager.setUserVolume(0);
+
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0]);
+    });
+
+    it('lets a looping sound follow the user volume, so turning it down reaches the loop', () => {
+      const manager = getSoundManager();
+      manager.play('alarm', { volume: 100, loop: true, fadeIn: 0 });
+
+      manager.setUserVolume(30);
+
+      // The alarm's minimum of 50 applies, as for any alarm at volume 30.
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.5]);
     });
 
     it('should respect forceMaxVolume option', () => {

@@ -296,12 +296,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-      - name: Upload the picture of the watch after Nap Mode
+      - name: Upload the Nap Mode pictures
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: nap-watch-picture
-          path: apps/guardian-ui/test-results/**/nap-watch-1280.png
+          name: nap-pictures
+          path: apps/guardian-ui/test-results/**/nap-*-1280.png
           if-no-files-found: warn
           retention-days: 14
 

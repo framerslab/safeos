@@ -60,15 +60,16 @@ export default function TestAlertsPage() {
   const addAlert = useMonitoringStore((state) => state.addAlert);
   const clearAlerts = useMonitoringStore((state) => state.clearAlerts);
   const alerts = useMonitoringStore((state) => state.alerts);
-  const { globalSettings, emergencyModeActive, activateEmergencyMode, deactivateEmergencyMode } = useSettingsStore();
+  const { globalSettings, emergencyModeActive, activateEmergencyMode, deactivateEmergencyMode, getEffectiveVolume } = useSettingsStore();
   const { status: backendStatus, config: backendConfig } = useBackendStatus();
 
   const soundManager = useSoundManager();
   const notifications = useNotifications();
   // The Preview Volume slider's own value, 0 to 100; the alert volume the watch
-  // uses stays as the person set it.
+  // uses stays as the person set it. Until the slider moves it shows the volume
+  // the sound buttons play at: the effective volume, quiet hours included.
   const [previewVolume, setPreviewVolume] = useState<number | null>(null);
-  const shownVolume = previewVolume ?? globalSettings.alertVolume;
+  const shownVolume = previewVolume ?? getEffectiveVolume();
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -459,7 +460,7 @@ export default function TestAlertsPage() {
                 Preview Volume: {shownVolume}%
               </label>
               <span className="text-xs text-slate-500">
-                {previewVolume === null ? 'Current setting from preferences' : 'Preview only; your alert volume stays as set'}
+                {previewVolume === null ? 'Your alert volume now, quiet hours included' : 'Preview only; your alert volume stays as set'}
               </span>
             </div>
             <div className="flex items-center gap-4">
@@ -490,8 +491,12 @@ export default function TestAlertsPage() {
                 type={type}
                 onPlay={() => {
                   const start = performance.now();
-                  // As test() plays it, at the preview volume.
-                  soundManager.play(type, { loop: false, fadeIn: 0, fadeOut: 200, volume: shownVolume });
+                  // At the effective volume, quiet hours included, until the
+                  // slider sets a preview volume.
+                  soundManager.play(type, {
+                    loop: false, fadeIn: 0, fadeOut: 200,
+                    volume: previewVolume ?? useSettingsStore.getState().getEffectiveVolume(),
+                  });
                   return start;
                 }}
               />

@@ -9,6 +9,7 @@ import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import TestAlertsPage from '@/app/settings/test-alerts/page';
 import { getSoundManager } from '@/lib/sound-manager';
+import { useSettingsStore } from '@/stores/settings-store';
 
 jest.mock('next/navigation', () => ({ useRouter: () => ({ back: jest.fn(), push: jest.fn() }) }));
 jest.mock('@/contexts/BackendStatusContext', () => ({
@@ -39,4 +40,34 @@ it('plays the sound buttons at the preview volume and leaves the alert volume al
 
   expect(play).toHaveBeenLastCalledWith('warning', expect.objectContaining({ volume: 80 }));
   expect(setUserVolume).not.toHaveBeenCalled();
+});
+
+it('plays the sound buttons at the effective volume until the slider moves', async () => {
+  const realQuietHours = useSettingsStore.getState().isQuietHoursActive;
+  useSettingsStore.setState({
+    isQuietHoursActive: () => true,
+    quietHoursSettings: { ...useSettingsStore.getState().quietHoursSettings, enabled: true, mode: 'reduced', reducedVolume: 20 },
+  });
+  const play = jest.spyOn(getSoundManager(), 'play').mockReturnValue('preview');
+  render(<TestAlertsPage />);
+  await act(async () => {});
+
+  fireEvent.click(screen.getByRole('button', { name: /^warning$/i }));
+
+  expect(play).toHaveBeenLastCalledWith('warning', expect.objectContaining({ volume: 20 }));
+  useSettingsStore.setState({ isQuietHoursActive: realQuietHours });
+});
+
+it('shows the volume the buttons will play at until the slider moves', async () => {
+  const { isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings } = useSettingsStore.getState();
+  useSettingsStore.setState({
+    isQuietHoursActive: () => true,
+    quietHoursSettings: { ...realSettings, enabled: true, mode: 'silent' },
+  });
+  render(<TestAlertsPage />);
+  await act(async () => {});
+
+  expect(((await screen.findByRole('slider')) as HTMLInputElement).value).toBe('0');
+  expect(screen.getByText('Preview Volume: 0%')).toBeTruthy();
+  useSettingsStore.setState({ isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings });
 });
