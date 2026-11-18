@@ -398,6 +398,23 @@ it("puts a repeat queued behind a stale card on the fresh card whose own save fa
   expect(watching.listed().filter((id) => id.startsWith('fresh-'))).toEqual(['fresh-1']);
 });
 
+it('shows a card whose acknowledgement waits to be saved with its saved reading and count', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  await watching.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  await watching.read();
+  // The acknowledgement's save fails, and so does its retry at the next history read.
+  const failing = failSaves();
+  watching.monitoring.getState().acknowledgeAlert('event-card');
+  await watching.read();
+  const shown = watching.monitoring.getState().alerts.find((alert) => alert.id === 'event-card');
+  failing.mockRestore();
+
+  expect(shown).toMatchObject({ acknowledged: true, message: 'the repeat', severity: 'high', repeats: 1 });
+});
+
 it('updates the card in place when no other tab changed it', async () => {
   (await oldTab()).close();
   const watching = await tab();
