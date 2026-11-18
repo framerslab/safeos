@@ -563,6 +563,48 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await expect.soft(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
   });
 
+  test('an event whose card is acknowledged keeps its notification tag on the new card it goes on', async ({ page }) => {
+    test.setTimeout(120_000);
+    // A critical event goes on (the whole picture, 75 %); its card is
+    // acknowledged; its next alert, at the Cooldown Period (10 s here), goes
+    // on a new card and replaces the event's notification.
+    await openMonitor(page, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
+      camera: { changingWidth: 1 },
+      notify: true,
+    });
+    const first = await firstAlert(page, 'motion');
+    await page.getByRole('button', { name: 'Acknowledge', exact: true }).first().click();
+    await runUntil(page, first + 10_000 + LATE_MS);
+
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    expect(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
+    expect(shown[shown.length - 1]?.tag, `the event keeps its tag on its new card (${JSON.stringify(shown)})`).toBe(shown[0]?.tag);
+  });
+
+  test('a new event does not replace the notification of an earlier event that is kept up', async ({ page }) => {
+    test.setTimeout(120_000);
+    // A critical event (the whole picture, 75 %), whose notification stays up
+    // until dismissed; the picture holds still, so the event ends; then a
+    // third of it changes (25 %, low): a new event, on a new card, whose
+    // notification stands beside the critical one.
+    await openMonitor(page, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
+      camera: { changingWidth: 1 },
+      notify: true,
+    });
+    const first = await firstAlert(page, 'motion');
+    await page.evaluate(() => { window.__walkCamera!.changingWidth = 0; });
+    await runUntil(page, first + 3_000);
+    await page.evaluate(() => { window.__walkCamera!.changingWidth = 1 / 3; });
+    await expect.poll(async () => (await walkOf(page)).cards.motion, { timeout: 40_000 }).toBe(2);
+
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    expect(shown.length, `a notification for each event (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
+    expect.soft(shown[0]?.requireInteraction, 'the critical notification stays up').toBe(true);
+    expect(shown[shown.length - 1]?.tag, `the new event has its own tag (${JSON.stringify(shown)})`).not.toBe(shown[0]?.tag);
+  });
+
   test('a scene that holds still for a moment now and then is one event, which repeats at the Cooldown Period', async ({ page }) => {
     test.setTimeout(120_000);
     // The whole picture changes (critical), but holds still for 450 ms out

@@ -732,7 +732,7 @@ export async function getCachedStreams(): Promise<any[]> {
  */
 async function writeAlert(
   alert: any, stamp: ClearStamp | undefined, mode: 'save' | 'update' | 'repeat',
-  found?: { stored: any | null; generation?: string },
+  found?: { stored: any | null; generation?: string; repeats?: number },
 ): Promise<'saved' | 'cancelled' | 'gone' | 'stale' | 'failed'> {
   let tx: IDBPTransaction<SafeOSDB, AlertStores, 'readwrite'> | undefined;
   try {
@@ -771,6 +771,12 @@ async function writeAlert(
       ...previous,
       ...Object.fromEntries(Object.entries(alert).filter(([, value]) => value !== undefined)),
     };
+    // A repeat counts onto the stored card in the order repeats are saved.
+    if (mode === 'repeat') {
+      const counted = previous?.repeats;
+      merged.repeats = (typeof counted === 'number' ? counted : 0) + 1;
+      if (found) found.repeats = merged.repeats;
+    }
     let createdAt: string;
     let originalCreatedAt = previous?.originalCreatedAt;
     if (previous && typeof previous.createdAt === 'string' && Number.isFinite(Date.parse(previous.createdAt))) {
@@ -843,17 +849,21 @@ export async function updateCachedAlert(alert: any, stamp?: ClearStamp): Promise
 
 /**
  * A repeat of an event's alert, written onto the event's card. The card is read in the same
- * transaction as the write, and is written only while it is stored and not acknowledged: another
+ * transaction as the write, and its count of repeats is the stored count plus one, so repeats
+ * count in the order they are saved. It is written only while it is stored and not acknowledged: another
  * tab may have cleared, removed or acknowledged it. `stale` carries the stored card, or null when
  * it is gone, and the clear generation read with it. `cancelled`: a clear came after a failed save's stamp, and nothing is left to save.
  */
 export async function repeatCachedAlert(alert: any, stamp?: ClearStamp): Promise<
-  { kind: 'updated' | 'cancelled' | 'failed' } | { kind: 'stale'; stored: any | null; generation: string }
+  | { kind: 'updated'; repeats: number }
+  | { kind: 'cancelled' | 'failed' }
+  | { kind: 'stale'; stored: any | null; generation: string }
 > {
-  const found: { stored: any | null; generation?: string } = { stored: null };
+  const found: { stored: any | null; generation?: string; repeats?: number } = { stored: null };
   const result = await writeAlert(alert, stamp, 'repeat', found);
   if (result === 'stale') return { kind: 'stale', stored: found.stored, generation: found.generation ?? '' };
-  return { kind: result === 'saved' ? 'updated' : result === 'failed' ? 'failed' : 'cancelled' };
+  if (result === 'saved') return { kind: 'updated', repeats: found.repeats ?? 1 };
+  return { kind: result === 'failed' ? 'failed' : 'cancelled' };
 }
 
 /** Every producer's alerts, newest first. */
