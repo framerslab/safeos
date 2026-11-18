@@ -367,6 +367,8 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
 
   const startStream = () => {
+    // A click here turns the sound on in a browser that keeps it off until a tap.
+    getSoundManager().unlockAudio();
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
@@ -431,7 +433,13 @@ export default function MonitorPage() {
   const napRef = useRef<Nap | null>(null);
   useEffect(() => { napRef.current = nap; }, [nap]);
   const playMovementSound = useCallback((severity: AlertSeverity) => {
-    getSoundManager().playForSeverity(napRef.current ? 'critical' : severity, { loop: false });
+    if (napRef.current) {
+      // At the effective volume as it plays: the sound manager's copy of the
+      // volume follows quiet hours only every 30 seconds.
+      getSoundManager().playForSeverity('critical', { loop: false, volume: useSettingsStore.getState().getEffectiveVolume() });
+      return;
+    }
+    getSoundManager().playForSeverity(severity, { loop: false });
   }, []);
 
   // Ending a nap: the Nap preset gives way, as I'm Awake did on the nap screen,
@@ -439,6 +447,7 @@ export default function MonitorPage() {
   // stays.
   const endNap = () => {
     setNap(null);
+    setNapWaitsForTap(false);
     keepNap(null);
     const settings = useSettingsStore.getState();
     if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
@@ -452,28 +461,43 @@ export default function MonitorPage() {
   };
 
   // A watch opened from Nap Mode takes the one-use hand-off, keeps the nap in
-  // this history entry and starts; a reload or Back finds the kept nap and
-  // starts again. The ref keeps this mount's reading, so React's Strict Mode,
-  // which runs the effect again after the unmount cleanup below has cleared
+  // this history entry and starts: the person's click on Start Nap Mode, in
+  // this same page, has turned the sound on. A reload or Back finds the kept
+  // nap and waits for a tap: a browser keeps a new page's sound off until one,
+  // so the nap's alarm and reminder could not sound. Resume nap is that tap.
+  // The ref keeps this mount's reading, so React's Strict Mode, which runs the
+  // effect again after the unmount cleanup below has cleared
   // captureRequestedRef, requests the capture again.
-  const napArrivalRef = useRef<Nap | null | undefined>(undefined);
+  const [napWaitsForTap, setNapWaitsForTap] = useState(false);
+  const napArrivalRef = useRef<{ nap: Nap; restored: boolean } | null | undefined>(undefined);
   useEffect(() => {
     if (napArrivalRef.current === undefined) {
       const minutes = takeNapHandoff();
       if (minutes === null) {
-        napArrivalRef.current = readKeptNap();
+        const kept = readKeptNap();
+        napArrivalRef.current = kept ? { nap: kept, restored: true } : null;
       } else {
-        napArrivalRef.current = { startedAt: Date.now(), minutes };
-        keepNap(napArrivalRef.current);
+        const fresh = { startedAt: Date.now(), minutes };
+        keepNap(fresh);
+        napArrivalRef.current = { nap: fresh, restored: false };
       }
     }
     const arrival = napArrivalRef.current;
     if (!arrival) return;
-    setNap(arrival);
+    setNap(arrival.nap);
+    if (arrival.restored) {
+      setNapWaitsForTap(true);
+      return;
+    }
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
   }, []);
+  useEffect(() => { if (captureRequested) setNapWaitsForTap(false); }, [captureRequested]);
+  const resumeNap = () => {
+    setNapWaitsForTap(false);
+    startStream();
+  };
 
   // Once the nap's planned minutes have passed, the warning plays every 30
   // seconds until the nap ends, as the nap screen did, whether or not the
@@ -1220,6 +1244,19 @@ export default function MonitorPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {nap && napWaitsForTap && !captureRequested && (
+          <div role="status" className="mb-6 rounded-xl border border-indigo-400/50 bg-indigo-500/15 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-base text-indigo-50 flex-1">
+              This nap stopped watching when the page reloaded, and the browser keeps its sound off until you tap. Resume nap turns the sound on and starts the camera again.
+            </p>
+            <button
+              onClick={resumeNap}
+              className="min-h-[44px] px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
+            >
+              Resume nap
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Camera Feed */}
           <div className="lg:col-span-2">

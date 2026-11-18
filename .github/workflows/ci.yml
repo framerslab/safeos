@@ -301,7 +301,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nap-pictures
-          path: apps/guardian-ui/test-results/**/nap-*-1280.png
+          path: |
+            apps/guardian-ui/test-results/**/nap-*-1280.png
+            apps/guardian-ui/test-results/**/test-alerts-*-1280.png
           if-no-files-found: warn
           retention-days: 14
 

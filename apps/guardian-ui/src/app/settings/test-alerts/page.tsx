@@ -69,6 +69,13 @@ export default function TestAlertsPage() {
   // uses stays as the person set it. Until the slider moves it shows the volume
   // the sound buttons play at: the effective volume, quiet hours included.
   const [previewVolume, setPreviewVolume] = useState<number | null>(null);
+  // Moved on every 30 seconds, so the volume shown follows quiet hours as they
+  // begin and end while the page is open.
+  const [, setClockTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setClockTick((tick) => tick + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
   const shownVolume = previewVolume ?? getEffectiveVolume();
 
   // Refs
@@ -489,6 +496,7 @@ export default function TestAlertsPage() {
               <SoundTestButton
                 key={type}
                 type={type}
+                note={type === 'emergency' ? 'Always full volume' : undefined}
                 onPlay={() => {
                   const start = performance.now();
                   // At the effective volume, quiet hours included, until the
@@ -735,10 +743,12 @@ function TestButton({ icon, label, onClick, variant = 'default' }: TestButtonPro
 
 interface SoundTestButtonProps {
   type: SoundType;
+  /** A line under the sound's name, such as the Emergency sound's full volume. */
+  note?: string;
   onPlay: () => number;
 }
 
-function SoundTestButton({ type, onPlay }: SoundTestButtonProps) {
+function SoundTestButton({ type, note, onPlay }: SoundTestButtonProps) {
   const [lastLatency, setLastLatency] = React.useState<number | null>(null);
   const [isPlaying, setIsPlaying] = React.useState(false);
 
@@ -765,6 +775,7 @@ function SoundTestButton({ type, onPlay }: SoundTestButtonProps) {
       <IconPlay size={18} className={`mx-auto mb-2 transition-transform ${isPlaying ? 'text-emerald-400 scale-110' : 'text-emerald-500 group-hover:scale-110'
         }`} />
       <span className="text-sm text-white capitalize block text-center">{type}</span>
+      {note && <span className="text-xs text-amber-200 block text-center mt-1">{note}</span>}
       {lastLatency !== null && (
         <span className={`text-xs block text-center mt-1 ${lastLatency < 50 ? 'text-emerald-400' : lastLatency < 100 ? 'text-yellow-400' : 'text-red-400'
           }`}>

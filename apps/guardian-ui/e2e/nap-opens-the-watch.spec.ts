@@ -6,7 +6,7 @@
  * The address becomes /monitor/, the saved settings hold the infant_sleep
  * preset, the watch starts with no second press, and the fake camera's moving
  * picture raises a pixel alert there, so Motion and sound does the watching,
- * and a reload finds the nap and its watch again. A second walk reads the
+ * and a reload finds the nap, which watches again after one tap. A second walk reads the
  * warning quiet hours bring, and ends a nap whose camera the browser refuses.
  *
  * @module e2e/nap-opens-the-watch.spec
@@ -80,10 +80,17 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   // The watch as it runs after Start Nap Mode, kept as the pull request's picture.
   await page.screenshot({ path: test.info().outputPath('nap-watch-1280.png') });
 
-  // A reload finds the nap, with its planned minutes, and starts the watch again.
+  // A reload finds the nap, with its planned minutes, and waits for a tap, which
+  // turns the browser's sound on, before it watches again.
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
+  const resume = page.getByRole('button', { name: 'Resume nap', exact: true });
+  await expect(resume).toBeVisible({ timeout: 30_000 });
   expect(await page.evaluate(() => window.history.state?.safeosNap?.minutes)).toBe(15);
+  await page.screenshot({ path: test.info().outputPath('nap-resume-1280.png') });
+  await resume.click();
+  // The camera runs again: the key reads Stop Monitoring and the Stream tile reads Active.
+  await expect(page.getByRole('button', { name: 'Stop Monitoring', exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Stream', { exact: true }).locator('xpath=following-sibling::div[1]')).toHaveText('Active', { timeout: 30_000 });
 });
 
 test('says when quiet hours will silence a nap, and End nap ends a nap whose camera failed', async ({ page, context }) => {
@@ -119,4 +126,13 @@ test('says when quiet hours will silence a nap, and End nap ends a nap whose cam
   await page.screenshot({ path: test.info().outputPath('nap-camera-failed-1280.png') });
   await endNap.click();
   await expect(endNap).toHaveCount(0);
+});
+
+test('Test Alerts says the Emergency sound plays at full volume', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await setUpDevice(context);
+  await page.goto('/settings/test-alerts/', { waitUntil: 'networkidle', timeout: 60_000 });
+  const sounds = page.getByRole('heading', { name: 'Sound Tests' }).locator('..');
+  await expect(sounds.getByText('Always full volume')).toBeVisible();
+  await sounds.screenshot({ path: test.info().outputPath('test-alerts-sounds-1280.png') });
 });
