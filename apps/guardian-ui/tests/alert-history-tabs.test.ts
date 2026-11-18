@@ -211,12 +211,19 @@ it('puts repeats queued behind a card another tab acknowledged on one fresh card
   other.monitoring.getState().acknowledgeAlert('event-card');
   await other.read();
 
-  // Two repeats are queued before the first finds the card acknowledged.
+  // The monitor's detector event, on the card; two of its repeats are queued
+  // before the first finds the card acknowledged. Each gets the monitor's
+  // fresh-card callback.
+  const { newDetectorEvent, freshCardFor } = await import('@/lib/alert-event');
+  const detector = newDetectorEvent();
+  detector.alertId = 'event-card';
+  detector.startedAt = FIRST.createdAt;
   let made = 0;
-  const fresh = jest.fn(() => ({ id: `fresh-${++made}`, createdAt: FRESH.createdAt }));
+  const fresh = jest.fn(freshCardFor(detector, () => `fresh-${++made}`, Date.parse(FRESH.createdAt)));
   watching.monitoring.getState().addAlert(REPEAT, { fresh });
   watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the next repeat', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh });
   await watching.read();
+  expect(detector.alertId).toBe('fresh-1');
 
   const rows = await stored('alert_cache');
   expect(fresh).toHaveBeenCalledTimes(1);
@@ -226,6 +233,18 @@ it('puts repeats queued behind a card another tab acknowledged on one fresh card
   });
   expect(rows.find((row) => row.id === 'event-card')).toMatchObject({ acknowledged: true, message: 'event-card' });
   expect(watching.monitoring.getState().alerts.find((alert) => alert.id === 'fresh-1')?.repeats).toBe(1);
+
+  // The detector's next repeat, made as the monitor makes it, updates that card.
+  const shown = watching.monitoring.getState().alerts.find((alert) => alert.id === detector.alertId);
+  watching.monitoring.getState().addAlert({
+    ...REPEAT, id: detector.alertId!, createdAt: detector.startedAt!, message: 'a later repeat',
+    timestamp: '2026-11-01T10:03:00.000Z', repeats: (shown?.repeats ?? 0) + 1,
+  }, { fresh });
+  await watching.read();
+  const later = (await stored('alert_cache')).filter((row) => row.id.startsWith('fresh-'));
+  expect(later.map((row) => row.id)).toEqual(['fresh-1']);
+  expect(later[0]).toMatchObject({ message: 'a later repeat', repeats: 2, acknowledged: false });
+  expect(detector.alertId).toBe('fresh-1');
 });
 
 it("does not save a repeat's fresh card when another tab clears all between the repeat's check and the fresh card", async () => {

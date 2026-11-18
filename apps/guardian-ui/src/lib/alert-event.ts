@@ -70,6 +70,24 @@ export function keepsNotificationUp(event: DetectorEvent): boolean {
   return event.peakSeverity === 'high' || event.peakSeverity === 'critical';
 }
 
+/**
+ * The fresh card a repeat of `event` goes on when the card it found was
+ * cleared or acknowledged in another tab: a new id from `newId`, starting at
+ * `now`. The event moves to it when it is on the card found stale, so its
+ * later repeats update the fresh card; an event that has moved on stays.
+ */
+export function freshCardFor(event: DetectorEvent, newId: () => string, now: number) {
+  return (staleId: string): { id: string; createdAt: string } => {
+    const next = { id: newId(), createdAt: new Date(now).toISOString() };
+    if (event.alertId === staleId) {
+      event.alertId = next.id;
+      event.startedAt = next.createdAt;
+      event.repeats = 0;
+    }
+    return next;
+  };
+}
+
 export function newDetectorEvent(): DetectorEvent {
   return {
     aboveSince: null,

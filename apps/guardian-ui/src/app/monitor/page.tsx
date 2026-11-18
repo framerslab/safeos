@@ -11,7 +11,7 @@
 import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
-import { newDetectorEvent, endDetectorEvent, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
+import { newDetectorEvent, endDetectorEvent, freshCardFor, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -749,18 +749,7 @@ export default function MonitorPage() {
       timestamp: new Date(now).toISOString(),
       acknowledged: false,
       repeats: event.repeats > 0 ? event.repeats : undefined,
-    }, updatesCard ? {
-      fresh: (staleId) => {
-        const next = { id: newAlertId(source, now), createdAt: new Date(now).toISOString() };
-        // Later repeats of the event update the fresh card, unless the event has moved on.
-        if (event.alertId === staleId) {
-          event.alertId = next.id;
-          event.startedAt = next.createdAt;
-          event.repeats = 0;
-        }
-        return next;
-      },
-    } : undefined);
+    }, updatesCard ? { fresh: freshCardFor(event, () => newAlertId(source, now), now) } : undefined);
   }, [addAlert, streamId]);
 
   const handleMotion = useCallback((score: number) => {
