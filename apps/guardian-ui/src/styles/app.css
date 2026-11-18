@@ -715,3 +715,77 @@ html:has(.app-shell) {
   flex: none;
   margin-left: auto;
 }
+
+/* =============================================================================
+   The outlined key
+   ============================================================================= */
+
+.key--outline {
+  border: 1px solid var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-50);
+}
+
+.key--outline:hover {
+  border-color: var(--color-steel-50);
+  background: var(--color-steel-900);
+}
+
+.app-dialog .key--outline:hover {
+  background: var(--color-steel-850);
+}
+
+/* Pressed, 1 px lower. Written to outrank the site's touch rule, which
+   shrinks every pressed button. */
+:root .key--outline:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root .key--outline:active {
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   The question before a second watch
+   ============================================================================= */
+
+.app-dialog__veil {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--color-steel-950) 80%, transparent);
+}
+
+.app-dialog {
+  width: 100%;
+  max-width: 28rem;
+  padding: 24px;
+  border: 1px solid var(--color-steel-300);
+  background: var(--color-steel-900);
+  color: var(--visitor-panel-ink);
+}
+
+.app-dialog__question {
+  margin: 0 0 24px;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.app-dialog__keys {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-dialog__keys > .key {
+  flex: 1 0 auto;
+  color: var(--visitor-panel-ink);
+}
