@@ -87,7 +87,11 @@ export default function SetupPage() {
   // stays as it is until the last step is finished. The address is read here,
   // after the page has rendered: on a move from another page of the site the
   // address bar changes only then.
+  // Set as the last step finishes. The forwarding below is for a person
+  // arriving; once setup is finished here, the last key's page is the one opened.
+  const finishing = useRef(false);
   useEffect(() => {
+    if (finishing.current) return;
     const asked = new URLSearchParams(window.location.search).get('again') === '1';
     setAgain(asked);
     if (!asked && canSkipOnboarding(onboarding)) {
@@ -176,6 +180,7 @@ export default function SetupPage() {
   };
 
   const completeSetup = () => {
+    finishing.current = true;
     if (again) {
       if (staged.disclaimers) onboarding.acceptAllDisclaimers();
       if (staged.scenario) onboarding.setScenario(staged.scenario);

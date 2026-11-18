@@ -62,7 +62,9 @@ it('saves the pet use for Lost & Found, and its last key opens the Lost & Found 
   const saved = useOnboardingStore.getState();
   expect(saved.isComplete).toBe(true);
   expect(saved.selectedScenario).toBe('pet');
-  expect(mockRouter.push).toHaveBeenCalledWith('/lost-found/');
+  // The one page opened is Lost & Found's: finishing setup forwards nowhere else.
+  await act(async () => {});
+  expect(mockRouter.push.mock.calls.map(([to]) => to)).toEqual(['/lost-found/']);
 });
 
 it('shows Lost & Found chosen, not Pet Monitoring, when the person goes back to the question', async () => {
@@ -81,5 +83,6 @@ it('ends on the dashboard for another use, as before', async () => {
   fireEvent.click(await screen.findByRole('button', { name: /Launch Dashboard/ }));
 
   expect(useOnboardingStore.getState().selectedScenario).toBe('pet');
-  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
+  await act(async () => {});
+  expect(mockRouter.push.mock.calls.map(([to]) => to)).toEqual(['/dashboard']);
 });
