@@ -1037,62 +1037,56 @@ export async function checkApp(browser, baseUrl, outDir) {
   }
 
   // A panel or a picture opened over a page covers the whole screen, the frame
-  // included: a press on its close key or on its last control reaches it, and
-  // never the header or the bar.
+  // included: its close key stands on the screen, a press there reaches the
+  // key and a press on its last control reaches that control, and neither
+  // reaches the header or the bar.
   const overlayPresses = (overlay) => {
-    const landsOn = (control) => {
+    const landsOn = (control, within) => {
       const box = control.getBoundingClientRect();
       const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
       const frame = hit?.closest('header.app-header, nav.phone-bar');
       if (frame) return frame.matches('nav') ? 'the phone bar' : 'the app header';
       if (!hit) return 'nothing';
-      return overlay.contains(hit) ? null : hit.tagName.toLowerCase();
+      return within.contains(hit) ? null : hit.tagName.toLowerCase();
     };
     const controls = [...overlay.querySelectorAll('button, input, select, textarea, a[href]')].filter((control) => {
       const box = control.getBoundingClientRect();
       return box.width > 1 && box.height > 1;
     });
-    const close = landsOn(controls[0]);
+    const key = controls[0].getBoundingClientRect();
+    const screen = document.documentElement.clientWidth;
+    const offScreen = key.left < -0.5 || key.right > screen + 0.5
+      ? `runs from ${Math.round(key.left)} to ${Math.round(key.right)} px on a ${screen} px screen`
+      : null;
+    const close = landsOn(controls[0], controls[0]);
     const last = controls[controls.length - 1];
     last.scrollIntoView({ block: 'end' });
-    return { close, last: landsOn(last) };
-  };
-  // Where the close key stands, for a press that misses it.
-  const closeKeyPlace = (overlay) => {
-    const key = overlay.querySelector('button');
-    const box = key.getBoundingClientRect();
-    const view = window.visualViewport;
-    const root = document.documentElement;
-    const scroller = key.closest('.overflow-y-auto');
-    const name = (part) => `${part.tagName.toLowerCase()}.${String(part.className).slice(0, 24)}`;
-    return JSON.stringify({
-      view: [view.scale, view.offsetLeft, view.offsetTop, view.pageLeft, view.pageTop, view.width, view.height],
-      window: [window.innerWidth, window.innerHeight, window.scrollX, window.scrollY],
-      root: [root.clientWidth, root.scrollWidth],
-      key: [box.left, box.top, box.width, box.height],
-      keyStyle: [getComputedStyle(key).pointerEvents, getComputedStyle(key).position],
-      scroller: scroller && [scroller.scrollLeft, scroller.scrollTop, scroller.clientWidth, scroller.scrollWidth],
-      under: document.elementsFromPoint(box.left + box.width / 2, box.top + box.height / 2).slice(0, 4).map(name),
-    });
+    return { close, offScreen, last: landsOn(last, overlay) };
   };
   const checkOverlay = async (overlay, check, what) => {
     await overlay.waitFor({ timeout: 10_000 });
-    const opened = await overlay.evaluate(closeKeyPlace);
     const lands = await overlay.evaluate(overlayPresses);
-    const scrolled = await overlay.evaluate(closeKeyPlace);
+    check(!lands.offScreen, `on ${what}, the close key ${lands.offScreen}`);
     check(!lands.close, `on ${what}, a press on the close key lands on ${lands.close}`);
     check(!lands.last, `on ${what}, a press on the last control lands on ${lands.last}`);
     // The browser's own account of the press says why it did not close.
     const stuck = await overlay.locator('button').first().click({ timeout: 5_000 })
       .then(() => overlay.waitFor({ state: 'detached', timeout: 5_000 }))
       .then(() => null, (err) => err.message.split('\n').map((line) => line.trim()).filter(Boolean).slice(-8).join(' / '));
-    if (stuck) {
-      const pressed = await overlay.evaluate(closeKeyPlace);
-      const seen = await overlay.locator('button').first().boundingBox();
-      check(false, `on ${what}, the close key when opened ${opened}; after the scroll ${scrolled}; after the press ${pressed}; as the press sees it ${JSON.stringify(seen)}`);
-    }
     check(!stuck, `on ${what}, pressing the close key leaves it open: ${stuck}`);
   };
+
+  // What a page fixes to the screen is laid out to the page's width, so a page
+  // wider than the phone puts a panel's close key past the screen's edge.
+  for (const width of ROW_WIDTHS) {
+    for (const route of ['/security/', '/wildlife/']) {
+      await open({ name: 'a way page, its width', width, look: 'dark' }, async (page, context, check) => {
+        await visit(page, route);
+        const sideways = await sidewaysScroll(page);
+        if (sideways > 0) check(false, `${route} scrolls ${sideways} px sideways: ${await widest(page)}`);
+      });
+    }
+  }
 
   // These walks are about what the opened part covers, so the key that opens
   // it is pressed wherever the page has put it.
