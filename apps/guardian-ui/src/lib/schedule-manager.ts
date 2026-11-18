@@ -193,7 +193,8 @@ export function setTimeStep(
   const day = active && stretchStartDay(active, now);
   if (!active || !day) return { preset: null, appliedKey: null };
 
-  const key = `${active.id}|${active.preset}|${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
+  // The hours are in the record too, so an edit to them puts the setting on again.
+  const key = `${active.id}|${active.preset}|${active.timeSlot.start}-${active.timeSlot.end}|${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
   if (key === appliedSetTime || !isPresetId(active.preset)) return { preset: null, appliedKey: appliedSetTime };
   return { preset: active.preset, appliedKey: key };
 }

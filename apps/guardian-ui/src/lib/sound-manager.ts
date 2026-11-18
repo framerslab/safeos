@@ -715,10 +715,13 @@ class SoundManager {
       const playedIds: string[] = [];
 
       for (const sound of customSounds) {
+        // The volume may have gone to 0 while the sounds were read (quiet hours
+        // beginning): checked again before each start.
+        if (!this.emergencyModeActive && trigger !== 'emergency' && this.baseVolumeOf(options.critical) <= 0) break;
         // A loop that plays keeps its one copy: a repeat alert that finds it
         // starts nothing, so it is not a play to count.
         const started = !(sound.loop && this.playingLoopOf(sound.id));
-        const id = await this.playCustomSound(sound);
+        const id = await this.playCustomSound(sound, { critical: options.critical });
         if (id) {
           playedIds.push(id);
           if (started) await recordSoundPlay(sound.id);
@@ -746,7 +749,7 @@ class SoundManager {
    * @returns Sound ID or null if failed. For a looping sound that is already
    *   playing, the ID of the copy that plays: no second copy is started.
    */
-  async playCustomSound(sound: CustomSound): Promise<string | null> {
+  async playCustomSound(sound: CustomSound, options: { critical?: boolean } = {}): Promise<string | null> {
     try {
       // A looping sound that is playing keeps its one copy. An alert event
       // that goes on plays its trigger again on each repeat, and a second
@@ -786,6 +789,10 @@ class SoundManager {
         priority: sound.priority,
         startTime: Date.now(),
         loop: sound.loop,
+        // It keeps its own volume while the volume it follows (the critical
+        // volume for a critical alert's sound) is above 0, and is silent at 0.
+        namedVolume: sound.volume,
+        critical: options.critical,
       };
       this.activeSounds.set(id, activeSound);
 
