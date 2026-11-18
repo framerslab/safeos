@@ -56,6 +56,8 @@ export default function NapModePage() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const animationRef = useRef<number | null>(null);
+    // Set when the page closes, so a camera request still waiting opens nothing.
+    const closedRef = useRef(false);
 
     const { activateSleepMode } = useSettingsStore();
     const soundManager = useSoundManager();
@@ -63,7 +65,9 @@ export default function NapModePage() {
 
     useEffect(() => {
         setMounted(true);
+        closedRef.current = false;
         return () => {
+            closedRef.current = true;
             // Cleanup on unmount
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(t => t.stop());
@@ -96,8 +100,12 @@ export default function NapModePage() {
                 stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
             } catch (error) {
                 // A camera with no microphone: the watch goes on without sound, so the check does.
-                if ((error as DOMException)?.name !== 'NotFoundError') throw error;
+                if (closedRef.current || (error as DOMException)?.name !== 'NotFoundError') throw error;
                 stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+            }
+            if (closedRef.current) {
+                stream.getTracks().forEach(t => t.stop());
+                return;
             }
             streamRef.current = stream;
 

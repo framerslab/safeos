@@ -77,6 +77,8 @@ interface ActiveSound {
   fade?: Fade | null;
   /** Fading out to stop. */
   stopping?: boolean;
+  /** The volume named when the sound was played, which it keeps until it ends. */
+  namedVolume?: number;
 }
 
 interface Fade {
@@ -323,7 +325,7 @@ class SoundManager {
         return;
       }
       this.clearFade(sound);
-      this.setSoundVolume(sound, this.calculateVolume(sound.type));
+      this.setSoundVolume(sound, this.playingVolume(sound));
     });
   }
 
@@ -388,7 +390,7 @@ class SoundManager {
       this.activeSounds.forEach((sound) => {
         if (sound.stopping) return;
         this.clearFade(sound);
-        this.setSoundVolume(sound, this.calculateVolume(sound.type));
+        this.setSoundVolume(sound, this.playingVolume(sound));
         if (this.globalMute && sound.type !== 'emergency') {
           this.setSoundMuted(sound, true);
         }
@@ -462,6 +464,7 @@ class SoundManager {
       startTime: Date.now(),
       loop,
       onEnd: options.onEnd,
+      namedVolume: options.volume,
     };
     this.activeSounds.set(id, activeSound);
 
@@ -811,6 +814,14 @@ class SoundManager {
     const effectiveVolume = Math.max(baseVolume, minVolume);
     
     return effectiveVolume / 100;
+  }
+
+  /**
+   * The volume a playing sound holds: the one named when it was played, unless
+   * the user volume has gone to 0, and otherwise the user volume's.
+   */
+  private playingVolume(sound: ActiveSound): number {
+    return this.calculateVolume(sound.type, this.userVolume > 0 ? sound.namedVolume : undefined);
   }
 
   /**
