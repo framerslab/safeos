@@ -2,13 +2,12 @@
 /**
  * A watch started from Nap Mode
  *
- * Nap Mode records the nap for this tab in sessionStorage under safeos-nap:
- * when it began, its planned minutes, and start, true until the monitor has
- * started the watch once. The monitor starts watching on arrival from Nap
- * Mode, plays the warning sound every 30 seconds once the planned minutes have
- * passed, as the nap screen did, and its Stop ends the nap: the infant_sleep
- * preset gives way, as I'm Awake did, and the record goes. A watch not started
- * from Nap Mode keeps its setting when it stops.
+ * Start Nap Mode opens /monitor/?nap=<minutes>. The monitor reads the nap
+ * once, drops it from the address and keeps it in memory. It starts watching on
+ * arrival, plays the warning every 30 seconds once the planned minutes have
+ * passed, whether or not the camera is running, and ends the nap on Stop or on
+ * End nap, where the infant_sleep preset gives way while it is the setting in
+ * use. A watch opened any other way has no nap.
  */
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -27,10 +26,8 @@ jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ config: { wsUrl: '' } }),
 }));
 
-const NAP = 'safeos-nap';
-
-function napStarted(minutesAgo: number, minutes: number, start: boolean) {
-  sessionStorage.setItem(NAP, JSON.stringify({ startedAt: Date.now() - minutesAgo * 60_000, minutes, start }));
+function arriveFromNap(minutes: number) {
+  window.history.replaceState(null, '', `/monitor/?nap=${minutes}`);
 }
 
 /** A camera whose picture never changes, so no detector alert plays a sound. */
@@ -43,31 +40,32 @@ function stillCamera() {
 
 const stopKey = () => screen.queryByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ });
 
-/** Starts the watch by hand when it did not start on arrival. */
-async function watching() {
-  if (!stopKey()) await startMonitoring();
-}
+let browser: ReturnType<typeof installCameraBrowser>;
+let warnings: () => number;
 
 beforeEach(() => {
   jest.useFakeTimers();
   localStorage.clear();
   sessionStorage.clear();
+  window.history.replaceState(null, '', '/monitor/');
   useMonitoringStore.getState().reset();
   useSettingsStore.getState().resetToDefaults();
   useSettingsStore.setState({ globalMute: true });
   useOnboardingStore.getState().setScenario('baby');
-  installCameraBrowser();
+  browser = installCameraBrowser();
+  const play = jest.spyOn(getSoundManager(), 'play');
+  warnings = () => play.mock.calls.filter(([type]) => type === 'warning').length;
 });
 afterEach(() => { cleanup(); jest.useRealTimers(); jest.restoreAllMocks(); });
 
-it('starts watching on arrival from Nap Mode, once', async () => {
+it('starts watching on arrival from Nap Mode, once, and drops the nap from the address', async () => {
   useSettingsStore.getState().activateSleepMode('infant_sleep');
-  napStarted(0, 30, true);
+  arriveFromNap(30);
   const first = render(<MonitorPage />);
   await act(async () => {});
 
   expect(stopKey()).not.toBeNull();
-  expect(JSON.parse(sessionStorage.getItem(NAP) || 'null')).toMatchObject({ minutes: 30, start: false });
+  expect(window.location.search).toBe('');
 
   first.unmount();
   render(<MonitorPage />);
@@ -77,34 +75,88 @@ it('starts watching on arrival from Nap Mode, once', async () => {
 
 it('plays the warning every 30 seconds once the planned minutes have passed', async () => {
   stillCamera();
-  const play = jest.spyOn(getSoundManager(), 'play');
-  const warnings = () => play.mock.calls.filter(([type]) => type === 'warning').length;
-  napStarted(14, 15, true);
+  arriveFromNap(1);
   render(<MonitorPage />);
   await act(async () => {});
-  await watching();
 
   await act(async () => { jest.advanceTimersByTime(30_000); });
-  expect(warnings()).toBe(0); // 14.5 minutes into a 15-minute nap
+  expect(warnings()).toBe(0);
   await act(async () => { jest.advanceTimersByTime(30_000); });
   expect(warnings()).toBe(1);
   await act(async () => { jest.advanceTimersByTime(30_000); });
   expect(warnings()).toBe(2);
 });
 
-it("ends the nap on Stop: the Nap preset gives way, as I'm Awake did, and the record goes", async () => {
+it('keeps the reminder when the camera fails, and End nap ends the nap', async () => {
   useSettingsStore.getState().activateSleepMode('infant_sleep');
-  napStarted(0, 30, true);
+  browser.getUserMedia.mockRejectedValue(Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' }));
+  arriveFromNap(1);
   render(<MonitorPage />);
   await act(async () => {});
-  await watching();
+  expect(stopKey()).toBeNull();
+
+  await act(async () => { jest.advanceTimersByTime(60_000); });
+  expect(warnings()).toBe(1);
+
+  fireEvent.click(screen.getByRole('button', { name: 'End nap' }));
+  await act(async () => { jest.advanceTimersByTime(60_000); });
+  expect(warnings()).toBe(1);
+  expect(useSettingsStore.getState().activePresetId).toBe('maximum');
+});
+
+it("ends the nap on Stop: the Nap preset gives way, as I'm Awake did, and no reminder follows", async () => {
+  stillCamera();
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  arriveFromNap(1);
+  render(<MonitorPage />);
+  await act(async () => {});
+
+  fireEvent.click(stopKey() as HTMLElement);
+  await act(async () => { jest.advanceTimersByTime(90_000); });
+
+  expect(useSettingsStore.getState().activePresetId).toBe('maximum');
+  expect(useSettingsStore.getState().activeSleepPreset).toBeNull();
+  expect(warnings()).toBe(0);
+});
+
+it('keeps a setting the person chose during the nap when the watch stops', async () => {
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  arriveFromNap(30);
+  render(<MonitorPage />);
+  await act(async () => {});
+  act(() => { useSettingsStore.getState().setActivePreset('night'); });
 
   fireEvent.click(stopKey() as HTMLElement);
   await act(async () => {});
 
-  expect(useSettingsStore.getState().activePresetId).toBe('maximum');
-  expect(useSettingsStore.getState().activeSleepPreset).toBeNull();
-  expect(sessionStorage.getItem(NAP)).toBeNull();
+  expect(useSettingsStore.getState().activePresetId).toBe('night');
+});
+
+it('starts on arrival under React Strict Mode, which runs effects twice in development', async () => {
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  arriveFromNap(30);
+  render(<React.StrictMode><MonitorPage /></React.StrictMode>);
+  await act(async () => {});
+
+  expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+});
+
+it('gives a watch opened any other way no nap, even after an earlier nap in the tab', async () => {
+  stillCamera();
+  // What an earlier nap left in this tab, abandoned without Stop.
+  sessionStorage.setItem('safeos-nap', JSON.stringify({ startedAt: Date.now() - 60 * 60_000, minutes: 15, start: false }));
+  useSettingsStore.getState().setActivePreset('infant_sleep');
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+
+  await act(async () => { jest.advanceTimersByTime(60_000); });
+  expect(warnings()).toBe(0);
+
+  fireEvent.click(stopKey() as HTMLElement);
+  await act(async () => {});
+  expect(useSettingsStore.getState().activePresetId).toBe('infant_sleep');
 });
 
 it('keeps the setting of a watch not started from Nap Mode when it stops', async () => {
@@ -117,29 +169,4 @@ it('keeps the setting of a watch not started from Nap Mode when it stops', async
   await act(async () => {});
 
   expect(useSettingsStore.getState().activePresetId).toBe('night');
-});
-
-it('keeps a setting the person chose during the nap when the watch stops', async () => {
-  useSettingsStore.getState().activateSleepMode('infant_sleep');
-  napStarted(0, 30, true);
-  render(<MonitorPage />);
-  await act(async () => {});
-  await watching();
-  act(() => { useSettingsStore.getState().setActivePreset('night'); });
-
-  fireEvent.click(stopKey() as HTMLElement);
-  await act(async () => {});
-
-  expect(useSettingsStore.getState().activePresetId).toBe('night');
-  expect(sessionStorage.getItem(NAP)).toBeNull();
-});
-
-it('starts on arrival under React Strict Mode, which runs effects twice in development', async () => {
-  useSettingsStore.getState().activateSleepMode('infant_sleep');
-  napStarted(0, 30, true);
-  render(<React.StrictMode><MonitorPage /></React.StrictMode>);
-  await act(async () => {});
-
-  expect(useMonitoringStore.getState().isStreaming).toBe(true);
-  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
 });

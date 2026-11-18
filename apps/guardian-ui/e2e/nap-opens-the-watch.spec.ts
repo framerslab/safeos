@@ -56,11 +56,10 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   await expect(start).toBeEnabled({ timeout: 15_000 });
   await start.click();
 
+  // The monitor reads the planned nap from the address once, then drops it.
   await expect(page).toHaveURL(/\/monitor\/?$/, { timeout: 30_000 });
   const preset = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-settings') || '{}')?.state?.activePresetId);
   expect(preset).toBe('infant_sleep');
-  const nap = await page.evaluate(() => JSON.parse(sessionStorage.getItem('safeos-nap') || 'null'));
-  expect(nap).toMatchObject({ minutes: 15, start: false });
 
   // The watch starts on arrival, with no second press.
   await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });

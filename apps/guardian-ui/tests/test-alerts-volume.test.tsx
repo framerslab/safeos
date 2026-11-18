@@ -40,3 +40,14 @@ it('plays the sound buttons at the preview volume and leaves the alert volume al
   expect(play).toHaveBeenLastCalledWith('warning', expect.objectContaining({ volume: 80 }));
   expect(setUserVolume).not.toHaveBeenCalled();
 });
+
+it('plays the sound buttons at the effective volume until the slider moves', async () => {
+  const play = jest.spyOn(getSoundManager(), 'play').mockReturnValue('preview');
+  render(<TestAlertsPage />);
+  await act(async () => {});
+
+  fireEvent.click(screen.getByRole('button', { name: /^warning$/i }));
+
+  expect(play).toHaveBeenCalled();
+  expect(play.mock.calls[play.mock.calls.length - 1]?.[1]?.volume).toBeUndefined();
+});
