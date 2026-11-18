@@ -7,7 +7,8 @@
  * alerts will play at. Start Nap Mode applies the infant_sleep preset, leaves
  * the planned nap as a one-use hand-off and opens Motion and sound (the
  * monitor), which does the watching, sounds the alerts and reminds when the
- * time is up. This page runs no detector of its own once its check is done.
+ * time is up. While another tab watches, Start Nap Mode asks first. This page
+ * runs no detector of its own once its check is done.
  *
  * @module app/nap/page
  */
@@ -18,11 +19,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSettingsStore } from '../../stores/settings-store';
-import { useSoundManager } from '../../lib/sound-manager';
+import { getSoundManager, useSoundManager } from '../../lib/sound-manager';
 import { NAP_MODE_DISCLAIMER } from '../../lib/disclaimers';
 import { getPixelDetectionEngine, resetPixelDetectionEngine } from '../../lib/pixel-detection';
 import { handNapToWatch, napAlertVolume, napSilence } from '../../lib/nap-session';
 import { useCameraStore } from '../../stores/camera-store';
+import { useStartGuard } from '../../lib/start-guard';
 
 // =============================================================================
 // Types
@@ -100,6 +102,10 @@ export default function NapModePage() {
         const id = window.setInterval(() => setClockNow(Date.now()), 30_000);
         return () => window.clearInterval(id);
     }, [step]);
+
+    // The monitor starts the nap's watch on arrival, so the question before a
+    // second watch is asked here, before it opens.
+    const { guard, dialog } = useStartGuard();
 
     if (!mounted) {
         return <LoadingScreen />;
@@ -310,6 +316,19 @@ export default function NapModePage() {
         activateSleepMode('infant_sleep');
         handNapToWatch(napDuration);
         router.push('/monitor/');
+    };
+
+    // Start Nap Mode asks first while another tab watches. A quiet-hours
+    // warning that has come to apply shows before anything is asked. The press
+    // turns the sound on before the other tabs answer: a browser that keeps a
+    // page's sound off until a tap turns it on only inside the tap.
+    const pressStartNap = (event: React.MouseEvent<HTMLButtonElement>) => {
+        if (napSilence(useSettingsStore.getState(), napDuration) !== silence) {
+            setClockNow(Date.now());
+            return;
+        }
+        getSoundManager().unlockAudio();
+        void guard(activateNapMode, event.currentTarget);
     };
 
     // ==========================================================================
@@ -587,7 +606,7 @@ export default function NapModePage() {
                                 Back
                             </button>
                             <button
-                                onClick={activateNapMode}
+                                onClick={pressStartNap}
                                 disabled={!allTestsPassed}
                                 className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all ${allTestsPassed
                                     ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
@@ -600,6 +619,7 @@ export default function NapModePage() {
                     </>
                 )}
             </div>
+            {dialog}
         </div>
     );
 }
