@@ -183,8 +183,9 @@ export default function NapModePage() {
         }
 
         setTestStatus(prev => ({ ...prev, audio: 'testing' }));
-        // The check plays at the volume the nap's alerts will play at, quiet
-        // hours and mute included, and leaves the shared volume as it is.
+        // The check plays the alarm a nap's movement alerts sound, at their
+        // volume, quiet hours and mute included, and leaves the shared volume
+        // as it is.
         const id = soundManager.play('alarm', {
             loop: false, fadeIn: 0, fadeOut: 200, volume: napAlertVolume(useSettingsStore.getState()),
         });

@@ -105,8 +105,9 @@ interface VolumeState {
 }
 
 /**
- * The volume, 0 to 100, the nap's alerts will play at: the settings store's
- * effective volume with the Nap preset's alert volume.
+ * The volume, 0 to 100, the nap's alarm will play at: what the settings store's
+ * effective volume will be once the Nap preset is applied. A movement alert in
+ * a nap sounds the alarm at exactly this volume, so the check plays the same.
  */
 export function napAlertVolume(state: VolumeState): number {
   if (state.emergencyModeActive) return 100;

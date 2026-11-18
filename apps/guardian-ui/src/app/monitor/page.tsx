@@ -381,6 +381,15 @@ export default function MonitorPage() {
   // it belongs to this watch, survives a reload and ends with it.
   const [nap, setNap] = useState<Nap | null>(null);
 
+  // The sound of a movement alert. In a nap it is the alarm, as the nap page
+  // says and its check plays, however small the movement: the Nap preset's
+  // pixel check stops counting at its threshold, so its alerts all read as low.
+  const napRef = useRef<Nap | null>(null);
+  useEffect(() => { napRef.current = nap; }, [nap]);
+  const playMovementSound = useCallback((severity: AlertSeverity) => {
+    getSoundManager().playForSeverity(napRef.current ? 'critical' : severity, { loop: false });
+  }, []);
+
   // Ending a nap: the Nap preset gives way, as I'm Awake did on the nap screen,
   // while it is the setting in use; a setting the person chose during the nap
   // stays.
@@ -752,7 +761,7 @@ export default function MonitorPage() {
     );
 
     getSoundManager().playForTrigger('motion_detected');
-    getSoundManager().playForSeverity(severity, { loop: false });
+    playMovementSound(severity);
     maybeHaptic(severity);
     maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity);
   }, [
@@ -761,6 +770,7 @@ export default function MonitorPage() {
     currentPreset.motionSensitivity,
     detectionZones,
     getCooldownForSeverity,
+    playMovementSound,
     showDetectorAlert,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
@@ -872,7 +882,7 @@ export default function MonitorPage() {
     );
 
     getSoundManager().playForTrigger('motion_detected');
-    getSoundManager().playForSeverity(severity, { loop: false });
+    playMovementSound(severity);
     maybeHaptic(severity);
     maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity);
   }, [
@@ -882,6 +892,7 @@ export default function MonitorPage() {
     currentPreset.useAbsoluteThreshold,
     detectionZones,
     getCooldownForSeverity,
+    playMovementSound,
     showDetectorAlert,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
