@@ -406,6 +406,28 @@ class SoundManager {
   }
 
   /**
+   * Asks the shared audio context to run. Called from a person's click or tap,
+   * it turns the sound on in a browser that keeps a page's sound off until
+   * one, so the alerts that follow play.
+   */
+  unlockAudio(): void {
+    let context: AudioContext;
+    try {
+      context = getAudioContext();
+    } catch (error) {
+      console.warn('Sound could not be turned on:', error);
+      return;
+    }
+    this.watch(context);
+    if (context.state === 'running' || typeof context.resume !== 'function') return;
+    try {
+      void context.resume().catch(() => undefined);
+    } catch {
+      // resume() threw: the next play asks again
+    }
+  }
+
+  /**
    * Play a sound by type
    */
   play(type: SoundType, options: PlayOptions = {}): string {

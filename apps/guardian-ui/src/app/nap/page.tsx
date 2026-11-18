@@ -55,7 +55,8 @@ export default function NapModePage() {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const animationRef = useRef<number | null>(null);
+    // The motion check's sampling timer.
+    const sampleTimerRef = useRef<number | null>(null);
     // Set when the page closes, so a camera request still waiting opens nothing.
     const closedRef = useRef(false);
 
@@ -72,17 +73,28 @@ export default function NapModePage() {
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(t => t.stop());
             }
-            if (animationRef.current) {
-                cancelAnimationFrame(animationRef.current);
+            if (sampleTimerRef.current) {
+                window.clearInterval(sampleTimerRef.current);
             }
             // Stop any playing test sounds
             stopAll();
         };
     }, [stopAll]);
 
+    // The clock the quiet-hours warning reads, moved on every 30 seconds, so a
+    // warning shows once time brings quiet hours into the planned nap.
+    const [clockNow, setClockNow] = useState(() => Date.now());
+    useEffect(() => {
+        if (step !== 'test') return;
+        const id = window.setInterval(() => setClockNow(Date.now()), 30_000);
+        return () => window.clearInterval(id);
+    }, [step]);
+
     if (!mounted) {
         return <LoadingScreen />;
     }
+
+    const silence = napSilence(useSettingsStore.getState(), napDuration, new Date(clockNow));
 
     // ==========================================================================
     // Test Functions
@@ -134,7 +146,11 @@ export default function NapModePage() {
             threshold: 2,
         });
 
-        let frameCount = 0;
+        // The watch samples the camera every 200 ms (CameraFeed's MOTION_INTERVAL).
+        // The check samples at the same pace, so a fast screen does not read one
+        // camera frame several times and reset the window the movement must last.
+        const sampleMs = 200;
+        let samples = 0;
         let detected = false;
         // The watch alerts on pixel change once it has lasted this long, so the
         // check passes on the same: a single changed frame is not enough.
@@ -167,19 +183,21 @@ export default function NapModePage() {
                 changedSince = null;
             }
 
-            frameCount++;
+            samples++;
 
             // Auto-pass after 10 seconds if user doesn't move (we'll trust it works)
-            if (frameCount > 300 && !detected) {
+            if (samples >= 10_000 / sampleMs && !detected) {
                 setTestStatus(prev => ({ ...prev, motion: 'passed' }));
                 detected = true;
             }
 
-            if (!detected) {
-                animationRef.current = requestAnimationFrame(analyzeFrame);
+            if (detected && sampleTimerRef.current) {
+                window.clearInterval(sampleTimerRef.current);
+                sampleTimerRef.current = null;
             }
         };
 
+        sampleTimerRef.current = window.setInterval(analyzeFrame, sampleMs);
         analyzeFrame();
     };
 
@@ -213,6 +231,12 @@ export default function NapModePage() {
         testStatus.audio === 'passed';
 
     const activateNapMode = () => {
+        // Quiet hours are checked again at Start: a warning that has come to
+        // apply since the page last drew shows, and the nap waits for the next press.
+        if (napSilence(useSettingsStore.getState(), napDuration) !== silence) {
+            setClockNow(Date.now());
+            return;
+        }
         // Stop any test sounds before activating nap mode
         if (testSoundId) {
             soundManager.stop(testSoundId);
@@ -220,11 +244,11 @@ export default function NapModePage() {
         }
         stopAll(); // Ensure no sounds are playing
 
-        // The check is done: its loop and its camera stop here, and the
+        // The check is done: its sampling and its camera stop here, and the
         // monitor opens its own camera, starting the watch on arrival.
-        if (animationRef.current) {
-            cancelAnimationFrame(animationRef.current);
-            animationRef.current = null;
+        if (sampleTimerRef.current) {
+            window.clearInterval(sampleTimerRef.current);
+            sampleTimerRef.current = null;
         }
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => t.stop());
@@ -241,8 +265,6 @@ export default function NapModePage() {
     // ==========================================================================
     // Render
     // ==========================================================================
-
-    const silence = napSilence(useSettingsStore.getState(), napDuration);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
