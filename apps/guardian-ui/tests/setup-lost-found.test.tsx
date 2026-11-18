@@ -86,3 +86,37 @@ it('ends on the dashboard for another use, as before', async () => {
   await act(async () => {});
   expect(mockRouter.push.mock.calls.map(([to]) => to)).toEqual(['/dashboard']);
 });
+
+it('keeps Lost & Found chosen when the person runs setup again, and ends on its page again', async () => {
+  await toTheQuestion();
+  fireEvent.click(screen.getByRole('button', { name: /Lost & Found/ }));
+  await toTheLastStep();
+  fireEvent.click(await screen.findByRole('button', { name: 'Open Lost and Found' }));
+  await act(async () => {});
+
+  // A later visit runs setup again from the home page.
+  cleanup();
+  mockRouter.push.mockClear();
+  window.history.replaceState({}, '', '/setup/?again=1');
+  render(<SetupPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
+  fireEvent.click(screen.getByRole('checkbox'));
+  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: /Lost & Found/ }).getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByRole('button', { name: /Pet Monitoring/ }).getAttribute('aria-pressed')).toBe('false');
+
+  // Continue keeps the choice.
+  fireEvent.click(screen.getByRole('button', { name: /^Continue/ }));
+  await toTheLastStep();
+  fireEvent.click(await screen.findByRole('button', { name: 'Open Lost and Found' }));
+  await act(async () => {});
+  expect(mockRouter.push.mock.calls.map(([to]) => to)).toEqual(['/lost-found/']);
+});
+
+it('says how to change the choice later: run setup again from the home page', async () => {
+  await toTheQuestion();
+  expect(screen.getByText('To change it later, run setup again from the home page.')).toBeTruthy();
+  expect(screen.queryByText(/change this later in settings/i)).toBeNull();
+});
