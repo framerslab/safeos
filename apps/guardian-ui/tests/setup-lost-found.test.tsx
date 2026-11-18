@@ -67,6 +67,14 @@ it('saves the pet use for Lost & Found, and its last key opens the Lost & Found 
   expect(mockRouter.push.mock.calls.map(([to]) => to)).toEqual(['/lost-found/']);
 });
 
+it('says where to start the comparison: Start Monitoring on the Lost & Found page, then on Monitor', async () => {
+  await toTheQuestion();
+  fireEvent.click(screen.getByRole('button', { name: /Lost & Found/ }));
+  await toTheLastStep();
+  await screen.findByRole('button', { name: 'Open Lost and Found' });
+  expect(screen.getByText(/add photos of your pet on the Lost & Found page and press its Start Monitoring\. On Monitor, press Start Monitoring to start the camera/)).toBeTruthy();
+});
+
 it('shows Lost & Found chosen, not Pet Monitoring, when the person goes back to the question', async () => {
   await toTheQuestion();
   fireEvent.click(screen.getByRole('button', { name: /Lost & Found/ }));

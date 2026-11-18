@@ -274,6 +274,147 @@ it("does not save a repeat's fresh card when another tab clears all between the 
   expect(watching.listed()).not.toContain('fresh-card');
 });
 
+/** Two tabs, an event card saved, and the other tab's acknowledgement of it. */
+async function acknowledgedElsewhere(options: { held?: boolean } = {}) {
+  (await oldTab()).close();
+  const watching = await tab(options);
+  const other = await tab();
+  await watching.read();
+  await other.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  await other.read();
+  other.monitoring.getState().acknowledgeAlert('event-card');
+  await other.read();
+  return { watching, other };
+}
+const monitoringRows = async () => (await stored('alert_cache')).filter((row) => row.monitoring);
+
+it("does not save repeats queued behind a stale card when another tab clears all before the fresh card's save", async () => {
+  const { watching, other } = await acknowledgedElsewhere({ held: true });
+  let open = () => {};
+  watching.hold.gate = new Promise<void>((resolve) => { open = resolve; });
+  const calls = watching.hold.calls.length;
+  let made = 0;
+  const fresh = jest.fn(() => ({ id: `fresh-${++made}`, createdAt: FRESH.createdAt }));
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the next repeat', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh });
+  // The first repeat found the card acknowledged; its fresh card's save waits while the other tab clears all.
+  await waitFor(() => expect(watching.hold.calls.length).toBe(calls + 1), { timeout: 5000 });
+  other.monitoring.getState().clearAlerts();
+  await other.read();
+  open();
+  await watching.read();
+
+  expect(await monitoringRows()).toEqual([]);
+  expect(watching.listed().filter((id) => id.startsWith('fresh-'))).toEqual([]);
+});
+
+it('does not put back on screen a repeat queued before this tab cleared all', async () => {
+  const { watching } = await acknowledgedElsewhere();
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  watching.monitoring.getState().clearAlerts();
+  // No history read: the list is what the queue leaves on screen.
+  await waitFor(async () => expect(await monitoringRows()).toEqual([]), { timeout: 5000 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(watching.listed()).toEqual([]);
+});
+
+it('acknowledges the fresh card a repeat went on, not the card another tab acknowledged', async () => {
+  const { watching } = await acknowledgedElsewhere();
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  // The person acknowledges the repeat as it shows, before its save finds the card acknowledged.
+  watching.monitoring.getState().acknowledgeAlert('event-card');
+  await watching.read();
+
+  const rows = await stored('alert_cache');
+  expect(rows.find((row) => row.id === 'event-card')).toMatchObject({ acknowledged: true, message: 'event-card', severity: 'low' });
+  expect(rows.find((row) => row.id === 'fresh-card')).toMatchObject({ acknowledged: true, message: 'the repeat' });
+});
+
+it('counts repeats in the order they are saved, and keeps the newest reading on screen', async () => {
+  const { watching } = await acknowledgedElsewhere({ held: true });
+  let open = () => {};
+  watching.hold.gate = new Promise<void>((resolve) => { open = resolve; });
+  const calls = watching.hold.calls.length;
+  const fresh = jest.fn(() => FRESH);
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the second', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh });
+  // The fresh card's first save waits; the event, on the fresh card now, alerts a third time.
+  await waitFor(() => expect(watching.hold.calls.length).toBe(calls + 1), { timeout: 5000 });
+  watching.monitoring.getState().addAlert(
+    { ...REPEAT, id: FRESH.id, createdAt: FRESH.createdAt, message: 'the third', timestamp: '2026-11-01T10:03:00.000Z', repeats: 1 },
+    { fresh },
+  );
+  open();
+  await waitFor(async () => expect((await stored('alert_cache')).find((row) => row.id === FRESH.id)?.message).toBe('the third'), { timeout: 5000 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  const saved = (await stored('alert_cache')).find((row) => row.id === FRESH.id);
+  const shown = watching.monitoring.getState().alerts.find((alert) => alert.id === FRESH.id);
+  expect(saved).toMatchObject({ message: 'the third', repeats: 2 });
+  expect(shown).toMatchObject({ message: 'the third', repeats: 2 });
+});
+
+it('keeps the saved repeat count when a repeat is acknowledged as it shows', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  const other = await tab();
+  await watching.read();
+  await other.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  await other.read();
+  // The other tab saves the event's first repeat; this tab's list does not show it yet.
+  other.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  await other.read();
+
+  // This tab's own repeat counts from what it shows; the person acknowledges it as it shows.
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'from this tab', timestamp: '2026-11-01T10:02:00.000Z', repeats: 1 }, { fresh: () => FRESH });
+  watching.monitoring.getState().acknowledgeAlert('event-card');
+  await watching.read();
+
+  expect((await stored('alert_cache')).find((row) => row.id === 'event-card')).toMatchObject({
+    acknowledged: true, message: 'from this tab', repeats: 2,
+  });
+});
+
+it("puts a repeat queued behind a stale card on the fresh card whose own save failed, and saves one card", async () => {
+  const { watching } = await acknowledgedElsewhere();
+  const failing = failSaves();
+  let made = 0;
+  const fresh = jest.fn(() => ({ id: `fresh-${++made}`, createdAt: FRESH.createdAt }));
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the next repeat', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh });
+  // Both saves fail; the next history read retries them.
+  await watching.read();
+  failing.mockRestore();
+  await watching.read();
+
+  const rows = await monitoringRows();
+  expect(fresh).toHaveBeenCalledTimes(1);
+  expect(rows.map((row) => row.id).filter((id) => id.startsWith('fresh-'))).toEqual(['fresh-1']);
+  expect(rows.find((row) => row.id === 'fresh-1')).toMatchObject({ message: 'the next repeat', acknowledged: false });
+  expect(watching.listed().filter((id) => id.startsWith('fresh-'))).toEqual(['fresh-1']);
+});
+
+it('shows a card whose acknowledgement waits to be saved with its saved reading and count', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  await watching.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  await watching.read();
+  // The acknowledgement's save fails, and so does its retry at the next history read.
+  const failing = failSaves();
+  watching.monitoring.getState().acknowledgeAlert('event-card');
+  await watching.read();
+  const shown = watching.monitoring.getState().alerts.find((alert) => alert.id === 'event-card');
+  failing.mockRestore();
+
+  expect(shown).toMatchObject({ acknowledged: true, message: 'the repeat', severity: 'high', repeats: 1 });
+});
+
 it('updates the card in place when no other tab changed it', async () => {
   (await oldTab()).close();
   const watching = await tab();
