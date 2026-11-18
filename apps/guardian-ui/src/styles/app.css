@@ -640,7 +640,9 @@ html:has(.app-shell) {
     white-space: nowrap;
   }
 
-  .key-row[data-overflow] {
+  /* A mask cuts away whatever is drawn outside the row's box, an open menu
+     with it, so the edge is not faded while a key's menu is open. */
+  .key-row[data-overflow]:not(:has(.way-head__menu > [aria-expanded='true'])) {
     -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
     mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
   }
