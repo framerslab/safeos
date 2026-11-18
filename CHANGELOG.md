@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lost & Found offers a pet or an item; subjects saved with the person type keep showing. The processing choice that only slowed the same matcher is gone.
 
 ### Fixed
+- The blog post on how SafeOS Guardian works names its detection model as it is: a pre-trained COCO-SSD on SSDLite MobileNet V2, its 4.5 million weights stored as 32-bit floats. It called the model quantized, and none of its weights are.
 - Nap Mode watches. Start Nap Mode, after its check of the camera, motion and sound, applies the infant_sleep preset and opens Motion and sound, which starts watching at once and sounds the alerts. It used to show a nap screen that ran no detector, whose camera preview was blank and whose "Movement Detected!" banner kept the check's result. The planned nap duration carries over to the watch: once it has passed, the warning sound plays every 30 seconds while the watch runs, and Stop ends the nap and returns to the Maximum Alert setting, as I'm Awake did. The sound check plays at the Nap preset's alert volume of 100; before, it and Start Nap Mode set the alert volume to 1 of 100.
 - The blog names the Frame.dev Team, with the Frame logo, as the author of its posts, in the byline, the structured data and the sign-off.
 - The Test Alerts page's Preview Volume slider plays the volume it shows. It passed a hundredth of it to the sound manager, whose volume runs from 0 to 100.
