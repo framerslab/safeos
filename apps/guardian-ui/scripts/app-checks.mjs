@@ -1199,7 +1199,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (route === '/monitor/') return;
         // The browser's own account of the press says why it did not open.
         const missed = await page.getByRole('button', { name: 'Settings', exact: true }).click({ timeout: 5_000 })
-          .then(() => page.locator('.fixed.inset-0 h2').waitFor({ timeout: 5_000 }))
+          .then(() => page.locator('.fixed.inset-0', { has: page.locator('h2') }).waitFor({ timeout: 5_000 }))
           .then(() => null, (err) => {
             const lines = err.message.split('\n').map((line) => line.trim()).filter(Boolean);
             return (lines.length > 9 ? [lines[0], ...lines.slice(-8)] : lines).join(' / ');
