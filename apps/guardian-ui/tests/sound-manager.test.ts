@@ -731,6 +731,51 @@ describe('Sound Manager', () => {
         expect(second).not.toBe(first);
       });
 
+      // In Emergency Only quiet hours the alert volume is 0 and a critical alert plays at the critical volume.
+      it("keeps a critical alert's saved sound at its own volume when the volumes are applied again", async () => {
+        jest.doMock('../src/lib/custom-sounds-db', () => ({
+          getCustomSoundsByTrigger: async () => [customSound(true)],
+          recordSoundPlay: async () => {},
+        }));
+        jest.resetModules();
+        const manager = (await import('../src/lib/sound-manager')).getSoundManager();
+        try {
+          manager.setUserVolume(0);
+          manager.setCriticalVolume(70);
+          await manager.playForTrigger('motion_detected', { critical: true });
+          const copy = manager.getActiveSounds().find((sound) => sound.loop)?.audio as unknown as MockAudioElement;
+          expect(copy).toBeDefined();
+          // The volumes are applied again, as the app does every 30 seconds.
+          manager.setCriticalVolume(71);
+          expect(copy.volume).toBeCloseTo(0.8, 5);
+        } finally {
+          manager.stopAll();
+          jest.dontMock('../src/lib/custom-sounds-db');
+        }
+      });
+
+      it('starts no saved sound when the volume goes to 0 while the saved sounds are read', async () => {
+        let release = (_sounds: unknown[]) => {};
+        jest.doMock('../src/lib/custom-sounds-db', () => ({
+          getCustomSoundsByTrigger: () => new Promise((resolve) => { release = resolve; }),
+          recordSoundPlay: async () => {},
+        }));
+        jest.resetModules();
+        const manager = (await import('../src/lib/sound-manager')).getSoundManager();
+        try {
+          manager.setUserVolume(60);
+          const playing = manager.playForTrigger('motion_detected');
+          // Silent quiet hours begin while the sounds are read.
+          manager.setUserVolume(0);
+          release([customSound(false)]);
+          expect(await playing).toEqual([]);
+          expect(madeFor('blob:dog-bark')).toBe(0);
+        } finally {
+          manager.stopAll();
+          jest.dontMock('../src/lib/custom-sounds-db');
+        }
+      });
+
       // Settings > Sounds shows each sound's "Played" count and last play.
       it('records a play when a trigger starts a sound, and none when a repeat finds its loop playing', async () => {
         const plays: string[] = [];

@@ -49,6 +49,15 @@ describe('setTimeStep', () => {
     expect(setTimeStep([edited], true, first.appliedKey, at(MONDAY, 22, 5)).preset).toBe('silent');
   });
 
+  it('puts the setting on again when the hours of the set time in force are edited', () => {
+    const work = setTime('maximum', ['mon'], '09:00', '17:00');
+    const applied = setTimeStep([work], true, null, at(MONDAY, 12));
+    expect(applied.preset).toBe('maximum');
+    // The person picks another setting; then the set time's hours are edited to 10:00 to 18:00.
+    const edited = { ...work, timeSlot: { start: '10:00', end: '18:00' } };
+    expect(setTimeStep([edited], true, applied.appliedKey, at(MONDAY, 12)).preset).toBe('maximum');
+  });
+
   it('forgets the set time when set times are off, so turning them on again puts it back on', () => {
     const first = setTimeStep([night], true, null, at(MONDAY, 22));
     const off = setTimeStep([night], false, first.appliedKey, at(MONDAY, 22, 5));
