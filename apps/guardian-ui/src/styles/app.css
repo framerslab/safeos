@@ -777,10 +777,14 @@ html:has(.app-shell) {
   line-height: var(--type-body-line);
 }
 
+/* The keys keep one row and scroll inside it; the row's padding keeps a
+   focused key's ring whole, and its margin keeps the keys where they stand. */
 .app-dialog__keys {
   display: flex;
   flex-wrap: nowrap;
   gap: 12px;
+  margin: -0.25rem;
+  padding: 0.25rem;
   overflow-x: auto;
   scrollbar-width: none;
 }
