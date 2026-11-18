@@ -35,11 +35,11 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   const [showBackendSettings, setShowBackendSettings] = useState(false);
 
-  // Set times apply on every page, from this one place.
-  useScheduleChecker();
-
   const profile = useAuthStore((state) => state.profile);
   useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
+  // Set times apply on every page, from this one place. Mounted after the
+  // saved preferences are read, so a set time in force goes on over them.
+  useScheduleChecker();
   useEffect(() => { void useMonitoringStore.getState().hydrateAlerts(); }, []);
 
   // Keep SoundManager synced with user settings globally (quiet hours + emergency/mute).
