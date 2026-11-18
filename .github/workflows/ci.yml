@@ -283,7 +283,7 @@ jobs:
             curl -sf http://127.0.0.1:4173/ >/dev/null && break
             sleep 1
           done
-          npx playwright test e2e/lost-found-edge.spec.ts e2e/nap-opens-the-watch.spec.ts --project=chromium
+          npx playwright test e2e/lost-found-edge.spec.ts e2e/nap-opens-the-watch.spec.ts e2e/setup-lost-found.spec.ts --project=chromium
 
       - name: Upload the test's report
         if: failure()
@@ -304,6 +304,7 @@ jobs:
           path: |
             apps/guardian-ui/test-results/**/nap-*-1280.png
             apps/guardian-ui/test-results/**/test-alerts-*-1280.png
+            apps/guardian-ui/test-results/**/setup-*-1280.png
           if-no-files-found: warn
           retention-days: 14
 
