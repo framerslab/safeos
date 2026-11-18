@@ -217,7 +217,15 @@ export default function MonitorPage() {
   }, [activeSubject, isLostFoundWatching, lostFoundSettings]);
 
   // The person's own sounds for Lost Item Found that the last match started.
-  const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[] }>({ starting: false, ids: [] });
+  // `round` moves on when they are stopped, so a start still on its way when
+  // the watch stops is stopped as it arrives.
+  const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; round: number }>({ starting: false, ids: [], round: 0 });
+  const stopOwnLostFoundSounds = useCallback(() => {
+    const own = ownLostFoundSoundRef.current;
+    own.round += 1;
+    own.ids.forEach((id) => getSoundManager().stop(id, 0));
+    own.ids = [];
+  }, []);
 
   // Process frames for Lost & Found matching
   const processLostFoundFrame = useCallback((video: HTMLVideoElement) => {
@@ -272,8 +280,12 @@ export default function MonitorPage() {
           const own = ownLostFoundSoundRef.current;
           if (!own.starting && !own.ids.some((id) => manager.isActive(id))) {
             own.starting = true;
+            const round = own.round;
             void manager.playForTrigger('object_found')
-              .then((ids) => { own.ids = ids; })
+              .then((ids) => {
+                if (round === own.round) own.ids = ids;
+                else ids.forEach((id) => manager.stop(id, 0));
+              })
               .finally(() => { own.starting = false; });
           }
           if (!lostFoundSettings.customMediaEnabled) manager.play('alert');
@@ -311,6 +323,10 @@ export default function MonitorPage() {
     addMatchFrameToStore,
     recordLostFoundAlert,
   ]);
+
+  // The person's own Lost & Found sounds stop when the Lost & Found watch ends,
+  // its pet changes or the page closes (and with the camera, in stopStream).
+  useEffect(() => stopOwnLostFoundSounds, [isLostFoundWatching, activeSubject?.id, stopOwnLostFoundSounds]);
 
   // Drive Lost & Found matching on a lightweight interval (avoids relying on websocket frames)
   useEffect(() => {
@@ -385,6 +401,7 @@ export default function MonitorPage() {
   };
 
   const stopStream = () => {
+    stopOwnLostFoundSounds();
     captureRequestedRef.current = false;
     setCaptureRequested(false);
     setVideoSeen(false);
@@ -813,7 +830,7 @@ export default function MonitorPage() {
       `Motion detected: ${best.score}% (threshold: ${best.threshold}% · zone: ${best.name})`,
     );
 
-    getSoundManager().playForTrigger('motion_detected');
+    getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
     playMovementSound(severity);
     maybeHaptic(severity);
     maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity, motionEventRef.current);
@@ -855,7 +872,7 @@ export default function MonitorPage() {
     );
 
     // Play sound (unless muted)
-    getSoundManager().playForTrigger('audio_detected');
+    getSoundManager().playForTrigger('audio_detected', { critical: severity === 'critical' });
     getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
     maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity, audioEventRef.current);
@@ -934,7 +951,7 @@ export default function MonitorPage() {
       `Pixel movement detected${chosenZoneName ? ` in ${chosenZoneName}` : ''}: ${chosenChangedPx}px (threshold: ${chosenThresholdPx}px)`,
     );
 
-    getSoundManager().playForTrigger('motion_detected');
+    getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
     playMovementSound(severity);
     maybeHaptic(severity);
     maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity, pixelEventRef.current);
@@ -994,7 +1011,7 @@ export default function MonitorPage() {
         acknowledged: false,
       });
 
-      getSoundManager().playForTrigger('inactivity_alert');
+      getSoundManager().playForTrigger('inactivity_alert', { critical: soundSeverity === 'critical' });
       getSoundManager().playForSeverity(soundSeverity, { loop: false });
 
       if ('vibrate' in navigator && (severity === 'high' || severity === 'critical')) {

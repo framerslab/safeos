@@ -695,7 +695,13 @@ class SoundManager {
    * // When a person is detected at night:
    * await soundManager.playForTrigger('person_detected');
    */
-  async playForTrigger(trigger: SoundTrigger): Promise<string[]> {
+  async playForTrigger(trigger: SoundTrigger, options: { critical?: boolean } = {}): Promise<string[]> {
+    // A volume of 0 for the alert (Silent quiet hours, Emergency Only for an
+    // alert that is not critical, or the alert volume at 0) plays no saved
+    // sound either. Emergency mode and the emergency trigger always play.
+    if (!this.emergencyModeActive && trigger !== 'emergency' && this.baseVolumeOf(options.critical) <= 0) {
+      return [];
+    }
     try {
       const customSounds = await getCustomSoundsByTrigger(trigger);
 
