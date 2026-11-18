@@ -13,6 +13,7 @@ import { useMonitoringStore } from '../stores/monitoring-store';
 import { useWebSocket } from '../lib/websocket';
 import { OnboardingWizard, useOnboarding } from './OnboardingWizard';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
+import { cardTime, newestFirst } from '@/lib/alert-event';
 import {
   IconShieldCheck,
   IconCamera,
@@ -83,9 +84,9 @@ export function Dashboard() {
     const now = new Date();
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const alertsToday = alerts.filter((a) => {
-      const createdAt = a.createdAt || a.timestamp;
-      if (!createdAt) return false;
-      const ms = Date.parse(createdAt);
+      const time = cardTime(a);
+      if (!time) return false;
+      const ms = Date.parse(time);
       return Number.isFinite(ms) && ms >= startOfDay;
     }).length;
 
@@ -214,7 +215,7 @@ export function Dashboard() {
               {/* Right Column - Status & Alerts */}
               <div className="space-y-6">
                 <SystemStatusPanel stats={stats} />
-                <RecentAlertsPanel alerts={alerts.slice(0, 5)} />
+                <RecentAlertsPanel alerts={newestFirst(alerts).slice(0, 5)} />
               </div>
             </div>
           </div>
@@ -571,6 +572,7 @@ interface Alert {
   createdAt?: string;
   timestamp?: string;
   acknowledged?: boolean;
+  repeats?: number;
 }
 
 interface RecentAlertsPanelProps {
@@ -656,7 +658,7 @@ function RecentAlertsPanel({ alerts }: RecentAlertsPanelProps) {
                     {alert.message}
                   </p>
                   <p className="font-mono text-xs text-[var(--color-steel-500)]">
-                    {new Date(alert.createdAt || alert.timestamp || new Date()).toLocaleTimeString()}
+                    {new Date(cardTime(alert) || new Date()).toLocaleTimeString()}
                     {alert.acknowledged && (
                       <span className="ml-2 text-emerald-500 inline-flex items-center gap-1">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">

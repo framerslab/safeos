@@ -60,12 +60,21 @@ the reading's severity rises above that of the event's last alert, the wait is t
 new severity's cooldown alone, so a rise to critical alerts at once.
 
 Each repeat plays the alert sounds, vibrates and shows the system notification
-again, and updates the event's card in the alert list in place: the card shows the
-newest severity, reading and time, and "Repeated N times". Escalation counts from
-the event's first alert, so one event climbs the escalation levels once. A card
+again, in place of the last one for that kind of alert (its tag holds when the
+severity changes; once the event has alerted at high or critical, each of its
+notifications stays up until it is dismissed), and updates the event's card in the alert list in place: the card
+shows the newest severity, reading and time, and "Repeated N times". History, the
+dashboard and the alert menu list the card at its newest alert, and the alert
+panel's screen-reader announcement names the repeat count, so each repeat is read
+out. Escalation counts from the event's first alert, so one event climbs the
+escalation levels once. A card
 that has been acknowledged stays as it is, and the next repeat makes a new card.
+The same holds for a card acknowledged, dismissed or cleared in another tab: the
+repeat reads the saved card in the same database transaction as its write, leaves
+what the other tab did, and goes on a new card, which the event's later repeats update.
 A custom sound set to loop for the alert's trigger plays one copy while it loops: a
-repeat does not start a second copy on top of it.
+repeat does not start a second copy on top of it, and counts no play in Settings >
+Sounds.
 
 The event ends once the readings have stayed under the line for the same short
 window, so a sample or two under the line (a scene that holds still for a moment)

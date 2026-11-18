@@ -102,7 +102,8 @@ export function regionEdgeSignature(imageData: ImageData, gridSize: number): num
  * than FOREGROUND_LEVELS from where it settled and did not move with the
  * frame's change of light (the same way, by half to twice as much, give or
  * take FOREGROUND_LEVELS); it leaves the judging, and the settled brightness,
- * until it comes back or has held for FOREGROUND_FRAMES_TO_SETTLE frames.
+ * until it comes back within FOREGROUND_LEVELS of where it settled (it judges
+ * the frame it is back in) or has held for FOREGROUND_FRAMES_TO_SETTLE frames.
  * With fewer than MIN_BACKGROUND_CELLS background cells, nothing is judged. A frame is moved
  * back when seven in eight of the background cells moved the same way, or
  * when half of them moved the same way and kept their texture, as a lit or
@@ -517,10 +518,14 @@ export class SubjectMatcher {
     const settled = this.sceneBrightness;
     const cells = this.cellBrightness;
     const foreground = this.foregroundFrames;
+    // A cell a subject took up and has left is back at its settled
+    // brightness: it judges the light in the frame it is back in, so the
+    // cells a moving subject went into are not all that is judged.
+    const aside = (i: number) => foreground[i] > 0 && Math.abs(settled[i] - cells[i]) > FOREGROUND_LEVELS;
 
     let judged = 0;
     for (let i = 0; i < LIGHTING_CELLS; i++) {
-      if (foreground[i] === 0) judged++;
+      if (!aside(i)) judged++;
     }
     this.lightChange = 0;
     if (judged < MIN_BACKGROUND_CELLS) {
@@ -534,7 +539,7 @@ export class SubjectMatcher {
     let texturedBrighter = 0;
     for (let i = 0; i < LIGHTING_CELLS; i++) {
       this.cellMoves[i] = 0;
-      if (foreground[i] > 0) continue;
+      if (aside(i)) continue;
       const difference = settled[i] - cells[i];
       if (Math.abs(difference) <= CELL_MOVED_LEVELS) continue;
       const kept = textureKept(this.sceneTexture[i], settled[i], this.cellTexture[i], cells[i]);

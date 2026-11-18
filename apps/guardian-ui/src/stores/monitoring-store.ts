@@ -9,12 +9,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp } from '../lib/local-data-generation';
-import { cacheAlert, updateCachedAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, MAX_MONITORING_ALERTS } from '../lib/client-db';
+import { cacheAlert, updateCachedAlert, repeatCachedAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, MAX_MONITORING_ALERTS } from '../lib/client-db';
 import { watchRaised } from '../lib/watch-sound';
 
 // =============================================================================
 // Types
 // =============================================================================
+
+/**
+ * Names a fresh card for a repeat whose event's card another tab cleared or acknowledged.
+ * `staleId` is the card the repeat found cleared or acknowledged.
+ */
+export type FreshCard = (staleId: string) => { id: string; createdAt: string };
 
 export interface Alert {
   id: string;
@@ -88,7 +94,12 @@ export interface MonitoringState {
   setMotionScore: (score: number) => void;
   setAudioLevel: (level: number) => void;
   setHasCrying: (crying: boolean) => void;
-  addAlert: (alert: Alert) => void;
+  /**
+   * Shows an alert and saves it. With `fresh`, the alert is a repeat written onto its event's card:
+   * when another tab has cleared, removed or acknowledged that card, the card is left as stored and
+   * the alert goes on the fresh card `fresh` names.
+   */
+  addAlert: (alert: Alert, options?: { fresh?: FreshCard }) => void;
   removeAlert: (id: string) => void;
   acknowledgeAlert: (id: string) => void;
   clearAlerts: () => void;
@@ -130,10 +141,20 @@ const DEFAULT_SETTINGS: MonitoringSettings = {
 // an earlier save that is still waiting for IndexedDB to open.
 let alertWrites: Promise<void> = Promise.resolve();
 let alertRevision = 0;
+// How a save writes: `create` writes the whole alert; `update` (an acknowledgement of a saved
+// alert) never creates a record; `repeat` writes onto its event's card only while that card is
+// stored and not acknowledged.
+type SaveMode = 'create' | 'update' | 'repeat';
 // Saves that failed and wait for the next history read, by alert id. `stamp` names the last clear
-// the tab knew of when the save failed; `update` marks a failed acknowledgement of a saved alert,
-// whose retry must not create a record either.
-const unsavedAlerts = new Map<string, { alert: Alert; stamp: ClearStamp; update: boolean }>();
+// the tab knew of when the save failed; `mode` is kept for the retry, and `fresh` for a repeat's.
+const unsavedAlerts = new Map<string, { alert: Alert; stamp: ClearStamp; mode: SaveMode; fresh?: FreshCard }>();
+// The fresh card each stale card was replaced by, so a repeat queued behind it goes on that card.
+const replacements = new Map<string, { id: string; createdAt: string }>();
+function latestReplacement(id: string): { id: string; createdAt: string } | undefined {
+  let found = replacements.get(id);
+  while (found && replacements.has(found.id)) found = replacements.get(found.id);
+  return found;
+}
 function writeAlerts(write: () => Promise<void>, revise = true) {
   if (revise) alertRevision++;
   const generation = getLocalDataGeneration();
@@ -164,15 +185,36 @@ function boundedAlerts(alerts: Alert[]): Alert[] {
  * queued. `stamp` is given for the retry of a pending save and left out for a first save, which
  * always writes.
  */
-async function saveAlert(alert: Alert, update: boolean, marker: string, stamp?: ClearStamp): Promise<void> {
+async function saveAlert(alert: Alert, mode: SaveMode, marker: string, stamp?: ClearStamp, fresh?: FreshCard): Promise<void> {
+  if (mode === 'repeat' && !stamp) {
+    // A repeat queued behind one that found the card cleared or acknowledged goes on the card
+    // that replaced it, as that card's next repeat.
+    const replacement = latestReplacement(alert.id);
+    if (replacement) {
+      const current = useMonitoringStore.getState().alerts.find((a) => a.id === replacement.id);
+      const moved: Alert = { ...alert, ...replacement, repeats: (current?.repeats ?? 0) + 1, savedBeforeUpgrade: undefined };
+      useMonitoringStore.setState((state) => ({
+        alerts: boundedAlerts([moved, ...state.alerts.filter((a) => a.id !== moved.id)]),
+      }));
+      return saveAlert(moved, 'repeat', marker, undefined, fresh);
+    }
+    // The card's own save failed and waits: there is no stored card to check, so the repeat is
+    // saved the way that save will be, under its stamp.
+    const pending = unsavedAlerts.get(alert.id);
+    if (pending) return saveAlert(alert, pending.mode, pending.stamp.marker, pending.stamp, fresh);
+  }
   const generation = getLocalDataGeneration();
   const record = { ...alert, monitoring: true, createdAt: alert.createdAt || alert.timestamp || new Date().toISOString() };
-  const result = update
-    ? await updateCachedAlert(record, stamp)
-    : (await cacheAlert(record, stamp)) ? 'saved' : 'failed';
+  const saved: { result?: string } = {};
+  const outcome: { kind: 'saved' | 'updated' | 'gone' | 'cancelled' | 'failed' } | { kind: 'stale'; stored: Alert | null; generation: string } =
+    mode === 'repeat'
+      ? await repeatCachedAlert(record, stamp)
+      : mode === 'update'
+        ? { kind: await updateCachedAlert(record, stamp) }
+        : { kind: !(await cacheAlert(record, stamp, saved)) ? 'failed' : saved.result === 'cancelled' ? 'cancelled' : 'saved' };
   if (!isCurrentLocalData(generation)) return;
-  if (result === 'failed') {
-    unsavedAlerts.set(alert.id, { alert, update,
+  if (outcome.kind === 'failed') {
+    unsavedAlerts.set(alert.id, { alert, mode, fresh,
       stamp: stamp && stamp.generation !== null ? stamp : pendingClearStamp(stamp ? stamp.marker : marker) });
     const kept = new Set(boundedAlerts([...unsavedAlerts.values()].map((entry) => entry.alert)).map((a) => a.id));
     for (const id of [...unsavedAlerts.keys()]) if (!kept.has(id)) unsavedAlerts.delete(id);
@@ -180,7 +222,35 @@ async function saveAlert(alert: Alert, update: boolean, marker: string, stamp?: 
   }
   unsavedAlerts.delete(alert.id);
   // The record this acknowledgement was for is no longer stored: nothing was written.
-  if (result === 'gone') useMonitoringStore.setState((state) => ({ alerts: state.alerts.filter((a) => a.id !== alert.id) }));
+  if (outcome.kind === 'gone') useMonitoringStore.setState((state) => ({ alerts: state.alerts.filter((a) => a.id !== alert.id) }));
+  // A clear came after the save's stamp: the alert is not shown either.
+  if (outcome.kind === 'cancelled' && mode === 'create') {
+    useMonitoringStore.setState((state) => ({ alerts: state.alerts.filter((a) => a.id !== alert.id) }));
+  }
+  if (outcome.kind === 'stale' && fresh) {
+    await showOnFreshCard(alert, outcome.stored, marker, fresh, { marker, generation: outcome.generation });
+  }
+}
+
+/**
+ * Another tab cleared, removed or acknowledged the card a repeat was for. The card is shown as it
+ * is stored, or left out when it is gone, and the repeat goes on a fresh card of its own: it starts
+ * at the repeat's time and counts no repeats.
+ */
+async function showOnFreshCard(
+  alert: Alert, stored: Alert | null, marker: string, fresh: FreshCard, stamp: ClearStamp,
+): Promise<void> {
+  const { id, createdAt } = fresh(alert.id);
+  replacements.set(alert.id, { id, createdAt });
+  const card: Alert = { ...alert, id, createdAt, timestamp: alert.timestamp || createdAt, repeats: undefined, savedBeforeUpgrade: undefined };
+  const kept = stored ? { ...stored, severity: knownSeverity(stored.severity) } : null;
+  useMonitoringStore.setState((state) => ({
+    alerts: boundedAlerts([card, ...state.alerts.flatMap((a) =>
+      a.id === card.id ? [] : a.id !== alert.id ? [a] : kept ? [kept] : [])]),
+  }));
+  // Saved under the clear generation the stale card was read with: a clear in another tab since
+  // then cancels it.
+  await saveAlert(card, 'create', marker, stamp);
 }
 
 export const useMonitoringStore = create<MonitoringState>()(
@@ -218,7 +288,7 @@ export const useMonitoringStore = create<MonitoringState>()(
 
       setHasCrying: (crying) => set({ hasCrying: crying }),
 
-      addAlert: (alert) => {
+      addAlert: (alert, options) => {
         const dated = {
           ...alert,
           savedBeforeUpgrade: get().alerts.find(a => a.id === alert.id)?.savedBeforeUpgrade,
@@ -230,7 +300,8 @@ export const useMonitoringStore = create<MonitoringState>()(
         set((state) => ({ alerts: boundedAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)]) }));
         // The marker is noted when the save is queued, not when it runs.
         const marker = readLocalClearMarker();
-        writeAlerts(() => saveAlert(dated, false, marker));
+        const fresh = options?.fresh;
+        writeAlerts(() => saveAlert(dated, fresh ? 'repeat' : 'create', marker, undefined, fresh));
       },
 
       removeAlert: (id) => {
@@ -251,8 +322,8 @@ export const useMonitoringStore = create<MonitoringState>()(
             // Any other alert is a saved one: its record is updated, and never created again.
             const pending = unsavedAlerts.get(id);
             return pending
-              ? saveAlert(alert, pending.update, pending.stamp.marker, pending.stamp)
-              : saveAlert(alert, true, marker);
+              ? saveAlert(alert, pending.mode, pending.stamp.marker, pending.stamp, pending.fresh)
+              : saveAlert(alert, 'update', marker);
           });
         }
       },
@@ -272,7 +343,7 @@ export const useMonitoringStore = create<MonitoringState>()(
         if (retries.length) writeAlerts(async () => {
           for (const entry of retries) {
             // A queued clear or acknowledgement may have replaced this pending save.
-            if (unsavedAlerts.get(entry.alert.id) === entry) await saveAlert(entry.alert, entry.update, entry.stamp.marker, entry.stamp);
+            if (unsavedAlerts.get(entry.alert.id) === entry) await saveAlert(entry.alert, entry.mode, entry.stamp.marker, entry.stamp, entry.fresh);
           }
         }, false);
         await alertWrites;

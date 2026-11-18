@@ -677,11 +677,13 @@ class SoundManager {
       const playedIds: string[] = [];
 
       for (const sound of customSounds) {
+        // A loop that plays keeps its one copy: a repeat alert that finds it
+        // starts nothing, so it is not a play to count.
+        const started = !(sound.loop && this.playingLoopOf(sound.id));
         const id = await this.playCustomSound(sound);
         if (id) {
           playedIds.push(id);
-          // Record that we played this sound
-          await recordSoundPlay(sound.id);
+          if (started) await recordSoundPlay(sound.id);
         }
       }
 
@@ -690,6 +692,13 @@ class SoundManager {
       console.warn('Failed to play custom sounds for trigger:', trigger, error);
       return [];
     }
+  }
+
+  /** The copy of a custom sound that loops and plays, if there is one. */
+  private playingLoopOf(customSoundId: string): ActiveSound | undefined {
+    return Array.from(this.activeSounds.values()).find(
+      (active) => active.customSoundId === customSoundId && active.loop && !active.stopping
+    );
   }
 
   /**
@@ -705,9 +714,7 @@ class SoundManager {
       // that goes on plays its trigger again on each repeat, and a second
       // copy would loop on top of the first.
       if (sound.loop) {
-        const playing = Array.from(this.activeSounds.values()).find(
-          (active) => active.customSoundId === sound.id && active.loop && !active.stopping
-        );
+        const playing = this.playingLoopOf(sound.id);
         if (playing) return playing.id;
       }
 

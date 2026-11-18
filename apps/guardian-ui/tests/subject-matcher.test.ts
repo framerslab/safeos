@@ -703,6 +703,23 @@ describe('Adaptive lighting', () => {
     expect(watch(subject, frames, true)[110]?.confidence).toBe(100);
   });
 
+  it('does not brighten or darken a subject that moves across a plain room', () => {
+    // A grey room; a light subject over its left half for 20 frames; then the
+    // subject moves to the right half, in the same light. The cells it left
+    // are back at the room's brightness and judge the light with the rest.
+    const room = flat(128, 128, [60, 60, 60]);
+    const left = picture(128, 128, (x) => (x < 64 ? [200, 200, 200] : [60, 60, 60]));
+    const right = picture(128, 128, (x) => (x >= 64 ? [200, 200, 200] : [60, 60, 60]));
+    const subject = enrol(flat(64, 64, [200, 200, 200]));
+    const frames = [...times(room, 10), ...times(left, 20), right];
+
+    const corrected = watch(subject, frames, true)[30];
+    const uncorrected = watch(subject, frames, false)[30];
+    expect(uncorrected).not.toBeNull();
+    expect(corrected?.confidence).toBe(uncorrected?.confidence);
+    expect(corrected?.details).toEqual(uncorrected?.details);
+  });
+
   it('corrects a change of light while a subject covers all but 15 cells', () => {
     // A grey room; a light subject over 49 of its 64 cells; then the light
     // drops by 20 levels on the room and on the subject.

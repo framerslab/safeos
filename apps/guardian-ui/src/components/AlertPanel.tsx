@@ -14,6 +14,7 @@ import { isStaticMode, getApiUrl } from '../lib/env';
 import { useSettingsStore } from '../stores/settings-store';
 import { getSoundManager, type SoundType } from '../lib/sound-manager';
 import { raisedByThisWatch } from '../lib/watch-sound';
+import { cardTime } from '../lib/alert-event';
 import {
   IconInfo,
   IconBell,
@@ -267,6 +268,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
         {latestAlert && (
           <span>
             New {latestAlert.severity} alert: {latestAlert.message}.
+            {/* A repeat often keeps the reading and severity; its count changes the words, so it is read. */}
+            {(latestAlert.repeats ?? 0) > 0 &&
+              ` Repeated ${latestAlert.repeats} ${latestAlert.repeats === 1 ? 'time' : 'times'}.`}
             {unacknowledgedAlerts.length > 1 &&
               ` ${unacknowledgedAlerts.length} total unacknowledged alerts.`}
           </span>
@@ -346,7 +350,7 @@ function AlertCard({ alert, escalationLevel, onAcknowledge }: AlertCardProps) {
   const IconComponent = SEVERITY_ICONS[alert.severity];
   // A card that counts repeats shows the time of its newest alert.
   const repeats = alert.repeats ?? 0;
-  const alertTime = (repeats > 0 && alert.timestamp) || alert.createdAt || alert.timestamp || new Date().toISOString();
+  const alertTime = cardTime(alert) || new Date().toISOString();
   const timeAgo = getTimeAgo(alertTime);
 
   // Escalation indicator
@@ -453,7 +457,7 @@ function AcknowledgedSection({ alerts }: AcknowledgedSectionProps) {
                 })()}
                 <span className="text-slate-300 truncate">{alert.message}</span>
                 <span className="text-xs text-slate-500 ml-auto">
-                  {getTimeAgo(alert.createdAt || alert.timestamp || new Date().toISOString())}
+                  {getTimeAgo(cardTime(alert) || new Date().toISOString())}
                 </span>
               </div>
             </div>

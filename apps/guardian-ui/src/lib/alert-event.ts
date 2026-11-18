@@ -32,12 +32,60 @@ export interface DetectorEvent {
   lastAlertAt: number;
   /** The severity of the event's last alert. */
   lastSeverity: AlertSeverity | null;
+  /** The highest severity the event has alerted at. */
+  peakSeverity: AlertSeverity | null;
   /** The card the event's alerts update. */
   alertId: string | null;
   /** When the event's card was made. */
   startedAt: string | null;
   /** How many times the event alerted after its card was made. */
   repeats: number;
+}
+
+/**
+ * The time a card shows and is listed by: for an event's card that alerted
+ * again, the time of its newest alert (`timestamp`); otherwise when it was
+ * raised. The card's `createdAt` stays the event's start, which escalation
+ * counts from.
+ */
+export function cardTime(card: { createdAt?: string; timestamp?: string; repeats?: number }): string | undefined {
+  return ((card.repeats ?? 0) > 0 && card.timestamp) || card.createdAt || card.timestamp;
+}
+
+/** A copy of `cards`, newest first by cardTime. */
+export function newestFirst<T extends { createdAt?: string; timestamp?: string; repeats?: number }>(cards: T[]): T[] {
+  const at = (card: T) => {
+    const time = Date.parse(cardTime(card) ?? '');
+    return Number.isFinite(time) ? time : 0;
+  };
+  return [...cards].sort((a, b) => at(b) - at(a));
+}
+
+/**
+ * An event's notifications stay up until they are dismissed once it has
+ * alerted at high or critical: a repeat at a lower severity replaces the
+ * event's notification and must not let it close by itself.
+ */
+export function keepsNotificationUp(event: DetectorEvent): boolean {
+  return event.peakSeverity === 'high' || event.peakSeverity === 'critical';
+}
+
+/**
+ * The fresh card a repeat of `event` goes on when the card it found was
+ * cleared or acknowledged in another tab: a new id from `newId`, starting at
+ * `now`. The event moves to it when it is on the card found stale, so its
+ * later repeats update the fresh card; an event that has moved on stays.
+ */
+export function freshCardFor(event: DetectorEvent, newId: () => string, now: number) {
+  return (staleId: string): { id: string; createdAt: string } => {
+    const next = { id: newId(), createdAt: new Date(now).toISOString() };
+    if (event.alertId === staleId) {
+      event.alertId = next.id;
+      event.startedAt = next.createdAt;
+      event.repeats = 0;
+    }
+    return next;
+  };
 }
 
 export function newDetectorEvent(): DetectorEvent {
@@ -47,6 +95,7 @@ export function newDetectorEvent(): DetectorEvent {
     active: false,
     lastAlertAt: 0,
     lastSeverity: null,
+    peakSeverity: null,
     alertId: null,
     startedAt: null,
     repeats: 0,
@@ -59,6 +108,7 @@ export function endDetectorEvent(event: DetectorEvent): void {
   event.belowSince = null;
   event.active = false;
   event.lastSeverity = null;
+  event.peakSeverity = null;
   event.alertId = null;
   event.startedAt = null;
   event.repeats = 0;
@@ -108,6 +158,11 @@ export function readDetector(
     return { kind: 'quiet' };
   }
 
+  if (event.active && event.belowSince !== null && now - event.belowSince >= timing.sustainedMs) {
+    // The quiet window passed between the last quiet sample and this reading:
+    // the old event ended, and this reading starts a new one.
+    endDetectorEvent(event);
+  }
   event.belowSince = null;
   if (!event.active) {
     if (event.aboveSince === null) {
@@ -131,5 +186,6 @@ export function readDetector(
   event.aboveSince = null;
   event.lastAlertAt = now;
   event.lastSeverity = severity;
+  if (event.peakSeverity === null || RANK[severity] > RANK[event.peakSeverity]) event.peakSeverity = severity;
   return { kind: 'alert', repeat };
 }

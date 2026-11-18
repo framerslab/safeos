@@ -79,3 +79,15 @@ it('keeps a fingerprint made in the current form while the rebuild ran', async (
 
   expect(await db.getSubjectProfile('max')).toEqual(added);
 });
+
+it('keeps a rebuilt fingerprint saved while a match is counted, and counts the match', async () => {
+  const db = await import('@/lib/client-db');
+  await db.saveSubjectProfile(snapshot);
+
+  // A match is recorded as the rebuilt fingerprint is saved.
+  await Promise.all([db.updateSubjectMatchCount('max', 1), db.saveUpgradedSubjectFingerprint(snapshot, rebuilt)]);
+
+  const saved = await db.getSubjectProfile('max');
+  expect(saved?.fingerprint).toEqual(rebuilt);
+  expect(saved?.matchCount).toBe(4);
+});

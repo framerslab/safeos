@@ -730,6 +730,36 @@ describe('Sound Manager', () => {
         expect(madeFor('blob:dog-bark')).toBe(2);
         expect(second).not.toBe(first);
       });
+
+      // Settings > Sounds shows each sound's "Played" count and last play.
+      it('records a play when a trigger starts a sound, and none when a repeat finds its loop playing', async () => {
+        const plays: string[] = [];
+        let sounds = [customSound(true)];
+        jest.doMock('../src/lib/custom-sounds-db', () => ({
+          getCustomSoundsByTrigger: async () => sounds,
+          recordSoundPlay: async (id: string) => { plays.push(id); },
+        }));
+        jest.resetModules();
+        const manager = (await import('../src/lib/sound-manager')).getSoundManager();
+        try {
+          const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+          await manager.playForTrigger('motion_detected');
+          now.mockReturnValue(31_000);
+          await manager.playForTrigger('motion_detected');
+          expect(madeFor('blob:dog-bark')).toBe(1);
+          expect(plays).toEqual(['dog-bark']);
+
+          // A sound that does not loop starts again on each alert: each is a play.
+          manager.stopAll();
+          sounds = [customSound(false)];
+          await manager.playForTrigger('motion_detected');
+          await manager.playForTrigger('motion_detected');
+          expect(plays).toEqual(['dog-bark', 'dog-bark', 'dog-bark']);
+        } finally {
+          manager.stopAll();
+          jest.dontMock('../src/lib/custom-sounds-db');
+        }
+      });
     });
   });
 
