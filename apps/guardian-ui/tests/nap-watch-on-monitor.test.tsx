@@ -5,8 +5,9 @@
  * Start Nap Mode leaves the planned minutes as a one-use hand-off in this tab.
  * The monitor takes it on arrival and keeps the nap in this history entry, so
  * a reload or Back finds it and a link from elsewhere carries none. It starts
- * watching, plays the warning every 30 seconds at the effective volume once the
- * planned minutes have passed, whether or not the camera is running, and ends
+ * watching, sounds the alarm for every movement alert, plays the warning every
+ * 30 seconds at the effective volume once the planned minutes have passed,
+ * whether or not the camera is running, and ends
  * the nap on Stop or on End nap, where the infant_sleep preset gives way while
  * it is the setting in use. A watch opened any other way has no nap.
  */
@@ -39,7 +40,24 @@ function stillCamera() {
   }));
 }
 
+/** A camera where six pixels change every frame: about the smallest movement the Nap preset alerts on. */
+function smallMovementCamera() {
+  let frame = 0;
+  (HTMLCanvasElement.prototype.getContext as unknown as jest.Mock).mockImplementation(() => ({
+    drawImage: jest.fn(),
+    getImageData: () => {
+      const data = new Uint8ClampedArray(16 * 16 * 4).fill(128);
+      frame += 1;
+      if (frame % 2) data.fill(255, 0, 6 * 4);
+      return new ImageData(data, 16, 16);
+    },
+  }));
+}
+
 const stopKey = () => screen.queryByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ });
+const sounds = () => play.mock.calls.map(([type]) => type);
+const smallMovementAlerted = () => useMonitoringStore.getState().alerts
+  .some((alert) => alert.message.startsWith('Pixel movement detected') && alert.severity === 'low');
 
 let browser: ReturnType<typeof installCameraBrowser>;
 let warnings: () => number;
@@ -133,6 +151,32 @@ it('plays the reminder at the effective volume, quiet hours included', async () 
   await act(async () => { jest.advanceTimersByTime(60_000); });
 
   expect(play).toHaveBeenCalledWith('warning', expect.objectContaining({ volume: 20 }));
+});
+
+it('sounds the alarm for the smallest movement in a nap, as Nap Mode says it will', async () => {
+  smallMovementCamera();
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  arriveFromNap(30);
+  render(<MonitorPage />);
+  await act(async () => {});
+  await act(async () => { jest.advanceTimersByTime(5_000); });
+
+  expect(smallMovementAlerted()).toBe(true);
+  expect(sounds()).toContain('alarm');
+  expect(sounds().filter((type) => type !== 'alarm')).toEqual([]);
+});
+
+it('keeps the sound of each severity on a watch with no nap', async () => {
+  smallMovementCamera();
+  useSettingsStore.getState().setActivePreset('infant_sleep');
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  await act(async () => { jest.advanceTimersByTime(5_000); });
+
+  expect(smallMovementAlerted()).toBe(true);
+  expect(sounds()).toContain('notification');
+  expect(sounds()).not.toContain('alarm');
 });
 
 it('plays the warning every 30 seconds once the planned minutes have passed', async () => {
