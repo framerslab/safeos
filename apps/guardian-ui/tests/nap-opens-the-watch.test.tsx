@@ -163,6 +163,42 @@ it("samples the camera for the motion check every 200 ms, the watch's own pace, 
   expect(mockSamples).toBe(2);
 });
 
+/** Holds the check camera's picture before it plays, until the returned call. */
+function holdPlay(): () => void {
+  let release: () => void = () => {};
+  (HTMLMediaElement.prototype.play as unknown as jest.Mock).mockImplementationOnce(
+    () => new Promise<void>((resolve) => { release = resolve; }),
+  );
+  return () => release();
+}
+
+it('keeps a camera that starts playing after the person went back out of the new check', async () => {
+  const play = holdPlay();
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  startCameraCheck();
+  await act(async () => {}); // the camera opens; its picture waits to play
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  await act(async () => { play(); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 700)); });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to Pre-Nap Test' }));
+  expect(screen.getAllByRole('button', { name: 'Start' })).toHaveLength(2);
+});
+
+it('schedules nothing for a camera that starts playing after the page closed', async () => {
+  jest.useFakeTimers();
+  const play = holdPlay();
+  const view = render(<NapPage />);
+  await screen.findByRole('checkbox');
+  startCameraCheck();
+  await act(async () => {});
+  view.unmount();
+  await act(async () => { play(); });
+
+  expect(jest.getTimerCount()).toBe(0);
+});
+
 it('starts no motion check for a page that closed before it began', async () => {
   jest.useFakeTimers();
   const view = render(<NapPage />);
