@@ -409,7 +409,14 @@ export const useMonitoringStore = create<MonitoringState>()(
           return;
         }
         if (revision !== alertRevision) return get().hydrateAlerts();
-        const pending = [...unsavedAlerts.values()].map((entry) => entry.alert);
+        // A waiting acknowledgement carries the acknowledgement alone: it shows on its saved card,
+        // and one whose card is gone shows nothing until its retry says so.
+        const savedById = new Map(saved.map((alert) => [alert.id, alert]));
+        const pending = [...unsavedAlerts.values()].flatMap((entry) => {
+          if (entry.mode !== 'update') return [entry.alert];
+          const card = savedById.get(entry.alert.id);
+          return card ? [{ ...card, ...entry.alert }] : [];
+        });
         const pendingIds = new Set(pending.map(alert => alert.id));
         set({ alerts: boundedAlerts([...pending, ...saved.filter(alert => !pendingIds.has(alert.id))]) });
       },
