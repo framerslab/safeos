@@ -1078,8 +1078,9 @@ export async function checkApp(browser, baseUrl, outDir) {
 
   // What a page fixes to the screen is laid out to the page's width, so a page
   // wider than the phone puts a panel's close key past the screen's edge. The
-  // keys of People's and Wildlife's pages keep one line: wider than their place
-  // they scroll inside it, the right edge faded until the end is reached.
+  // keys of a way's page keep one line. On People's and Wildlife's pages, wider
+  // than their place, they scroll inside it with the right edge faded until the
+  // end is reached; Motion and sound's fit, and its modes menu stays on the screen.
   const pushesPast = (page) => page.evaluate(() => {
     const edge = document.documentElement.clientWidth;
     let right = edge + 0.5;
@@ -1094,18 +1095,19 @@ export async function checkApp(browser, baseUrl, outDir) {
     return found ? `${found} ends at ${Math.round(right)} px` : 'nothing in the page\'s content is past the edge';
   });
   const readKeyRow = () => {
-    const row = document.querySelector('.key-row');
+    const row = document.querySelector('.way-head__keys');
     if (!row) return null;
     const box = row.getBoundingClientRect();
     const middle = box.top + box.height / 2;
     return {
+      scrolls: row.classList.contains('key-row'),
       past: row.scrollWidth - row.clientWidth,
       marked: row.hasAttribute('data-overflow'),
       mask: getComputedStyle(row).maskImage,
       offLine: [...row.children].filter((key) => {
         const place = key.getBoundingClientRect();
         return Math.abs(place.top + place.height / 2 - middle) > 1;
-      }).map((key) => (key.textContent || '').trim()),
+      }).map((key) => (key.textContent || '').trim().slice(0, 30)),
     };
   };
   for (const width of ROW_WIDTHS) {
@@ -1114,15 +1116,32 @@ export async function checkApp(browser, baseUrl, outDir) {
         await visit(page, route);
         const sideways = await sidewaysScroll(page);
         if (sideways > 0) check(false, `${route} scrolls ${sideways} px sideways: ${await pushesPast(page)}`);
-        if (route !== '/security/' && route !== '/wildlife/') return;
+        if (route === '/lost-found/') return;
+        if (route === '/monitor/') {
+          const modes = page.locator('[aria-label="Select Security Mode"] + .absolute');
+          const place = await page.getByRole('button', { name: 'Select Security Mode', exact: true }).click({ timeout: 5_000 })
+            .then(() => modes.waitFor({ timeout: 5_000 }))
+            .then(() => modes.evaluate((menu) => {
+              const box = menu.getBoundingClientRect();
+              return { left: box.left, right: box.right, screen: document.documentElement.clientWidth };
+            }))
+            .catch(() => null);
+          check(place, 'on /monitor/ a press on the mode key does not open its menu');
+          if (place) {
+            check(place.left >= -0.5 && place.right <= place.screen + 0.5,
+              `on /monitor/ the modes menu runs from ${Math.round(place.left)} to ${Math.round(place.right)} px on a ${place.screen} px screen`);
+          }
+        }
         const row = await page.evaluate(readKeyRow);
         if (!row) throw new Error(`${route} has no row of keys`);
         check(row.offLine.length === 0, `on ${route} the keys ${row.offLine.join(', ')} leave the row's line`);
+        if (route === '/monitor/') return;
+        check(row.scrolls, `on ${route} the keys' row does not scroll inside itself`);
         if (route === '/wildlife/' && width === 320) check(row.past > 1, 'the keys fit at 320 px, so their scroll goes unread');
         if (row.past > 1) {
           check(row.marked && row.mask !== 'none', `on ${route} the keys run ${row.past} px past their row with no faded edge`);
           const atEnd = await page.evaluate(async () => {
-            const keys = document.querySelector('.key-row');
+            const keys = document.querySelector('.way-head__keys');
             keys.scrollTo({ left: keys.scrollWidth, behavior: 'instant' });
             await new Promise((resolve) => setTimeout(resolve, 300));
             return getComputedStyle(keys).maskImage;
