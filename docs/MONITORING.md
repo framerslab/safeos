@@ -57,14 +57,26 @@ place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
 read every pitch.
 
 **Scheduled Presets** on **Settings > Quiet Hours** apply on every page: the app
-checks once a minute. When a set time begins, or the app opens inside one, its
-setting goes on; changes made while it lasts stay until the next set time
-begins.
+checks once a minute and whenever a set time or the Scheduled Presets switch
+changes. A set time's setting goes on once each time the set time begins, and
+when the app opens inside a set time it has not yet put on, after any saved
+preferences are read. It goes on again when the set time in force is edited to
+another setting, or when Scheduled Presets are turned off and on again during
+it. Changes made while it lasts stay, a reload included, until the next set time
+begins. An overnight set time (22:00 to 06:00) lasts into the next morning; its
+days name the day it begins. A new set time's form opens on Maximum Alert, and a
+set time that names a setting the app does not have puts nothing on.
 
 A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
 **Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
 sound is on. A saved sound that still plays is not started again by the next
-matching frame.
+matching frame, and it stops when the watch stops, when Lost & Found stops
+watching or its pet changes, and when the page closes.
+
+A saved sound for any alert plays nothing when the alert's volume is 0: in
+Silent quiet hours, in Emergency Only quiet hours for an alert that is not
+critical, and with the alert volume at 0. Emergency mode and the Emergency
+trigger always play.
 
 ## When an alert comes again
 
