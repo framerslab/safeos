@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ShortcutList } from '../../hooks/useKeyboardShortcuts';
 import { NotAMedicalDevice } from '../../components/NotAMedicalDevice';
@@ -177,6 +177,25 @@ export default function HelpPage() {
   const [activeSection, setActiveSection] = useState('getting-started');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [faqCategory, setFaqCategory] = useState<string>('all');
+
+  // An address that names an entry (/help/#camera, /help/#notifications) opens
+  // Troubleshooting with that entry in view.
+  const [entry, setEntry] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => {
+      const named = window.location.hash.slice(1);
+      if (named === 'camera' || named === 'notifications') {
+        setActiveSection('troubleshooting');
+        setEntry(named);
+      }
+    };
+    read();
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
+  }, []);
+  useEffect(() => {
+    if (entry && activeSection === 'troubleshooting') document.getElementById(entry)?.scrollIntoView();
+  }, [entry, activeSection]);
 
   const filteredFaqs = faqCategory === 'all' 
     ? faqs 
@@ -394,7 +413,7 @@ export default function HelpPage() {
                   <h2 className="text-lg font-semibold text-white mb-4">Common Issues</h2>
                   
                   <div className="space-y-4">
-                    <div className="p-4 bg-slate-700/30 rounded-lg">
+                    <div id="camera" className="p-4 bg-slate-700/30 rounded-lg">
                       <h3 className="text-white font-medium mb-2">Camera not working</h3>
                       <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
                         <li>Check that you&apos;ve granted camera permissions</li>
@@ -413,7 +432,7 @@ export default function HelpPage() {
                       </ul>
                     </div>
 
-                    <div className="p-4 bg-slate-700/30 rounded-lg">
+                    <div id="notifications" className="p-4 bg-slate-700/30 rounded-lg">
                       <h3 className="text-white font-medium mb-2">Notifications not appearing</h3>
                       <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
                         <li>Enable browser notifications in system settings</li>
