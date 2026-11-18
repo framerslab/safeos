@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp } from '../lib/local-data-generation';
 import { cacheAlert, updateCachedAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, MAX_MONITORING_ALERTS } from '../lib/client-db';
+import { watchRaised } from '../lib/watch-sound';
 
 // =============================================================================
 // Types
@@ -224,6 +225,8 @@ export const useMonitoringStore = create<MonitoringState>()(
           severity: knownSeverity(alert.severity),
           createdAt: alert.createdAt || alert.timestamp || new Date().toISOString(),
         };
+        // An alert added here was raised in this tab; one read from the device's saved list was not.
+        watchRaised(dated.id);
         set((state) => ({ alerts: boundedAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)]) }));
         // The marker is noted when the save is queued, not when it runs.
         const marker = readLocalClearMarker();
