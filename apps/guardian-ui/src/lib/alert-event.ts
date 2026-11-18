@@ -34,6 +34,11 @@ export interface DetectorEvent {
   lastSeverity: AlertSeverity | null;
   /** The highest severity the event has alerted at. */
   peakSeverity: AlertSeverity | null;
+  /**
+   * The event's notification identity: set as the event first alerts, kept
+   * when its alerts go on a new card, cleared when the event ends.
+   */
+  notifyTag: string | null;
   /** The card the event's alerts update. */
   alertId: string | null;
   /** When the event's card was made. */
@@ -96,6 +101,7 @@ export function newDetectorEvent(): DetectorEvent {
     lastAlertAt: 0,
     lastSeverity: null,
     peakSeverity: null,
+    notifyTag: null,
     alertId: null,
     startedAt: null,
     repeats: 0,
@@ -109,6 +115,7 @@ export function endDetectorEvent(event: DetectorEvent): void {
   event.active = false;
   event.lastSeverity = null;
   event.peakSeverity = null;
+  event.notifyTag = null;
   event.alertId = null;
   event.startedAt = null;
   event.repeats = 0;

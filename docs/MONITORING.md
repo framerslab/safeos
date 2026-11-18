@@ -98,9 +98,10 @@ the reading's severity rises above that of the event's last alert, the wait is t
 new severity's cooldown alone, so a rise to critical alerts at once.
 
 Each repeat plays the alert sounds, vibrates and shows the system notification
-again, in place of the last one for that kind of alert (its tag holds when the
-severity changes; once the event has alerted at high or critical, each of its
-notifications stays up until it is dismissed), and updates the event's card in the alert list in place: the card
+again, in place of the event's last one (each event has its own tag, which holds
+when the severity changes, so a new event's notification stands beside an earlier
+one; once an event has alerted at high or critical, each of its notifications
+stays up until it is dismissed), and updates the event's card in the alert list in place: the card
 shows the newest severity, reading and time, and "Repeated N times". History, the
 dashboard and the alert menu list the card at its newest alert, and the alert
 panel's screen-reader announcement names the repeat count, so each repeat is read
