@@ -632,6 +632,29 @@ describe('Merging the colour histograms of reference photos', () => {
     expect([upgraded.id, upgraded.name, upgraded.createdAt]).toEqual(['saved', 'Saved', 'then']);
   });
 
+  it('weighs edges by the photos they came from, for a subject saved by the version before that could not be rebuilt', async () => {
+    // Saved by the version before from a photo that cannot be read now: its
+    // colours stay, and its edges, on that version's scale, are left out.
+    const savedBefore: VisualFingerprint = {
+      ...(await read('red')),
+      edgeSignature: new Array(64).fill(100),
+      referenceImages: ['lost'],
+      version: undefined,
+    };
+    const pictures: Record<string, ImageData> = { striped: stripes(64, 64), plain: flat(64, 64, COLOURS.red) };
+    const reading = async (photo: string): Promise<VisualFingerprint> => {
+      if (!(photo in pictures)) throw new Error('The photo cannot be read');
+      return { ...enrol(pictures[photo]), referenceImages: [photo] };
+    };
+
+    const once = await addReferencePhotos(savedBefore, ['lost'], ['striped'], reading);
+    expect(once.edgeSignature).toEqual(enrol(pictures.striped).edgeSignature);
+
+    const twice = await addReferencePhotos(once, once.referenceImages, ['plain'], reading);
+    // The two photos with edges count once each: striped cells read 100, plain ones 0.
+    expect(twice.edgeSignature.every((cell) => cell === 50)).toBe(true);
+  });
+
   it('keeps a saved subject that has no photos as it was', async () => {
     const savedBefore: VisualFingerprint = { ...(await read('red')), version: undefined };
 

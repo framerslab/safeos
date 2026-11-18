@@ -151,6 +151,25 @@ it.each(['server expiry', 'server 401', 'local guest expiry'])('shows the same h
   expect((await stored('alert_cache')).filter((alert) => alert.monitoring)).toEqual([]);
 });
 
+it('lists a card whose event repeated by its newest alert in the Local Timeline', async () => {
+  (await oldTab({ alerts: [] })).close();
+  const { Providers, History, auth, monitoring } = await app();
+  await act(async () => { await auth.getState().initialize(); });
+  // An event that began at 10:00 and last alerted, critical, at 10:20; another card from 10:10.
+  await act(async () => {
+    monitoring.getState().addAlert({ id: 'repeated-card', streamId: 'camera', severity: 'critical', message: 'repeated-card',
+      createdAt: '2026-11-01T10:00:00.000Z', timestamp: '2026-11-01T10:20:00.000Z', acknowledged: false, repeats: 3 });
+    monitoring.getState().addAlert({ id: 'later-card', streamId: 'camera', severity: 'low', message: 'later-card',
+      createdAt: '2026-11-01T10:10:00.000Z', timestamp: '2026-11-01T10:10:00.000Z', acknowledged: false });
+    await monitoring.getState().hydrateAlerts();
+  });
+  render(<Providers><History /></Providers>);
+  fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
+  await screen.findByText('repeated-card');
+  // Newest first: the critical alert at 10:20 is the newest reading.
+  expect(screen.getAllByText(/^(repeated-card|later-card)$/).map((node) => node.textContent)).toEqual(['repeated-card', 'later-card']);
+});
+
 it('shows history and keeps the session in memory when the session write fails', async () => {
   (await oldTab({ sessions: [] })).close();
   server({ create: () => sessionAnswer('server-token', { id: 'server-person', displayName: 'Server person' }) });

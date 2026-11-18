@@ -11,7 +11,7 @@
 import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
-import { newDetectorEvent, endDetectorEvent, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
+import { newDetectorEvent, endDetectorEvent, freshCardFor, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -675,15 +675,20 @@ export default function MonitorPage() {
   const maybeNotify = async (
     title: string,
     body: string,
-    severity: 'low' | 'medium' | 'high' | 'critical'
+    severity: 'low' | 'medium' | 'high' | 'critical',
+    event?: DetectorEvent
   ) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-    // Avoid spamming notifications for low severity
-    const requireInteraction = severity === 'high' || severity === 'critical';
+    // High and critical notifications stay up until dismissed; so do the
+    // notifications of an event that has alerted at high or critical, since
+    // each replaces the one before it.
+    const requireInteraction = event ? keepsNotificationUp(event) : severity === 'high' || severity === 'critical';
     await getNotificationManager().show(title, {
       body,
-      tag: `safeos-${severity}-${title}`,
+      // One tag a kind of alert, whatever its severity: a repeat, or a rise in
+      // severity, replaces the event's notification in place of standing beside it.
+      tag: `safeos-${title}`,
       // A repeat replaces the earlier notification with the same tag; renotify
       // makes it alert again. Without it the replacement is silent:
       // https://developer.mozilla.org/en-US/docs/Web/API/Notification/Notification
@@ -706,7 +711,10 @@ export default function MonitorPage() {
    * message and time and counts the repeat, while the card is in the list and
    * not acknowledged. The card keeps the event's start as its creation time,
    * so escalation runs once per event. An acknowledged card is left as it is
-   * and the next repeat makes a new one.
+   * and the next repeat makes a new one. Another tab may have cleared,
+   * removed or acknowledged the card: the store checks the saved card as it
+   * writes the repeat, and then the repeat goes on a fresh card, which
+   * becomes the event's card.
    */
   const showDetectorAlert = useCallback((
     event: DetectorEvent,
@@ -721,12 +729,14 @@ export default function MonitorPage() {
       : undefined;
     let id = event.alertId;
     let startedAt = event.startedAt;
-    if (!repeat || !card || card.acknowledged || !id || !startedAt) {
+    const updatesCard = Boolean(repeat && card && !card.acknowledged && id && startedAt);
+    if (!updatesCard || !id || !startedAt) {
       id = newAlertId(source, now);
       startedAt = new Date(now).toISOString();
       event.repeats = 0;
     } else {
-      event.repeats += 1;
+      // The card's own count, which a repeat queued behind a stale card may have moved on.
+      event.repeats = (card?.repeats ?? 0) + 1;
     }
     event.alertId = id;
     event.startedAt = startedAt;
@@ -739,7 +749,7 @@ export default function MonitorPage() {
       timestamp: new Date(now).toISOString(),
       acknowledged: false,
       repeats: event.repeats > 0 ? event.repeats : undefined,
-    });
+    }, updatesCard ? { fresh: freshCardFor(event, () => newAlertId(source, now), now) } : undefined);
   }, [addAlert, streamId]);
 
   const handleMotion = useCallback((score: number) => {
@@ -787,7 +797,7 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('motion_detected');
     playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity);
+    maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity, motionEventRef.current);
   }, [
     isStreaming,
     currentPreset.motionDetectionEnabled,
@@ -829,7 +839,7 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('audio_detected');
     getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
-    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity);
+    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity, audioEventRef.current);
   }, [isStreaming, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, showDetectorAlert, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
 
   const handlePixel = useCallback((result: PixelDetectionResult) => {
@@ -908,7 +918,7 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('motion_detected');
     playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity);
+    maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity, pixelEventRef.current);
   }, [
     isStreaming,
     currentPreset.absolutePixelThreshold,
