@@ -102,6 +102,13 @@ const holds = new Set<Hold>();
 let claim: Hold | null = null;
 let answering: (() => void) | null = null;
 
+// A tab that is closed, reloaded or sent to another address runs no cleanup
+// of its page, so what it holds ends here and the other tabs hear the watch
+// ended.
+function leave(): void {
+  Array.from(holds).forEach((hold) => end(hold));
+}
+
 function begin(hold: Hold): void {
   const first = holds.size === 0;
   holds.add(hold);
@@ -110,7 +117,10 @@ function begin(hold: Hold): void {
     if (message.type === 'watch-ask' && latest) tellTabs({ type: 'watch-answer', way: latest.way });
     if (message.type === 'watch-stop') Array.from(holds).forEach((held) => held.stop());
   });
-  if (first) tellTabs({ type: 'watch-started', way: hold.way });
+  if (first) {
+    if (typeof window !== 'undefined') window.addEventListener('pagehide', leave);
+    tellTabs({ type: 'watch-started', way: hold.way });
+  }
 }
 
 function end(hold: Hold): void {
@@ -119,6 +129,7 @@ function end(hold: Hold): void {
   if (holds.size > 0) return;
   answering?.();
   answering = null;
+  if (typeof window !== 'undefined') window.removeEventListener('pagehide', leave);
   tellTabs({ type: 'watch-ended' });
 }
 
@@ -176,7 +187,11 @@ export function takeOverWatch(): Promise<boolean> {
   });
 }
 
-/** Whether another tab of this device is watching, kept up to date. */
+/**
+ * Whether another tab of this device is watching, kept up to date. It asks
+ * when it starts and again each time this tab comes back into view, so a
+ * watching tab the system closed with no word reads as not watching.
+ */
 export function useOtherTabWatch(): boolean {
   const [watching, setWatching] = useState(false);
   useEffect(() => {
@@ -185,12 +200,20 @@ export function useOtherTabWatch(): boolean {
       if (message.type === 'watch-started' || message.type === 'watch-answer') setWatching(true);
       if (message.type === 'watch-ended') setWatching(false);
     });
-    void askOtherTabs().then((answer) => {
-      if (live) setWatching(answer.watching);
-    });
+    const ask = () => {
+      void askOtherTabs().then((answer) => {
+        if (live) setWatching(answer.watching);
+      });
+    };
+    const shown = () => {
+      if (document.visibilityState === 'visible') ask();
+    };
+    ask();
+    document.addEventListener('visibilitychange', shown);
     return () => {
       live = false;
       off();
+      document.removeEventListener('visibilitychange', shown);
     };
   }, []);
   return watching;
