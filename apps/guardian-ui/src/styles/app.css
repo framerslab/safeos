@@ -578,7 +578,7 @@ html:has(.app-shell) {
    The head of a way's page
    ============================================================================= */
 
-/* From 48em the page's name and its keys share one row. */
+/* From 64em the page's name and its keys share one row. */
 .way-head {
   display: flex;
   align-items: center;
@@ -601,14 +601,15 @@ html:has(.app-shell) {
   white-space: normal;
 }
 
-/* On a phone the name has its line and the keys have theirs under it, so the
-   head never makes the page wider than the screen: what a page fixes to the
-   screen is laid out to the page's width. The keys keep one line and scroll
-   inside their row, with the right edge faded as the phone bar's is until the
-   end is reached; the row's padding keeps a focused key's ring whole. A key's
-   menu opens under the head at its right edge, so it stays on the screen and
-   the row's scroll does not clip it. */
-@media not all and (min-width: 48em) {
+/* On a phone and a tablet the name has its line and the keys have theirs
+   under it, so the head never makes the page wider than the screen and no
+   key's words wrap: what a page fixes to the screen is laid out to the page's
+   width. The keys keep one line and scroll inside their row, with the right
+   edge faded as the phone bar's is until the end is reached; the row's
+   padding keeps a focused key's ring whole. A key's menu opens under the head
+   at its right edge, so it stays on the screen and the row's scroll does not
+   clip it. */
+@media not all and (min-width: 64em) {
   .way-head {
     position: relative;
     flex-direction: column;

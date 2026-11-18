@@ -1140,7 +1140,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       }).map((key) => (key.textContent || '').trim().slice(0, 30)),
     };
   };
-  for (const width of ROW_WIDTHS) {
+  // 1024 px is the narrowest width where a way's name and its keys share a row.
+  for (const width of [...ROW_WIDTHS, 1024]) {
     for (const route of ['/monitor/', '/lost-found/', '/security/', '/wildlife/']) {
       await open({ name: 'a way page, its width', width, look: 'dark' }, async (page, context, check) => {
         await visit(page, route);
