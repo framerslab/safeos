@@ -689,7 +689,7 @@ export default function MonitorPage() {
       // One tag an event, whatever its severity: a repeat, or a rise in severity,
       // replaces the event's notification in place of standing beside it, and a
       // new event's notification stands beside an earlier one that is kept up.
-      tag: event?.startedAt ? `safeos-${title}-${event.startedAt}` : `safeos-${title}`,
+      tag: event?.notifyTag ? `safeos-${title}-${event.notifyTag}` : `safeos-${title}`,
       // A repeat replaces the earlier notification with the same tag; renotify
       // makes it alert again. Without it the replacement is silent:
       // https://developer.mozilla.org/en-US/docs/Web/API/Notification/Notification
@@ -741,6 +741,9 @@ export default function MonitorPage() {
     }
     event.alertId = id;
     event.startedAt = startedAt;
+    // The event's notifications keep one identity until it ends, also when its alerts go on a
+    // new card; random like an alert id, so two tabs never share it.
+    if (!repeat || !event.notifyTag) event.notifyTag = newAlertId(source, now);
     addAlert({
       id,
       streamId: streamId || 'local',

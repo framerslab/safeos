@@ -216,6 +216,9 @@ async function saveAlert(
         repeats: (current?.repeats ?? 0) + 1, savedBeforeUpgrade: undefined,
       };
       showUnlessNewer(moved);
+      // The fresh card's own save failed and waits: the repeat goes with that save.
+      const waiting = unsavedAlerts.get(moved.id);
+      if (waiting) return saveAlert(moved, waiting.mode, waiting.stamp.marker, waiting.stamp, fresh, clears);
       return saveAlert(moved, 'repeat', marker, replacement.stamp, fresh, clears);
     }
     // The card's own save failed and waits: there is no stored card to check, so the repeat is
@@ -365,11 +368,12 @@ export const useMonitoringStore = create<MonitoringState>()(
               set((state) => ({ alerts: state.alerts.map(a => a.id === acknowledged.id ? acknowledged : a) }));
             }
             // A save that still waits is retried with the acknowledgement, under the stamp it has.
-            // Any other alert is a saved one: its record is updated, and never created again.
+            // Any other alert is a saved one: only its acknowledgement is written, so the saved
+            // record keeps its count and reading, and it is never created again.
             const pending = unsavedAlerts.get(acknowledged.id);
             return pending
               ? saveAlert(acknowledged, pending.mode, pending.stamp.marker, pending.stamp, pending.fresh, clears)
-              : saveAlert(acknowledged, 'update', marker, undefined, undefined, clears);
+              : saveAlert({ id: acknowledged.id, acknowledged: true } as Alert, 'update', marker, undefined, undefined, clears);
           });
         }
       },
