@@ -509,13 +509,13 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await other.close();
   });
 
-  test('a rise to critical during a continuing event alerts at once, on the event\'s card', async ({ page }) => {
+  test('a rise to critical during a continuing event alerts at once, on the event\'s card, and replaces its notification', async ({ page }) => {
     test.setTimeout(120_000);
     // A low event (25 % on a 20 % line) goes on; 3 s after its alert the
     // whole picture starts changing (75 %, critical). Motion never falls
     // under the line, and critical has no cooldown: the rise alerts at once,
     // not after the Cooldown Period (30 s by default).
-    await openMonitor(page, { settings: MOTION_ONLY, camera: { changingWidth: 1 / 3 } });
+    await openMonitor(page, { settings: MOTION_ONLY, camera: { changingWidth: 1 / 3 }, notify: true });
     const first = await firstAlert(page, 'motion');
     await expect(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
     await runUntil(page, first + 3_000);
@@ -531,6 +531,12 @@ test.describe('Alerts repeat while the activity goes on', () => {
     expect.soft(lowestReading(walk, 'motion', first, roseAt + afterRise[0]), 'motion stayed over the line').toBeGreaterThanOrEqual(20);
     expect.soft(walk.cards.motion, 'the rise updated the event\'s card').toBe(1);
     await expect.soft(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: [6-9]\d% \(threshold: 20%/);
+
+    // The rise's notification keeps the event's tag, so it replaces the low
+    // one in place of standing beside it.
+    const shown = walk.notifications.filter((n) => n.title === 'Motion Detected');
+    expect.soft(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
+    expect.soft(shown[shown.length - 1]?.tag, `the rise keeps the notification tag (${JSON.stringify(shown)})`).toBe(shown[0]?.tag);
   });
 
   test('a scene that holds still for a moment now and then is one event, which repeats at the Cooldown Period', async ({ page }) => {
