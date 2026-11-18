@@ -1062,3 +1062,173 @@ html[data-app-started='true'] .dash-state[data-read='no'] .dash-heading {
 html[data-app-started='true'] .needs-script {
   display: none;
 }
+
+/* =============================================================================
+   The dashboard: the ways to watch
+   ============================================================================= */
+
+/* A part's label, shared with Since you last looked: an H2 in the body style,
+   in the ink. */
+.dash-label {
+  margin: 0 0 8px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+}
+
+.ways {
+  margin-top: 24px;
+}
+
+.ways__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A divider between rows, none under the last. */
+.way + .way {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+/* A row: the page's ground at rest, the raised ground under the pointer and
+   while pressed. */
+.way__link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
+  padding: 8px 0;
+  color: var(--color-steel-50);
+  transition: background-color 120ms ease-out;
+}
+
+.way__link:hover,
+.way__link:active {
+  background: var(--color-steel-850);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .way__link {
+    transition: none;
+  }
+}
+
+/* The ring stands round the whole row, inside its column. */
+.look-part .way__link:focus-visible {
+  outline-offset: -2px;
+}
+
+/* The glyph, or the pet's photo in its place at its size, so the name and
+   the line stand where they stand on the other rows. */
+.way__glyph {
+  flex: none;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  color: var(--color-steel-50);
+}
+
+.way__photo {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+}
+
+.way__words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.way__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-entry-size);
+  line-height: var(--app-entry-line);
+}
+
+.way__line {
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+/* The square on the way Start watching uses, directly before its name. */
+.way__square {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--look-accent);
+}
+
+.way__link .key__arrow {
+  flex: none;
+  color: var(--color-steel-50);
+}
+
+/* Tablet: a two-by-two grid with dividers between the cells. */
+@media (min-width: 48em) {
+  .ways__list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .way + .way {
+    border-top: 0;
+  }
+
+  .way:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--color-steel-300);
+  }
+
+  .way:nth-child(odd) {
+    padding-right: 16px;
+    border-right: 1px solid var(--color-steel-300);
+  }
+
+  .way:nth-child(even) {
+    padding-left: 16px;
+  }
+}
+
+/* Desktop: the stacked list again, beside the watching state. */
+@media (min-width: 64em) {
+  .ways__list {
+    display: block;
+  }
+
+  .way + .way {
+    border-top: 1px solid var(--color-steel-300);
+  }
+
+  .way:nth-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .way:nth-child(odd) {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .way:nth-child(even) {
+    padding-left: 0;
+  }
+
+  .way__link {
+    min-height: 80px;
+  }
+}
+
+/* Wide: the name's size and line follow their tokens. */
+@media (min-width: 90em) {
+  .way__link {
+    min-height: 88px;
+  }
+}
