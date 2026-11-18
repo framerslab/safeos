@@ -766,7 +766,8 @@ async function writeAlert(
     };
     // A repeat counts onto the stored card in the order repeats are saved.
     if (mode === 'repeat') {
-      merged.repeats = (typeof previous.repeats === 'number' ? previous.repeats : 0) + 1;
+      const counted = previous?.repeats;
+      merged.repeats = (typeof counted === 'number' ? counted : 0) + 1;
       if (found) found.repeats = merged.repeats;
     }
     let createdAt: string;
