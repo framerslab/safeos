@@ -109,9 +109,9 @@ function generateId(): string {
   return `sched_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function getCurrentDayOfWeek(): DayOfWeek {
+function getCurrentDayOfWeek(at: Date = new Date()): DayOfWeek {
   const days: DayOfWeek[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-  return days[new Date().getDay()];
+  return days[at.getDay()];
 }
 
 function parseTime(time: string): { hours: number; minutes: number } {
@@ -137,7 +137,7 @@ function isTimeInRange(current: Date, start: string, end: string): boolean {
 export function isScheduleActive(schedule: Schedule, now: Date = new Date()): boolean {
   if (!schedule.enabled) return false;
 
-  const currentDay = getCurrentDayOfWeek();
+  const currentDay = getCurrentDayOfWeek(now);
   if (!schedule.days.includes(currentDay)) return false;
 
   return isTimeInRange(now, schedule.timeSlot.start, schedule.timeSlot.end);
@@ -287,32 +287,33 @@ export const useScheduleStore = create<ScheduleState>()(
 // Hook for schedule checking
 // =============================================================================
 
-import { useEffect, useCallback } from 'react';
+import { useEffect } from 'react';
 import { useSettingsStore } from '../stores/settings-store';
 
+/**
+ * Applies set times. Mounted once, in the app's providers, so a set time
+ * applies on every page. Once a minute it finds the set time in force; when
+ * one begins, or the app opens inside one, its setting goes on. While it lasts
+ * the person's own changes stay: the setting is not put back each minute.
+ */
 export function useScheduleChecker() {
-  const { checkSchedules, schedulingEnabled, activeScheduleId } = useScheduleStore();
-  const { setActivePreset } = useSettingsStore();
-
-  const runCheck = useCallback(() => {
-    if (!schedulingEnabled) return;
-
-    const activeSchedule = checkSchedules();
-
-    if (activeSchedule) {
-      setActivePreset(activeSchedule.preset);
-    }
-  }, [checkSchedules, schedulingEnabled, setActivePreset]);
+  const activeScheduleId = useScheduleStore((state) => state.activeScheduleId);
 
   useEffect(() => {
-    // Initial check
+    const runCheck = () => {
+      const schedules = useScheduleStore.getState();
+      if (!schedules.schedulingEnabled) return;
+      const previous = schedules.activeScheduleId;
+      const active = schedules.checkSchedules();
+      if (active && active.id !== previous) {
+        useSettingsStore.getState().setActivePreset(active.preset);
+      }
+    };
+
     runCheck();
-
-    // Check every minute
-    const interval = setInterval(runCheck, 60000);
-
+    const interval = setInterval(runCheck, 60_000);
     return () => clearInterval(interval);
-  }, [runCheck]);
+  }, []);
 
   return { activeScheduleId };
 }

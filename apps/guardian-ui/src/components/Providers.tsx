@@ -18,6 +18,7 @@ import { hydrateSavedSettings } from '@/lib/settings-hydration';
 import { useAuthStore } from '@/stores/auth-store';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { getSoundManager } from '@/lib/sound-manager';
+import { useScheduleChecker } from '@/lib/schedule-manager';
 
 // =============================================================================
 // Types
@@ -33,6 +34,9 @@ interface ProvidersProps {
 
 export function Providers({ children }: ProvidersProps) {
   const [showBackendSettings, setShowBackendSettings] = useState(false);
+
+  // Set times apply on every page, from this one place.
+  useScheduleChecker();
 
   const profile = useAuthStore((state) => state.profile);
   useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
