@@ -203,27 +203,28 @@ it('a press starts the watch once and waits', async () => {
 });
 
 it('a camera that opens after the dashboard was left opens nothing and is closed', async () => {
-  const seen: { go?: (address: string) => void } = {};
+  // The function each press handed to the start, in the order of the presses.
+  const given: ((address: string) => void)[] = [];
   started.mockImplementation((_choice, go) => {
-    seen.go = go;
+    given.push(go);
     return held<StartOutcome>().promise;
   });
 
   // While the dashboard is on screen the way's page opens.
   shown();
   await press(key());
-  act(() => seen.go?.('/monitor/'));
+  expect(given).toHaveLength(1);
+  act(() => given[0]('/monitor/'));
   expect(mockPush.mock.calls).toEqual([['/monitor/']]);
   expect(dropped).not.toHaveBeenCalled();
   cleanup();
 
   // Once it was left, nothing opens and the held camera is closed.
-  seen.go = undefined;
   const { unmount } = shown();
   await press(key());
-  expect(seen.go).toBeDefined();
+  expect(given).toHaveLength(2);
   unmount();
-  seen.go?.('/monitor/');
+  given[1]('/monitor/');
   expect(mockPush).toHaveBeenCalledTimes(1);
   expect(dropped).toHaveBeenCalledTimes(1);
 });
