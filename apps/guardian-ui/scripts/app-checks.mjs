@@ -2089,8 +2089,11 @@ export async function checkApp(browser, baseUrl, outDir) {
     for (const look of LOOKS) {
       await open({ name: "second tab, the dialog's look", width, look }, async (page, context, check) => {
         const { second, startKey } = await twoTabs(page, context);
-        // Pressed from the keyboard, so no pointer rests on a key of the
-        // dialog and the ring shows on Cancel as a keyboard user sees it.
+        // Pressed from the keyboard, with the pointer moved off the pet it
+        // chose (at 390 px a key of the dialog opens under it), so no pointer
+        // rests on a key of the dialog and the ring shows on Cancel as a
+        // keyboard user sees it.
+        await second.mouse.move(0, 0);
         await startKey.focus();
         await second.keyboard.press('Enter');
         await theQuestion(second).waitFor({ timeout: 5_000 });
