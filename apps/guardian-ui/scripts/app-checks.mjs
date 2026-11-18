@@ -1036,6 +1036,74 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // A panel or a picture opened over a page covers the whole screen, the frame
+  // included: a press on its close key or on its last control reaches it, and
+  // never the header or the bar.
+  const overlayPresses = (overlay) => {
+    const landsOn = (control) => {
+      const box = control.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      const frame = hit?.closest('header.app-header, nav.phone-bar');
+      if (frame) return frame.matches('nav') ? 'the phone bar' : 'the app header';
+      if (!hit) return 'nothing';
+      return overlay.contains(hit) ? null : hit.tagName.toLowerCase();
+    };
+    const controls = [...overlay.querySelectorAll('button, input, select, textarea, a[href]')].filter((control) => {
+      const box = control.getBoundingClientRect();
+      return box.width > 1 && box.height > 1;
+    });
+    const close = landsOn(controls[0]);
+    const last = controls[controls.length - 1];
+    last.scrollIntoView({ block: 'end' });
+    return { close, last: landsOn(last) };
+  };
+  const checkOverlay = async (overlay, check, what) => {
+    await overlay.waitFor({ timeout: 10_000 });
+    const lands = await overlay.evaluate(overlayPresses);
+    check(!lands.close, `on ${what}, a press on the close key lands on ${lands.close}`);
+    check(!lands.last, `on ${what}, a press on the last control lands on ${lands.last}`);
+    const closed = await overlay.locator('button').first().click({ timeout: 5_000 })
+      .then(() => overlay.waitFor({ state: 'detached', timeout: 5_000 }))
+      .then(() => true, () => false);
+    check(closed, `on ${what}, pressing the close key leaves it open`);
+  };
+
+  // These walks are about what the opened part covers, so the key that opens
+  // it is pressed wherever the page has put it.
+  for (const width of [390, 1280]) {
+    for (const route of ['/security/', '/wildlife/']) {
+      await open({ name: 'a way page, its Settings panel', width, look: 'dark' }, async (page, context, check) => {
+        await visit(page, route);
+        await page.getByRole('button', { name: 'Settings', exact: true }).dispatchEvent('click');
+        await checkOverlay(page.locator('.fixed.inset-0', { has: page.locator('h2') }), check, `${route} Settings panel`);
+      });
+    }
+    await open({ name: 'a saved match, opened large', width, look: 'dark' }, async (page, context, check) => {
+      await visit(page, '/lost-found/gallery/');
+      await page.evaluate(() => new Promise((resolve, reject) => {
+        const request = indexedDB.open('safeos-guardian');
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          const saving = database.transaction('match_frame', 'readwrite');
+          saving.objectStore('match_frame').put({
+            id: 'saved-match', subjectId: 'saved-pet', frameData: '', thumbnailData: '', confidence: 80, timestamp: Date.now(),
+            details: { colorMatch: 80, dominantMatch: 80, edgeMatch: 80, sizeMatch: 80 },
+            region: null, acknowledged: false, notes: '', exported: false,
+          });
+          saving.onerror = () => reject(saving.error);
+          saving.oncomplete = () => {
+            database.close();
+            resolve();
+          };
+        };
+      }));
+      await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+      await page.getByRole('button', { name: 'View match details', exact: true }).dispatchEvent('click');
+      await checkOverlay(page.locator('.fixed.inset-0', { hasText: 'No image available' }), check, 'the match opened large');
+    });
+  }
+
   // What Settings says after a save shows: the message stands clear of the
   // header at the top of the screen, whether the save was taken or refused.
   for (const width of [390, 1280]) {
