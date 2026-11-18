@@ -9,7 +9,7 @@
 
 import { CameraPicker } from '../../components/CameraPicker';
 import { useCameraStore } from '../../stores/camera-store';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboardingStore, canSkipOnboarding } from '../../stores/onboarding-store';
 import {
@@ -18,6 +18,7 @@ import {
   IconCamera,
   IconMic,
   IconPet,
+  IconPaw,
   IconBaby,
   IconElderly,
   IconBell,
@@ -40,6 +41,10 @@ import { SETUP_STEPS, type SetupStep } from '../../lib/setup-steps';
 type Step = SetupStep;
 
 type Scenario = 'pet' | 'baby' | 'elderly' | 'security';
+// What the question of what is being watched offers: the four uses, and Lost
+// & Found, which compares the camera's picture with a pet's photos and so
+// saves the pet use.
+type Choice = Scenario | 'lost_found';
 
 // The answers a visitor running setup again gives before the last step.
 interface StagedAnswers {
@@ -70,6 +75,9 @@ export default function SetupPage() {
   // visitor who leaves part way keeps the setup they had.
   const [again, setAgain] = useState(false);
   const [staged, setStaged] = useState<StagedAnswers>(NO_ANSWERS);
+  // The person chose Lost & Found: the last key opens its page, where the
+  // pet's photos are added.
+  const [lostFound, setLostFound] = useState(false);
 
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
@@ -175,7 +183,7 @@ export default function SetupPage() {
       if (staged.microphone !== null) onboarding.setMicrophonePermission(staged.microphone);
     }
     onboarding.setComplete(true);
-    router.push('/dashboard');
+    router.push(lostFound ? '/lost-found/' : '/dashboard');
   };
 
   return (
@@ -233,8 +241,10 @@ export default function SetupPage() {
           )}
           {currentStep === 'scenario' && (
             <ScenarioStep
-              selectedScenario={staged.scenario ?? onboarding.selectedScenario}
-              onSelect={(scenario) => {
+              selectedScenario={lostFound ? 'lost_found' : staged.scenario ?? onboarding.selectedScenario}
+              onSelect={(choice) => {
+                const scenario: Scenario = choice === 'lost_found' ? 'pet' : choice;
+                setLostFound(choice === 'lost_found');
                 if (again) setStaged((answers) => ({ ...answers, scenario }));
                 else onboarding.setScenario(scenario);
                 goNext();
@@ -259,7 +269,7 @@ export default function SetupPage() {
             />
           )}
           {currentStep === 'complete' && (
-            <CompleteStep onFinish={completeSetup} />
+            <CompleteStep onFinish={completeSetup} lostFound={lostFound} />
           )}
         </div>
       </main>
@@ -411,11 +421,11 @@ function ScenarioStep({
   onSelect,
   onBack,
 }: {
-  selectedScenario: 'pet' | 'baby' | 'elderly' | 'security' | null;
-  onSelect: (scenario: 'pet' | 'baby' | 'elderly' | 'security') => void;
+  selectedScenario: Choice | null;
+  onSelect: (choice: Choice) => void;
   onBack: () => void;
 }) {
-  const scenarios = [
+  const scenarios: Array<{ id: Choice; label: string; description: string; icon: ReactNode }> = [
     {
       id: 'pet' as const,
       label: 'Pet Monitoring',
@@ -441,6 +451,13 @@ function ScenarioStep({
       description: 'Motion and sound alerts while the room is empty. The Security page counts the people in view.',
       icon: <IconShield size={24} />,
     },
+    {
+      id: 'lost_found' as const,
+      label: 'Lost & Found',
+      description:
+        "Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. You add the photos after setup.",
+      icon: <IconPaw size={24} />,
+    },
   ];
   // A scenario already chosen (saved earlier, or chosen before Back) is
   // confirmed with Continue.
@@ -461,6 +478,7 @@ function ScenarioStep({
             <button
               key={scenario.id}
               onClick={() => onSelect(scenario.id)}
+              aria-pressed={selectedScenario === scenario.id}
               className={`card flex items-center gap-4 text-left transition-all hover:border-[var(--color-steel-500)] ${
                 selectedScenario === scenario.id
                   ? 'border-[var(--color-accent-600)] bg-[var(--color-accent-900)]/20'
@@ -701,7 +719,7 @@ function NotificationsStep({
   );
 }
 
-function CompleteStep({ onFinish }: { onFinish: () => void }) {
+function CompleteStep({ onFinish, lostFound }: { onFinish: () => void; lostFound: boolean }) {
   return (
     <div className="panel">
       <div className="panel-body text-center py-8">
@@ -711,11 +729,13 @@ function CompleteStep({ onFinish }: { onFinish: () => void }) {
 
         <h1 className="text-heading-lg mb-2">Setup Complete</h1>
         <p className="text-[var(--color-steel-400)] mb-8 max-w-md mx-auto">
-          Your Guardian system is configured and ready. You can now start monitoring.
+          {lostFound
+            ? "Your Guardian system is configured. Next, add photos of your pet on the Lost & Found page; it compares what the camera sees with them."
+            : 'Your Guardian system is configured and ready. You can now start monitoring.'}
         </p>
 
         <button onClick={onFinish} className="btn btn-primary px-8">
-          Launch Dashboard
+          {lostFound ? 'Open Lost and Found' : 'Launch Dashboard'}
           <IconChevronRight size={16} />
         </button>
       </div>

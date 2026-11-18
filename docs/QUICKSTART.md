@@ -71,17 +71,19 @@ When you first open SafeOS, you'll see our critical disclaimer. Read it carefull
 > **SafeOS is NOT a replacement for human supervision.**
 > This is a supplementary tool only.
 
-Click "I Understand and Accept" to continue.
+Click **Begin Setup**, tick the box and click **Accept & Continue**.
 
-#### Step 2: Choose a Monitoring Profile
+#### Step 2: Choose What You Are Watching
 
-Select what you're monitoring:
+Setup asks what this device watches. You can change it later in Settings.
 
-| Profile | Best For | What It Watches |
-|---------|----------|-----------------|
-| 🐕 **Pet** | Dogs, cats, small animals | Eating, bathroom, distress, illness |
-| 👶 **Baby** | Infants, toddlers | Crying, movement, breathing, safety |
-| 👴 **Elderly** | Seniors, dementia patients | Falls, confusion, prolonged stillness |
+| Choice | What it does |
+|--------|--------------|
+| **Pet Monitoring** | Motion and sound alerts while your pet is in another room |
+| **Baby Monitoring** | Motion and sound alerts during a nap you stay nearby for. SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS |
+| **Elderly Care** | Motion and sound alerts, and an optional alert when nothing has moved for a time you set |
+| **Security Mode** | Motion and sound alerts while the room is empty. The Security page counts the people in view |
+| **Lost & Found** | Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. It saves the pet use, and the last step's **Open Lost and Found** opens the Lost & Found page, where you add the photos |
 
 #### Step 3: Choose a Camera and Allow Access
 
