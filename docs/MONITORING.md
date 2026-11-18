@@ -71,7 +71,8 @@ set time that names a setting the app does not have puts nothing on.
 
 A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
 **Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
-sound is on. A saved sound that still plays is not started again by the next
+sound is on. With Lost & Found's custom media on, the full-screen media takes the
+built-in sound's place: the saved sounds play and the built-in alert sound does not. A saved sound that still plays is not started again by the next
 matching frame, and it stops when the watch stops, when Lost & Found stops
 watching or its pet changes, and when the page closes.
 
