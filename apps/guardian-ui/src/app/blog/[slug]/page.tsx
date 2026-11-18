@@ -140,7 +140,7 @@ const blogContent: Record<string, BlogContent> = {
         <h2>One model in the browser</h2>
 
         <p>
-          Primary detector: a quantized{' '}
+          Primary detector: a pre-trained{' '}
           <a
             href="https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd"
             target="_blank"
@@ -149,7 +149,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             COCO-SSD
           </a>{' '}
-          via{' '}
+          on SSDLite MobileNet V2, its 4.5 million weights stored as 32-bit floats, run via{' '}
           <a
             href="https://www.tensorflow.org/js"
             target="_blank"
