@@ -108,6 +108,11 @@ export function readDetector(
     return { kind: 'quiet' };
   }
 
+  if (event.active && event.belowSince !== null && now - event.belowSince >= timing.sustainedMs) {
+    // The quiet window passed between the last quiet sample and this reading:
+    // the old event ended, and this reading starts a new one.
+    endDetectorEvent(event);
+  }
   event.belowSince = null;
   if (!event.active) {
     if (event.aboveSince === null) {
