@@ -1057,15 +1057,40 @@ export async function checkApp(browser, baseUrl, outDir) {
     last.scrollIntoView({ block: 'end' });
     return { close, last: landsOn(last) };
   };
+  // Where the close key stands, for a press that misses it.
+  const closeKeyPlace = (overlay) => {
+    const key = overlay.querySelector('button');
+    const box = key.getBoundingClientRect();
+    const view = window.visualViewport;
+    const root = document.documentElement;
+    const scroller = key.closest('.overflow-y-auto');
+    const name = (part) => `${part.tagName.toLowerCase()}.${String(part.className).slice(0, 24)}`;
+    return JSON.stringify({
+      view: [view.scale, view.offsetLeft, view.offsetTop, view.pageLeft, view.pageTop, view.width, view.height],
+      window: [window.innerWidth, window.innerHeight, window.scrollX, window.scrollY],
+      root: [root.clientWidth, root.scrollWidth],
+      key: [box.left, box.top, box.width, box.height],
+      keyStyle: [getComputedStyle(key).pointerEvents, getComputedStyle(key).position],
+      scroller: scroller && [scroller.scrollLeft, scroller.scrollTop, scroller.clientWidth, scroller.scrollWidth],
+      under: document.elementsFromPoint(box.left + box.width / 2, box.top + box.height / 2).slice(0, 4).map(name),
+    });
+  };
   const checkOverlay = async (overlay, check, what) => {
     await overlay.waitFor({ timeout: 10_000 });
+    const opened = await overlay.evaluate(closeKeyPlace);
     const lands = await overlay.evaluate(overlayPresses);
+    const scrolled = await overlay.evaluate(closeKeyPlace);
     check(!lands.close, `on ${what}, a press on the close key lands on ${lands.close}`);
     check(!lands.last, `on ${what}, a press on the last control lands on ${lands.last}`);
     // The browser's own account of the press says why it did not close.
     const stuck = await overlay.locator('button').first().click({ timeout: 5_000 })
       .then(() => overlay.waitFor({ state: 'detached', timeout: 5_000 }))
       .then(() => null, (err) => err.message.split('\n').map((line) => line.trim()).filter(Boolean).slice(-8).join(' / '));
+    if (stuck) {
+      const pressed = await overlay.evaluate(closeKeyPlace);
+      const seen = await overlay.locator('button').first().boundingBox();
+      check(false, `on ${what}, the close key when opened ${opened}; after the scroll ${scrolled}; after the press ${pressed}; as the press sees it ${JSON.stringify(seen)}`);
+    }
     check(!stuck, `on ${what}, pressing the close key leaves it open: ${stuck}`);
   };
 
