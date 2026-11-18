@@ -58,6 +58,11 @@ export interface PlayOptions {
   fadeOut?: number;         // Override default fade
   onEnd?: () => void;       // Callback when sound ends
   forceMaxVolume?: boolean; // Ignore user volume, play at 100%
+  /**
+   * The sound is a critical alert's: it follows the critical volume, which
+   * quiet hours in Emergency Only keep at the alert volume.
+   */
+  critical?: boolean;
 }
 
 interface ActiveSound {
@@ -79,6 +84,8 @@ interface ActiveSound {
   stopping?: boolean;
   /** The volume named when a one-shot sound was played, which it keeps until it ends. */
   namedVolume?: number;
+  /** A critical alert's sound, which follows the critical volume. */
+  critical?: boolean;
 }
 
 interface Fade {
@@ -286,6 +293,8 @@ const SEVERITY_VOLUME_MULTIPLIER: Record<AlertSeverity, number> = {
 class SoundManager {
   private activeSounds: Map<string, ActiveSound> = new Map();
   private userVolume: number = 70;  // 0-100, user preference
+  /** The volume of a critical alert's sound, 0-100: the user volume, except in Emergency Only quiet hours. */
+  private criticalVolume: number = 70;
   private globalMute: boolean = false;
   private emergencyModeActive: boolean = false;
   private isInitialized: boolean = false;
@@ -313,8 +322,28 @@ class SoundManager {
   setUserVolume(volume: number): void {
     const previous = this.userVolume;
     this.userVolume = Math.max(0, Math.min(100, volume));
-    const changed = this.userVolume !== previous;
+    this.applyVolumes(this.userVolume !== previous);
+  }
 
+  /**
+   * Set the volume a critical alert's sound plays at (0-100)
+   */
+  setCriticalVolume(volume: number): void {
+    const previous = this.criticalVolume;
+    this.criticalVolume = Math.max(0, Math.min(100, volume));
+    this.applyVolumes(this.criticalVolume !== previous);
+  }
+
+  getCriticalVolume(): number {
+    return this.criticalVolume;
+  }
+
+  /** The base volume a sound follows: the critical volume for a critical alert's sound, else the user volume. */
+  private baseVolumeOf(critical: boolean | undefined): number {
+    return critical ? this.criticalVolume : this.userVolume;
+  }
+
+  private applyVolumes(changed: boolean): void {
     // Update volume of currently playing sounds (except emergency). A fade in
     // ends at the new volume. A sound fading out to stop ends at once when the
     // volume changes, so volume 0 is silent from this call on.
@@ -449,7 +478,7 @@ class SoundManager {
     this.watch(context);
 
     // Calculate volume
-    let volume = this.calculateVolume(type, options.volume);
+    let volume = this.calculateVolume(type, options.volume, this.baseVolumeOf(options.critical));
     if (options.forceMaxVolume || this.emergencyModeActive || type === 'emergency') {
       volume = 1.0;
     }
@@ -489,6 +518,7 @@ class SoundManager {
       // A one-shot sound keeps the volume it was played at. A loop follows the
       // user volume, so turning the volume down reaches a sound that plays on.
       namedVolume: loop ? undefined : options.volume,
+      critical: options.critical,
     };
     this.activeSounds.set(id, activeSound);
 
@@ -515,11 +545,13 @@ class SoundManager {
     const type = SEVERITY_SOUND_MAP[severity];
     const volumeMultiplier = SEVERITY_VOLUME_MULTIPLIER[severity];
     
+    const critical = options.critical ?? severity === 'critical';
     return this.play(type, {
       ...options,
-      volume: options.volume !== undefined 
-        ? options.volume 
-        : this.userVolume * volumeMultiplier,
+      critical,
+      volume: options.volume !== undefined
+        ? options.volume
+        : this.baseVolumeOf(critical) * volumeMultiplier,
     });
   }
 
@@ -809,13 +841,13 @@ class SoundManager {
   /**
    * Calculate effective volume based on settings
    */
-  private calculateVolume(type: SoundType, override?: number): number {
+  private calculateVolume(type: SoundType, override?: number, base: number = this.userVolume): number {
     if (this.emergencyModeActive) {
       return 1.0;
     }
 
     const config = SOUND_CONFIGS[type];
-    const baseVolume = override !== undefined ? override : this.userVolume;
+    const baseVolume = override !== undefined ? override : base;
 
     // Emergency sound type always plays at max volume.
     if (config.priority === 5) {
@@ -849,11 +881,13 @@ class SoundManager {
 
   /**
    * The volume a playing sound holds: the one named when a one-shot sound was
-   * played, unless the user volume has gone to 0, and otherwise the user
+   * played, unless the volume it follows (the critical volume for a critical
+   * alert's sound, else the user volume) has gone to 0, and otherwise that
    * volume's, with its minimum for the sound's type.
    */
   private playingVolume(sound: ActiveSound): number {
-    return this.calculateVolume(sound.type, this.userVolume > 0 ? sound.namedVolume : undefined);
+    const base = this.baseVolumeOf(sound.critical);
+    return this.calculateVolume(sound.type, base > 0 ? sound.namedVolume : undefined, base);
   }
 
   /**

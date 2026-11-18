@@ -390,9 +390,13 @@ export default function MonitorPage() {
   useEffect(() => { napRef.current = nap; }, [nap]);
   const playMovementSound = useCallback((severity: AlertSeverity) => {
     if (napRef.current) {
-      // At the effective volume as it plays: the sound manager's copy of the
-      // volume follows quiet hours only every 30 seconds.
-      getSoundManager().playForSeverity('critical', { loop: false, volume: useSettingsStore.getState().getEffectiveVolume() });
+      // At the effective volume for the alert's level as it plays: the sound
+      // manager's copy of the volume follows quiet hours only every 30 seconds.
+      getSoundManager().playForSeverity('critical', {
+        loop: false,
+        volume: useSettingsStore.getState().getEffectiveVolume(severity),
+        critical: severity === 'critical',
+      });
       return;
     }
     getSoundManager().playForSeverity(severity, { loop: false });

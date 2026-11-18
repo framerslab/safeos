@@ -45,6 +45,8 @@ export function Providers({ children }: ProvidersProps) {
     const apply = () => {
       const state = useSettingsStore.getState();
       manager.setUserVolume(state.getEffectiveVolume());
+      // Quiet hours in Emergency Only silence every level but critical.
+      manager.setCriticalVolume(state.getEffectiveVolume('critical'));
       manager.setGlobalMute(state.globalMute);
       manager.setEmergencyMode(state.emergencyModeActive);
     };
