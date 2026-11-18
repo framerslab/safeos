@@ -139,11 +139,26 @@ export async function checkApp(browser, baseUrl, outDir) {
       const box = node.getBoundingClientRect();
       return box.width > 0 && box.height > 0 && getComputedStyle(node).visibility !== 'hidden';
     };
-    // The lines a control's words take: one, unless a word broke.
+    // The lines a control's words take: one, unless a word broke. Read from
+    // the words' own boxes: a box the control holds (History's count) stands
+    // on the words' line with a top of its own. A box that starts below the
+    // bottom of the line before it starts a line.
     const linesOf = (node) => {
       const range = document.createRange();
-      range.selectNodeContents(node);
-      return new Set([...range.getClientRects()].filter((rect) => rect.width > 0).map((rect) => Math.round(rect.top))).size;
+      const boxes = [];
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        range.selectNodeContents(text);
+        boxes.push(...[...range.getClientRects()].filter((rect) => rect.width > 0));
+      }
+      boxes.sort((a, b) => a.top - b.top);
+      let lines = 0;
+      let bottom = -Infinity;
+      for (const box of boxes) {
+        if (box.top >= bottom - 0.5) lines += 1;
+        bottom = Math.max(bottom, box.bottom);
+      }
+      return lines;
     };
     const barBox = bar.getBoundingClientRect();
     const wordmark = header.querySelector('.app-header__brand--link .wordmark');
@@ -2483,7 +2498,10 @@ export async function checkApp(browser, baseUrl, outDir) {
           const row = await page.evaluate(readRow);
           if (!row) throw new Error('no app header');
           check(Math.max(...row.items.map((item) => item.top)) < Math.min(...row.items.map((item) => item.bottom)), 'the row is more than one line');
-          for (const item of row.items.filter((one) => one.cut || one.lines > 1)) check(false, `${item.name} is cut or breaks over ${item.lines} lines`);
+          for (const item of row.items) {
+            check(!item.cut, `${item.name} is cut`);
+            check(item.lines === 1, `${item.name}'s words break over ${item.lines} lines`);
+          }
           const counted = row.items.find((item) => item.kind === 'link' && item.name === 'History, 3 new alerts');
           check(!!counted, `the row's History is named ${row.items.filter((item) => item.kind === 'link').map((item) => `"${item.name}"`).join(', ')}, with no "History, 3 new alerts"`);
           const more = row.items.some((item) => item.kind === 'more');
