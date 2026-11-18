@@ -50,7 +50,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   // first page loads: 'set-up' (a finished setup), 'new' (nothing saved).
   // The walk is given the page, its context and check(ok, what), which
   // records what was seen under the walk's name, width and look.
-  const open = async (options, run, { state = 'set-up', script = null, permissions = ['camera', 'microphone', 'notifications'] } = {}) => {
+  const open = async (options, run, { state = 'set-up', script = null, permissions = ['camera', 'microphone', 'notifications'], windowStorage = 'kept' } = {}) => {
     const { name, width, height = heightOf(width), look = 'light', ...rest } = options;
     const check = (ok, what) => expect(ok, `${name} at ${width} px, ${look}: ${what}`);
     await walk({ name, width, look }, async (made) => {
@@ -59,6 +59,10 @@ export async function checkApp(browser, baseUrl, outDir) {
       });
       await made.context.grantPermissions(permissions, { origin: new URL(baseUrl).origin });
       if (state === 'set-up') await made.context.addInitScript(SETUP_DONE);
+      // A context made here keeps nothing on disk, as a private window. Walks
+      // say so only when they mean to: the others tell the app this window's
+      // storage is kept.
+      if (windowStorage === 'kept') await made.context.addInitScript(() => { try { sessionStorage.setItem('safeos-window-storage', 'kept'); } catch (e) { /* storage refused */ } });
       if (script) await made.context.addInitScript(script);
       return made.context.newPage();
     }, run, check);
@@ -1586,6 +1590,63 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(found.length === 0, `the sitemap lists ${found.join(', ')}`);
     }
   });
+
+  // Help opens at the entry an address names: the dashboard's links to
+  // /help/#camera and /help/#notifications land on Troubleshooting with the
+  // entry's heading in view, below the header, and the address keeps its
+  // fragment. Help with no fragment opens as before, at Getting Started.
+  const HELP_ENTRIES = [['#camera', 'Camera not working'], ['#notifications', 'Notifications not appearing']];
+  // The page scrolls smoothly: wait until it has stood still for a few frames.
+  const scrollSettled = (page) => page.evaluate(() => new Promise((resolve) => {
+    let last = -1;
+    let still = 0;
+    const started = performance.now();
+    const frame = () => {
+      still = window.scrollY === last ? still + 1 : 0;
+      last = window.scrollY;
+      if (still >= 5 || performance.now() - started > 3000) resolve();
+      else requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  }));
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'help entries', width, look }, async (page, context, check) => {
+        for (const [fragment, title] of HELP_ENTRIES) {
+          // Each address is opened afresh: from another Help address the
+          // browser would only move to the fragment, with no new page.
+          await page.goto('about:blank');
+          await visit(page, `/help/${fragment}`);
+          const heading = page.getByRole('heading', { name: title, exact: true });
+          const shown = await heading.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true, () => false);
+          check(shown, `/help/${fragment} shows no heading "${title}"`);
+          if (!shown) continue;
+          await scrollSettled(page);
+          const seen = await heading.evaluate((element) => {
+            const box = element.getBoundingClientRect();
+            const header = document.querySelector('header.app-header')?.getBoundingClientRect();
+            const bar = document.querySelector('nav.phone-bar');
+            const barBox = bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect() : null;
+            return {
+              top: box.top,
+              bottom: box.bottom,
+              headerFoot: header ? header.bottom : 0,
+              screenFoot: barBox && barBox.height > 0 ? barBox.top : window.innerHeight,
+              by: barBox && barBox.height > 0 ? 'the phone bar' : 'the screen',
+            };
+          });
+          check(seen.top >= seen.headerFoot - 0.5, `"${title}" at /help/${fragment} starts ${Math.round(seen.top)} px from the top, above the header's foot at ${Math.round(seen.headerFoot)} px`);
+          check(seen.bottom <= seen.screenFoot + 0.5, `"${title}" at /help/${fragment} ends ${Math.round(seen.bottom)} px from the top, past ${seen.by} at ${Math.round(seen.screenFoot)} px`);
+          const hash = new URL(page.url()).hash;
+          check(hash === fragment, `/help/${fragment} leaves the address at "${hash || 'no fragment'}"`);
+        }
+        await visit(page, '/help/');
+        const start = page.getByRole('heading', { name: 'Getting Started with SafeOS', exact: true });
+        const opens = await start.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true, () => false);
+        check(opens, '/help/ shows no heading "Getting Started with SafeOS"');
+      });
+    }
+  }
 
   // An element shows only when it and every element round it are opaque:
   // the browser counts an element with opacity 0 as visible.
