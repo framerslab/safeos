@@ -119,6 +119,44 @@ export interface AnimalAlertState {
 // Store
 // =============================================================================
 
+const STORE_NAME = 'safeos-animal-alerts';
+
+/** The sightings as the last write of any tab left them; none when storage cannot be read. */
+function storedSightings(): DetectionHistoryEntry[] {
+  try {
+    const saved = JSON.parse(window.localStorage.getItem(STORE_NAME) ?? 'null') as {
+      state?: { detectionHistory?: unknown };
+    } | null;
+    const list = saved?.state?.detectionHistory;
+    return Array.isArray(list)
+      ? list.filter((entry): entry is DetectionHistoryEntry => typeof entry?.id === 'string')
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+const seenAt = (entry: DetectionHistoryEntry) => (Number.isFinite(entry.timestamp) ? entry.timestamp : 0);
+
+/**
+ * Every open tab writes the one stored list: the watching tab saves a
+ * sighting each second an animal stays in view, and any tab marks sightings
+ * seen. A tab's copy can be seconds old, so each write starts from it joined
+ * by id with the list as stored: a sighting either side holds is kept, and it
+ * is seen when either side has seen it. Neither tab's write takes back what
+ * the other saved or marked. On a device out of room the copy holds this
+ * visit's sightings that storage refused, and they are kept too.
+ */
+function withStored(own: DetectionHistoryEntry[]): DetectionHistoryEntry[] {
+  const byId = new Map<string, DetectionHistoryEntry>();
+  for (const entry of own) byId.set(entry.id, entry);
+  for (const entry of storedSightings()) {
+    const mine = byId.get(entry.id);
+    byId.set(entry.id, mine ? { ...entry, acknowledged: entry.acknowledged === true || mine.acknowledged } : entry);
+  }
+  return Array.from(byId.values()).sort((a, b) => seenAt(b) - seenAt(a));
+}
+
 export const useAnimalAlertStore = create<AnimalAlertState>()(
   persist(
     (set, get) => ({
@@ -153,7 +191,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
         };
         
         // Limit history size
-        const newHistory = [entry, ...detectionHistory].slice(0, settings.maxStoredFrames);
+        const newHistory = [entry, ...withStored(detectionHistory)].slice(0, settings.maxStoredFrames);
         
         set({
           currentDetections: [...get().currentDetections, detection],
@@ -174,7 +212,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
           exported: false,
         }));
         
-        const newHistory = [...entries, ...detectionHistory].slice(0, settings.maxStoredFrames);
+        const newHistory = [...entries, ...withStored(detectionHistory)].slice(0, settings.maxStoredFrames);
         
         set({
           currentDetections: [...get().currentDetections, ...detections],
@@ -190,7 +228,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
       // History actions
       acknowledgeDetection: (id) => {
         set((state) => ({
-          detectionHistory: state.detectionHistory.map((d) =>
+          detectionHistory: withStored(state.detectionHistory).map((d) =>
             d.id === id ? { ...d, acknowledged: true } : d
           ),
         }));
@@ -200,21 +238,21 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
       acknowledgeDetections: (ids) => {
         set((state) => {
           const marked = new Set(ids);
-          return { detectionHistory: state.detectionHistory.map((d) => (marked.has(d.id) ? { ...d, acknowledged: true } : d)) };
+          return { detectionHistory: withStored(state.detectionHistory).map((d) => (marked.has(d.id) ? { ...d, acknowledged: true } : d)) };
         });
         alertsChanged();
       },
 
       updateDetectionNotes: (id, notes) =>
         set((state) => ({
-          detectionHistory: state.detectionHistory.map((d) =>
+          detectionHistory: withStored(state.detectionHistory).map((d) =>
             d.id === id ? { ...d, notes } : d
           ),
         })),
 
       deleteDetection: (id) => {
         set((state) => ({
-          detectionHistory: state.detectionHistory.filter((d) => d.id !== id),
+          detectionHistory: withStored(state.detectionHistory).filter((d) => d.id !== id),
         }));
         alertsChanged();
       },
@@ -262,7 +300,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
         }),
     }),
     {
-      name: 'safeos-animal-alerts',
+      name: STORE_NAME,
       // A full device keeps the sighting for the visit and the alert goes on.
       // A sighting read from storage again calls none of the actions above,
       // so two tabs never answer each other without end.
