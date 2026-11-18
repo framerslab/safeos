@@ -46,7 +46,9 @@ function smallMovementCamera() {
   (HTMLCanvasElement.prototype.getContext as unknown as jest.Mock).mockImplementation(() => ({
     drawImage: jest.fn(),
     getImageData: () => {
-      const data = new Uint8ClampedArray(16 * 16 * 4).fill(128);
+      // Black, with six white pixels on every other frame: the Nap preset counts
+      // only a change of nearly the whole brightness range.
+      const data = new Uint8ClampedArray(16 * 16 * 4);
       frame += 1;
       if (frame % 2) data.fill(255, 0, 6 * 4);
       return new ImageData(data, 16, 16);
