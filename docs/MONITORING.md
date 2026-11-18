@@ -40,6 +40,32 @@ for a while) removes **LIVE**, shows **Camera paused**, sets the stream to
 its own. An ended or muted microphone stops audio analysis and shows a warning while
 video monitoring continues.
 
+## What the settings change on the watch
+
+**Settings > Detection** lists the four uses with their Motion and Audio
+sensitivity. A use with nothing saved for it shows the setting's values, the
+ones a watch for that use runs at (80 and 80 on Maximum Alert, the setting a new
+device starts on). Moving a use's slider saves that value for the use; **Reset
+to defaults** clears it, and the use shows the setting's values again.
+
+Under **Audio Frequency Filtering** the sound check reads the Audio level from
+the pitches chosen: **Custom Range** reads the two pitches set below it and
+**Baby Cry Detection** reads 300 to 600 Hz. The level is the loudness in the
+analyser's bins inside the range, so a sound outside it leaves the level near 0.
+With a range set the analyser uses 2,048 points (about 23 Hz a bin at 48 kHz) in
+place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
+read every pitch.
+
+**Scheduled Presets** on **Settings > Quiet Hours** apply on every page: the app
+checks once a minute. When a set time begins, or the app opens inside one, its
+setting goes on; changes made while it lasts stay until the next set time
+begins.
+
+A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
+**Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
+sound is on. A saved sound that still plays is not started again by the next
+matching frame.
+
 ## When an alert comes again
 
 Monitor has three detectors: motion, sound and pixel change. Each detector's event
