@@ -756,7 +756,17 @@ class SoundManager {
       // copy would loop on top of the first.
       if (sound.loop) {
         const playing = this.playingLoopOf(sound.id);
-        if (playing) return playing.id;
+        if (playing) {
+          // A critical alert that finds the loop playing makes it a critical
+          // alert's sound: it follows the critical volume from then on, so a
+          // loop quiet hours silenced sounds again.
+          if (options.critical && !playing.critical) {
+            playing.critical = true;
+            this.clearFade(playing);
+            this.setSoundVolume(playing, this.playingVolume(playing));
+          }
+          return playing.id;
+        }
       }
 
       const id = `custom-${sound.id}-${Date.now()}`;
