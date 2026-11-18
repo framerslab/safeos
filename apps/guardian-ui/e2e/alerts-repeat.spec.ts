@@ -37,6 +37,7 @@ interface Shown {
   title: string;
   tag?: string;
   renotify?: boolean;
+  requireInteraction?: boolean;
 }
 
 interface Walk {
@@ -153,7 +154,7 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
       const shown = walk.notifications;
       const record = (title: string, options?: NotificationOptions) => {
         const o = (options || {}) as NotificationOptions & { renotify?: boolean };
-        shown.push({ at: Date.now(), title, tag: o.tag, renotify: o.renotify });
+        shown.push({ at: Date.now(), title, tag: o.tag, renotify: o.renotify, requireInteraction: o.requireInteraction });
       };
       class RecordedNotification extends EventTarget {
         static permission = 'granted';
@@ -537,6 +538,29 @@ test.describe('Alerts repeat while the activity goes on', () => {
     const shown = walk.notifications.filter((n) => n.title === 'Motion Detected');
     expect.soft(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect.soft(shown[shown.length - 1]?.tag, `the rise keeps the notification tag (${JSON.stringify(shown)})`).toBe(shown[0]?.tag);
+  });
+
+  test('a critical event that repeats at a lower severity keeps its notification up until it is dismissed', async ({ page }) => {
+    test.setTimeout(120_000);
+    // The whole picture changes (75 %, critical), then a third of it (25 %,
+    // low, still over the 20 % line): one event, whose repeat at the
+    // Cooldown Period (10 s here) is low. The critical notification stays up
+    // until it is dismissed, and the low repeat that replaces it does too.
+    await openMonitor(page, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
+      camera: { changingWidth: 1 },
+      notify: true,
+    });
+    const first = await firstAlert(page, 'motion');
+    await page.evaluate(() => { window.__walkCamera!.changingWidth = 1 / 3; });
+    await runUntil(page, first + 10_000 + LATE_MS);
+
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    expect(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
+    expect.soft(shown[0]?.requireInteraction, 'the critical notification stays up').toBe(true);
+    expect.soft(shown[shown.length - 1]?.tag, 'the repeat replaces the event\'s notification').toBe(shown[0]?.tag);
+    expect.soft(shown[shown.length - 1]?.requireInteraction, `the lower repeat keeps it up (${JSON.stringify(shown)})`).toBe(true);
+    await expect.soft(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
   });
 
   test('a scene that holds still for a moment now and then is one event, which repeats at the Cooldown Period', async ({ page }) => {
