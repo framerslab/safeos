@@ -18,6 +18,7 @@ import { useSearchParams } from 'next/navigation';
 import { CameraPicker } from '../../components/CameraPicker';
 import { useCameraStore } from '../../stores/camera-store';
 import { CameraFeed } from '../../components/CameraFeed';
+import { KeyRow } from '../../components/app/KeyRow';
 import { AlertPanel } from '../../components/AlertPanel';
 import { SubjectPreviewOverlay, SubjectPreview } from '../../components/SubjectPreview';
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
@@ -961,7 +962,7 @@ export default function MonitorPage() {
       {/* Header */}
       <header className="border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm relative z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="way-head">
             <div className="flex items-center gap-3">
               <Link
                 href="/"
@@ -973,7 +974,7 @@ export default function MonitorPage() {
               <h1 className="text-xl font-bold text-white">Live Monitor</h1>
             </div>
 
-            <div className="flex items-center gap-4">
+            <KeyRow>
               {/* Volume Mute Toggle */}
               <button
                 onClick={toggleGlobalMute}
@@ -997,7 +998,7 @@ export default function MonitorPage() {
               </button>
 
               {/* Security Mode Selector */}
-              <div ref={modeDropdownRef} className="relative">
+              <div ref={modeDropdownRef} className="way-head__menu">
                 <button
                   onClick={() => setShowModeDropdown(!showModeDropdown)}
                   className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${isSleepPreset(activePresetId)
@@ -1129,7 +1130,7 @@ export default function MonitorPage() {
                   {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
                 </button>
               )}
-            </div>
+            </KeyRow>
           </div>
         </div>
       </header>

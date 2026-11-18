@@ -17,6 +17,7 @@ import { useDetectionModel } from '@/lib/detection-model';
 import { SecurityPanel } from '../../components/SecurityPanel';
 import { IntrusionGallery } from '../../components/IntrusionGallery';
 import { CameraFeed } from '../../components/CameraFeed';
+import { KeyRow } from '../../components/app/KeyRow';
 import {
   IconShield,
   IconCamera,
@@ -415,7 +416,7 @@ export default function SecurityPage() {
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm relative z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="way-head">
             <div className="flex items-center gap-4">
               <Link
                 href="/"
@@ -430,7 +431,7 @@ export default function SecurityPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <KeyRow>
               {/* Model Status */}
               <div
                 className={`px-2 py-1 rounded text-xs font-medium ${
@@ -469,7 +470,7 @@ export default function SecurityPage() {
                 <IconSettings size={16} />
                 Settings
               </button>
-            </div>
+            </KeyRow>
           </div>
         </div>
       </header>

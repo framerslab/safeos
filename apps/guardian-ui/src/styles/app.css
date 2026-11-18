@@ -575,6 +575,78 @@ html:has(.app-shell) {
 }
 
 /* =============================================================================
+   The head of a way's page
+   ============================================================================= */
+
+/* From 48em the page's name and its keys share one row. */
+.way-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4rem;
+}
+
+.way-head__keys {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.way-head__menu {
+  position: relative;
+}
+
+/* A key's menu keeps its words' own wrapping inside a row of keys. */
+.way-head__menu > .absolute {
+  white-space: normal;
+}
+
+/* On a phone the name has its line and the keys have theirs under it, so the
+   head never makes the page wider than the screen: what a page fixes to the
+   screen is laid out to the page's width. The keys keep one line and scroll
+   inside their row, with the right edge faded as the phone bar's is until the
+   end is reached; the row's padding keeps a focused key's ring whole. A key's
+   menu opens under the head at its right edge, so it stays on the screen and
+   the row's scroll does not clip it. */
+@media not all and (min-width: 48em) {
+  .way-head {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    height: auto;
+    padding: 0.5rem 0;
+  }
+
+  .way-head__menu {
+    position: static;
+  }
+
+  .way-head__menu > .absolute {
+    top: 100%;
+  }
+
+  .key-row {
+    margin: -0.25rem;
+    padding: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-padding-inline-end: 1.5rem;
+  }
+
+  .key-row > * {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .key-row[data-overflow] {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+  }
+}
+
+/* =============================================================================
    Settings' first rows on a phone
    ============================================================================= */
 
