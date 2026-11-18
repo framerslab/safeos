@@ -1920,6 +1920,42 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(itsPage(seen), `/dashboard/ opened offline after the clear shows ${whatShows(seen)}`);
   });
 
+  // A camera for the walks: a small picture that keeps changing, with a quiet
+  // sound track where asked. The page's own request is counted, and a walk
+  // can make the next request wait, or fail with a browser's error name.
+  const FAKE_CAMERA = () => {
+    window.__camera = { requests: 0, answer: 'ok', waitMs: 0, live: [] };
+    const media = navigator.mediaDevices;
+    media.getUserMedia = async (constraints) => {
+      window.__camera.requests += 1;
+      if (window.__camera.waitMs) await new Promise((resolve) => setTimeout(resolve, window.__camera.waitMs));
+      if (window.__camera.answer !== 'ok') throw new DOMException('camera', window.__camera.answer);
+      const canvas = document.createElement('canvas');
+      canvas.width = 320;
+      canvas.height = 180;
+      const pen = canvas.getContext('2d');
+      let tick = 0;
+      setInterval(() => {
+        tick += 1;
+        pen.fillStyle = tick % 2 ? '#202020' : '#e0e0e0';
+        pen.fillRect(0, 0, 320, 180);
+        pen.fillStyle = '#808080';
+        pen.fillRect((tick * 16) % 320, 40, 80, 80);
+      }, 150);
+      const stream = canvas.captureStream(10);
+      if (constraints && constraints.audio) {
+        const audio = new AudioContext();
+        const out = audio.createMediaStreamDestination();
+        audio.createOscillator().connect(out);
+        out.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
+      }
+      window.__camera.live.push(stream);
+      return stream;
+    };
+  };
+  const cameraRequests = (page) => page.evaluate(() => window.__camera.requests);
+  const camerasOn = (page) => page.evaluate(() => window.__camera.live.filter((s) => s.getVideoTracks().some((t) => t.readyState === 'live')).length);
+
   // ---------------------------------------------------------------------------
   // The four ways' pages
   // ---------------------------------------------------------------------------
@@ -1967,6 +2003,130 @@ export async function checkApp(browser, baseUrl, outDir) {
       ? `the first key after the heading is ${first.tag === 'a' ? 'the link' : 'the button'} "${first.name}", not the add key`
       : 'no key or link follows the heading');
   });
+
+  // One watch at a time across the device's tabs. While one tab watches, a
+  // way's own start key in another tab asks before anything starts; Cancel
+  // keeps the first tab's watch, Watch here ends it, camera and all.
+
+  const QUESTION = 'Watch here instead? The other tab stops.';
+  // The dialog stands on the panel. Its words take the panel's ink, as the
+  // panels of the visitor pages do: white in the dark look, where body text in
+  // the page's ink reads under 12:1 on its strokes (visitor.css), and the
+  // look's ink in the light look.
+  const PANEL_INK = { light: INK.light, dark: 'rgb(255, 255, 255)' };
+  // A pet saved on this device, as Lost and Found's own setup saves one.
+  const SAVED_PET = () => new Promise((resolve, reject) => {
+    const request = indexedDB.open('safeos-guardian');
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const database = request.result;
+      const createdAt = new Date().toISOString();
+      const saving = database.transaction('subject_profile', 'readwrite');
+      saving.objectStore('subject_profile').put({
+        id: 'walk-pet', name: 'Mittens', type: 'pet', description: '',
+        fingerprint: {
+          id: 'walk-pet', name: 'Mittens', colorHistogram: [], dominantColors: [], averageColor: { r: 180, g: 120, b: 60 },
+          colorVariance: 0, estimatedSizeRatio: 0.2, edgeSignature: [], referenceImages: [], createdAt, version: 2,
+        },
+        referenceImages: [], createdAt, lastActiveAt: null, matchCount: 0,
+      });
+      saving.onerror = () => reject(saving.error);
+      saving.oncomplete = () => {
+        database.close();
+        resolve();
+      };
+    };
+  });
+  const theQuestion = (page) => page.getByRole('dialog', { name: QUESTION });
+  const focusedOn = (page) => page.evaluate(() => (document.activeElement?.textContent || '').replace(/\s+/g, ' ').trim());
+  const gone = (locator) => locator.waitFor({ state: 'detached', timeout: 5_000 }).then(() => true, () => false);
+  // Two tabs of one browser: the first watches on /monitor/, the second is
+  // Lost and Found with the saved pet chosen and its start key in view.
+  const twoTabs = async (page, context) => {
+    await visit(page, '/monitor/');
+    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).waitFor({ timeout: 20_000 });
+    const second = await context.newPage();
+    await visit(second, '/lost-found/');
+    await firstHeading(second);
+    await second.evaluate(SAVED_PET);
+    await second.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    await second.locator('#main-content h3', { hasText: 'Mittens' }).first().click();
+    const startKey = second.locator('#main-content').getByRole('button', { name: 'Start Monitoring', exact: true });
+    await startKey.waitFor({ timeout: 20_000 });
+    return { second, startKey };
+  };
+
+  await open({ name: "second tab, a way's own key", width: 1280, look: 'light' }, async (page, context, check) => {
+    const { second, startKey } = await twoTabs(page, context);
+    await startKey.click();
+    const asked = await theQuestion(second).waitFor({ timeout: 5_000 }).then(() => true, () => false);
+    check(asked, `a press on the start key of /lost-found/, while /monitor/ watches in another tab, showed no dialog named "${QUESTION}"`);
+    if (!asked) return;
+    const keys = (await theQuestion(second).getByRole('button').allTextContents()).map(plain);
+    check(keys.join(' | ') === 'Watch here | Cancel', `the dialog's keys read ${keys.map((key) => `"${key}"`).join(', ')}, not "Watch here" then "Cancel"`);
+    const first = await focusedOn(second);
+    check(first === 'Cancel', `focus starts on "${first}", not Cancel`);
+    const requests = await cameraRequests(second);
+    check(requests === 0, `the second tab asked for the camera ${requests} times before the person chose`);
+
+    await theQuestion(second).getByRole('button', { name: 'Cancel', exact: true }).click();
+    check(await gone(theQuestion(second)), 'Cancel left the dialog open');
+    const back = await focusedOn(second);
+    check(back === 'Start Monitoring', `after Cancel focus is on "${back}", not the start key`);
+    check(await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).count() === 1, 'after Cancel the first tab no longer reads Stop Monitoring');
+
+    await startKey.click();
+    await theQuestion(second).waitFor({ timeout: 5_000 });
+    await theQuestion(second).getByRole('button', { name: 'Watch here', exact: true }).click();
+    const ended = await page.getByRole('button', { name: 'Start Monitoring', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    check(ended, 'after Watch here the first tab does not read Start Monitoring');
+    const on = await camerasOn(page);
+    check(on === 0, `after Watch here the first tab holds ${on} live cameras`);
+  }, { script: FAKE_CAMERA });
+
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: "second tab, the dialog's look", width, look }, async (page, context, check) => {
+        const { second, startKey } = await twoTabs(page, context);
+        // Pressed from the keyboard, so no pointer rests on a key of the
+        // dialog and the ring shows on Cancel as a keyboard user sees it.
+        await startKey.focus();
+        await second.keyboard.press('Enter');
+        await theQuestion(second).waitFor({ timeout: 5_000 });
+        const seen = await theQuestion(second).evaluate((dialog) => ({
+          ground: getComputedStyle(dialog).backgroundColor,
+          words: getComputedStyle(dialog.querySelector('#other-tab-question')).color,
+          keys: [...dialog.querySelectorAll('button')].map((key) => {
+            const style = getComputedStyle(key);
+            return {
+              name: key.textContent.trim(),
+              color: style.color,
+              edges: ['Top', 'Right', 'Bottom', 'Left'].map((side) => `${style[`border${side}Width`]} ${style[`border${side}Style`]} ${style[`border${side}Color`]}`),
+              height: key.getBoundingClientRect().height,
+            };
+          }),
+        }));
+        check(seen.ground === PANEL[look], `the dialog's ground is ${seen.ground}, not ${PANEL[look]}`);
+        check(seen.words === PANEL_INK[look], `the question is ${seen.words}, not ${PANEL_INK[look]}`);
+        check(seen.keys.length === 2, `the dialog holds ${seen.keys.length} keys, not 2`);
+        for (const key of seen.keys) {
+          check(key.color === PANEL_INK[look], `"${key.name}" is labelled in ${key.color}, not ${PANEL_INK[look]}`);
+          for (const edge of key.edges) check(edge === `1px solid ${LINE[look]}`, `"${key.name}" has the edge ${edge}, not 1px solid ${LINE[look]}`);
+          check(key.height >= 44, `"${key.name}" is ${key.height} px tall, under 44`);
+        }
+        const texts = await second.evaluate(measureText, await theQuestion(second).elementHandle());
+        check(texts.length >= 3, `only ${texts.length} pieces of the dialog's text were measured`);
+        for (const text of texts) {
+          check(text.size >= 16, `"${text.words}" is ${text.size} px, under 16`);
+          check(['400', '700'].includes(text.weight), `"${text.words}" has weight ${text.weight}`);
+        }
+        await second.screenshot({ path: path.join(outDir, `other-tab-dialog-${width}-${look}.png`) });
+        await second.keyboard.press('Escape');
+        check(await gone(theQuestion(second)), 'Escape left the dialog open');
+      }, { script: FAKE_CAMERA });
+    }
+  }
 
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
