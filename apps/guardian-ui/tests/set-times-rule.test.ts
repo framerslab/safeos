@@ -58,6 +58,17 @@ describe('setTimeStep', () => {
     expect(setTimeStep([edited], true, applied.appliedKey, at(MONDAY, 12)).preset).toBe('maximum');
   });
 
+  it('does not put on again a set time in force again after an overlapping one ends', () => {
+    const work = { ...setTime('maximum', ['mon'], '09:00', '17:00'), id: 'sched_work', priority: 5 };
+    const nap = { ...setTime('pet_sleep', ['mon'], '13:00', '15:00'), id: 'sched_nap', priority: 15 };
+    const at9 = setTimeStep([work, nap], true, null, at(MONDAY, 9));
+    expect(at9.preset).toBe('maximum');
+    const at13 = setTimeStep([work, nap], true, at9.appliedKey, at(MONDAY, 13));
+    expect(at13.preset).toBe('pet_sleep');
+    // The person picks another setting at 14:00; after 15:00 work hours are in force again, already put on today.
+    expect(setTimeStep([work, nap], true, at13.appliedKey, at(MONDAY, 15, 1)).preset).toBeNull();
+  });
+
   it('forgets the set time when set times are off, so turning them on again puts it back on', () => {
     const first = setTimeStep([night], true, null, at(MONDAY, 22));
     const off = setTimeStep([night], false, first.appliedKey, at(MONDAY, 22, 5));
