@@ -2097,6 +2097,17 @@ export async function checkApp(browser, baseUrl, outDir) {
         await startKey.focus();
         await second.keyboard.press('Enter');
         await theQuestion(second).waitFor({ timeout: 5_000 });
+        // Cancel takes focus with its ring drawn whole: the keys' row scrolls
+        // inside itself, so a ring drawn past its box would be cut away.
+        const focused = await second.evaluate(() => {
+          const key = document.activeElement;
+          const style = getComputedStyle(key);
+          return { name: (key.textContent || '').trim(), ring: `${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor}` };
+        });
+        check(focused.name === 'Cancel', `focus starts on "${focused.name}", not Cancel`);
+        check(focused.ring === `solid 2px ${ACCENT[look]}`, `Cancel is ringed ${focused.ring}, not solid 2px ${ACCENT[look]}`);
+        const cut = await second.evaluate(ringCut);
+        check(cut.length === 0, `the ring round Cancel is cut: it is drawn ${cut.join(', ')}`);
         const seen = await theQuestion(second).evaluate((dialog) => ({
           ground: getComputedStyle(dialog).backgroundColor,
           words: getComputedStyle(dialog.querySelector('#other-tab-question')).color,
