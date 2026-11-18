@@ -11,7 +11,7 @@
 import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
-import { newDetectorEvent, endDetectorEvent, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
+import { newDetectorEvent, endDetectorEvent, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -675,12 +675,15 @@ export default function MonitorPage() {
   const maybeNotify = async (
     title: string,
     body: string,
-    severity: 'low' | 'medium' | 'high' | 'critical'
+    severity: 'low' | 'medium' | 'high' | 'critical',
+    event?: DetectorEvent
   ) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-    // Avoid spamming notifications for low severity
-    const requireInteraction = severity === 'high' || severity === 'critical';
+    // High and critical notifications stay up until dismissed; so do the
+    // notifications of an event that has alerted at high or critical, since
+    // each replaces the one before it.
+    const requireInteraction = event ? keepsNotificationUp(event) : severity === 'high' || severity === 'critical';
     await getNotificationManager().show(title, {
       body,
       // One tag a kind of alert, whatever its severity: a repeat, or a rise in
@@ -732,11 +735,11 @@ export default function MonitorPage() {
       startedAt = new Date(now).toISOString();
       event.repeats = 0;
     } else {
-      event.repeats += 1;
+      // The card's own count, which a repeat queued behind a stale card may have moved on.
+      event.repeats = (card?.repeats ?? 0) + 1;
     }
     event.alertId = id;
     event.startedAt = startedAt;
-    const cardId = id;
     addAlert({
       id,
       streamId: streamId || 'local',
@@ -747,10 +750,10 @@ export default function MonitorPage() {
       acknowledged: false,
       repeats: event.repeats > 0 ? event.repeats : undefined,
     }, updatesCard ? {
-      fresh: () => {
+      fresh: (staleId) => {
         const next = { id: newAlertId(source, now), createdAt: new Date(now).toISOString() };
         // Later repeats of the event update the fresh card, unless the event has moved on.
-        if (event.alertId === cardId) {
+        if (event.alertId === staleId) {
           event.alertId = next.id;
           event.startedAt = next.createdAt;
           event.repeats = 0;
@@ -805,7 +808,7 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('motion_detected');
     playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity);
+    maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity, motionEventRef.current);
   }, [
     isStreaming,
     currentPreset.motionDetectionEnabled,
@@ -847,7 +850,7 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('audio_detected');
     getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
-    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity);
+    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity, audioEventRef.current);
   }, [isStreaming, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, showDetectorAlert, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
 
   const handlePixel = useCallback((result: PixelDetectionResult) => {
@@ -926,7 +929,7 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('motion_detected');
     playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity);
+    maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity, pixelEventRef.current);
   }, [
     isStreaming,
     currentPreset.absolutePixelThreshold,

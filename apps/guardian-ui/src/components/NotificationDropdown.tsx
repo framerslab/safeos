@@ -17,7 +17,7 @@ import {
   selectAlerts,
   type Alert,
 } from '../stores/monitoring-store';
-import { cardTime } from '../lib/alert-event';
+import { cardTime, newestFirst } from '../lib/alert-event';
 import {
   IconBell,
   IconX,
@@ -89,7 +89,8 @@ export function NotificationDropdown() {
   const clearAlerts = useMonitoringStore((state) => state.clearAlerts);
 
   const alertCount = unacknowledgedAlerts.length;
-  const displayAlerts = allAlerts.slice(0, 10); // Show up to 10 recent alerts
+  // The ten newest, by each card's newest alert: saved history comes back in the order cards were made.
+  const displayAlerts = newestFirst(allAlerts).slice(0, 10);
 
   useEffect(() => {
     setMounted(true);

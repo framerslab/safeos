@@ -725,7 +725,7 @@ export async function getCachedStreams(): Promise<any[]> {
  */
 async function writeAlert(
   alert: any, stamp: ClearStamp | undefined, mode: 'save' | 'update' | 'repeat',
-  found?: { stored: any | null },
+  found?: { stored: any | null; generation?: string },
 ): Promise<'saved' | 'cancelled' | 'gone' | 'stale' | 'failed'> {
   let tx: IDBPTransaction<SafeOSDB, AlertStores, 'readwrite'> | undefined;
   try {
@@ -751,7 +751,11 @@ async function writeAlert(
     }
     // Another tab may have cleared, removed or acknowledged the card a repeat was for.
     if (mode === 'repeat' && (!previous || previous.acknowledged)) {
-      if (found) found.stored = previous ?? null;
+      if (found) {
+        found.stored = previous ?? null;
+        // A save made for this repeat afterwards is cancelled by a clear that comes between.
+        found.generation = generation;
+      }
       await tx.done;
       return 'stale';
     }
@@ -812,8 +816,11 @@ async function writeAlert(
  * nothing is left to save: the record was saved, or a clear since the save was queued means it
  * must not be.
  */
-export async function cacheAlert(alert: any, stamp?: ClearStamp): Promise<boolean> {
-  return (await writeAlert(alert, stamp, 'save')) !== 'failed';
+export async function cacheAlert(alert: any, stamp?: ClearStamp, outcome?: { result?: string }): Promise<boolean> {
+  const result = await writeAlert(alert, stamp, 'save');
+  // `cancelled`: a clear came after the stamp, and nothing was written.
+  if (outcome) outcome.result = result;
+  return result !== 'failed';
 }
 
 /** An acknowledgement or any other partial update. It never creates a record. */
@@ -827,14 +834,14 @@ export async function updateCachedAlert(alert: any, stamp?: ClearStamp): Promise
  * A repeat of an event's alert, written onto the event's card. The card is read in the same
  * transaction as the write, and is written only while it is stored and not acknowledged: another
  * tab may have cleared, removed or acknowledged it. `stale` carries the stored card, or null when
- * it is gone. `cancelled`: a clear came after a failed save's stamp, and nothing is left to save.
+ * it is gone, and the clear generation read with it. `cancelled`: a clear came after a failed save's stamp, and nothing is left to save.
  */
 export async function repeatCachedAlert(alert: any, stamp?: ClearStamp): Promise<
-  { kind: 'updated' | 'cancelled' | 'failed' } | { kind: 'stale'; stored: any | null }
+  { kind: 'updated' | 'cancelled' | 'failed' } | { kind: 'stale'; stored: any | null; generation: string }
 > {
-  const found: { stored: any | null } = { stored: null };
+  const found: { stored: any | null; generation?: string } = { stored: null };
   const result = await writeAlert(alert, stamp, 'repeat', found);
-  if (result === 'stale') return { kind: 'stale', stored: found.stored };
+  if (result === 'stale') return { kind: 'stale', stored: found.stored, generation: found.generation ?? '' };
   return { kind: result === 'saved' ? 'updated' : result === 'failed' ? 'failed' : 'cancelled' };
 }
 

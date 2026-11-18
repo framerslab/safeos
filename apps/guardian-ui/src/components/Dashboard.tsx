@@ -13,7 +13,7 @@ import { useMonitoringStore } from '../stores/monitoring-store';
 import { useWebSocket } from '../lib/websocket';
 import { OnboardingWizard, useOnboarding } from './OnboardingWizard';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
-import { cardTime } from '@/lib/alert-event';
+import { cardTime, newestFirst } from '@/lib/alert-event';
 import {
   IconShieldCheck,
   IconCamera,
@@ -215,7 +215,7 @@ export function Dashboard() {
               {/* Right Column - Status & Alerts */}
               <div className="space-y-6">
                 <SystemStatusPanel stats={stats} />
-                <RecentAlertsPanel alerts={alerts.slice(0, 5)} />
+                <RecentAlertsPanel alerts={newestFirst(alerts).slice(0, 5)} />
               </div>
             </div>
           </div>

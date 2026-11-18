@@ -32,6 +32,8 @@ export interface DetectorEvent {
   lastAlertAt: number;
   /** The severity of the event's last alert. */
   lastSeverity: AlertSeverity | null;
+  /** The highest severity the event has alerted at. */
+  peakSeverity: AlertSeverity | null;
   /** The card the event's alerts update. */
   alertId: string | null;
   /** When the event's card was made. */
@@ -50,6 +52,24 @@ export function cardTime(card: { createdAt?: string; timestamp?: string; repeats
   return ((card.repeats ?? 0) > 0 && card.timestamp) || card.createdAt || card.timestamp;
 }
 
+/** A copy of `cards`, newest first by cardTime. */
+export function newestFirst<T extends { createdAt?: string; timestamp?: string; repeats?: number }>(cards: T[]): T[] {
+  const at = (card: T) => {
+    const time = Date.parse(cardTime(card) ?? '');
+    return Number.isFinite(time) ? time : 0;
+  };
+  return [...cards].sort((a, b) => at(b) - at(a));
+}
+
+/**
+ * An event's notifications stay up until they are dismissed once it has
+ * alerted at high or critical: a repeat at a lower severity replaces the
+ * event's notification and must not let it close by itself.
+ */
+export function keepsNotificationUp(event: DetectorEvent): boolean {
+  return event.peakSeverity === 'high' || event.peakSeverity === 'critical';
+}
+
 export function newDetectorEvent(): DetectorEvent {
   return {
     aboveSince: null,
@@ -57,6 +77,7 @@ export function newDetectorEvent(): DetectorEvent {
     active: false,
     lastAlertAt: 0,
     lastSeverity: null,
+    peakSeverity: null,
     alertId: null,
     startedAt: null,
     repeats: 0,
@@ -69,6 +90,7 @@ export function endDetectorEvent(event: DetectorEvent): void {
   event.belowSince = null;
   event.active = false;
   event.lastSeverity = null;
+  event.peakSeverity = null;
   event.alertId = null;
   event.startedAt = null;
   event.repeats = 0;
@@ -146,5 +168,6 @@ export function readDetector(
   event.aboveSince = null;
   event.lastAlertAt = now;
   event.lastSeverity = severity;
+  if (event.peakSeverity === null || RANK[severity] > RANK[event.peakSeverity]) event.peakSeverity = severity;
   return { kind: 'alert', repeat };
 }
