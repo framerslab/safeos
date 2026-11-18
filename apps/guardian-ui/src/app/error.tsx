@@ -1,0 +1,64 @@
+/**
+ * Error page
+ *
+ * Shown in place of a page that fails as it draws. A missing script file from
+ * an older build reloads the page once for the newest build; any other error
+ * says what happened, with a Reload key and a link home, instead of the blank
+ * page Next.js leaves without one.
+ *
+ * @module app/error
+ */
+
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { reloadForNewBuild } from '@/lib/recover-from-stale-build';
+
+export default function ErrorPage({ error }: { error: Error & { digest?: string }; reset: () => void }) {
+  const [reloading, setReloading] = useState(false);
+
+  useEffect(() => {
+    if (reloadForNewBuild(error)) {
+      setReloading(true);
+      return;
+    }
+    console.error(error);
+  }, [error]);
+
+  return (
+    <main className="min-h-screen pt-24 pb-16">
+      <div className="max-w-xl mx-auto px-6 text-center">
+        {reloading ? (
+          <p role="status" className="text-lg text-[var(--color-steel-200)]">
+            Loading the newest version of SafeOS.
+          </p>
+        ) : (
+          <>
+            <h1 className="text-3xl font-bold text-[var(--color-steel-100)] mb-4">
+              This page stopped working
+            </h1>
+            <p className="text-[var(--color-steel-300)] text-lg leading-relaxed mb-8">
+              Reload it to try again.
+            </p>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center justify-center min-h-[44px] px-5 bg-emerald-700 text-white text-lg rounded-lg hover:bg-emerald-800 transition-colors"
+              >
+                Reload
+              </button>
+              <Link
+                href="/"
+                className="inline-flex items-center justify-center min-h-[44px] px-5 text-lg text-[var(--color-steel-100)] underline underline-offset-4"
+              >
+                Go to the home page
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </main>
+  );
+}
