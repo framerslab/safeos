@@ -14,7 +14,6 @@ import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 import {
   IconChevronLeft,
   IconClock,
-  IconUser,
   IconExternalLink,
 } from '../../../components/icons';
 import { NotAMedicalDevice } from '../../../components/NotAMedicalDevice';
@@ -55,7 +54,7 @@ const blogContent: Record<string, BlogContent> = {
     description:
       'Walking through the safeos.sh pipeline file by file. 200 ms motion screening, COCO-SSD gated on motion, Lost & Found colour matching. TensorFlow.js running in a browser, by design.',
     date: 'January 10, 2026',
-    author: 'Johnny Dunn',
+    author: 'Frame.dev Team',
     readTime: '8 min read',
     tags: ['technical', 'architecture', 'tensorflow.js', 'on-device-ai'],
     content: (
@@ -324,7 +323,7 @@ const blogContent: Record<string, BlogContent> = {
 
         <p>
           The honest version is: SafeOS is rough, occasionally inelegant, and runs on engineering
-          decisions I&apos;m going to second-guess in six months. But it works, it&apos;s free,
+          decisions we&apos;re going to second-guess in six months. But it works, it&apos;s free,
           it&apos;s MIT-licensed, and it doesn&apos;t send your camera feed to a stranger&apos;s
           server. The most consequential of those decisions is the motion gate that keeps the GPU
           idle, and its code is in{' '}
@@ -339,7 +338,7 @@ const blogContent: Record<string, BlogContent> = {
           .
         </p>
 
-        <p className="text-slate-500 italic">&mdash; Johnny Dunn, Frame</p>
+        <p className="text-slate-500 italic">&mdash; The Frame.dev Team</p>
       </>
     ),
   },
@@ -419,6 +418,7 @@ export default function BlogArticlePage({
             author: {
               '@type': 'Organization',
               name: post.author,
+              url: 'https://frame.dev',
             },
             publisher: {
               '@type': 'Organization',
@@ -490,7 +490,7 @@ export default function BlogArticlePage({
               {post.date}
             </span>
             <span className="flex items-center gap-1">
-              <IconUser size={14} />
+              <Image src="/logos/frame.svg" alt="" width={14} height={14} />
               {post.author}
             </span>
             <span>{post.readTime}</span>
