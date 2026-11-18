@@ -50,7 +50,7 @@ to defaults** clears it, and the use shows the setting's values again.
 
 Under **Audio Frequency Filtering** the sound check reads the Audio level from
 the pitches chosen: **Custom Range** reads the two pitches set below it and
-**Baby Cry Detection** reads 300 to 600 Hz. The level is the loudness in the
+the baby cry choice reads 300 to 600 Hz. The level is the loudness in the
 analyser's bins inside the range, so a sound outside it leaves the level near 0.
 With a range set the analyser uses 2,048 points (about 23 Hz a bin at 48 kHz) in
 place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
