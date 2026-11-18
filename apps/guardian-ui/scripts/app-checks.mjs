@@ -1996,6 +1996,58 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(itsPage(seen), `/dashboard/ opened offline after the clear shows ${whatShows(seen)}`);
   });
 
+  // Offline, the question before "Clear All Local Data" says that SafeOS
+  // will not open again until the device is back online, since the installed
+  // copy goes with the rest and only a load with a connection stores it
+  // again. Dismissed, it clears nothing.
+  const ASK_ONLINE = 'This will delete all local data. Are you sure?';
+  const ASK_OFFLINE = `${ASK_ONLINE} SafeOS will not open again until you are back online.`;
+  // Presses Privacy, then "Clear All Local Data", and dismisses the question:
+  // its words, or null when none came within 10 seconds.
+  const clearQuestion = async (page) => {
+    await page.getByRole('button', { name: 'Privacy', exact: true }).click();
+    const question = new Promise((resolve) => {
+      const none = setTimeout(() => resolve(null), 10_000);
+      page.once('dialog', async (dialog) => {
+        clearTimeout(none);
+        const message = dialog.message();
+        await dialog.dismiss();
+        resolve(message);
+      });
+    });
+    await page.getByRole('button', { name: 'Clear All Local Data', exact: true }).click();
+    return question;
+  };
+  // What a clear would change: the setup record's finished setup and use.
+  const setupRecord = (page) => page.evaluate(() => {
+    try {
+      const state = JSON.parse(localStorage.getItem('safeos-onboarding') || 'null')?.state;
+      return state ? JSON.stringify({ isComplete: state.isComplete, selectedScenario: state.selectedScenario }) : null;
+    } catch (e) {
+      return 'unreadable';
+    }
+  });
+
+  await open({ name: 'clearing while offline', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    if (!(await installed(page))) throw new Error('the installed copy is not whole after a visit to /settings/');
+    const kept = await setupRecord(page);
+    if (kept === null) throw new Error('the setup record is not saved on /settings/ before the presses');
+    await context.setOffline(true);
+    const offline = await clearQuestion(page);
+    check(offline === ASK_OFFLINE, `offline, "Clear All Local Data" asks ${offline === null ? 'nothing' : `"${offline}"`}, not "${ASK_OFFLINE}"`);
+    await visit(page, '/dashboard/');
+    const seen = await shown(page);
+    check(seen.h1 !== OFFLINE_H1, `/dashboard/ opened offline after the dismissed question shows ${whatShows(seen)}`);
+    const after = await setupRecord(page);
+    check(after === kept, `after the dismissed question the setup record reads ${after}, not ${kept}`);
+
+    await context.setOffline(false);
+    await visit(page, '/settings/');
+    const online = await clearQuestion(page);
+    check(online === ASK_ONLINE, `online, "Clear All Local Data" asks ${online === null ? 'nothing' : `"${online}"`}, not "${ASK_ONLINE}"`);
+  });
+
   // A camera for the walks: a small picture that keeps changing, with a quiet
   // sound track where asked. The page's own request is counted, and a walk
   // can make the next request wait, or fail with a browser's error name.
