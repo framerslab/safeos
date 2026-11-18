@@ -608,6 +608,28 @@ describe('Sound Manager', () => {
       expect(soundGains().map((gain) => gain.gain.value)).toEqual([1]);
     });
 
+    it('keeps a playing sound at the volume it was played at when the user volume changes', () => {
+      const manager = getSoundManager();
+      manager.setUserVolume(40);
+      manager.play('alarm', { volume: 20, fadeIn: 0 });
+
+      manager.setUserVolume(80);
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+
+      manager.setEmergencyMode(true);
+      manager.setEmergencyMode(false);
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+    });
+
+    it('silences a sound played at a named volume when the user volume goes to 0', () => {
+      const manager = getSoundManager();
+      manager.play('alarm', { volume: 20, fadeIn: 0 });
+
+      manager.setUserVolume(0);
+
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0]);
+    });
+
     it('should respect forceMaxVolume option', () => {
       const manager = getSoundManager();
       manager.setUserVolume(30);

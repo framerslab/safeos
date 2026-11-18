@@ -57,11 +57,16 @@ function clock(minutes: number) {
   return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
 }
 
-/** Accepts the notice and passes the camera check; the motion check then starts by itself. */
-async function passCamera() {
+/** Accepts the notice and starts the camera check. */
+function startCameraCheck() {
   fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.click(screen.getByRole('button', { name: 'Continue to Pre-Nap Test' }));
   fireEvent.click(screen.getAllByRole('button', { name: 'Start' })[0]);
+}
+
+/** Accepts the notice and passes the camera check; the motion check then starts by itself. */
+async function passCamera() {
+  startCameraCheck();
   await waitFor(() => expect(screen.getAllByRole('button', { name: 'Start' })).toHaveLength(1), { timeout: 3000 });
 }
 
@@ -113,6 +118,30 @@ it('passes the camera check on a camera with no microphone, as the watch does', 
   await passCamera();
 
   expect(getUserMedia).toHaveBeenLastCalledWith(expect.objectContaining({ audio: false }));
+});
+
+it('asks for no camera again when the page closes while the check waits for one', async () => {
+  let refuse: (error: Error) => void = () => {};
+  getUserMedia.mockImplementationOnce(() => new Promise((_, reject) => { refuse = reject; }));
+  const view = render(<NapPage />);
+  await screen.findByRole('checkbox');
+  startCameraCheck();
+  view.unmount();
+  await act(async () => { refuse(Object.assign(new Error('No microphone'), { name: 'NotFoundError' })); });
+
+  expect(getUserMedia).toHaveBeenCalledTimes(1);
+});
+
+it('stops a camera that opens after the page has closed', async () => {
+  let open: (stream: unknown) => void = () => {};
+  getUserMedia.mockImplementationOnce(() => new Promise((resolve) => { open = resolve; }));
+  const view = render(<NapPage />);
+  await screen.findByRole('checkbox');
+  startCameraCheck();
+  view.unmount();
+  await act(async () => { open({ getTracks: () => [{ stop }] }); });
+
+  expect(stop).toHaveBeenCalled();
 });
 
 it('passes the motion check only on movement that lasts as long as the watch needs to alert', async () => {
