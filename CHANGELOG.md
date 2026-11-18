@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Error pages: a page that fails shows a message in place of a blank page. When a deploy has replaced the script files a tab or a kept page asks for, the page reloads once to fetch the newest build; any other error says the page stopped working, with a Reload key, a link home and the error's own words to report. A second missing file within five minutes shows that message instead of reloading again.
 - A sample clip under `apps/guardian-ui/public/home/` (28 seconds, made from two CC0 1.0 recordings on Wikimedia Commons), with its captions and descriptions tracks and its record: both sources, the licence, the authors, the credit line and the command that made it.
 - The Pictures workflow's job "Capture the home page pictures": it feeds Chromium's fake camera and microphone from the sample clip, lets the unchanged monitor watch it, and saves the home page's capture in three crops and both looks, the two install screenshots the manifest names, the shared-link card and `provenance.json`. They are committed under `apps/guardian-ui/public/` from the run's artifact, and a test fails a file that is missing or differs from that record.
 - Every mail the API server sends (alerts, the settings test message, account verification, password reset) ends with a visible Unsubscribe link and carries `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (RFC 8058).
