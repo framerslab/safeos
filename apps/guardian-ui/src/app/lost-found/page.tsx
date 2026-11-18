@@ -24,6 +24,7 @@ import { LostFoundSetup } from '../../components/LostFoundSetup';
 import { SubjectPreview } from '../../components/SubjectPreview';
 import { useLostFoundStore, getSubjectTypeLabel } from '../../stores/lost-found-store';
 import { getAllSubjectProfiles, deleteSubjectProfile, type SubjectProfileDB } from '../../lib/client-db';
+import { useStartGuard } from '../../lib/start-guard';
 
 export default function LostFoundPage() {
   const router = useRouter();
@@ -80,6 +81,9 @@ export default function LostFoundPage() {
       }
     }
   };
+
+  // While another tab watches, the start key asks first.
+  const { guard, dialog } = useStartGuard();
 
   // Handle start monitoring
   const handleStartMonitoring = () => {
@@ -145,7 +149,7 @@ export default function LostFoundPage() {
                   </h2>
                   {!isWatching && (
                     <button
-                      onClick={handleStartMonitoring}
+                      onClick={(event) => void guard(handleStartMonitoring, event.currentTarget)}
                       className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-2 transition-colors"
                     >
                       Start Monitoring
@@ -330,6 +334,8 @@ export default function LostFoundPage() {
           </div>
         )}
       </div>
+
+      {dialog}
     </div>
   );
 }

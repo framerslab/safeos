@@ -26,11 +26,14 @@ it('security cannot be armed until the detection model is ready', async () => {
   render(<Page />);
   await act(async () => {});
   // Armed with no model would show an armed system that watches nothing.
+  // The arm key asks the other tabs first, so each press is given its answer.
   fireEvent.click(screen.getByRole('button', { name: /arm system/i }));
+  await act(async () => {});
   expect(store.getState().armingState).toBe('disarmed');
 
   await agreeIfOffered();
   await waitFor(() => expect(screen.getByText('AI: Ready')).toBeTruthy());
   fireEvent.click(screen.getByRole('button', { name: /arm system/i }));
+  await act(async () => {});
   expect(store.getState().armingState).not.toBe('disarmed');
 });

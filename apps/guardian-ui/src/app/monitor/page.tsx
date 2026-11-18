@@ -31,7 +31,7 @@ import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from 
 import { useWatchSettings } from '../../stores/watch-settings';
 import { useLostFoundStore, createMatchFrame, getMatcherSettings } from '../../stores/lost-found-store';
 import { getSubjectMatcher, type MatchResult } from '../../lib/subject-matcher';
-import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } from '../../lib/client-db';
+import { getSubjectProfile, saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } from '../../lib/client-db';
 import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
@@ -39,7 +39,8 @@ import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../
 import { forgetRaised } from '../../lib/watch-sound';
 import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
 import { announceWatch } from '../../lib/tab-channel';
-import { dropStart } from '../../lib/camera-handoff';
+import { dropStart, takeStart, type StartRequest } from '../../lib/camera-handoff';
+import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -386,6 +387,47 @@ export default function MonitorPage() {
 
   const stopStreamRef = useRef(stopStream);
   stopStreamRef.current = stopStream;
+
+  // While another tab watches, a start key here asks first.
+  const { guard, dialog } = useStartGuard();
+  // The press turns the sound on before the other tabs answer: a browser that
+  // keeps a page's sound off until a tap turns it on only inside the tap.
+  const pressStart = (start: () => void) => (event: React.MouseEvent<HTMLButtonElement>) => {
+    getSoundManager().unlockAudio();
+    void guard(start, event.currentTarget);
+  };
+
+  // A start the dashboard's key asked for: the camera is open already, so the
+  // watch starts with no second press. For Lost and Found the pet is chosen
+  // first; a pet that is gone leaves a Motion and sound watch.
+  const pendingStart = useRef<StartRequest | null>(null);
+  useEffect(() => {
+    pendingStart.current = pendingStart.current ?? takeStart('monitor');
+    const start = pendingStart.current;
+    if (!start) return;
+    let live = true;
+    void (async () => {
+      if (start.way === 'lost-found' && start.pet) {
+        const pet = await getSubjectProfile(start.pet);
+        if (!live) return;
+        if (pet && pet.type !== 'person') {
+          useLostFoundStore.getState().setActiveSubject(pet);
+          useLostFoundStore.getState().startWatching();
+        }
+      }
+      if (!live) return;
+      pendingStart.current = null;
+      startStream();
+    })();
+    return () => {
+      live = false;
+    };
+    // Runs when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A camera held for this page and never taken is closed when the page is left.
+  useEffect(() => dropStart, []);
   const watchedPet = isLostFoundWatching && activeSubject ? activeSubject.id : undefined;
 
   // The other tabs hear of this watch from the press, before the camera is
@@ -1222,7 +1264,7 @@ export default function MonitorPage() {
 
               {!captureRequested && (
                 <button
-                  onClick={startStream}
+                  onClick={pressStart(startStream)}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
                 >
                   Start Monitoring
@@ -1250,7 +1292,7 @@ export default function MonitorPage() {
               This nap stopped watching when the page reloaded, and the browser keeps its sound off until you tap. Resume nap turns the sound on and starts the camera again.
             </p>
             <button
-              onClick={resumeNap}
+              onClick={pressStart(resumeNap)}
               className="min-h-[44px] px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
             >
               Resume nap
@@ -1741,6 +1783,8 @@ export default function MonitorPage() {
           images={mediaOverlayData.images}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

@@ -31,7 +31,8 @@ import { startSecurityAlert, stopSecurityAlert } from '../../lib/tts-alerts';
 import { saveIntrusionFrame, type IntrusionFrameDB } from '../../lib/client-db';
 import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
 import { announceWatch } from '../../lib/tab-channel';
-import { dropStart } from '../../lib/camera-handoff';
+import { dropStart, takeStart } from '../../lib/camera-handoff';
+import { useStartGuard } from '../../lib/start-guard';
 
 // =============================================================================
 // Flash Overlay Component
@@ -344,6 +345,22 @@ export default function SecurityPage() {
     }
   }, [armingState]);
 
+  // While another tab watches, the arm key asks first.
+  const { guard, dialog } = useStartGuard();
+
+  // A start the dashboard's key asked for arms the page once its model is
+  // ready; the camera the key opened waits for the countdown to end.
+  const [startAsked, setStartAsked] = useState(false);
+  useEffect(() => {
+    if (takeStart('security')) setStartAsked(true);
+  }, []);
+  useEffect(() => {
+    if (startAsked && modelStatus === 'ready' && armingState === 'disarmed') {
+      setStartAsked(false);
+      useSecurityStore.getState().arm();
+    }
+  }, [startAsked, modelStatus, armingState]);
+
   // The watch runs from the press that arms it until it is disarmed, and the
   // other tabs hear of it from that press, before the camera is asked for.
   // This effect's end is the watch's one end, whatever disarmed it: DISARM,
@@ -365,10 +382,12 @@ export default function SecurityPage() {
   }, [watchOn]);
 
   // Leaving the page ends its watch in full: the armed state, the siren and
-  // the spoken alert. The page opens disarmed the next time.
+  // the spoken alert. The page opens disarmed the next time. A camera held
+  // for a start the page never armed for is closed.
   useEffect(() => () => {
     stopSecurityAlert();
     useSecurityStore.getState().disarm();
+    dropStart();
   }, []);
 
   const isArmed = armingState === 'armed' || armingState === 'triggered';
@@ -578,6 +597,7 @@ export default function SecurityPage() {
             <div>
               <SecurityPanel
                 armBlockedReason={armBlockedReason}
+                guardArm={(arm, opener) => void guard(arm, opener)}
                 onTrigger={() => {
                   // Additional trigger handling if needed
                 }}
@@ -606,12 +626,14 @@ export default function SecurityPage() {
                 </button>
               </div>
               <div className="p-4">
-                <SecurityPanel armBlockedReason={armBlockedReason} />
+                <SecurityPanel armBlockedReason={armBlockedReason} guardArm={(arm, opener) => void guard(arm, opener)} />
               </div>
             </div>
           </div>
         )}
       </main>
+
+      {dialog}
     </div>
   );
 }

@@ -10,7 +10,7 @@
  */
 
 import { showBrowserNotification } from '@/lib/browser-notification';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { ModelDownloadProgress } from '@/components/ModelDownloadProgress';
 import { useDetectionModel } from '@/lib/detection-model';
@@ -44,7 +44,8 @@ import { getTTSManager } from '../../lib/tts-alerts';
 import { getSoundManager } from '../../lib/sound-manager';
 import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
 import { announceWatch } from '../../lib/tab-channel';
-import { dropStart } from '../../lib/camera-handoff';
+import { dropStart, takeStart, type StartRequest } from '../../lib/camera-handoff';
+import { useStartGuard } from '../../lib/start-guard';
 
 // =============================================================================
 // Sub-Components
@@ -335,14 +336,25 @@ export default function WildlifePage() {
     };
   }, [isMonitoring, modelStatus, handleDetections]);
 
-  const toggleMonitoring = () => {
+  // While another tab watches, the start key asks first; Stop stops at once.
+  const { guard, dialog } = useStartGuard();
+  const toggleMonitoring = (event: MouseEvent<HTMLButtonElement>) => {
     if (isMonitoring) {
       setMonitoring(false);
       clearCurrentDetections();
     } else {
-      setMonitoring(true);
+      void guard(() => setMonitoring(true), event.currentTarget);
     }
   };
+
+  // A start the dashboard's key asked for: the watch starts with the camera
+  // the key opened. The start is kept in a ref, so a mount effect run twice,
+  // as React runs it in development, starts the watch all the same.
+  const startAsked = useRef<StartRequest | null>(null);
+  useEffect(() => {
+    startAsked.current = startAsked.current ?? takeStart('wildlife');
+    if (startAsked.current) useAnimalAlertStore.getState().setMonitoring(true);
+  }, []);
 
   // The watch runs from its start until it stops, and the other tabs hear of
   // it from the start. This effect's end is the watch's one end, whatever
@@ -364,12 +376,14 @@ export default function WildlifePage() {
   }, [isMonitoring]);
 
   // Leaving the page ends its watch: the store keeps no running watch for the
-  // next time the page opens.
+  // next time the page opens. A camera held for a start the page never took
+  // is closed.
   useEffect(() => () => {
     const store = useAnimalAlertStore.getState();
     store.setMonitoring(false);
     store.clearCurrentDetections();
     getTTSManager().stop();
+    dropStart();
   }, []);
 
   const recentDetections = detectionHistory.slice(0, 5);
@@ -722,6 +736,8 @@ export default function WildlifePage() {
           </div>
         </div>
       )}
+
+      {dialog}
     </div>
   );
 }
