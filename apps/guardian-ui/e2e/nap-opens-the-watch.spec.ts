@@ -5,9 +5,9 @@
  * duration, the check of the camera, motion and sound, then Start Nap Mode.
  * The address becomes /monitor/, the saved settings hold the infant_sleep
  * preset, the watch starts with no second press, and the fake camera's moving
- * picture raises a pixel alert there, so Motion and sound does the watching.
- * A second walk reads the warning quiet hours bring, and ends a nap whose
- * camera the browser refuses.
+ * picture raises a pixel alert there, so Motion and sound does the watching,
+ * and a reload finds the nap and its watch again. A second walk reads the
+ * warning quiet hours bring, and ends a nap whose camera the browser refuses.
  *
  * @module e2e/nap-opens-the-watch.spec
  */
@@ -79,6 +79,11 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   await expect(page.getByText(/Pixel movement detected/).first()).toBeVisible({ timeout: 45_000 });
   // The watch as it runs after Start Nap Mode, kept as the pull request's picture.
   await page.screenshot({ path: test.info().outputPath('nap-watch-1280.png') });
+
+  // A reload finds the nap, with its planned minutes, and starts the watch again.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate(() => window.history.state?.safeosNap?.minutes)).toBe(15);
 });
 
 test('says when quiet hours will silence a nap, and End nap ends a nap whose camera failed', async ({ page, context }) => {

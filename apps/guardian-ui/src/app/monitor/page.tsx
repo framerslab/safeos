@@ -34,7 +34,7 @@ import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } fro
 import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
-import { napTimeIsUp, readNapParam, type Nap } from '../../lib/nap-session';
+import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -377,8 +377,8 @@ export default function MonitorPage() {
     serverRequestedRef.current = false;
   };
 
-  // The nap Start Nap Mode handed to this watch in its address, kept in
-  // memory: it belongs to this watch and ends with it.
+  // The nap Start Nap Mode handed to this watch, kept in this history entry:
+  // it belongs to this watch, survives a reload and ends with it.
   const [nap, setNap] = useState<Nap | null>(null);
 
   // Ending a nap: the Nap preset gives way, as I'm Awake did on the nap screen,
@@ -386,6 +386,7 @@ export default function MonitorPage() {
   // stays.
   const endNap = () => {
     setNap(null);
+    keepNap(null);
     const settings = useSettingsStore.getState();
     if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
   };
@@ -397,16 +398,21 @@ export default function MonitorPage() {
     stopStream();
   };
 
-  // A watch opened from Nap Mode reads the planned nap once, drops it from the
-  // address and starts. The ref keeps this mount's reading, so React's Strict
-  // Mode, which runs the effect again after the unmount cleanup below has
-  // cleared captureRequestedRef, requests the capture again.
+  // A watch opened from Nap Mode takes the one-use hand-off, keeps the nap in
+  // this history entry and starts; a reload or Back finds the kept nap and
+  // starts again. The ref keeps this mount's reading, so React's Strict Mode,
+  // which runs the effect again after the unmount cleanup below has cleared
+  // captureRequestedRef, requests the capture again.
   const napArrivalRef = useRef<Nap | null | undefined>(undefined);
   useEffect(() => {
     if (napArrivalRef.current === undefined) {
-      const minutes = readNapParam(window.location.search);
-      napArrivalRef.current = minutes === null ? null : { startedAt: Date.now(), minutes };
-      if (minutes !== null) window.history.replaceState(window.history.state, '', window.location.pathname);
+      const minutes = takeNapHandoff();
+      if (minutes === null) {
+        napArrivalRef.current = readKeptNap();
+      } else {
+        napArrivalRef.current = { startedAt: Date.now(), minutes };
+        keepNap(napArrivalRef.current);
+      }
     }
     const arrival = napArrivalRef.current;
     if (!arrival) return;
@@ -418,11 +424,12 @@ export default function MonitorPage() {
 
   // Once the nap's planned minutes have passed, the warning plays every 30
   // seconds until the nap ends, as the nap screen did, whether or not the
-  // camera is running.
+  // camera is running, at the effective volume the watch's alerts use.
   useEffect(() => {
     if (!nap) return;
     const interval = window.setInterval(() => {
-      if (napTimeIsUp(nap, Date.now())) getSoundManager().play('warning');
+      if (!napTimeIsUp(nap, Date.now())) return;
+      getSoundManager().play('warning', { volume: useSettingsStore.getState().getEffectiveVolume() });
     }, 30_000);
     return () => window.clearInterval(interval);
   }, [nap]);

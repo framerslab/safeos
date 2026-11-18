@@ -111,6 +111,15 @@ it('finds the nap again after a reload, with its time and its watch', async () =
   expect(useSettingsStore.getState().activePresetId).toBe('maximum');
 });
 
+it('starts nothing from a nap kept over twelve hours ago, as in a tab restored the next day', async () => {
+  window.history.replaceState({ safeosNap: { startedAt: Date.now() - 13 * 60 * 60_000, minutes: 15 } }, '', '/monitor/');
+  render(<MonitorPage />);
+  await act(async () => {});
+
+  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+});
+
 it('plays the reminder at the effective volume, quiet hours included', async () => {
   stillCamera();
   useSettingsStore.setState({

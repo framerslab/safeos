@@ -553,6 +553,15 @@ describe('Sound Manager', () => {
       expect(sounds[0].loop).toBe(false);
     });
 
+    it('plays a test sound at exactly the current volume, with no minimum under an alarm', () => {
+      const manager = getSoundManager();
+      manager.setUserVolume(20);
+
+      manager.test('alarm');
+
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+    });
+
     it('should test emergency for 2 seconds', () => {
       jest.useFakeTimers();
       const manager = getSoundManager();

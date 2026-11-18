@@ -593,13 +593,15 @@ class SoundManager {
   }
 
   /**
-   * Test a specific sound (plays once at current volume)
+   * Test a specific sound: plays once at exactly the current volume, with no
+   * minimum under a warning or an alarm, as the watch's alerts play
    */
   test(type: SoundType): string {
     return this.play(type, {
       loop: false,
       fadeIn: 0,
       fadeOut: 200,
+      volume: this.userVolume,
     });
   }
 

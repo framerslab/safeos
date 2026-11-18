@@ -4,10 +4,10 @@
  * The way into a nap watch: the safety warnings, an acknowledgment, the
  * planned duration, and a check of what the watch will use: its camera, motion
  * that lasts as long as it needs to alert, and the sound at the volume its
- * alerts will play at. Start Nap Mode applies the infant_sleep preset and opens
- * Motion and sound (the monitor) with the planned nap in the address; the
- * monitor does the watching, sounds the alerts and reminds when the time is up.
- * This page runs no detector of its own once its check is done.
+ * alerts will play at. Start Nap Mode applies the infant_sleep preset, leaves
+ * the planned nap as a one-use hand-off and opens Motion and sound (the
+ * monitor), which does the watching, sounds the alerts and reminds when the
+ * time is up. This page runs no detector of its own once its check is done.
  *
  * @module app/nap/page
  */
@@ -21,7 +21,7 @@ import { useSettingsStore } from '../../stores/settings-store';
 import { useSoundManager } from '../../lib/sound-manager';
 import { NAP_MODE_DISCLAIMER } from '../../lib/disclaimers';
 import { getPixelDetectionEngine, resetPixelDetectionEngine } from '../../lib/pixel-detection';
-import { napAlertVolume, napHandoffPath } from '../../lib/nap-session';
+import { handNapToWatch, napAlertVolume, napSilence } from '../../lib/nap-session';
 import { useCameraStore } from '../../stores/camera-store';
 
 // =============================================================================
@@ -90,10 +90,15 @@ export default function NapModePage() {
         try {
             // The camera the watch will open: the one saved for the monitor, or the back camera.
             const deviceId = useCameraStore.getState().deviceId;
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' },
-                audio: true
-            });
+            const video = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' };
+            let stream: MediaStream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
+            } catch (error) {
+                // A camera with no microphone: the watch goes on without sound, so the check does.
+                if ((error as DOMException)?.name !== 'NotFoundError') throw error;
+                stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+            }
             streamRef.current = stream;
 
             if (videoRef.current) {
@@ -220,12 +225,15 @@ export default function NapModePage() {
 
         // The preset's own alert volume applies; the settings subscriber sets it.
         activateSleepMode('infant_sleep');
-        router.push(napHandoffPath(napDuration));
+        handNapToWatch(napDuration);
+        router.push('/monitor/');
     };
 
     // ==========================================================================
     // Render
     // ==========================================================================
+
+    const silence = napSilence(useSettingsStore.getState(), napDuration);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -473,11 +481,17 @@ export default function NapModePage() {
                                 <span><strong>Volume Check:</strong> Make sure your device is unmuted and at
                                 maximum volume. The alert sound should be LOUD enough to wake you.</span>
                             </p>
-                            {napAlertVolume(useSettingsStore.getState()) === 0 && (
+                            {silence === 'now' && (
                                 <p className="text-sm text-orange-200 mt-2">
                                     <strong>
                                         {useSettingsStore.getState().globalMute ? 'Alerts are muted' : 'Quiet hours are on'}, so this nap&apos;s alerts will be silent.
                                     </strong>{' '}
+                                    Change it in Settings before you start the nap.
+                                </p>
+                            )}
+                            {silence === 'during' && (
+                                <p className="text-sm text-orange-200 mt-2">
+                                    <strong>Quiet hours start during this nap, so its alerts will be silent from then.</strong>{' '}
                                     Change it in Settings before you start the nap.
                                 </p>
                             )}
