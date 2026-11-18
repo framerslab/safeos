@@ -20,7 +20,7 @@ import {
 export const metadata: Metadata = pageMetadata({
   title: 'Blog',
   description:
-    'Updates, insights, and technical deep dives from the SafeOS Guardian team.',
+    'How SafeOS Guardian works, from the team at Frame: the motion check, the detection model in the browser and the Lost & Found matcher.',
   path: '/blog/',
 });
 
@@ -46,9 +46,9 @@ interface BlogPost {
 const blogPosts: BlogPost[] = [
   {
     slug: 'how-safeos-guardian-works',
-    title: 'How SafeOS Guardian works: motion-gated browser AI that doesn\'t burn your laptop',
+    title: 'How SafeOS Guardian checks for motion before it runs a model',
     excerpt:
-      'Walking through the safeos.sh pipeline file by file. 200 ms motion screening, COCO-SSD gated on motion, Lost & Found colour matching. TensorFlow.js running in a browser, by design.',
+      'The browser compares camera frames every 200 ms and runs the detection model when something moves. This post goes through the code: the motion check, the model, the sound check and the Lost & Found matcher.',
     date: 'January 10, 2026',
     author: 'Frame.dev Team',
     readTime: '8 min read',
@@ -146,8 +146,7 @@ export default function BlogPage() {
             SafeOS Guardian Blog
           </h2>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-            Field notes on browser-based AI, on-device computer vision, and shipping
-            monitoring tools that actually respect the user. By the team at{' '}
+            How SafeOS Guardian works and what it runs on your device, from the team at{' '}
             <a
               href="https://frame.dev"
               target="_blank"
@@ -156,7 +155,7 @@ export default function BlogPage() {
             >
               Frame
             </a>
-            , also behind{' '}
+            , which also makes{' '}
             <a
               href="https://agentos.sh"
               target="_blank"
@@ -180,10 +179,10 @@ export default function BlogPage() {
         <section className="mt-16 text-center">
           <div className="p-8 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-emerald-500/30 rounded-2xl">
             <h3 className="text-xl font-semibold text-white mb-4">
-              Stay Updated
+              The code
             </h3>
             <p className="text-slate-400 mb-6">
-              Follow us for the latest updates on SafeOS Guardian and other Frame.dev projects.
+              SafeOS&apos;s code is on GitHub. Frame&apos;s other projects are on frame.dev.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
@@ -192,7 +191,7 @@ export default function BlogPage() {
                 rel="noopener noreferrer"
                 className="px-6 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
               >
-                Star on GitHub
+                SafeOS on GitHub
               </a>
               <a
                 href="https://frame.dev"
