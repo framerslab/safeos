@@ -5,8 +5,8 @@
  * Every open tab of the site shares one channel: a tab says when alerts
  * changed and when its watch starts and ends, and the device holds one watch
  * at a time. jsdom has no BroadcastChannel, so a stand-in carries the messages
- * the way a browser does: later than the post, to every other open channel of
- * the name and never to the sender. Each tab is the module loaded afresh.
+ * the way a browser does (tests/helpers/tab-channel-stand-in). Each tab is the
+ * module loaded afresh.
  */
 
 import { act, renderHook } from '@testing-library/react';
@@ -15,32 +15,9 @@ import type * as TabChannel from '@/lib/tab-channel';
 // it, so the hook runs on the same React as renderHook. Only the last case
 // uses it; every other tab is the module loaded afresh.
 import { useOtherTabWatch } from '@/lib/tab-channel';
+import { installTabChannel } from './helpers/tab-channel-stand-in';
 
 type Tab = typeof TabChannel;
-
-class ChannelStandIn {
-  static instances: ChannelStandIn[] = [];
-
-  onmessage: ((event: { data: unknown }) => void) | null = null;
-
-  constructor(readonly name: string) {
-    ChannelStandIn.instances.push(this);
-  }
-
-  postMessage(message: unknown): void {
-    if (!ChannelStandIn.instances.includes(this)) throw new Error('This channel is closed.');
-    const others = ChannelStandIn.instances.filter((one) => one !== this && one.name === this.name);
-    void Promise.resolve().then(() => {
-      others
-        .filter((one) => ChannelStandIn.instances.includes(one))
-        .forEach((one) => one.onmessage?.({ data: JSON.parse(JSON.stringify(message)) }));
-    });
-  }
-
-  close(): void {
-    ChannelStandIn.instances = ChannelStandIn.instances.filter((one) => one !== this);
-  }
-}
 
 function openTab(): Tab {
   const loaded: Tab[] = [];
@@ -68,14 +45,14 @@ let heard: TabChannel.TabMessage[];
 
 const heardOf = (type: TabChannel.TabMessage['type']) => heard.filter((message) => message.type === type);
 
+/** The channels open now, in the order they were made. */
+let instances: () => BroadcastChannel[];
+
 beforeEach(() => {
   jest.useFakeTimers();
-  ChannelStandIn.instances = [];
-  Object.defineProperty(globalThis, 'BroadcastChannel', { configurable: true, writable: true, value: ChannelStandIn });
-  heard = [];
-  new ChannelStandIn('safeos').onmessage = (event) => {
-    heard.push(event.data as TabChannel.TabMessage);
-  };
+  const channel = installTabChannel();
+  instances = channel.instances;
+  heard = channel.otherTab().heard as TabChannel.TabMessage[];
 });
 
 afterEach(() => {
@@ -214,7 +191,7 @@ it('does not take over from a tab that keeps watching', async () => {
 it('takes over from a tab that was closed without a word', async () => {
   const [a, b] = [openTab(), openTab()];
   b.announceWatch('monitor', jest.fn());
-  ChannelStandIn.instances[ChannelStandIn.instances.length - 1].close();
+  instances()[instances().length - 1].close();
 
   const taken = settled(a.takeOverWatch());
   await run(1299);
@@ -262,7 +239,7 @@ it('a watching tab that is closed or reloaded tells the others its watch ended',
 it('a tab that comes back into view asks again, so a watching tab closed with no word reads as not watching', async () => {
   const b = openTab();
   b.announceWatch('monitor', jest.fn());
-  const bChannel = ChannelStandIn.instances[ChannelStandIn.instances.length - 1];
+  const bChannel = instances()[instances().length - 1];
 
   const { result } = renderHook(() => useOtherTabWatch());
   await act(() => run(300));
