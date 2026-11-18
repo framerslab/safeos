@@ -576,7 +576,7 @@ export default function WildlifePage() {
               )}
               {detectionHistory.length > 5 && (
                 <Link
-                  href="/wildlife/history"
+                  href="/history/"
                   className="block mt-3 text-center text-sm text-emerald-400 hover:text-emerald-300"
                 >
                   View All ({detectionHistory.length})
