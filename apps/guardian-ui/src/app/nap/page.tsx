@@ -1,11 +1,13 @@
 /**
  * Nap Mode Page
  *
- * The way into a nap watch: the safety warnings, an acknowledgment, and a
- * check of the camera, motion and sound. Start Nap Mode applies the
- * infant_sleep preset and opens Motion and sound (the monitor), which does
- * the watching and sounds the alerts. This page runs no detector of its own
- * once its check is done.
+ * The way into a nap watch: the safety warnings, an acknowledgment, the
+ * planned duration, and a check of what the watch will use: its camera, motion
+ * that lasts as long as it needs to alert, and the sound at the volume its
+ * alerts will play at. Start Nap Mode applies the infant_sleep preset, leaves
+ * the planned nap as a one-use hand-off and opens Motion and sound (the
+ * monitor), which does the watching, sounds the alerts and reminds when the
+ * time is up. This page runs no detector of its own once its check is done.
  *
  * @module app/nap/page
  */
@@ -15,11 +17,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { DEFAULT_PRESETS, useSettingsStore } from '../../stores/settings-store';
+import { useSettingsStore } from '../../stores/settings-store';
 import { useSoundManager } from '../../lib/sound-manager';
 import { NAP_MODE_DISCLAIMER } from '../../lib/disclaimers';
 import { getPixelDetectionEngine, resetPixelDetectionEngine } from '../../lib/pixel-detection';
-import { writeNapSession } from '../../lib/nap-session';
+import { handNapToWatch, napAlertVolume, napSilence } from '../../lib/nap-session';
+import { useCameraStore } from '../../stores/camera-store';
 
 // =============================================================================
 // Types
@@ -53,6 +56,8 @@ export default function NapModePage() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const animationRef = useRef<number | null>(null);
+    // Set when the page closes, so a camera request still waiting opens nothing.
+    const closedRef = useRef(false);
 
     const { activateSleepMode } = useSettingsStore();
     const soundManager = useSoundManager();
@@ -60,7 +65,9 @@ export default function NapModePage() {
 
     useEffect(() => {
         setMounted(true);
+        closedRef.current = false;
         return () => {
+            closedRef.current = true;
             // Cleanup on unmount
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(t => t.stop());
@@ -85,10 +92,21 @@ export default function NapModePage() {
         setTestStatus(prev => ({ ...prev, camera: 'testing' }));
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' },
-                audio: true
-            });
+            // The camera the watch will open: the one saved for the monitor, or the back camera.
+            const deviceId = useCameraStore.getState().deviceId;
+            const video = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' };
+            let stream: MediaStream;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video, audio: true });
+            } catch (error) {
+                // A camera with no microphone: the watch goes on without sound, so the check does.
+                if (closedRef.current || (error as DOMException)?.name !== 'NotFoundError') throw error;
+                stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+            }
+            if (closedRef.current) {
+                stream.getTracks().forEach(t => t.stop());
+                return;
+            }
             streamRef.current = stream;
 
             if (videoRef.current) {
@@ -118,6 +136,10 @@ export default function NapModePage() {
 
         let frameCount = 0;
         let detected = false;
+        // The watch alerts on pixel change once it has lasted this long, so the
+        // check passes on the same: a single changed frame is not enough.
+        const sustainedMs = Math.max(150, useSettingsStore.getState().timingSettings.minimumMotionDuration / 2);
+        let changedSince: number | null = null;
 
         const analyzeFrame = () => {
             if (!videoRef.current || !canvasRef.current) return;
@@ -133,10 +155,16 @@ export default function NapModePage() {
             // Use analyzeCanvas - the correct method
             const result = detector.analyzeCanvas(canvasRef.current);
 
-            if (result.changed && !detected) {
-                detected = true;
-                setMotionDetected(true);
-                setTestStatus(prev => ({ ...prev, motion: 'passed' }));
+            if (result.changed) {
+                const now = performance.now();
+                if (changedSince === null) changedSince = now;
+                if (!detected && now - changedSince >= sustainedMs) {
+                    detected = true;
+                    setMotionDetected(true);
+                    setTestStatus(prev => ({ ...prev, motion: 'passed' }));
+                }
+            } else {
+                changedSince = null;
             }
 
             frameCount++;
@@ -163,11 +191,12 @@ export default function NapModePage() {
         }
 
         setTestStatus(prev => ({ ...prev, audio: 'testing' }));
-        // The check plays at the volume the Nap preset gives its alerts, 0 to 100.
-        soundManager.updateVolume(DEFAULT_PRESETS.infant_sleep.alertVolume);
-
-        // Use test() instead of play() - test() forces loop: false
-        const id = soundManager.test('alarm');
+        // The check plays the alarm a nap's movement alerts sound, at their
+        // volume, quiet hours and mute included, and leaves the shared volume
+        // as it is.
+        const id = soundManager.play('alarm', {
+            loop: false, fadeIn: 0, fadeOut: 200, volume: napAlertVolume(useSettingsStore.getState()),
+        });
         setTestSoundId(id);
 
         setTimeout(() => {
@@ -205,13 +234,15 @@ export default function NapModePage() {
 
         // The preset's own alert volume applies; the settings subscriber sets it.
         activateSleepMode('infant_sleep');
-        writeNapSession({ startedAt: Date.now(), minutes: napDuration, start: true });
+        handNapToWatch(napDuration);
         router.push('/monitor/');
     };
 
     // ==========================================================================
     // Render
     // ==========================================================================
+
+    const silence = napSilence(useSettingsStore.getState(), napDuration);
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
@@ -459,6 +490,20 @@ export default function NapModePage() {
                                 <span><strong>Volume Check:</strong> Make sure your device is unmuted and at
                                 maximum volume. The alert sound should be LOUD enough to wake you.</span>
                             </p>
+                            {silence === 'now' && (
+                                <p className="text-sm text-orange-200 mt-2">
+                                    <strong>
+                                        {useSettingsStore.getState().globalMute ? 'Alerts are muted' : 'Quiet hours are on'}, so this nap&apos;s alerts will be silent.
+                                    </strong>{' '}
+                                    Change it in Settings before you start the nap.
+                                </p>
+                            )}
+                            {silence === 'during' && (
+                                <p className="text-sm text-orange-200 mt-2">
+                                    <strong>Quiet hours start during this nap, so its alerts will be silent from then.</strong>{' '}
+                                    Change it in Settings before you start the nap.
+                                </p>
+                            )}
                         </div>
 
                         {/* Action Buttons */}

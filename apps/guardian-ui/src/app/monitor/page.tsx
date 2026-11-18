@@ -35,7 +35,7 @@ import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } fro
 import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
-import { clearNapSession, napTimeIsUp, readNapSession, takeNapStart } from '../../lib/nap-session';
+import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -378,43 +378,71 @@ export default function MonitorPage() {
     serverRequestedRef.current = false;
   };
 
-  // The person's Stop. Stopping a watch started from Nap Mode ends the nap, and
-  // the Nap preset gives way, as I'm Awake did on the nap screen, while it is
-  // the setting in use; a setting the person chose during the nap stays. A
-  // camera failure stops the watch without ending the nap, so starting again
-  // keeps its setting.
+  // The nap Start Nap Mode handed to this watch, kept in this history entry:
+  // it belongs to this watch, survives a reload and ends with it.
+  const [nap, setNap] = useState<Nap | null>(null);
+
+  // The sound of a movement alert. In a nap it is the alarm, as the nap page
+  // says and its check plays, however small the movement: the Nap preset's
+  // pixel check stops counting at its threshold, so its alerts all read as low.
+  const napRef = useRef<Nap | null>(null);
+  useEffect(() => { napRef.current = nap; }, [nap]);
+  const playMovementSound = useCallback((severity: AlertSeverity) => {
+    getSoundManager().playForSeverity(napRef.current ? 'critical' : severity, { loop: false });
+  }, []);
+
+  // Ending a nap: the Nap preset gives way, as I'm Awake did on the nap screen,
+  // while it is the setting in use; a setting the person chose during the nap
+  // stays.
+  const endNap = () => {
+    setNap(null);
+    keepNap(null);
+    const settings = useSettingsStore.getState();
+    if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
+  };
+
+  // The person's Stop, which ends a nap with the watch. A camera failure stops
+  // the watch without ending the nap: its reminder goes on, and End nap ends it.
   const stopWatching = () => {
-    if (readNapSession()) {
-      clearNapSession();
-      const settings = useSettingsStore.getState();
-      if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
-    }
+    if (nap) endNap();
     stopStream();
   };
 
-  // A watch started from Nap Mode starts on arrival, once. The ref keeps this
-  // mount's answer, so React's Strict Mode, which runs the effect again after
-  // the unmount cleanup below has cleared captureRequestedRef, requests the
-  // capture again instead of finding the nap's start already taken.
-  const napStartRef = useRef<boolean | null>(null);
+  // A watch opened from Nap Mode takes the one-use hand-off, keeps the nap in
+  // this history entry and starts; a reload or Back finds the kept nap and
+  // starts again. The ref keeps this mount's reading, so React's Strict Mode,
+  // which runs the effect again after the unmount cleanup below has cleared
+  // captureRequestedRef, requests the capture again.
+  const napArrivalRef = useRef<Nap | null | undefined>(undefined);
   useEffect(() => {
-    if (napStartRef.current === null) napStartRef.current = takeNapStart(Date.now());
-    if (!napStartRef.current) return;
+    if (napArrivalRef.current === undefined) {
+      const minutes = takeNapHandoff();
+      if (minutes === null) {
+        napArrivalRef.current = readKeptNap();
+      } else {
+        napArrivalRef.current = { startedAt: Date.now(), minutes };
+        keepNap(napArrivalRef.current);
+      }
+    }
+    const arrival = napArrivalRef.current;
+    if (!arrival) return;
+    setNap(arrival);
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
   }, []);
 
   // Once the nap's planned minutes have passed, the warning plays every 30
-  // seconds while the watch runs, as the nap screen did.
+  // seconds until the nap ends, as the nap screen did, whether or not the
+  // camera is running, at the effective volume the watch's alerts use.
   useEffect(() => {
-    if (!captureRequested) return;
+    if (!nap) return;
     const interval = window.setInterval(() => {
-      const nap = readNapSession();
-      if (nap && napTimeIsUp(nap, Date.now())) getSoundManager().play('warning');
+      if (!napTimeIsUp(nap, Date.now())) return;
+      getSoundManager().play('warning', { volume: useSettingsStore.getState().getEffectiveVolume() });
     }, 30_000);
     return () => window.clearInterval(interval);
-  }, [captureRequested]);
+  }, [nap]);
 
   const handleVideoReady = (video: HTMLVideoElement | null) => {
     videoRef.current = video;
@@ -734,7 +762,7 @@ export default function MonitorPage() {
     );
 
     getSoundManager().playForTrigger('motion_detected');
-    getSoundManager().playForSeverity(severity, { loop: false });
+    playMovementSound(severity);
     maybeHaptic(severity);
     maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity);
   }, [
@@ -743,6 +771,7 @@ export default function MonitorPage() {
     currentPreset.motionSensitivity,
     detectionZones,
     getCooldownForSeverity,
+    playMovementSound,
     showDetectorAlert,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
@@ -854,7 +883,7 @@ export default function MonitorPage() {
     );
 
     getSoundManager().playForTrigger('motion_detected');
-    getSoundManager().playForSeverity(severity, { loop: false });
+    playMovementSound(severity);
     maybeHaptic(severity);
     maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity);
   }, [
@@ -864,6 +893,7 @@ export default function MonitorPage() {
     currentPreset.useAbsoluteThreshold,
     detectionZones,
     getCooldownForSeverity,
+    playMovementSound,
     showDetectorAlert,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
@@ -1112,6 +1142,15 @@ export default function MonitorPage() {
                   <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
                 )}
               </button>
+
+              {!captureRequested && nap && (
+                <button
+                  onClick={endNap}
+                  className="px-4 py-2 border border-slate-500 text-slate-200 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  End nap
+                </button>
+              )}
 
               {!captureRequested && (
                 <button

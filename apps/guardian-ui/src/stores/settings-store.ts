@@ -95,6 +95,39 @@ export interface QuietHoursSettings {
 }
 
 /**
+ * Whether quiet hours are on at a given moment: an enabled day and a time
+ * inside the window, which may run overnight (22:00 to 07:00).
+ */
+export function quietHoursActiveAt(
+  settings: Pick<QuietHoursSettings, 'enabled' | 'startTime' | 'endTime' | 'days'>,
+  at: Date,
+): boolean {
+  const { enabled, startTime, endTime, days } = settings;
+
+  if (!enabled) return false;
+
+  const currentDay = at.getDay();
+  const currentMinutes = at.getHours() * 60 + at.getMinutes();
+
+  // Check if the day is in the enabled days
+  if (!days.includes(currentDay)) return false;
+
+  // Parse start and end times
+  const [startHour, startMin] = startTime.split(':').map(Number);
+  const [endHour, endMin] = endTime.split(':').map(Number);
+  const startMinutes = startHour * 60 + startMin;
+  const endMinutes = endHour * 60 + endMin;
+
+  // Handle overnight quiet hours (e.g., 22:00 - 07:00)
+  if (startMinutes > endMinutes) {
+    // Overnight: active if the time is after start OR before end
+    return currentMinutes >= startMinutes || currentMinutes < endMinutes;
+  }
+  // Same day: active if the time is between start and end
+  return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+}
+
+/**
  * Detection feature settings - controls for AI detection types and inactivity monitoring
  */
 export interface DetectionFeatureSettings {
@@ -775,34 +808,7 @@ export const useSettingsStore = create<SettingsState>()(
         }));
       },
 
-      isQuietHoursActive: () => {
-        const state = get();
-        const { enabled, startTime, endTime, days } = state.quietHoursSettings;
-
-        if (!enabled) return false;
-
-        const now = new Date();
-        const currentDay = now.getDay();
-        const currentMinutes = now.getHours() * 60 + now.getMinutes();
-
-        // Check if today is in the enabled days
-        if (!days.includes(currentDay)) return false;
-
-        // Parse start and end times
-        const [startHour, startMin] = startTime.split(':').map(Number);
-        const [endHour, endMin] = endTime.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = endHour * 60 + endMin;
-
-        // Handle overnight quiet hours (e.g., 22:00 - 07:00)
-        if (startMinutes > endMinutes) {
-          // Overnight: active if current time is after start OR before end
-          return currentMinutes >= startMinutes || currentMinutes < endMinutes;
-        } else {
-          // Same day: active if current time is between start and end
-          return currentMinutes >= startMinutes && currentMinutes < endMinutes;
-        }
-      },
+      isQuietHoursActive: () => quietHoursActiveAt(get().quietHoursSettings, new Date()),
 
       getEffectiveVolume: () => {
         const state = get();

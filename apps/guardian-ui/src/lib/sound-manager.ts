@@ -77,6 +77,8 @@ interface ActiveSound {
   fade?: Fade | null;
   /** Fading out to stop. */
   stopping?: boolean;
+  /** The volume named when a one-shot sound was played, which it keeps until it ends. */
+  namedVolume?: number;
 }
 
 interface Fade {
@@ -323,7 +325,7 @@ class SoundManager {
         return;
       }
       this.clearFade(sound);
-      this.setSoundVolume(sound, this.calculateVolume(sound.type));
+      this.setSoundVolume(sound, this.playingVolume(sound));
     });
   }
 
@@ -388,7 +390,7 @@ class SoundManager {
       this.activeSounds.forEach((sound) => {
         if (sound.stopping) return;
         this.clearFade(sound);
-        this.setSoundVolume(sound, this.calculateVolume(sound.type));
+        this.setSoundVolume(sound, this.playingVolume(sound));
         if (this.globalMute && sound.type !== 'emergency') {
           this.setSoundMuted(sound, true);
         }
@@ -462,6 +464,9 @@ class SoundManager {
       startTime: Date.now(),
       loop,
       onEnd: options.onEnd,
+      // A one-shot sound keeps the volume it was played at. A loop follows the
+      // user volume, so turning the volume down reaches a sound that plays on.
+      namedVolume: loop ? undefined : options.volume,
     };
     this.activeSounds.set(id, activeSound);
 
@@ -593,13 +598,15 @@ class SoundManager {
   }
 
   /**
-   * Test a specific sound (plays once at current volume)
+   * Test a specific sound: plays once at exactly the current volume, with no
+   * minimum under a warning or an alarm, as the watch's alerts play
    */
   test(type: SoundType): string {
     return this.play(type, {
       loop: false,
       fadeIn: 0,
       fadeOut: 200,
+      volume: this.userVolume,
     });
   }
 
@@ -809,6 +816,15 @@ class SoundManager {
     const effectiveVolume = Math.max(baseVolume, minVolume);
     
     return effectiveVolume / 100;
+  }
+
+  /**
+   * The volume a playing sound holds: the one named when a one-shot sound was
+   * played, unless the user volume has gone to 0, and otherwise the user
+   * volume's, with its minimum for the sound's type.
+   */
+  private playingVolume(sound: ActiveSound): number {
+    return this.calculateVolume(sound.type, this.userVolume > 0 ? sound.namedVolume : undefined);
   }
 
   /**
