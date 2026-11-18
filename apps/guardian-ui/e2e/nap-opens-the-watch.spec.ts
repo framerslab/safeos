@@ -88,7 +88,8 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   expect(await page.evaluate(() => window.history.state?.safeosNap?.minutes)).toBe(15);
   await page.screenshot({ path: test.info().outputPath('nap-resume-1280.png') });
   await resume.click();
-  await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
+  // The camera runs again: the key reads Stop Monitoring once the picture plays.
+  await expect(page.getByRole('button', { name: 'Stop Monitoring', exact: true })).toBeVisible({ timeout: 30_000 });
 });
 
 test('says when quiet hours will silence a nap, and End nap ends a nap whose camera failed', async ({ page, context }) => {

@@ -88,15 +88,17 @@ it('keeps the slider in step with quiet hours as they begin while the page is op
     isQuietHoursActive: () => quiet,
     quietHoursSettings: { ...realSettings, enabled: true, mode: 'silent' },
   });
-  render(<TestAlertsPage />);
-  await act(async () => {});
-  expect((screen.getByRole('slider') as HTMLInputElement).value).toBe(String(useSettingsStore.getState().globalSettings.alertVolume));
+  try {
+    render(<TestAlertsPage />);
+    await act(async () => {});
+    expect((screen.getByRole('slider') as HTMLInputElement).value).toBe(String(useSettingsStore.getState().globalSettings.alertVolume));
 
-  // Quiet hours begin with no change to the settings: only the clock moves.
-  quiet = true;
-  await act(async () => { jest.advanceTimersByTime(30_000); });
-  expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('0');
-
-  useSettingsStore.setState({ isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings, globalMute: realMute });
-  jest.useRealTimers();
+    // Quiet hours begin with no change to the settings: only the clock moves.
+    quiet = true;
+    await act(async () => { jest.advanceTimersByTime(30_000); });
+    expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('0');
+  } finally {
+    useSettingsStore.setState({ isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings, globalMute: realMute });
+    jest.useRealTimers();
+  }
 });

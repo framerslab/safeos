@@ -146,16 +146,53 @@ it('stops a camera that opens after the page has closed', async () => {
 });
 
 it("samples the camera for the motion check every 200 ms, the watch's own pace, not on every screen frame", async () => {
+  jest.useFakeTimers();
   mockChangedFrames = 0; // a still picture, so the check keeps sampling
   render(<NapPage />);
   await screen.findByRole('checkbox');
-  await passCamera();
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 600)); });
+  startCameraCheck();
+  await act(async () => {}); // the camera opens
+  await act(async () => { jest.advanceTimersByTime(500); }); // the motion check starts with its first sample
   mockSamples = 0;
-  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1000)); });
 
-  expect(mockSamples).toBeGreaterThanOrEqual(3);
-  expect(mockSamples).toBeLessThanOrEqual(7);
+  await act(async () => { jest.advanceTimersByTime(199); });
+  expect(mockSamples).toBe(0);
+  await act(async () => { jest.advanceTimersByTime(1); });
+  expect(mockSamples).toBe(1);
+  await act(async () => { jest.advanceTimersByTime(200); });
+  expect(mockSamples).toBe(2);
+});
+
+it('starts no motion check for a page that closed before it began', async () => {
+  jest.useFakeTimers();
+  const view = render(<NapPage />);
+  await screen.findByRole('checkbox');
+  startCameraCheck();
+  await act(async () => {}); // the camera opens; the motion check would start 500 ms later
+  view.unmount();
+  await act(async () => { jest.advanceTimersByTime(1_000); });
+
+  expect(jest.getTimerCount()).toBe(0);
+});
+
+it('reads the clock again for the quiet-hours warning when the check opens', async () => {
+  jest.useFakeTimers({ advanceTimers: true });
+  useSettingsStore.setState({
+    quietHoursSettings: {
+      ...useSettingsStore.getState().quietHoursSettings,
+      enabled: true, mode: 'silent', startTime: clock(45), endTime: clock(100), days: [0, 1, 2, 3, 4, 5, 6],
+    },
+  });
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  fireEvent.click(screen.getByRole('checkbox'));
+
+  // Forty minutes on the warning step: the planned 30 minutes now reach quiet hours.
+  jest.setSystemTime(Date.now() + 40 * 60_000);
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to Pre-Nap Test' }));
+  await act(async () => {});
+
+  expect(screen.getByText(/Quiet hours start during this nap/)).toBeTruthy();
 });
 
 it('stops the check camera and its sampling when the person goes back, and checks again from the start', async () => {
