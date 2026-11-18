@@ -6,8 +6,8 @@
  * opened for, until the way's page takes it: the page starts that watch with
  * no second press and its feed uses the open camera with no second request
  * to the browser. A page opened any other way starts nothing, a camera no
- * page took is closed, and each way's own start key asks first while another
- * tab watches.
+ * page took is closed, and each way's own start key, and Resume nap, asks
+ * first while another tab watches.
  */
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
@@ -170,6 +170,7 @@ afterEach(() => {
   cleanup();
   jest.useRealTimers();
   jest.restoreAllMocks();
+  window.history.replaceState(null, '');
 });
 
 it("Motion and sound's page takes the open camera and starts with no press and no second request", async () => {
@@ -301,4 +302,23 @@ it("each way's own start key asks first while another tab watches", async () => 
   await act(async () => {});
   await asks(screen.getByRole('button', { name: 'Start Monitoring' }));
   expect(useAnimalAlertStore.getState().isMonitoring).toBe(false);
+});
+
+it('Resume nap asks first while another tab watches, and starts once that tab has stopped', async () => {
+  jest.mocked(askOtherTabs).mockResolvedValue({ watching: true, way: 'monitor' });
+  // A nap kept in this history entry: the page was reloaded during it.
+  window.history.replaceState({ safeosNap: { startedAt: Date.now(), minutes: 30 } }, '');
+  render(<MonitorPage />);
+  await act(async () => {});
+
+  fireEvent.click(screen.getByRole('button', { name: 'Resume nap' }));
+  await act(async () => {});
+  const asked = screen.getByRole('dialog', { name: QUESTION });
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: 'Stop Monitoring' })).toBeNull();
+
+  fireEvent.click(within(asked).getByRole('button', { name: 'Watch here' }));
+  await act(async () => {});
+  expect(takeOverWatch).toHaveBeenCalledTimes(1);
+  await watchRuns();
 });
