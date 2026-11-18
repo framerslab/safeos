@@ -23,7 +23,8 @@ import { SubjectPreviewOverlay, SubjectPreview } from '../../components/SubjectP
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
 import { QuickSettingsPanel } from '../../components/QuickSettingsPanel';
 import { InlineSettingsPanel } from '../../components/monitor';
-import { IconSearch, IconFingerprint, IconRadar, IconChevronDown, IconShield } from '../../components/icons';
+import { WatchForChooser, WatchForPet, useWatchFor, useWideWatch, NO_PET_FRAME_LINE } from '../../components/monitor/WatchFor';
+import { IconSearch, IconChevronDown, IconShield } from '../../components/icons';
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from '../../stores/settings-store';
@@ -129,8 +130,14 @@ export default function MonitorPage() {
   const [videoSeen, setVideoSeen] = useState(false);
   const captureRequestedRef = useRef(false);
   const serverRequestedRef = useRef(false);
-  const [showLostFoundPanel, setShowLostFoundPanel] = useState(false);
   const [showModeDropdown, setShowModeDropdown] = useState(false);
+
+  // Watch for: Motion and sound, or Lost and Found with the pet it compares
+  // with. It compares while the watch runs; from 1024 px the pet's card
+  // heads the right column.
+  const watchFor = useWatchFor(captureRequested);
+  const wide = useWideWatch();
+  const petCard = wide && watchFor.way === 'lost_found';
 
   // Media overlay state for Lost & Found alerts
   const [showMediaOverlay, setShowMediaOverlay] = useState(false);
@@ -1034,7 +1041,6 @@ export default function MonitorPage() {
               >
                 <IconShield size={28} />
               </Link>
-              <h1 className="text-xl font-bold text-white">Live Monitor</h1>
             </div>
 
             <div className="flex items-center gap-4">
@@ -1156,26 +1162,6 @@ export default function MonitorPage() {
                 )}
               </div>
 
-              {/* Lost & Found toggle */}
-              <button
-                onClick={() => setShowLostFoundPanel(!showLostFoundPanel)}
-                className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${isLostFoundWatching
-                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/50'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-                aria-label="Lost & Found Mode"
-                aria-expanded={showLostFoundPanel}
-                aria-pressed={isLostFoundWatching}
-              >
-                <IconRadar size={18} />
-                <span className="hidden sm:inline">
-                  {isLostFoundWatching ? 'Watching' : 'Lost & Found'}
-                </span>
-                {isLostFoundWatching && (
-                  <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-                )}
-              </button>
-
               {!captureRequested && nap && (
                 <button
                   onClick={endNap}
@@ -1209,6 +1195,8 @@ export default function MonitorPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <WatchForChooser watchFor={watchFor} watching={captureRequested} wide={wide} />
+
         {nap && napWaitsForTap && !captureRequested && (
           <div role="status" className="mb-6 rounded-xl border border-indigo-400/50 bg-indigo-500/15 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
             <p className="text-base text-indigo-50 flex-1">
@@ -1222,19 +1210,16 @@ export default function MonitorPage() {
             </button>
           </div>
         )}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Camera Feed */}
-          <div className="lg:col-span-2">
+          <div className={`lg:col-span-8${petCard ? ' min-[1440px]:col-span-7' : ''}`}>
             <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden relative">
               <div className="p-4 border-b border-gray-700 flex items-center justify-between">
                 <h2 className="font-semibold text-white">Camera Feed</h2>
-                {isLostFoundWatching && activeSubject && (
-                  <div className="flex items-center gap-2 text-sm text-purple-400">
-                    <IconFingerprint size={16} />
-                    <span>Matching: {activeSubject.name}</span>
-                  </div>
-                )}
               </div>
+              {watchFor.way === 'lost_found' && watchFor.petsRead === 'ready' && !watchFor.pet && (
+                <p className="px-4 pt-3 text-base text-[var(--color-steel-50)]">{NO_PET_FRAME_LINE}</p>
+              )}
 
               {/* Subject preview overlay */}
               {isLostFoundWatching && <SubjectPreviewOverlay />}
@@ -1498,59 +1483,30 @@ export default function MonitorPage() {
             </div>
           </div>
 
-          {/* Alert Panel or Lost & Found Panel */}
-          <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden min-h-[400px]">
-            {showLostFoundPanel ? (
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="font-semibold text-white flex items-center gap-2">
-                    <IconSearch size={18} />
-                    Lost & Found
-                  </h2>
-                  <button
-                    onClick={() => setShowLostFoundPanel(false)}
-                    className="text-sm text-gray-400 hover:text-white"
-                  >
-                    Show Alerts
-                  </button>
-                </div>
+          {/* The pet's card, the alerts and, while the watch compares, the pet's matches */}
+          <div className={`lg:col-span-4${petCard ? ' min-[1440px]:col-span-5' : ''} flex flex-col gap-6`}>
+            {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
 
-                {activeSubject ? (
-                  <SubjectPreview mode="full" showClose={false} />
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="w-16 h-16 rounded-full bg-gray-700 flex items-center justify-center mx-auto mb-4">
-                      <IconSearch size={32} className="text-gray-500" />
-                    </div>
-                    <h3 className="text-lg font-medium text-white mb-2">
-                      No Subject Set
-                    </h3>
-                    <p className="text-gray-400 text-sm mb-4">
-                      Add a lost pet or person to watch for
-                    </p>
-                    <Link
-                      href="/lost-found"
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-                    >
-                      <IconFingerprint size={16} />
-                      Set Up Lost & Found
-                    </Link>
-                  </div>
-                )}
-
-                {activeSubject && (
-                  <div className="mt-4 pt-4 border-t border-gray-700">
-                    <Link
-                      href="/lost-found/gallery"
-                      className="block w-full text-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                    >
-                      View Match History
-                    </Link>
-                  </div>
-                )}
-              </div>
-            ) : (
+            <div className="flex-1 bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden min-h-[400px]">
               <AlertPanel />
+            </div>
+
+            {watchFor.comparing && activeSubject && (
+              <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden p-4">
+                <h2 className="font-semibold text-white flex items-center gap-2 mb-4">
+                  <IconSearch size={18} />
+                  Lost and Found
+                </h2>
+                <SubjectPreview mode="full" showClose={false} />
+                <div className="mt-4 pt-4 border-t border-gray-700">
+                  <Link
+                    href="/lost-found/gallery"
+                    className="block w-full text-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  >
+                    View Match History
+                  </Link>
+                </div>
+              </div>
             )}
           </div>
         </div>

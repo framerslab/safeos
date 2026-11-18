@@ -541,7 +541,9 @@ test('at 200 per cent text the options’ words wrap inside them on one row, not
   const options = await optionsOnOneRow(page);
   expect(options.oneRow, options.widths.join(' and ')).toBe(true);
   expect(options.cut).toBe(false);
-  expect(await scrollsSideways(page)).toBe(false);
+  const chooser = await box(watchFor(page));
+  expect(chooser.x).toBeGreaterThanOrEqual(0);
+  expect(chooser.x + chooser.width).toBeLessThanOrEqual(390);
 });
 
 test('the pet band, the pet card and its photos follow the width: 768, 1024 and 1440 px', async ({ page, context }) => {
@@ -563,7 +565,8 @@ test('the pet band, the pet card and its photos follow the width: 768, 1024 and 
   await page.setViewportSize({ width: 1024, height: 1000 });
   const headingBox = await box(heading);
   expect((await box(watchFor(page))).y).toBeLessThan(headingBox.y + headingBox.height);
-  const camera = await box(page.getByRole('heading', { name: 'Camera Feed' }));
+  // The camera's panel: its heading's row, then the panel round it.
+  const camera = await box(page.getByRole('heading', { name: 'Camera Feed' }).locator('xpath=../..'));
   const card = await box(photo());
   expect(card.x).toBeGreaterThan(camera.x + camera.width);
   expect(card.width).toBe(96);

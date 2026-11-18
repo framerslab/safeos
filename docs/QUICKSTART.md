@@ -75,7 +75,7 @@ Click **Begin Setup**, tick the box and click **Accept & Continue**.
 
 #### Step 2: Choose What You Are Watching
 
-Setup asks what this device watches. To change it later, run setup again from the home page.
+Setup asks what this device watches. To change it later, run setup again from the home page. Lost & Found is also chosen or left on Monitor, under **Watch for**, and setup shows the choice Monitor last had.
 
 | Choice | What it does |
 |--------|--------------|
@@ -96,6 +96,13 @@ Setup can be finished without a camera. Until access is granted the step shows
 for the camera when you click **Start Monitoring**. When a request fails, the
 step says what happened (the browser blocked the camera, the camera did not
 start, or no camera was found) and the key reads **Try again**.
+
+Monitor opens with **Watch for**: **Motion and sound** sounds an alert on this
+device when something moves or makes a sound; **Lost and Found** also compares
+what the camera sees with a saved pet's photos, by colour and shape, while the
+watch runs. With Lost and Found chosen, Monitor shows the pet: **Change pet**
+chooses another saved pet, and with no pet saved **Add a pet** opens the Lost &
+Found page.
 
 On Monitor, click **Start Monitoring**. Monitoring becomes active when the camera is
 ready. **Cancel Starting** cancels a pending request; **Stop Monitoring** releases

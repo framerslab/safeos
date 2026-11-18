@@ -145,6 +145,11 @@ npx playwright install chromium
 python3 -m http.server 4173 --bind 127.0.0.1 --directory out &
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/lost-found-edge.spec.ts --project=chromium
 
+# Web app: Watch for on Monitor (Chromium) on the same served build; its axe
+# checks read axe-core, which CI installs for the run without saving it
+npm install --no-save axe-core@4.10.3
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/watch-for.spec.ts --project=chromium
+
 # Web app: the alert walk (Chromium) on the same served build, the way CI runs it
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts --project=chromium
 ```
@@ -371,7 +376,7 @@ prints an error and carries on.
 | `ci.yml` | Server build | `npm run build` (`tsc`) compiles the server |
 | `ci.yml` | Web app type check and lint | `tsc --noEmit` and `next lint` pass for `apps/guardian-ui` |
 | `ci.yml` | Web app tests | The web app's Jest suite passes |
-| `ci.yml` | Web app Lost & Found browser test | In Chromium, on the static build: a subject enrolled from a striped picture is matched against the same stripes on the fake camera, and the match saved in the gallery shows an Edge value above 0 (`apps/guardian-ui/e2e/lost-found-edge.spec.ts`) |
+| `ci.yml` | Web app Lost & Found browser test | In Chromium, on the static build: a subject enrolled from a striped picture is matched against the same stripes on the fake camera, and the match saved in the gallery shows an Edge value above 0 (`apps/guardian-ui/e2e/lost-found-edge.spec.ts`); Monitor's Watch for offers Motion and sound and Lost and Found with the pet's photo, name, count and Change pet, No pet saved and Add a pet, Choose a pet, the comparison starting and stopping with the choice during a watch, setup and Monitor showing one choice, one row from 320 to 768 px, and axe finding nothing at 390 and 1280 px in both looks (`apps/guardian-ui/e2e/watch-for.spec.ts`, with axe-core installed for the run) |
 | `ci.yml` | Web app alert walk | In Chromium, on the static build, with a test camera whose picture keeps changing and a tone on the microphone (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`): a continuing motion, pixel or sound event alerts again once the longer of its severity's cooldown and the Cooldown Period has passed, on its one card with "Repeated N times"; a rise to critical alerts at once; a picture that pauses for a moment now and then is one event; after Stop and Start, or with a detector turned off and on again, a new event alerts at once on a new card. The same spec run under Firefox skips |
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |

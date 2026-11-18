@@ -13,6 +13,44 @@ missing camera leaves monitoring inactive and shows the camera error. A device w
 a camera and no microphone monitors video alone and shows the microphone warning;
 Setup's **Grant Permissions** also completes with the camera alone.
 
+## Watch for
+
+Monitor opens with the heading **Watch for** and two options above the camera
+and the settings: **Motion and sound** (chosen on a fresh device) and **Lost and
+Found**. Motion and sound sounds an alert on this device when something moves or
+makes a sound. Lost and Found does the same and, while the watch runs, compares
+what the camera sees with a saved pet's photos, by colour and shape, one pet at a
+time. Choosing either during a watch starts or stops the comparison at once with
+no restart of the camera, and a polite status reads "Comparing with {name}'s
+photos from {time}." or "Stopped comparing at {time}.". The page's title reads
+"Motion and sound | SafeOS" or "Lost and Found | SafeOS".
+
+The choice is setup's Lost & Found choice (`lostFoundChosen` in the onboarding
+store): setup and Monitor show the same one, whatever the use setup saved, and
+the Lost & Found page's **Start Monitoring** opens Monitor with Lost and Found
+and the pet it shows. The pet is kept as `chosenPetId` in the Lost & Found store;
+until one is chosen it is the newest saved pet. A subject an earlier version
+saved as a person is never the watch's pet.
+
+With Lost and Found chosen, Monitor shows the pet's first saved photo, its name,
+its count of photos, **Change pet** and the line "It can alert on an animal that
+looks alike. It works best in daylight, with a pet whose colours stand out."
+Under 1024 px they stand under the options (on a tablet the pet at the left and
+the line at the right); from 1024 px they head the right column, and from 1440
+px the pet's other photos stand under its photo. **Change pet** opens **Choose a
+pet**, which lists every saved pet with its photo and count; a press chooses and
+closes, the arrow keys move the choice, and Escape or **Close** close it with no
+change. With no pet saved, Monitor shows "No pet saved" and **Add a pet**, which
+opens the Lost & Found page, and the camera's panel says "Without a saved pet, it
+watches for motion and sound." While the saved pets are read it shows "Loading
+saved pets…"; when they cannot be read it says "Saved pets could not be read on
+this device. Reload the page to try again." and watches for motion and sound
+until a reload. The pets and their photos are this device's, so Watch for and the
+comparison work offline.
+
+While the watch compares, the Lost & Found panel under the alerts shows the pet's
+matches and links to its match history.
+
 Setup does not need the camera. Until access is granted, its **Device Access**
 step shows **Continue without the camera**, which records camera and microphone
 access as off and goes on; **Start Monitoring** asks for them later. After a

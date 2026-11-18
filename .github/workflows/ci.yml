@@ -245,7 +245,8 @@ jobs:
   web-lost-found:
     name: Web app Lost & Found browser test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Four walks on one build, Watch for's among them with axe in both looks.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/guardian-ui

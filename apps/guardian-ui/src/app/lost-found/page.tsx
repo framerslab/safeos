@@ -23,6 +23,7 @@ import {
 import { LostFoundSetup } from '../../components/LostFoundSetup';
 import { SubjectPreview } from '../../components/SubjectPreview';
 import { useLostFoundStore, getSubjectTypeLabel } from '../../stores/lost-found-store';
+import { useOnboardingStore } from '../../stores/onboarding-store';
 import { getAllSubjectProfiles, deleteSubjectProfile, type SubjectProfileDB } from '../../lib/client-db';
 
 export default function LostFoundPage() {
@@ -38,6 +39,7 @@ export default function LostFoundPage() {
     startWatching,
     isWatching,
   } = useLostFoundStore();
+  const setLostFoundChosen = useOnboardingStore((state) => state.setLostFoundChosen);
 
   // Load saved subjects from IndexedDB
   useEffect(() => {
@@ -81,9 +83,11 @@ export default function LostFoundPage() {
     }
   };
 
-  // Handle start monitoring
+  // Handle start monitoring: the watch opens with Lost and Found chosen and
+  // this pet, the one the watch compares with.
   const handleStartMonitoring = () => {
     if (activeSubject) {
+      setLostFoundChosen(true);
       startWatching();
       router.push('/monitor');
     }
