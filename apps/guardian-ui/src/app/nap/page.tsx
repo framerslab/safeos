@@ -137,6 +137,8 @@ export default function NapModePage() {
                 videoRef.current.srcObject = stream;
                 await videoRef.current.play();
             }
+            // The picture may start after the person went back or the page closed.
+            if (closedRef.current || run !== checkRunRef.current) return;
 
             setTestStatus(prev => ({ ...prev, camera: 'passed' }));
 
