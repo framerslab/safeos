@@ -36,6 +36,10 @@ import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '.
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
 import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
+import { forgetRaised } from '../../lib/watch-sound';
+import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
+import { announceWatch } from '../../lib/tab-channel';
+import { dropStart } from '../../lib/camera-handoff';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -378,6 +382,45 @@ export default function MonitorPage() {
     serverRequestedRef.current = false;
   };
 
+  const stopStreamRef = useRef(stopStream);
+  stopStreamRef.current = stopStream;
+  const watchedPet = isLostFoundWatching && activeSubject ? activeSubject.id : undefined;
+
+  // The other tabs hear of this watch from the press, before the camera is
+  // asked for, so a press in another tab meanwhile asks first. This effect's
+  // end is the watch's one end, whatever ended it: Stop Monitoring, Cancel
+  // Starting, a camera that failed, another tab, or leaving the page.
+  useEffect(() => {
+    if (!captureRequested) return;
+    const endAnnounce = announceWatch(watchedPet ? 'lost-found' : 'monitor', () => stopStreamRef.current());
+    return () => {
+      endAnnounce();
+      dropStart();
+    };
+    // A change of pet is the same watch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureRequested]);
+
+  // A watch's times run from the moment this capture request first showed a
+  // picture until it is stopped. A camera the browser holds back for a moment
+  // and gives back is the same watch.
+  const watching = captureRequested && videoSeen;
+  useEffect(() => {
+    if (!watching) return;
+    forgetRaised();
+    watchStarted();
+    const endTimes = keepWatchTimes();
+    return () => {
+      endTimes();
+      watchEnded();
+      forgetRaised();
+    };
+  }, [watching]);
+
+  useEffect(() => {
+    if (watching) rememberWay(watchedPet ? 'lost-found' : 'monitor', watchedPet);
+  }, [watching, watchedPet]);
+
   // The nap Start Nap Mode handed to this watch, kept in this history entry:
   // it belongs to this watch, survives a reload and ends with it.
   const [nap, setNap] = useState<Nap | null>(null);
@@ -471,6 +514,7 @@ export default function MonitorPage() {
     captureRequestedRef.current = false;
     useMonitoringStore.getState().setStreaming(false);
     useMonitoringStore.getState().setStreamId(null);
+    useLostFoundStore.getState().stopWatching();
   }, []);
 
   const handleFrame = (data: { imageData: string; motionScore: number; audioLevel: number }) => {
