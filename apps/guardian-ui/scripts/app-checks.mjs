@@ -1078,22 +1078,52 @@ export async function checkApp(browser, baseUrl, outDir) {
 
   // What a page fixes to the screen is laid out to the page's width, so a page
   // wider than the phone puts a panel's close key past the screen's edge. The
-  // keys of a way's page keep one line. On People's and Wildlife's pages, wider
-  // than their place, they scroll inside it with the right edge faded until the
-  // end is reached; Motion and sound's fit, and its modes menu stays on the screen.
+  // keys of a way's page keep one line, and so do each key's words. Wider than
+  // their place, they scroll inside it with the right edge faded until the end
+  // is reached. Motion and sound's modes menu opens on the screen and whole:
+  // neither the row's scroll nor its faded edge cuts it.
+  // A part inside a box that scrolls or clips sideways cannot widen the page,
+  // so only the parts outside such a box are named.
   const pushesPast = (page) => page.evaluate(() => {
     const edge = document.documentElement.clientWidth;
+    const content = document.querySelector('.app-content');
+    const clipped = (part) => {
+      for (let up = part.parentElement; up && up !== content; up = up.parentElement) {
+        if (getComputedStyle(up).overflowX !== 'visible') return true;
+      }
+      return false;
+    };
     let right = edge + 0.5;
     let found = null;
     for (const part of document.querySelectorAll('.app-content *')) {
       const box = part.getBoundingClientRect();
-      if (box.width > 0 && box.right > right && getComputedStyle(part).position !== 'fixed') {
+      if (box.width > 0 && box.right > right && getComputedStyle(part).position !== 'fixed' && !clipped(part)) {
         right = box.right;
         found = `${part.tagName.toLowerCase()} "${(part.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 30)}"`;
       }
     }
     return found ? `${found} ends at ${Math.round(right)} px` : 'nothing in the page\'s content is past the edge';
   });
+  // The words of each key in the page's own header that take more than one
+  // line: the tops of a key's words differ by more than half a line.
+  const brokenKeys = () => {
+    const head = document.querySelector('.app-content header');
+    if (!head) return [];
+    return [...head.querySelectorAll('button, a')].filter((key) => {
+      const boxes = [];
+      const texts = document.createTreeWalker(key, NodeFilter.SHOW_TEXT);
+      for (let text = texts.nextNode(); text; text = texts.nextNode()) {
+        if (!text.textContent.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        boxes.push(...[...range.getClientRects()].filter((box) => box.width > 0));
+      }
+      if (boxes.length < 2) return false;
+      const tops = boxes.map((box) => box.top);
+      const line = Math.min(...boxes.map((box) => box.height));
+      return Math.max(...tops) - Math.min(...tops) > line / 2;
+    }).map((key) => (key.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 30));
+  };
   const readKeyRow = () => {
     const row = document.querySelector('.way-head__keys');
     if (!row) return null;
@@ -1117,25 +1147,41 @@ export async function checkApp(browser, baseUrl, outDir) {
         const sideways = await sidewaysScroll(page);
         if (sideways > 0) check(false, `${route} scrolls ${sideways} px sideways: ${await pushesPast(page)}`);
         if (route === '/lost-found/') return;
+        const broken = await page.evaluate(brokenKeys);
+        check(broken.length === 0, `on ${route} the words of ${broken.map((words) => `"${words}"`).join(', ')} break over two lines`);
         if (route === '/monitor/') {
+          const key = page.getByRole('button', { name: 'Select Security Mode', exact: true });
           const modes = page.locator('[aria-label="Select Security Mode"] + .absolute');
-          const place = await page.getByRole('button', { name: 'Select Security Mode', exact: true }).click({ timeout: 5_000 })
+          const place = await key.click({ timeout: 5_000 })
             .then(() => modes.waitFor({ timeout: 5_000 }))
             .then(() => modes.evaluate((menu) => {
               const box = menu.getBoundingClientRect();
-              return { left: box.left, right: box.right, screen: document.documentElement.clientWidth };
+              const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 20);
+              let fade = null;
+              for (let part = menu.parentElement; part && !fade; part = part.parentElement) {
+                if (getComputedStyle(part).maskImage !== 'none') fade = `${part.tagName.toLowerCase()}.${String(part.className).split(' ').join('.')}`;
+              }
+              return {
+                left: box.left, right: box.right, screen: document.documentElement.clientWidth,
+                shown: !!hit && menu.contains(hit), fade,
+              };
             }))
             .catch(() => null);
           check(place, 'on /monitor/ a press on the mode key does not open its menu');
           if (place) {
             check(place.left >= -0.5 && place.right <= place.screen + 0.5,
               `on /monitor/ the modes menu runs from ${Math.round(place.left)} to ${Math.round(place.right)} px on a ${place.screen} px screen`);
+            check(place.shown, 'on /monitor/ the open modes menu is cut away where it opens');
+            check(!place.fade, `on /monitor/ the open modes menu is drawn under the faded edge of ${place.fade}`);
+            // Closed again, so the row is read at rest.
+            await key.click({ timeout: 5_000 })
+              .then(() => modes.waitFor({ state: 'detached', timeout: 5_000 }))
+              .catch(() => check(false, 'on /monitor/ a second press on the mode key leaves its menu open'));
           }
         }
         const row = await page.evaluate(readKeyRow);
         if (!row) throw new Error(`${route} has no row of keys`);
         check(row.offLine.length === 0, `on ${route} the keys ${row.offLine.join(', ')} leave the row's line`);
-        if (route === '/monitor/') return;
         check(row.scrolls, `on ${route} the keys' row does not scroll inside itself`);
         if (route === '/wildlife/' && width === 320) check(row.past > 1, 'the keys fit at 320 px, so their scroll goes unread');
         if (row.past > 1) {
@@ -1150,10 +1196,15 @@ export async function checkApp(browser, baseUrl, outDir) {
         } else {
           check(!row.marked, `on ${route} the keys fit and their row is marked as running over`);
         }
-        const opened = await page.getByRole('button', { name: 'Settings', exact: true }).click({ timeout: 5_000 })
+        if (route === '/monitor/') return;
+        // The browser's own account of the press says why it did not open.
+        const missed = await page.getByRole('button', { name: 'Settings', exact: true }).click({ timeout: 5_000 })
           .then(() => page.locator('.fixed.inset-0 h2').waitFor({ timeout: 5_000 }))
-          .then(() => true, () => false);
-        check(opened, `on ${route} a press on Settings does not open its panel`);
+          .then(() => null, (err) => {
+            const lines = err.message.split('\n').map((line) => line.trim()).filter(Boolean);
+            return (lines.length > 9 ? [lines[0], ...lines.slice(-8)] : lines).join(' / ');
+          });
+        check(!missed, `on ${route} a press on Settings does not open its panel: ${missed}`);
       });
     }
   }
