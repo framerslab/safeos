@@ -8,11 +8,14 @@
 
 'use client';
 
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { isStaticMode } from '@/lib/env';
 import { useMonitoringStore } from '@/stores/monitoring-store';
+import { useAnimalAlertStore } from '@/stores/animal-alert-store';
 import { cardTime } from '@/lib/alert-event';
+import { recordTime } from '@/lib/alert-groups';
+import { onAlertsChanged, useDeviceAlerts } from '@/lib/device-alerts';
 import { useSettingsStore } from '@/stores/settings-store';
 import {
   acknowledgeIntrusionFrame,
@@ -62,7 +65,7 @@ type LocalTimelineSeverity = FilterSeverity;
 
 interface LocalTimelineEvent {
   id: string;
-  type: 'alert' | 'lost_found' | 'intrusion';
+  type: 'alert' | 'lost_found' | 'intrusion' | 'wildlife';
   timestamp: number;
   acknowledged: boolean;
   severity: LocalTimelineSeverity;
@@ -132,6 +135,7 @@ export default function HistoryPage() {
 
   const localAlerts = useMonitoringStore((s) => s.alerts);
   const acknowledgeLocalAlert = useMonitoringStore((s) => s.acknowledgeAlert);
+  const sightings = useAnimalAlertStore((s) => s.detectionHistory);
   const exportSettingsJson = useSettingsStore((s) => s.exportSettings);
 
   const [isStaticDeployment, setIsStaticDeployment] = useState(false);
@@ -153,8 +157,10 @@ export default function HistoryPage() {
   const [exportMarkExported, setExportMarkExported] = useState(true);
   const [isExportingLocal, setIsExportingLocal] = useState(false);
 
-  const loadLocalData = useCallback(async () => {
-    setLocalLoading(true);
+  // Quiet: another tab saved or marked an alert, and the list takes it in
+  // place, with no loading wheel over it.
+  const loadLocalData = useCallback(async (quiet = false) => {
+    if (!quiet) setLocalLoading(true);
     setLocalError(null);
 
     try {
@@ -169,9 +175,22 @@ export default function HistoryPage() {
     } catch (err) {
       setLocalError('Failed to load local timeline data');
     } finally {
-      setLocalLoading(false);
+      if (!quiet) setLocalLoading(false);
     }
   }, []);
+
+  useEffect(() => onAlertsChanged(() => { void loadLocalData(true); }), [loadLocalData]);
+
+  // Opening History marks every new alert as seen, once for each opening: an
+  // alert that arrives while it is open stays new, so a tab left on History
+  // never silences a running watch.
+  const { status: alertsStatus, newAlerts, markAllSeen } = useDeviceAlerts();
+  const marked = useRef(false);
+  useEffect(() => {
+    if (marked.current || alertsStatus !== 'ready') return;
+    marked.current = true;
+    if (newAlerts.length > 0) void markAllSeen();
+  }, [alertsStatus, newAlerts, markAllSeen]);
 
   useEffect(() => {
     // Detect static deployments (GitHub Pages, Pages.dev, etc) and default to local timeline.
@@ -251,9 +270,11 @@ export default function HistoryPage() {
     const events: LocalTimelineEvent[] = [];
 
     for (const alert of localAlerts) {
-      // A card whose event repeated is listed at its newest alert.
-      const time = cardTime(alert);
-      const ts = time ? new Date(time).getTime() : Date.now();
+      // A card whose event repeated is listed at its newest alert. A time
+      // that does not parse is read by the alerts' own rule, and a card with
+      // none is listed after every dated one.
+      const shown = Date.parse(cardTime(alert) ?? '');
+      const ts = Number.isFinite(shown) ? shown : recordTime(alert) ?? Number.NEGATIVE_INFINITY;
 
       events.push({
         id: alert.id,
@@ -316,6 +337,22 @@ export default function HistoryPage() {
       });
     }
 
+    for (const sighting of sightings) {
+      const animal = sighting.type === 'unknown_animal' ? 'animal' : sighting.type;
+      events.push({
+        id: sighting.id,
+        type: 'wildlife',
+        timestamp: sighting.timestamp,
+        acknowledged: sighting.acknowledged,
+        severity: sighting.dangerLevel === 'extreme' ? 'critical'
+          : sighting.dangerLevel === 'high' ? 'high'
+            : sighting.dangerLevel === 'medium' ? 'medium' : 'low',
+        title: `Looks like ${/^[aeiou]/.test(animal) ? 'an' : 'a'} ${animal}`,
+        description: 'Wildlife',
+        thumbnailData: sighting.frameData,
+      });
+    }
+
     events.sort((a, b) => b.timestamp - a.timestamp);
 
     const filteredByType = localFilter === 'all'
@@ -345,7 +382,7 @@ export default function HistoryPage() {
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [intrusionFrames, localAlerts, localFilter, localQuery, localUnackOnly, matchFrames, subjectNameById]);
+  }, [intrusionFrames, localAlerts, localFilter, localQuery, localUnackOnly, matchFrames, sightings, subjectNameById]);
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
@@ -695,6 +732,11 @@ export default function HistoryPage() {
                         return;
                       }
 
+                      if (event.type === 'wildlife') {
+                        useAnimalAlertStore.getState().acknowledgeDetection(event.id);
+                        return;
+                      }
+
                       if (event.type === 'lost_found') {
                         await acknowledgeMatchFrame(event.id);
                         setMatchFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, acknowledged: true } : f));
@@ -782,7 +824,7 @@ export default function HistoryPage() {
                               </span>
                             </div>
                             <span className="text-xs text-slate-500 whitespace-nowrap">
-                              {formatDate(new Date(event.timestamp).toISOString())}
+                              {Number.isFinite(event.timestamp) ? formatDate(new Date(event.timestamp).toISOString()) : null}
                             </span>
                           </div>
 
