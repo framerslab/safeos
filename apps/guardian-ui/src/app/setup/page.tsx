@@ -75,9 +75,11 @@ export default function SetupPage() {
   // visitor who leaves part way keeps the setup they had.
   const [again, setAgain] = useState(false);
   const [staged, setStaged] = useState<StagedAnswers>(NO_ANSWERS);
-  // The person chose Lost & Found: the last key opens its page, where the
-  // pet's photos are added.
-  const [lostFound, setLostFound] = useState(false);
+  // The person chose Lost & Found in this run (null: no choice yet in this
+  // run, so the saved choice stands). The last key then opens its page, where
+  // the pet's photos are added.
+  const [lostFoundNow, setLostFoundNow] = useState<boolean | null>(null);
+  const lostFound = lostFoundNow ?? (onboarding.lostFoundChosen && onboarding.selectedScenario === 'pet');
 
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
@@ -181,6 +183,7 @@ export default function SetupPage() {
 
   const completeSetup = () => {
     finishing.current = true;
+    onboarding.setLostFoundChosen(lostFound);
     if (again) {
       if (staged.disclaimers) onboarding.acceptAllDisclaimers();
       if (staged.scenario) onboarding.setScenario(staged.scenario);
@@ -249,9 +252,12 @@ export default function SetupPage() {
               selectedScenario={lostFound ? 'lost_found' : staged.scenario ?? onboarding.selectedScenario}
               onSelect={(choice) => {
                 const scenario: Scenario = choice === 'lost_found' ? 'pet' : choice;
-                setLostFound(choice === 'lost_found');
+                setLostFoundNow(choice === 'lost_found');
                 if (again) setStaged((answers) => ({ ...answers, scenario }));
-                else onboarding.setScenario(scenario);
+                else {
+                  onboarding.setScenario(scenario);
+                  onboarding.setLostFoundChosen(choice === 'lost_found');
+                }
                 goNext();
               }}
               onBack={goBack}
@@ -475,7 +481,7 @@ function ScenarioStep({
       </div>
       <div className="panel-body space-y-4">
         <p className="text-sm text-[var(--color-steel-400)]">
-          Choose the primary use case. You can change this later in settings.
+          Choose the primary use case. To change it later, run setup again from the home page.
         </p>
 
         <div className="grid gap-3">

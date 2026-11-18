@@ -117,6 +117,6 @@ it('keeps Lost & Found chosen when the person runs setup again, and ends on its 
 
 it('says how to change the choice later: run setup again from the home page', async () => {
   await toTheQuestion();
-  expect(screen.getByText('To change it later, run setup again from the home page.')).toBeTruthy();
+  expect(screen.getByText(/To change it later, run setup again from the home page\./)).toBeTruthy();
   expect(screen.queryByText(/change this later in settings/i)).toBeNull();
 });

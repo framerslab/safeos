@@ -75,7 +75,7 @@ Click **Begin Setup**, tick the box and click **Accept & Continue**.
 
 #### Step 2: Choose What You Are Watching
 
-Setup asks what this device watches. You can change it later in Settings.
+Setup asks what this device watches. To change it later, run setup again from the home page.
 
 | Choice | What it does |
 |--------|--------------|
