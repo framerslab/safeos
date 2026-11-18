@@ -60,6 +60,8 @@ export default function NapModePage() {
     // Counts the check's runs: Back starts a new one, so a camera that opens
     // for an earlier run is stopped and starts nothing.
     const checkRunRef = useRef(0);
+    // The 500 ms wait between the camera passing and the motion check starting.
+    const motionStartRef = useRef<number | null>(null);
     // Set when the page closes, so a camera request still waiting opens nothing.
     const closedRef = useRef(false);
 
@@ -72,6 +74,10 @@ export default function NapModePage() {
         closedRef.current = false;
         return () => {
             closedRef.current = true;
+            if (motionStartRef.current) {
+                window.clearTimeout(motionStartRef.current);
+                motionStartRef.current = null;
+            }
             // Cleanup on unmount
             if (streamRef.current) {
                 streamRef.current.getTracks().forEach(t => t.stop());
@@ -89,6 +95,8 @@ export default function NapModePage() {
     const [clockNow, setClockNow] = useState(() => Date.now());
     useEffect(() => {
         if (step !== 'test') return;
+        // Read again as the check opens: the person may have spent a while on the warning.
+        setClockNow(Date.now());
         const id = window.setInterval(() => setClockNow(Date.now()), 30_000);
         return () => window.clearInterval(id);
     }, [step]);
@@ -133,7 +141,10 @@ export default function NapModePage() {
             setTestStatus(prev => ({ ...prev, camera: 'passed' }));
 
             // Start motion test automatically
-            setTimeout(() => { if (run === checkRunRef.current) startMotionTest(); }, 500);
+            motionStartRef.current = window.setTimeout(() => {
+                motionStartRef.current = null;
+                if (!closedRef.current && run === checkRunRef.current) startMotionTest();
+            }, 500);
         } catch (error) {
             // A failure for a run the person left by going back changes nothing.
             if (run === checkRunRef.current) setTestStatus(prev => ({ ...prev, camera: 'failed' }));
@@ -151,6 +162,10 @@ export default function NapModePage() {
     // starts over when the person comes back to it.
     const leaveCheck = () => {
         checkRunRef.current += 1;
+        if (motionStartRef.current) {
+            window.clearTimeout(motionStartRef.current);
+            motionStartRef.current = null;
+        }
         stopSampling();
         if (streamRef.current) {
             streamRef.current.getTracks().forEach(t => t.stop());
@@ -167,6 +182,7 @@ export default function NapModePage() {
     };
 
     const startMotionTest = () => {
+        if (closedRef.current) return;
         stopSampling();
         setTestStatus(prev => ({ ...prev, motion: 'testing' }));
 
