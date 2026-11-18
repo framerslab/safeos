@@ -336,6 +336,49 @@ async function expectRepeat(page: Page, kind: Kind, first: number, periodMs: num
   return second;
 }
 
+interface SavedCard {
+  id: string;
+  message: string;
+  acknowledged: boolean;
+  repeats?: number;
+}
+
+/** The monitor's alert cards saved in the site's database, read from `page`, a tab of the same site. */
+function savedCards(page: Page): Promise<SavedCard[]> {
+  return page.evaluate(() => new Promise<SavedCard[]>((resolve, reject) => {
+    const open = indexedDB.open('safeos-guardian');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const read = db.transaction('alert_cache', 'readonly').objectStore('alert_cache').getAll();
+      read.onerror = () => { db.close(); reject(read.error); };
+      read.onsuccess = () => {
+        db.close();
+        resolve(read.result
+          .filter((row) => row.monitoring && /^Motion detected/.test(row.message))
+          .map(({ id, message, acknowledged, repeats }) => ({ id, message, acknowledged, repeats })));
+      };
+    };
+  }));
+}
+
+/** Acknowledges a saved card from `page` the way the store saves an acknowledgement: one update of its record. */
+function acknowledgeSaved(page: Page, id: string): Promise<void> {
+  return page.evaluate((cardId) => new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open('safeos-guardian');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction('alert_cache', 'readwrite');
+      const cards = tx.objectStore('alert_cache');
+      const read = cards.get(cardId);
+      read.onsuccess = () => { cards.put({ ...read.result, acknowledged: true, acknowledgementOrder: 0 }); };
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    };
+  }), id);
+}
+
 // The page draws the first alert's card while it is busiest (the list's first
 // render, the sounds), so a later card may be drawn a little sooner after its
 // alert than the first was; it has this long to arrive.
@@ -428,6 +471,42 @@ test.describe('Alerts repeat while the activity goes on', () => {
     const first = await firstAlert(page, 'audio');
     await expect(cardsOf(page, /^Audio detected: \d+%/).first()).toHaveText(/^Audio detected: (4[5-9]|[5-9]\d|100)% \(threshold: 5%/);
     await expectRepeat(page, 'audio', first, 10_000, 'sound');
+  });
+
+  test('a card acknowledged in another tab stays acknowledged: the event\'s next alert goes on a new card, which the alert after it updates', async ({ page }, testInfo) => {
+    test.setTimeout(150_000);
+    // A critical event that goes on repeats at the Cooldown Period (10 s here).
+    await openMonitor(page, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
+      camera: { changingWidth: 1 },
+    });
+    const first = await firstAlert(page, 'motion');
+
+    // A second tab of the site acknowledges the event's card before its next alert.
+    const other = await page.context().newPage();
+    await other.goto('/about/', { waitUntil: 'domcontentloaded' });
+    await expect.poll(async () => (await savedCards(other)).length, { timeout: 15_000 }).toBe(1);
+    const [card] = await savedCards(other);
+    await acknowledgeSaved(other, card.id);
+
+    // The next alert finds the card acknowledged: it leaves it so and goes on a new card.
+    await runUntil(page, first + 10_000 + LATE_MS);
+    let saved = await savedCards(other);
+    expect(saved.find((c) => c.id === card.id), `the acknowledged card is kept (${JSON.stringify(saved)})`).toMatchObject({ acknowledged: true });
+    expect.soft(saved.find((c) => c.id === card.id)?.repeats).toBeUndefined();
+    const added = saved.filter((c) => c.id !== card.id);
+    expect(added, `one new card for the alert after the acknowledgement (${JSON.stringify(saved)})`).toHaveLength(1);
+    expect(added[0]).toMatchObject({ acknowledged: false });
+
+    // The alert after that updates the new card; no third card is made.
+    await runUntil(page, first + 20_000 + LATE_MS);
+    saved = await savedCards(other);
+    expect(saved.map((c) => c.id).sort(), `the two cards (${JSON.stringify(saved)})`).toEqual([card.id, added[0].id].sort());
+    expect(saved.find((c) => c.id === added[0].id)).toMatchObject({ acknowledged: false, repeats: 1 });
+    expect(saved.find((c) => c.id === card.id)).toMatchObject({ acknowledged: true });
+    await expect.soft(page.getByText('Repeated 1 time', { exact: true })).toBeVisible();
+    await pictureOfAlerts(page, testInfo, 'acknowledged-in-another-tab');
+    await other.close();
   });
 
   test('a rise to critical during a continuing event alerts at once, on the event\'s card', async ({ page }) => {

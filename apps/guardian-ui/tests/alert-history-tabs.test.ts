@@ -157,6 +157,66 @@ it('does not put a cleared alert back when another tab acknowledges it', async (
   expect(await stored('alert_cache')).toEqual([]);
 });
 
+// A repeat of a continuing event updates the event's card. Another tab may have acknowledged,
+// removed or cleared that card since: the repeat checks the stored card in the same transaction as
+// its write, leaves what the other tab did, and goes on a fresh card.
+const FIRST = { ...live('event-card'), createdAt: '2026-11-01T10:00:00.000Z', timestamp: '2026-11-01T10:00:00.000Z' };
+const REPEAT = { ...FIRST, severity: 'high' as const, message: 'the repeat', timestamp: '2026-11-01T10:01:00.000Z', repeats: 1 };
+const FRESH = { id: 'fresh-card', createdAt: '2026-11-01T10:01:00.000Z' };
+
+it.each(['acknowledges', 'removes', 'clears all'])('keeps what another tab did when it %s a card whose event repeats: the repeat goes on a fresh card', async (action) => {
+  (await oldTab()).close();
+  const watching = await tab();
+  const other = await tab();
+  await watching.read();
+  await other.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  await other.read();
+  if (action === 'acknowledges') other.monitoring.getState().acknowledgeAlert('event-card');
+  else if (action === 'removes') other.monitoring.getState().removeAlert('event-card');
+  else other.monitoring.getState().clearAlerts();
+  await other.read();
+
+  const fresh = jest.fn(() => FRESH);
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  await watching.read();
+
+  const rows = await stored('alert_cache');
+  const card = rows.find((row) => row.id === 'event-card');
+  if (action === 'acknowledges') {
+    expect(card).toMatchObject({ acknowledged: true, severity: 'low', message: 'event-card', createdAt: FIRST.createdAt });
+    expect(card.repeats).toBeUndefined();
+    expect(watching.monitoring.getState().alerts.find((alert) => alert.id === 'event-card')?.acknowledged).toBe(true);
+  } else {
+    expect(card).toBeUndefined();
+    expect(watching.listed()).not.toContain('event-card');
+  }
+  expect(fresh).toHaveBeenCalledTimes(1);
+  const shown = rows.find((row) => row.id === 'fresh-card');
+  expect(shown).toMatchObject({ acknowledged: false, severity: 'high', message: 'the repeat', createdAt: FRESH.createdAt });
+  expect(shown.repeats).toBeUndefined();
+  expect(watching.listed()).toContain('fresh-card');
+});
+
+it('updates the card in place when no other tab changed it', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  await watching.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  const fresh = jest.fn(() => FRESH);
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  await watching.read();
+
+  expect(fresh).not.toHaveBeenCalled();
+  const rows = await stored('alert_cache');
+  expect(rows.find((row) => row.id === 'fresh-card')).toBeUndefined();
+  expect(rows.find((row) => row.id === 'event-card')).toMatchObject({
+    acknowledged: false, severity: 'high', message: 'the repeat', createdAt: FIRST.createdAt, repeats: 1,
+  });
+});
+
 it('does not write a failed save of another tab after Clear all', async () => {
   (await oldTab()).close();
   const a = await tab();
