@@ -757,9 +757,9 @@ async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
 // from the dashboard.
 async function checkModeLinks(browser, baseUrl) {
   const MODES = [
-    { name: 'Lost & Found', path: '/lost-found', heading: 'Lost & Found' },
-    { name: 'Security', path: '/security', heading: 'Security Mode' },
-    { name: 'Wildlife', path: '/wildlife', heading: 'Wildlife Detection' },
+    { name: 'Lost & Found', path: '/lost-found', heading: 'Lost and Found' },
+    { name: 'Security', path: '/security', heading: 'People' },
+    { name: 'Wildlife', path: '/wildlife', heading: 'Wildlife' },
   ];
   const problems = [];
   const bare = (href) => (href || '').replace(/\/$/, '');

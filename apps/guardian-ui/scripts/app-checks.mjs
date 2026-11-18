@@ -1919,6 +1919,54 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(itsPage(seen), `/dashboard/ opened offline after the clear shows ${whatShows(seen)}`);
   });
 
+  // ---------------------------------------------------------------------------
+  // The four ways' pages
+  // ---------------------------------------------------------------------------
+  // Each way's page is headed and titled with the way's name as the dashboard
+  // writes it. Lost and Found, with no pet saved, offers its add key first.
+
+  const WAY_NAMES = [
+    ['/monitor/', 'Motion and sound'],
+    ['/lost-found/', 'Lost and Found'],
+    ['/security/', 'People'],
+    ['/wildlife/', 'Wildlife'],
+  ];
+  // The page's own first heading; Lost and Found draws it once it has read
+  // the pets saved on the device.
+  const firstHeading = async (page) => {
+    const heading = page.locator('#main-content h1').first();
+    await heading.waitFor({ timeout: 20_000 });
+    return plain(await heading.textContent());
+  };
+
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'way pages, their names', width, look }, async (page, context, check) => {
+        for (const [route, name] of WAY_NAMES) {
+          await visit(page, route);
+          const heading = await firstHeading(page);
+          check(heading === name, `${route} is headed "${heading}", not "${name}"`);
+          const title = await page.title();
+          check(title === `${name} | SafeOS`, `${route} is titled "${title}", not "${name} | SafeOS"`);
+        }
+      });
+    }
+  }
+
+  await open({ name: 'Lost and Found with no pet saved', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/lost-found/');
+    await firstHeading(page);
+    const first = await page.evaluate(() => {
+      const heading = document.querySelector('#main-content h1');
+      const next = [...document.querySelectorAll('#main-content button, #main-content a')]
+        .find((element) => heading.compareDocumentPosition(element) & Node.DOCUMENT_POSITION_FOLLOWING);
+      return next ? { tag: next.tagName.toLowerCase(), name: (next.getAttribute('aria-label') || next.textContent || '').replace(/\s+/g, ' ').trim() } : null;
+    });
+    check(first && first.name.startsWith('Add'), first
+      ? `the first key after the heading is ${first.tag === 'a' ? 'the link' : 'the button'} "${first.name}", not the add key`
+      : 'no key or link follows the heading');
+  });
+
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
 }
