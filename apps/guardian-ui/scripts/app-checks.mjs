@@ -2142,6 +2142,357 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // Alerts saved on this device, written as the app's own stores hold them.
+  // The page has loaded once, so the database exists; the walk reloads after.
+  const PICTURE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+  const seedAlerts = (page, saved) => page.evaluate(async ({ saved, picture }) => {
+    const { motion = [], pets = [], matches = [], people = [], sightings = [] } = saved;
+    const iso = (at) => new Date(at).toISOString();
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('safeos-guardian');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const put = (store, rows) => new Promise((resolve, reject) => {
+      if (rows.length === 0) { resolve(); return; }
+      const tx = db.transaction(store, 'readwrite');
+      rows.forEach((row) => tx.objectStore(store).put(row));
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error);
+    });
+    await put('alert_cache', motion.map(({ id, at, seen = false, message = 'Motion detected: 60% (threshold: 40% · zone: Whole frame)' }) => ({
+      id, monitoring: true, producer: 'monitoring', savedBeforeUpgrade: false, retentionClass: 'new',
+      acknowledgementOrder: seen ? 0 : 1, streamId: 'local', severity: 'low', message, acknowledged: seen,
+      timestamp: iso(at), createdAt: iso(at), syncedAt: iso(at),
+    })));
+    await put('subject_profile', pets.map(({ id, name, type = 'pet', at = 0 }) => ({
+      id, name, type, description: '', fingerprint: {}, referenceImages: [picture],
+      createdAt: iso(at), lastActiveAt: null, matchCount: 0,
+    })));
+    await put('match_frame', matches.map(({ id, pet, at, confidence = 80, seen = false, ...more }) => ({
+      id, subjectId: pet, frameData: picture, thumbnailData: picture, confidence, timestamp: at,
+      details: { colorMatch: confidence, dominantMatch: confidence, edgeMatch: confidence, sizeMatch: confidence },
+      region: null, acknowledged: seen, notes: '', exported: false, ...more,
+    })));
+    await put('intrusion_frame', people.map(({ id, at, count = 1, seen = false }) => ({
+      id, frameData: picture, thumbnailData: picture, timestamp: at, personCount: count, allowedCount: 0,
+      detections: [], acknowledged: seen, notes: '', exported: false,
+    })));
+    db.close();
+    if (sightings.length > 0) {
+      const kept = JSON.parse(localStorage.getItem('safeos-animal-alerts') || '{"state":{},"version":0}');
+      kept.state.detectionHistory = [
+        ...sightings.map(({ id, at, animal = 'bird', seen = false }) => ({
+          id, type: animal, displayName: animal, sizeCategory: 'small', dangerLevel: 'none', confidence: 0.9,
+          bbox: [0, 0, 10, 10], timestamp: at, frameData: picture, acknowledged: seen, notes: '', exported: false,
+        })),
+        ...(kept.state.detectionHistory || []),
+      ];
+      localStorage.setItem('safeos-animal-alerts', JSON.stringify(kept));
+    }
+  }, { saved, picture: PICTURE });
+  // The device's first run has written what it held; with nothing saved, an
+  // empty list. Read after the page's own read of its alerts, which ends
+  // after the page has loaded.
+  const firstRunDone = (page) => page.waitForFunction(() => localStorage.getItem('safeos-history-seen') !== null, null, { timeout: 10_000 }).catch(() => {});
+  // A walk's device after its first run: one page opened, then the alerts saved, then a reload.
+  const withNew = async (page, route, saved) => {
+    await visit(page, route);
+    await firstRunDone(page);
+    await seedAlerts(page, saved);
+    await page.reload({ waitUntil: 'networkidle' });
+  };
+  const motionAlerts = (count) => Array.from({ length: count }, (_, i) => ({ id: `motion-${Date.now() - i * 60_000}-walk${i}`, at: Date.now() - i * 60_000 }));
+
+  // ---------------------------------------------------------------------------
+  // The device's alerts
+  // ---------------------------------------------------------------------------
+  // What counts as one alert and what is new decide the count on History:
+  // one Motion and sound record is one alert; frames of one way that follow
+  // each other with no gap over 30 seconds are one; a Lost and Found frame
+  // that did not sound and a frame of a person are none. Nothing saved before
+  // the first run is new, and History marks the new alerts as seen when it
+  // opens. The count stands after History's word in the phone bar and the
+  // header, the number in the ink beside the problem glyph.
+
+  // History's link where the width shows it: the phone bar's place under
+  // 768 px, the header's link from there.
+  const historyLink = (width) => (width < 768 ? 'nav.phone-bar a[href^="/history"]' : headerLink('History'));
+  // What History reads and is named; with `want`, false until it reads that.
+  const readHistory = ({ selector, want }) => {
+    const link = document.querySelector(selector);
+    const word = link && (link.querySelector('.phone-bar__word') || link);
+    const words = word ? word.textContent.replace(/\s+/g, ' ').trim() : '';
+    if (want && words !== want) return false;
+    return { words, name: link ? link.getAttribute('aria-label') || words : '' };
+  };
+  // What History reads once it reads `expected`, or after 10 seconds. The
+  // count arrives after the page has read its alerts, so where no count is
+  // expected History is read again 3 seconds later.
+  const historyReads = async (page, width, expected) => {
+    const selector = historyLink(width);
+    await page.waitForFunction(readHistory, { selector, want: expected }, { timeout: 10_000 }).catch(() => {});
+    if (expected === 'History') await page.waitForTimeout(3_000);
+    return page.evaluate(readHistory, { selector, want: null });
+  };
+  const checkHistory = (check, seen, words, name = words) => {
+    check(seen.words === words, `History reads "${seen.words}", not "${words}"`);
+    check(seen.name === name, `History is named "${seen.name}", not "${name}"`);
+  };
+  // The phone bar's places on one row where the bar shows, and the header's
+  // row on one line with no word broken.
+  const checkOneRow = async (page, check) => {
+    const places = await page.evaluate(() => {
+      const bar = document.querySelector('nav.phone-bar');
+      if (!bar || bar.getBoundingClientRect().height === 0) return null;
+      return [...bar.querySelectorAll('a')].map((a) => a.getBoundingClientRect().top);
+    });
+    if (places) check(Math.max(...places) - Math.min(...places) <= 0.5, `the bar's places' tops are ${places.map((top) => top.toFixed(1)).join(', ')} px`);
+    const row = await page.evaluate(readRow);
+    if (!row) {
+      check(false, 'no app header');
+      return;
+    }
+    check(row.items.length > 0 && Math.max(...row.items.map((item) => item.top)) < Math.min(...row.items.map((item) => item.bottom)), 'the header is more than one row');
+    for (const item of row.items.filter((one) => one.lines > 1)) check(false, `${item.name}'s words break over ${item.lines} lines`);
+  };
+  // Opens History's own list of what this device saved.
+  const localTimeline = async (page) => {
+    await page.getByRole('button', { name: 'Local Timeline' }).click();
+    await page.waitForTimeout(1_000);
+  };
+  const timelineHolds = async (page, words) => {
+    const entries = page.getByText(words, { exact: true });
+    await entries.first().waitFor({ timeout: 15_000 }).catch(() => {});
+    return entries.count();
+  };
+
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'count on History', width, look }, async (page, context, check) => {
+        await withNew(page, '/settings/', { motion: motionAlerts(3) });
+        checkHistory(check, await historyReads(page, width, 'History 3'), 'History 3', 'History, 3 new alerts');
+        const seen = await page.evaluate(({ selector, alert }) => {
+          const link = document.querySelector(selector);
+          const number = link?.querySelector('.new-count .num');
+          const mark = link?.querySelector('.new-count svg.problem-mark');
+          if (!link || !number || !mark) return null;
+          const style = getComputedStyle(number);
+          const filled = [];
+          for (let node = number; node && node !== link.parentElement; node = node.parentElement) {
+            if (getComputedStyle(node).backgroundColor === alert) filled.push(node.tagName.toLowerCase());
+          }
+          return {
+            face: style.fontFamily, weight: style.fontWeight, size: style.fontSize, colour: style.color,
+            fill: getComputedStyle(mark).fill, hidden: mark.getAttribute('aria-hidden'),
+            before: Boolean(mark.compareDocumentPosition(number) & Node.DOCUMENT_POSITION_FOLLOWING),
+            filled,
+          };
+        }, { selector: historyLink(width), alert: ALERT[look] });
+        if (!seen) {
+          check(false, 'History shows no number with the problem glyph');
+          return;
+        }
+        check(isInter(seen.face) && seen.weight === '700' && seen.size === '16px', `the number is ${face(seen.face)} ${seen.weight} at ${seen.size}, not Inter 700 at 16px`);
+        check(seen.colour === INK[look], `the number is ${seen.colour}, not ${INK[look]}`);
+        check(seen.fill === ALERT[look], `the glyph is filled ${seen.fill}, not ${ALERT[look]}`);
+        check(seen.hidden === 'true', `the glyph's aria-hidden is ${seen.hidden}, not true`);
+        check(seen.before, 'the glyph does not stand before the number');
+        check(seen.filled.length === 0, `${seen.filled.join(', ')} behind the number is filled in ${ALERT[look]}`);
+        await checkOneRow(page, check);
+      });
+    }
+
+    await open({ name: 'count above 99', width, look: 'light' }, async (page, context, check) => {
+      const people = Array.from({ length: 20 }, (_, i) => ({ id: `intrusion-walk${i}`, at: Date.now() - i * 60_000 }));
+      await withNew(page, '/settings/', { motion: motionAlerts(100), people });
+      checkHistory(check, await historyReads(page, width, 'History 99+'), 'History 99+', 'History, 120 new alerts');
+    });
+  }
+
+  await open({ name: 'nothing saved before the first run is new', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    await firstRunDone(page);
+    const at = Date.now();
+    await seedAlerts(page, {
+      motion: motionAlerts(100),
+      pets: [{ id: 'pet-walk', name: 'Mittens' }],
+      matches: Array.from({ length: 10 }, (_, i) => ({ id: `match-walk${i}`, pet: 'pet-walk', at: at - i * 60_000, alerted: true })),
+      people: Array.from({ length: 10 }, (_, i) => ({ id: `intrusion-walk${i}`, at: at - i * 60_000 })),
+    });
+    await page.evaluate(() => localStorage.removeItem('safeos-history-seen'));
+    await page.reload({ waitUntil: 'networkidle' });
+    checkHistory(check, await historyReads(page, 390, 'History'), 'History');
+    await seedAlerts(page, { motion: [{ id: `motion-${Date.now()}-after`, at: Date.now() }] });
+    await page.reload({ waitUntil: 'networkidle' });
+    checkHistory(check, await historyReads(page, 390, 'History 1'), 'History 1', 'History, 1 new alert');
+  });
+
+  await open({ name: 'one alert for one stay in view', width: 390, look: 'light' }, async (page, context, check) => {
+    const from = Date.now() - 10 * 60_000;
+    await withNew(page, '/settings/', { people: Array.from({ length: 12 }, (_, i) => ({ id: `intrusion-stay${i}`, at: from + i * 5_000 })) });
+    checkHistory(check, await historyReads(page, 390, 'History 1'), 'History 1', 'History, 1 new alert');
+    await seedAlerts(page, { people: [{ id: 'intrusion-stay12', at: from + 11 * 5_000 + 40_000 }] });
+    await page.reload({ waitUntil: 'networkidle' });
+    checkHistory(check, await historyReads(page, 390, 'History 2'), 'History 2', 'History, 2 new alerts');
+  });
+
+  await open({ name: 'a frame that did not sound is no alert', width: 390, look: 'light' }, async (page, context, check) => {
+    const at = Date.now() - 5 * 60_000;
+    await withNew(page, '/settings/', {
+      pets: [{ id: 'pet-walk', name: 'Mittens' }],
+      matches: Array.from({ length: 6 }, (_, i) => ({ id: `match-quiet${i}`, pet: 'pet-walk', at: at + i * 5_000, confidence: 55, alerted: false })),
+    });
+    checkHistory(check, await historyReads(page, 390, 'History'), 'History');
+    await visit(page, '/history/');
+    await localTimeline(page);
+    const listed = await timelineHolds(page, 'Lost & Found Match: Mittens');
+    check(listed === 6, `History lists ${listed} of the six frames`);
+    await visit(page, '/settings/');
+    await seedAlerts(page, {
+      matches: [0, 2_000].map((later, i) => ({ id: `match-sounded${i}`, pet: 'pet-walk', at: Date.now() - 2_000 + later, alerted: true })),
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    checkHistory(check, await historyReads(page, 390, 'History 1'), 'History 1', 'History, 1 new alert');
+  });
+
+  for (const width of [390, 1280]) {
+    await open({ name: 'a person is never an alert here', width, look: 'light' }, async (page, context, check) => {
+      const at = Date.now() - 60_000;
+      await withNew(page, '/settings/', {
+        pets: [{ id: 'person-walk', name: 'Sam', type: 'person' }],
+        matches: [0, 1, 2].map((i) => ({ id: `match-sam${i}`, pet: 'person-walk', at: at + i * 2_000, confidence: 90, alerted: true })),
+      });
+      checkHistory(check, await historyReads(page, width, 'History'), 'History');
+      const frame = await page.evaluate(() => [...document.querySelectorAll('header.app-header, nav.phone-bar')]
+        .flatMap((part) => [part.textContent, ...[...part.querySelectorAll('[aria-label]')].map((node) => node.getAttribute('aria-label'))])
+        .join(' '));
+      check(!/Sam/.test(frame), 'the header or the phone bar names Sam');
+      await visit(page, '/history/');
+      await localTimeline(page);
+      const listed = await timelineHolds(page, 'Lost & Found Match: Sam');
+      check(listed === 3, `History lists ${listed} of the three frames`);
+    });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'History lists a sighting and marks alerts as seen when it opens', width: 390, look }, async (page, context, check) => {
+      await withNew(page, '/settings/', { sightings: [{ id: 'animal-1', at: Date.now() }] });
+      checkHistory(check, await historyReads(page, 390, 'History 1'), 'History 1', 'History, 1 new alert');
+      await page.locator(historyLink(390)).click();
+      await page.waitForURL((url) => url.pathname === '/history/', { timeout: 15_000 });
+      await localTimeline(page);
+      const entry = page.locator('div.rounded-xl').filter({ has: page.getByText('Looks like a bird', { exact: true }) });
+      await entry.first().waitFor({ timeout: 15_000 }).catch(() => {});
+      check((await entry.count()) === 1, `History lists ${await entry.count()} entries reading "Looks like a bird"`);
+      if ((await entry.count()) === 1) {
+        check((await entry.locator('img').count()) === 1, 'the sighting is listed with no picture');
+        check((await entry.getByText('Wildlife', { exact: true }).count()) === 1, 'the sighting is not listed as Wildlife');
+      }
+      await page.goBack();
+      await page.waitForURL((url) => url.pathname === '/settings/', { timeout: 15_000 });
+      checkHistory(check, await historyReads(page, 390, 'History'), 'History');
+    });
+
+    await open({ name: 'count, script held', width: 1280, look }, async (page, context, check) => {
+      await visit(page, '/settings/');
+      await firstRunDone(page);
+      await seedAlerts(page, { motion: motionAlerts(2) });
+      await context.route('**/_next/static/chunks/**', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await route.continue().catch(() => {});
+      });
+      await page.goto(address('/history/'), { waitUntil: 'commit', timeout: 60_000 });
+      await page.waitForFunction(() => {
+        const header = document.querySelector('header.app-header');
+        return !!header && getComputedStyle(header).position === 'fixed';
+      }, null, { timeout: 30_000 });
+      await page.evaluate(() => document.fonts.ready);
+      // Read in one frame: History opens and marks its alerts as seen, so the
+      // count stands only until the marks are saved. With `want`, false until
+      // History reads that.
+      const read = ({ selectors, want }) => {
+        const history = document.querySelector(selectors[1]);
+        const word = history ? history.textContent.replace(/\s+/g, ' ').trim() : '';
+        if (want && word !== want) return false;
+        const bar = document.querySelector('header.app-header .app-header__bar');
+        const items = bar ? [...bar.querySelectorAll('a.app-header__brand--link, a.app-header__link, button.app-header__more, button.look-switch, .look-switch-place')]
+          .filter((node) => node.getBoundingClientRect().width > 0) : [];
+        return {
+          word,
+          lefts: selectors.map((s) => document.querySelector(s)?.getBoundingClientRect().left ?? null),
+          oneLine: items.length > 0 && Math.max(...items.map((node) => node.getBoundingClientRect().top)) < Math.min(...items.map((node) => node.getBoundingClientRect().bottom)),
+          cut: items.filter((node) => node.scrollWidth > node.clientWidth + 0.5).map((node) => node.getAttribute('aria-label') || node.textContent.trim()),
+        };
+      };
+      const selectors = [headerLink('Dashboard'), headerLink('History')];
+      const before = await page.evaluate(read, { selectors, want: null });
+      check(before.word === 'History', `while the script is held, History reads "${before.word}"`);
+      const after = await page.waitForFunction(read, { selectors, want: 'History 2' }, { timeout: 30_000 })
+        .then((handle) => handle.jsonValue(), () => null);
+      if (!after) {
+        const now = await page.evaluate(read, { selectors, want: null });
+        check(false, `History reads "${now.word}", not "History 2"`);
+        return;
+      }
+      ['Dashboard', 'History'].forEach((words, i) => {
+        const moved = before.lefts[i] === null || after.lefts[i] === null ? Infinity : Math.abs(after.lefts[i] - before.lefts[i]);
+        check(moved <= 0.5, `${words} moved ${moved} px when the count arrived (${before.lefts[i]} to ${after.lefts[i]})`);
+      });
+      check(after.oneLine, 'the header row is more than one line once the count shows');
+      check(after.cut.length === 0, `${after.cut.join(', ')} is cut once the count shows`);
+    });
+  }
+
+  for (const width of [390, 820]) {
+    for (const look of LOOKS) {
+      await open({ name: 'count, larger text', width, look }, async (page, context, check) => {
+        await withNew(page, '/settings/', { motion: motionAlerts(3) });
+        await historyReads(page, width, 'History 3');
+        await largerText(page);
+        if (width === 390) {
+          const seen = await page.evaluate(() => {
+            const bar = document.querySelector('nav.phone-bar');
+            const place = bar?.querySelector('a[href^="/history"]');
+            const word = place?.querySelector('.phone-bar__word');
+            const number = word?.querySelector('.new-count .num');
+            if (!bar || !word || !number) return null;
+            const range = document.createRange();
+            range.selectNodeContents(word.firstChild);
+            const wordTop = range.getClientRects()[0]?.top ?? null;
+            range.selectNodeContents(number);
+            const numberTop = range.getClientRects()[0]?.top ?? null;
+            return {
+              wordTop, numberTop,
+              places: [...bar.querySelectorAll('a')].map((a) => {
+                const words = a.querySelector('.phone-bar__word') || a;
+                return { word: words.textContent.trim(), top: a.getBoundingClientRect().top, cut: words.scrollWidth > words.clientWidth + 0.5 };
+              }),
+            };
+          });
+          if (!seen) {
+            check(false, 'History in the phone bar shows no count');
+            return;
+          }
+          const apart = seen.wordTop === null || seen.numberTop === null ? Infinity : Math.abs(seen.wordTop - seen.numberTop);
+          check(apart <= 2, `the count's top is ${apart.toFixed(1)} px from History's word's`);
+          const tops = seen.places.map((place) => place.top);
+          check(Math.max(...tops) - Math.min(...tops) <= 0.5, `the places' tops are ${tops.map((top) => top.toFixed(1)).join(', ')} px`);
+          for (const place of seen.places) check(!place.cut, `${place.word} is cut`);
+        } else {
+          const row = await page.evaluate(readRow);
+          if (!row) throw new Error('no app header');
+          check(Math.max(...row.items.map((item) => item.top)) < Math.min(...row.items.map((item) => item.bottom)), 'the row is more than one line');
+          for (const item of row.items.filter((one) => one.cut || one.lines > 1)) check(false, `${item.name} is cut or breaks over ${item.lines} lines`);
+          const counted = row.items.find((item) => item.kind === 'link' && item.name === 'History, 3 new alerts');
+          check(!!counted, `the row's History is named ${row.items.filter((item) => item.kind === 'link').map((item) => `"${item.name}"`).join(', ')}, with no "History, 3 new alerts"`);
+          const more = row.items.some((item) => item.kind === 'more');
+          check(Number(row.fold) < 2 || more, `the row folded to ${row.fold} and shows no More`);
+        }
+      });
+    }
+  }
+
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
 }
