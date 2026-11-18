@@ -14,9 +14,9 @@ let agreed = false;
 // Set when the browser refuses to store a model response during this load.
 let storageRefused = false;
 const MODEL_ROUTE = 'safeos-model://coco-ssd-v1';
-const MODEL_CACHE = 'safeos-detection-model-v1';
+export const MODEL_CACHE = 'safeos-detection-model-v1';
 let routerRegistered = false;
-const CONSENT_KEY = 'safeos-detection-model-consent';
+export const CONSENT_KEY = 'safeos-detection-model-consent';
 const listeners = new Set<() => void>();
 
 function update(status: DetectionModelStatus, error: string | null = null) {
