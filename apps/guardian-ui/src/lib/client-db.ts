@@ -719,12 +719,14 @@ export async function getCachedStreams(): Promise<any[]> {
 /**
  * Every write of an alert. One transaction reads the clear generation, then the stored record,
  * writes the merged record and applies both limits. With `stamp`, the write is the retry of a save
- * that failed earlier: it writes only when no clear came since. With `updateOnly`, it never creates
- * a record.
+ * that failed earlier: it writes only when no clear came since. `update` never creates a record.
+ * `repeat` writes only while the record is stored and not acknowledged, and otherwise answers
+ * `stale` with the stored record in `found`.
  */
 async function writeAlert(
-  alert: any, stamp: ClearStamp | undefined, updateOnly: boolean,
-): Promise<'saved' | 'cancelled' | 'gone' | 'failed'> {
+  alert: any, stamp: ClearStamp | undefined, mode: 'save' | 'update' | 'repeat',
+  found?: { stored: any | null },
+): Promise<'saved' | 'cancelled' | 'gone' | 'stale' | 'failed'> {
   let tx: IDBPTransaction<SafeOSDB, AlertStores, 'readwrite'> | undefined;
   try {
     const db = await getDB();
@@ -743,9 +745,15 @@ async function writeAlert(
       }
     }
     const previous = await alerts.get(alert.id);
-    if (updateOnly && !previous) {
+    if (mode === 'update' && !previous) {
       await tx.done;
       return 'gone';
+    }
+    // Another tab may have cleared, removed or acknowledged the card a repeat was for.
+    if (mode === 'repeat' && (!previous || previous.acknowledged)) {
+      if (found) found.stored = previous ?? null;
+      await tx.done;
+      return 'stale';
     }
     // A partial write, such as an acknowledgement, keeps the stored fields it does not carry.
     const merged: any = {
@@ -805,14 +813,29 @@ async function writeAlert(
  * must not be.
  */
 export async function cacheAlert(alert: any, stamp?: ClearStamp): Promise<boolean> {
-  return (await writeAlert(alert, stamp, false)) !== 'failed';
+  return (await writeAlert(alert, stamp, 'save')) !== 'failed';
 }
 
 /** An acknowledgement or any other partial update. It never creates a record. */
 export async function updateCachedAlert(alert: any, stamp?: ClearStamp): Promise<'updated' | 'gone' | 'failed'> {
-  const result = await writeAlert(alert, stamp, true);
+  const result = await writeAlert(alert, stamp, 'update');
   if (result === 'saved') return 'updated';
   return result === 'failed' ? 'failed' : 'gone';
+}
+
+/**
+ * A repeat of an event's alert, written onto the event's card. The card is read in the same
+ * transaction as the write, and is written only while it is stored and not acknowledged: another
+ * tab may have cleared, removed or acknowledged it. `stale` carries the stored card, or null when
+ * it is gone. `cancelled`: a clear came after a failed save's stamp, and nothing is left to save.
+ */
+export async function repeatCachedAlert(alert: any, stamp?: ClearStamp): Promise<
+  { kind: 'updated' | 'cancelled' | 'failed' } | { kind: 'stale'; stored: any | null }
+> {
+  const found: { stored: any | null } = { stored: null };
+  const result = await writeAlert(alert, stamp, 'repeat', found);
+  if (result === 'stale') return { kind: 'stale', stored: found.stored };
+  return { kind: result === 'saved' ? 'updated' : result === 'failed' ? 'failed' : 'cancelled' };
 }
 
 /** Every producer's alerts, newest first. */

@@ -64,6 +64,9 @@ again, and updates the event's card in the alert list in place: the card shows t
 newest severity, reading and time, and "Repeated N times". Escalation counts from
 the event's first alert, so one event climbs the escalation levels once. A card
 that has been acknowledged stays as it is, and the next repeat makes a new card.
+The same holds for a card acknowledged, dismissed or cleared in another tab: the
+repeat reads the saved card in the same database transaction as its write, leaves
+what the other tab did, and goes on a new card, which the event's later repeats update.
 A custom sound set to loop for the alert's trigger plays one copy while it loops: a
 repeat does not start a second copy on top of it.
 

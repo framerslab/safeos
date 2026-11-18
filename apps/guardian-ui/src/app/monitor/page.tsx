@@ -706,7 +706,10 @@ export default function MonitorPage() {
    * message and time and counts the repeat, while the card is in the list and
    * not acknowledged. The card keeps the event's start as its creation time,
    * so escalation runs once per event. An acknowledged card is left as it is
-   * and the next repeat makes a new one.
+   * and the next repeat makes a new one. Another tab may have cleared,
+   * removed or acknowledged the card: the store checks the saved card as it
+   * writes the repeat, and then the repeat goes on a fresh card, which
+   * becomes the event's card.
    */
   const showDetectorAlert = useCallback((
     event: DetectorEvent,
@@ -721,7 +724,8 @@ export default function MonitorPage() {
       : undefined;
     let id = event.alertId;
     let startedAt = event.startedAt;
-    if (!repeat || !card || card.acknowledged || !id || !startedAt) {
+    const updatesCard = Boolean(repeat && card && !card.acknowledged && id && startedAt);
+    if (!updatesCard || !id || !startedAt) {
       id = newAlertId(source, now);
       startedAt = new Date(now).toISOString();
       event.repeats = 0;
@@ -730,6 +734,7 @@ export default function MonitorPage() {
     }
     event.alertId = id;
     event.startedAt = startedAt;
+    const cardId = id;
     addAlert({
       id,
       streamId: streamId || 'local',
@@ -739,7 +744,18 @@ export default function MonitorPage() {
       timestamp: new Date(now).toISOString(),
       acknowledged: false,
       repeats: event.repeats > 0 ? event.repeats : undefined,
-    });
+    }, updatesCard ? {
+      fresh: () => {
+        const next = { id: newAlertId(source, now), createdAt: new Date(now).toISOString() };
+        // Later repeats of the event update the fresh card, unless the event has moved on.
+        if (event.alertId === cardId) {
+          event.alertId = next.id;
+          event.startedAt = next.createdAt;
+          event.repeats = 0;
+        }
+        return next;
+      },
+    } : undefined);
   }, [addAlert, streamId]);
 
   const handleMotion = useCallback((score: number) => {
