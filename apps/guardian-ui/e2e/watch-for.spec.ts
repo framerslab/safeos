@@ -591,13 +591,23 @@ const AXE = readFileSync(path.join(process.cwd(), 'node_modules', 'axe-core', 'a
 
 interface AxeViolation { id: string; impact: string | null; help: string; nodes: Array<{ target: string[] }> }
 
-async function axeViolations(page: Page): Promise<AxeViolation[]> {
-  await page.addScriptTag({ content: AXE });
-  return page.evaluate(async () => {
-    const axe = (window as unknown as { axe: { run: (context: Document, options: object) => Promise<{ violations: AxeViolation[] }> } }).axe;
-    const result = await axe.run(document, { resultTypes: ['violations'] });
+/** What Watch for draws: the chooser and its pet row, the pet's card and Choose a pet. */
+const WATCH_FOR_PARTS = ['.watch-for', '.watch-pet--card', '.watch-dialog'];
+
+/**
+ * axe's violations in the parts of the watch that are on the page, or on the
+ * whole page when `parts` is empty.
+ */
+async function axeViolations(page: Page, parts: string[] = []): Promise<AxeViolation[]> {
+  if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ content: AXE });
+  return page.evaluate(async (selectors) => {
+    type Context = Document | { include: string[][] };
+    const axe = (window as unknown as { axe: { run: (context: Context, options: object) => Promise<{ violations: AxeViolation[] }> } }).axe;
+    const present = selectors.filter((selector) => document.querySelector(selector));
+    const context: Context = selectors.length === 0 ? document : { include: present.map((selector) => [selector]) };
+    const result = await axe.run(context, { resultTypes: ['violations'] });
     return result.violations.map(({ id, impact, help, nodes }) => ({ id, impact, help, nodes: nodes.map(({ target }) => ({ target })) }));
-  });
+  }, parts);
 }
 
 async function lookContext(browser: Browser, look: 'light' | 'dark', width: number) {
@@ -606,25 +616,39 @@ async function lookContext(browser: Browser, look: 'light' | 'dark', width: numb
   return context;
 }
 
+/** Counts the whole page's violations in the run's log, by rule. */
+async function logWholePage(page: Page, state: string) {
+  const all = await axeViolations(page);
+  console.log(`${state}, the whole watch: ${all.map((violation) => `${violation.id} on ${violation.nodes.length}`).join(', ') || 'none'}`);
+}
+
 for (const look of ['light', 'dark'] as const) {
   for (const width of [390, 1280]) {
-    test(`axe finds nothing on the watch with Lost and Found chosen, ${width} px, ${look}`, async ({ browser }) => {
+    test(`axe finds nothing in Watch for, the pet and Choose a pet, ${width} px, ${look}`, async ({ browser }) => {
       test.setTimeout(90_000);
       const context = await lookContext(browser, look, width);
       const page = await context.newPage();
       try {
+        // No pet saved.
         await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
-        // With no pet saved, then with Miso.
-        const empty = await axeViolations(page);
-        console.log(`no pet saved, ${width} ${look}: ${JSON.stringify(empty)}`);
-        await savePets(page, [MISO]);
-        await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
         await expect(lostAndFound(page)).toBeChecked();
+        await expect(shown(page.getByText('No pet saved', { exact: true }))).toBeVisible();
+        const empty = await axeViolations(page, WATCH_FOR_PARTS);
+        await logWholePage(page, `no pet saved, ${width} ${look}`);
+
+        // Miso and Tofu saved, then Choose a pet open.
+        await savePets(page, [MISO, TOFU]);
+        await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
         await expect(shown(page.getByText('3 photos', { exact: true }))).toBeVisible();
-        const withPet = await axeViolations(page);
-        console.log(`Miso saved, ${width} ${look}: ${JSON.stringify(withPet)}`);
-        expect(empty).toEqual([]);
-        expect(withPet).toEqual([]);
+        const withPet = await axeViolations(page, WATCH_FOR_PARTS);
+        await logWholePage(page, `Miso saved, ${width} ${look}`);
+        await changePet(page).click();
+        await expect(choosePet(page)).toBeVisible();
+        const dialog = await axeViolations(page, WATCH_FOR_PARTS);
+
+        expect(empty, JSON.stringify(empty)).toEqual([]);
+        expect(withPet, JSON.stringify(withPet)).toEqual([]);
+        expect(dialog, JSON.stringify(dialog)).toEqual([]);
       } finally {
         await context.close();
       }

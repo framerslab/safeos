@@ -7,7 +7,8 @@ import MonitorPage from '@/app/monitor/page';
 import SettingsPage from '@/app/settings/page';
 import { useLostFoundStore, DEFAULT_SETTINGS } from '@/stores/lost-found-store';
 import { useSettingsStore } from '@/stores/settings-store';
-import { getAllMatchFrames } from '@/lib/client-db';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+import { getAllMatchFrames, saveSubjectProfile } from '@/lib/client-db';
 import { extractColorHistogram, extractDominantColors, calculateAverageColor, extractEdgeSignature, estimateSizeRatio } from '@/lib/visual-fingerprint';
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => ({ status: { api: 'disconnected' }, config: { apiUrl: '', wsUrl: '' } }) }));
@@ -41,9 +42,15 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   Object.defineProperty(window, 'Image', { configurable: true, value: jest.fn(() => { const img = document.createElement('img'); pending.push(img); return img; }) });
   const fingerprint = { id: 'subject', name: 'Subject', colorHistogram: extractColorHistogram(pixels, 16), dominantColors: extractDominantColors(pixels, 3), averageColor: calculateAverageColor(pixels), colorVariance: 0, estimatedSizeRatio: estimateSizeRatio(pixels), edgeSignature: extractEdgeSignature(pixels, 4), referenceImages: [], createdAt: new Date().toISOString() };
   useSettingsStore.getState().updateGlobalSettings({ pixelDetectionEnabled: false });
-  useLostFoundStore.setState({ isWatching: true, activeSubject: { id: 'subject', name: 'Subject', type: 'other', description: '', fingerprint, referenceImages: [], createdAt: fingerprint.createdAt, lastActiveAt: null, matchCount: 0 }, settings: { ...DEFAULT_SETTINGS, scanGridSize: 2, minConfidenceForRecord: 0, alertSound: false, alertNotification: false, adaptiveLighting: false, motionPriority: false } });
+  // The watch compares while it runs with Lost and Found chosen and the subject saved.
+  const subject = { id: 'subject', name: 'Subject', type: 'other' as const, description: '', fingerprint, referenceImages: [], createdAt: fingerprint.createdAt, lastActiveAt: null, matchCount: 0 };
+  await saveSubjectProfile(subject);
+  useOnboardingStore.setState({ lostFoundChosen: true });
+  useLostFoundStore.setState({ activeSubject: subject, settings: { ...DEFAULT_SETTINGS, scanGridSize: 2, minConfidenceForRecord: 0, alertSound: false, alertNotification: false, adaptiveLighting: false, motionPriority: false } });
   const camera = render(<MonitorPage />);
+  await screen.findByRole('radio', { name: 'Lost and Found', checked: true });
   fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  await waitFor(() => expect(useLostFoundStore.getState().isWatching).toBe(true));
   await waitFor(() => expect(pending.length).toBeGreaterThan(0));
   expect(pending[0].onload).toBeTruthy();
   render(<SettingsPage />);
