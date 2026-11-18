@@ -1077,13 +1077,64 @@ export async function checkApp(browser, baseUrl, outDir) {
   };
 
   // What a page fixes to the screen is laid out to the page's width, so a page
-  // wider than the phone puts a panel's close key past the screen's edge.
+  // wider than the phone puts a panel's close key past the screen's edge. The
+  // keys of People's and Wildlife's pages keep one line: wider than their place
+  // they scroll inside it, the right edge faded until the end is reached.
+  const pushesPast = (page) => page.evaluate(() => {
+    const edge = document.documentElement.clientWidth;
+    let right = edge + 0.5;
+    let found = null;
+    for (const part of document.querySelectorAll('.app-content *')) {
+      const box = part.getBoundingClientRect();
+      if (box.width > 0 && box.right > right && getComputedStyle(part).position !== 'fixed') {
+        right = box.right;
+        found = `${part.tagName.toLowerCase()} "${(part.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 30)}"`;
+      }
+    }
+    return found ? `${found} ends at ${Math.round(right)} px` : 'nothing in the page\'s content is past the edge';
+  });
+  const readKeyRow = () => {
+    const row = document.querySelector('.key-row');
+    if (!row) return null;
+    const box = row.getBoundingClientRect();
+    const middle = box.top + box.height / 2;
+    return {
+      past: row.scrollWidth - row.clientWidth,
+      marked: row.hasAttribute('data-overflow'),
+      mask: getComputedStyle(row).maskImage,
+      offLine: [...row.children].filter((key) => {
+        const place = key.getBoundingClientRect();
+        return Math.abs(place.top + place.height / 2 - middle) > 1;
+      }).map((key) => (key.textContent || '').trim()),
+    };
+  };
   for (const width of ROW_WIDTHS) {
-    for (const route of ['/security/', '/wildlife/']) {
+    for (const route of ['/monitor/', '/lost-found/', '/security/', '/wildlife/']) {
       await open({ name: 'a way page, its width', width, look: 'dark' }, async (page, context, check) => {
         await visit(page, route);
         const sideways = await sidewaysScroll(page);
-        if (sideways > 0) check(false, `${route} scrolls ${sideways} px sideways: ${await widest(page)}`);
+        if (sideways > 0) check(false, `${route} scrolls ${sideways} px sideways: ${await pushesPast(page)}`);
+        if (route !== '/security/' && route !== '/wildlife/') return;
+        const row = await page.evaluate(readKeyRow);
+        if (!row) throw new Error(`${route} has no row of keys`);
+        check(row.offLine.length === 0, `on ${route} the keys ${row.offLine.join(', ')} leave the row's line`);
+        if (route === '/wildlife/' && width === 320) check(row.past > 1, 'the keys fit at 320 px, so their scroll goes unread');
+        if (row.past > 1) {
+          check(row.marked && row.mask !== 'none', `on ${route} the keys run ${row.past} px past their row with no faded edge`);
+          const atEnd = await page.evaluate(async () => {
+            const keys = document.querySelector('.key-row');
+            keys.scrollTo({ left: keys.scrollWidth, behavior: 'instant' });
+            await new Promise((resolve) => setTimeout(resolve, 300));
+            return getComputedStyle(keys).maskImage;
+          });
+          check(atEnd === 'none', `on ${route} the row scrolled to its end keeps a faded edge (${atEnd})`);
+        } else {
+          check(!row.marked, `on ${route} the keys fit and their row is marked as running over`);
+        }
+        const opened = await page.getByRole('button', { name: 'Settings', exact: true }).click({ timeout: 5_000 })
+          .then(() => page.locator('.fixed.inset-0 h2').waitFor({ timeout: 5_000 }))
+          .then(() => true, () => false);
+        check(opened, `on ${route} a press on Settings does not open its panel`);
       });
     }
   }
