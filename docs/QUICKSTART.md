@@ -83,7 +83,7 @@ Setup asks what this device watches. To change it later, run setup again from th
 | **Baby Monitoring** | Motion and sound alerts during a nap you stay nearby for. SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS |
 | **Elderly Care** | Motion and sound alerts, and an optional alert when nothing has moved for a time you set |
 | **Security Mode** | Motion and sound alerts while the room is empty. The Security page counts the people in view |
-| **Lost & Found** | Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. It saves the pet use, and the last step's **Open Lost and Found** opens the Lost & Found page, where you add the photos |
+| **Lost & Found** | Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. It saves the pet use, and the last step's **Open Lost and Found** opens the Lost & Found page: add the photos there and press **Start Monitoring**, then press **Start Monitoring** on Monitor to start the camera and the comparison |
 
 #### Step 3: Choose a Camera and Allow Access
 
