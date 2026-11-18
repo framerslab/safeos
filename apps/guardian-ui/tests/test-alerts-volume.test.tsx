@@ -71,3 +71,32 @@ it('shows the volume the buttons will play at until the slider moves', async () 
   expect(screen.getByText('Preview Volume: 0%')).toBeTruthy();
   useSettingsStore.setState({ isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings });
 });
+
+it('says the Emergency sound plays at full volume whatever the slider shows', async () => {
+  render(<TestAlertsPage />);
+  await act(async () => {});
+
+  expect(screen.getByRole('button', { name: /emergency.*full volume/i })).toBeTruthy();
+});
+
+it('keeps the slider in step with quiet hours as they begin while the page is open', async () => {
+  jest.useFakeTimers();
+  const { isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings, globalMute: realMute } = useSettingsStore.getState();
+  let quiet = false;
+  useSettingsStore.setState({
+    globalMute: false,
+    isQuietHoursActive: () => quiet,
+    quietHoursSettings: { ...realSettings, enabled: true, mode: 'silent' },
+  });
+  render(<TestAlertsPage />);
+  await act(async () => {});
+  expect((screen.getByRole('slider') as HTMLInputElement).value).toBe(String(useSettingsStore.getState().globalSettings.alertVolume));
+
+  // Quiet hours begin with no change to the settings: only the clock moves.
+  quiet = true;
+  await act(async () => { jest.advanceTimersByTime(30_000); });
+  expect((screen.getByRole('slider') as HTMLInputElement).value).toBe('0');
+
+  useSettingsStore.setState({ isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings, globalMute: realMute });
+  jest.useRealTimers();
+});

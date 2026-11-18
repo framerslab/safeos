@@ -19,8 +19,9 @@ import { useSettingsStore } from '@/stores/settings-store';
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({ useRouter: () => ({ push: mockPush, replace: jest.fn() }) }));
 let mockChangedFrames = Infinity;
+let mockSamples = 0;
 jest.mock('@/lib/pixel-detection', () => ({
-  getPixelDetectionEngine: () => ({ analyzeCanvas: () => ({ changed: mockChangedFrames-- > 0 }) }),
+  getPixelDetectionEngine: () => ({ analyzeCanvas: () => { mockSamples += 1; return { changed: mockChangedFrames-- > 0 }; } }),
   resetPixelDetectionEngine: jest.fn(),
 }));
 const mockSound = {
@@ -47,7 +48,7 @@ beforeEach(() => {
   // getContext is overloaded; type the spy loosely so the 2D context fake fits.
   (jest.spyOn(HTMLCanvasElement.prototype, 'getContext') as unknown as jest.SpyInstance).mockReturnValue({ drawImage: jest.fn() });
 });
-afterEach(() => { jest.restoreAllMocks(); });
+afterEach(() => { jest.useRealTimers(); jest.restoreAllMocks(); });
 
 const handoff = () => JSON.parse(sessionStorage.getItem('safeos-nap-handoff') || 'null');
 
@@ -144,6 +145,19 @@ it('stops a camera that opens after the page has closed', async () => {
   expect(stop).toHaveBeenCalled();
 });
 
+it("samples the camera for the motion check every 200 ms, the watch's own pace, not on every screen frame", async () => {
+  mockChangedFrames = 0; // a still picture, so the check keeps sampling
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  await passCamera();
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 600)); });
+  mockSamples = 0;
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1000)); });
+
+  expect(mockSamples).toBeGreaterThanOrEqual(3);
+  expect(mockSamples).toBeLessThanOrEqual(7);
+});
+
 it('passes the motion check only on movement that lasts as long as the watch needs to alert', async () => {
   mockChangedFrames = 1; // one changed frame, then a still picture
   render(<NapPage />);
@@ -188,4 +202,44 @@ it('says when quiet hours will begin during the nap and silence its alerts', asy
   await passChecks();
 
   expect(screen.getByText(/Quiet hours start during this nap/)).toBeTruthy();
+});
+
+it('shows the warning once the clock brings quiet hours into the planned nap', async () => {
+  jest.useFakeTimers({ advanceTimers: true });
+  useSettingsStore.setState({
+    quietHoursSettings: {
+      ...useSettingsStore.getState().quietHoursSettings,
+      enabled: true, mode: 'silent', startTime: clock(32), endTime: clock(90), days: [0, 1, 2, 3, 4, 5, 6],
+    },
+  });
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  await passChecks();
+  expect(screen.queryByText(/Quiet hours start during this nap/)).toBeNull();
+
+  // Three minutes on, quiet hours begin inside the 30-minute nap.
+  await act(async () => { jest.setSystemTime(Date.now() + 3 * 60_000); jest.advanceTimersByTime(30_000); });
+  expect(screen.getByText(/Quiet hours start during this nap/)).toBeTruthy();
+  jest.useRealTimers();
+});
+
+it('checks quiet hours again on Start, and shows a warning that has come to apply before the nap starts', async () => {
+  jest.useFakeTimers({ advanceTimers: true });
+  useSettingsStore.setState({
+    quietHoursSettings: {
+      ...useSettingsStore.getState().quietHoursSettings,
+      enabled: true, mode: 'silent', startTime: clock(32), endTime: clock(90), days: [0, 1, 2, 3, 4, 5, 6],
+    },
+  });
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  const start = await passChecks();
+
+  jest.setSystemTime(Date.now() + 3 * 60_000);
+  fireEvent.click(start);
+  await act(async () => {});
+
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(screen.getByText(/Quiet hours start during this nap/)).toBeTruthy();
+  jest.useRealTimers();
 });
