@@ -754,6 +754,32 @@ describe('Sound Manager', () => {
         }
       });
 
+      it("brings back a looping saved sound that quiet hours silenced when a critical alert reuses it", async () => {
+        jest.doMock('../src/lib/custom-sounds-db', () => ({
+          getCustomSoundsByTrigger: async () => [customSound(true)],
+          recordSoundPlay: async () => {},
+        }));
+        jest.resetModules();
+        const manager = (await import('../src/lib/sound-manager')).getSoundManager();
+        try {
+          manager.setUserVolume(60);
+          manager.setCriticalVolume(60);
+          await manager.playForTrigger('motion_detected');
+          const copy = manager.getActiveSounds().find((sound) => sound.loop)?.audio as unknown as MockAudioElement;
+          expect(copy).toBeDefined();
+          // Emergency Only begins: the alert volume goes to 0, and the loop with it.
+          manager.setUserVolume(0);
+          expect(copy.volume).toBe(0);
+          // A critical alert plays the same saved sound: the loop it finds sounds again.
+          await manager.playForTrigger('motion_detected', { critical: true });
+          expect(madeFor('blob:dog-bark')).toBe(1);
+          expect(copy.volume).toBeCloseTo(0.8, 5);
+        } finally {
+          manager.stopAll();
+          jest.dontMock('../src/lib/custom-sounds-db');
+        }
+      });
+
       it('starts no saved sound when the volume goes to 0 while the saved sounds are read', async () => {
         let release = (_sounds: unknown[]) => {};
         jest.doMock('../src/lib/custom-sounds-db', () => ({
