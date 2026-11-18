@@ -179,24 +179,23 @@ export default function AboutPage() {
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <span className="text-emerald-400">01</span>
-            Our Mission
+            What It Does
           </h3>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-xl">
             <p className="text-slate-300 leading-relaxed mb-4">
-              SafeOS Guardian was created with a singular purpose: to provide accessible, privacy-respecting
-              monitoring tools for families worldwide. We believe everyone deserves peace of mind when it
-              comes to the safety of their loved ones.
+              SafeOS Guardian turns a phone, tablet or laptop into a motion and sound alarm for a room.
+              It runs in the browser, and the device that watches is the one that sounds the alert.
             </p>
             <p className="text-slate-300 leading-relaxed mb-4">
-              On safeos.sh, SafeOS runs entirely in your browser. Your recordings, settings, and personal
-              information stay on your device. If you connect a server you run yourself, alerts go to that
+              On safeos.sh, SafeOS runs in your browser, and its saved frames, settings and alerts stay on
+              your device. If you connect a server you run yourself, alerts go to that
               server, and camera frames go to it in a processing mode that uses it. If you also give that server a key for a cloud AI provider, it can
               send a frame to that provider when its local analysis is unavailable.
             </p>
             <p className="text-slate-400 leading-relaxed">
-              <strong className="text-emerald-400">Important:</strong> SafeOS Guardian is a supplemental,
-              experimental tool for educated parents and caregivers. It is not a replacement for human
-              supervision. Always maintain direct oversight of those in your care.
+              <strong className="text-emerald-400">Important:</strong> SafeOS is experimental software. It
+              adds an alert and does not replace a person nearby, so stay within reach of the people and
+              pets in your care.
             </p>
           </div>
         </section>
@@ -205,28 +204,28 @@ export default function AboutPage() {
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
             <span className="text-emerald-400">02</span>
-            Our Values
+            What You Can Count On
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <ValueCard
               icon={<IconDatabase size={24} />}
-              title="Privacy First"
-              description="Without a server of your own, your data stays on your device. We never collect, store, or sell your personal information."
+              title="Kept on your device"
+              description="Saved frames, photos, alerts and settings stay in the browser of the device that watches, unless you connect a server you run yourself."
             />
             <ValueCard
               icon={<IconShield size={24} />}
-              title="Open & Transparent"
-              description="Our code is open source. Anyone can inspect, audit, and contribute to the project. Transparency builds trust."
+              title="Open code"
+              description="The code is MIT-licensed on GitHub, so anyone can read it, change it and run it."
             />
             <ValueCard
               icon={<IconHeart size={24} />}
-              title="Free to Use"
-              description="Frame builds SafeOS and pays for its development. Using it costs nothing and needs no account."
+              title="Free to use"
+              description="Frame builds SafeOS and pays for its development. Using safeos.sh costs nothing and needs no account."
             />
             <ValueCard
               icon={<IconGlobe size={24} />}
-              title="Accessible Globally"
-              description="SafeOS runs in any current browser with a camera, with nothing to install and no account to create."
+              title="In the browser"
+              description="It runs in the browser on phones, tablets and computers with a camera. Installing it is optional."
             />
           </div>
         </section>
@@ -248,8 +247,8 @@ export default function AboutPage() {
               </div>
             </div>
             <p className="text-slate-300 leading-relaxed">
-              Frame builds SafeOS and pays for its development: a free monitoring tool for families,
-              pets, and the people who care for them.
+              Frame builds SafeOS and pays for its development, so an old phone or laptop can watch a
+              room for free.
             </p>
           </div>
         </section>
@@ -322,8 +321,7 @@ export default function AboutPage() {
           </h3>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-xl">
             <p className="text-slate-300 leading-relaxed mb-6">
-              SafeOS Guardian uses a local-first architecture that keeps your data on your device
-              while it watches for motion and sound:
+              Each step runs on the device that watches:
             </p>
             <div className="space-y-6">
               <ArchitectureStep
@@ -341,8 +339,8 @@ export default function AboutPage() {
               <ArchitectureStep
                 step={3}
                 icon={<IconBell size={16} />}
-                title="Instant Alerts"
-                description="When motion or sound is detected, you receive immediate browser notifications and audio alerts. No server round-trip delay."
+                title="Alerts on the device"
+                description="When motion or sound crosses the line you set, the device plays an alert sound, shows a notification and lists the alert in History."
               />
               <ArchitectureStep
                 step={4}
@@ -356,11 +354,6 @@ export default function AboutPage() {
                 title="Optional Server"
                 description="If you connect a server you run yourself, your devices sync through it, and in a processing mode that uses it the monitor sends camera frames to it."
               />
-            </div>
-            <div className="mt-6 p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
-              <p className="text-sm text-emerald-300 font-medium">
-                Privacy by Design: Even we can&apos;t see your camera feed or hear your audio.
-              </p>
             </div>
           </div>
         </section>
@@ -411,11 +404,11 @@ export default function AboutPage() {
               </div>
               <div>
                 <h4 className="font-semibold text-white text-lg">Frame.dev</h4>
-                <p className="text-sm text-slate-400">Building tools for humanity</p>
+                <p className="text-sm text-slate-400">Makers of SafeOS and AgentOS</p>
               </div>
             </div>
             <p className="text-slate-300 leading-relaxed mb-4">
-              SafeOS Guardian is created by the team at{' '}
+              SafeOS Guardian is made by the team at{' '}
               <a
                 href="https://frame.dev"
                 target="_blank"
@@ -424,12 +417,7 @@ export default function AboutPage() {
               >
                 Frame.dev
               </a>
-              . We&apos;re a small team of developers passionate about building open-source tools
-              that make a real difference in people&apos;s lives.
-            </p>
-            <p className="text-slate-400 leading-relaxed mb-4">
-              We believe AI should be accessible to everyone, not just large corporations. That&apos;s why
-              SafeOS runs entirely in your browser—no expensive servers, no subscriptions, no gatekeeping.
+              , which also makes AgentOS.
             </p>
             <a
               href="https://frame.dev"
@@ -451,7 +439,7 @@ export default function AboutPage() {
           </h3>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-xl">
             <p className="text-slate-300 leading-relaxed mb-4">
-              Have questions, feedback, or want to contribute? We&apos;d love to hear from you.
+              Ask a question, report a bug or send code:
             </p>
             <div className="space-y-2">
               <p className="text-slate-400">
@@ -496,8 +484,7 @@ export default function AboutPage() {
               SafeOS at safeos.sh is free.
             </p>
             <p className="text-sm text-slate-400">
-              No account, no paid tier and no subscription on this site. The code is MIT-licensed,
-              so anyone can run it.
+              Using it needs no account. The code is MIT-licensed, so anyone can run it.
             </p>
           </div>
         </section>
