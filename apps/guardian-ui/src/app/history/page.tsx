@@ -12,6 +12,7 @@ import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { isStaticMode } from '@/lib/env';
 import { useMonitoringStore } from '@/stores/monitoring-store';
+import { cardTime } from '@/lib/alert-event';
 import { useSettingsStore } from '@/stores/settings-store';
 import {
   acknowledgeIntrusionFrame,
@@ -250,7 +251,8 @@ export default function HistoryPage() {
     const events: LocalTimelineEvent[] = [];
 
     for (const alert of localAlerts) {
-      const time = alert.createdAt || alert.timestamp;
+      // A card whose event repeated is listed at its newest alert.
+      const time = cardTime(alert);
       const ts = time ? new Date(time).getTime() : Date.now();
 
       events.push({

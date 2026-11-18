@@ -17,6 +17,7 @@ import {
   selectAlerts,
   type Alert,
 } from '../stores/monitoring-store';
+import { cardTime } from '../lib/alert-event';
 import {
   IconBell,
   IconX,
@@ -227,7 +228,7 @@ export function NotificationDropdown() {
                             {alert.severity}
                           </span>
                           <span className="text-xs text-slate-500">
-                            {formatTimeAgo(alert.createdAt || alert.timestamp)}
+                            {formatTimeAgo(cardTime(alert))}
                           </span>
                         </div>
                         <p className="text-sm text-white truncate">{alert.message}</p>

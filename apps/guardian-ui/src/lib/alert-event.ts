@@ -40,6 +40,16 @@ export interface DetectorEvent {
   repeats: number;
 }
 
+/**
+ * The time a card shows and is listed by: for an event's card that alerted
+ * again, the time of its newest alert (`timestamp`); otherwise when it was
+ * raised. The card's `createdAt` stays the event's start, which escalation
+ * counts from.
+ */
+export function cardTime(card: { createdAt?: string; timestamp?: string; repeats?: number }): string | undefined {
+  return ((card.repeats ?? 0) > 0 && card.timestamp) || card.createdAt || card.timestamp;
+}
+
 export function newDetectorEvent(): DetectorEvent {
   return {
     aboveSince: null,
