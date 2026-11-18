@@ -9,7 +9,12 @@
  * the name and never to the sender. Each tab is the module loaded afresh.
  */
 
+import { act, renderHook } from '@testing-library/react';
 import type * as TabChannel from '@/lib/tab-channel';
+// The tab whose hook is rendered: the module as the rest of this file sees
+// it, so the hook runs on the same React as renderHook. Only the last case
+// uses it; every other tab is the module loaded afresh.
+import { useOtherTabWatch } from '@/lib/tab-channel';
 
 type Tab = typeof TabChannel;
 
@@ -76,6 +81,7 @@ beforeEach(() => {
 afterEach(() => {
   jest.useRealTimers();
   delete (globalThis as unknown as { BroadcastChannel?: unknown }).BroadcastChannel;
+  delete (document as unknown as { visibilityState?: string }).visibilityState;
 });
 
 it("tells the other tabs that alerts changed, and this tab's own listeners", async () => {
@@ -231,4 +237,44 @@ it('works in a browser with no channel', async () => {
   await expect(tab.takeOverWatch()).resolves.toBe(true);
   expect(() => tab.claimWatch('monitor', jest.fn())()).not.toThrow();
   expect(() => tab.announceWatch('security', jest.fn())()).not.toThrow();
+});
+
+it('a watching tab that is closed or reloaded tells the others its watch ended', async () => {
+  const [a, b] = [openTab(), openTab()];
+  b.claimWatch('monitor', jest.fn());
+  const endWatch = b.announceWatch('monitor', jest.fn());
+  await run(0);
+
+  window.dispatchEvent(new Event('pagehide'));
+  await run(0);
+  expect(heardOf('watch-ended')).toHaveLength(1);
+
+  const answer = settled(a.askOtherTabs());
+  await run(300);
+  expect(answer.value).toEqual({ watching: false });
+
+  // The page's own end, if it still runs, says nothing more.
+  endWatch();
+  await run(0);
+  expect(heardOf('watch-ended')).toHaveLength(1);
+});
+
+it('a tab that comes back into view asks again, so a watching tab closed with no word reads as not watching', async () => {
+  const b = openTab();
+  b.announceWatch('monitor', jest.fn());
+  const bChannel = ChannelStandIn.instances[ChannelStandIn.instances.length - 1];
+
+  const { result } = renderHook(() => useOtherTabWatch());
+  await act(() => run(300));
+  expect(result.current).toBe(true);
+
+  // The system ends tab B with no word, as a phone does with a tab in the background.
+  bChannel.close();
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+  await act(async () => {
+    document.dispatchEvent(new Event('visibilitychange'));
+    await run(300);
+  });
+
+  expect(result.current).toBe(false);
 });
