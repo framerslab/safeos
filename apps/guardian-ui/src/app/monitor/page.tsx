@@ -683,7 +683,9 @@ export default function MonitorPage() {
     const requireInteraction = severity === 'high' || severity === 'critical';
     await getNotificationManager().show(title, {
       body,
-      tag: `safeos-${severity}-${title}`,
+      // One tag a kind of alert, whatever its severity: a repeat, or a rise in
+      // severity, replaces the event's notification in place of standing beside it.
+      tag: `safeos-${title}`,
       // A repeat replaces the earlier notification with the same tag; renotify
       // makes it alert again. Without it the replacement is silent:
       // https://developer.mozilla.org/en-US/docs/Web/API/Notification/Notification
