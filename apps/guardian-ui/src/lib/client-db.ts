@@ -13,6 +13,8 @@ import {
 } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
 import { isCurrentFingerprint } from './visual-fingerprint';
+import { alertsChanged } from './tab-channel';
+import { noteStorageFull } from './storage-full';
 
 // =============================================================================
 // Database Schema
@@ -807,8 +809,12 @@ async function writeAlert(
     if (producer === 'monitoring') await pruneMonitoringAlerts(alerts);
     await pruneNewAlerts(alerts);
     await tx.done;
+    // Every tab of this device hears when an alert is saved, marked as seen or
+    // deleted, and reads its alerts again.
+    alertsChanged();
     return 'saved';
   } catch (error) {
+    noteStorageFull(error);
     console.warn('[ClientDB] Failed to cache alert:', error);
     // A request that failed after it was queued aborted the transaction, and rejected its `done`.
     await abandonTransaction(tx);
@@ -886,6 +892,7 @@ export async function deleteCachedMonitoringAlert(id: string): Promise<void> {
   const alert = await tx.store.get(id);
   if (alert?.monitoring) await tx.store.delete(id);
   await tx.done;
+  alertsChanged();
 }
 
 /**
@@ -909,6 +916,7 @@ export async function clearCachedMonitoringAlerts(): Promise<void> {
     throw error;
   }
   await tx.done;
+  alertsChanged();
 }
 
 // =============================================================================
@@ -1258,6 +1266,7 @@ export async function saveMatchFrame(frame: MatchFrameDB, generation = getLocalD
     const db = await getDB();
     if (!isCurrentLocalData(generation)) return;
     await db.put('match_frame', frame);
+    alertsChanged();
     
     // Update subject match count
     if (!isCurrentLocalData(generation)) return;
@@ -1266,6 +1275,7 @@ export async function saveMatchFrame(frame: MatchFrameDB, generation = getLocalD
     // Enforce max limit
     await cleanupExcessMatchFrames();
   } catch (error) {
+    noteStorageFull(error);
     console.warn('[ClientDB] Failed to save match frame:', error);
   }
 }
@@ -1332,6 +1342,7 @@ export async function acknowledgeMatchFrame(id: string): Promise<void> {
     if (frame) {
       frame.acknowledged = true;
       await db.put('match_frame', frame);
+      alertsChanged();
     }
   } catch (error) {
     console.warn('[ClientDB] Failed to acknowledge match frame:', error);
@@ -1372,10 +1383,35 @@ export async function markMatchFramesExported(ids: string[]): Promise<void> {
   }
 }
 
+/** Marks these frames as seen in one transaction. */
+export async function acknowledgeMatchFrames(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
+  try {
+    const db = await getDB();
+    tx = db.transaction('match_frame', 'readwrite');
+
+    for (const id of ids) {
+      const frame = await tx.store.get(id);
+      if (frame) {
+        frame.acknowledged = true;
+        await tx.store.put(frame);
+      }
+    }
+
+    await tx.done;
+    alertsChanged();
+  } catch (error) {
+    console.warn('[ClientDB] Failed to acknowledge match frames:', error);
+    await abandonTransaction(tx);
+  }
+}
+
 export async function deleteMatchFrame(id: string): Promise<void> {
   try {
     const db = await getDB();
     await db.delete('match_frame', id);
+    alertsChanged();
   } catch (error) {
     console.warn('[ClientDB] Failed to delete match frame:', error);
   }
@@ -1393,6 +1429,7 @@ export async function deleteMatchFramesBySubject(subjectId: string): Promise<voi
     }
     
     await tx.done;
+    alertsChanged();
   } catch (error) {
     console.warn('[ClientDB] Failed to delete match frames by subject:', error);
     await abandonTransaction(tx);
@@ -1565,8 +1602,10 @@ export async function saveIntrusionFrame(frame: IntrusionFrameDB): Promise<void>
   try {
     const db = await getDB();
     await db.put('intrusion_frame', frame);
+    alertsChanged();
     await cleanupExcessIntrusionFrames();
   } catch (error) {
+    noteStorageFull(error);
     console.warn('[ClientDB] Failed to save intrusion frame:', error);
   }
 }
@@ -1630,6 +1669,7 @@ export async function acknowledgeIntrusionFrame(id: string): Promise<void> {
     if (frame) {
       frame.acknowledged = true;
       await db.put('intrusion_frame', frame);
+      alertsChanged();
     }
   } catch (error) {
     console.warn('[ClientDB] Failed to acknowledge intrusion frame:', error);
@@ -1670,10 +1710,35 @@ export async function markIntrusionFramesExported(ids: string[]): Promise<void> 
   }
 }
 
+/** Marks these frames as seen in one transaction. */
+export async function acknowledgeIntrusionFrames(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
+  try {
+    const db = await getDB();
+    tx = db.transaction('intrusion_frame', 'readwrite');
+
+    for (const id of ids) {
+      const frame = await tx.store.get(id);
+      if (frame) {
+        frame.acknowledged = true;
+        await tx.store.put(frame);
+      }
+    }
+
+    await tx.done;
+    alertsChanged();
+  } catch (error) {
+    console.warn('[ClientDB] Failed to acknowledge intrusion frames:', error);
+    await abandonTransaction(tx);
+  }
+}
+
 export async function deleteIntrusionFrame(id: string): Promise<void> {
   try {
     const db = await getDB();
     await db.delete('intrusion_frame', id);
+    alertsChanged();
   } catch (error) {
     console.warn('[ClientDB] Failed to delete intrusion frame:', error);
   }
@@ -1683,6 +1748,7 @@ export async function clearAllIntrusionFrames(): Promise<void> {
   try {
     const db = await getDB();
     await db.clear('intrusion_frame');
+    alertsChanged();
   } catch (error) {
     console.warn('[ClientDB] Failed to clear intrusion frames:', error);
   }
