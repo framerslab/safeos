@@ -173,6 +173,9 @@ it('stops the check camera and its sampling when the person goes back, and check
 
   fireEvent.click(screen.getByRole('button', { name: 'Continue to Pre-Nap Test' }));
   expect(screen.getAllByRole('button', { name: 'Start' })).toHaveLength(2);
+  // No sampling until the camera check runs again.
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1000)); });
+  expect(mockSamples).toBe(0);
 });
 
 it('passes the motion check only on movement that lasts as long as the watch needs to alert', async () => {

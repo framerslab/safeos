@@ -57,6 +57,9 @@ export default function NapModePage() {
     const streamRef = useRef<MediaStream | null>(null);
     // The motion check's sampling timer.
     const sampleTimerRef = useRef<number | null>(null);
+    // Counts the check's runs: Back starts a new one, so a camera that opens
+    // for an earlier run is stopped and starts nothing.
+    const checkRunRef = useRef(0);
     // Set when the page closes, so a camera request still waiting opens nothing.
     const closedRef = useRef(false);
 
@@ -102,6 +105,7 @@ export default function NapModePage() {
 
     const startCameraTest = async () => {
         setTestStatus(prev => ({ ...prev, camera: 'testing' }));
+        const run = checkRunRef.current;
 
         try {
             // The camera the watch will open: the one saved for the monitor, or the back camera.
@@ -115,7 +119,7 @@ export default function NapModePage() {
                 if (closedRef.current || (error as DOMException)?.name !== 'NotFoundError') throw error;
                 stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
             }
-            if (closedRef.current) {
+            if (closedRef.current || run !== checkRunRef.current) {
                 stream.getTracks().forEach(t => t.stop());
                 return;
             }
@@ -129,13 +133,41 @@ export default function NapModePage() {
             setTestStatus(prev => ({ ...prev, camera: 'passed' }));
 
             // Start motion test automatically
-            setTimeout(() => startMotionTest(), 500);
+            setTimeout(() => { if (run === checkRunRef.current) startMotionTest(); }, 500);
         } catch (error) {
-            setTestStatus(prev => ({ ...prev, camera: 'failed' }));
+            // A failure for a run the person left by going back changes nothing.
+            if (run === checkRunRef.current) setTestStatus(prev => ({ ...prev, camera: 'failed' }));
         }
     };
 
+    const stopSampling = () => {
+        if (sampleTimerRef.current) {
+            window.clearInterval(sampleTimerRef.current);
+            sampleTimerRef.current = null;
+        }
+    };
+
+    // Back from the check: its camera and its sampling stop, and the check
+    // starts over when the person comes back to it.
+    const leaveCheck = () => {
+        checkRunRef.current += 1;
+        stopSampling();
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(t => t.stop());
+            streamRef.current = null;
+        }
+        if (testSoundId) {
+            soundManager.stop(testSoundId);
+            setTestSoundId(null);
+        }
+        resetPixelDetectionEngine();
+        setMotionDetected(false);
+        setTestStatus({ camera: 'pending', motion: 'pending', audio: 'pending' });
+        setStep('warning');
+    };
+
     const startMotionTest = () => {
+        stopSampling();
         setTestStatus(prev => ({ ...prev, motion: 'testing' }));
 
         // Initialize pixel detection with infant preset (ultra-sensitive)
@@ -531,7 +563,7 @@ export default function NapModePage() {
                         {/* Action Buttons */}
                         <div className="flex gap-3">
                             <button
-                                onClick={() => setStep('warning')}
+                                onClick={leaveCheck}
                                 className="flex-1 py-3 px-4 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition-colors"
                             >
                                 Back
