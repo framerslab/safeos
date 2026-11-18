@@ -3,8 +3,8 @@
  *
  * Shown in place of a page that fails as it draws. A missing script file from
  * an older build reloads the page once for the newest build; any other error
- * says what happened, with a Reload key and a link home, instead of the blank
- * page Next.js leaves without one.
+ * says what happened, with a Reload key, a link home and the error's own words
+ * for a report, instead of the blank page Next.js leaves without one.
  *
  * @module app/error
  */
@@ -56,6 +56,18 @@ export default function ErrorPage({ error }: { error: Error & { digest?: string 
                 Go to the home page
               </Link>
             </div>
+            <details className="mt-10 text-left text-base text-[var(--color-steel-300)]">
+              <summary className="cursor-pointer min-h-[44px] flex items-center">What went wrong</summary>
+              <p className="mt-2 font-mono break-words text-[var(--color-steel-100)]">{error.message || error.name}</p>
+              <a
+                href="https://github.com/framerslab/safeos/issues/new"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center min-h-[44px] underline underline-offset-4"
+              >
+                Report it on GitHub
+              </a>
+            </details>
           </>
         )}
       </div>

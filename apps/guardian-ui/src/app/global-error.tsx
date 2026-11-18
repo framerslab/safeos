@@ -5,7 +5,7 @@
  * draws its own html and body with plain styles: the site's stylesheet may be
  * the file that failed. A missing script file from an older build reloads the
  * page once for the newest build; any other error says what happened, with a
- * Reload key and a link home.
+ * Reload key, a link home and the error's own words for a report.
  *
  * @module app/global-error
  */
@@ -53,6 +53,15 @@ export default function GlobalError({ error }: { error: Error & { digest?: strin
                   Go to the home page
                 </a>
               </div>
+              <details style={{ marginTop: 40, textAlign: 'left', fontSize: 16, color: '#c9d4df' }}>
+                <summary style={{ cursor: 'pointer', minHeight: 44, display: 'flex', alignItems: 'center' }}>What went wrong</summary>
+                <p style={{ margin: '8px 0', fontFamily: 'ui-monospace, Menlo, monospace', overflowWrap: 'anywhere', color: '#e6edf3' }}>
+                  {error.message || error.name}
+                </p>
+                <a href="https://github.com/framerslab/safeos/issues/new" target="_blank" rel="noopener noreferrer" style={{ minHeight: 44, display: 'inline-flex', alignItems: 'center', color: '#e6edf3' }}>
+                  Report it on GitHub
+                </a>
+              </details>
             </>
           )}
         </main>
