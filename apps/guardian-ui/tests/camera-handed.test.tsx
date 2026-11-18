@@ -38,6 +38,10 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 
 require('fake-indexeddb/auto');
+// The test browser has no structuredClone, which the database needs to keep a record.
+Object.defineProperty(global, 'structuredClone', { configurable: true, value: (value: unknown) =>
+  require('v8').deserialize(require('v8').serialize(value)),
+});
 
 const mockPush = jest.fn();
 jest.mock('next/navigation', () => ({
