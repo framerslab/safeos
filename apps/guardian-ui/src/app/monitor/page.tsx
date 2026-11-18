@@ -34,7 +34,7 @@ import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } fro
 import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
-import { clearNapSession, napTimeIsUp, readNapSession, takeNapStart } from '../../lib/nap-session';
+import { napTimeIsUp, readNapParam, type Nap } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -377,43 +377,55 @@ export default function MonitorPage() {
     serverRequestedRef.current = false;
   };
 
-  // The person's Stop. Stopping a watch started from Nap Mode ends the nap, and
-  // the Nap preset gives way, as I'm Awake did on the nap screen, while it is
-  // the setting in use; a setting the person chose during the nap stays. A
-  // camera failure stops the watch without ending the nap, so starting again
-  // keeps its setting.
+  // The nap Start Nap Mode handed to this watch in its address, kept in
+  // memory: it belongs to this watch and ends with it.
+  const [nap, setNap] = useState<Nap | null>(null);
+
+  // Ending a nap: the Nap preset gives way, as I'm Awake did on the nap screen,
+  // while it is the setting in use; a setting the person chose during the nap
+  // stays.
+  const endNap = () => {
+    setNap(null);
+    const settings = useSettingsStore.getState();
+    if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
+  };
+
+  // The person's Stop, which ends a nap with the watch. A camera failure stops
+  // the watch without ending the nap: its reminder goes on, and End nap ends it.
   const stopWatching = () => {
-    if (readNapSession()) {
-      clearNapSession();
-      const settings = useSettingsStore.getState();
-      if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
-    }
+    if (nap) endNap();
     stopStream();
   };
 
-  // A watch started from Nap Mode starts on arrival, once. The ref keeps this
-  // mount's answer, so React's Strict Mode, which runs the effect again after
-  // the unmount cleanup below has cleared captureRequestedRef, requests the
-  // capture again instead of finding the nap's start already taken.
-  const napStartRef = useRef<boolean | null>(null);
+  // A watch opened from Nap Mode reads the planned nap once, drops it from the
+  // address and starts. The ref keeps this mount's reading, so React's Strict
+  // Mode, which runs the effect again after the unmount cleanup below has
+  // cleared captureRequestedRef, requests the capture again.
+  const napArrivalRef = useRef<Nap | null | undefined>(undefined);
   useEffect(() => {
-    if (napStartRef.current === null) napStartRef.current = takeNapStart(Date.now());
-    if (!napStartRef.current) return;
+    if (napArrivalRef.current === undefined) {
+      const minutes = readNapParam(window.location.search);
+      napArrivalRef.current = minutes === null ? null : { startedAt: Date.now(), minutes };
+      if (minutes !== null) window.history.replaceState(window.history.state, '', window.location.pathname);
+    }
+    const arrival = napArrivalRef.current;
+    if (!arrival) return;
+    setNap(arrival);
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
   }, []);
 
   // Once the nap's planned minutes have passed, the warning plays every 30
-  // seconds while the watch runs, as the nap screen did.
+  // seconds until the nap ends, as the nap screen did, whether or not the
+  // camera is running.
   useEffect(() => {
-    if (!captureRequested) return;
+    if (!nap) return;
     const interval = window.setInterval(() => {
-      const nap = readNapSession();
-      if (nap && napTimeIsUp(nap, Date.now())) getSoundManager().play('warning');
+      if (napTimeIsUp(nap, Date.now())) getSoundManager().play('warning');
     }, 30_000);
     return () => window.clearInterval(interval);
-  }, [captureRequested]);
+  }, [nap]);
 
   const handleVideoReady = (video: HTMLVideoElement | null) => {
     videoRef.current = video;
@@ -1111,6 +1123,15 @@ export default function MonitorPage() {
                   <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
                 )}
               </button>
+
+              {!captureRequested && nap && (
+                <button
+                  onClick={endNap}
+                  className="px-4 py-2 border border-slate-500 text-slate-200 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  End nap
+                </button>
+              )}
 
               {!captureRequested && (
                 <button

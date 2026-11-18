@@ -490,8 +490,12 @@ export default function TestAlertsPage() {
                 type={type}
                 onPlay={() => {
                   const start = performance.now();
-                  // As test() plays it, at the preview volume.
-                  soundManager.play(type, { loop: false, fadeIn: 0, fadeOut: 200, volume: shownVolume });
+                  // As test() plays it: at the effective volume, quiet hours
+                  // included, until the slider sets a preview volume.
+                  soundManager.play(type, {
+                    loop: false, fadeIn: 0, fadeOut: 200,
+                    ...(previewVolume !== null ? { volume: previewVolume } : {}),
+                  });
                   return start;
                 }}
               />
