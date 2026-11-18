@@ -1501,6 +1501,215 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   });
 
+  // ---------------------------------------------------------------------------
+  // Offline
+  // ---------------------------------------------------------------------------
+  // The worker stores every page of the build when it installs, so an app
+  // page opens with no connection: from a press in the header or the bar, and
+  // from its address typed without the closing slash or with a query. An
+  // address the installed copy does not hold shows the offline page, which
+  // says so in the look and leads back to the dashboard. "Clear All Local
+  // Data" empties the installed copy, and the load that follows fills it.
+
+  // The installed copy is whole once the worker controls the page.
+  const installed = (page) => page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+    for (let i = 0; i < 100 && !navigator.serviceWorker.controller; i += 1) await new Promise((r) => setTimeout(r, 100));
+    const names = (await caches.keys()).filter((name) => name.startsWith('safeos-shell-'));
+    return names.length === 1 && (await (await caches.open(names[0])).keys()).length > 0;
+  });
+  const OFFLINE_H1 = 'This page is not on this device';
+  const OFFLINE_SENTENCE = 'This device is offline, and this page is not saved on it. The dashboard opens without a connection.';
+
+  // One visit with a connection, then none.
+  const visitThenOffline = async (page, context, route = '/dashboard/') => {
+    await visit(page, route);
+    if (!(await installed(page))) throw new Error(`the installed copy is not whole after a visit to ${route}`);
+    await context.setOffline(true);
+  };
+
+  // What the address shows once it has settled: its first heading and how
+  // many characters its main content holds.
+  const shown = async (page) => {
+    await page.waitForFunction(() => (document.getElementById('main-content')?.innerText || '').trim().length > 0, null, { timeout: 8_000 })
+      .catch(() => undefined);
+    return page.evaluate(() => ({
+      h1: (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim(),
+      main: (document.getElementById('main-content')?.innerText || '').trim().length,
+    }));
+  };
+  const itsPage = (seen) => seen.h1 !== OFFLINE_H1 && seen.main > 0;
+  // A page opened by a press draws its own heading in place of the one
+  // before it; a page whose script did not arrive keeps the old one.
+  const headingChanges = (page, before) => page.waitForFunction(
+    (previous) => (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim() !== previous, before, { timeout: 15_000 },
+  ).catch(() => undefined);
+  const whatShows = (seen) => (seen.main > 0 ? `a page headed "${seen.h1}"` : `"${seen.h1 || 'no heading'}" and no main content`);
+
+  // The offline page, opened for an address the build does not have.
+  const openOfflinePage = async (page, context) => {
+    await visitThenOffline(page, context);
+    await page.goto(address('/no-such-page/'), { waitUntil: 'load', timeout: 30_000 });
+    const h1 = await page.evaluate(() => (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim());
+    if (h1 !== OFFLINE_H1) throw new Error(`/no-such-page/ opened offline is headed "${h1 || 'nothing'}", not "${OFFLINE_H1}"`);
+  };
+
+  await open({ name: 'offline, typed addresses', width: 390, look: 'light' }, async (page, context, check) => {
+    await visitThenOffline(page, context);
+    for (const typed of ['/monitor', '/history', '/monitor/?source=shortcut']) {
+      await visit(page, typed);
+      const seen = await shown(page);
+      check(itsPage(seen), `${typed} opened offline shows ${whatShows(seen)}, not its stored page`);
+    }
+  });
+
+  for (const look of LOOKS) {
+    await open({ name: 'offline, pages never opened', width: 1280, look }, async (page, context, check) => {
+      await visitThenOffline(page, context);
+      let before = (await shown(page)).h1;
+      for (const words of ['History', 'Settings', 'Help']) {
+        await page.locator(headerLink(words)).click();
+        const current = await page.locator(`${headerLink(words)}[aria-current="page"]`).waitFor({ timeout: 15_000 }).then(() => true, () => false);
+        await headingChanges(page, before);
+        const seen = await shown(page);
+        check(current, `a press on ${words} in the header, offline, does not make it the place being read`);
+        check(itsPage(seen) && seen.h1 !== before, `a press on ${words} in the header, offline, shows ${whatShows(seen)}${seen.h1 === before ? ', the page before it' : ''}`);
+        before = seen.h1;
+      }
+    });
+    await open({ name: 'offline, the phone bar', width: 390, look }, async (page, context, check) => {
+      await visitThenOffline(page, context);
+      let before = (await shown(page)).h1;
+      for (const words of ['History', 'Settings', 'Dashboard']) {
+        const place = `nav.phone-bar a[href^="/${words.toLowerCase()}"]`;
+        await page.locator(place).click();
+        const current = await page.locator(`${place}[aria-current="page"]`).waitFor({ timeout: 15_000 }).then(() => true, () => false);
+        await headingChanges(page, before);
+        const seen = await shown(page);
+        check(current, `a press on ${words} in the phone bar, offline, does not make it the place being read`);
+        check(itsPage(seen) && seen.h1 !== before, `a press on ${words} in the phone bar, offline, shows ${whatShows(seen)}${seen.h1 === before ? ', the page before it' : ''}`);
+        before = seen.h1;
+      }
+    });
+  }
+
+  for (const width of [390, 820, 1280, 1440]) {
+    for (const look of LOOKS) {
+      await open({ name: 'offline page', width, look }, async (page, context, check) => {
+        await openOfflinePage(page, context);
+        const seen = await page.evaluate(() => {
+          const words = (node) => (node?.textContent || '').replace(/\s+/g, ' ').trim();
+          const box = (node) => {
+            if (!node) return null;
+            const { left, right, top, bottom, width, height } = node.getBoundingClientRect();
+            return { left, right, top, bottom, width, height };
+          };
+          const h1 = document.querySelector('h1');
+          const sentence = document.querySelector('p');
+          const key = [...document.querySelectorAll('button')].find((button) => words(button) === 'Try again');
+          const link = [...document.querySelectorAll('a')].find((anchor) => words(anchor) === 'Open dashboard');
+          const small = [];
+          for (const element of document.body.querySelectorAll('*:not(script):not(style)')) {
+            if (![...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim())) continue;
+            const size = parseFloat(getComputedStyle(element).fontSize);
+            if (size < 16) small.push(`"${words(element).slice(0, 40)}" at ${size} px`);
+          }
+          const edge = key ? getComputedStyle(key) : null;
+          return {
+            headings: document.querySelectorAll('h1').length,
+            sentences: [...document.querySelectorAll('p')].map(words),
+            words: words(document.body),
+            link: link ? link.getAttribute('href') : null,
+            page: getComputedStyle(document.body).backgroundColor,
+            ink: [h1, sentence].map((node) => (node ? getComputedStyle(node).color : 'nothing')),
+            edge: edge ? ['Top', 'Right', 'Bottom', 'Left'].map((side) => `${edge[`border${side}Style`]} ${edge[`border${side}Width`]} ${edge[`border${side}Color`]}`) : [],
+            small,
+            boxes: { h1: box(h1), key: box(key), link: box(link), block: box(document.querySelector('main')) },
+            screen: document.documentElement.clientWidth,
+          };
+        });
+        check(seen.headings === 1, `the page has ${seen.headings} first-level headings`);
+        check(seen.sentences.length === 1 && seen.sentences[0] === OFFLINE_SENTENCE, `the page's sentence reads "${seen.sentences.join(' / ')}"`);
+        check(!/monitoring server/i.test(seen.words), 'the page names a monitoring server');
+        check(seen.page === PAGE[look], `the page's ground is ${seen.page}, not ${PAGE[look]}`);
+        check(seen.ink.every((colour) => colour === INK[look]), `the heading and the sentence are ${seen.ink.join(' and ')}, not ${INK[look]}`);
+        check(seen.small.length === 0, `text under 16 px: ${seen.small.join(', ')}`);
+        const sideways = await sidewaysScroll(page);
+        check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
+        const { h1, key, link, block } = seen.boxes;
+        if (!key || !link || !block) throw new Error(`the page has ${key ? 'a' : 'no'} key "Try again", ${link ? 'a' : 'no'} link "Open dashboard" and ${block ? 'a' : 'no'} main part`);
+        check(seen.link === '/dashboard/', `"Open dashboard" leads to ${seen.link}`);
+        check(key.height >= 44, `"Try again" is ${key.height} px tall`);
+        check(link.height >= 44, `"Open dashboard" is ${link.height} px tall`);
+        check(seen.edge.every((side) => side === `solid 1px ${LINE[look]}`), `the key's edge is ${seen.edge.join(', ')}, not solid 1px ${LINE[look]}`);
+        if (width === 820) {
+          const off = Math.abs((block.left + block.right) / 2 - seen.screen / 2);
+          check(block.width <= 640.5, `the block is ${block.width} px wide, over 640 px`);
+          check(off <= 2, `the block's centre is ${off} px from the screen's`);
+          check(key.width < block.width - 1, `the key is ${key.width} px wide, as wide as the block (${block.width} px), not at its own width`);
+        }
+        if (width < 768) check(Math.abs(key.width - (block.width - 32)) <= 1, `the key is ${key.width} px wide, not across the column (${block.width - 32} px)`);
+        if (width >= 1280) {
+          const seventh = block.left + (block.width * 7) / 12;
+          check(h1.left >= block.left && h1.right <= seventh + 1, `the heading spans ${Math.round(h1.left)} to ${Math.round(h1.right)} px, outside the left 7 of 12 columns (${Math.round(block.left)} to ${Math.round(seventh)} px)`);
+          check(key.left > h1.right, `the key starts at ${Math.round(key.left)} px, not right of the heading's right edge (${Math.round(h1.right)} px)`);
+          check(link.left > h1.right, `the link starts at ${Math.round(link.left)} px, not right of the heading's right edge (${Math.round(h1.right)} px)`);
+          check(Math.abs(key.top - h1.top) <= 8, `the key's top (${Math.round(key.top)} px) and the heading's (${Math.round(h1.top)} px) differ by more than 8 px`);
+        }
+        await page.screenshot({ path: path.join(outDir, `offline-page-${width}-${look}.png`), fullPage: true });
+
+        for (const wanted of ['Try again', 'Open dashboard']) {
+          await page.keyboard.press('Tab');
+          const stop = await page.evaluate(() => {
+            const element = document.activeElement;
+            const style = getComputedStyle(element);
+            return { name: (element.textContent || '').replace(/\s+/g, ' ').trim() || element.tagName.toLowerCase(), ring: `${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor}` };
+          });
+          if (stop.name !== wanted) throw new Error(`Tab reaches "${stop.name}", not "${wanted}"`);
+          check(stop.ring === `solid 2px ${ACCENT[look]}`, `"${wanted}" is ringed ${stop.ring}, not solid 2px ${ACCENT[look]}`);
+        }
+        await page.getByRole('link', { name: 'Open dashboard', exact: true }).click();
+        const arrived = await page.waitForURL((url) => url.pathname === '/dashboard/', { timeout: 15_000 }).then(() => true, () => false);
+        const after = await shown(page);
+        check(arrived && itsPage(after), `a press on "Open dashboard", offline, ends at ${new URL(page.url()).pathname} with ${whatShows(after)}`);
+      });
+    }
+  }
+
+  await open({ name: 'offline page, larger text', width: 390, look: 'dark' }, async (page, context, check) => {
+    await openOfflinePage(page, context);
+    await largerText(page);
+    const sideways = await sidewaysScroll(page);
+    check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
+    const cut = await page.evaluate(() => [...document.querySelectorAll('h1, p, button, a')]
+      .filter((element) => element.scrollWidth > element.clientWidth + 0.5 && element.clientWidth > 0)
+      .map((element) => `${element.tagName.toLowerCase()} "${(element.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 30)}" (${element.scrollWidth} px of words in ${element.clientWidth} px)`));
+    check(cut.length === 0, `words are cut: ${cut.join(', ')}`);
+  });
+
+  await open({ name: 'installed copy after clearing', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    if (!(await installed(page))) throw new Error('the installed copy is not whole after a visit to /settings/');
+    await page.getByRole('button', { name: 'Privacy', exact: true }).click();
+    page.once('dialog', (dialog) => dialog.accept());
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 60_000 }),
+      page.getByRole('button', { name: 'Clear All Local Data', exact: true }).click(),
+    ]);
+    // The load that follows the clear has a connection, so the worker
+    // stores the build's files again.
+    let whole = false;
+    for (let i = 0; i < 60 && !whole; i += 1) {
+      whole = await installed(page).catch(() => false);
+      if (!whole) await page.waitForTimeout(500);
+    }
+    if (!whole) throw new Error('30 seconds after the reload that follows "Clear All Local Data" the installed copy is still empty');
+    await context.setOffline(true);
+    await visit(page, '/dashboard/');
+    const seen = await shown(page);
+    check(itsPage(seen), `/dashboard/ opened offline after the clear shows ${whatShows(seen)}`);
+  });
+
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
 }
