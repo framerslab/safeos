@@ -47,5 +47,5 @@ test('setup offers Lost & Found, and its last key opens the Lost & Found page', 
   await open.click();
 
   await expect(page).toHaveURL(/\/lost-found\/$/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Lost & Found' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Lost and Found' })).toBeVisible();
 });
