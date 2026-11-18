@@ -5,9 +5,10 @@
  * The nap page checks the camera the watch will use (the one saved in
  * safeos-camera), motion that lasts as long as the watch needs before it
  * alerts, and the sound at the volume the nap's alerts will play at, saying
- * before the start when quiet hours will silence them. Start Nap Mode stops the
- * check's camera, applies the infant_sleep preset and opens the monitor with
- * the planned nap in its address, /monitor/?nap=<minutes>.
+ * before the start when quiet hours will silence them, now or during the nap.
+ * Start Nap Mode stops the check's camera, applies the infant_sleep preset,
+ * leaves the planned minutes for the monitor as a one-use hand-off in this tab
+ * and opens the monitor.
  */
 import React from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -33,6 +34,7 @@ let stop: jest.Mock;
 
 beforeEach(() => {
   mockPush.mockClear();
+  sessionStorage.clear();
   Object.values(mockSound).forEach((fn) => fn.mockClear());
   mockChangedFrames = Infinity;
   useCameraStore.setState({ deviceId: '' });
@@ -46,6 +48,14 @@ beforeEach(() => {
   (jest.spyOn(HTMLCanvasElement.prototype, 'getContext') as unknown as jest.SpyInstance).mockReturnValue({ drawImage: jest.fn() });
 });
 afterEach(() => { jest.restoreAllMocks(); });
+
+const handoff = () => JSON.parse(sessionStorage.getItem('safeos-nap-handoff') || 'null');
+
+/** A time of day, HH:MM, this many minutes from now. */
+function clock(minutes: number) {
+  const at = new Date(Date.now() + minutes * 60_000);
+  return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`;
+}
 
 /** Accepts the notice and passes the camera check; the motion check then starts by itself. */
 async function passCamera() {
@@ -65,24 +75,26 @@ async function passChecks() {
   return start;
 }
 
-it('opens the watch with the planned nap in its address and the infant_sleep preset, and stops the check camera', async () => {
+it('opens the watch with the infant_sleep preset, hands it the planned nap and stops the check camera', async () => {
   render(<NapPage />);
   await screen.findByRole('checkbox');
   fireEvent.click(await passChecks());
 
-  expect(mockPush).toHaveBeenCalledWith('/monitor/?nap=30');
+  expect(mockPush).toHaveBeenCalledWith('/monitor/');
+  expect(handoff()).toMatchObject({ minutes: 30 });
   expect(useSettingsStore.getState().activePresetId).toBe('infant_sleep');
   expect(stop).toHaveBeenCalled();
 });
 
-it('offers a planned nap duration and opens the watch with the one chosen', async () => {
+it('offers a planned nap duration and hands the watch the one chosen', async () => {
   render(<NapPage />);
   await screen.findByRole('checkbox');
   expect(screen.getByText(/remind you when your planned nap time is up/)).toBeTruthy();
   fireEvent.change(screen.getByRole('slider'), { target: { value: '45' } });
   fireEvent.click(await passChecks());
 
-  expect(mockPush).toHaveBeenCalledWith('/monitor/?nap=45');
+  expect(mockPush).toHaveBeenCalledWith('/monitor/');
+  expect(handoff()).toMatchObject({ minutes: 45 });
 });
 
 it('checks the camera the watch will use', async () => {
@@ -92,6 +104,15 @@ it('checks the camera the watch will use', async () => {
   await passCamera();
 
   expect(getUserMedia).toHaveBeenCalledWith(expect.objectContaining({ video: { deviceId: { exact: 'usb-camera' } } }));
+});
+
+it('passes the camera check on a camera with no microphone, as the watch does', async () => {
+  getUserMedia.mockRejectedValueOnce(Object.assign(new Error('No microphone'), { name: 'NotFoundError' }));
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  await passCamera();
+
+  expect(getUserMedia).toHaveBeenLastCalledWith(expect.objectContaining({ audio: false }));
 });
 
 it('passes the motion check only on movement that lasts as long as the watch needs to alert', async () => {
@@ -124,4 +145,18 @@ it('says before the nap when quiet hours will make its alerts silent', async () 
 
   expect(screen.getByText(/this nap's alerts will be silent/)).toBeTruthy();
   expect(mockSound.play).toHaveBeenCalledWith('alarm', expect.objectContaining({ volume: 0 }));
+});
+
+it('says when quiet hours will begin during the nap and silence its alerts', async () => {
+  useSettingsStore.setState({
+    quietHoursSettings: {
+      ...useSettingsStore.getState().quietHoursSettings,
+      enabled: true, mode: 'silent', startTime: clock(10), endTime: clock(70), days: [0, 1, 2, 3, 4, 5, 6],
+    },
+  });
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  await passChecks();
+
+  expect(screen.getByText(/Quiet hours start during this nap/)).toBeTruthy();
 });

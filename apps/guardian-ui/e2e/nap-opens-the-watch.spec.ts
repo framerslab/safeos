@@ -68,7 +68,6 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   await expect(page.getByText('Planned nap duration: 15 minutes')).toBeVisible();
   await (await passChecks(page)).click();
 
-  // The monitor reads the planned nap from the address once, then drops it.
   await expect(page).toHaveURL(/\/monitor\/?$/, { timeout: 30_000 });
   const preset = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-settings') || '{}')?.state?.activePresetId);
   expect(preset).toBe('infant_sleep');
@@ -107,8 +106,8 @@ test('says when quiet hours will silence a nap, and End nap ends a nap whose cam
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('Blocked', 'NotAllowedError'));
   });
-  await page.goto('/monitor/?nap=15', { waitUntil: 'networkidle', timeout: 60_000 });
-  await expect(page).toHaveURL(/\/monitor\/?$/, { timeout: 30_000 });
+  await page.evaluate(() => sessionStorage.setItem('safeos-nap-handoff', JSON.stringify({ minutes: 15, at: Date.now() })));
+  await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   const endNap = page.getByRole('button', { name: 'End nap', exact: true });
   await expect(endNap).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'Start Monitoring', exact: true })).toBeVisible();
