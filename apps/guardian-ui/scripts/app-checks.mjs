@@ -1062,10 +1062,11 @@ export async function checkApp(browser, baseUrl, outDir) {
     const lands = await overlay.evaluate(overlayPresses);
     check(!lands.close, `on ${what}, a press on the close key lands on ${lands.close}`);
     check(!lands.last, `on ${what}, a press on the last control lands on ${lands.last}`);
-    const closed = await overlay.locator('button').first().click({ timeout: 5_000 })
+    // The browser's own account of the press says why it did not close.
+    const stuck = await overlay.locator('button').first().click({ timeout: 5_000 })
       .then(() => overlay.waitFor({ state: 'detached', timeout: 5_000 }))
-      .then(() => true, () => false);
-    check(closed, `on ${what}, pressing the close key leaves it open`);
+      .then(() => null, (err) => err.message.split('\n').map((line) => line.trim()).filter(Boolean).slice(-8).join(' / '));
+    check(!stuck, `on ${what}, pressing the close key leaves it open: ${stuck}`);
   };
 
   // These walks are about what the opened part covers, so the key that opens
