@@ -29,6 +29,9 @@ import { useSecurityStore, createIntrusionFrame } from '../../stores/security-st
 import { getPersonDetector, PersonDetectionResult, calculatePersonChange } from '../../lib/person-detection';
 import { startSecurityAlert, stopSecurityAlert } from '../../lib/tts-alerts';
 import { saveIntrusionFrame, type IntrusionFrameDB } from '../../lib/client-db';
+import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
+import { announceWatch } from '../../lib/tab-channel';
+import { dropStart } from '../../lib/camera-handoff';
 
 // =============================================================================
 // Flash Overlay Component
@@ -240,7 +243,7 @@ export default function SecurityPage() {
   }, [download.status, download.setupComplete]);
 
   // Handle intrusion trigger
-  const handleIntrusion = useCallback(async (result: PersonDetectionResult) => {
+  const handleIntrusion = useCallback(async (result: PersonDetectionResult, live: () => boolean) => {
     const { exceeded, isNewIntrusion } = calculatePersonChange(
       result.personCount,
       previousCountRef.current,
@@ -289,6 +292,7 @@ export default function SecurityPage() {
       exported: false,
     };
     await saveIntrusionFrame(frameDB);
+    if (!live()) return;
 
     // Trigger intrusion in store
     triggerIntrusion(intrusionFrame);
@@ -340,6 +344,33 @@ export default function SecurityPage() {
     }
   }, [armingState]);
 
+  // The watch runs from the press that arms it until it is disarmed, and the
+  // other tabs hear of it from that press, before the camera is asked for.
+  // This effect's end is the watch's one end, whatever disarmed it: DISARM,
+  // Cancel during the countdown, another tab, or leaving the page.
+  const watchOn = armingState !== 'disarmed';
+  useEffect(() => {
+    if (!watchOn) return;
+    rememberWay('security');
+    watchStarted();
+    const endTimes = keepWatchTimes();
+    const endAnnounce = announceWatch('security', () => useSecurityStore.getState().disarm());
+    return () => {
+      endTimes();
+      watchEnded();
+      endAnnounce();
+      dropStart();
+      stopSecurityAlert();
+    };
+  }, [watchOn]);
+
+  // Leaving the page ends its watch in full: the armed state, the siren and
+  // the spoken alert. The page opens disarmed the next time.
+  useEffect(() => () => {
+    stopSecurityAlert();
+    useSecurityStore.getState().disarm();
+  }, []);
+
   const isArmed = armingState === 'armed' || armingState === 'triggered';
 
   // Detection loop (uses video element directly; avoids relying on CameraFeed's gated onFrame)
@@ -366,6 +397,8 @@ export default function SecurityPage() {
         const result = shouldForce
           ? await detectorRef.current.forceDetection(video)
           : await detectorRef.current.processFrame(video);
+        // A check that lands after its run ended counts for nothing.
+        if (cancelled) return;
 
         if (!result) return;
         if (shouldForce) lastForceDetectionRef.current = now;
@@ -376,7 +409,7 @@ export default function SecurityPage() {
 
         // Check for intrusion
         if (result.personCount > settings.allowedPersons) {
-          await handleIntrusion(result);
+          await handleIntrusion(result, () => !cancelled);
         } else {
           // Clear alerts if no longer exceeded
           if (alertActiveRef.current) {
