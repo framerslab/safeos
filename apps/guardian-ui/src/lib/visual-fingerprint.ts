@@ -47,6 +47,13 @@ export interface VisualFingerprint {
    * unequally.
    */
   version?: number;
+  /**
+   * How many of its photos the edge signature was averaged over, when that
+   * is fewer than the photos its colours count: a subject saved by version 1
+   * whose photos could not be read again keeps their colours and leaves out
+   * their edges (addReferencePhotos). Left out when every photo counts.
+   */
+  edgePhotos?: number;
 }
 
 /**
@@ -456,7 +463,9 @@ export function extractEdgeStrengths(imageData: ImageData, gridSize: number = 8)
  * the same signature on both sides, and a camera's noise reads as weak as it
  * is: a blank wall whose pixels alternate 8 levels reads 13 a cell, where
  * black and white stripes read 100. Below 100 the scale is a straight line,
- * so the mean of a block of cells is what the block reads as one cell.
+ * so the mean of a block of cells is what the block reads as one cell. A cell
+ * that reads 100 may stand for a stronger one, so a block that holds one can
+ * pool lower than the block reads as one cell (see poolEdgeSignature).
  */
 export function extractEdgeSignature(imageData: ImageData, gridSize: number = 8): number[] {
   return extractEdgeStrengths(imageData, gridSize).map((strength) =>
@@ -763,13 +772,21 @@ export function mergeFingerprints(
   const avgVariance = perPhoto(fp => fp.colorVariance);
   const avgSizeRatio = perPhoto(fp => fp.estimatedSizeRatio);
   
-  // Average edge signatures
+  // Average edge signatures, each over the photos its edges came from
+  const edgeWeights = fingerprints.map((fp, i) => Math.min(fp.edgePhotos ?? photos[i], photos[i]));
+  const edgeTotal = edgeWeights.reduce((sum, count) => sum + count, 0);
   const avgEdge = base.edgeSignature.map((_, i) =>
-    Math.round(perPhoto(fp => fp.edgeSignature[i] || 0))
+    Math.round(
+      edgeTotal > 0
+        ? fingerprints.reduce((sum, fp, k) => sum + (fp.edgeSignature[i] || 0) * edgeWeights[k], 0) / edgeTotal
+        : 0
+    )
   );
   
   // Collect all reference images
   const allImages = fingerprints.flatMap(fp => fp.referenceImages);
+  const keptImages = allImages.slice(0, 5); // Keep up to 5 reference images
+  const edgePhotos = Math.min(edgeTotal, Math.max(1, keptImages.length));
   
   return {
     id: base.id,
@@ -780,10 +797,11 @@ export function mergeFingerprints(
     colorVariance: avgVariance,
     estimatedSizeRatio: avgSizeRatio,
     edgeSignature: avgEdge,
-    referenceImages: allImages.slice(0, 5), // Keep up to 5 reference images
+    referenceImages: keptImages,
     createdAt: base.createdAt,
     // Photos of an earlier version's form leave the merge in that form.
     version: fingerprints.every(isCurrentFingerprint) ? FINGERPRINT_VERSION : undefined,
+    ...(edgePhotos < Math.max(1, keptImages.length) ? { edgePhotos } : {}),
   };
 }
 
@@ -850,10 +868,15 @@ export async function addReferencePhotos(
   if (isCurrentFingerprint(base) || !added.every(isCurrentFingerprint)) {
     return merged;
   }
+  // The edges are the new photos' alone: the next photo added weighs them as
+  // that many photos, not as every photo the colours count.
+  const edgePhotos = added.reduce((sum, fp) => sum + photosIn(fp), 0);
+  const counted = Math.max(1, merged.referenceImages.length);
   return {
     ...merged,
     edgeSignature: mergeFingerprints(added).edgeSignature,
     version: FINGERPRINT_VERSION,
+    edgePhotos: edgePhotos < counted ? edgePhotos : undefined,
   };
 }
 
@@ -1025,7 +1048,12 @@ function compareDominantColors(d1: RGB[], d2: RGB[]): number {
  * Read a square edge signature on a coarser square grid. Each coarse cell is
  * the mean of the fine cells it covers, weighted by how much of each it
  * covers. On the fixed scale of extractEdgeSignature that is what the coarser
- * grid reads, so weak edges stay as weak as they are. `scaledToStrongest` is
+ * grid reads while no fine cell reads 100, so weak edges stay as weak as they
+ * are. A fine cell at 100 may stand for a stronger cell, which the signature
+ * does not keep: a block of one such cell and three flat ones pools to 25
+ * where the coarser grid can read it as up to 100. The app reads every
+ * subject and every region of the camera's frame on one grid (a region on its
+ * subject's grid), so it pools only signatures made on other grids. `scaledToStrongest` is
  * for a signature scaled to its picture's strongest cell, as version 1 saved
  * them: the result is scaled back so its strongest cell reads what the finer
  * signature's strongest cell read.
