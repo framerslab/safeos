@@ -9,11 +9,11 @@
 import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/page-metadata';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   IconChevronLeft,
   IconChevronRight,
   IconClock,
-  IconUser,
   IconFileText,
 } from '../../components/icons';
 
@@ -50,7 +50,7 @@ const blogPosts: BlogPost[] = [
     excerpt:
       'Walking through the safeos.sh pipeline file by file. 200 ms motion screening, COCO-SSD gated on motion, Lost & Found colour matching. TensorFlow.js running in a browser, by design.',
     date: 'January 10, 2026',
-    author: 'Johnny Dunn',
+    author: 'Frame.dev Team',
     readTime: '8 min read',
     tags: ['technical', 'architecture', 'tensorflow.js', 'on-device-ai'],
   },
@@ -94,7 +94,7 @@ function BlogCard({ post }: { post: BlogPost }) {
             {post.date}
           </span>
           <span className="flex items-center gap-1">
-            <IconUser size={14} />
+            <Image src="/logos/frame.svg" alt="" width={14} height={14} />
             {post.author}
           </span>
           <span>{post.readTime}</span>
@@ -146,8 +146,8 @@ export default function BlogPage() {
             SafeOS Guardian Blog
           </h2>
           <p className="text-xl text-slate-400 max-w-2xl mx-auto">
-            First-person field notes on browser-based AI, on-device computer vision, and
-            shipping monitoring tools that actually respect the user. By Johnny Dunn at{' '}
+            Field notes on browser-based AI, on-device computer vision, and shipping
+            monitoring tools that actually respect the user. By the team at{' '}
             <a
               href="https://frame.dev"
               target="_blank"
@@ -156,7 +156,7 @@ export default function BlogPage() {
             >
               Frame
             </a>
-            , the team also behind{' '}
+            , also behind{' '}
             <a
               href="https://agentos.sh"
               target="_blank"
