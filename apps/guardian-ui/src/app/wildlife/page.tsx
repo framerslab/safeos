@@ -42,6 +42,9 @@ import {
 } from '../../lib/animal-detection';
 import { getTTSManager } from '../../lib/tts-alerts';
 import { getSoundManager } from '../../lib/sound-manager';
+import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
+import { announceWatch } from '../../lib/tab-channel';
+import { dropStart } from '../../lib/camera-handoff';
 
 // =============================================================================
 // Sub-Components
@@ -316,6 +319,8 @@ export default function WildlifePage() {
       detectionLoopBusyRef.current = true;
       try {
         const result = await detectorRef.current.processFrame(video);
+        // A sighting that lands after its run ended counts for nothing.
+        if (cancelled) return;
         if (result && result.animals.length > 0) {
           handleDetections(result.animals);
         }
@@ -338,6 +343,34 @@ export default function WildlifePage() {
       setMonitoring(true);
     }
   };
+
+  // The watch runs from its start until it stops, and the other tabs hear of
+  // it from the start. This effect's end is the watch's one end, whatever
+  // stopped it: the page's key, another tab, or leaving the page.
+  useEffect(() => {
+    if (!isMonitoring) return;
+    rememberWay('wildlife');
+    watchStarted();
+    const endTimes = keepWatchTimes();
+    const endAnnounce = announceWatch('wildlife', () => useAnimalAlertStore.getState().setMonitoring(false));
+    return () => {
+      endTimes();
+      watchEnded();
+      endAnnounce();
+      dropStart();
+      useAnimalAlertStore.getState().clearCurrentDetections();
+      getTTSManager().stop();
+    };
+  }, [isMonitoring]);
+
+  // Leaving the page ends its watch: the store keeps no running watch for the
+  // next time the page opens.
+  useEffect(() => () => {
+    const store = useAnimalAlertStore.getState();
+    store.setMonitoring(false);
+    store.clearCurrentDetections();
+    getTTSManager().stop();
+  }, []);
 
   const recentDetections = detectionHistory.slice(0, 5);
 
