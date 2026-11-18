@@ -235,6 +235,10 @@ export default function MonitorPage() {
       updateConsecutiveMatches(matcher.getState().consecutiveMatches);
       addRecentMatch(result);
 
+      // Whether this check raises the alert. Read once, so the saved frame
+      // says what the person heard, whatever the threshold is set to later.
+      const alerted = matcher.shouldAlert();
+
       // Check if should record
       if (matcher.shouldRecord() && result.frameData) {
         // Create match frame and save to IndexedDB (async thumbnail creation)
@@ -254,15 +258,16 @@ export default function MonitorPage() {
             acknowledged: false,
             notes: '',
             exported: false,
+            alerted,
           };
 
           saveMatchFrame(matchFrame, generation);
         });
-        addMatchFrameToStore(createMatchFrame(activeSubject.id, result));
+        addMatchFrameToStore(createMatchFrame(activeSubject.id, result, alerted));
       }
 
       // Check if should alert
-      if (matcher.shouldAlert()) {
+      if (alerted) {
         recordLostFoundAlert();
 
         // Play sound if enabled (only if custom media is disabled, else CustomMediaPlayer handles it)
