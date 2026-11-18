@@ -487,6 +487,12 @@ html:has(.app-shell) {
   flex: none;
 }
 
+/* The number stands on History's own baseline, at any text size: the glyph
+   has no baseline of its own, and the count takes the number's. */
+.new-count > .num {
+  align-self: baseline;
+}
+
 /* =============================================================================
    The phone bar
    ============================================================================= */
