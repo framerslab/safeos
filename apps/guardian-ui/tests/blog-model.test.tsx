@@ -21,7 +21,6 @@ it('names the detection model the app downloads, with its weights as they are', 
   const html = renderToStaticMarkup(<BlogArticlePage params={{ slug: 'how-safeos-guardian-works' }} />);
 
   expect(MODEL_URL).toContain('ssdlite_mobilenet_v2');
-  expect(html).toContain('SSDLite MobileNet V2');
-  expect(html).toContain('32-bit');
+  expect(html).toContain('on SSDLite MobileNet V2, its 4.5 million weights stored as 32-bit floats');
   expect(html).not.toMatch(/quantized/i);
 });
