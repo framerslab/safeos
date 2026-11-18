@@ -10,6 +10,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import BlogPage from '@/app/blog/page';
 import BlogArticlePage, { generateMetadata, generateStaticParams } from '@/app/blog/[slug]/page';
 
+// next/image reads the browser's address, which this server render has none of.
+jest.mock('next/image', () => ({
+  __esModule: true,
+  default: ({ src, alt }: { src: string; alt: string }) => React.createElement('img', { src, alt }),
+}));
+
 const TEAM = 'Frame.dev Team';
 const slugs = generateStaticParams().map(({ slug }) => slug);
 
