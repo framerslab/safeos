@@ -12,7 +12,7 @@
  * @module e2e/sound-pitch-range.spec
  */
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type BrowserType } from '@playwright/test';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -61,59 +61,53 @@ test.skip(
   'The fake microphone file is a Chromium switch; the walk runs at desktop width'
 );
 
-/** Starts the watch with the range set, and returns the highest Audio level it shows over 6 seconds. */
-async function highestLevel(page: Page, context: Parameters<typeof setUpDevice>[0]): Promise<number> {
-  await setUpDevice(context, {
-    use: 'pet',
-    settings: {
-      activePresetId: 'custom',
-      globalSettings: OWN_SETTING,
-      audioSettings: { frequencyRange: 'custom', customLowFreq: 300, customHighFreq: 3000, backgroundNoiseFilter: true },
-    },
+/**
+ * Starts the watch in a browser whose fake microphone plays `hz`, with the
+ * range set, and returns the highest Audio level it shows over 6 seconds.
+ */
+async function highestLevel(browserType: BrowserType, baseURL: string | undefined, hz: number): Promise<number> {
+  // Each tone needs its own browser: the fake microphone's file is a launch switch.
+  const browser = await browserType.launch({
+    args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${toneFile(hz)}`],
   });
-  await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-  await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+  try {
+    const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 1000 } });
+    await setUpDevice(context, {
+      use: 'pet',
+      settings: {
+        activePresetId: 'custom',
+        globalSettings: OWN_SETTING,
+        audioSettings: { frequencyRange: 'custom', customLowFreq: 300, customHighFreq: 3000, backgroundNoiseFilter: true },
+      },
+    });
+    const page = await context.newPage();
+    await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
+    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
+    await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
 
-  const level = page.locator('div.uppercase:text-is("Audio") + div.text-xl');
-  await expect(level).toBeVisible();
-  // The microphone's first second, while the browser starts it, is not read.
-  await page.waitForTimeout(1_000);
-  const readings: number[] = [];
-  for (let i = 0; i < 30; i++) {
-    readings.push(Number.parseFloat((await level.textContent()) ?? ''));
-    await page.waitForTimeout(200);
+    const level = page.locator('div.uppercase:text-is("Audio") + div.text-xl');
+    await expect(level).toBeVisible();
+    // The microphone's first second, while the browser starts it, is not read.
+    await page.waitForTimeout(1_000);
+    const readings: number[] = [];
+    for (let i = 0; i < 30; i++) {
+      readings.push(Number.parseFloat((await level.textContent()) ?? ''));
+      await page.waitForTimeout(200);
+    }
+    console.log(`Audio levels read with a ${hz} Hz tone: ${readings.join(', ')}`);
+    await page.screenshot({ path: test.info().outputPath(`pitch-range-${hz}hz-1280.png`) });
+    return Math.max(...readings.filter(Number.isFinite));
+  } finally {
+    await browser.close();
   }
-  console.log(`Audio levels read: ${readings.join(', ')}`);
-  return Math.max(...readings.filter(Number.isFinite));
 }
 
-test.describe('a 100 Hz tone, under the range', () => {
-  test.use({
-    viewport: { width: 1280, height: 1000 },
-    launchOptions: {
-      args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${toneFile(100)}`],
-    },
-  });
-
-  test('leaves the Audio level near 0', async ({ page, context }) => {
-    test.setTimeout(90_000);
-    expect(await highestLevel(page, context)).toBeLessThan(5);
-    await page.screenshot({ path: test.info().outputPath('pitch-range-100hz-1280.png') });
-  });
+test('a 100 Hz tone, under the range, leaves the Audio level near 0', async ({ browserType, baseURL }) => {
+  test.setTimeout(90_000);
+  expect(await highestLevel(browserType, baseURL, 100)).toBeLessThan(5);
 });
 
-test.describe('a 1,000 Hz tone, inside the range', () => {
-  test.use({
-    viewport: { width: 1280, height: 1000 },
-    launchOptions: {
-      args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${toneFile(1000)}`],
-    },
-  });
-
-  test('raises the Audio level', async ({ page, context }) => {
-    test.setTimeout(90_000);
-    expect(await highestLevel(page, context)).toBeGreaterThan(10);
-    await page.screenshot({ path: test.info().outputPath('pitch-range-1000hz-1280.png') });
-  });
+test('a 1,000 Hz tone, inside the range, raises the Audio level', async ({ browserType, baseURL }) => {
+  test.setTimeout(90_000);
+  expect(await highestLevel(browserType, baseURL, 1000)).toBeGreaterThan(10);
 });
