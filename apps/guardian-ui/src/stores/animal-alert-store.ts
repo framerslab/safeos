@@ -8,8 +8,10 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import type { AnimalDetection, SizeCategory, DangerLevel } from '../lib/animal-detection';
+import { guardedStorage } from '../lib/storage-full';
+import { alertsChanged } from '../lib/tab-channel';
 
 // =============================================================================
 // Types
@@ -97,6 +99,7 @@ export interface AnimalAlertState {
   clearCurrentDetections: () => void;
   
   acknowledgeDetection: (id: string) => void;
+  acknowledgeDetections: (ids: string[]) => void;
   updateDetectionNotes: (id: string, notes: string) => void;
   deleteDetection: (id: string) => void;
   clearHistory: () => void;
@@ -158,6 +161,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
           lastDetectionTime: Date.now(),
           totalDetections: get().totalDetections + 1,
         });
+        alertsChanged();
       },
 
       addDetections: (detections) => {
@@ -178,17 +182,28 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
           lastDetectionTime: Date.now(),
           totalDetections: get().totalDetections + detections.length,
         });
+        alertsChanged();
       },
 
       clearCurrentDetections: () => set({ currentDetections: [] }),
 
       // History actions
-      acknowledgeDetection: (id) =>
+      acknowledgeDetection: (id) => {
         set((state) => ({
           detectionHistory: state.detectionHistory.map((d) =>
             d.id === id ? { ...d, acknowledged: true } : d
           ),
-        })),
+        }));
+        alertsChanged();
+      },
+
+      acknowledgeDetections: (ids) => {
+        set((state) => {
+          const marked = new Set(ids);
+          return { detectionHistory: state.detectionHistory.map((d) => (marked.has(d.id) ? { ...d, acknowledged: true } : d)) };
+        });
+        alertsChanged();
+      },
 
       updateDetectionNotes: (id, notes) =>
         set((state) => ({
@@ -197,12 +212,17 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
           ),
         })),
 
-      deleteDetection: (id) =>
+      deleteDetection: (id) => {
         set((state) => ({
           detectionHistory: state.detectionHistory.filter((d) => d.id !== id),
-        })),
+        }));
+        alertsChanged();
+      },
 
-      clearHistory: () => set({ detectionHistory: [], totalDetections: 0 }),
+      clearHistory: () => {
+        set({ detectionHistory: [], totalDetections: 0 });
+        alertsChanged();
+      },
 
       // Filter actions
       setSizeFilter: (sizeFilter) => set({ sizeFilter }),
@@ -243,6 +263,10 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
     }),
     {
       name: 'safeos-animal-alerts',
+      // A full device keeps the sighting for the visit and the alert goes on.
+      // A sighting read from storage again calls none of the actions above,
+      // so two tabs never answer each other without end.
+      storage: createJSONStorage(() => guardedStorage),
       partialize: (state) => ({
         settings: state.settings,
         detectionHistory: state.detectionHistory,
