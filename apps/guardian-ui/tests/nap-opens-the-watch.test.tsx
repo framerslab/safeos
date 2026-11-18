@@ -158,6 +158,23 @@ it("samples the camera for the motion check every 200 ms, the watch's own pace, 
   expect(mockSamples).toBeLessThanOrEqual(7);
 });
 
+it('stops the check camera and its sampling when the person goes back, and checks again from the start', async () => {
+  mockChangedFrames = 0;
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  await passCamera();
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 600)); });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  expect(stop).toHaveBeenCalled();
+  mockSamples = 0;
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1000)); });
+  expect(mockSamples).toBe(0);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Continue to Pre-Nap Test' }));
+  expect(screen.getAllByRole('button', { name: 'Start' })).toHaveLength(2);
+});
+
 it('passes the motion check only on movement that lasts as long as the watch needs to alert', async () => {
   mockChangedFrames = 1; // one changed frame, then a still picture
   render(<NapPage />);
