@@ -216,6 +216,9 @@ export default function MonitorPage() {
     }
   }, [activeSubject, isLostFoundWatching, lostFoundSettings]);
 
+  // The person's own sounds for Lost Item Found that the last match started.
+  const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[] }>({ starting: false, ids: [] });
+
   // Process frames for Lost & Found matching
   const processLostFoundFrame = useCallback((video: HTMLVideoElement) => {
     if (!isLostFoundWatching || !activeSubject) return;
@@ -259,9 +262,21 @@ export default function MonitorPage() {
       if (matcher.shouldAlert()) {
         recordLostFoundAlert();
 
-        // Play sound if enabled (only if custom media is disabled, else CustomMediaPlayer handles it)
-        if (lostFoundSettings.alertSound && !lostFoundSettings.customMediaEnabled) {
-          getSoundManager().play('alert');
+        // Play sound if enabled: the person's own sounds saved for Lost Item
+        // Found, and the built-in alert unless custom media is on (the
+        // CustomMediaPlayer handles that).
+        if (lostFoundSettings.alertSound) {
+          // The comparison alerts on each matching frame; a sound of the
+          // person's own that still plays is not started again over itself.
+          const manager = getSoundManager();
+          const own = ownLostFoundSoundRef.current;
+          if (!own.starting && !own.ids.some((id) => manager.isActive(id))) {
+            own.starting = true;
+            void manager.playForTrigger('object_found')
+              .then((ids) => { own.ids = ids; })
+              .finally(() => { own.starting = false; });
+          }
+          if (!lostFoundSettings.customMediaEnabled) manager.play('alert');
         }
 
         // Show notification if enabled
