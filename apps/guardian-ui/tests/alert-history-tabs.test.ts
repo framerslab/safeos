@@ -356,6 +356,48 @@ it('counts repeats in the order they are saved, and keeps the newest reading on 
   expect(shown).toMatchObject({ message: 'the third', repeats: 2 });
 });
 
+it('keeps the saved repeat count when a repeat is acknowledged as it shows', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  const other = await tab();
+  await watching.read();
+  await other.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  await other.read();
+  // The other tab saves the event's first repeat; this tab's list does not show it yet.
+  other.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  await other.read();
+
+  // This tab's own repeat counts from what it shows; the person acknowledges it as it shows.
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'from this tab', timestamp: '2026-11-01T10:02:00.000Z', repeats: 1 }, { fresh: () => FRESH });
+  watching.monitoring.getState().acknowledgeAlert('event-card');
+  await watching.read();
+
+  expect((await stored('alert_cache')).find((row) => row.id === 'event-card')).toMatchObject({
+    acknowledged: true, message: 'from this tab', repeats: 2,
+  });
+});
+
+it("puts a repeat queued behind a stale card on the fresh card whose own save failed, and saves one card", async () => {
+  const { watching } = await acknowledgedElsewhere();
+  const failing = failSaves();
+  let made = 0;
+  const fresh = jest.fn(() => ({ id: `fresh-${++made}`, createdAt: FRESH.createdAt }));
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the next repeat', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh });
+  // Both saves fail; the next history read retries them.
+  await watching.read();
+  failing.mockRestore();
+  await watching.read();
+
+  const rows = await monitoringRows();
+  expect(fresh).toHaveBeenCalledTimes(1);
+  expect(rows.map((row) => row.id).filter((id) => id.startsWith('fresh-'))).toEqual(['fresh-1']);
+  expect(rows.find((row) => row.id === 'fresh-1')).toMatchObject({ message: 'the next repeat', acknowledged: false });
+  expect(watching.listed().filter((id) => id.startsWith('fresh-'))).toEqual(['fresh-1']);
+});
+
 it('updates the card in place when no other tab changed it', async () => {
   (await oldTab()).close();
   const watching = await tab();

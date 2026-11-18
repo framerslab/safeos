@@ -563,6 +563,25 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await expect.soft(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
   });
 
+  test('an event whose card is acknowledged keeps its notification tag on the new card it goes on', async ({ page }) => {
+    test.setTimeout(120_000);
+    // A critical event goes on (the whole picture, 75 %); its card is
+    // acknowledged; its next alert, at the Cooldown Period (10 s here), goes
+    // on a new card and replaces the event's notification.
+    await openMonitor(page, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
+      camera: { changingWidth: 1 },
+      notify: true,
+    });
+    const first = await firstAlert(page, 'motion');
+    await page.getByRole('button', { name: 'Acknowledge', exact: true }).first().click();
+    await runUntil(page, first + 10_000 + LATE_MS);
+
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    expect(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
+    expect(shown[shown.length - 1]?.tag, `the event keeps its tag on its new card (${JSON.stringify(shown)})`).toBe(shown[0]?.tag);
+  });
+
   test('a new event does not replace the notification of an earlier event that is kept up', async ({ page }) => {
     test.setTimeout(120_000);
     // A critical event (the whole picture, 75 %), whose notification stays up
