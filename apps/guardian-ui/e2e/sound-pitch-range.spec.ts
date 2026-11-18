@@ -102,12 +102,12 @@ async function highestLevel(browserType: BrowserType, baseURL: string | undefine
   }
 }
 
-test('a 100 Hz tone, under the range, leaves the Audio level near 0', async ({ browserType, baseURL }) => {
+test('a 100 Hz tone, under the range, leaves the Audio level near 0', async ({ playwright, baseURL }) => {
   test.setTimeout(90_000);
-  expect(await highestLevel(browserType, baseURL, 100)).toBeLessThan(5);
+  expect(await highestLevel(playwright.chromium, baseURL, 100)).toBeLessThan(5);
 });
 
-test('a 1,000 Hz tone, inside the range, raises the Audio level', async ({ browserType, baseURL }) => {
+test('a 1,000 Hz tone, inside the range, raises the Audio level', async ({ playwright, baseURL }) => {
   test.setTimeout(90_000);
-  expect(await highestLevel(browserType, baseURL, 1000)).toBeGreaterThan(10);
+  expect(await highestLevel(playwright.chromium, baseURL, 1000)).toBeGreaterThan(10);
 });
