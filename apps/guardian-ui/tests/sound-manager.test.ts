@@ -962,6 +962,17 @@ describe('Sound Manager', () => {
       expect(manager.isPlayingType('alert')).toBe(true);
     });
 
+    it("turns a suspended context on from a person's tap, so the sounds after it play", async () => {
+      audioSetup.state = 'suspended';
+      const manager = getSoundManager();
+
+      manager.unlockAudio();
+      await settle();
+
+      expect(made.log).toEqual(['resume']);
+      expect(made.contexts[0].state).toBe('running');
+    });
+
     const cannotStart: Record<string, () => void> = {
       'resume rejects': () => {
         audioSetup.state = 'suspended';

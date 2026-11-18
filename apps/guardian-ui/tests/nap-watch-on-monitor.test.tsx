@@ -114,13 +114,20 @@ it('ignores a hand-off older than two minutes', async () => {
   expect(sessionStorage.getItem('safeos-nap-handoff')).toBeNull();
 });
 
-it('finds the nap again after a reload, with its time and its watch', async () => {
+it('finds the nap again after a reload and waits for a tap, which turns its sound on, before it watches', async () => {
   stillCamera();
   useSettingsStore.getState().activateSleepMode('infant_sleep');
   window.history.replaceState({ safeosNap: { startedAt: Date.now() - 14 * 60_000, minutes: 15 } }, '', '/monitor/');
+  const unlockAudio = jest.spyOn(getSoundManager(), 'unlockAudio');
   render(<MonitorPage />);
   await act(async () => {});
 
+  // A reload leaves the browser's sound off until a tap: the watch does not start without one.
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+  expect(stopKey()).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Resume nap' }));
+  await act(async () => {});
+  expect(unlockAudio).toHaveBeenCalled();
   expect(stopKey()).not.toBeNull();
   await act(async () => { jest.advanceTimersByTime(60_000); });
   expect(warnings()).toBe(1);
@@ -166,6 +173,22 @@ it('sounds the alarm for the smallest movement in a nap, as Nap Mode says it wil
   expect(smallMovementAlerted()).toBe(true);
   expect(sounds()).toContain('alarm');
   expect(sounds().filter((type) => type !== 'alarm')).toEqual([]);
+});
+
+it('sounds the nap alarm at the effective volume as it plays, quiet hours that have just begun included', async () => {
+  smallMovementCamera();
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  useSettingsStore.setState({
+    globalMute: false,
+    isQuietHoursActive: () => true,
+    quietHoursSettings: { ...useSettingsStore.getState().quietHoursSettings, enabled: true, mode: 'reduced', reducedVolume: 20 },
+  });
+  arriveFromNap(30);
+  render(<MonitorPage />);
+  await act(async () => {});
+  await act(async () => { jest.advanceTimersByTime(5_000); });
+
+  expect(play).toHaveBeenCalledWith('alarm', expect.objectContaining({ volume: 20 }));
 });
 
 it('keeps the sound of each severity on a watch with no nap', async () => {
