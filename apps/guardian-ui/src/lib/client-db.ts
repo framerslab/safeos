@@ -180,6 +180,11 @@ interface SafeOSDB extends DBSchema {
       acknowledged: boolean;
       notes: string;
       exported: boolean;
+      /**
+       * True when the check that saved this frame raised the alert, false when it
+       * only recorded it. A frame saved before this field existed has none.
+       */
+      alerted?: boolean;
     };
     indexes: { 'by-subject': string; 'by-timestamp': number; 'by-confidence': number };
   };
@@ -1207,6 +1212,11 @@ export interface MatchFrameDB {
   acknowledged: boolean;
   notes: string;
   exported: boolean;
+  /**
+   * True when the check that saved this frame raised the alert, false when it
+   * only recorded it. A frame saved before this field existed has none.
+   */
+  alerted?: boolean;
 }
 
 export async function saveMatchFrame(frame: MatchFrameDB, generation = getLocalDataGeneration()): Promise<void> {
