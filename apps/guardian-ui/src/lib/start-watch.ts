@@ -41,6 +41,29 @@ export function startChoice(last: LastWay | null, subjects: SubjectProfileDB[]):
   return { way: last.way };
 }
 
+/** When a subject was saved; a date that does not parse counts as the earliest. */
+const savedAt = (subject: SubjectProfileDB) => {
+  const at = Date.parse(subject.createdAt);
+  return Number.isFinite(at) ? at : -Infinity;
+};
+
+/**
+ * The pet the Lost and Found row shows: the pet last watched while it is
+ * saved, else the pet saved most recently, else none. A subject of the kind
+ * person is never one.
+ */
+export function rowPet(last: LastWay | null, subjects: SubjectProfileDB[]): SubjectProfileDB | null {
+  const pets = subjects.filter((subject) => subject.type !== 'person');
+  const petId = last?.way === 'lost-found' ? last.pet : undefined;
+  const watched = petId ? pets.find((pet) => pet.id === petId) : undefined;
+  if (watched) return watched;
+  let newest: SubjectProfileDB | null = null;
+  for (const pet of pets) {
+    if (!newest || savedAt(pet) > savedAt(newest)) newest = pet;
+  }
+  return newest;
+}
+
 const nameOf = (way: WayId) => WAYS.find((one) => one.id === way)?.name ?? 'Motion and sound';
 
 /** "Start watching uses Lost and Found, for Mittens." */
