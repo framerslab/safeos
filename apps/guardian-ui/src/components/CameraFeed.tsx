@@ -13,6 +13,8 @@ import { detectMotion, detectMotionInZones, getThresholdForScenario } from '../l
 import { getAudioLevel, detectCryingPattern, resetCryDetection, AUDIO_THRESHOLDS } from '../lib/audio-levels';
 import { PixelDetectionEngine, type PixelDetectionResult } from '../lib/pixel-detection';
 import type { DetectionZone as SettingsDetectionZone } from '../stores/settings-store';
+import { takeHeldCamera } from '@/lib/camera-handoff';
+import { cameraConstraints } from '@/lib/camera-constraints';
 
 // =============================================================================
 // Types
@@ -247,20 +249,24 @@ export function CameraFeed({
     try {
       setIsLoading(true);
       setError(null);
-      const constraints = (audio: boolean): MediaStreamConstraints => ({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          ...(deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' }),
-        },
-        audio,
-      });
-      try {
-        acquired = await navigator.mediaDevices.getUserMedia(constraints(audioEnabled));
-      } catch (err) {
-        // A camera without a microphone still monitors video; a missing camera fails again below.
-        if (!audioEnabled || !isCurrent() || !(err instanceof Error) || err.name !== 'NotFoundError') throw err;
-        acquired = await navigator.mediaDevices.getUserMedia(constraints(false));
+      // A camera the dashboard's key opened for this page is used as it is:
+      // the browser was asked once, while the dashboard was on screen.
+      acquired = takeHeldCamera();
+      if (!acquired) {
+        try {
+          acquired = await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, audioEnabled));
+        } catch (err) {
+          // A camera without a microphone still monitors video; a missing camera fails again below.
+          if (!audioEnabled || !isCurrent() || !(err instanceof Error) || err.name !== 'NotFoundError') throw err;
+          acquired = await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, false));
+        }
+      }
+      // A feed that listens to nothing keeps no sound track of a camera it took.
+      if (!audioEnabled) {
+        acquired.getAudioTracks().forEach((track) => {
+          track.stop();
+          acquired!.removeTrack(track);
+        });
       }
       if (!isCurrent()) {
         acquired.getTracks().forEach((track) => track.stop());
