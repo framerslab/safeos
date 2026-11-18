@@ -13,6 +13,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ProblemMark } from '../dashboard/Drawn';
 
 /** "History, 3 new alerts"; "History, 1 new alert". */
 export function historyName(count: number): string {
@@ -47,9 +48,7 @@ export function NewAlertsCount({ count }: { count: number }) {
     <>
       {' '}
       <span className="new-count">
-        <svg className="problem-mark" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true" focusable="false">
-          <path d="M6 1 11.5 11H0.5Z" />
-        </svg>
+        <ProblemMark />
         <span className="num">{count > 99 ? '99+' : count}</span>
       </span>
     </>
