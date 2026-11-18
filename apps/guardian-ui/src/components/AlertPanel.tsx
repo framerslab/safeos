@@ -264,6 +264,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
         {latestAlert && (
           <span>
             New {latestAlert.severity} alert: {latestAlert.message}.
+            {/* A repeat often keeps the reading and severity; its count changes the words, so it is read. */}
+            {(latestAlert.repeats ?? 0) > 0 &&
+              ` Repeated ${latestAlert.repeats} ${latestAlert.repeats === 1 ? 'time' : 'times'}.`}
             {unacknowledgedAlerts.length > 1 &&
               ` ${unacknowledgedAlerts.length} total unacknowledged alerts.`}
           </span>
