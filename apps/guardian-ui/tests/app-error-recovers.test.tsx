@@ -7,9 +7,10 @@
  * new build no longer has, and Next.js leaves a blank page reading
  * "Application error". The app's error pages reload once to fetch the newest
  * build when the error is a missing script file, and otherwise say what
- * happened with a Reload key and a link home. A second missing file within
- * five minutes, or a browser that keeps no session storage, shows the message
- * instead of reloading again, so a page never reloads in a loop.
+ * happened with a Reload key, a link home and the error's own words for a
+ * report. A second missing file within five minutes, or a browser that keeps
+ * no session storage, shows the message instead of reloading again, so a page
+ * never reloads in a loop.
  */
 import React from 'react';
 import { act, render, screen } from '@testing-library/react';
@@ -77,6 +78,16 @@ it('says what happened on a page that fails, with a Reload key and a link home',
   expect(screen.getByRole('link', { name: 'Go to the home page' }).getAttribute('href')).toBe('/');
 });
 
+it("shows the error's own words under What went wrong, for a report", async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  render(<ErrorPage error={new TypeError("Cannot read properties of undefined (reading 'days')")} reset={jest.fn()} />);
+  await act(async () => {});
+
+  expect(screen.getByText('What went wrong')).toBeTruthy();
+  expect(screen.getByText("Cannot read properties of undefined (reading 'days')")).toBeTruthy();
+  expect(screen.getByRole('link', { name: 'Report it on GitHub' }).getAttribute('href')).toBe('https://github.com/framerslab/safeos/issues/new');
+});
+
 it('says what happened when the whole app fails, in a page of its own', async () => {
   jest.spyOn(console, 'error').mockImplementation(() => {});
   // It draws its own html and body; inside the test's container React only warns about the nesting.
@@ -85,4 +96,5 @@ it('says what happened when the whole app fails, in a page of its own', async ()
 
   expect(screen.getByRole('heading', { name: 'This page stopped working' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Reload' })).toBeTruthy();
+  expect(screen.getByText('A bug')).toBeTruthy();
 });
