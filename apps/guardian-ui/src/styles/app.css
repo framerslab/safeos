@@ -799,3 +799,266 @@ html:has(.app-shell) {
   flex: 1 0 auto;
   color: var(--visitor-panel-ink);
 }
+
+/* =============================================================================
+   The dashboard: the watching state
+   ============================================================================= */
+
+/* The camera frame drawn while nothing is watching: the panel colour inside
+   the four ticks and a flat level line; while the device is read, an accent
+   bar grows along its foot in the line's place. */
+.drawn-frame {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 64px;
+  aspect-ratio: 4 / 3;
+  background: var(--color-steel-900);
+}
+
+.drawn-frame .level-line {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 28%;
+  width: 76%;
+  height: 12px;
+}
+
+.level-line {
+  display: block;
+  fill: none;
+  stroke: var(--color-steel-300);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.drawn-frame[data-loading='true'] .level-line {
+  display: none;
+}
+
+.drawn-frame[data-loading='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--look-accent);
+  transform-origin: left center;
+  animation: capture-loading 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawn-frame[data-loading='true']::after {
+    display: none;
+  }
+}
+
+.dash-state {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0 0;
+}
+
+.dash-state__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--app-heading-line);
+}
+
+@media (min-width: 48em) {
+  .dash-state__head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 24px;
+  }
+
+  .dash-state__head .drawn-frame {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+.dash-heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-headline-size);
+  line-height: var(--app-heading-line);
+  color: var(--color-steel-50);
+  text-wrap: balance;
+}
+
+/* Until this device is read the heading's place shows the loading words, and
+   the heading is kept for assistive technology alone. With scripts off the
+   heading shows, since nothing will be read. */
+.dash-loading {
+  display: none;
+  margin: 0;
+}
+
+html[data-app-started='true'] .dash-state[data-read='no'] .dash-loading {
+  display: block;
+}
+
+html[data-app-started='true'] .dash-state[data-read='no'] .dash-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.dash-state[data-read='no'] :is(.dash-line, .dash-problems, .dash-fixes) {
+  display: none;
+}
+
+.dash-new,
+.dash-line,
+.dash-statement,
+.dash-loading,
+.dash-problem {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.dash-new {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dash-line {
+  margin-top: 8px;
+}
+
+.dash-problem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dash-new .problem-mark,
+.dash-problem .problem-mark {
+  flex: none;
+}
+
+.dash-statement {
+  margin-top: 12px;
+  text-wrap: pretty;
+}
+
+@media (min-width: 48em) {
+  .dash-line,
+  .dash-problem,
+  .dash-statement,
+  .dash-new {
+    max-width: 40rem;
+  }
+}
+
+/* The fixes that are owed: link rows, and the one row that asks the browser
+   about notifications, drawn as a link row. */
+.dash-fixes {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.link-row--button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.look-part .link-row:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .look-part .link-row:active {
+    transform: none;
+  }
+}
+
+/* The key's place is held before the read, so nothing moves when the key
+   appears. While the camera starts the key loses its fill: a dashed edge in
+   the line colour, its words in the quiet tone. */
+.dash-key-place {
+  min-height: 52px;
+  margin-top: 16px;
+}
+
+.dash-key {
+  width: 100%;
+}
+
+@media (min-width: 48em) {
+  .dash-key {
+    width: 100%;
+    max-width: 25rem;
+  }
+}
+
+@media (min-width: 90em) {
+  .dash-key-place {
+    min-height: 56px;
+  }
+
+  .dash-key {
+    max-width: none;
+  }
+}
+
+/* Pressed, 1 px lower. Written to outrank the site's touch rule, which
+   shrinks every pressed button. */
+:root .dash-key:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root .dash-key:active {
+    transform: none;
+  }
+}
+
+.key--waiting {
+  border: 1px dashed var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-200);
+  cursor: default;
+}
+
+.key--waiting:hover,
+:root .key--waiting:active {
+  background: transparent;
+  transform: none;
+}
+
+/* The line for a page whose script did not start: in the served HTML, so it
+   shows with scripts off; its own script hides it at once and shows it again
+   if the app has not marked itself started within five seconds. */
+.needs-script {
+  margin: 12px 0 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.needs-script[hidden],
+html[data-app-started='true'] .needs-script {
+  display: none;
+}
