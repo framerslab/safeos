@@ -608,10 +608,10 @@ describe('Sound Manager', () => {
       expect(soundGains().map((gain) => gain.gain.value)).toEqual([1]);
     });
 
-    it('keeps a playing sound at the volume it was played at when the user volume changes', () => {
+    it('keeps a one-shot sound at the volume it was played at when the user volume changes', () => {
       const manager = getSoundManager();
       manager.setUserVolume(40);
-      manager.play('alarm', { volume: 20, fadeIn: 0 });
+      manager.play('alarm', { volume: 20, loop: false, fadeIn: 0 });
 
       manager.setUserVolume(80);
       expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
@@ -621,13 +621,23 @@ describe('Sound Manager', () => {
       expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
     });
 
-    it('silences a sound played at a named volume when the user volume goes to 0', () => {
+    it('silences a one-shot sound played at a named volume when the user volume goes to 0', () => {
       const manager = getSoundManager();
-      manager.play('alarm', { volume: 20, fadeIn: 0 });
+      manager.play('alarm', { volume: 20, loop: false, fadeIn: 0 });
 
       manager.setUserVolume(0);
 
       expect(soundGains().map((gain) => gain.gain.value)).toEqual([0]);
+    });
+
+    it('lets a looping sound follow the user volume, so turning it down reaches the loop', () => {
+      const manager = getSoundManager();
+      manager.play('alarm', { volume: 100, loop: true, fadeIn: 0 });
+
+      manager.setUserVolume(30);
+
+      // The alarm's minimum of 50 applies, as for any alarm at volume 30.
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.5]);
     });
 
     it('should respect forceMaxVolume option', () => {

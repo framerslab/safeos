@@ -77,7 +77,7 @@ interface ActiveSound {
   fade?: Fade | null;
   /** Fading out to stop. */
   stopping?: boolean;
-  /** The volume named when the sound was played, which it keeps until it ends. */
+  /** The volume named when a one-shot sound was played, which it keeps until it ends. */
   namedVolume?: number;
 }
 
@@ -464,7 +464,9 @@ class SoundManager {
       startTime: Date.now(),
       loop,
       onEnd: options.onEnd,
-      namedVolume: options.volume,
+      // A one-shot sound keeps the volume it was played at. A loop follows the
+      // user volume, so turning the volume down reaches a sound that plays on.
+      namedVolume: loop ? undefined : options.volume,
     };
     this.activeSounds.set(id, activeSound);
 
@@ -817,8 +819,9 @@ class SoundManager {
   }
 
   /**
-   * The volume a playing sound holds: the one named when it was played, unless
-   * the user volume has gone to 0, and otherwise the user volume's.
+   * The volume a playing sound holds: the one named when a one-shot sound was
+   * played, unless the user volume has gone to 0, and otherwise the user
+   * volume's, with its minimum for the sound's type.
    */
   private playingVolume(sound: ActiveSound): number {
     return this.calculateVolume(sound.type, this.userVolume > 0 ? sound.namedVolume : undefined);

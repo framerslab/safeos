@@ -59,15 +59,15 @@ it('plays the sound buttons at the effective volume until the slider moves', asy
 });
 
 it('shows the volume the buttons will play at until the slider moves', async () => {
-  const realQuietHours = useSettingsStore.getState().isQuietHoursActive;
+  const { isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings } = useSettingsStore.getState();
   useSettingsStore.setState({
     isQuietHoursActive: () => true,
-    quietHoursSettings: { ...useSettingsStore.getState().quietHoursSettings, enabled: true, mode: 'silent' },
+    quietHoursSettings: { ...realSettings, enabled: true, mode: 'silent' },
   });
   render(<TestAlertsPage />);
   await act(async () => {});
 
   expect(((await screen.findByRole('slider')) as HTMLInputElement).value).toBe('0');
   expect(screen.getByText('Preview Volume: 0%')).toBeTruthy();
-  useSettingsStore.setState({ isQuietHoursActive: realQuietHours });
+  useSettingsStore.setState({ isQuietHoursActive: realQuietHours, quietHoursSettings: realSettings });
 });
