@@ -11,8 +11,8 @@ edited.
   when a walk fails (`test-failed-1.png` of the first try, renamed after the
   walk); the two pitch range pictures are the walk's own.
 - `after/`: the `settings-pictures` artifact of
-  [CI run 44402163253](https://github.com/framerslab/safeos/actions/runs/44402163253),
-  at `da99b7aa78d3089fdec243dc62ffc083d7940c5f`, with the fixes.
+  [CI run 44409385992](https://github.com/framerslab/safeos/actions/runs/44409385992),
+  at `1d73a5e0df25398a5a68f33c06e97efbd7be5bbb`, with the fixes.
 
 | Picture | Before | After |
 |---------|--------|-------|
