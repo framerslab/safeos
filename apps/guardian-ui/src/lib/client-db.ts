@@ -1191,16 +1191,20 @@ export async function deleteSubjectProfile(id: string): Promise<void> {
 }
 
 export async function updateSubjectMatchCount(id: string, increment: number = 1): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['subject_profile'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    const profile = await db.get('subject_profile', id);
+    // The count is read and written in one transaction, so a fingerprint or
+    // photos saved meanwhile (a rebuild, a photo added) are kept.
+    tx = db.transaction('subject_profile', 'readwrite');
+    const profile = await tx.store.get(id);
     if (profile) {
-      profile.matchCount += increment;
-      profile.lastActiveAt = new Date().toISOString();
-      await db.put('subject_profile', profile);
+      await tx.store.put({ ...profile, matchCount: profile.matchCount + increment, lastActiveAt: new Date().toISOString() });
     }
+    await tx.done;
   } catch (error) {
     console.warn('[ClientDB] Failed to update subject match count:', error);
+    await abandonTransaction(tx);
   }
 }
 
