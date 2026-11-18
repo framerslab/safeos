@@ -86,6 +86,7 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   const resume = page.getByRole('button', { name: 'Resume nap', exact: true });
   await expect(resume).toBeVisible({ timeout: 30_000 });
   expect(await page.evaluate(() => window.history.state?.safeosNap?.minutes)).toBe(15);
+  await page.screenshot({ path: test.info().outputPath('nap-resume-1280.png') });
   await resume.click();
   await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
 });
@@ -123,4 +124,13 @@ test('says when quiet hours will silence a nap, and End nap ends a nap whose cam
   await page.screenshot({ path: test.info().outputPath('nap-camera-failed-1280.png') });
   await endNap.click();
   await expect(endNap).toHaveCount(0);
+});
+
+test('Test Alerts says the Emergency sound plays at full volume', async ({ page, context }) => {
+  test.setTimeout(60_000);
+  await setUpDevice(context);
+  await page.goto('/settings/test-alerts/', { waitUntil: 'networkidle', timeout: 60_000 });
+  const sounds = page.getByRole('heading', { name: 'Sound Tests' }).locator('..');
+  await expect(sounds.getByText('Always full volume')).toBeVisible();
+  await sounds.screenshot({ path: test.info().outputPath('test-alerts-sounds-1280.png') });
 });
