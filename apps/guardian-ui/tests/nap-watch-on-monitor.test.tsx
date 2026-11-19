@@ -23,7 +23,9 @@ import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
-import { bare } from './helpers/served-html';
+
+/** An address without its trailing slash: next/link drops it outside a build. */
+const bare = (address: string | null | undefined) => (address || '').replace(/(?<=[^/])\/(?=$|[?#])/, '');
 
 jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),

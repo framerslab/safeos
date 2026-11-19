@@ -12,7 +12,9 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import HelpPage from '@/app/help/page';
-import { bare } from './helpers/served-html';
+
+/** An address without its trailing slash: next/link drops it outside a build. */
+const bare = (address: string | null | undefined) => (address || '').replace(/(?<=[^/])\/(?=$|[?#])/, '');
 
 const scrolled: Element[] = [];
 const original = Element.prototype.scrollIntoView;

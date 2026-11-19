@@ -18,7 +18,13 @@ import TutorialForward, { metadata as tutorialMetadata } from '@/app/tutorial/pa
 import AnalyticsForward, { metadata as analyticsMetadata } from '@/app/analytics/page';
 import ProfilesForward, { metadata as profilesMetadata } from '@/app/profiles/page';
 import OldSupportAddress, { metadata as donateMetadata } from '@/app/donate/page';
-import { bare, words } from './helpers/served-html';
+
+// The helpers of served-html load jsdom's own parser, which needs what this
+// environment lacks, so the two comparisons are written here.
+/** An address without its trailing slash: next/link drops it outside a build. */
+const bare = (address: string | null | undefined) => (address || '').replace(/(?<=[^/])\/(?=$|[?#])/, '');
+/** An element's words as a reader takes them, with one apostrophe and one space. */
+const words = (element: Element) => (element.textContent || '').replace(/\u2019/g, "'").replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
 
 const mockReplace = jest.fn();
 const mockPush = jest.fn();
