@@ -793,7 +793,12 @@ export default function SettingsPage() {
                   </p>
                   <button
                     onClick={async () => {
-                      if (confirm('This will delete all local data. Are you sure?')) {
+                      // The installed copy goes with everything else, and the worker stores it
+                      // again only on a load with a connection.
+                      const ask = navigator.onLine === false
+                        ? 'This will delete all local data. Are you sure? SafeOS will not open again until you are back online.'
+                        : 'This will delete all local data. Are you sure?';
+                      if (confirm(ask)) {
                         try {
                           await clearLocalData();
                           window.location.reload();
