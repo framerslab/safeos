@@ -24,13 +24,10 @@
 // with the dashboard, below.
 //
 // When /dashboard/ is captured, both versions also capture the dashboard as a
-// person who has finished setup sees it (dashboard-setup-<width>-<look>.png)
-// and, on a build with the earlier header, its menu open at 390 pixels
-// (dashboard-menu-390-<look>.png). The pull request's own build then checks
-// that the dashboard's Lost & Found, Security and Wildlife cards are visible
-// at each of the four widths and each opens its page, whose own heading
-// shows. The app's header, phone bar and footer are checked by
-// scripts/app-checks.mjs.
+// person who has finished setup sees it (dashboard-setup-<width>-<look>.png).
+// The pull request's own build then checks that each of the four ways to
+// watch is visible at each width and opens its page, whose own heading
+// carries the row's name.
 //
 // When /monitor/ is captured, both versions also capture the watch's first
 // screen on a device whose setup chose Lost & Found, with no pet saved and
@@ -175,7 +172,7 @@ try {
   }
   if (routes.includes('/dashboard/')) {
     failures += await captureDashboardAfterSetup(browser, baseUrl, outDir);
-    if (process.env.PICTURE_VERSION === 'after') failures += await checkModeLinks(browser, baseUrl);
+    if (process.env.PICTURE_VERSION === 'after') failures += await checkModeLinks(browser, baseUrl, outDir);
   }
   // Setup's camera step after a refused request, in both versions. The pull
   // request's own build is then walked to the dashboard with no camera.
@@ -815,7 +812,7 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 }
 
 // -----------------------------------------------------------------------------
-// The dashboard after setup, and the modes it and the header menu link
+// The dashboard after setup, and the ways to watch it links
 // -----------------------------------------------------------------------------
 
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
@@ -847,8 +844,8 @@ async function openDashboard(page, baseUrl) {
   return { redesigned: (await state.count()) > 0, quickActions };
 }
 
-// Both versions: the dashboard at each of the four widths in both looks, and its
-// header menu open at 390 pixels, so the pull request has before and after.
+// Both versions: the dashboard after setup at each of the four widths in both
+// looks, so the pull request has before and after.
 async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
   let failed = 0;
   for (const size of WIDTHS) {
@@ -863,14 +860,6 @@ async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
         const file = path.join(outDir, `dashboard-setup-${size.width}-${look}.png`);
         await page.screenshot({ path: file, fullPage: true });
         console.log(`captured ${file}`);
-        if (size.isMobile && (await page.locator('nav[aria-label="Main"] button.nav-mobile-toggle').count()) > 0) {
-          await page.evaluate(() => window.scrollTo(0, 0));
-          await page.locator('nav[aria-label="Main"] button.nav-mobile-toggle').click();
-          await page.locator('.nav-mobile-menu').waitFor({ timeout: 5_000 });
-          const menuFile = path.join(outDir, `dashboard-menu-${size.width}-${look}.png`);
-          await page.screenshot({ path: menuFile });
-          console.log(`captured ${menuFile}`);
-        }
       } catch (err) {
         failed += 1;
         console.error(`failed dashboard after setup at ${size.width} ${look}: ${err.message}`);
@@ -882,18 +871,17 @@ async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
   return failed;
 }
 
-// Pull request build only: Lost & Found, Security and Wildlife are reachable
-// from the dashboard.
-async function checkModeLinks(browser, baseUrl) {
-  const MODES = [
-    { name: 'Lost & Found', path: '/lost-found', heading: 'Lost and Found' },
-    { name: 'Security', path: '/security', heading: 'People' },
-    { name: 'Wildlife', path: '/wildlife', heading: 'Wildlife' },
+// Pull request build only: the dashboard's four ways to watch are visible at
+// each width and each opens its page, whose own heading carries the row's name.
+async function checkModeLinks(browser, baseUrl, outDir) {
+  const WAYS = [
+    { name: 'Motion and sound', path: '/monitor' },
+    { name: 'Lost and Found', path: '/lost-found' },
+    { name: 'People', path: '/security' },
+    { name: 'Wildlife', path: '/wildlife' },
   ];
   const problems = [];
   const bare = (href) => (href || '').replace(/\/$/, '');
-
-  // Each card is visible in Quick Actions and opens its page, whose own heading shows.
   for (const size of WIDTHS) {
     const context = await finishedSetupContext(browser, {
       viewport: { width: size.width, height: size.height },
@@ -901,33 +889,28 @@ async function checkModeLinks(browser, baseUrl) {
     });
     const page = await context.newPage();
     try {
-      for (const mode of MODES) {
+      for (const way of WAYS) {
         try {
-          const { quickActions } = await openDashboard(page, baseUrl);
-          const card = quickActions.getByRole('link', { name: new RegExp(`^${mode.name}`) });
-          if (!(await card.count())) {
-            problems.push(`dashboard at ${size.width} px: no ${mode.name} card in Quick Actions`);
-            continue;
-          }
-          if (!(await card.isVisible())) {
-            problems.push(`dashboard at ${size.width} px: the ${mode.name} card is not visible`);
+          await openDashboard(page, baseUrl);
+          const row = page.getByRole('link', { name: new RegExp(`^${way.name}:`) });
+          if (!(await row.isVisible())) {
+            problems.push(`dashboard at ${size.width} px: the ${way.name} row is not visible`);
             continue;
           }
           await Promise.all([
-            page.waitForURL((url) => bare(url.pathname) === mode.path, { timeout: 15_000 }),
-            card.click(),
+            page.waitForURL((url) => bare(url.pathname) === way.path, { timeout: 15_000 }),
+            row.click(),
           ]);
-          await page.getByRole('heading', { level: 1, name: mode.heading, exact: true }).waitFor({ timeout: 20_000 });
-          console.log(`checked the ${mode.name} card at ${size.width} px: it opens ${new URL(page.url()).pathname}, heading "${mode.heading}"`);
+          await page.getByRole('heading', { level: 1, name: way.name, exact: true }).waitFor({ timeout: 20_000 });
+          console.log(`checked the ${way.name} row at ${size.width} px: it opens ${new URL(page.url()).pathname}`);
         } catch (err) {
-          problems.push(`dashboard at ${size.width} px, ${mode.name} card: ${err.message}`);
+          problems.push(`dashboard at ${size.width} px, ${way.name} row: ${err.message.split('\n')[0]}`);
         }
       }
     } finally {
       await context.close();
     }
   }
-
   for (const p of problems) console.error(`failed mode-link check: ${p}`);
   return problems.length;
 }
@@ -1152,15 +1135,17 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
         page.waitForURL((url) => /^\/dashboard\/?$/.test(url.pathname), { timeout: 20_000 }),
         step.getByRole('button', { name: 'Open dashboard', exact: true }).click(),
       ]);
-      const quickActions = page.locator('.panel')
-        .filter({ has: page.getByRole('heading', { name: 'Quick Actions', exact: true }) });
-      await quickActions.waitFor({ timeout: 20_000 });
+      const state = page.getByRole('heading', { level: 1, name: /^(Not watching|Watching in another tab)$/ });
+      if (!(await state.waitFor({ timeout: 20_000 }).then(() => true, () => false))) {
+        fail(`after setup the dashboard is not shown; the address is ${new URL(page.url()).pathname}`);
+        return;
+      }
 
       // A reload of the dashboard stays on the dashboard.
       await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
-      await quickActions.waitFor({ timeout: 20_000 }).catch(() => {});
+      await state.waitFor({ timeout: 20_000 }).catch(() => {});
       const address = new URL(page.url()).pathname;
-      if (!/^\/dashboard\/?$/.test(address) || !(await shown(quickActions))) {
+      if (!/^\/dashboard\/?$/.test(address) || !(await shown(state))) {
         fail(`after a reload the dashboard is not shown; the address is ${address}`);
       }
       const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-onboarding') || '{}').state || {});
