@@ -422,6 +422,76 @@ test('twelve saved pets scroll inside Choose a pet with Add a pet at its foot, a
   expect(addBox.y + addBox.height).toBeLessThanOrEqual(dialogBox.y + dialogBox.height + 1);
 });
 
+/** The pet this browser keeps as the watch's. */
+const storedPetId = (page: Page): Promise<string | null | undefined> =>
+  page.evaluate(() => JSON.parse(localStorage.getItem('safeos-lost-found') || '{}')?.state?.chosenPetId);
+
+test('the arrow keys move the choice in Choose a pet; Escape and Close keep the watch\u2019s pet, and Enter chooses', async ({ page, context }) => {
+  await setUpDevice(context, { lostFoundChosen: true });
+  await openWatchWithPets(page, [MISO, TOFU]);
+  await expect(shown(page.getByText('3 photos', { exact: true }))).toBeVisible();
+  const dialog = choosePet(page);
+
+  for (const leave of ['Escape', 'Close'] as const) {
+    await changePet(page).click();
+    await expect(dialog.getByRole('radio', { name: 'Miso', exact: true })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(dialog.getByRole('radio', { name: 'Tofu', exact: true })).toBeChecked();
+    await expect(dialog).toBeVisible();
+    if (leave === 'Escape') await page.keyboard.press('Escape');
+    else await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(shown(page.getByText('3 photos', { exact: true })), `after ${leave}`).toBeVisible();
+    expect(await storedPetId(page), `after ${leave}`).toBe(MISO.id);
+  }
+
+  await changePet(page).click();
+  await expect(dialog.getByRole('radio', { name: 'Miso', exact: true })).toBeChecked();
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await expect(dialog).toHaveCount(0);
+  await expect(shown(page.getByText('1 photo', { exact: true }))).toBeVisible();
+  expect(await storedPetId(page)).toBe(TOFU.id);
+});
+
+test('Choose a pet stands above the page\u2019s navigation, so its links take no press while it is open', async ({ page, context }) => {
+  await setUpDevice(context, { lostFoundChosen: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openWatchWithPets(page, [MISO, TOFU]);
+  await changePet(page).click();
+  await expect(choosePet(page)).toBeVisible();
+
+  const link = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboard' });
+  const covered = await link.evaluate((element) => {
+    const { x, y, width, height } = element.getBoundingClientRect();
+    const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+    return hit !== null && !element.contains(hit);
+  });
+  expect(covered).toBe(true);
+});
+
+test('a thing saved after the pet is never the watch\u2019s pet until it is chosen', async ({ page, context }) => {
+  await setUpDevice(context, { lostFoundChosen: true });
+  // Keys, saved on the Lost & Found page as an object, is newer than Miso.
+  await openWatchWithPets(page, [MISO, { id: 'thing-keys', name: 'Keys', photos: 2, type: 'other', createdAt: '2026-11-03T10:00:00.000Z' }]);
+
+  await expect(shown(page.getByRole('img', { name: 'Miso\u2019s first saved photo' }))).toBeVisible();
+  await expect(shown(page.getByText('3 photos', { exact: true }))).toBeVisible();
+});
+
+test('the Lost & Found page offers no Start Monitoring for a person an earlier version saved', async ({ page, context }) => {
+  await setUpDevice(context, { lostFoundChosen: true });
+  await openWatchWithPets(page, [MISO, { id: 'person-sam', name: 'Sam', photos: 1, type: 'person', createdAt: '2026-11-03T10:00:00.000Z' }]);
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await page.getByRole('heading', { name: 'Sam', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Currently Watching' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start Monitoring' })).toHaveCount(0);
+
+  await page.getByRole('heading', { name: 'Miso', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Start Monitoring' })).toBeVisible();
+});
+
 test('saved pets that cannot be read say so, with Motion and sound chosen', async ({ page, context }) => {
   await setUpDevice(context, { lostFoundChosen: true });
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
@@ -438,6 +508,11 @@ test('saved pets that cannot be read say so, with Motion and sound chosen', asyn
   await expect(page.getByText('Saved pets could not be read on this device. Reload the page to try again.', { exact: true })).toBeVisible();
   await expect(motionAndSound(page)).toBeChecked();
   await expect(page).toHaveTitle('Motion and sound | SafeOS');
+
+  // Pressing Motion and sound keeps it, for the watch and for setup.
+  await motionAndSound(page).click();
+  await expect.poll(() => storedLostFound(page)).toBe(false);
+  await expect(page.getByText('Saved pets could not be read on this device. Reload the page to try again.', { exact: true })).toHaveCount(0);
 });
 
 test('while the saved pets are read the pet row says Loading saved pets…, then shows the pet', async ({ page, context }) => {
