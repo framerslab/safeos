@@ -30,6 +30,11 @@ export interface OnboardingState {
 
   // Profile selection
   selectedScenario: 'pet' | 'baby' | 'elderly' | 'security' | null;
+  /**
+   * Setup's Lost & Found choice was made: it saves the pet use, and this
+   * marks it, so setup run again shows it chosen and ends on Lost & Found.
+   */
+  lostFoundChosen: boolean;
   profileName: string;
 
   // Notifications
@@ -50,6 +55,7 @@ export interface OnboardingState {
   acceptDisclaimer: (type: keyof OnboardingState['acceptedDisclaimers']) => void;
   acceptAllDisclaimers: () => void;
   setScenario: (scenario: 'pet' | 'baby' | 'elderly' | 'security' | null) => void;
+  setLostFoundChosen: (chosen: boolean) => void;
   setProfileName: (name: string) => void;
   setNotifications: (settings: Partial<NotificationSettings>) => void;
   setCameraPermission: (granted: boolean) => void;
@@ -90,6 +96,7 @@ export const useOnboardingStore = create<OnboardingState>()(
       acceptedDisclaimers: INITIAL_DISCLAIMERS,
       disclaimerAcceptedAt: null,
       selectedScenario: null,
+      lostFoundChosen: false,
       profileName: '',
       notificationsEnabled: true,
       browserPushEnabled: false,
@@ -134,6 +141,8 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       setScenario: (scenario) => set({ selectedScenario: scenario }),
 
+      setLostFoundChosen: (chosen) => set({ lostFoundChosen: chosen }),
+
       setProfileName: (name) => set({ profileName: name }),
 
       setNotifications: (settings) =>
@@ -157,6 +166,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           acceptedDisclaimers: INITIAL_DISCLAIMERS,
           disclaimerAcceptedAt: null,
           selectedScenario: null,
+          lostFoundChosen: false,
           profileName: '',
           notificationsEnabled: true,
           browserPushEnabled: false,

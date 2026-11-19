@@ -26,12 +26,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Every job runs on ubuntu-24.04: ubuntu-latest moved to Ubuntu 26.04, where the
+  # Playwright this app uses does not install its browsers.
   # ---------------------------------------------------------------------------
   # Server: type check and lint
   # ---------------------------------------------------------------------------
   server-checks:
     name: Server type check and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,7 +57,7 @@ jobs:
   # ---------------------------------------------------------------------------
   server-tests:
     name: Server tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,7 +101,7 @@ jobs:
   # ---------------------------------------------------------------------------
   server-build:
     name: Server build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -120,7 +122,7 @@ jobs:
   # ---------------------------------------------------------------------------
   web-checks:
     name: Web app type check and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -152,7 +154,7 @@ jobs:
 
   web-tests:
     name: Web app tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -178,7 +180,7 @@ jobs:
   # (e2e/alerts-repeat.spec.ts).
   web-alert-walk:
     name: Web app alert walk
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -239,11 +241,16 @@ jobs:
   # inside the job and runs e2e/lost-found-edge.spec.ts in Chromium. The spec
   # enrols a subject from a striped picture, feeds Chromium's fake camera the
   # same stripes from a clip it writes itself, and reads the Edge value of the
-  # match the monitor saves. The other specs in e2e/ are not run here.
+  # match the monitor saves. It also walks /nap/ to the watch
+  # (e2e/nap-opens-the-watch.spec.ts), and checks that the settings say what
+  # the watch does: a critical alert in Emergency Only quiet hours, Detection's
+  # use rows, set times at the browser's clock, the sound saved for a Lost &
+  # Found alert, and the pitch range with two tones fed to the fake microphone.
+  # The other specs in e2e/ are not run here.
   # ---------------------------------------------------------------------------
   web-lost-found:
     name: Web app Lost & Found browser test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -282,7 +289,9 @@ jobs:
             curl -sf http://127.0.0.1:4173/ >/dev/null && break
             sleep 1
           done
-          npx playwright test e2e/lost-found-edge.spec.ts --project=chromium
+          npx playwright test e2e/lost-found-edge.spec.ts e2e/nap-opens-the-watch.spec.ts e2e/setup-lost-found.spec.ts \
+            e2e/quiet-hours-critical.spec.ts e2e/detection-use-values.spec.ts e2e/set-times-apply.spec.ts \
+            e2e/lost-found-sound.spec.ts e2e/sound-pitch-range.spec.ts --project=chromium
 
       - name: Upload the test's report
         if: failure()
@@ -295,6 +304,33 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: Upload the Nap Mode pictures
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nap-pictures
+          path: |
+            apps/guardian-ui/test-results/**/nap-*-1280.png
+            apps/guardian-ui/test-results/**/test-alerts-*-1280.png
+            apps/guardian-ui/test-results/**/setup-*-1280.png
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload the settings pictures
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: settings-pictures
+          path: |
+            apps/guardian-ui/test-results/**/quiet-hours-critical-1280.png
+            apps/guardian-ui/test-results/**/detection-baby-row-1280.png
+            apps/guardian-ui/test-results/**/set-time-night-1280.png
+            apps/guardian-ui/test-results/**/lost-found-alert-1280.png
+            apps/guardian-ui/test-results/**/sounds-played-1280.png
+            apps/guardian-ui/test-results/**/pitch-range-*-1280.png
+          if-no-files-found: warn
+          retention-days: 14
+
   # ---------------------------------------------------------------------------
   # Compose files: only the reverse proxy publishes a port beyond loopback.
   # Docker's published ports bypass the host firewall, so Ollama, Redis and the
@@ -302,7 +338,7 @@ jobs:
   # ---------------------------------------------------------------------------
   compose-ports:
     name: Compose ports
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -333,7 +369,7 @@ jobs:
 
   account-pictures:
     name: Account form pictures
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout

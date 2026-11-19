@@ -9,12 +9,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSettingsStore, type QuietHoursSettings, DEFAULT_PRESETS } from '../../../stores/settings-store';
+import { useSettingsStore, type QuietHoursSettings, type PresetId, DEFAULT_PRESETS } from '../../../stores/settings-store';
 import {
   useScheduleStore,
   DAYS_OF_WEEK as SCHEDULE_DAYS,
   formatTimeSlot,
   isScheduleActive,
+  isPresetId,
   type Schedule,
   type DayOfWeek,
 } from '../../../lib/schedule-manager';
@@ -585,7 +586,10 @@ interface ScheduleFormProps {
 function ScheduleForm({ initialData, onSave, onCancel }: ScheduleFormProps) {
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
-  const [preset, setPreset] = useState<string>(initialData?.preset || 'balanced');
+  // A set time opens on Maximum Alert, the setting a new device starts on; a
+  // saved set time that names a setting the app does not have opens on it too.
+  const initialPreset = initialData?.preset;
+  const [preset, setPreset] = useState<PresetId>(isPresetId(initialPreset) ? initialPreset : 'maximum');
   const [startTime, setStartTime] = useState(initialData?.timeSlot?.start || '09:00');
   const [endTime, setEndTime] = useState(initialData?.timeSlot?.end || '17:00');
   const [days, setDays] = useState<DayOfWeek[]>(initialData?.days || ['mon', 'tue', 'wed', 'thu', 'fri']);
@@ -603,7 +607,7 @@ function ScheduleForm({ initialData, onSave, onCancel }: ScheduleFormProps) {
       name,
       description,
       enabled: true,
-      preset: preset as any,
+      preset,
       days,
       timeSlot: { start: startTime, end: endTime },
       priority,
@@ -648,7 +652,7 @@ function ScheduleForm({ initialData, onSave, onCancel }: ScheduleFormProps) {
         <label className="block text-sm font-medium text-slate-300 mb-2">Preset</label>
         <select
           value={preset}
-          onChange={(e) => setPreset(e.target.value)}
+          onChange={(e) => setPreset(e.target.value as PresetId)}
           className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white
                      focus:outline-none focus:border-emerald-500"
         >

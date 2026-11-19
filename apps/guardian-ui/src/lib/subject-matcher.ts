@@ -15,9 +15,12 @@ import {
   extractDominantColors,
   extractColorHistogram,
   extractEdgeSignature,
+  extractVersion1EdgeSignature,
   estimateSizeRatio,
   edgeGridSide,
+  isCurrentFingerprint,
   DEFAULT_EDGE_GRID_SIZE,
+  FINGERPRINT_VERSION,
   colorDistance,
 } from './visual-fingerprint';
 
@@ -80,26 +83,39 @@ const DEFAULT_SETTINGS: MatcherSettings = {
 };
 
 /**
- * The least edge strength a region's strongest cell is scaled against. A
- * subject's photos are scaled to their own strongest cell; a region of the
- * camera's frame is scaled to at least this, so a wall, a floor or the sky,
- * whose only edges are the camera's noise, reads weak edges instead of edges
- * as strong as the subject's. 32 is the strength of a cell in which every
- * sample steps about 11 levels in red, green and blue to its neighbour; a step
- * from black to white is 765.
+ * The edge signature a region of the camera's frame is read as, on a
+ * `gridSize` by `gridSize` grid: the fixed scale a subject's photos are read
+ * on (extractEdgeSignature), so the same pixels read the same on both sides.
  */
-const REGION_EDGE_FLOOR = 32;
+export function regionEdgeSignature(imageData: ImageData, gridSize: number): number[] {
+  return extractEdgeSignature(imageData, gridSize);
+}
 
 /**
  * Adaptive lighting holds each frame at the brightness the scene has settled
- * at, so a light switched on or off changes the scores less. The brightness
- * is kept for each cell of an 8 by 8 grid. A change of light moves every cell
- * the same way; a subject coming into view moves only the cells it covers. So
- * a frame is moved back only when nearly every cell is brighter, or nearly
- * every cell is darker, than where it settled, and then by the median of the
- * cells' differences. The settled brightness follows the scene slowly: a
- * scene whose light holds is scored as the camera gives it, and a lasting
- * change becomes the new settled brightness.
+ * at, so a light switched on or off changes the scores less. The brightness,
+ * and the spread of brightness within the cell (its texture), are kept for
+ * each cell of an 8 by 8 grid.
+ *
+ * A change of light is judged among the background cells: those not taken up
+ * by something that came into view. A cell becomes foreground when it is more
+ * than FOREGROUND_LEVELS from where it settled and did not move with the
+ * frame's change of light (the same way, by half to twice as much, give or
+ * take FOREGROUND_LEVELS); it leaves the judging, and the settled brightness,
+ * until it comes back within FOREGROUND_LEVELS of where it settled (it judges
+ * the frame it is back in) or has held for FOREGROUND_FRAMES_TO_SETTLE frames.
+ * With fewer than MIN_BACKGROUND_CELLS background cells, nothing is judged. A frame is moved
+ * back when seven in eight of the background cells moved the same way, or
+ * when half of them moved the same way and kept their texture, as a lit or
+ * shaded wall, floor or shelf does and a subject in front of them does not;
+ * cells that stayed as they were, such as a window when a lamp comes on, do
+ * not stop it. It is moved by the median of those cells' differences. Flat
+ * cells have no texture to judge, so a subject over a plain room is read as a
+ * change of light only when it covers seven in eight of the cells.
+ *
+ * The settled brightness follows the background slowly: a scene whose light
+ * holds is scored as the camera gives it, and a lasting change becomes the
+ * new settled brightness.
  */
 
 /** The most a frame is brightened or darkened, in levels of 0 to 255. */
@@ -115,68 +131,54 @@ const SCENE_ADAPTATION = 0.02;
 /** The scene's brightness is read on a grid of this many cells a side. */
 const LIGHTING_GRID = 8;
 
-/**
- * The cells, of the grid's 64, that must have moved the same way for a frame
- * to be read as a change of light: seven in eight. A subject over fewer cells
- * leaves the frame as the camera gives it.
- */
-const LIGHT_CHANGE_CELLS = 56;
+/** The cells of the lighting grid. */
+const LIGHTING_CELLS = LIGHTING_GRID * LIGHTING_GRID;
 
 /** A cell has moved when its brightness is more than this many levels from where it settled. */
 const CELL_MOVED_LEVELS = 2;
 
 /**
- * The mean brightness, 0 to 255, of each cell of an 8 by 8 grid over the
- * frame, row by row.
+ * A change of light is judged on at least this many background cells, an
+ * eighth of the grid; with fewer, the frame is scored as the camera gives it.
  */
-function cellBrightnessOf(frameData: ImageData): number[] {
-  const { data, width, height } = frameData;
-  const cells: number[] = [];
-
-  for (let gy = 0; gy < LIGHTING_GRID; gy++) {
-    const y0 = Math.floor((gy * height) / LIGHTING_GRID);
-    const y1 = Math.floor(((gy + 1) * height) / LIGHTING_GRID);
-    for (let gx = 0; gx < LIGHTING_GRID; gx++) {
-      const x0 = Math.floor((gx * width) / LIGHTING_GRID);
-      const x1 = Math.floor(((gx + 1) * width) / LIGHTING_GRID);
-      let sum = 0;
-      let pixels = 0;
-      for (let y = y0; y < y1; y++) {
-        for (let x = x0; x < x1; x++) {
-          const i = (y * width + x) * 4;
-          sum += data[i] + data[i + 1] + data[i + 2];
-          pixels++;
-        }
-      }
-      // A frame smaller than the grid has empty cells; they read as black in
-      // every frame, so they never move.
-      cells.push(pixels > 0 ? sum / (pixels * 3) : 0);
-    }
-  }
-
-  return cells;
-}
+const MIN_BACKGROUND_CELLS = 8;
 
 /**
- * The levels to add to a frame whose cells read `cells` to bring it back to
- * the scene's settled cells: the median of the cells' differences when at
- * least LIGHT_CHANGE_CELLS of them moved the same way, and 0 otherwise.
+ * A cell has texture to judge when the brightness of its pixels spreads this
+ * many levels (a standard deviation) or more.
  */
-function lightingCorrectionOf(settled: number[], cells: number[]): number {
-  const differences = settled.map((level, i) => level - cells[i]);
-  const darker = differences.filter((d) => d > CELL_MOVED_LEVELS).length;
-  const brighter = differences.filter((d) => d < -CELL_MOVED_LEVELS).length;
-  if (darker < LIGHT_CHANGE_CELLS && brighter < LIGHT_CHANGE_CELLS) {
-    return 0;
-  }
+const TEXTURE_LEVELS = 4;
 
-  differences.sort((a, b) => a - b);
-  const middle = Math.floor(differences.length / 2);
-  const median =
-    differences.length % 2 === 1
-      ? differences[middle]
-      : (differences[middle - 1] + differences[middle]) / 2;
-  return Math.max(-MAX_LIGHTING_CORRECTION, Math.min(MAX_LIGHTING_CORRECTION, median));
+/**
+ * A cell more than this many levels from where it settled, that did not move
+ * with the frame's change of light, is foreground.
+ */
+const FOREGROUND_LEVELS = 10;
+
+/**
+ * Frames a cell stays foreground before its brightness becomes the settled
+ * one: two and a half to five minutes at one or two frames a second.
+ */
+const FOREGROUND_FRAMES_TO_SETTLE = 300;
+
+/**
+ * True when a cell whose brightness spread `settledTexture` levels at
+ * brightness `settledLevel` and spreads `texture` levels at brightness
+ * `level` kept its texture as a change of light keeps it: a light that adds
+ * levels keeps the spread, one that scales them scales it, and the spread
+ * stays between the two, give or take a fifth (at least 2 levels). False for
+ * a cell with too little texture to judge.
+ */
+function textureKept(settledTexture: number, settledLevel: number, texture: number, level: number): boolean {
+  if (settledTexture < TEXTURE_LEVELS) {
+    return false;
+  }
+  const scaled = settledLevel > 0 ? settledTexture * (level / settledLevel) : settledTexture;
+  const tolerance = Math.max(2, settledTexture * 0.2);
+  return (
+    texture >= Math.min(settledTexture, scaled) - tolerance &&
+    texture <= Math.max(settledTexture, scaled) + tolerance
+  );
 }
 
 // =============================================================================
@@ -190,8 +192,33 @@ export class SubjectMatcher {
   private previousFrame: ImageData | null = null;
   private motionMask: boolean[] = [];
   private frameCount: number = 0;
-  /** The scene's settled brightness of each lighting cell, 0 to 255; null until a frame is watched. */
-  private sceneBrightness: number[] | null = null;
+  // Adaptive lighting reads every frame into these buffers; none is made
+  // anew for a frame.
+  /** Whether a watched frame has set the scene's settled brightness. */
+  private sceneSettled = false;
+  /** The scene's settled brightness of each lighting cell, 0 to 255. */
+  private sceneBrightness = new Float64Array(LIGHTING_CELLS);
+  /** The settled spread of brightness within each lighting cell. */
+  private sceneTexture = new Float64Array(LIGHTING_CELLS);
+  /** For each lighting cell, the frames it has been foreground: 0 for background. */
+  private foregroundFrames = new Uint16Array(LIGHTING_CELLS);
+  /** The frame's brightness of each lighting cell. */
+  private cellBrightness = new Float64Array(LIGHTING_CELLS);
+  /** The frame's spread of brightness within each lighting cell. */
+  private cellTexture = new Float64Array(LIGHTING_CELLS);
+  /**
+   * How each judged cell moved in the frame: 1 darker, -1 brighter, 2 or -2
+   * when it also kept its texture, 0 when it held or was not judged.
+   */
+  private cellMoves = new Int8Array(LIGHTING_CELLS);
+  /** The differences the frame's correction is the median of. */
+  private lightingDifferences = new Float64Array(LIGHTING_CELLS);
+  /**
+   * The levels the frame's light took away from the settled brightness, the
+   * median before it is capped at MAX_LIGHTING_CORRECTION: positive when the
+   * light dropped, negative when it rose, 0 when it did not change.
+   */
+  private lightChange = 0;
   /** The stream the watched frames come from: the video element's `srcObject`. */
   private frameSource: unknown = null;
   private canvas: HTMLCanvasElement | null = null;
@@ -289,7 +316,13 @@ export class SubjectMatcher {
     this.previousFrame = null;
     this.motionMask = [];
     this.frameCount = 0;
-    this.sceneBrightness = null;
+    this.forgetScene();
+  }
+
+  /** Forget the scene's settled brightness; the next watched frame sets it. */
+  private forgetScene(): void {
+    this.sceneSettled = false;
+    this.foregroundFrames.fill(0);
   }
 
   /**
@@ -317,7 +350,7 @@ export class SubjectMatcher {
       this.frameSource = source;
       this.previousFrame = null;
       this.motionMask = [];
-      this.sceneBrightness = null;
+      this.forgetScene();
     }
 
     this.ctx.drawImage(video, 0, 0, this.canvas.width, this.canvas.height);
@@ -409,30 +442,194 @@ export class SubjectMatcher {
   /**
    * The frame the gate and the region scores read: the camera's frame moved
    * back to the scene's settled brightness, by up to MAX_LIGHTING_CORRECTION
-   * levels, when nearly every cell moved the same way (a change of light).
-   * The camera's frame itself when adaptive lighting is off, when fewer cells
-   * moved (a subject coming into view), and on the first frame watched, which
-   * sets the settled brightness. With `learn`, each cell's brightness is then
-   * taken into its settled brightness.
+   * levels, when its background cells changed as a change of light changes
+   * them (see the notes at MAX_LIGHTING_CORRECTION). The camera's frame itself
+   * when adaptive lighting is off, when the light did not change, and on the
+   * first frame watched, which sets the settled brightness. With `learn`, the
+   * background cells are then taken into the settled brightness and the
+   * foreground cells are counted.
    */
   private correctLighting(frameData: ImageData, learn: boolean): ImageData {
     if (!this.settings.adaptiveLighting) {
       return frameData;
     }
 
-    const cells = cellBrightnessOf(frameData);
-    const settled = this.sceneBrightness;
-    if (learn) {
-      this.sceneBrightness =
-        settled === null
-          ? cells
-          : settled.map((level, i) => level + (cells[i] - level) * SCENE_ADAPTATION);
-    }
-    if (settled === null) {
+    this.readLightingCells(frameData);
+    if (!this.sceneSettled) {
+      if (learn) {
+        this.sceneBrightness.set(this.cellBrightness);
+        this.sceneTexture.set(this.cellTexture);
+        this.foregroundFrames.fill(0);
+        this.sceneSettled = true;
+      }
       return frameData;
     }
 
-    return this.adjustLighting(frameData, Math.round(lightingCorrectionOf(settled, cells)));
+    const correction = Math.round(this.lightingCorrection());
+    if (learn) {
+      this.learnScene();
+    }
+    return this.adjustLighting(frameData, correction);
+  }
+
+  /**
+   * Read the mean brightness, 0 to 255, and the spread of brightness of each
+   * cell of the lighting grid over the frame, row by row, into cellBrightness
+   * and cellTexture.
+   */
+  private readLightingCells(frameData: ImageData): void {
+    const { data, width, height } = frameData;
+
+    for (let gy = 0; gy < LIGHTING_GRID; gy++) {
+      const y0 = Math.floor((gy * height) / LIGHTING_GRID);
+      const y1 = Math.floor(((gy + 1) * height) / LIGHTING_GRID);
+      for (let gx = 0; gx < LIGHTING_GRID; gx++) {
+        const x0 = Math.floor((gx * width) / LIGHTING_GRID);
+        const x1 = Math.floor(((gx + 1) * width) / LIGHTING_GRID);
+        let sum = 0;
+        let sumOfSquares = 0;
+        let pixels = 0;
+        for (let y = y0; y < y1; y++) {
+          for (let x = x0; x < x1; x++) {
+            const i = (y * width + x) * 4;
+            const level = (data[i] + data[i + 1] + data[i + 2]) / 3;
+            sum += level;
+            sumOfSquares += level * level;
+            pixels++;
+          }
+        }
+        // A frame smaller than the grid has empty cells; they read as black
+        // and flat in every frame, so they never move.
+        const cell = gy * LIGHTING_GRID + gx;
+        const mean = pixels > 0 ? sum / pixels : 0;
+        this.cellBrightness[cell] = mean;
+        this.cellTexture[cell] = pixels > 0 ? Math.sqrt(Math.max(0, sumOfSquares / pixels - mean * mean)) : 0;
+      }
+    }
+  }
+
+  /**
+   * The levels to add to the frame read into cellBrightness to bring it back
+   * to the scene's settled brightness: the median of the differences of the
+   * background cells that moved with the change of light, and 0 when the
+   * light did not change. Sets lightChange and cellMoves.
+   */
+  private lightingCorrection(): number {
+    const settled = this.sceneBrightness;
+    const cells = this.cellBrightness;
+    const foreground = this.foregroundFrames;
+    // A cell a subject took up and has left is back at its settled
+    // brightness: it judges the light in the frame it is back in, so the
+    // cells a moving subject went into are not all that is judged.
+    const aside = (i: number) => foreground[i] > 0 && Math.abs(settled[i] - cells[i]) > FOREGROUND_LEVELS;
+
+    let judged = 0;
+    for (let i = 0; i < LIGHTING_CELLS; i++) {
+      if (!aside(i)) judged++;
+    }
+    this.lightChange = 0;
+    if (judged < MIN_BACKGROUND_CELLS) {
+      this.cellMoves.fill(0);
+      return 0;
+    }
+
+    let darker = 0;
+    let brighter = 0;
+    let texturedDarker = 0;
+    let texturedBrighter = 0;
+    for (let i = 0; i < LIGHTING_CELLS; i++) {
+      this.cellMoves[i] = 0;
+      if (aside(i)) continue;
+      const difference = settled[i] - cells[i];
+      if (Math.abs(difference) <= CELL_MOVED_LEVELS) continue;
+      const kept = textureKept(this.sceneTexture[i], settled[i], this.cellTexture[i], cells[i]);
+      if (difference > 0) {
+        darker++;
+        if (kept) texturedDarker++;
+        this.cellMoves[i] = kept ? 2 : 1;
+      } else {
+        brighter++;
+        if (kept) texturedBrighter++;
+        this.cellMoves[i] = kept ? -2 : -1;
+      }
+    }
+
+    // Seven in eight of the judged cells moved the same way, or half of them
+    // did and kept their texture.
+    let direction = 0;
+    let texturedOnly = false;
+    if (darker * 8 >= judged * 7) {
+      direction = 1;
+    } else if (brighter * 8 >= judged * 7) {
+      direction = -1;
+    } else if (texturedDarker * 2 >= judged && texturedDarker > texturedBrighter) {
+      direction = 1;
+      texturedOnly = true;
+    } else if (texturedBrighter * 2 >= judged && texturedBrighter > texturedDarker) {
+      direction = -1;
+      texturedOnly = true;
+    }
+    if (direction === 0) {
+      return 0;
+    }
+
+    // The median of the differences of the cells that moved that way: the
+    // rest of the buffer is filled with Infinity, which sorts last.
+    const differences = this.lightingDifferences;
+    let count = 0;
+    for (let i = 0; i < LIGHTING_CELLS; i++) {
+      const moved = this.cellMoves[i];
+      if (moved === 0 || Math.sign(moved) !== direction || (texturedOnly && Math.abs(moved) !== 2)) continue;
+      differences[count++] = settled[i] - cells[i];
+    }
+    differences.fill(Infinity, count);
+    differences.sort();
+    const middle = Math.floor(count / 2);
+    const median = count % 2 === 1 ? differences[middle] : (differences[middle - 1] + differences[middle]) / 2;
+    this.lightChange = median;
+    return Math.max(-MAX_LIGHTING_CORRECTION, Math.min(MAX_LIGHTING_CORRECTION, median));
+  }
+
+  /**
+   * Take the frame read into cellBrightness into the scene. A cell within
+   * FOREGROUND_LEVELS of where it settled, or that moved with the frame's
+   * change of light (lightChange), is background: its settled brightness and
+   * texture follow it slowly. Any other cell, such as a subject that came into
+   * view as the light changed, is foreground and leaves the settled brightness
+   * as it is, until it has been foreground for FOREGROUND_FRAMES_TO_SETTLE
+   * frames, when its brightness becomes the settled one.
+   */
+  private learnScene(): void {
+    const settled = this.sceneBrightness;
+    const texture = this.sceneTexture;
+    const cells = this.cellBrightness;
+    const foreground = this.foregroundFrames;
+
+    const light = this.lightChange;
+    const lightLevels = Math.abs(light);
+    for (let i = 0; i < LIGHTING_CELLS; i++) {
+      const difference = settled[i] - cells[i];
+      const levels = Math.abs(difference);
+      const movedWithLight =
+        light !== 0 &&
+        Math.sign(difference) === Math.sign(light) &&
+        levels >= lightLevels / 2 - FOREGROUND_LEVELS &&
+        levels <= lightLevels * 2 + FOREGROUND_LEVELS;
+      if (levels > FOREGROUND_LEVELS && !movedWithLight) {
+        if (foreground[i] + 1 >= FOREGROUND_FRAMES_TO_SETTLE) {
+          settled[i] = cells[i];
+          texture[i] = this.cellTexture[i];
+          foreground[i] = 0;
+        } else {
+          foreground[i]++;
+        }
+        continue;
+      }
+
+      foreground[i] = 0;
+      settled[i] += (cells[i] - settled[i]) * SCENE_ADAPTATION;
+      texture[i] += (this.cellTexture[i] - texture[i]) * SCENE_ADAPTATION;
+    }
   }
 
   /**
@@ -580,7 +777,13 @@ export class SubjectMatcher {
     // square grid has no cells to line up with; its region is read on the
     // default grid and its edge term is 0.
     const edgeGrid = edgeGridSide(this.fingerprint?.edgeSignature ?? []) || DEFAULT_EDGE_GRID_SIZE;
-    const edgeSignature = extractEdgeSignature(imageData, edgeGrid, REGION_EDGE_FLOOR);
+    // A subject saved by version 1 that has not been rebuilt from its photos has
+    // edges scaled to each photo's strongest cell; the region is read the
+    // same way, so the two are compared on one scale.
+    const current = this.fingerprint === null || isCurrentFingerprint(this.fingerprint);
+    const edgeSignature = current
+      ? regionEdgeSignature(imageData, edgeGrid)
+      : extractVersion1EdgeSignature(imageData, edgeGrid);
     const sizeRatio = estimateSizeRatio(imageData);
 
     return {
@@ -594,6 +797,7 @@ export class SubjectMatcher {
       edgeSignature,
       referenceImages: [],
       createdAt: new Date().toISOString(),
+      version: current ? FINGERPRINT_VERSION : undefined,
     };
   }
 

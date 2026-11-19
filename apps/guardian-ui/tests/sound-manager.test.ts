@@ -553,6 +553,15 @@ describe('Sound Manager', () => {
       expect(sounds[0].loop).toBe(false);
     });
 
+    it('plays a test sound at exactly the current volume, with no minimum under an alarm', () => {
+      const manager = getSoundManager();
+      manager.setUserVolume(20);
+
+      manager.test('alarm');
+
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+    });
+
     it('should test emergency for 2 seconds', () => {
       jest.useFakeTimers();
       const manager = getSoundManager();
@@ -597,6 +606,38 @@ describe('Sound Manager', () => {
 
       // In emergency mode, volume should be 1.0 (100%)
       expect(soundGains().map((gain) => gain.gain.value)).toEqual([1]);
+    });
+
+    it('keeps a one-shot sound at the volume it was played at when the user volume changes', () => {
+      const manager = getSoundManager();
+      manager.setUserVolume(40);
+      manager.play('alarm', { volume: 20, loop: false, fadeIn: 0 });
+
+      manager.setUserVolume(80);
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+
+      manager.setEmergencyMode(true);
+      manager.setEmergencyMode(false);
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.2]);
+    });
+
+    it('silences a one-shot sound played at a named volume when the user volume goes to 0', () => {
+      const manager = getSoundManager();
+      manager.play('alarm', { volume: 20, loop: false, fadeIn: 0 });
+
+      manager.setUserVolume(0);
+
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0]);
+    });
+
+    it('lets a looping sound follow the user volume, so turning it down reaches the loop', () => {
+      const manager = getSoundManager();
+      manager.play('alarm', { volume: 100, loop: true, fadeIn: 0 });
+
+      manager.setUserVolume(30);
+
+      // The alarm's minimum of 50 applies, as for any alarm at volume 30.
+      expect(soundGains().map((gain) => gain.gain.value)).toEqual([0.5]);
     });
 
     it('should respect forceMaxVolume option', () => {
@@ -688,6 +729,107 @@ describe('Sound Manager', () => {
 
         expect(madeFor('blob:dog-bark')).toBe(2);
         expect(second).not.toBe(first);
+      });
+
+      // In Emergency Only quiet hours the alert volume is 0 and a critical alert plays at the critical volume.
+      it("keeps a critical alert's saved sound at its own volume when the volumes are applied again", async () => {
+        jest.doMock('../src/lib/custom-sounds-db', () => ({
+          getCustomSoundsByTrigger: async () => [customSound(true)],
+          recordSoundPlay: async () => {},
+        }));
+        jest.resetModules();
+        const manager = (await import('../src/lib/sound-manager')).getSoundManager();
+        try {
+          manager.setUserVolume(0);
+          manager.setCriticalVolume(70);
+          await manager.playForTrigger('motion_detected', { critical: true });
+          const copy = manager.getActiveSounds().find((sound) => sound.loop)?.audio as unknown as MockAudioElement;
+          expect(copy).toBeDefined();
+          // The volumes are applied again, as the app does every 30 seconds.
+          manager.setCriticalVolume(71);
+          expect(copy.volume).toBeCloseTo(0.8, 5);
+        } finally {
+          manager.stopAll();
+          jest.dontMock('../src/lib/custom-sounds-db');
+        }
+      });
+
+      it("brings back a looping saved sound that quiet hours silenced when a critical alert reuses it", async () => {
+        jest.doMock('../src/lib/custom-sounds-db', () => ({
+          getCustomSoundsByTrigger: async () => [customSound(true)],
+          recordSoundPlay: async () => {},
+        }));
+        jest.resetModules();
+        const manager = (await import('../src/lib/sound-manager')).getSoundManager();
+        try {
+          manager.setUserVolume(60);
+          manager.setCriticalVolume(60);
+          await manager.playForTrigger('motion_detected');
+          const copy = manager.getActiveSounds().find((sound) => sound.loop)?.audio as unknown as MockAudioElement;
+          expect(copy).toBeDefined();
+          // Emergency Only begins: the alert volume goes to 0, and the loop with it.
+          manager.setUserVolume(0);
+          expect(copy.volume).toBe(0);
+          // A critical alert plays the same saved sound: the loop it finds sounds again.
+          await manager.playForTrigger('motion_detected', { critical: true });
+          expect(madeFor('blob:dog-bark')).toBe(1);
+          expect(copy.volume).toBeCloseTo(0.8, 5);
+        } finally {
+          manager.stopAll();
+          jest.dontMock('../src/lib/custom-sounds-db');
+        }
+      });
+
+      it('starts no saved sound when the volume goes to 0 while the saved sounds are read', async () => {
+        let release = (_sounds: unknown[]) => {};
+        jest.doMock('../src/lib/custom-sounds-db', () => ({
+          getCustomSoundsByTrigger: () => new Promise((resolve) => { release = resolve; }),
+          recordSoundPlay: async () => {},
+        }));
+        jest.resetModules();
+        const manager = (await import('../src/lib/sound-manager')).getSoundManager();
+        try {
+          manager.setUserVolume(60);
+          const playing = manager.playForTrigger('motion_detected');
+          // Silent quiet hours begin while the sounds are read.
+          manager.setUserVolume(0);
+          release([customSound(false)]);
+          expect(await playing).toEqual([]);
+          expect(madeFor('blob:dog-bark')).toBe(0);
+        } finally {
+          manager.stopAll();
+          jest.dontMock('../src/lib/custom-sounds-db');
+        }
+      });
+
+      // Settings > Sounds shows each sound's "Played" count and last play.
+      it('records a play when a trigger starts a sound, and none when a repeat finds its loop playing', async () => {
+        const plays: string[] = [];
+        let sounds = [customSound(true)];
+        jest.doMock('../src/lib/custom-sounds-db', () => ({
+          getCustomSoundsByTrigger: async () => sounds,
+          recordSoundPlay: async (id: string) => { plays.push(id); },
+        }));
+        jest.resetModules();
+        const manager = (await import('../src/lib/sound-manager')).getSoundManager();
+        try {
+          const now = jest.spyOn(Date, 'now').mockReturnValue(1_000);
+          await manager.playForTrigger('motion_detected');
+          now.mockReturnValue(31_000);
+          await manager.playForTrigger('motion_detected');
+          expect(madeFor('blob:dog-bark')).toBe(1);
+          expect(plays).toEqual(['dog-bark']);
+
+          // A sound that does not loop starts again on each alert: each is a play.
+          manager.stopAll();
+          sounds = [customSound(false)];
+          await manager.playForTrigger('motion_detected');
+          await manager.playForTrigger('motion_detected');
+          expect(plays).toEqual(['dog-bark', 'dog-bark', 'dog-bark']);
+        } finally {
+          manager.stopAll();
+          jest.dontMock('../src/lib/custom-sounds-db');
+        }
       });
     });
   });
@@ -919,6 +1061,17 @@ describe('Sound Manager', () => {
 
       expect(made.log).toEqual(['resume', 'start:running', 'start:running']);
       expect(manager.isPlayingType('alert')).toBe(true);
+    });
+
+    it("turns a suspended context on from a person's tap, so the sounds after it play", async () => {
+      audioSetup.state = 'suspended';
+      const manager = getSoundManager();
+
+      manager.unlockAudio();
+      await settle();
+
+      expect(made.log).toEqual(['resume']);
+      expect(made.contexts[0].state).toBe('running');
     });
 
     const cannotStart: Record<string, () => void> = {

@@ -11,7 +11,7 @@
 import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
-import { newDetectorEvent, endDetectorEvent, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
+import { newDetectorEvent, endDetectorEvent, freshCardFor, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -30,9 +30,11 @@ import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from 
 import { useWatchSettings } from '../../stores/watch-settings';
 import { useLostFoundStore, createMatchFrame, getMatcherSettings } from '../../stores/lost-found-store';
 import { getSubjectMatcher, type MatchResult } from '../../lib/subject-matcher';
-import { saveMatchFrame, type MatchFrameDB } from '../../lib/client-db';
+import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } from '../../lib/client-db';
+import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
+import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -119,6 +121,7 @@ export default function MonitorPage() {
     addMatchFrame: addMatchFrameToStore,
     addRecentMatch,
     recordAlert: recordLostFoundAlert,
+    updateSubject,
   } = useLostFoundStore();
 
   const [captureRequested, setCaptureRequested] = useState(false);
@@ -166,6 +169,41 @@ export default function MonitorPage() {
   // Lost & Found Integration
   // ---------------------------------------------------------------------------
 
+  // A subject saved by an earlier version is rebuilt once from its saved
+  // photos, so its edges are read on the scale the camera's regions are read
+  // on and each photo counts once. Until then, or when it has no photos or
+  // they cannot be read, the matcher reads its edges on that version's scale.
+  useEffect(() => {
+    if (!activeSubject || isCurrentFingerprint(activeSubject.fingerprint) || activeSubject.referenceImages.length === 0) {
+      return;
+    }
+    let cancelled = false;
+    const subject = activeSubject;
+    void upgradeFingerprint(subject.fingerprint, subject.referenceImages, (photo) =>
+      generateFingerprint(photo, subject.name)
+    ).then(async (fingerprint) => {
+      if (cancelled || !isCurrentFingerprint(fingerprint)) return;
+      updateSubject(subject.id, { fingerprint });
+      await saveUpgradedSubjectFingerprint(
+        {
+          id: subject.id,
+          name: subject.name,
+          type: subject.type,
+          description: subject.description,
+          fingerprint: subject.fingerprint,
+          referenceImages: subject.referenceImages,
+          createdAt: subject.createdAt,
+          lastActiveAt: subject.lastActiveAt,
+          matchCount: subject.matchCount,
+        },
+        fingerprint
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSubject, updateSubject]);
+
   // Update matcher when settings change
   useEffect(() => {
     if (activeSubject && isLostFoundWatching) {
@@ -177,6 +215,17 @@ export default function MonitorPage() {
       matcherRef.current.setActive(false);
     }
   }, [activeSubject, isLostFoundWatching, lostFoundSettings]);
+
+  // The person's own sounds for Lost Item Found that the last match started.
+  // `round` moves on when they are stopped, so a start still on its way when
+  // the watch stops is stopped as it arrives.
+  const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; round: number }>({ starting: false, ids: [], round: 0 });
+  const stopOwnLostFoundSounds = useCallback(() => {
+    const own = ownLostFoundSoundRef.current;
+    own.round += 1;
+    own.ids.forEach((id) => getSoundManager().stop(id, 0));
+    own.ids = [];
+  }, []);
 
   // Process frames for Lost & Found matching
   const processLostFoundFrame = useCallback((video: HTMLVideoElement) => {
@@ -221,9 +270,25 @@ export default function MonitorPage() {
       if (matcher.shouldAlert()) {
         recordLostFoundAlert();
 
-        // Play sound if enabled (only if custom media is disabled, else CustomMediaPlayer handles it)
-        if (lostFoundSettings.alertSound && !lostFoundSettings.customMediaEnabled) {
-          getSoundManager().play('alert');
+        // Play sound if enabled: the person's own sounds saved for Lost Item
+        // Found, and the built-in alert unless custom media is on (the
+        // CustomMediaPlayer handles that).
+        if (lostFoundSettings.alertSound) {
+          // The comparison alerts on each matching frame; a sound of the
+          // person's own that still plays is not started again over itself.
+          const manager = getSoundManager();
+          const own = ownLostFoundSoundRef.current;
+          if (!own.starting && !own.ids.some((id) => manager.isActive(id))) {
+            own.starting = true;
+            const round = own.round;
+            void manager.playForTrigger('object_found')
+              .then((ids) => {
+                if (round === own.round) own.ids = ids;
+                else ids.forEach((id) => manager.stop(id, 0));
+              })
+              .finally(() => { own.starting = false; });
+          }
+          if (!lostFoundSettings.customMediaEnabled) manager.play('alert');
         }
 
         // Show notification if enabled
@@ -258,6 +323,10 @@ export default function MonitorPage() {
     addMatchFrameToStore,
     recordLostFoundAlert,
   ]);
+
+  // The person's own Lost & Found sounds stop when the Lost & Found watch ends,
+  // its pet changes or the page closes (and with the camera, in stopStream).
+  useEffect(() => stopOwnLostFoundSounds, [isLostFoundWatching, activeSubject?.id, stopOwnLostFoundSounds]);
 
   // Drive Lost & Found matching on a lightweight interval (avoids relying on websocket frames)
   useEffect(() => {
@@ -324,12 +393,15 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
 
   const startStream = () => {
+    // A click here turns the sound on in a browser that keeps it off until a tap.
+    getSoundManager().unlockAudio();
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
   };
 
   const stopStream = () => {
+    stopOwnLostFoundSounds();
     captureRequestedRef.current = false;
     setCaptureRequested(false);
     setVideoSeen(false);
@@ -338,6 +410,98 @@ export default function MonitorPage() {
     if (serverRequestedRef.current) sendMessage({ type: 'stop-stream' });
     serverRequestedRef.current = false;
   };
+
+  // The nap Start Nap Mode handed to this watch, kept in this history entry:
+  // it belongs to this watch, survives a reload and ends with it.
+  const [nap, setNap] = useState<Nap | null>(null);
+
+  // The sound of a movement alert. In a nap it is the alarm, as the nap page
+  // says and its check plays, however small the movement: the Nap preset's
+  // pixel check stops counting at its threshold, so its alerts all read as low.
+  const napRef = useRef<Nap | null>(null);
+  useEffect(() => { napRef.current = nap; }, [nap]);
+  const playMovementSound = useCallback((severity: AlertSeverity) => {
+    if (napRef.current) {
+      // At the effective volume for the alert's level as it plays: the sound
+      // manager's copy of the volume follows quiet hours only every 30 seconds.
+      getSoundManager().playForSeverity('critical', {
+        loop: false,
+        volume: useSettingsStore.getState().getEffectiveVolume(severity),
+        critical: severity === 'critical',
+      });
+      return;
+    }
+    getSoundManager().playForSeverity(severity, { loop: false });
+  }, []);
+
+  // Ending a nap: the Nap preset gives way, as I'm Awake did on the nap screen,
+  // while it is the setting in use; a setting the person chose during the nap
+  // stays.
+  const endNap = () => {
+    setNap(null);
+    setNapWaitsForTap(false);
+    keepNap(null);
+    const settings = useSettingsStore.getState();
+    if (settings.activePresetId === 'infant_sleep') settings.deactivateSleepMode();
+  };
+
+  // The person's Stop, which ends a nap with the watch. A camera failure stops
+  // the watch without ending the nap: its reminder goes on, and End nap ends it.
+  const stopWatching = () => {
+    if (nap) endNap();
+    stopStream();
+  };
+
+  // A watch opened from Nap Mode takes the one-use hand-off, keeps the nap in
+  // this history entry and starts: the person's click on Start Nap Mode, in
+  // this same page, has turned the sound on. A reload or Back finds the kept
+  // nap and waits for a tap: a browser keeps a new page's sound off until one,
+  // so the nap's alarm and reminder could not sound. Resume nap is that tap.
+  // The ref keeps this mount's reading, so React's Strict Mode, which runs the
+  // effect again after the unmount cleanup below has cleared
+  // captureRequestedRef, requests the capture again.
+  const [napWaitsForTap, setNapWaitsForTap] = useState(false);
+  const napArrivalRef = useRef<{ nap: Nap; restored: boolean } | null | undefined>(undefined);
+  useEffect(() => {
+    if (napArrivalRef.current === undefined) {
+      const minutes = takeNapHandoff();
+      if (minutes === null) {
+        const kept = readKeptNap();
+        napArrivalRef.current = kept ? { nap: kept, restored: true } : null;
+      } else {
+        const fresh = { startedAt: Date.now(), minutes };
+        keepNap(fresh);
+        napArrivalRef.current = { nap: fresh, restored: false };
+      }
+    }
+    const arrival = napArrivalRef.current;
+    if (!arrival) return;
+    setNap(arrival.nap);
+    if (arrival.restored) {
+      setNapWaitsForTap(true);
+      return;
+    }
+    captureRequestedRef.current = true;
+    setCaptureRequested(true);
+    setVideoSeen(false);
+  }, []);
+  useEffect(() => { if (captureRequested) setNapWaitsForTap(false); }, [captureRequested]);
+  const resumeNap = () => {
+    setNapWaitsForTap(false);
+    startStream();
+  };
+
+  // Once the nap's planned minutes have passed, the warning plays every 30
+  // seconds until the nap ends, as the nap screen did, whether or not the
+  // camera is running, at the effective volume the watch's alerts use.
+  useEffect(() => {
+    if (!nap) return;
+    const interval = window.setInterval(() => {
+      if (!napTimeIsUp(nap, Date.now())) return;
+      getSoundManager().play('warning', { volume: useSettingsStore.getState().getEffectiveVolume() });
+    }, 30_000);
+    return () => window.clearInterval(interval);
+  }, [nap]);
 
   const handleVideoReady = (video: HTMLVideoElement | null) => {
     videoRef.current = video;
@@ -547,15 +711,21 @@ export default function MonitorPage() {
   const maybeNotify = async (
     title: string,
     body: string,
-    severity: 'low' | 'medium' | 'high' | 'critical'
+    severity: 'low' | 'medium' | 'high' | 'critical',
+    event?: DetectorEvent
   ) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
 
-    // Avoid spamming notifications for low severity
-    const requireInteraction = severity === 'high' || severity === 'critical';
+    // High and critical notifications stay up until dismissed; so do the
+    // notifications of an event that has alerted at high or critical, since
+    // each replaces the one before it.
+    const requireInteraction = event ? keepsNotificationUp(event) : severity === 'high' || severity === 'critical';
     await getNotificationManager().show(title, {
       body,
-      tag: `safeos-${severity}-${title}`,
+      // One tag an event, whatever its severity: a repeat, or a rise in severity,
+      // replaces the event's notification in place of standing beside it, and a
+      // new event's notification stands beside an earlier one that is kept up.
+      tag: event?.notifyTag ? `safeos-${title}-${event.notifyTag}` : `safeos-${title}`,
       // A repeat replaces the earlier notification with the same tag; renotify
       // makes it alert again. Without it the replacement is silent:
       // https://developer.mozilla.org/en-US/docs/Web/API/Notification/Notification
@@ -578,7 +748,10 @@ export default function MonitorPage() {
    * message and time and counts the repeat, while the card is in the list and
    * not acknowledged. The card keeps the event's start as its creation time,
    * so escalation runs once per event. An acknowledged card is left as it is
-   * and the next repeat makes a new one.
+   * and the next repeat makes a new one. Another tab may have cleared,
+   * removed or acknowledged the card: the store checks the saved card as it
+   * writes the repeat, and then the repeat goes on a fresh card, which
+   * becomes the event's card.
    */
   const showDetectorAlert = useCallback((
     event: DetectorEvent,
@@ -593,15 +766,20 @@ export default function MonitorPage() {
       : undefined;
     let id = event.alertId;
     let startedAt = event.startedAt;
-    if (!repeat || !card || card.acknowledged || !id || !startedAt) {
+    const updatesCard = Boolean(repeat && card && !card.acknowledged && id && startedAt);
+    if (!updatesCard || !id || !startedAt) {
       id = newAlertId(source, now);
       startedAt = new Date(now).toISOString();
       event.repeats = 0;
     } else {
-      event.repeats += 1;
+      // The card's own count, which a repeat queued behind a stale card may have moved on.
+      event.repeats = (card?.repeats ?? 0) + 1;
     }
     event.alertId = id;
     event.startedAt = startedAt;
+    // The event's notifications keep one identity until it ends, also when its alerts go on a
+    // new card; random like an alert id, so two tabs never share it.
+    if (!repeat || !event.notifyTag) event.notifyTag = newAlertId(source, now);
     addAlert({
       id,
       streamId: streamId || 'local',
@@ -611,7 +789,7 @@ export default function MonitorPage() {
       timestamp: new Date(now).toISOString(),
       acknowledged: false,
       repeats: event.repeats > 0 ? event.repeats : undefined,
-    });
+    }, updatesCard ? { fresh: freshCardFor(event, () => newAlertId(source, now), now) } : undefined);
   }, [addAlert, streamId]);
 
   const handleMotion = useCallback((score: number) => {
@@ -656,16 +834,17 @@ export default function MonitorPage() {
       `Motion detected: ${best.score}% (threshold: ${best.threshold}% · zone: ${best.name})`,
     );
 
-    getSoundManager().playForTrigger('motion_detected');
-    getSoundManager().playForSeverity(severity, { loop: false });
+    getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
+    playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity);
+    maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity, motionEventRef.current);
   }, [
     isStreaming,
     currentPreset.motionDetectionEnabled,
     currentPreset.motionSensitivity,
     detectionZones,
     getCooldownForSeverity,
+    playMovementSound,
     showDetectorAlert,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
@@ -697,10 +876,10 @@ export default function MonitorPage() {
     );
 
     // Play sound (unless muted)
-    getSoundManager().playForTrigger('audio_detected');
+    getSoundManager().playForTrigger('audio_detected', { critical: severity === 'critical' });
     getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
-    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity);
+    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity, audioEventRef.current);
   }, [isStreaming, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, showDetectorAlert, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
 
   const handlePixel = useCallback((result: PixelDetectionResult) => {
@@ -776,10 +955,10 @@ export default function MonitorPage() {
       `Pixel movement detected${chosenZoneName ? ` in ${chosenZoneName}` : ''}: ${chosenChangedPx}px (threshold: ${chosenThresholdPx}px)`,
     );
 
-    getSoundManager().playForTrigger('motion_detected');
-    getSoundManager().playForSeverity(severity, { loop: false });
+    getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
+    playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity);
+    maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity, pixelEventRef.current);
   }, [
     isStreaming,
     currentPreset.absolutePixelThreshold,
@@ -787,6 +966,7 @@ export default function MonitorPage() {
     currentPreset.useAbsoluteThreshold,
     detectionZones,
     getCooldownForSeverity,
+    playMovementSound,
     showDetectorAlert,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
@@ -835,7 +1015,7 @@ export default function MonitorPage() {
         acknowledged: false,
       });
 
-      getSoundManager().playForTrigger('inactivity_alert');
+      getSoundManager().playForTrigger('inactivity_alert', { critical: soundSeverity === 'critical' });
       getSoundManager().playForSeverity(soundSeverity, { loop: false });
 
       if ('vibrate' in navigator && (severity === 'high' || severity === 'critical')) {
@@ -1036,6 +1216,15 @@ export default function MonitorPage() {
                 )}
               </button>
 
+              {!captureRequested && nap && (
+                <button
+                  onClick={endNap}
+                  className="px-4 py-2 border border-slate-500 text-slate-200 hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  End nap
+                </button>
+              )}
+
               {!captureRequested && (
                 <button
                   onClick={startStream}
@@ -1047,7 +1236,7 @@ export default function MonitorPage() {
 
               {captureRequested && (
                 <button
-                  onClick={stopStream}
+                  onClick={stopWatching}
                   className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
                 >
                   {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
@@ -1060,6 +1249,19 @@ export default function MonitorPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {nap && napWaitsForTap && !captureRequested && (
+          <div role="status" className="mb-6 rounded-xl border border-indigo-400/50 bg-indigo-500/15 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <p className="text-base text-indigo-50 flex-1">
+              This nap stopped watching when the page reloaded, and the browser keeps its sound off until you tap. Resume nap turns the sound on and starts the camera again.
+            </p>
+            <button
+              onClick={resumeNap}
+              className="min-h-[44px] px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
+            >
+              Resume nap
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Camera Feed */}
           <div className="lg:col-span-2">

@@ -457,11 +457,49 @@ describe('Edge term on the enrolled grid', () => {
     const result = matcher.processCanvas(canvasOf(wall));
 
     // Every sample of the wall steps one level right and down, an edge
-    // strength of 4, where a step from black to white is 765. A region is
-    // scaled against an edge strength of at least 32, so the wall's cells read
-    // 13 (4 of 32) where the stripes' read 100.
+    // strength of 4, where a step from black to white is 765. On the scale
+    // where a strength of 255 reads 100, the wall's cells read 2 where the
+    // stripes' read 100.
     expect(result).not.toBeNull();
-    expect(result?.details.edgeMatch).toBe(13);
+    expect(result?.details.edgeMatch).toBe(2);
+  });
+});
+
+describe('Edges on one scale for the subject and the camera', () => {
+  // A flat grey wall with one level of dither, as a camera's noise gives it.
+  const ditheredWall = picture(128, 128, (x, y) => ((x + y) % 2 === 1 ? [129, 129, 129] : [128, 128, 128]));
+  const edgeTerm = (subject: VisualFingerprint, pixels: ImageData): number | undefined => {
+    const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: false, motionPriority: false });
+    matcher.setFingerprint(subject);
+    matcher.setActive(true);
+    return matcher.processCanvas(canvasOf(pixels))?.details.edgeMatch;
+  };
+
+  it('scores the enrolled pixels 100 on edges', () => {
+    expect(edgeTerm(enrol(ditheredWall), ditheredWall)).toBe(100);
+  });
+
+  it('scores the same pixels 100 on edges for a subject saved by the version before', () => {
+    // That version scaled a photo's edges to its own strongest cell, so every
+    // cell of the wall was saved as 100.
+    const savedBefore: VisualFingerprint = {
+      ...enrol(ditheredWall),
+      edgeSignature: new Array(64).fill(100),
+      version: undefined,
+    };
+
+    expect(edgeTerm(savedBefore, ditheredWall)).toBe(100);
+  });
+
+  it('reads camera noise on a blank wall as weak edges, not as strong as black and white stripes', () => {
+    // A blank wall whose noise alternates 8 levels, pixel by pixel.
+    const noisyWall = picture(128, 128, (x, y) => ((x + y) % 2 === 1 ? [136, 136, 136] : [128, 128, 128]));
+
+    // Each sample of the wall steps 8 levels right and down in red, green and
+    // blue, an edge strength of 34 where a step from black to white is 765.
+    // On a scale where a strength of 255 reads 100, the wall reads 13 against
+    // the stripes' 100.
+    expect(edgeTerm(enrol(stripes(128, 128)), noisyWall)).toBe(13);
   });
 });
 
@@ -631,6 +669,115 @@ describe('Adaptive lighting', () => {
     expect(uncorrected?.confidence).toBe(100);
     expect(corrected?.confidence).toBe(100);
     expect(corrected?.details).toEqual(uncorrected?.details);
+  });
+
+  it('corrects a change of light that leaves some cells as they were', () => {
+    // A striped room whose right quarter is a window of sky: 16 of the 64
+    // cells the light is read on. A lamp then brightens the room's 48 cells
+    // by 60 levels, and the window stays as it was.
+    const SKY: Colour = [170, 200, 240];
+    const room = (dark: Colour, light: Colour): ImageData =>
+      picture(128, 128, (x) => (x >= 96 ? SKY : x % 2 === 0 ? dark : light));
+    const before = room([68, 68, 68], [188, 188, 188]);
+    const lampOn = room([128, 128, 128], [248, 248, 248]);
+    const subject = enrol(stripes(128, 128, [68, 68, 68], [188, 188, 188]));
+    const frames = [...times(before, 5), lampOn];
+
+    // Uncorrected, the lit room is short of a full match.
+    expect(watch(subject, frames, false)[5]?.confidence).toBeLessThan(100);
+    // Corrected by the lamp's 60 levels, the room reads as the subject does.
+    expect(watch(subject, frames, true)[5]?.confidence).toBe(100);
+  });
+
+  it('keeps a subject that stays in view out of the scene\'s settled brightness', () => {
+    // A grey room; a light subject over 48 of its 64 cells for 100 frames;
+    // then the subject leaves as the light drops by 20 levels.
+    const room = flat(128, 128, [60, 60, 60]);
+    const visitor = picture(128, 128, (x) => (x < 96 ? [200, 200, 200] : [60, 60, 60]));
+    const dimmed = flat(128, 128, [40, 40, 40]);
+    const subject = enrol(room);
+    const frames = [...times(room, 10), ...times(visitor, 100), dimmed];
+
+    expect(watch(subject, frames, false)[110]?.confidence).toBeLessThan(100);
+    // Moved back by the 20 levels the light dropped, the room reads as it was.
+    expect(watch(subject, frames, true)[110]?.confidence).toBe(100);
+  });
+
+  it('does not brighten or darken a subject that moves across a plain room', () => {
+    // A grey room; a light subject over its left half for 20 frames; then the
+    // subject moves to the right half, in the same light. The cells it left
+    // are back at the room's brightness and judge the light with the rest.
+    const room = flat(128, 128, [60, 60, 60]);
+    const left = picture(128, 128, (x) => (x < 64 ? [200, 200, 200] : [60, 60, 60]));
+    const right = picture(128, 128, (x) => (x >= 64 ? [200, 200, 200] : [60, 60, 60]));
+    const subject = enrol(flat(64, 64, [200, 200, 200]));
+    const frames = [...times(room, 10), ...times(left, 20), right];
+
+    const corrected = watch(subject, frames, true)[30];
+    const uncorrected = watch(subject, frames, false)[30];
+    expect(uncorrected).not.toBeNull();
+    expect(corrected?.confidence).toBe(uncorrected?.confidence);
+    expect(corrected?.details).toEqual(uncorrected?.details);
+  });
+
+  it('corrects a change of light while a subject covers all but 15 cells', () => {
+    // A grey room; a light subject over 49 of its 64 cells; then the light
+    // drops by 20 levels on the room and on the subject.
+    const covers = (x: number, y: number): boolean => x < 96 || (x < 112 && y < 16);
+    const room = flat(128, 128, [60, 60, 60]);
+    const visitor = picture(128, 128, (x, y) => (covers(x, y) ? [200, 200, 200] : [60, 60, 60]));
+    const dimmed = picture(128, 128, (x, y) => (covers(x, y) ? [180, 180, 180] : [40, 40, 40]));
+    const subject = enrol(room);
+    const frames = [...times(room, 10), ...times(visitor, 20), dimmed];
+
+    expect(watch(subject, frames, false)[30]?.confidence).toBeLessThan(100);
+    // Moved back by the 20 levels the 15 room cells dropped, the room reads as it was.
+    expect(watch(subject, frames, true)[30]?.confidence).toBe(100);
+  });
+
+  it('keeps a subject that comes into view as the room brightens out of the settled brightness', () => {
+    // A grey room brightens by 30 levels as a light subject comes into view
+    // over its middle 16 cells.
+    const room = flat(128, 128, [60, 60, 60]);
+    const brighter = centredBlock(128, 128, [90, 90, 90], [200, 200, 200]);
+    const matcher = new SubjectMatcher({ minConfidenceForRecord: 0, adaptiveLighting: true, motionPriority: false });
+    matcher.setFingerprint(enrol(room));
+    matcher.setActive(true);
+    for (const frame of [...times(room, 10), brighter]) {
+      matcher.processFrame(videoOf(frame));
+    }
+    const settled = (matcher as unknown as { sceneBrightness: ArrayLike<number> }).sceneBrightness;
+
+    // A room cell takes in its share of the change of light.
+    expect(settled[0]).toBeCloseTo(60 + 30 * 0.02, 6);
+    // A cell of the subject (row 3, column 3) keeps the room's settled brightness.
+    expect(settled[3 * 8 + 3]).toBe(60);
+  });
+
+  it('reads the light into the same buffers on every frame', () => {
+    // A scene unlike the subject: the gate turns every frame away.
+    const matcher = new SubjectMatcher({ adaptiveLighting: true, motionPriority: false });
+    matcher.setFingerprint(enrol(flat(128, 128, [200, 30, 30])));
+    matcher.setActive(true);
+    const scene = flat(128, 128, [30, 30, 200]);
+    type LightingBuffers = { sceneBrightness?: unknown; cellBrightness?: unknown; lightingDifferences?: unknown };
+    const buffers = (): unknown[] => {
+      const state = matcher as unknown as LightingBuffers;
+      return [state.sceneBrightness, state.cellBrightness, state.lightingDifferences];
+    };
+
+    matcher.processFrame(videoOf(scene));
+    matcher.processFrame(videoOf(scene));
+    const first = buffers();
+    for (let frame = 0; frame < 5; frame++) {
+      expect(matcher.processFrame(videoOf(scene))).toBeNull();
+    }
+    const later = buffers();
+
+    first.forEach((buffer, i) => {
+      expect(buffer).toBeDefined();
+      expect(later[i]).toBe(buffer);
+    });
   });
 });
 

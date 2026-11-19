@@ -16,7 +16,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { PresetId } from '../stores/settings-store';
+import { DEFAULT_PRESETS, useSettingsStore, type PresetId } from '../stores/settings-store';
 
 // =============================================================================
 // Types
@@ -46,6 +46,12 @@ export interface ScheduleState {
   schedules: Schedule[];
   activeScheduleId: string | null;
   schedulingEnabled: boolean;
+  /**
+   * The set time whose setting the check last put on: its id, its setting and
+   * the day it began. Saved, so a reload inside the same set time leaves the
+   * person's own changes.
+   */
+  appliedSetTime: string | null;
 
   // Actions
   addSchedule: (schedule: Omit<Schedule, 'id' | 'createdAt' | 'updatedAt'>) => string;
@@ -109,9 +115,9 @@ function generateId(): string {
   return `sched_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-function getCurrentDayOfWeek(): DayOfWeek {
+function getCurrentDayOfWeek(at: Date = new Date()): DayOfWeek {
   const days: DayOfWeek[] = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-  return days[new Date().getDay()];
+  return days[at.getDay()];
 }
 
 function parseTime(time: string): { hours: number; minutes: number } {
@@ -134,13 +140,68 @@ function isTimeInRange(current: Date, start: string, end: string): boolean {
   return now >= startMinutes && now < endMinutes;
 }
 
+/**
+ * The day the stretch of `schedule` in force at `now` began, or null when it is
+ * not in force. An overnight set time (22:00 to 06:00) that begins on Monday
+ * lasts into Tuesday morning: its days name the day it begins.
+ */
+function stretchStartDay(schedule: Schedule, now: Date): Date | null {
+  if (!schedule.enabled) return null;
+  if (!isTimeInRange(now, schedule.timeSlot.start, schedule.timeSlot.end)) return null;
+
+  const start = parseTime(schedule.timeSlot.start);
+  const startMinutes = start.hours * 60 + start.minutes;
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  // Before the start time, the stretch in force is an overnight one that began the day before.
+  const day = minutes >= startMinutes ? now : new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+  return schedule.days.includes(getCurrentDayOfWeek(day)) ? day : null;
+}
+
 export function isScheduleActive(schedule: Schedule, now: Date = new Date()): boolean {
-  if (!schedule.enabled) return false;
+  return stretchStartDay(schedule, now) !== null;
+}
 
-  const currentDay = getCurrentDayOfWeek();
-  if (!schedule.days.includes(currentDay)) return false;
+/** Whether `preset` names a setting the app has. */
+export function isPresetId(preset: unknown): preset is PresetId {
+  return typeof preset === 'string' && Object.prototype.hasOwnProperty.call(DEFAULT_PRESETS, preset);
+}
 
-  return isTimeInRange(now, schedule.timeSlot.start, schedule.timeSlot.end);
+/** The set time in force at `now` with the highest priority, or null. */
+export function activeScheduleAt(schedules: Schedule[], now: Date): Schedule | null {
+  return schedules
+    .filter((s) => isScheduleActive(s, now))
+    .sort((a, b) => b.priority - a.priority)[0] || null;
+}
+
+/**
+ * One check of the set times. A set time's setting goes on once each time the
+ * set time begins, when the app opens inside one it has not put on, when the
+ * set time in force is edited to another setting, and when set times are
+ * turned back on inside one. Between those the person's own changes stay. A
+ * setting the app does not have is never put on.
+ *
+ * @returns the setting to put on (or null), and the record to keep of it
+ */
+export function setTimeStep(
+  schedules: Schedule[],
+  schedulingEnabled: boolean,
+  appliedSetTime: string | null,
+  now: Date,
+): { preset: PresetId | null; appliedKey: string | null } {
+  if (!schedulingEnabled) return { preset: null, appliedKey: null };
+  const active = activeScheduleAt(schedules, now);
+  const day = active && stretchStartDay(active, now);
+  if (!active || !day) return { preset: null, appliedKey: null };
+
+  // The hours are in the record too, so an edit to them puts the setting on again.
+  const key = `${active.id}|${active.preset}|${active.timeSlot.start}-${active.timeSlot.end}|${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
+  // The record holds, for each set time, the occurrence last put on, one a line. A set time
+  // in force again after an overlapping one ends was put on already, and the person's change
+  // stays; an edit of its hours or its setting, also back to a setting it had, is put on.
+  const applied = appliedSetTime ? appliedSetTime.split('\n') : [];
+  if (applied.includes(key) || !isPresetId(active.preset)) return { preset: null, appliedKey: appliedSetTime };
+  const kept = applied.filter((k) => !k.startsWith(`${active.id}|`) && schedules.some((s) => k.startsWith(`${s.id}|`)));
+  return { preset: active.preset, appliedKey: [...kept, key].join('\n') };
 }
 
 export function getNextScheduleChange(schedules: Schedule[]): Date | null {
@@ -204,6 +265,7 @@ export const useScheduleStore = create<ScheduleState>()(
       schedules: [],
       activeScheduleId: null,
       schedulingEnabled: true,
+      appliedSetTime: null,
 
       addSchedule: (scheduleData) => {
         const id = generateId();
@@ -250,18 +312,16 @@ export const useScheduleStore = create<ScheduleState>()(
       },
 
       setSchedulingEnabled: (enabled) => {
-        set({ schedulingEnabled: enabled });
+        // Turned off, the set time in force is forgotten, so turning set times
+        // back on inside it puts its setting on again.
+        set(enabled ? { schedulingEnabled: true } : { schedulingEnabled: false, appliedSetTime: null });
       },
 
       getActiveSchedule: () => {
         const { schedules, schedulingEnabled } = get();
         if (!schedulingEnabled) return null;
 
-        const activeSchedules = schedules
-          .filter((s) => isScheduleActive(s))
-          .sort((a, b) => b.priority - a.priority);
-
-        return activeSchedules[0] || null;
+        return activeScheduleAt(schedules, new Date());
       },
 
       checkSchedules: () => {
@@ -278,6 +338,7 @@ export const useScheduleStore = create<ScheduleState>()(
       partialize: (state) => ({
         schedules: state.schedules,
         schedulingEnabled: state.schedulingEnabled,
+        appliedSetTime: state.appliedSetTime,
       }),
     }
   )
@@ -287,32 +348,36 @@ export const useScheduleStore = create<ScheduleState>()(
 // Hook for schedule checking
 // =============================================================================
 
-import { useEffect, useCallback } from 'react';
-import { useSettingsStore } from '../stores/settings-store';
+import { useEffect } from 'react';
 
+/**
+ * Applies set times. Mounted once, in the app's providers, so a set time
+ * applies on every page. It checks once a minute and whenever the set times or
+ * their switch change; setTimeStep decides when a setting goes on.
+ */
 export function useScheduleChecker() {
-  const { checkSchedules, schedulingEnabled, activeScheduleId } = useScheduleStore();
-  const { setActivePreset } = useSettingsStore();
-
-  const runCheck = useCallback(() => {
-    if (!schedulingEnabled) return;
-
-    const activeSchedule = checkSchedules();
-
-    if (activeSchedule) {
-      setActivePreset(activeSchedule.preset);
-    }
-  }, [checkSchedules, schedulingEnabled, setActivePreset]);
+  const activeScheduleId = useScheduleStore((state) => state.activeScheduleId);
 
   useEffect(() => {
-    // Initial check
+    const runCheck = () => {
+      const schedules = useScheduleStore.getState();
+      // Keeps the set time in force marked on the Quiet Hours page.
+      schedules.checkSchedules();
+      const step = setTimeStep(schedules.schedules, schedules.schedulingEnabled, schedules.appliedSetTime, new Date());
+      if (step.appliedKey !== schedules.appliedSetTime) useScheduleStore.setState({ appliedSetTime: step.appliedKey });
+      if (step.preset) useSettingsStore.getState().setActivePreset(step.preset);
+    };
+
     runCheck();
-
-    // Check every minute
-    const interval = setInterval(runCheck, 60000);
-
-    return () => clearInterval(interval);
-  }, [runCheck]);
+    const interval = setInterval(runCheck, 60_000);
+    const unsubscribe = useScheduleStore.subscribe((state, previous) => {
+      if (state.schedules !== previous.schedules || state.schedulingEnabled !== previous.schedulingEnabled) runCheck();
+    });
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, []);
 
   return { activeScheduleId };
 }

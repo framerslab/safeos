@@ -50,9 +50,11 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # Every job runs on ubuntu-24.04: ubuntu-latest moved to Ubuntu 26.04, where the
+  # Playwright this app uses does not install its browsers.
   publish:
     name: Build ${{ github.event_name == 'pull_request' && 'only' || '& push' }} (${{ matrix.image }})
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: read

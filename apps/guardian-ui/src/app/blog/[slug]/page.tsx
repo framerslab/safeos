@@ -14,7 +14,6 @@ import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 import {
   IconChevronLeft,
   IconClock,
-  IconUser,
   IconExternalLink,
 } from '../../../components/icons';
 import { NotAMedicalDevice } from '../../../components/NotAMedicalDevice';
@@ -51,36 +50,30 @@ export function generateStaticParams() {
 const blogContent: Record<string, BlogContent> = {
   'how-safeos-guardian-works': {
     slug: 'how-safeos-guardian-works',
-    title: 'How SafeOS Guardian works: motion-gated browser AI that doesn\'t burn your laptop',
+    title: 'How SafeOS Guardian checks for motion before it runs a model',
     description:
-      'Walking through the safeos.sh pipeline file by file. 200 ms motion screening, COCO-SSD gated on motion, Lost & Found colour matching. TensorFlow.js running in a browser, by design.',
+      'The browser compares camera frames every 200 ms and runs the detection model when something moves. This post goes through the code: the motion check, the model, the sound check and the Lost & Found matcher.',
     date: 'January 10, 2026',
-    author: 'Johnny Dunn',
+    author: 'Frame.dev Team',
     readTime: '8 min read',
     tags: ['technical', 'architecture', 'tensorflow.js', 'on-device-ai'],
     content: (
       <>
         <p className="lead">
-          A few years ago, running real-time computer vision in a browser was a thought experiment.
-          You&apos;d see a demo at a conference, somebody&apos;d fire up a Codepen, the laptop fan
-          would scream, and you&apos;d nod and move on. As of mid-2025, SafeOS Guardian ships exactly
-          that &mdash; a Progressive Web App that runs COCO-SSD on a user&apos;s laptop or phone,
-          no cloud round-trip &mdash; and the fan stays quiet. Here&apos;s how.
+          SafeOS Guardian watches a room from the browser of a phone, tablet or laptop. It compares
+          camera frames with plain arithmetic, and on the Security and Wildlife pages it runs an
+          object-detection model when something moves. This post goes through the code that does it.
         </p>
 
-        <h2>The two-tier pipeline</h2>
+        <h2>A check first, the model second</h2>
 
         <p>
-          Every frame goes through a cheap screening layer. Only triggered frames go to the
-          expensive deep-learning models. That single design choice &mdash; gating CV inference on
-          motion + audio + pixel-change thresholds &mdash; is the difference between &quot;browser AI
-          is theoretically possible&quot; and &quot;browser AI runs all night on a phone without
-          melting the battery.&quot;
+          Every frame goes through a cheap check first. A frame goes on to the detection model when
+          its motion level crosses the threshold, so the model stays idle while the room is still.
         </p>
 
         <p>
-          Concretely: the screening layer is a <code>setInterval</code> loop at 200 ms running
-          pixel-diff motion detection plus a{' '}
+          The check is a <code>setInterval</code> loop that compares pixels every 200 ms, and a{' '}
           <a
             href="https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode"
             target="_blank"
@@ -89,8 +82,8 @@ const blogContent: Record<string, BlogContent> = {
           >
             Web Audio AnalyserNode
           </a>{' '}
-          FFT at 100 ms. Both are pure math on the CPU. No GPU context, no model loading, no
-          service worker thrash. The intervals are constants in{' '}
+          that reads the sound&apos;s frequencies every 100 ms. Both are arithmetic on the CPU, and
+          neither loads a model. The intervals are constants in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/components/CameraFeed.tsx"
             target="_blank"
@@ -99,7 +92,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             <code>CameraFeed.tsx</code>
           </a>{' '}
-          at lines 73&ndash;75:
+          at lines 74&ndash;76:
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
@@ -111,8 +104,7 @@ const blogContent: Record<string, BlogContent> = {
         <h2>The gate</h2>
 
         <p>
-          Object detection waits for the screening layer to say &quot;something happened.&quot; The
-          gate is two lines in{' '}
+          Object detection waits for the check to report a change. The gate is in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
             target="_blank"
@@ -125,7 +117,8 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
-          <div className="text-slate-500">{`// lines 260-265: only run AI detection if motion was detected`}</div>
+          <div className="text-slate-500">{`// lines 258-264: run detection when the motion level crosses its threshold`}</div>
+          <div className="text-emerald-400">const motionTriggered = motionLevel &gt;= this.config.motionThreshold;</div>
           <div className="text-emerald-400">if (!motionTriggered) return null;</div>
         </div>
 
@@ -141,7 +134,7 @@ const blogContent: Record<string, BlogContent> = {
         <h2>One model in the browser</h2>
 
         <p>
-          Primary detector: a quantized{' '}
+          Primary detector: a pre-trained{' '}
           <a
             href="https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd"
             target="_blank"
@@ -150,7 +143,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             COCO-SSD
           </a>{' '}
-          via{' '}
+          on SSDLite MobileNet V2, its 4.5 million weights stored as 32-bit floats, run via{' '}
           <a
             href="https://www.tensorflow.org/js"
             target="_blank"
@@ -166,7 +159,7 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <p>
-          For really hard scenes, the optional SafeOS server you run yourself can send frames to a
+          For harder scenes, the optional SafeOS server you run yourself can send frames to a
           local{' '}
           <a
             href="https://ollama.com"
@@ -176,12 +169,12 @@ const blogContent: Record<string, BlogContent> = {
           >
             Ollama
           </a>{' '}
-          install on the same LAN &mdash; moondream, llava:7b, or llama3.2-vision &mdash; for richer
-          scene reasoning. If you also give that server your own OpenAI / Anthropic / Gemini key, it
+          install on the same network (moondream, llava:7b or llama3.2-vision), which describes the
+          scene in words. If you also give that server your own OpenAI / Anthropic / Gemini key, it
           sends a frame to that provider when the local analysis is unavailable.
         </p>
 
-        <h2>Audio FFT, not an audio model</h2>
+        <h2>The sound check</h2>
 
         <p>
           The sound alert needs no model. The Web Audio API&apos;s{' '}
@@ -194,15 +187,15 @@ const blogContent: Record<string, BlogContent> = {
 
         <NotAMedicalDevice />
 
-        <h2>Lost &amp; Found: colours, not identity</h2>
+        <h2>How Lost &amp; Found compares</h2>
 
         <p>
-          The matcher doesn&apos;t use a deep model at all. Reference photos reduce to three
+          The matcher uses no trained model. Each reference photo reduces to three
           signatures: a 32-bin color histogram, the top-5 dominant colors via k-means, and an 8&times;8
-          grid of edge strengths taken from differences between neighbouring pixels. Total: under
-          1 KB per reference photo. The matcher samples the live feed at 1&ndash;2 FPS, scores each
+          grid of edge strengths taken from differences between neighbouring pixels. Together they
+          take under 1 KB a photo. The matcher samples the live feed at 1&ndash;2 FPS, scores each
           frame on average colour first, then region by region on a weighted mix: histogram 40%,
-          dominant colours 35%, edges 15%, size 10%. Code:{' '}
+          dominant colours 35%, edges 15%, size 10%. The code is in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/visual-fingerprint.ts"
             target="_blank"
@@ -215,10 +208,9 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <p>
-          What that means: it matches colours and a coarse outline, so it cannot tell your dog from
-          another dog of the same colour. In exchange there is no model to keep updated, and it is
-          cheap, transparent, and runs at sample rate.
-          The full Lost &amp; Found loop lives in{' '}
+          It matches colours and a coarse outline, so it cannot tell your dog from another dog of the
+          same colour. It needs no model download, and it costs little enough to run on every
+          sample. The Lost &amp; Found loop is in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/app/monitor/page.tsx"
             target="_blank"
@@ -230,62 +222,7 @@ const blogContent: Record<string, BlogContent> = {
           around lines 258&ndash;271.
         </p>
 
-        <h2>Same philosophy as AgentOS</h2>
-
-        <p>
-          SafeOS isn&apos;t the only thing{' '}
-          <a
-            href="https://frame.dev"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:text-emerald-300"
-          >
-            Frame
-          </a>{' '}
-          ships under the &quot;local-first AI&quot; banner.{' '}
-          <a
-            href="https://agentos.sh"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:text-emerald-300"
-          >
-            AgentOS
-          </a>{' '}
-          is the agent runtime side &mdash; same idea, different domain. AgentOS&apos;s memory
-          layer is{' '}
-          <a
-            href="https://docs.agentos.sh/features/cognitive-memory"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:text-emerald-300"
-          >
-            grounded in cognitive science
-          </a>{' '}
-          instead of throwing a fixed-window context buffer at the LLM and hoping, and it{' '}
-          <a
-            href="https://agentos.sh/en/blog/agentos-memory-sota-longmemeval/"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:text-emerald-300"
-          >
-            scores 85.6% on LongMemEval-S
-          </a>{' '}
-          (+1.4 over Mastra) at under $0.009 per correct retrieval with GPT-4o. AgentOS&apos;s
-          tool-forging is gated on a similar &quot;only when needed&quot; principle as SafeOS&apos;s
-          CV inference:{' '}
-          <a
-            href="https://docs.agentos.sh/features/emergent-capabilities"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:text-emerald-300"
-          >
-            agents create Zod-validated functions on demand
-          </a>
-          , then reuse them in a sandboxed V8 context. Same instinct: don&apos;t pay the cost until
-          you need to.
-        </p>
-
-        <h2>The state management is boring</h2>
+        <h2>State and storage</h2>
 
         <p>
           State is{' '}
@@ -296,19 +233,18 @@ const blogContent: Record<string, BlogContent> = {
             className="text-emerald-400 hover:text-emerald-300"
           >
             Zustand
-          </a>{' '}
-          (lightweight; its persist middleware writes settings to localStorage, and saved frames
-          and alerts go to IndexedDB) and the UI is Next.js 14 + React 18
-          + Tailwind. No magic. The interesting parts of the codebase are the pipeline files in{' '}
-          <code>src/lib/</code>, not the React shell.
+          </a>
+          : its persist middleware writes settings to localStorage, and saved frames and alerts go
+          to IndexedDB. The interface is Next.js 14, React 18 and Tailwind. The files that do the
+          watching are in <code>src/lib/</code>.
         </p>
 
-        <h2>What&apos;s broken</h2>
+        <h2>Known limits</h2>
 
         <p>
-          PWA install on iOS is still rough &mdash; Safari&apos;s installation flow isn&apos;t
-          great, and background audio capture has well-known limits. The detection model is an{' '}
-          {MODEL_SIZE_MB} MB download, so on a slow connection the first Security or Wildlife start is slow.
+          On iOS, installing the app goes through Safari&apos;s Share menu, and listening in the
+          background is limited. The detection model is an {MODEL_SIZE_MB} MB download, so on a slow
+          connection the first Security or Wildlife start is slow.
           The Lost &amp; Found matcher compares colours, not identity, so another animal or an object
           of the same colour also matches. Most of these are tracked in{' '}
           <a
@@ -323,11 +259,7 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <p>
-          The honest version is: SafeOS is rough, occasionally inelegant, and runs on engineering
-          decisions I&apos;m going to second-guess in six months. But it works, it&apos;s free,
-          it&apos;s MIT-licensed, and it doesn&apos;t send your camera feed to a stranger&apos;s
-          server. The most consequential of those decisions is the motion gate that keeps the GPU
-          idle, and its code is in{' '}
+          The motion gate keeps the model idle while nothing moves. Its code is in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
             target="_blank"
@@ -339,7 +271,7 @@ const blogContent: Record<string, BlogContent> = {
           .
         </p>
 
-        <p className="text-slate-500 italic">&mdash; Johnny Dunn, Frame</p>
+        <p className="text-slate-500 italic">&mdash; The Frame.dev Team</p>
       </>
     ),
   },
@@ -419,6 +351,7 @@ export default function BlogArticlePage({
             author: {
               '@type': 'Organization',
               name: post.author,
+              url: 'https://frame.dev',
             },
             publisher: {
               '@type': 'Organization',
@@ -490,7 +423,7 @@ export default function BlogArticlePage({
               {post.date}
             </span>
             <span className="flex items-center gap-1">
-              <IconUser size={14} />
+              <Image src="/logos/frame.svg" alt="" width={14} height={14} />
               {post.author}
             </span>
             <span>{post.readTime}</span>
@@ -517,14 +450,14 @@ export default function BlogArticlePage({
             <div>
               <p className="font-medium text-white">Frame.dev Team</p>
               <p className="text-sm text-slate-400">
-                Building tools for humanity.{' '}
+                Frame makes SafeOS and AgentOS.{' '}
                 <a
                   href="https://frame.dev"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-emerald-400 hover:text-emerald-300"
                 >
-                  Learn more →
+                  frame.dev
                 </a>
               </p>
             </div>

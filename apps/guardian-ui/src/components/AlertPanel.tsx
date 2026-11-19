@@ -13,6 +13,7 @@ import { useMonitoringStore, type Alert } from '../stores/monitoring-store';
 import { isStaticMode, getApiUrl } from '../lib/env';
 import { useSettingsStore } from '../stores/settings-store';
 import { getSoundManager, type SoundType } from '../lib/sound-manager';
+import { cardTime } from '../lib/alert-event';
 import {
   IconInfo,
   IconBell,
@@ -109,7 +110,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
 
     const cfgByLevel = new Map(sortedLevels.map((l) => [l.level, l]));
 
-    const playLevel = (level: number) => {
+    const playLevel = (level: number, alert: Alert) => {
       const cfg = cfgByLevel.get(level);
       if (!cfg) return;
 
@@ -117,11 +118,15 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
       // below starts and stops for every alert at that level together.
       if (level >= maxLevel) return;
 
+      // The alert's own level sets its volume: quiet hours in Emergency Only
+      // sound a critical alert and silence the others.
+      const critical = alert.severity === 'critical';
+      const alertVolume = useSettingsStore.getState().getEffectiveVolume(alert.severity);
       const soundType = cfg.soundType as SoundType;
-      if (muted || effectiveVolume <= 0) return;
+      if (muted || alertVolume <= 0) return;
 
-      const volume = Math.max(0, Math.min(100, effectiveVolume * cfg.volumeMultiplier));
-      getSoundManager().play(soundType, { loop: false, volume });
+      const volume = Math.max(0, Math.min(100, alertVolume * cfg.volumeMultiplier));
+      getSoundManager().play(soundType, { loop: false, volume, critical });
     };
 
     const tick = () => {
@@ -140,7 +145,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
         nextLevels.set(alert.id, nextLevel);
 
         if (nextLevel > prevLevel) {
-          playLevel(nextLevel);
+          playLevel(nextLevel, alert);
         }
       }
 
@@ -264,6 +269,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
         {latestAlert && (
           <span>
             New {latestAlert.severity} alert: {latestAlert.message}.
+            {/* A repeat often keeps the reading and severity; its count changes the words, so it is read. */}
+            {(latestAlert.repeats ?? 0) > 0 &&
+              ` Repeated ${latestAlert.repeats} ${latestAlert.repeats === 1 ? 'time' : 'times'}.`}
             {unacknowledgedAlerts.length > 1 &&
               ` ${unacknowledgedAlerts.length} total unacknowledged alerts.`}
           </span>
@@ -343,7 +351,7 @@ function AlertCard({ alert, escalationLevel, onAcknowledge }: AlertCardProps) {
   const IconComponent = SEVERITY_ICONS[alert.severity];
   // A card that counts repeats shows the time of its newest alert.
   const repeats = alert.repeats ?? 0;
-  const alertTime = (repeats > 0 && alert.timestamp) || alert.createdAt || alert.timestamp || new Date().toISOString();
+  const alertTime = cardTime(alert) || new Date().toISOString();
   const timeAgo = getTimeAgo(alertTime);
 
   // Escalation indicator
@@ -450,7 +458,7 @@ function AcknowledgedSection({ alerts }: AcknowledgedSectionProps) {
                 })()}
                 <span className="text-slate-300 truncate">{alert.message}</span>
                 <span className="text-xs text-slate-500 ml-auto">
-                  {getTimeAgo(alert.createdAt || alert.timestamp || new Date().toISOString())}
+                  {getTimeAgo(cardTime(alert) || new Date().toISOString())}
                 </span>
               </div>
             </div>
