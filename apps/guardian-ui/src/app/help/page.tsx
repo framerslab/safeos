@@ -306,18 +306,6 @@ export default function HelpPage() {
                       </div>
                     </div>
                   </div>
-
-                  <div className="mt-8">
-                    <Link
-                      href="/tutorial"
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
-                    >
-                      Start Interactive Tutorial
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </Link>
-                  </div>
                 </div>
 
                 {/* Integrations CTA */}
