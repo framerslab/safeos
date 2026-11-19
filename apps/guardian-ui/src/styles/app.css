@@ -1445,3 +1445,73 @@ html[data-app-started='true'] .needs-script {
     height: 100%;
   }
 }
+
+/* =============================================================================
+   The dashboard's layout
+   ============================================================================= */
+
+/* The widths are the home page's (.home-wrap in visitor.css), so the app and
+   the home page share one grid. On a phone the watching state's own 16 px
+   top padding is the gap under the top bar. */
+.dash {
+  width: 100%;
+  margin-inline: auto;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
+}
+
+/* Tablet: one column of 704 px at most. */
+@media (min-width: 48em) {
+  .dash {
+    max-width: 48rem;
+    padding: 16px max(32px, env(safe-area-inset-right, 0px)) 48px max(32px, env(safe-area-inset-left, 0px));
+  }
+}
+
+/* Desktop: the header row's 1200 px with its two 32 px gutters, in 12
+   columns: the watching state in the left 7, the ways in the right 5, and
+   Since you last looked across all 12 under them. */
+@media (min-width: 64em) {
+  .dash {
+    max-width: 79rem;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  .dash > .dash-state {
+    grid-column: 1 / span 7;
+  }
+
+  .dash > .ways {
+    grid-column: 8 / span 5;
+    margin-top: 0;
+  }
+
+  .dash > .since {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Wide: the header row's 1320 px with its two 64 px gutters. The three parts
+   stand side by side in one row: 5, 4 and 3 columns. */
+@media (min-width: 90em) {
+  .dash {
+    max-width: 90.5rem;
+    column-gap: 32px;
+    padding-left: max(64px, env(safe-area-inset-left, 0px));
+    padding-right: max(64px, env(safe-area-inset-right, 0px));
+  }
+
+  .dash > .dash-state {
+    grid-column: 1 / span 5;
+  }
+
+  .dash > .ways {
+    grid-column: 6 / span 4;
+  }
+
+  .dash > .since {
+    grid-column: 10 / span 3;
+  }
+}
