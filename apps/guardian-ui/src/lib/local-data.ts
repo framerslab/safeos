@@ -25,7 +25,7 @@ export async function clearLocalData(options: { preserveBackendConfig?: boolean 
   // Stop producers before clearing their records and persisted state.
   getSoundManager().stopAll();
   getSoundManager().stopCustomSounds();
-  useScheduleStore.setState({ schedules: [], activeScheduleId: null, schedulingEnabled: true });
+  useScheduleStore.setState({ schedules: [], activeScheduleId: null, schedulingEnabled: true, appliedSetTime: null });
   useThemeStore.getState().setThemeMode('system');
   useThemeStore.getState().resetAccessibility();
   useMonitoringStore.getState().reset();

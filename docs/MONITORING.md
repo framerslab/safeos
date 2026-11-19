@@ -80,6 +80,47 @@ for a while) removes **LIVE**, shows **Camera paused**, sets the stream to
 its own. An ended or muted microphone stops audio analysis and shows a warning while
 video monitoring continues.
 
+## What the settings change on the watch
+
+**Settings > Detection** lists the four uses with their Motion and Audio
+sensitivity. A use with nothing saved for it shows the setting's values, the
+ones a watch for that use runs at (80 and 80 on Maximum Alert, the setting a new
+device starts on). Moving a use's slider saves that value for the use; **Reset
+to defaults** clears it, and the use shows the setting's values again.
+
+Under **Audio Frequency Filtering** the sound check reads the Audio level from
+the pitches chosen: **Custom Range** reads the two pitches set below it and
+the baby cry choice reads 300 to 600 Hz. The level is the loudness in the
+analyser's bins inside the range, so a sound well outside it leaves the level near 0.
+The analyser applies a Blackman window before its transform, so a tone just outside an
+edge spreads into the nearest bin inside the range and can raise the level a little.
+With a range set the analyser uses 2,048 points (about 23 Hz a bin at 48 kHz) in
+place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
+read every pitch.
+
+**Scheduled Presets** on **Settings > Quiet Hours** apply on every page: the app
+checks once a minute and whenever a set time or the Scheduled Presets switch
+changes. A set time's setting goes on once each time the set time begins, and
+when the app opens inside a set time it has not yet put on, after any saved
+preferences are read. It goes on again when the set time in force is edited to
+another setting, or when Scheduled Presets are turned off and on again during
+it. Changes made while it lasts stay, a reload included, until the next set time
+begins. An overnight set time (22:00 to 06:00) lasts into the next morning; its
+days name the day it begins. A new set time's form opens on Maximum Alert, and a
+set time that names a setting the app does not have puts nothing on.
+
+A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
+**Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
+sound is on. With Lost & Found's custom media on, the full-screen media takes the
+built-in sound's place: the saved sounds play and the built-in alert sound does not. A saved sound that still plays is not started again by the next
+matching frame, and it stops when the watch stops, when Lost & Found stops
+watching or its pet changes, and when the page closes.
+
+A saved sound for any alert plays nothing when the alert's volume is 0: in
+Silent quiet hours, in Emergency Only quiet hours for an alert that is not
+critical, and with the alert volume at 0. Emergency mode and the Emergency
+trigger always play.
+
 ## When an alert comes again
 
 Monitor has three detectors: motion, sound and pixel change. Each detector's event

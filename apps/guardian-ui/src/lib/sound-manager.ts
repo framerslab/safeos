@@ -58,6 +58,11 @@ export interface PlayOptions {
   fadeOut?: number;         // Override default fade
   onEnd?: () => void;       // Callback when sound ends
   forceMaxVolume?: boolean; // Ignore user volume, play at 100%
+  /**
+   * The sound is a critical alert's: it follows the critical volume, which
+   * quiet hours in Emergency Only keep at the alert volume.
+   */
+  critical?: boolean;
 }
 
 interface ActiveSound {
@@ -79,6 +84,8 @@ interface ActiveSound {
   stopping?: boolean;
   /** The volume named when a one-shot sound was played, which it keeps until it ends. */
   namedVolume?: number;
+  /** A critical alert's sound, which follows the critical volume. */
+  critical?: boolean;
 }
 
 interface Fade {
@@ -286,6 +293,8 @@ const SEVERITY_VOLUME_MULTIPLIER: Record<AlertSeverity, number> = {
 class SoundManager {
   private activeSounds: Map<string, ActiveSound> = new Map();
   private userVolume: number = 70;  // 0-100, user preference
+  /** The volume of a critical alert's sound, 0-100: the user volume, except in Emergency Only quiet hours. */
+  private criticalVolume: number = 70;
   private globalMute: boolean = false;
   private emergencyModeActive: boolean = false;
   private isInitialized: boolean = false;
@@ -313,8 +322,28 @@ class SoundManager {
   setUserVolume(volume: number): void {
     const previous = this.userVolume;
     this.userVolume = Math.max(0, Math.min(100, volume));
-    const changed = this.userVolume !== previous;
+    this.applyVolumes(this.userVolume !== previous);
+  }
 
+  /**
+   * Set the volume a critical alert's sound plays at (0-100)
+   */
+  setCriticalVolume(volume: number): void {
+    const previous = this.criticalVolume;
+    this.criticalVolume = Math.max(0, Math.min(100, volume));
+    this.applyVolumes(this.criticalVolume !== previous);
+  }
+
+  getCriticalVolume(): number {
+    return this.criticalVolume;
+  }
+
+  /** The base volume a sound follows: the critical volume for a critical alert's sound, else the user volume. */
+  private baseVolumeOf(critical: boolean | undefined): number {
+    return critical ? this.criticalVolume : this.userVolume;
+  }
+
+  private applyVolumes(changed: boolean): void {
     // Update volume of currently playing sounds (except emergency). A fade in
     // ends at the new volume. A sound fading out to stop ends at once when the
     // volume changes, so volume 0 is silent from this call on.
@@ -449,7 +478,7 @@ class SoundManager {
     this.watch(context);
 
     // Calculate volume
-    let volume = this.calculateVolume(type, options.volume);
+    let volume = this.calculateVolume(type, options.volume, this.baseVolumeOf(options.critical));
     if (options.forceMaxVolume || this.emergencyModeActive || type === 'emergency') {
       volume = 1.0;
     }
@@ -489,6 +518,7 @@ class SoundManager {
       // A one-shot sound keeps the volume it was played at. A loop follows the
       // user volume, so turning the volume down reaches a sound that plays on.
       namedVolume: loop ? undefined : options.volume,
+      critical: options.critical,
     };
     this.activeSounds.set(id, activeSound);
 
@@ -515,11 +545,13 @@ class SoundManager {
     const type = SEVERITY_SOUND_MAP[severity];
     const volumeMultiplier = SEVERITY_VOLUME_MULTIPLIER[severity];
     
+    const critical = options.critical ?? severity === 'critical';
     return this.play(type, {
       ...options,
-      volume: options.volume !== undefined 
-        ? options.volume 
-        : this.userVolume * volumeMultiplier,
+      critical,
+      volume: options.volume !== undefined
+        ? options.volume
+        : this.baseVolumeOf(critical) * volumeMultiplier,
     });
   }
 
@@ -663,7 +695,13 @@ class SoundManager {
    * // When a person is detected at night:
    * await soundManager.playForTrigger('person_detected');
    */
-  async playForTrigger(trigger: SoundTrigger): Promise<string[]> {
+  async playForTrigger(trigger: SoundTrigger, options: { critical?: boolean } = {}): Promise<string[]> {
+    // A volume of 0 for the alert (Silent quiet hours, Emergency Only for an
+    // alert that is not critical, or the alert volume at 0) plays no saved
+    // sound either. Emergency mode and the emergency trigger always play.
+    if (!this.emergencyModeActive && trigger !== 'emergency' && this.baseVolumeOf(options.critical) <= 0) {
+      return [];
+    }
     try {
       const customSounds = await getCustomSoundsByTrigger(trigger);
 
@@ -677,10 +715,13 @@ class SoundManager {
       const playedIds: string[] = [];
 
       for (const sound of customSounds) {
+        // The volume may have gone to 0 while the sounds were read (quiet hours
+        // beginning): checked again before each start.
+        if (!this.emergencyModeActive && trigger !== 'emergency' && this.baseVolumeOf(options.critical) <= 0) break;
         // A loop that plays keeps its one copy: a repeat alert that finds it
         // starts nothing, so it is not a play to count.
         const started = !(sound.loop && this.playingLoopOf(sound.id));
-        const id = await this.playCustomSound(sound);
+        const id = await this.playCustomSound(sound, { critical: options.critical });
         if (id) {
           playedIds.push(id);
           if (started) await recordSoundPlay(sound.id);
@@ -708,14 +749,24 @@ class SoundManager {
    * @returns Sound ID or null if failed. For a looping sound that is already
    *   playing, the ID of the copy that plays: no second copy is started.
    */
-  async playCustomSound(sound: CustomSound): Promise<string | null> {
+  async playCustomSound(sound: CustomSound, options: { critical?: boolean } = {}): Promise<string | null> {
     try {
       // A looping sound that is playing keeps its one copy. An alert event
       // that goes on plays its trigger again on each repeat, and a second
       // copy would loop on top of the first.
       if (sound.loop) {
         const playing = this.playingLoopOf(sound.id);
-        if (playing) return playing.id;
+        if (playing) {
+          // A critical alert that finds the loop playing makes it a critical
+          // alert's sound: it follows the critical volume from then on, so a
+          // loop quiet hours silenced sounds again.
+          if (options.critical && !playing.critical) {
+            playing.critical = true;
+            this.clearFade(playing);
+            this.setSoundVolume(playing, this.playingVolume(playing));
+          }
+          return playing.id;
+        }
       }
 
       const id = `custom-${sound.id}-${Date.now()}`;
@@ -748,6 +799,10 @@ class SoundManager {
         priority: sound.priority,
         startTime: Date.now(),
         loop: sound.loop,
+        // It keeps its own volume while the volume it follows (the critical
+        // volume for a critical alert's sound) is above 0, and is silent at 0.
+        namedVolume: sound.volume,
+        critical: options.critical,
       };
       this.activeSounds.set(id, activeSound);
 
@@ -809,13 +864,13 @@ class SoundManager {
   /**
    * Calculate effective volume based on settings
    */
-  private calculateVolume(type: SoundType, override?: number): number {
+  private calculateVolume(type: SoundType, override?: number, base: number = this.userVolume): number {
     if (this.emergencyModeActive) {
       return 1.0;
     }
 
     const config = SOUND_CONFIGS[type];
-    const baseVolume = override !== undefined ? override : this.userVolume;
+    const baseVolume = override !== undefined ? override : base;
 
     // Emergency sound type always plays at max volume.
     if (config.priority === 5) {
@@ -849,11 +904,13 @@ class SoundManager {
 
   /**
    * The volume a playing sound holds: the one named when a one-shot sound was
-   * played, unless the user volume has gone to 0, and otherwise the user
+   * played, unless the volume it follows (the critical volume for a critical
+   * alert's sound, else the user volume) has gone to 0, and otherwise that
    * volume's, with its minimum for the sound's type.
    */
   private playingVolume(sound: ActiveSound): number {
-    return this.calculateVolume(sound.type, this.userVolume > 0 ? sound.namedVolume : undefined);
+    const base = this.baseVolumeOf(sound.critical);
+    return this.calculateVolume(sound.type, base > 0 ? sound.namedVolume : undefined, base);
   }
 
   /**

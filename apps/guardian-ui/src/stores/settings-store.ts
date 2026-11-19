@@ -94,6 +94,40 @@ export interface QuietHoursSettings {
   reducedVolume: number; // 0-100, used when mode = 'reduced'
 }
 
+/** What the volume of an alert depends on. */
+export interface AlertVolumeInputs {
+  emergencyModeActive: boolean;
+  globalMute: boolean;
+  /** Whether quiet hours are on now. */
+  quietHoursActive: boolean;
+  quietMode: QuietHoursSettings['mode'];
+  reducedVolume: number;
+  alertVolume: number;
+}
+
+/**
+ * The volume, 0 to 100, an alert of `severity` plays at. Emergency mode plays
+ * every alert at 100 and the mute plays every alert at 0. During quiet hours,
+ * Silent plays every alert at 0, Reduced at the reduced volume, and Emergency
+ * Only plays a critical alert at the alert volume and every other level at 0.
+ * An alert with no level is read as one that is not critical.
+ */
+export function alertVolumeFor(inputs: AlertVolumeInputs, severity?: AlertSeverity): number {
+  if (inputs.emergencyModeActive) return 100;
+  if (inputs.globalMute) return 0;
+  if (inputs.quietHoursActive) {
+    switch (inputs.quietMode) {
+      case 'silent':
+        return 0;
+      case 'reduced':
+        return inputs.reducedVolume;
+      case 'emergency_only':
+        return severity === 'critical' ? inputs.alertVolume : 0;
+    }
+  }
+  return inputs.alertVolume;
+}
+
 /**
  * Whether quiet hours are on at a given moment: an enabled day and a time
  * inside the window, which may run overnight (22:00 to 07:00).
@@ -587,7 +621,11 @@ interface SettingsState {
   // Quiet hours actions
   updateQuietHoursSettings: (settings: Partial<QuietHoursSettings>) => void;
   isQuietHoursActive: () => boolean;
-  getEffectiveVolume: () => number;
+  /**
+   * The volume an alert of `severity` plays at now, quiet hours included. An
+   * alert with no level is read as one that is not critical.
+   */
+  getEffectiveVolume: (severity?: AlertSeverity) => number;
 
   // Detection feature settings actions
   updateDetectionFeatureSettings: (settings: Partial<DetectionFeatureSettings>) => void;
@@ -810,30 +848,16 @@ export const useSettingsStore = create<SettingsState>()(
 
       isQuietHoursActive: () => quietHoursActiveAt(get().quietHoursSettings, new Date()),
 
-      getEffectiveVolume: () => {
+      getEffectiveVolume: (severity) => {
         const state = get();
-
-        // Emergency mode always overrides to max
-        if (state.emergencyModeActive) return 100;
-
-        // Global mute takes precedence (except emergency)
-        if (state.globalMute) return 0;
-
-        // Check quiet hours
-        const isQuietHours = get().isQuietHoursActive();
-        if (isQuietHours) {
-          const { mode, reducedVolume } = state.quietHoursSettings;
-          switch (mode) {
-            case 'silent':
-              return 0;
-            case 'reduced':
-              return reducedVolume;
-            case 'emergency_only':
-              return 0; // Non-emergency alerts are silent
-          }
-        }
-
-        return state.globalSettings.alertVolume;
+        return alertVolumeFor({
+          emergencyModeActive: state.emergencyModeActive,
+          globalMute: state.globalMute,
+          quietHoursActive: state.isQuietHoursActive(),
+          quietMode: state.quietHoursSettings.mode,
+          reducedVolume: state.quietHoursSettings.reducedVolume,
+          alertVolume: state.globalSettings.alertVolume,
+        }, severity);
       },
 
       // Detection feature settings actions
