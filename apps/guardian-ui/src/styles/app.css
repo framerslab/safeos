@@ -1530,3 +1530,91 @@ html[data-app-started='true'] .needs-script {
     grid-column: 10 / span 3;
   }
 }
+
+/* =============================================================================
+   An old address that forwards
+   ============================================================================= */
+
+/* The page at an old address: its one line, then its link. With script the
+   page replaces itself at once; without script these are what is read. On a
+   phone one column with 16 px gutters. */
+.forward {
+  width: 100%;
+  margin-inline: auto;
+  padding: 32px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
+}
+
+.forward__line {
+  margin: 0 0 8px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  text-wrap: pretty;
+}
+
+/* While pressed the link sits 1 px lower. The rule is on the link itself:
+   /donate/ keeps the visitor frame, with no look-part round it. */
+.forward__link:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forward__link:active {
+    transform: none;
+  }
+}
+
+/* Tablet: the line and the link stacked in a block 640 px wide, centred. */
+@media (min-width: 48em) {
+  .forward {
+    max-width: 40rem;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* Desktop: one row in the 12 columns, the line in the left 7 and the link in
+   the right 5, their first lines level. At 1280 px the row is 1200 px wide,
+   so a column is 78 px and the eighth starts 714 px from the row's left. */
+@media (min-width: 64em) {
+  .forward {
+    max-width: 79rem;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: baseline;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .forward__line {
+    grid-column: 1 / span 7;
+    margin: 0;
+  }
+
+  .forward__link {
+    grid-column: 8 / span 5;
+  }
+}
+
+/* Wide: the dashboard's wide columns, the line in the left 5 and the link in
+   the middle 4. At 1440 px the row is 1312 px wide, so a column is 80 px and
+   the sixth starts 560 px from the row's left. */
+@media (min-width: 90em) {
+  .forward {
+    max-width: 90.5rem;
+    column-gap: 32px;
+    padding-left: 64px;
+    padding-right: 64px;
+  }
+
+  .forward__line {
+    grid-column: 1 / span 5;
+  }
+
+  .forward__link {
+    grid-column: 6 / span 4;
+  }
+}
