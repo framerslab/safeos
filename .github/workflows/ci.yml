@@ -246,12 +246,14 @@ jobs:
   # the watch does: a critical alert in Emergency Only quiet hours, Detection's
   # use rows, set times at the browser's clock, the sound saved for a Lost &
   # Found alert, and the pitch range with two tones fed to the fake microphone.
-  # The other specs in e2e/ are not run here.
+  # It walks the watch's Watch for (e2e/watch-for.spec.ts) with axe in both
+  # looks. The other specs in e2e/ are not run here.
   # ---------------------------------------------------------------------------
   web-lost-found:
     name: Web app Lost & Found browser test
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    # Nine walks on one build, Watch for's among them with axe in both looks.
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -291,7 +293,7 @@ jobs:
           done
           npx playwright test e2e/lost-found-edge.spec.ts e2e/nap-opens-the-watch.spec.ts e2e/setup-lost-found.spec.ts \
             e2e/quiet-hours-critical.spec.ts e2e/detection-use-values.spec.ts e2e/set-times-apply.spec.ts \
-            e2e/lost-found-sound.spec.ts e2e/sound-pitch-range.spec.ts --project=chromium
+            e2e/lost-found-sound.spec.ts e2e/sound-pitch-range.spec.ts e2e/watch-for.spec.ts --project=chromium
 
       - name: Upload the test's report
         if: failure()

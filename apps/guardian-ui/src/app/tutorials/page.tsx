@@ -223,7 +223,7 @@ const TUTORIALS: TutorialSection[] = [
     steps: [
       {
         title: 'How Lost & Found Works',
-        content: `Upload reference photos of your lost pet. SafeOS records their colours, a coarse edge grid and size. While the monitor is open, it compares your camera's frames with them. It matches colours, so another animal or an object of similar colour can match too.`,
+        content: `Upload reference photos of your lost pet. SafeOS records their colours, a coarse edge grid and size. On Monitor, choose Lost and Found under Watch for; while the watch runs, it compares your camera's frames with them. It matches colours, so another animal or an object of similar colour can match too.`,
         tips: [
           'Upload multiple photos from different angles',
           'Include photos in different lighting conditions',

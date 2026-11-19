@@ -96,7 +96,7 @@ If you want to dig deeper:
 | **Pet monitoring** | Motion, loud sound, and prolonged stillness. |
 | **Baby & toddler** | Sustained motion, small movements, loud sound, and inactivity. |
 | **Elder care** | Prolonged inactivity, motion, and loud sound. |
-| **Lost & Found** | Watch your own camera for an animal with a lost pet's colouring, from 1–5 reference photos (color + edge fingerprints). It does not identify a pet. |
+| **Lost & Found** | Watch your own camera for an animal with a lost pet's colouring, from 1–5 reference photos (color + edge fingerprints). Chosen on Monitor under **Watch for**, or in setup. It does not identify a pet. |
 | **Wildlife & outdoor** | Backyard trail-cam, livestock, and animal detection with COCO-SSD. |
 | **Authority / emergency** | At-risk areas or shelters; severity-routed alerts via the optional server. |
 | **Small-business security** | Perimeter watch, after-hours intrusion, customer-traffic counts. Escalating push + audio. |

@@ -95,6 +95,12 @@ export interface LostFoundState {
   // Active subject
   activeSubject: SubjectProfile | null;
   isWatching: boolean;
+  /**
+   * The pet the watch compares with when Lost and Found is chosen, kept on
+   * this device so a reload keeps it. The pet itself is read from the saved
+   * pets; null until one is chosen.
+   */
+  chosenPetId: string | null;
   
   // Saved subjects
   subjects: SubjectProfile[];
@@ -194,6 +200,7 @@ export const useLostFoundStore = create<LostFoundState>()(
       // Initial state
       activeSubject: null,
       isWatching: false,
+      chosenPetId: null,
       subjects: [],
       matchFrames: [],
       recentMatches: [],
@@ -204,7 +211,7 @@ export const useLostFoundStore = create<LostFoundState>()(
 
       // Subject Management
       setActiveSubject: (subject) => {
-        set({ activeSubject: subject });
+        set({ activeSubject: subject, chosenPetId: subject?.id ?? null });
         if (subject) {
           // Update lastActiveAt
           const subjects = get().subjects.map(s =>
@@ -240,6 +247,7 @@ export const useLostFoundStore = create<LostFoundState>()(
           subjects: state.subjects.filter((s) => s.id !== id),
           activeSubject:
             state.activeSubject?.id === id ? null : state.activeSubject,
+          chosenPetId: state.chosenPetId === id ? null : state.chosenPetId,
           matchFrames: state.matchFrames.filter((f) => f.subjectId !== id),
         }));
       },
@@ -368,6 +376,7 @@ export const useLostFoundStore = create<LostFoundState>()(
         set({
           activeSubject: null,
           isWatching: false,
+          chosenPetId: null,
           matchFrames: [],
           recentMatches: [],
           currentConfidence: 0,
@@ -381,6 +390,7 @@ export const useLostFoundStore = create<LostFoundState>()(
       partialize: (state) => ({
         subjects: state.subjects,
         settings: state.settings,
+        chosenPetId: state.chosenPetId,
         // Don't persist match frames - they go to IndexedDB
         // Don't persist real-time state
       }),

@@ -77,9 +77,10 @@ export default function SetupPage() {
   const [staged, setStaged] = useState<StagedAnswers>(NO_ANSWERS);
   // The person chose Lost & Found in this run (null: no choice yet in this
   // run, so the saved choice stands). The last key then opens its page, where
-  // the pet's photos are added.
+  // the pet's photos are added. The saved choice is the watch's Watch for too,
+  // whatever the use, so setup shows the one the watch last had.
   const [lostFoundNow, setLostFoundNow] = useState<boolean | null>(null);
-  const lostFound = lostFoundNow ?? (onboarding.lostFoundChosen && onboarding.selectedScenario === 'pet');
+  const lostFound = lostFoundNow ?? onboarding.lostFoundChosen;
 
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
