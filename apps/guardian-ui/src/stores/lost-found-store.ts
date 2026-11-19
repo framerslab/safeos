@@ -98,7 +98,8 @@ export interface LostFoundState {
   /**
    * The pet the watch compares with when Lost and Found is chosen, kept on
    * this device so a reload keeps it. The pet itself is read from the saved
-   * pets; null until one is chosen.
+   * pets; null until one is chosen. A person an earlier version saved is
+   * never it.
    */
   chosenPetId: string | null;
   
@@ -211,7 +212,20 @@ export const useLostFoundStore = create<LostFoundState>()(
 
       // Subject Management
       setActiveSubject: (subject) => {
-        set({ activeSubject: subject, chosenPetId: subject?.id ?? null });
+        set((state) => {
+          // A person an earlier version saved can be opened on the Lost & Found
+          // page but is never the watch's: opening one, or closing it again,
+          // leaves the chosen pet as it was.
+          const person = (subject ?? state.activeSubject)?.type === 'person';
+          const changed = (subject?.id ?? null) !== (state.activeSubject?.id ?? null);
+          return {
+            activeSubject: subject,
+            chosenPetId: person ? state.chosenPetId : subject?.id ?? null,
+            // The live results are the subject's they were read for: another
+            // subject starts with none. The same subject (photos added) keeps them.
+            ...(changed ? { recentMatches: [], currentConfidence: 0, consecutiveMatches: 0 } : {}),
+          };
+        });
         if (subject) {
           // Update lastActiveAt
           const subjects = get().subjects.map(s =>
