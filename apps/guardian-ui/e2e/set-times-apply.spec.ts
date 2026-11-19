@@ -132,17 +132,21 @@ test("the person's own setting during a set time stays after a reload", async ({
 
 /** The browser's saved sessions: the account set-up restores on the next visit. */
 const savedSessions = (page: Page): Promise<number> =>
-  page.evaluate(() => new Promise<number>((resolve) => {
-    const opening = indexedDB.open('safeos-guardian');
-    opening.onerror = () => resolve(0);
-    opening.onsuccess = () => {
-      const database = opening.result;
-      if (!database.objectStoreNames.contains('local_session')) { database.close(); resolve(0); return; }
-      const counting = database.transaction('local_session').objectStore('local_session').count();
-      counting.onsuccess = () => { database.close(); resolve(counting.result); };
-      counting.onerror = () => { database.close(); resolve(0); };
-    };
-  }));
+  page.evaluate(async () => {
+    // Opened only once the app has made it: an open of a database that does not exist makes an empty one.
+    if (!(await indexedDB.databases()).some((database) => database.name === 'safeos-guardian')) return 0;
+    return new Promise<number>((resolve) => {
+      const opening = indexedDB.open('safeos-guardian');
+      opening.onerror = () => resolve(0);
+      opening.onsuccess = () => {
+        const database = opening.result;
+        if (!database.objectStoreNames.contains('local_session')) { database.close(); resolve(0); return; }
+        const counting = database.transaction('local_session').objectStore('local_session').count();
+        counting.onsuccess = () => { database.close(); resolve(counting.result); };
+        counting.onerror = () => { database.close(); resolve(0); };
+      };
+    });
+  });
 
 /** Where the saved settings last imported preferences from: an account, the browser, or nowhere yet. */
 const settingsSource = (page: Page): Promise<string | null> =>
