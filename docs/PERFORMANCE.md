@@ -15,7 +15,7 @@ every number in it carries its unit.
 
 ### The runner
 
-A GitHub-hosted `ubuntu-latest` runner. The job's first step prints the
+A GitHub-hosted `ubuntu-24.04` runner. The job's first step prints the
 runner's CPU model, its logical CPU count, its memory and its image, and the
 script writes the CPU and memory into `measurements.json`. Numbers from runs
 on different CPU models are not comparable.

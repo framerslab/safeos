@@ -20,9 +20,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The job runs on ubuntu-24.04: ubuntu-latest moved to Ubuntu 26.04, where the
+  # Playwright this app uses does not install its browsers.
   measure:
     name: Measure the watch on slowed devices
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Checkout
