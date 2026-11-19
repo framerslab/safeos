@@ -132,6 +132,8 @@ test('widened to 20 to 20,000 Hz, the range keeps the 1,000 Hz tone\'s level and
   // Sensitivity 85 alerts at a level of 15 %: the tone reads 17 to 25 %. A level that falls with the
   // range's width (7 to 9 % at this width, when the level was the mean over the range's bins) stays under it.
   expect(narrow.alerts, 'the tone alerts at 300 to 3,000 Hz').toBeGreaterThan(0);
-  expect(wide.highest, `the wide range reads the tone as the narrow one does (${narrow.highest} %)`).toBeGreaterThanOrEqual(narrow.highest - 3);
+  // Five runs read the two ranges' highest levels at 25 or 26 %, never more than 1 apart: 3 either way
+  // fails a level that falls or swells with the range's width.
+  expect(Math.abs(wide.highest - narrow.highest), `the wide range reads the tone as the narrow one does (${narrow.highest} % narrow, ${wide.highest} % wide)`).toBeLessThanOrEqual(3);
   expect(wide.alerts, 'the tone alerts at 20 to 20,000 Hz').toBeGreaterThan(0);
 });

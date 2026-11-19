@@ -11,6 +11,7 @@
  * - a sound that repeats after a pause does not start its next pass after Stop;
  * - a loop that a motion or sound alert plays too keeps playing when the
  *   Lost & Found watch ends and monitoring goes on;
+ * - the same loop stops when the watch stops;
  * - Silent quiet hours that begin while the watch runs keep the next match
  *   from playing the sound at once, without waiting for the app's periodic
  *   volume check.
@@ -106,6 +107,26 @@ test('a loop that a motion or sound alert plays too keeps playing when the Lost 
   await expect(page.getByRole('button', { name: 'Stop Monitoring', exact: true })).toBeVisible();
   await page.waitForTimeout(3_000);
   expect((await ownSoundCounts(page)).pauses, 'the loop the motion or sound alert plays is not stopped').toBe(before.pauses);
+});
+
+test('a loop that a motion or sound alert plays too stops when the watch stops', async ({ page, context }) => {
+  test.setTimeout(240_000);
+  await setUpDevice(context, { use: 'pet', settings: monitorSettings });
+  await countOwnSoundPasses(page);
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await saveOwnSound(page, { loop: true, triggers: ['motion_detected', 'audio_detected', 'object_found'] });
+  await watchStripes(page);
+  await expect(page.locator('p').filter({ hasText: /^(Motion|Audio) detected: \d+%/ }).first(), 'a motion or sound alert plays the loop')
+    .toBeVisible({ timeout: 60_000 });
+  await page.waitForTimeout(5_000);
+  const before = await ownSoundCounts(page);
+  expect(before.passes, 'the loop plays').toBeGreaterThan(0);
+
+  await stop(page);
+  await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 10_000 });
+  await expect.poll(async () => (await ownSoundCounts(page)).pauses, { message: 'Stop Monitoring stops the loop', timeout: 10_000 })
+    .toBeGreaterThan(before.pauses);
 });
 
 test('Silent quiet hours that begin while the watch runs keep the next match from playing the saved sound', async ({ page, context }) => {

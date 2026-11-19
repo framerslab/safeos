@@ -632,3 +632,42 @@ it.each(['the database fails the clear', 'local storage refuses the clear marker
 
     expect((await monitoringRows()).find((row) => row.id === FRESH.id)).toMatchObject({ acknowledged: true });
   });
+
+it('saves a repeat made after Clear all on a card of its own, not on the fresh card the clear removed', async () => {
+  const { watching } = await acknowledgedElsewhere();
+  let made = 0;
+  const fresh = jest.fn(() => ({ id: `fresh-${++made}`, createdAt: FRESH.createdAt }));
+  // A repeat queued before the clear goes on a fresh card, which the clear then removes; the event
+  // alerts again after the clear.
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  watching.monitoring.getState().clearAlerts();
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'after the clear', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh });
+  await watching.read();
+
+  expect((await monitoringRows()).map((row) => row.message)).toEqual(['after the clear']);
+  expect(watching.monitoring.getState().alerts.map((alert) => alert.message)).toEqual(['after the clear']);
+});
+
+it('carries the repeats of failed saves onto the fresh card when another tab acknowledged the card meanwhile', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  const other = await tab();
+  await watching.read();
+  await other.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  await other.read();
+  // Two repeats fail to save, and so does their retry at the next history read.
+  const failing = failSaves();
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the second repeat', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh: () => FRESH });
+  await watching.read();
+  failing.mockRestore();
+  // The other tab acknowledges the saved card; the retry finds it acknowledged and goes on a fresh card.
+  other.monitoring.getState().acknowledgeAlert('event-card');
+  await other.read();
+  await watching.read();
+
+  // The fresh card holds the two repeats: the first, and the second as its repeat.
+  expect((await stored('alert_cache')).find((row) => row.id === FRESH.id)).toMatchObject({ message: 'the second repeat', repeats: 1 });
+});
