@@ -4181,16 +4181,16 @@ export async function checkApp(browser, baseUrl, outDir) {
         return [await cache.delete('/wildlife/'), await cache.delete('/wildlife/index.txt')];
       });
       check(removed[0] && removed[1], `the installed copy ${removed[0] ? 'held' : 'did not hold'} /wildlife/ and ${removed[1] ? 'held' : 'did not hold'} /wildlife/index.txt`);
-      // The browser's own cache holds both files too, from the worker's
-      // install and from the route data the dashboard fetched ahead of a
-      // press, and it answers without a connection while they are fresh. It
-      // is emptied, so nothing on the device holds Wildlife's page.
-      const tools = await context.newCDPSession(page);
-      await tools.send('Network.clearBrowserCache');
-      await tools.detach();
+      // The worker asks the network for a file its copy does not hold. With
+      // the window offline that request was still answered here, so the
+      // worker's own requests are made to fail too, as they do on a device
+      // with no connection.
+      const worker = context.serviceWorkers().at(-1);
+      if (!worker) throw new Error('the page has no worker whose requests can be stopped');
+      await worker.evaluate(() => { self.fetch = () => Promise.reject(new TypeError('Failed to fetch')); });
       const answers = [];
       page.on('response', (response) => {
-        if (new URL(response.url()).pathname === '/wildlife/index.txt') answers.push(response.status());
+        if (new URL(response.url()).pathname === '/wildlife/index.txt') answers.push(`${response.status()}${response.fromServiceWorker() ? ' from the worker' : ''}`);
       });
       await context.setOffline(true);
       await page.reload({ waitUntil: 'load', timeout: 60_000 });
@@ -4199,7 +4199,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       await page.waitForFunction((h1) => (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim() === h1, OFFLINE_H1, { timeout: 20_000 }).catch(() => {});
       const heading = await page.evaluate(() => (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim());
       check(heading === OFFLINE_H1, `offline, Wildlife with its files gone shows "${heading}", not "${OFFLINE_H1}"`);
-      check(answers.includes(503), `Wildlife's route data answered ${answers.join(', ') || 'nothing'}, not 503`);
+      check(answers.some((answer) => answer.startsWith('503')), `Wildlife's route data answered ${answers.join(', ') || 'nothing'}, not 503`);
       await pressTo(page, page.getByRole('link', { name: 'Open dashboard', exact: true }), '/dashboard');
       check(pathOf(page) === '/dashboard', `"Open dashboard" opened ${pathOf(page)}, not /dashboard`);
     });
