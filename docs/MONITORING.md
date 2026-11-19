@@ -51,7 +51,9 @@ until a reload. The pets and their photos are this device's, so Watch for and th
 comparison work offline.
 
 While the watch compares, the Lost & Found panel under the alerts shows the pet's
-matches and links to its match history.
+matches and links to its match history. A photo added there with **Add Photos**
+counts at once on the pet and in **Choose a pet**, and stays with the pet when it
+is chosen again.
 
 Setup does not need the camera. Until access is granted, its **Device Access**
 step shows **Continue without the camera**, which records camera and microphone

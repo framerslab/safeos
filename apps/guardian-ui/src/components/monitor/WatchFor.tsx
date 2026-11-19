@@ -104,7 +104,8 @@ export function useWatchFor(watching: boolean): WatchFor {
   const lostFoundStored = useOnboardingStore((state) => state.lostFoundChosen);
   const setLostFoundChosen = useOnboardingStore((state) => state.setLostFoundChosen);
   const chosenPetId = useLostFoundStore((state) => state.chosenPetId);
-  const activeSubjectId = useLostFoundStore((state) => state.activeSubject?.id ?? null);
+  const activeSubject = useLostFoundStore((state) => state.activeSubject);
+  const activeSubjectId = activeSubject?.id ?? null;
   const setActiveSubject = useLostFoundStore((state) => state.setActiveSubject);
 
   const [pets, setPets] = useState<SubjectProfileDB[]>([]);
@@ -124,6 +125,30 @@ export function useWatchFor(watching: boolean): WatchFor {
       current = false;
     };
   }, []);
+
+  // Photos added to the pet on the watch (Add Photos while it compares) go to
+  // the Lost & Found store's pet and to its saved record. The pets read here
+  // take them as well, so the pet's count, Choose a pet and a later choice of
+  // the pet keep them.
+  useEffect(() => {
+    if (!activeSubject) return;
+    setPets((saved) => {
+      const index = saved.findIndex((record) => record.id === activeSubject.id);
+      if (index === -1) return saved;
+      const record = saved[index];
+      if (record.referenceImages === activeSubject.referenceImages && record.fingerprint === activeSubject.fingerprint) {
+        return saved;
+      }
+      const next = [...saved];
+      next[index] = {
+        ...record,
+        referenceImages: activeSubject.referenceImages,
+        fingerprint: activeSubject.fingerprint,
+        lastActiveAt: activeSubject.lastActiveAt,
+      };
+      return next;
+    });
+  }, [activeSubject]);
 
   const lostFoundChosen = mounted && lostFoundStored;
   const way: WatchWay = lostFoundChosen && petsRead !== 'failed' ? 'lost_found' : 'motion_sound';
