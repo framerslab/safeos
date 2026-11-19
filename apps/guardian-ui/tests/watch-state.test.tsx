@@ -429,6 +429,15 @@ it("holds the heading's and the key's place until this device is read", () => {
   expect(words(section())).not.toContain('Loading the dashboard');
 });
 
+it("keeps one line's place for the line before the device is read", () => {
+  const { rerender } = render(<WatchState setUp={null} subjects={[]} newAlerts={0} />);
+  expect(line()).not.toBeNull();
+  expect(line()?.textContent).toBe('\u00a0');
+
+  rerender(<WatchState setUp subjects={[]} newAlerts={0} />);
+  expect(words(line())).toBe('Start watching uses Motion and sound.');
+});
+
 it('carries no word the page may not carry', async () => {
   const said: string[] = [];
   const read = () => said.push(words(document.body));

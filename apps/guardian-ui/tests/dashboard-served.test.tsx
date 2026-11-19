@@ -53,6 +53,15 @@ jest.mock('@/lib/tab-channel', () => ({
   useOtherTabWatch: () => false,
 }));
 
+// No server is connected to this device.
+jest.mock('@/contexts/BackendStatusContext', () => ({
+  useBackendStatus: () => ({ status: { api: 'disconnected', ollama: 'disconnected' }, config: { apiUrl: '', wsUrl: '' } }),
+}));
+
+jest.mock('@/lib/websocket', () => ({
+  useWebSocket: jest.fn(() => ({ isConnected: false, sendMessage: jest.fn() })),
+}));
+
 it('serves the heading, the four ways and the part below before script runs', () => {
   const html = renderToStaticMarkup(<Dashboard />);
   const page = served(html);

@@ -9,18 +9,24 @@
  * that cannot be read counts as no setup. The saved pets are read once and
  * given to the line and the rows, and the key's place is held until they
  * are. Nothing opens over the page, and a browser that refuses this site's
- * storage gets a new device's state. The device's alerts, the browser's
- * answers and the window's width are stand-ins.
+ * storage gets a new device's state. On a device with its own server
+ * connected, the dashboard keeps that server's socket open and adds the
+ * alerts it sends; with no server it asks none. The device's alerts, the
+ * browser's answers, the server's status, its socket and the window's width
+ * are stand-ins.
  */
 
 import React from 'react';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { Dashboard } from '@/components/dashboard/Dashboard';
+import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import type { DeviceAlert } from '@/lib/alert-groups';
 import { getAllSubjectProfiles, type SubjectProfileDB } from '@/lib/client-db';
 import { useDeviceAlerts, type DeviceAlerts } from '@/lib/device-alerts';
 import { forgetVisit } from '@/lib/visit-store';
 import { rememberWay } from '@/lib/watch-session';
+import { useWebSocket } from '@/lib/websocket';
+import { useMonitoringStore } from '@/stores/monitoring-store';
 import { canSkipOnboarding, useOnboardingStore } from '@/stores/onboarding-store';
 
 // The served-html helpers load jsdom themselves, which this environment
@@ -69,6 +75,15 @@ jest.mock('@/lib/tab-channel', () => ({
   useOtherTabWatch: () => false,
 }));
 
+// The server this device has connected, if any: none unless a case says so.
+jest.mock('@/contexts/BackendStatusContext', () => ({
+  useBackendStatus: jest.fn(),
+}));
+
+jest.mock('@/lib/websocket', () => ({
+  useWebSocket: jest.fn(() => ({ isConnected: false, sendMessage: jest.fn() })),
+}));
+
 // The store's own reading of a setup record, which a case can make throw as
 // a damaged record does. The module's exports cannot be spied on in place,
 // so the reading is a stand-in that calls the store's own.
@@ -84,6 +99,15 @@ const BEFORE_SETUP = 'Set up this device first. Setup asks for the camera and th
 const savedSubjects = jest.mocked(getAllSubjectProfiles);
 const deviceAlerts = jest.mocked(useDeviceAlerts);
 const setupReading = jest.mocked(canSkipOnboarding);
+const backend = jest.mocked(useBackendStatus);
+const socket = jest.mocked(useWebSocket);
+
+type Backend = ReturnType<typeof useBackendStatus>;
+const NO_SERVER = { status: { api: 'disconnected', ollama: 'disconnected' }, config: { apiUrl: '', wsUrl: '' } } as unknown as Backend;
+const CONNECTED = {
+  status: { api: 'connected', ollama: 'disconnected' },
+  config: { apiUrl: 'https://server.test', wsUrl: 'wss://server.test/ws' },
+} as unknown as Backend;
 
 function finishSetup() {
   useOnboardingStore.setState({
@@ -161,6 +185,10 @@ beforeEach(() => {
   savedSubjects.mockResolvedValue([]);
   deviceAlerts.mockReset();
   deviceAlerts.mockReturnValue(alertsRead());
+  backend.mockReset();
+  backend.mockReturnValue(NO_SERVER);
+  socket.mockClear();
+  useMonitoringStore.setState({ alerts: [] });
 });
 afterEach(cleanup);
 
@@ -283,4 +311,29 @@ it("shows a new device's state, with no error, when the browser refuses its stor
   } finally {
     for (const refusal of refusals) refusal.mockRestore();
   }
+});
+
+it("keeps a connected server's socket open and adds the alerts it sends", async () => {
+  backend.mockReturnValue(CONNECTED);
+  await shown();
+  expect(socket).toHaveBeenCalled();
+  const [url, options] = socket.mock.calls[socket.mock.calls.length - 1];
+  expect(url).toBe('wss://server.test/ws');
+
+  act(() => {
+    options?.onMessage?.({ type: 'alert', payload: { id: 'server-1-a', streamId: 's', severity: 'low', message: 'x', acknowledged: false } });
+  });
+  expect(useMonitoringStore.getState().alerts.map((alert) => alert.id)).toContain('server-1-a');
+
+  const before = document.body.innerHTML;
+  act(() => {
+    options?.onMessage?.({ type: 'stats', payload: { activeStreams: 4, alertsToday: 9 } });
+  });
+  expect(document.body.innerHTML).toBe(before);
+});
+
+it('asks no server for anything on a device without one', async () => {
+  await shown();
+  expect(socket).toHaveBeenCalled();
+  expect(socket.mock.calls.map(([url]) => url).filter((url) => url !== '')).toEqual([]);
 });
