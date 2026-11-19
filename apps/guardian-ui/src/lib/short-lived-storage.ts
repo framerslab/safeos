@@ -26,10 +26,16 @@ const BUDGET_MS = 1000;
 /** A disk makes the careful commit this many times slower, or more. */
 const DISK_RATIO = 1.3;
 
-/** V8 words this error in 51 characters; the timing below is calibrated for Chromium alone. */
+/**
+ * V8 words this error in 51 characters; the timing below is calibrated for
+ * Chromium alone. The digits are parsed as the page runs: a build works a
+ * call on a written number out ahead of time, which leaves no error to read
+ * and no browser read as V8.
+ */
 function isV8(): boolean {
+  const digits = parseInt('-1', 10);
   try {
-    (-1).toFixed(-1);
+    digits.toFixed(digits);
   } catch (error) {
     return (error as Error).message.length === 51;
   }
