@@ -38,7 +38,9 @@ export function Providers({ children }: ProvidersProps) {
   const profile = useAuthStore((state) => state.profile);
   useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
   // Set times apply on every page, from this one place. Mounted after the
-  // saved preferences are read, so a set time in force goes on over them.
+  // saved preferences are read, so a set time in force goes on over them. An
+  // account restored later brings its preferences after the first check:
+  // hydrateSavedSettings then leaves a set time's setting as it is.
   useScheduleChecker();
   useEffect(() => { void useMonitoringStore.getState().hydrateAlerts(); }, []);
 
