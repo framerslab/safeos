@@ -100,11 +100,12 @@ browser contexts.
   percentile come from the others (the table gives how many). The app
   keeps the model files in the browser's Cache Storage after the first load;
   this page does not, so each load is a first load.
-- **Lost & Found.** One subject is enrolled through Lost & Found's own form
-  from one frame of the clip (at 1 s), and the monitor is started from it. The
-  matching timer's ticks are timed the same way for 30 s: the per-frame
-  matching time as a median and 95th percentile, and the frames matched per
-  second.
+- **Lost & Found.** One pet is enrolled through Lost & Found's own form from
+  one frame of the clip (at 1 s). That page's Start Monitoring opens the watch
+  with Lost and Found chosen and the pet, and the watch's Start Monitoring
+  starts it. The matching timer's ticks (every 500 ms) are timed the same way
+  for 30 s: the per-frame matching time as a median and 95th percentile, and
+  the frames matched per second.
 
 ### Reading a run
 

@@ -26,8 +26,9 @@
 //               lite_mobilenet_v2, WebGL), then runs detect on a 320 by 240
 //               copy of the camera's frame, as Security's person detector
 //               does, back to back.
-//   lost-found  a subject enrolled through Lost & Found's own form from one
-//               frame of the clip, then the monitor's matching ticks for 30 s.
+//   lost-found  a pet enrolled through Lost & Found's own form from one
+//               frame of the clip, the watch opened with Lost and Found by
+//               that page's Start Monitoring, then its matching ticks for 30 s.
 //
 // It records and does not judge: a slow number is written down, and a part
 // that could not be measured is written down with the reason. It exits
@@ -512,8 +513,8 @@ async function measureLostFound(browser, cls, rate, name, watchDelay) {
     await page.getByRole('button', { name: 'Continue', exact: true }).click({ timeout: 120_000 });
     await page.getByRole('button', { name: 'Start Watching', exact: true }).click({ timeout: 120_000 });
 
-    // The watch is held in memory, so the monitor is reached by the page's
-    // own key, without a reload.
+    // The page's own key opens the watch with Lost and Found chosen and this
+    // pet; the watch compares once its Start Monitoring is pressed.
     await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 120_000 });
     await page.waitForURL(/\/monitor\/?$/, { timeout: 120_000 });
     await startMonitoring(page);
