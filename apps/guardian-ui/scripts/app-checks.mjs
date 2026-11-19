@@ -4931,7 +4931,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     const url = new URL(page.url());
     return `${url.pathname}${url.search}`;
   };
-  const reaches = (page, to, timeout) => page.waitForURL((url) => url.pathname === to && url.search === '', { timeout })
+  const arrivesAt = (page, to, timeout) => page.waitForURL((url) => url.pathname === to && url.search === '', { timeout })
     .then(() => true, () => false);
 
   for (const width of [390, 1280]) {
@@ -4940,11 +4940,11 @@ export async function checkApp(browser, baseUrl, outDir) {
         for (const { from, to } of FORWARDS) {
           await visit(page, '/settings/');
           await page.goto(address(from), { waitUntil: 'load', timeout: 60_000 });
-          const reached = await reaches(page, to, 5_000);
+          const reached = await arrivesAt(page, to, 5_000);
           check(reached, `${from} is kept at ${whereIs(page)} 5 seconds after it loads, not ${to}`);
           if (!reached) continue;
           await page.goBack({ waitUntil: 'commit', timeout: 15_000 }).catch(() => {});
-          const back = await reaches(page, '/settings/', 10_000);
+          const back = await arrivesAt(page, '/settings/', 10_000);
           check(back, `Back from ${to}, where ${from} went, gives ${whereIs(page)}, not /settings/`);
         }
       });
@@ -4988,7 +4988,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       const want = reduced ? 'none' : 'matrix(1, 0, 0, 1, 0, 1)';
       check(transform === want, `on ${from} the link held down is drawn with ${transform}, not ${want}${reduced ? ' under reduced motion' : ''}`);
       await page.mouse.up();
-      const opened = await reaches(page, to, 15_000);
+      const opened = await arrivesAt(page, to, 15_000);
       check(opened, `the press on "${link}" on ${from} opened ${whereIs(page)}, not ${to}`);
     }
   };
@@ -5082,7 +5082,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     await open({ name: 'forwards, offline', width: 390, look }, async (page, context, check) => {
       await visitThenOffline(page, context);
       await page.goto(address('/tutorial/'), { waitUntil: 'load', timeout: 30_000 });
-      const reached = await reaches(page, '/help/', 15_000);
+      const reached = await arrivesAt(page, '/help/', 15_000);
       check(reached, `/tutorial/ opened offline is kept at ${whereIs(page)}, not /help/`);
       if (!reached) return;
       const headed = await page.waitForFunction(() => (document.querySelector('h1')?.textContent || '').trim() === 'Help & FAQ', null, { timeout: 15_000 })
