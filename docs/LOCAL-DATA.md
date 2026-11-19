@@ -14,12 +14,17 @@ deleted, so it cannot restore an earlier match after clearing.
 The page reloads only after clearing succeeds. A failed operation displays an
 error and can be retried.
 
+The worker stores the site again on the next load with a connection. When the
+browser reports the device offline, the key's confirmation adds "SafeOS will not
+open again until you are back online." and nothing is cleared until it is
+accepted.
+
 **Log Out** and **Clear Session** clear personal data before completing
 sign-out. They retain the device's server connection so the next account can
 sign in to the same server. Clear All Local Data also removes that connection. Saved frames, history, subjects, sounds and settings do not carry over
-to the next person using that browser. Both actions also remove the dashboard
-onboarding completion record so the next person sees its introduction and safety
-disclaimer. Export anything you want to keep first.
+to the next person using that browser. Both actions also remove this device's
+setup record, so the next person goes through setup and its notice. Export
+anything you want to keep first.
 This removes local copies; it does not delete records held by a connected server.
 Log Out asks the server to end the session and waits at most 15 seconds for its
 answer; with no answer by then it clears this browser all the same.
@@ -95,6 +100,16 @@ secrets. **Clear provider secrets** clears them immediately. Test messages send
 the entered credentials to the configured SafeOS server. For unattended server
 notifications, configure providers on that server.
 
+## What the dashboard keeps
+
+Three keys in local storage hold what the dashboard says:
+
+- `safeos-last-way`: the way the last watch ran with and, for Lost and Found, the id of the pet it looked for. Start watching starts that way.
+- `safeos-watch-session`: when the last watch started, the last time it was known to run (written once a minute and when the page is hidden) and when it ended. A page closed without running its code writes no end, and the dashboard then says "The last watch ran until at least {time}."
+- `safeos-history-seen`: the ids of the alerts and frames this browser held, not marked as seen, the first time one of the app's pages opened in this version. They never count as new. The key is written once.
+
+An alert is new while none of its records is marked as seen; no clock time decides it. Each Lost and Found frame saved from this version carries `alerted`, true when the check that saved it raised the alert; a frame saved earlier is judged against the alert threshold as it is set. Open tabs tell each other of saved, marked and deleted alerts and of a running watch on the browser's BroadcastChannel, which reaches no server. Whether this window's storage ends when the window closes is checked once a visit and kept in session storage as `safeos-window-storage`. Clear All Local Data removes all four.
+
 ## Optional server and model status
 
 A server address saved in Backend Settings takes effect on static hosts as well
@@ -102,12 +117,11 @@ as self-hosted builds. With no saved address, static builds remain local-only.
 Clearing the address returns to the build's default. A saved WebSocket address
 is used when a server is configured.
 
-Backend Settings, AI Models and the dashboard ask the SafeOS server for its
-model status. The browser does not connect directly to Ollama. Configure Ollama
-on the SafeOS server; private container addresses need not be reachable from a
-phone. A failed server status check is reported as unavailable. The dashboard
-shows installed models without claiming they are loaded in memory. A connected
-server with no installed models is shown as an empty list, not an offline server.
+Backend Settings and AI Models ask the SafeOS server for its model status. The
+browser does not connect directly to Ollama. Configure Ollama on the SafeOS
+server; private container addresses need not be reachable from a phone. A failed
+server status check is reported as unavailable. A connected server with no
+installed models is shown as an empty list, not an offline server.
 
 ## Controls and notifications
 
