@@ -59,9 +59,8 @@ it('serves the heading, the four ways and the part below before script runs', ()
 
   expect(Array.from(page.querySelectorAll('h1'), (heading) => words(heading))).toEqual(['Not watching']);
 
-  const ways = page.querySelector('section.ways');
-  expect(ways).not.toBeNull();
-  expect(Array.from(ways?.querySelectorAll('a') ?? [], (link) => bare(link.getAttribute('href')))).toEqual([
+  expect(page.querySelectorAll('section.ways')).toHaveLength(1);
+  expect(Array.from(page.querySelectorAll('section.ways a'), (link) => bare(link.getAttribute('href')))).toEqual([
     '/monitor',
     '/lost-found',
     '/security',
