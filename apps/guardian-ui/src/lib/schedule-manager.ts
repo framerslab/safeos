@@ -195,11 +195,13 @@ export function setTimeStep(
 
   // The hours are in the record too, so an edit to them puts the setting on again.
   const key = `${active.id}|${active.preset}|${active.timeSlot.start}-${active.timeSlot.end}|${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
-  // The record holds each set time put on, one a line: one in force again after an
-  // overlapping set time ends was put on already, and the person's change stays.
+  // The record holds, for each set time, the occurrence last put on, one a line. A set time
+  // in force again after an overlapping one ends was put on already, and the person's change
+  // stays; an edit of its hours or its setting, also back to a setting it had, is put on.
   const applied = appliedSetTime ? appliedSetTime.split('\n') : [];
   if (applied.includes(key) || !isPresetId(active.preset)) return { preset: null, appliedKey: appliedSetTime };
-  return { preset: active.preset, appliedKey: [...applied, key].slice(-10).join('\n') };
+  const kept = applied.filter((k) => !k.startsWith(`${active.id}|`) && schedules.some((s) => k.startsWith(`${s.id}|`)));
+  return { preset: active.preset, appliedKey: [...kept, key].join('\n') };
 }
 
 export function getNextScheduleChange(schedules: Schedule[]): Date | null {
