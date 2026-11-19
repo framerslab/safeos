@@ -1239,6 +1239,25 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // With text at 200 per cent on a phone the modes menu's 18rem is wider than
+  // the screen. It opens under the head at its right edge, no wider than the
+  // head, so its whole width stays on the screen.
+  for (const look of LOOKS) {
+    await open({ name: 'a way page, its menu with larger text', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await largerText(page);
+      await page.getByRole('button', { name: 'Select Security Mode', exact: true }).click({ timeout: 5_000 });
+      const modes = page.locator('[aria-label="Select Security Mode"] + .absolute');
+      await modes.waitFor({ timeout: 5_000 });
+      const place = await modes.evaluate((menu) => {
+        const box = menu.getBoundingClientRect();
+        return { left: box.left, right: box.right, screen: document.documentElement.clientWidth };
+      });
+      check(place.left >= -0.5 && place.right <= place.screen + 0.5,
+        `on /monitor/ the modes menu runs from ${Math.round(place.left)} to ${Math.round(place.right)} px on a ${place.screen} px screen`);
+    });
+  }
+
   // These walks are about what the opened part covers, so the key that opens
   // it is pressed wherever the page has put it.
   for (const width of [390, 1280]) {
