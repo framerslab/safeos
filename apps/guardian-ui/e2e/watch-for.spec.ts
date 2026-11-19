@@ -201,7 +201,7 @@ test('a fresh device watches for Motion and sound, with Lost and Found beside it
   await setUpDevice(context);
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
 
-  await expect(page.getByRole('heading', { level: 1, name: 'Watch for' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 2, name: 'Watch for' })).toBeVisible();
   await expect(motionAndSound(page)).toBeChecked();
   await expect(lostAndFound(page)).not.toBeChecked();
   await expect(page.getByText(MOTION_LINE, { exact: true })).toBeVisible();
@@ -504,7 +504,7 @@ test('Choose a pet stands above the page\u2019s navigation, so its links take no
   await changePet(page).click();
   await expect(choosePet(page)).toBeVisible();
 
-  const link = page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Dashboard' });
+  const link = page.getByRole('navigation', { name: 'App' }).getByRole('link', { name: 'Dashboard', exact: true });
   const covered = await link.evaluate((element) => {
     const { x, y, width, height } = element.getBoundingClientRect();
     const hit = document.elementFromPoint(x + width / 2, y + height / 2);
@@ -667,7 +667,7 @@ test('at 200 per cent text the options’ words wrap inside them on one row, not
 test('the pet band, the pet card and its photos follow the width: 768, 1024 and 1440 px', async ({ page, context }) => {
   await setUpDevice(context, { lostFoundChosen: true });
   await openWatchWithPets(page, [MISO]);
-  const heading = page.getByRole('heading', { level: 1, name: 'Watch for' });
+  const heading = page.getByRole('heading', { level: 2, name: 'Watch for' });
   const photo = () => shown(page.getByRole('img', { name: 'Miso’s first saved photo' }));
   const limits = page.getByText(LIMITS_LINE, { exact: true });
 
