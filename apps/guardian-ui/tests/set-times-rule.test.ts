@@ -69,6 +69,37 @@ describe('setTimeStep', () => {
     expect(setTimeStep([work, nap], true, at13.appliedKey, at(MONDAY, 15, 1)).preset).toBeNull();
   });
 
+  it('puts the setting on when the set time in force is edited back to a setting it had', () => {
+    const work = setTime('maximum', ['mon'], '09:00', '17:00');
+    const first = setTimeStep([work], true, null, at(MONDAY, 12));
+    expect(first.preset).toBe('maximum');
+    const toNight = setTimeStep([{ ...work, preset: 'night' }], true, first.appliedKey, at(MONDAY, 12, 5));
+    expect(toNight.preset).toBe('night');
+    expect(setTimeStep([work], true, toNight.appliedKey, at(MONDAY, 12, 10)).preset).toBe('maximum');
+  });
+
+  it('does not put on again a set time in force again after many overlapping ones end', () => {
+    const work = { ...setTime('maximum', ['mon'], '09:00', '17:00'), id: 'sched_work', priority: 5 };
+    const pad = (n: number) => String(n).padStart(2, '0');
+    // Twelve half-hour set times, one after the other, from 10:00 to 16:00, above work hours.
+    const naps = Array.from({ length: 12 }, (_, i) => {
+      const start = 10 * 60 + i * 30;
+      const end = start + 30;
+      return {
+        ...setTime('pet_sleep', ['mon'], `${pad(Math.floor(start / 60))}:${pad(start % 60)}`, `${pad(Math.floor(end / 60))}:${pad(end % 60)}`),
+        id: `sched_nap_${i}`, priority: 15,
+      };
+    });
+    const all = [work, ...naps];
+    let record = setTimeStep(all, true, null, at(MONDAY, 9)).appliedKey;
+    for (let i = 0; i < naps.length; i++) {
+      const start = 10 * 60 + i * 30 + 1;
+      record = setTimeStep(all, true, record, at(MONDAY, Math.floor(start / 60), start % 60)).appliedKey;
+    }
+    // After 16:00 work hours are in force again, already put on today.
+    expect(setTimeStep(all, true, record, at(MONDAY, 16, 1)).preset).toBeNull();
+  });
+
   it('forgets the set time when set times are off, so turning them on again puts it back on', () => {
     const first = setTimeStep([night], true, null, at(MONDAY, 22));
     const off = setTimeStep([night], false, first.appliedKey, at(MONDAY, 22, 5));
