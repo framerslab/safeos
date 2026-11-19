@@ -17,6 +17,9 @@
 /* Import the public pages' header and footer and the home page */
 @import '../styles/visitor.css';
 
+/* Import the watch's Watch for, its pet and Choose a pet */
+@import '../styles/watch-for.css';
+
 /* =============================================================================
    Additional Base Styles
    ============================================================================= */
