@@ -742,7 +742,7 @@ function CompleteStep({ onFinish, lostFound }: { onFinish: () => void; lostFound
         <h1 className="text-heading-lg mb-2">Setup Complete</h1>
         <p className="text-[var(--color-steel-400)] mb-8 max-w-md mx-auto">
           {lostFound
-            ? 'Your Guardian system is configured. Next, add photos of your pet on the Lost & Found page and press its Start Monitoring. On Monitor, press Start Monitoring to start the camera; what it sees is then compared with the photos.'
+            ? 'Your Guardian system is configured. Next, add photos of your pet on the Lost & Found page, then press Start Monitoring there. While a watch is on, that page shows Go to Monitor in its place. On Monitor, press Start Monitoring to start the camera; what it sees is then compared with the photos.'
             : 'Your Guardian system is configured and ready. You can now start monitoring.'}
         </p>
 
