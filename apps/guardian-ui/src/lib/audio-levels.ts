@@ -137,25 +137,28 @@ export function binsInRange(
 }
 
 /**
- * The bins the level is measured against: every bin of the analyser for every
- * pitch. A tone is a peak a few bins wide at any analyser size, so its energy
- * over this fixed count reads the same in any range that holds it, at any
- * analyser size, and as every pitch reads it.
+ * The most bins a range's energy is divided over: every bin of the analyser
+ * for every pitch. A range that holds more bins than this reads a tone inside
+ * it as every pitch reads it, however wide the range is.
  */
 export const REFERENCE_BINS = ANALYSER_SIZE / 2;
 
 /**
- * The level of bins `first` to `last` of a byte spectrum: the root of their
- * energy over REFERENCE_BINS, from 0 to 1. A wider range adds the energy of
- * the pitches it adds and nothing else, so widening a range never lowers the
- * level of a sound inside it.
+ * The level of bins `first` to `last` of a byte spectrum, from 0 to 1: the
+ * root of their energy over their own count, up to REFERENCE_BINS. A range of
+ * up to REFERENCE_BINS bins, such as the Baby cry range (13 bins at 2,048
+ * points and 48 kHz), reads the root mean square of its bins. A wider range
+ * reads its energy over REFERENCE_BINS: the pitches it adds add their energy
+ * and nothing else, so widening a range past REFERENCE_BINS bins never lowers
+ * the level of a sound inside it.
  */
 export function levelOfBins(bins: Uint8Array, first: number, last: number): number {
   let sum = 0;
   for (let i = first; i <= last; i++) {
     sum += bins[i] * bins[i];
   }
-  return Math.min(1, Math.sqrt(sum / REFERENCE_BINS) / 255);
+  const divisor = Math.min(REFERENCE_BINS, last - first + 1);
+  return Math.min(1, Math.sqrt(sum / divisor) / 255);
 }
 
 /**
