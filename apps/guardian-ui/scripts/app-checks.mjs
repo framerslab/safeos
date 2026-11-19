@@ -4680,9 +4680,11 @@ export async function checkApp(browser, baseUrl, outDir) {
     await checkWhole(page, check);
   });
 
-  // Text at 200 per cent: the heading wraps, the key grows and nothing is
-  // cut; Mark all as seen and its link row stand side by side where both
-  // fit and stack whole where they do not.
+  // Text at 200 per cent: the heading wraps where its words do not fit one
+  // line, the key grows and nothing is cut; Mark all as seen and its link
+  // row stand side by side where both fit and stack whole where they do not.
+  // Side by side, the row centres the two, so they share a middle, and
+  // their tops differ when one is taller than the other.
   for (const [state, width, look] of [['set-up', 390, 'light'], ['set-up', 1280, 'light'], ['set-up', 820, 'light'], ['new', 390, 'dark']]) {
     await open({ name: 'dashboard, larger text', width, look }, async (page, context, check) => {
       const when = state === 'new' ? 'before setup ' : '';
@@ -4696,12 +4698,18 @@ export async function checkApp(browser, baseUrl, outDir) {
         const h1 = document.querySelector('main.dash h1');
         const key = document.querySelector('.dash-key-place .dash-key');
         const keyBox = key ? key.getBoundingClientRect() : null;
+        // The heading's words on one line: the width they take, and the width the heading has.
+        const words = document.createRange();
+        if (h1) words.selectNodeContents(h1);
         return {
           h1: h1 ? h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight) : 0,
+          h1Words: h1 ? words.getBoundingClientRect().width : 0,
+          h1Room: h1 ? h1.getBoundingClientRect().width : 0,
           key: key ? { whole: key.scrollWidth <= key.clientWidth + 0.5, height: keyBox.height } : null,
         };
       });
-      check(seen.h1 > 1.5, `${when}the heading takes ${seen.h1.toFixed(2)} lines, not more than one`);
+      const oneLineFits = seen.h1 > 0.5 && seen.h1 <= 1.5 && seen.h1Words <= seen.h1Room + 0.5;
+      check(seen.h1 > 1.5 || oneLineFits, `${when}the heading takes ${seen.h1.toFixed(2)} lines with its words ${px(seen.h1Words)} wide in ${px(seen.h1Room)}, neither more than one line nor whole on one`);
       check(!!seen.key && seen.key.whole, `${when}the key's words run past it`);
       check(!!seen.key && seen.key.height > 52, `${when}the key is ${seen.key ? px(seen.key.height) : 'not there'} tall, not over 52`);
       const cut = await cutIn(page);
@@ -4715,7 +4723,7 @@ export async function checkApp(browser, baseUrl, outDir) {
           const a = mark.getBoundingClientRect();
           const b = link.getBoundingClientRect();
           return {
-            side: Math.abs(a.top - b.top) <= 2,
+            side: Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) <= 2 && b.left >= a.right - 0.5,
             stacked: b.top >= a.bottom - 0.5,
             markWhole: mark.scrollWidth <= mark.clientWidth + 0.5,
             linkWhole: link.scrollWidth <= link.clientWidth + 0.5,
