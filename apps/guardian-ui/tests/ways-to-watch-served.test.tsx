@@ -4,13 +4,15 @@
  *
  * The four ways come in the HTML a browser gets before any script runs,
  * before this device is read: each a working link with its glyph, its name
- * and its line. The pet's photo and the square on the way Start watching
- * uses wait for the read.
+ * and its line. The pet's photo, the square on the way Start watching uses
+ * and People's kept number wait for the read, so the first render in a
+ * browser holds what was served.
  */
 
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { WaysToWatch } from '@/components/dashboard/WaysToWatch';
+import { useSecurityStore } from '@/stores/security-store';
 import { bare, served, words } from './helpers/served-html';
 
 const page = served(renderToStaticMarkup(<WaysToWatch setUp={null} subjects={null} />));
@@ -46,4 +48,15 @@ it("draws each way's glyph for the eye alone, and no photo or square before the 
   }
   expect(page.querySelectorAll('img')).toHaveLength(0);
   expect(page.querySelectorAll('.way__square')).toHaveLength(0);
+});
+
+it("holds People's own line on the first render when this device keeps a number of people, as the served page does", () => {
+  // In a browser the kept number is in the store before the first render,
+  // which has to hold what the served page holds for the page to carry on
+  // from it.
+  useSecurityStore.getState().setAllowedPersons(2);
+  const first = served(renderToStaticMarkup(<WaysToWatch setUp={null} subjects={null} />));
+  const people = Array.from(first.querySelectorAll('a')).find((link) => words(link.querySelector('.way__name')) === 'People');
+  expect(words(people?.querySelector('.way__line'))).toBe('Alerts when someone is in view.');
+  expect(people?.getAttribute('aria-label')).toBe('People: Alerts when someone is in view.');
 });
