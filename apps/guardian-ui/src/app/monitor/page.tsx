@@ -224,13 +224,14 @@ export default function MonitorPage() {
   }, [activeSubject, isLostFoundWatching, lostFoundSettings]);
 
   // The person's own sounds for Lost Item Found that the last match started.
-  // `round` moves on when they are stopped, so a start still on its way when
-  // the watch stops is stopped as it arrives.
+  // `round` moves on when they are let go, so a start still on its way when
+  // the watch stops starts nothing. Each sound is held from its start, and
+  // letting go stops it unless another alert's trigger plays it too.
   const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; round: number }>({ starting: false, ids: [], round: 0 });
   const stopOwnLostFoundSounds = useCallback(() => {
     const own = ownLostFoundSoundRef.current;
     own.round += 1;
-    own.ids.forEach((id) => getSoundManager().stop(id, 0));
+    own.ids.forEach((id) => getSoundManager().release(id, 'object_found'));
     own.ids = [];
   }, []);
 
@@ -287,13 +288,15 @@ export default function MonitorPage() {
           const own = ownLostFoundSoundRef.current;
           if (!own.starting && !own.ids.some((id) => manager.isActive(id))) {
             own.starting = true;
+            own.ids = [];
             const round = own.round;
-            void manager.playForTrigger('object_found')
-              .then((ids) => {
-                if (round === own.round) own.ids = ids;
-                else ids.forEach((id) => manager.stop(id, 0));
-              })
-              .finally(() => { own.starting = false; });
+            void manager.playForTrigger('object_found', {
+              cancelled: () => round !== own.round,
+              onStart: (id) => {
+                if (round === own.round) own.ids.push(id);
+                else manager.release(id, 'object_found');
+              },
+            }).finally(() => { own.starting = false; });
           }
           if (!lostFoundSettings.customMediaEnabled) manager.play('alert');
         }

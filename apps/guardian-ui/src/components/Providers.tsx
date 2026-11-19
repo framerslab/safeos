@@ -56,6 +56,12 @@ export function Providers({ children }: ProvidersProps) {
     };
 
     apply();
+    // A saved sound reads the volumes at the instant it starts, so quiet hours
+    // that began or ended a moment ago hold for it.
+    manager.setVolumeSource(() => {
+      const state = useSettingsStore.getState();
+      return { user: state.getEffectiveVolume(), critical: state.getEffectiveVolume('critical') };
+    });
 
     // React to settings changes immediately, and also re-apply periodically so
     // quiet-hours transitions take effect without requiring a settings change.
@@ -65,6 +71,7 @@ export function Providers({ children }: ProvidersProps) {
     return () => {
       unsubscribe();
       window.clearInterval(interval);
+      manager.setVolumeSource(null);
     };
   }, []);
 
