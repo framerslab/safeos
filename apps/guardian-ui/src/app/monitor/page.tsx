@@ -226,13 +226,14 @@ export default function MonitorPage() {
 
   // The person's own sounds for Lost Item Found that the last match started.
   // `round` moves on when they are let go, so a start on its way when
-  // the watch stops starts nothing. Each sound is held from its start, and
-  // letting go stops it unless another alert's trigger plays it too.
+  // the watch stops starts nothing. Each sound is held from its start. When
+  // Lost & Found ends and monitoring goes on, letting go stops a sound unless
+  // another alert's trigger plays it too; when the watch stops, it stops.
   const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; round: number }>({ starting: false, ids: [], round: 0 });
-  const stopOwnLostFoundSounds = useCallback(() => {
+  const stopOwnLostFoundSounds = useCallback((watchStops = false) => {
     const own = ownLostFoundSoundRef.current;
     own.round += 1;
-    own.ids.forEach((id) => getSoundManager().release(id, 'object_found'));
+    own.ids.forEach((id) => watchStops ? getSoundManager().stop(id, 0) : getSoundManager().release(id, 'object_found'));
     own.ids = [];
   }, []);
 
@@ -344,7 +345,7 @@ export default function MonitorPage() {
 
   // The person's own Lost & Found sounds stop when the Lost & Found watch ends,
   // its pet changes or the page closes (and with the camera, in stopStream).
-  useEffect(() => stopOwnLostFoundSounds, [isLostFoundWatching, activeSubject?.id, stopOwnLostFoundSounds]);
+  useEffect(() => () => stopOwnLostFoundSounds(), [isLostFoundWatching, activeSubject?.id, stopOwnLostFoundSounds]);
 
   // Drive Lost & Found matching on a lightweight interval (avoids relying on websocket frames)
   useEffect(() => {
@@ -419,7 +420,7 @@ export default function MonitorPage() {
   };
 
   const stopStream = () => {
-    stopOwnLostFoundSounds();
+    stopOwnLostFoundSounds(true);
     captureRequestedRef.current = false;
     setCaptureRequested(false);
     setVideoSeen(false);
