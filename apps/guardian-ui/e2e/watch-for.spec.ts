@@ -891,6 +891,7 @@ test('the pet on the camera’s picture has no key of its own; Watch for stops t
   await expect(onPicture).toBeVisible();
   await expect(onPicture.getByText('Miso', { exact: true })).toBeVisible();
   await expect(onPicture.getByRole('button')).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('watch-for-pet-on-picture-1280.png') });
 
   // Motion and sound stops it and says so; Lost and Found starts it again.
   await motionAndSound(page).check();
@@ -925,6 +926,7 @@ test('a photo added to one pet is kept on it when another pet is chosen before t
   // Choose a pet counts Miso's four photos, and Miso chosen again shows them.
   await changePet(page).click();
   await expect(dialog.getByText('4 photos', { exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('watch-for-photo-kept-390.png') });
   await dialog.getByText('Miso', { exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(shown(page.getByText('4 photos', { exact: true }))).toBeVisible();

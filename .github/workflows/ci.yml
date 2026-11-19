@@ -334,6 +334,8 @@ jobs:
             apps/guardian-ui/test-results/**/set-time-account-restored-1280.png
             apps/guardian-ui/test-results/**/watch-for-cleared-in-another-tab-1280.png
             apps/guardian-ui/test-results/**/watch-for-pet-changed-1280.png
+            apps/guardian-ui/test-results/**/watch-for-pet-on-picture-1280.png
+            apps/guardian-ui/test-results/**/watch-for-photo-kept-390.png
             apps/guardian-ui/test-results/**/watch-for-long-name-320.png
             apps/guardian-ui/test-results/**/lost-found-alert-1280.png
             apps/guardian-ui/test-results/**/sounds-played-1280.png
