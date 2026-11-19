@@ -1232,3 +1232,216 @@ html[data-app-started='true'] .needs-script {
     min-height: 88px;
   }
 }
+
+/* =============================================================================
+   The dashboard: since you last looked
+   ============================================================================= */
+
+/* Below the first screen a tick rule opens the part. In the wide layout the
+   part stands in the first screen, beside the watching state and the ways,
+   so it has no rule there. */
+.since {
+  margin-top: 32px;
+  container-type: inline-size;
+}
+
+.since__rule {
+  margin-bottom: 16px;
+}
+
+@media (min-width: 90em) {
+  .since {
+    margin-top: 0;
+  }
+
+  .since__rule {
+    display: none;
+  }
+}
+
+.since__drawing {
+  margin: 8px 0 12px;
+}
+
+.since__drawing .drawn-frame {
+  width: 64px;
+  aspect-ratio: 4 / 3;
+}
+
+.since__drawing .level-line {
+  width: 100%;
+  max-width: 20rem;
+  height: 12px;
+}
+
+.since__empty {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+}
+
+.since__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.since__item + .since__item {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+/* A row: its picture or its way's glyph, then what happened over the way's
+   name; the page's ground at rest, the raised ground under the pointer and
+   while pressed. */
+.since__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 8px 0;
+  color: var(--color-steel-50);
+  transition: background-color 120ms ease-out;
+}
+
+.since__row:hover,
+.since__row:active {
+  background: var(--color-steel-850);
+}
+
+/* The ring stands round the whole row, inside its column. */
+.look-part .since__row:focus-visible {
+  outline-offset: -2px;
+}
+
+.since__picture {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 48px;
+  background: var(--color-steel-900);
+  color: var(--color-steel-50);
+}
+
+.since__picture img {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+}
+
+.since__words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.since__what {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+}
+
+.since__way {
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+/* A row that came in while the dashboard was open slides in from the top of
+   the list. */
+.since__item--arrived {
+  animation: since-in 150ms ease-out;
+}
+
+@keyframes since-in {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .since__item--arrived {
+    animation: none;
+  }
+
+  .since__row {
+    transition: none;
+  }
+}
+
+/* Mark all as seen and the way to History: stacked on a phone and in the
+   wide column, side by side on a tablet and a desktop, and stacked whole
+   when the two do not fit one row. This pair never scrolls sideways and has
+   no More. Each keeps its words on one line while there is room for them. */
+.since__ways-on {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (min-width: 48em) {
+  .since__ways-on {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 24px;
+  }
+}
+
+/* The wide column stacks them again. */
+@media (min-width: 90em) {
+  .since__ways-on {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+}
+
+.since .key--outline {
+  min-height: 44px;
+}
+
+/* One row of pictures, where the part is as wide as the desktop's 12
+   columns. With text at 200 per cent 60rem is wider than the page, so the
+   entries keep the stacked rows. */
+@container (min-width: 60rem) {
+  .since__list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    column-gap: 16px;
+  }
+
+  .since__item + .since__item {
+    border-top: 0;
+  }
+
+  .since__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .since__picture {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+  }
+
+  .since__picture img {
+    width: 100%;
+    height: 100%;
+  }
+}
