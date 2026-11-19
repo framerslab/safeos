@@ -451,15 +451,19 @@ export default function MonitorPage() {
     if (!start) return;
     let live = true;
     void (async () => {
+      let lostFound = false;
       if (start.way === 'lost-found' && start.pet) {
         const pet = await getSubjectProfile(start.pet);
         if (!live) return;
         if (pet && pet.type !== 'person') {
+          lostFound = true;
           useLostFoundStore.getState().setActiveSubject(pet);
           useLostFoundStore.getState().startWatching();
         }
       }
       if (!live) return;
+      // Watch for runs the way the dashboard's key named.
+      useOnboardingStore.getState().setLostFoundChosen(lostFound);
       pendingStart.current = null;
       startStream();
     })();
@@ -472,7 +476,10 @@ export default function MonitorPage() {
 
   // A camera held for this page and never taken is closed when the page is left.
   useEffect(() => dropStart, []);
-  const watchedPet = isLostFoundWatching && activeSubject ? activeSubject.id : undefined;
+  // The pet the watch compares with, as Watch for has it from the render that
+  // starts the watch, so the other tabs and the dashboard hear of a Lost and
+  // Found watch from its press.
+  const watchedPet = watchFor.comparing && watchFor.pet ? watchFor.pet.id : undefined;
 
   // The other tabs hear of this watch from the press, before the camera is
   // asked for, so a press in another tab meanwhile asks first. This effect's
