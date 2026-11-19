@@ -422,11 +422,15 @@ export async function startWatching(page: Page): Promise<void> {
  * camera's files from the sample clip" (SAMPLE_CLIP_Y4M and SAMPLE_CLIP_WAV).
  */
 export function sampleClipLaunch(): string[] {
+  const video = process.env.SAMPLE_CLIP_Y4M;
+  const audio = process.env.SAMPLE_CLIP_WAV;
   return [
     '--use-fake-ui-for-media-stream',
     '--use-fake-device-for-media-stream',
-    `--use-file-for-fake-video-capture=${process.env.SAMPLE_CLIP_Y4M ?? ''}`,
-    `--use-file-for-fake-audio-capture=${process.env.SAMPLE_CLIP_WAV ?? ''}`,
+    // Without the clip's files the fake devices play Chromium's own pattern;
+    // the walks that need the clip fail in requireSampleClip.
+    ...(video ? [`--use-file-for-fake-video-capture=${video}`] : []),
+    ...(audio ? [`--use-file-for-fake-audio-capture=${audio}`] : []),
     '--autoplay-policy=no-user-gesture-required',
   ];
 }

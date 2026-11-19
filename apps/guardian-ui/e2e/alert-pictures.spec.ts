@@ -43,15 +43,13 @@ import {
   type PicturesSeed,
 } from './helpers/alert-pictures';
 
+// One launch for the whole file (Playwright takes launch options at the top
+// of a file only): Chromium's fake camera and microphone play the sample
+// clip. A walk that hands the page a canvas camera replaces getUserMedia, so
+// it never reads the clip.
 test.use({
   permissions: ['camera', 'microphone'],
-  launchOptions: {
-    args: [
-      '--use-fake-ui-for-media-stream',
-      '--use-fake-device-for-media-stream',
-      '--autoplay-policy=no-user-gesture-required',
-    ],
-  },
+  launchOptions: { args: sampleClipLaunch() },
 });
 
 // The camera stand-ins and the camera grants need desktop Chromium, as the
@@ -213,7 +211,7 @@ async function boxLines(page: Page, frame: Locator): Promise<{ green: [number, n
 for (const look of ['dark', 'light'] as const) {
   for (const width of [390, 1280]) {
     test.describe(`The card on the sample clip, ${width} px, ${look}`, () => {
-      test.use({ colorScheme: look, viewport: { width, height: 900 }, launchOptions: { args: sampleClipLaunch() } });
+      test.use({ colorScheme: look, viewport: { width, height: 900 } });
       test.beforeEach(() => requireSampleClip());
 
       test(`a Motion alert's card shows the camera's picture with one box and its close-up, with no line reading Motion detected, ${width} px, ${look}`, async ({ page, context }) => {
@@ -257,7 +255,7 @@ for (const look of ['dark', 'light'] as const) {
 
 for (const look of ['dark', 'light'] as const) {
   test.describe(`The Sound card on the sample clip, 1280 px, ${look}`, () => {
-    test.use({ colorScheme: look, viewport: { width: 1280, height: 900 }, launchOptions: { args: sampleClipLaunch() } });
+    test.use({ colorScheme: look, viewport: { width: 1280, height: 900 } });
     test.beforeEach(() => requireSampleClip());
 
     test(`a Sound alert's card shows the picture with no box and says what the camera saw when the sound came, ${look}`, async ({ page, context }) => {
