@@ -194,19 +194,46 @@ async function watchWith(page: Page, context: BrowserContext, options: {
   await startWatching(page);
 }
 
-/** The picture block's box: its place on screen and the colours of its two lines, sampled on a screenshot. */
-async function boxLines(page: Page, frame: Locator): Promise<{ green: [number, number, number]; dark: [number, number, number] }> {
+/**
+ * The lines of the picture block's box, read on a screenshot of the picture
+ * along a row or column through the middle of one of the box's edges, from
+ * outside the box inwards: how many pixels of the dark line stand before the
+ * green line and how wide the green line is. The edge read is the first of
+ * left, right, top and bottom that stands inside the picture, where the dark
+ * line has room.
+ */
+async function boxLines(page: Page, frame: Locator): Promise<{ greenWidth: number; darkWidth: number; row: string }> {
   const box = frame.locator('.alert-picture__box');
   await expect(box).toHaveCount(1);
   const frameRect = (await frame.boundingBox())!;
   const boxRect = (await box.boundingBox())!;
   const shot = await frame.screenshot({ animations: 'disabled' });
-  const left = boxRect.x - frameRect.x;
-  const midY = boxRect.y - frameRect.y + boxRect.height / 2;
-  // The green line lies on the box's own edge, 2 px wide; the dark line 1 px outside it.
-  const [green, dark] = await pixelsAt(page, pngUrl(shot), [[left + 1, midY], [left - 1, midY]]);
-  return { green, dark };
+  const left = Math.round(boxRect.x - frameRect.x);
+  const top = Math.round(boxRect.y - frameRect.y);
+  const right = Math.round(boxRect.x + boxRect.width - frameRect.x);
+  const bottom = Math.round(boxRect.y + boxRect.height - frameRect.y);
+  const midX = (left + right) / 2;
+  const midY = (top + bottom) / 2;
+  const steps = Array.from({ length: 10 }, (_, i) => i - 4);
+  const edges: Array<{ room: boolean; points: Array<[number, number]> }> = [
+    { room: left >= 3, points: steps.map((i) => [left + i, midY]) },
+    { room: right <= frameRect.width - 3, points: steps.map((i) => [right - 1 - i, midY]) },
+    { room: top >= 3, points: steps.map((i) => [midX, top + i]) },
+    { room: bottom <= frameRect.height - 3, points: steps.map((i) => [midX, bottom - 1 - i]) },
+  ];
+  const edge = edges.find((candidate) => candidate.room);
+  expect(edge, 'one edge of the box stands inside the picture').toBeTruthy();
+  const row = await pixelsAt(page, pngUrl(shot), edge!.points);
+  const firstGreen = row.findIndex((rgb) => near(rgb, '#4ade80'));
+  let greenWidth = 0;
+  while (firstGreen >= 0 && firstGreen + greenWidth < row.length && near(row[firstGreen + greenWidth], '#4ade80')) greenWidth += 1;
+  let darkWidth = 0;
+  while (firstGreen - 1 - darkWidth >= 0 && near(row[firstGreen - 1 - darkWidth], '#0b131b', 12)) darkWidth += 1;
+  return { greenWidth, darkWidth, row: JSON.stringify(row) };
 }
+
+/** A time as a card shows it, for a pattern: the device may write a narrow space before AM or PM. */
+const timePattern = (time: string) => escape(time).replace(/ /g, '\\s');
 
 for (const look of ['dark', 'light'] as const) {
   for (const width of [390, 1280]) {
@@ -223,9 +250,9 @@ for (const look of ['dark', 'light'] as const) {
         const picture = card.getByRole('img', { name: pictureName(time, true), exact: true });
         await expect(picture).toBeVisible();
         const frame = card.locator('.alert-picture__frame').first();
-        const { green, dark } = await boxLines(page, frame);
-        expect(near(green, '#4ade80'), `the box's line is #4ade80 (read ${green})`).toBe(true);
-        expect(near(dark, '#0b131b'), `the box's outer line is #0b131b (read ${dark})`).toBe(true);
+        const lines = await boxLines(page, frame);
+        expect(lines.greenWidth, `the box's line is 2 px of #4ade80 (the row reads ${lines.row})`).toBe(2);
+        expect(lines.darkWidth, `1 px of #0b131b stands outside the green line (the row reads ${lines.row})`).toBeGreaterThanOrEqual(1);
 
         const closeUp = card.getByRole('img', { name: closeUpName(time), exact: true });
         await expect(closeUp).toBeVisible();
@@ -247,7 +274,7 @@ for (const look of ['dark', 'light'] as const) {
         await expect(card.getByText(/^Level 1$/)).toBeVisible();
         await expect(card.getByRole('button', { name: 'Acknowledge', exact: true })).toBeVisible();
         expect(await page.locator('body').innerText()).not.toMatch(/Motion detected/);
-        await expect(page.getByRole('status').filter({ hasText: new RegExp(`^New alert: Motion, (Low|Medium|High|Critical), at ${escape(time)}\\.`) })).toHaveCount(1);
+        await expect(page.getByRole('status').filter({ hasText: new RegExp(`^New alert: Motion, (Low|Medium|High|Critical), at ${timePattern(time)}\\.`) })).toHaveCount(1);
       });
     });
   }
@@ -413,6 +440,7 @@ test.describe('The card on a canvas camera, 1280 px', () => {
     const card = cards(page).first();
     const time = await timeOf(card, 'Motion');
     const picture = card.getByRole('img', { name: pictureName(time, true), exact: true });
+    await expect(picture).toBeVisible();
     const frame = card.locator('.alert-picture__frame').first();
     const tile = (await frame.boundingBox())!;
     expect(Math.abs(tile.width / tile.height - 4 / 3), 'the tile is 4:3').toBeLessThanOrEqual(0.02);
@@ -496,6 +524,8 @@ for (const width of [390, 1280]) {
         await page.evaluate(() => { window.__camera!.moving.width = 1 / 3; });
       }
       const [newest, ...older] = await cards(page).all();
+      for (const card of [newest, ...older]) await expect(card.locator('.alert-picture img').first()).toBeVisible();
+      await expect(newest.locator('.alert-picture')).toHaveAttribute('data-form', 'large');
       const frame = (await newest.locator('.alert-picture__frame').boundingBox())!;
       const block = (await newest.locator('.alert-picture').boundingBox())!;
       if (width === 390) {
@@ -531,6 +561,8 @@ for (const look of ['dark', 'light'] as const) {
         await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
         const card = cards(page).first();
         await timeOf(card, 'Motion');
+        await expect(card.locator('.alert-picture__frame img')).toBeVisible();
+        await expect(card.locator('.alert-picture__tile img')).toBeVisible();
         const blockOf = async () => (await card.locator('.alert-picture').boundingBox())!;
         const frameOf = async () => (await card.locator('.alert-picture__frame').boundingBox())!;
         const tileOf = async () => (await card.locator('.alert-picture__tile').first().boundingBox())!;
@@ -554,7 +586,11 @@ for (const look of ['dark', 'light'] as const) {
         }).length), 'nothing in the block is cut').toBe(0);
         if (width === 320) {
           await doubleText(page);
-          expect(await scrollsSideways(page)).toBe(false);
+          // The card adds no sideways scroll of its own: nothing in it reaches past its edge.
+          expect(await card.evaluate((el) => {
+            const edge = el.getBoundingClientRect().right;
+            return Array.from(el.querySelectorAll('*')).filter((child) => child.getBoundingClientRect().right > edge + 1).length;
+          }), 'nothing in the card reaches past its edge at 200 per cent').toBe(0);
           const acknowledge = card.getByRole('button', { name: 'Acknowledge', exact: true });
           await expect(acknowledge).toBeVisible();
           expect(await block.evaluate((el) => Array.from(el.querySelectorAll('p, span')).filter((child) => child.scrollWidth > child.clientWidth + 1).length), 'no line in the block is cut at 200 per cent').toBe(0);

@@ -1,0 +1,444 @@
+/* =============================================================================
+   Alert pictures: an alert card and its picture block
+   (src/components/AlertPanel.tsx, src/components/alert-pictures/).
+
+   The watch page's own look. The tokens below are the dark look's; html.light
+   sets the light look's. Words are in rem, so the browser's text size scales
+   them; edges, pictures and glyphs are in px. The box on a photograph is one
+   pair in both looks: a green line inside a dark line, so it stands on any
+   picture.
+   ============================================================================= */
+
+:root {
+  --ap-ground: #1f2937;
+  --ap-ink: #ffffff;
+  --ap-quiet: #d1d5db;
+  --ap-edge: #9ca3af;
+  --ap-track: #374151;
+  --ap-divider: #4b5563;
+  --ap-problem: #fb923c;
+  --ap-ring: #34d399;
+  --ap-accent: #34d399;
+  --ap-acknowledge-ground: #3b5b3f;
+  --ap-acknowledge-ink: #ffffff;
+  --ap-box-line: #4ade80;
+  --ap-box-edge: #0b131b;
+}
+
+html.light {
+  --ap-ground: #ffffff;
+  --ap-ink: #111827;
+  --ap-quiet: #374151;
+  --ap-edge: #4b5563;
+  --ap-track: #e5e7eb;
+  --ap-divider: #9ca3af;
+  --ap-problem: #991b1b;
+  --ap-ring: #047857;
+  --ap-accent: #047857;
+  --ap-acknowledge-ground: #e4f0d7;
+  --ap-acknowledge-ink: #111827;
+}
+
+/* -----------------------------------------------------------------------------
+   The card
+   ----------------------------------------------------------------------------- */
+
+.alert-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* Cards stand on the panel's ground with a divider between them. */
+.alert-card-list > * + * {
+  border-top: 1px solid var(--ap-divider);
+}
+
+/* A card in the small form: its thumbnail at the card's left, the level, the
+   time since and the kind and time beside it, then the card's last row. */
+.alert-card[data-form='small'] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  gap: 4px 0;
+}
+
+.alert-card[data-form='small'] > .alert-card__head {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.alert-card[data-form='small'] > .alert-picture[data-status='shown'],
+.alert-card[data-form='small'] > .alert-picture[data-status='loading'] {
+  display: contents;
+}
+
+.alert-card[data-form='small'] > .alert-picture:not([data-status='shown']):not([data-status='loading']) {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding: 0;
+  border: 0;
+}
+
+.alert-card[data-form='small'] .alert-picture__tile,
+.alert-card[data-form='small'] .alert-picture__wait {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+  margin-right: 12px;
+}
+
+.alert-card[data-form='small'] .alert-picture[data-status='shown'] .alert-picture__words,
+.alert-card[data-form='small'] .alert-picture[data-status='loading'] .alert-picture__words {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.alert-card[data-form='small'] > .alert-card__foot {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  margin-top: 4px;
+}
+
+/* The bar at the card's left edge: the alert's escalation level. */
+.alert-card__bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #10b981;
+}
+
+.alert-card__bar[data-level='2'] { background: #eab308; }
+.alert-card__bar[data-level='3'] { background: #f97316; }
+.alert-card__bar[data-level='4'] { background: #ef4444; }
+
+/* The fourth level pulses until the card is acknowledged; under reduced
+   motion the bar holds its colour. */
+@media (prefers-reduced-motion: no-preference) {
+  .alert-card__bar[data-level='4'] {
+    animation: alert-card-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-card__bar {
+    animation: none !important;
+  }
+}
+
+@keyframes alert-card-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.alert-card__head,
+.alert-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.alert-card__level {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--ap-ink);
+}
+
+.alert-card__level svg {
+  flex: none;
+}
+
+.alert-card__ago {
+  color: var(--ap-ink);
+}
+
+.alert-card__picture {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.alert-card__thumbnail {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--ap-track);
+}
+
+.alert-card__message {
+  margin: 0;
+  min-width: 0;
+  color: var(--ap-ink);
+  overflow-wrap: anywhere;
+}
+
+.alert-card__counts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  color: var(--ap-ink);
+}
+
+.alert-card__acknowledge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ap-acknowledge-ground);
+  color: var(--ap-acknowledge-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alert-card__acknowledge:focus-visible {
+  outline: 2px solid var(--ap-ring);
+  outline-offset: 2px;
+}
+
+.alert-card__more {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--ap-ground);
+  color: var(--ap-quiet);
+  font-size: 1rem;
+  text-align: center;
+}
+
+/* -----------------------------------------------------------------------------
+   The picture block
+   ----------------------------------------------------------------------------- */
+
+.alert-picture {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.alert-picture p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-picture__lead {
+  font-size: 1.125rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ap-ink);
+}
+
+.alert-picture__quiet {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ap-quiet);
+}
+
+.alert-picture__words {
+  display: flex;
+  flex: 1 1 6rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The picture of the moment, at the frame's own shape; a frame taller than
+   4:3 stands whole inside a 4:3 tile on the track colour. The 1 px edge is
+   drawn over the picture, so the picture and its box keep their own size. */
+.alert-picture__frame,
+.alert-picture__tile,
+.alert-picture__wait {
+  position: relative;
+  background: var(--ap-track);
+}
+
+.alert-picture__frame::after,
+.alert-picture__tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--ap-edge);
+  pointer-events: none;
+}
+
+.alert-picture__frame,
+.alert-picture__tile--whole {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alert-picture__fit {
+  position: relative;
+  flex: none;
+  width: 100%;
+}
+
+.alert-picture__frame[data-tall],
+.alert-picture__tile--whole[data-tall] {
+  aspect-ratio: 4 / 3;
+}
+
+[data-tall] > .alert-picture__fit {
+  width: auto;
+  height: 100%;
+}
+
+.alert-picture__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The box round what set the alert off: a 2 px green line inside a 1 px dark
+   line, square corners, the same in both looks. */
+.alert-picture__box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--ap-box-line);
+  outline: 1px solid var(--ap-box-edge);
+  pointer-events: none;
+}
+
+/* A thumbnail's tile: the close-up, whole, on the track colour where its
+   shape differs from the tile's. */
+.alert-picture__tile {
+  flex: none;
+  width: 112px;
+  height: 84px;
+}
+
+.alert-picture__tile > .alert-picture__image {
+  position: absolute;
+  inset: 0;
+}
+
+/* The tile that stands in a picture's place until it is drawn. */
+.alert-picture__wait {
+  aspect-ratio: 4 / 3;
+}
+
+.alert-picture__wait--tile {
+  flex: none;
+  width: 112px;
+  height: 84px;
+  aspect-ratio: auto;
+}
+
+/* The close-up beside its words; the words go under it where they do not fit. */
+.alert-picture__side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.alert-picture__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* An alert with no picture: the glyph of an empty frame beside the line that says why. */
+.alert-picture__why {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.alert-picture__why svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.alert-picture__problem {
+  color: var(--ap-problem);
+}
+
+/* A tablet: the picture in the block's left half, the close-up and the words in its right half. */
+@media (min-width: 768px) {
+  .alert-picture[data-form='large'][data-status='shown'],
+  .alert-picture[data-form='large'][data-status='loading'] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: start;
+  }
+
+  .alert-picture[data-form='large'] > .alert-picture__notes {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A desktop: the list is the page's right column. One row of two pictures,
+   the picture of the moment at three fifths of the card and the close-up at
+   two fifths at the same height, with their words under them. */
+@media (min-width: 1024px) {
+  .alert-picture[data-form='large'][data-status='shown'],
+  .alert-picture[data-form='large'][data-status='loading'] {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    column-gap: 8px;
+    align-items: stretch;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] > .alert-picture__side {
+    display: contents;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__tile {
+    width: auto;
+    height: auto;
+    min-height: 0;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__words {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    column-gap: 8px;
+    row-gap: 2px;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__lead,
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__zone {
+    grid-column: 1;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__label {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+/* The wide page: the lead lines a size up. */
+@media (min-width: 1440px) {
+  .alert-picture__lead {
+    font-size: 1.25rem;
+  }
+}

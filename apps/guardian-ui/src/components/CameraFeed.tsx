@@ -32,12 +32,24 @@ interface PixelDetectionConfig {
   downsampleFactor?: number;
 }
 
+/**
+ * The frames of one check: the camera's picture the check read and the one
+ * before it. Handed to the page inside the check, so an alert's picture is
+ * the frame that raised it. Neither is changed afterwards.
+ */
+export interface CheckFrames {
+  previous: ImageData | null;
+  current: ImageData;
+}
+
 interface CameraFeedProps {
   onFrame?: (data: FrameData) => void;
   onMotion?: (score: number) => void;
-  onMotionZones?: (zones: Array<{ id: string; name: string; score: number }>) => void;
+  /** Each check's zone scores, with the two frames the check compared. */
+  onMotionZones?: (zones: Array<{ id: string; name: string; score: number }>, frames: CheckFrames) => void;
   onAudio?: (level: number) => void;
-  onPixel?: (result: PixelDetectionResult) => void;
+  /** Each check's pixel reading, with the check's frames. */
+  onPixel?: (result: PixelDetectionResult, frames: CheckFrames) => void;
   onVideoReady?: (video: HTMLVideoElement | null) => void;
   onError?: (error: Error) => void;
   scenario?: 'pet' | 'baby' | 'elderly' | 'security';
@@ -399,7 +411,7 @@ export function CameraFeed({
         lastPixelResultRef.current = result;
         setPixelChangePercent(result.difference);
         setPixelChangedPixels(result.changedPixelCount);
-        onPixelRef.current?.(result);
+        onPixelRef.current?.(result, { previous: previousFrameRef.current, current: currentFrame });
       }
 
       // Compare with previous frame
@@ -435,7 +447,7 @@ export function CameraFeed({
         setMotionScore(motionPercent);
         motionScoreRef.current = motionPercent;
         onMotionRef.current?.(motionPercent);
-        onMotionZonesRef.current?.(zoneScores);
+        onMotionZonesRef.current?.(zoneScores, { previous: previousFrameRef.current, current: currentFrame });
       }
 
       // Store current frame for next comparison

@@ -44,7 +44,9 @@ it('announces each repeat of a card, also a repeat with the same reading and sev
   const { rerender } = render(panel(card));
   await act(async () => { await settle(); });
   const first = screen.getByRole('status').textContent;
-  expect(first).toContain('New high alert: Motion detected: 75% (threshold: 20%).');
+  // A Motion alert is read by its kind, level and time; its numbers stay in its record.
+  expect(first).toMatch(/^New alert: Motion, High, at \d{1,2}:\d{2}:\d{2}/);
+  expect(first).not.toContain('Motion detected');
 
   rerender(panel({ ...card, repeats: 1 }));
   await act(async () => { await settle(); });

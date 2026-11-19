@@ -53,8 +53,9 @@ const LOOKS = ['light', 'dark'];
 // holds it to the store.
 const CAPTURE_SETTINGS = JSON.parse(await readFile(path.join(APP_ROOT, 'scripts', 'home-capture-settings.json'), 'utf8'));
 
-const MOTION_ALERT = /Motion detected: \d+% \(threshold: 20%/;
-const SOUND_ALERT = /Audio detected: \d+% \(threshold: 20%/;
+// An alert card names its kind and time: "Motion at 9:42:40 PM".
+const MOTION_ALERT = /Motion at \d/;
+const SOUND_ALERT = /Sound at \d/;
 
 const files = [];
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');

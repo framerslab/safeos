@@ -17,7 +17,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { CameraPicker } from '../../components/CameraPicker';
 import { useCameraStore } from '../../stores/camera-store';
-import { CameraFeed } from '../../components/CameraFeed';
+import { CameraFeed, type CheckFrames } from '../../components/CameraFeed';
 import { AlertPanel } from '../../components/AlertPanel';
 import { SubjectPreviewOverlay, SubjectPreview } from '../../components/SubjectPreview';
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
@@ -37,12 +37,27 @@ import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
 import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
+import { detectRegionalMotion } from '../../lib/motion-detection';
+import { alertBox, boxFromCells, boxFromHotspots, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { capturePictureSet, newPictureId, type PictureSet } from '../../lib/alert-pictures/capture';
+import { holdPicture } from '../../lib/alert-pictures/keeper';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 
 // =============================================================================
 // Constants
 // =============================================================================
+
+/** The kind of picture each detector's alert keeps. */
+const KIND_OF_SOURCE: Record<'motion' | 'audio' | 'pixel', AlertKind> = {
+  motion: 'motion',
+  audio: 'sound',
+  pixel: 'picture-change',
+};
+
+/** True for a zone that covers the whole frame, which names no part of it. */
+const isWholeFrame = (zone: { x: number; y: number; width: number; height: number }) =>
+  zone.x === 0 && zone.y === 0 && zone.width === 100 && zone.height === 100;
 
 const THUMBNAIL_WIDTH = 160;
 const THUMBNAIL_HEIGHT = 120;
@@ -767,6 +782,7 @@ export default function MonitorPage() {
     repeat: boolean,
     severity: AlertSeverity,
     message: string,
+    picture?: { pictureId?: string; zone?: string },
   ) => {
     const card = event.alertId
       ? useMonitoringStore.getState().alerts.find((a) => a.id === event.alertId)
@@ -796,14 +812,39 @@ export default function MonitorPage() {
       timestamp: new Date(now).toISOString(),
       acknowledged: false,
       repeats: event.repeats > 0 ? event.repeats : undefined,
+      // The card shows the kind, the time and the alert's picture; the message keeps the numbers as data.
+      kind: KIND_OF_SOURCE[source],
+      pictureId: picture?.pictureId,
+      zone: picture?.zone,
     }, updatesCard ? { fresh: freshCardFor(event, () => newAlertId(source, now), now) } : undefined);
   }, [addAlert, streamId]);
+
+  /**
+   * Takes an alert's picture in the tick that raises it: the source is copied
+   * before anything waits, so the picture is the frame that set the alert off,
+   * whatever the camera does next. Answers the picture's id for the alert's
+   * record, or nothing when there is no frame to take.
+   */
+  const takePicture = useCallback((
+    kind: AlertKind,
+    at: number,
+    source: ImageData | CanvasImageSource | null | undefined,
+    width: number,
+    height: number,
+    box: Box | null,
+  ): { pictureId: string; picture: Promise<PictureSet> } | undefined => {
+    if (!source || !(width > 0) || !(height > 0)) return undefined;
+    const pictureId = newPictureId(at);
+    const picture = capturePictureSet({ id: pictureId, kind, at, source, sourceWidth: width, sourceHeight: height, sourceBox: box });
+    holdPicture(picture, pictureId);
+    return { pictureId, picture };
+  }, []);
 
   const handleMotion = useCallback((score: number) => {
     setMotionScore(score);
   }, [setMotionScore]);
 
-  const handleMotionZones = useCallback((zones: Array<{ id: string; name: string; score: number }>) => {
+  const handleMotionZones = useCallback((zones: Array<{ id: string; name: string; score: number }>, frames?: CheckFrames) => {
     if (!currentPreset.motionDetectionEnabled || !isStreaming) {
       endDetectorEvent(motionEventRef.current);
       return;
@@ -836,9 +877,25 @@ export default function MonitorPage() {
 
     if (outcome.kind !== 'alert') return;
 
+    // The box goes round the cells that changed between the check's two frames, inside the zone
+    // that set the alert off where zones are set.
+    const bestId = best.id;
+    const bestZone = detectionZones.find((dz) => dz.id === bestId);
+    const zone: PercentZone | null = bestZone && !isWholeFrame(bestZone)
+      ? { x: bestZone.x, y: bestZone.y, width: bestZone.width, height: bestZone.height }
+      : null;
+    const frame = frames?.current;
+    const taken = frame && takePicture('motion', now, frame, frame.width, frame.height, alertBox(
+      'motion',
+      frames?.previous ? boxFromCells(detectRegionalMotion(frames.previous, frame), frame.width, frame.height, zone) : null,
+      frame.width,
+      frame.height,
+    ));
+
     showDetectorAlert(
       motionEventRef.current, 'motion', now, outcome.repeat, severity,
       `Motion detected: ${best.score}% (threshold: ${best.threshold}% · zone: ${best.name})`,
+      { pictureId: taken?.pictureId, zone: zone ? best.name : undefined },
     );
 
     getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
@@ -853,6 +910,7 @@ export default function MonitorPage() {
     getCooldownForSeverity,
     playMovementSound,
     showDetectorAlert,
+    takePicture,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
   ]);
@@ -877,9 +935,14 @@ export default function MonitorPage() {
     });
     if (outcome.kind !== 'alert' || !severity) return;
 
+    // What the camera saw when the sound came: the live picture as it stands, with no box.
+    const video = videoRef.current;
+    const taken = video ? takePicture('sound', now, video, video.videoWidth, video.videoHeight, null) : undefined;
+
     showDetectorAlert(
       audioEventRef.current, 'audio', now, outcome.repeat, severity,
       `Audio detected: ${level}% (threshold: ${audioThreshold}% · sensitivity: ${currentPreset.audioSensitivity}%)`,
+      { pictureId: taken?.pictureId },
     );
 
     // Play sound (unless muted)
@@ -887,9 +950,9 @@ export default function MonitorPage() {
     getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
     maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity, audioEventRef.current);
-  }, [isStreaming, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, showDetectorAlert, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
+  }, [isStreaming, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, showDetectorAlert, takePicture, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
 
-  const handlePixel = useCallback((result: PixelDetectionResult) => {
+  const handlePixel = useCallback((result: PixelDetectionResult, frames?: CheckFrames) => {
     setPixelChangePercent(result.difference);
     setPixelChangedPixels(result.changedPixelCount);
     pixelChangedPixelsRef.current = result.changedPixelCount;
@@ -957,9 +1020,20 @@ export default function MonitorPage() {
 
     if (outcome.kind !== 'alert') return;
 
+    // The box goes round the parts of the picture that changed; a change over more than half of
+    // the frame, or one with no part to name, keeps the picture alone.
+    const frame = frames?.current;
+    const taken = frame && takePicture('picture-change', now, frame, frame.width, frame.height, alertBox(
+      'picture-change',
+      boxFromHotspots(result.hotspots ?? [], frame.width, frame.height),
+      frame.width,
+      frame.height,
+    ));
+
     showDetectorAlert(
       pixelEventRef.current, 'pixel', now, outcome.repeat, severity,
       `Pixel movement detected${chosenZoneName ? ` in ${chosenZoneName}` : ''}: ${chosenChangedPx}px (threshold: ${chosenThresholdPx}px)`,
+      { pictureId: taken?.pictureId, zone: chosenZoneName ?? undefined },
     );
 
     getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
@@ -975,6 +1049,7 @@ export default function MonitorPage() {
     getCooldownForSeverity,
     playMovementSound,
     showDetectorAlert,
+    takePicture,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
   ]);

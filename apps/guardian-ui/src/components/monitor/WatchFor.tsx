@@ -49,7 +49,7 @@ const READ_FAILED = 'Saved pets could not be read on this device. Reload the pag
 /** The frame's line while Lost and Found is chosen with no pet saved. */
 export const NO_PET_FRAME_LINE = 'Without a saved pet, it watches for motion and sound.';
 
-const possessive = (name: string) => `${name}’s`;
+export const possessive = (name: string) => `${name}’s`;
 const comparesLine = (name: string) =>
   `Compares what the camera sees with ${possessive(name)} photos, by colour and shape. Motion and sound alerts go on too.`;
 const photoCount = (count: number) => (count === 1 ? '1 photo' : `${count} photos`);
