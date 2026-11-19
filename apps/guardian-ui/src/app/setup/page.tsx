@@ -463,7 +463,7 @@ function ScenarioStep({
     {
       id: 'pet' as const,
       label: 'Pet Monitoring',
-      description: 'Motion and sound alerts while your pet is in another room',
+      description: 'Motion and sound alerts while your pet is in another room or in the yard',
       icon: <IconPet size={24} />,
     },
     {
@@ -482,7 +482,7 @@ function ScenarioStep({
     {
       id: 'security' as const,
       label: 'Security Mode',
-      description: 'Motion and sound alerts while the room is empty. The People page counts the people in view.',
+      description: 'Motion and sound alerts while the place is empty. The People page counts the people in view.',
       icon: <IconShield size={24} />,
     },
     {
