@@ -15,7 +15,8 @@ import { useLostFoundStore } from '../stores/lost-found-store';
 import { getMatchQuality } from '../lib/subject-matcher';
 import { addReferencePhotos, generateFingerprint } from '../lib/visual-fingerprint';
 import { createThumbnailFromSource, readFileAsDataUrl } from '../lib/image-utils';
-import { saveSubjectProfile } from '../lib/client-db';
+import { saveSubjectProfile, type SubjectProfileDB } from '../lib/client-db';
+import { readAccountClearMarker } from '../lib/local-data-generation';
 
 // =============================================================================
 // Types
@@ -30,6 +31,8 @@ interface SubjectPreviewProps {
   onClose?: () => void;
   /** Click handler */
   onClick?: () => void;
+  /** Photos added here were saved to the subject, as given. */
+  onPhotosSaved?: (saved: SubjectProfileDB) => void;
 }
 
 // =============================================================================
@@ -41,6 +44,7 @@ export function SubjectPreview({
   showClose = true,
   onClose,
   onClick,
+  onPhotosSaved,
 }: SubjectPreviewProps) {
   const {
     activeSubject,
@@ -92,6 +96,10 @@ export function SubjectPreview({
 
     setReferenceError(null);
     setIsUpdatingReferences(true);
+    // The photos are added to the subject as it is now. Once all local data is cleared, in this
+    // tab or another, the subject is gone and nothing of it is saved back.
+    const clearedUnder = readAccountClearMarker();
+    const current = () => readAccountClearMarker() === clearedUnder;
 
     try {
       const newReferenceImages: string[] = [];
@@ -115,6 +123,7 @@ export function SubjectPreview({
       );
       const updatedReferenceImages = [...activeSubject.referenceImages, ...newReferenceImages].slice(0, maxImages);
       const lastActiveAt = new Date().toISOString();
+      if (!current()) return;
 
       updateSubject(activeSubject.id, {
         fingerprint: mergedFingerprint,
@@ -122,7 +131,7 @@ export function SubjectPreview({
         lastActiveAt,
       });
 
-      await saveSubjectProfile({
+      const saved: SubjectProfileDB = {
         id: activeSubject.id,
         name: activeSubject.name,
         type: activeSubject.type,
@@ -132,14 +141,16 @@ export function SubjectPreview({
         createdAt: activeSubject.createdAt,
         lastActiveAt,
         matchCount: activeSubject.matchCount,
-      });
+      };
+      // Another subject may be the one shown by now: the caller hears which subject was saved.
+      if ((await saveSubjectProfile(saved, current)) === 'saved') onPhotosSaved?.(saved);
     } catch (error) {
       setReferenceError(error instanceof Error ? error.message : 'Failed to add reference images.');
     } finally {
       setIsUpdatingReferences(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [activeSubject, updateSubject]);
+  }, [activeSubject, updateSubject, onPhotosSaved]);
 
   if (!activeSubject) {
     return null;
@@ -197,6 +208,7 @@ export function SubjectPreview({
                 stopWatching();
                 onClose?.();
               }}
+              aria-label={`Close ${activeSubject.name}`}
               className="p-1 text-[var(--color-steel-400)] hover:text-white transition-colors"
             >
               <IconX size={14} />
@@ -300,6 +312,7 @@ export function SubjectPreview({
               stopWatching();
               onClose?.();
             }}
+            aria-label={`Close ${activeSubject.name}`}
             className="p-2 text-[var(--color-steel-400)] hover:text-white transition-colors"
           >
             <IconX size={20} />
@@ -451,6 +464,11 @@ export function SubjectPreview({
 // Compact Overlay Version
 // =============================================================================
 
+/**
+ * The watched pet over the camera's picture: its photo, its name and how well
+ * the picture matches. It has no key of its own: on the watch, Watch for is
+ * where the comparison starts and stops, so the two never disagree.
+ */
 export function SubjectPreviewOverlay() {
   const { activeSubject, isWatching } = useLostFoundStore();
 
@@ -460,7 +478,7 @@ export function SubjectPreviewOverlay() {
 
   return (
     <div className="absolute top-4 left-4 z-10">
-      <SubjectPreview mode="compact" />
+      <SubjectPreview mode="compact" showClose={false} />
     </div>
   );
 }

@@ -1126,12 +1126,31 @@ export interface SubjectProfileDB {
   matchCount: number;
 }
 
-export async function saveSubjectProfile(profile: SubjectProfileDB): Promise<void> {
+/**
+ * Saves a subject. With `current`, it is written only while `current()` holds, read inside this
+ * write's own transaction after its first request, so a save queued behind a clear of all local
+ * data in progress is cancelled once that clear has committed. A failed write is logged.
+ */
+export async function saveSubjectProfile(
+  profile: SubjectProfileDB,
+  current?: () => boolean
+): Promise<'saved' | 'cancelled' | 'failed'> {
+  let tx: IDBPTransaction<SafeOSDB, ['subject_profile'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    await db.put('subject_profile', profile);
+    tx = db.transaction('subject_profile', 'readwrite');
+    await tx.store.get(profile.id);
+    if (current && !current()) {
+      await tx.done;
+      return 'cancelled';
+    }
+    await tx.store.put(profile);
+    await tx.done;
+    return 'saved';
   } catch (error) {
     console.warn('[ClientDB] Failed to save subject profile:', error);
+    await abandonTransaction(tx);
+    return 'failed';
   }
 }
 
@@ -1271,10 +1290,19 @@ export interface MatchFrameDB {
   exported: boolean;
 }
 
-export async function saveMatchFrame(frame: MatchFrameDB, generation = getLocalDataGeneration()): Promise<void> {
+/**
+ * Saves a match of the comparison. Nothing is written once this tab has cleared all local data
+ * since `generation`, or once `current()` no longer holds (another tab's clear, which this tab
+ * reads from the account marker).
+ */
+export async function saveMatchFrame(
+  frame: MatchFrameDB,
+  generation = getLocalDataGeneration(),
+  current?: () => boolean
+): Promise<void> {
   try {
     const db = await getDB();
-    if (!isCurrentLocalData(generation)) return;
+    if (!isCurrentLocalData(generation) || (current && !current())) return;
     await db.put('match_frame', frame);
     
     // Update subject match count

@@ -14,7 +14,10 @@
  * useWatchFor reads the saved pets from this device's database and keeps the
  * Lost & Found store's comparison in step with the watch: it compares while
  * the watch runs with Lost and Found chosen and a pet saved, and stops when
- * Motion and sound is chosen, with no restart of the camera.
+ * Motion and sound is chosen, with no restart of the camera. When another tab
+ * clears all local data (Clear All Local Data, or a sign-out), the pets read
+ * here are that cleared device's: they are dropped, the comparison ends, and
+ * the pets are read again.
  *
  * @module components/monitor/WatchFor
  */
@@ -22,8 +25,9 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useOnboardingStore } from '../../stores/onboarding-store';
-import { useLostFoundStore, type SubjectProfile } from '../../stores/lost-found-store';
+import { DEFAULT_SETTINGS, useLostFoundStore, type SubjectProfile } from '../../stores/lost-found-store';
 import { readSavedPets, type SubjectProfileDB } from '../../lib/client-db';
+import { ACCOUNT_CLEAR_MARKER_KEY, readAccountClearMarker } from '../../lib/local-data-generation';
 import type { VisualFingerprint } from '../../lib/visual-fingerprint';
 
 // =============================================================================
@@ -77,6 +81,11 @@ export interface WatchFor {
   comparing: boolean;
   /** The sentence read once from the polite status. */
   status: string;
+  /**
+   * Photos added to a pet were saved (Add Photos). The pets read here take the
+   * saved pet by its id, whichever pet is the watch's by then.
+   */
+  photosSaved: (saved: SubjectProfileDB) => void;
 }
 
 const toSubject = (pet: SubjectProfileDB): SubjectProfile => ({
@@ -110,11 +119,20 @@ export function useWatchFor(watching: boolean): WatchFor {
 
   const [pets, setPets] = useState<SubjectProfileDB[]>([]);
   const [petsRead, setPetsRead] = useState<PetsRead>('loading');
+  // Counts the clears of all local data this watch has heard of; each one reads the pets again.
+  const [clears, setClears] = useState(0);
   useEffect(() => {
     let current = true;
+    const readUnder = readAccountClearMarker();
     readSavedPets()
       .then((saved) => {
         if (!current) return;
+        // Pets read before a clear of all local data that has landed since are
+        // the cleared device's: they are not shown, and the pets are read again.
+        if (readAccountClearMarker() !== readUnder) {
+          setClears((count) => count + 1);
+          return;
+        }
         setPets(saved);
         setPetsRead('ready');
       })
@@ -124,12 +142,31 @@ export function useWatchFor(watching: boolean): WatchFor {
     return () => {
       current = false;
     };
+  }, [clears]);
+
+  // Another tab cleared all local data (Clear All Local Data, or a sign-out):
+  // the account marker's storage event tells this one. The pets held here and
+  // the Lost & Found store's pet, its matches and its saved subjects are the
+  // cleared device's, so they go in one step and the comparison ends with
+  // them; a read of the pets still on its way is void, and they are read again.
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== ACCOUNT_CLEAR_MARKER_KEY) return;
+      setPets([]);
+      setPetsRead('loading');
+      setClears((count) => count + 1);
+      useLostFoundStore.getState().reset();
+      useLostFoundStore.setState({ subjects: [], settings: DEFAULT_SETTINGS });
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   // Photos added to the pet on the watch (Add Photos while it compares) go to
   // the Lost & Found store's pet and to its saved record. The pets read here
   // take them as well, so the pet's count, Choose a pet and a later choice of
-  // the pet keep them.
+  // the pet keep them. Photos saved to a pet that is not the watch's by then
+  // (another pet chosen while they were added) come through photosSaved.
   useEffect(() => {
     if (!activeSubject) return;
     setPets((saved) => {
@@ -213,7 +250,11 @@ export function useWatchFor(watching: boolean): WatchFor {
     [pets, setActiveSubject]
   );
 
-  return { way, lostFoundChosen, chooseWay, pets, petsRead, pet, choosePet, comparing, status };
+  const photosSaved = useCallback((saved: SubjectProfileDB) => {
+    setPets((held) => held.map((record) => (record.id === saved.id ? saved : record)));
+  }, []);
+
+  return { way, lostFoundChosen, chooseWay, pets, petsRead, pet, choosePet, comparing, status, photosSaved };
 }
 
 const WIDE = '(min-width: 1024px)';

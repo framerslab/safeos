@@ -8,7 +8,7 @@
  * @module app/monitor/page
  */
 
-import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
+import { getLocalDataGeneration, isCurrentLocalData, readAccountClearMarker } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
 import { newDetectorEvent, endDetectorEvent, freshCardFor, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
@@ -251,10 +251,14 @@ export default function MonitorPage() {
       // Check if should record
       if (matcher.shouldRecord() && result.frameData) {
         // Create match frame and save to IndexedDB (async thumbnail creation)
+        // A match is the pet's it was read for: once all local data is cleared,
+        // in this tab or another, it is not saved.
         const generation = getLocalDataGeneration();
+        const clearedUnder = readAccountClearMarker();
+        const current = () => readAccountClearMarker() === clearedUnder;
         const frameData = result.frameData;
         createThumbnail(frameData).then((thumbnailData) => {
-          if (!isCurrentLocalData(generation)) return;
+          if (!isCurrentLocalData(generation) || !current()) return;
           const matchFrame: MatchFrameDB = {
             id: result.id,
             subjectId: activeSubject.id,
@@ -269,7 +273,7 @@ export default function MonitorPage() {
             exported: false,
           };
 
-          saveMatchFrame(matchFrame, generation);
+          saveMatchFrame(matchFrame, generation, current);
         });
         addMatchFrameToStore(createMatchFrame(activeSubject.id, result));
       }
@@ -1540,7 +1544,7 @@ export default function MonitorPage() {
                   <IconSearch size={18} />
                   Lost and Found
                 </h2>
-                <SubjectPreview mode="full" showClose={false} />
+                <SubjectPreview mode="full" showClose={false} onPhotosSaved={watchFor.photosSaved} />
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <Link
                     href="/lost-found/gallery"
