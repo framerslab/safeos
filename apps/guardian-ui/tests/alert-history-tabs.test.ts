@@ -607,3 +607,28 @@ it.each(['the database fails the clear', 'local storage refuses the clear marker
     expect(rows.find((row) => row.id === 'event-card')).toMatchObject({ acknowledged: true });
     expect(watching.listed()).toEqual(expect.arrayContaining(['raised-before-the-clear', 'event-card']));
   });
+
+it.each(['the database fails the clear', 'local storage refuses the clear marker'])(
+  'keeps the acknowledgement of a repeat that went on a fresh card, queued just before Clear all, when %s', async (how) => {
+    const { watching } = await acknowledgedElsewhere();
+    const setItem = localStorage.setItem.bind(localStorage);
+    const refusing = how.startsWith('local')
+      ? jest.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+        if (key === MARKER) throw new DOMException('full', 'QuotaExceededError');
+        setItem(key, value);
+      })
+      : jest.spyOn(IDBCursor.prototype, 'delete').mockImplementation(() => {
+        throw new DOMException('The connection is unavailable', 'InvalidStateError');
+      });
+    // The repeat finds the card acknowledged in the other tab and goes on a fresh card; the person
+    // acknowledges it as it shows, then presses Clear all, whose write fails.
+    watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+    watching.monitoring.getState().acknowledgeAlert('event-card');
+    watching.monitoring.getState().clearAlerts();
+    expect(watching.listed()).toEqual([]);
+    await watching.read();
+    refusing.mockRestore();
+    await watching.read();
+
+    expect((await monitoringRows()).find((row) => row.id === FRESH.id)).toMatchObject({ acknowledged: true });
+  });
