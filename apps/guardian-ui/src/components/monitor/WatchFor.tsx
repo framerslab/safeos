@@ -304,7 +304,7 @@ export function WatchForChooser({ watchFor, watching, wide }: ChooserProps) {
   return (
     <section aria-labelledby="watch-for-heading" className="watch-for">
       <div className="watch-for__bar">
-        <h1 id="watch-for-heading" className="watch-for__heading">Watch for</h1>
+        <h2 id="watch-for-heading" className="watch-for__heading">Watch for</h2>
         <div role="radiogroup" aria-labelledby="watch-for-heading" className="watch-for__options">
           {WAYS.map(({ way: option, label }) => {
             const chosen = way === option;
