@@ -147,7 +147,7 @@ matching frame, and it stops when the watch stops, when Lost & Found stops
 watching or its pet changes, and when the page closes. A start on its way when
 the watch stops plays nothing, a sound set to repeat starts no further pass once
 it has stopped, and a loop that a motion or sound alert plays too keeps playing
-while monitoring goes on.
+while monitoring goes on and stops when the watch stops.
 
 A saved sound for any alert plays nothing when the alert's volume is 0: in
 Silent quiet hours, in Emergency Only quiet hours for an alert that is not
@@ -245,8 +245,11 @@ save keeps the alert on screen and in History's offline export and is retried at
 next history read; an acknowledgement updates it, and dismiss and clear drop it.
 Repeats whose saves fail wait together, and the retry adds each of them to the saved
 count; a repeat that goes on a fresh card whose own save waits counts from that save.
+When their retry finds the card acknowledged in another tab, they go on one fresh
+card together: the first as the card, the rest as its repeats.
 When Clear all itself fails, the alerts and acknowledgements queued before it are kept:
-they are written, or wait for their retry. An
+they are written, or wait for their retry. A repeat made after this tab's Clear all
+goes on a card of its own. An
 acknowledgement or a dismissal never creates a record: when the alert is no longer
 saved, because another tab cleared or dismissed it or a limit removed it, nothing is
 written, and an acknowledged alert leaves that tab's list. Clear All Local Data, a
