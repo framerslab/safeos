@@ -27,10 +27,14 @@ test.skip(
   'The fake camera is a Chromium switch; the walk runs at desktop width'
 );
 
-/** A device that has finished setup, with the camera and microphone allowed. */
-async function setUpDevice(context: BrowserContext) {
+/**
+ * A device that has finished setup, with the camera and microphone allowed.
+ * It has answered the notice about alert pictures unless `noticeAnswered` is
+ * false.
+ */
+async function setUpDevice(context: BrowserContext, { noticeAnswered = true }: { noticeAnswered?: boolean } = {}) {
   await context.grantPermissions(['camera', 'microphone']);
-  await context.addInitScript(() => {
+  await context.addInitScript((answered: boolean) => {
     localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
       isComplete: true, selectedScenario: 'baby',
       acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
@@ -38,7 +42,28 @@ async function setUpDevice(context: BrowserContext) {
     localStorage.setItem('guardian-onboarding-complete', 'true');
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
-  });
+    if (answered) {
+      localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+        keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+      }, version: 0 }));
+    }
+  }, noticeAnswered);
+}
+
+/** The rows of the alert pictures store, read on the walk's own connection; none before the app made the store. */
+function pictureRows(page: Page): Promise<unknown[]> {
+  return page.evaluate(() => new Promise<unknown[]>((resolve, reject) => {
+    const open = indexedDB.open('safeos-guardian');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      db.onversionchange = () => db.close();
+      if (!db.objectStoreNames.contains('alert_picture')) { db.close(); resolve([]); return; }
+      const read = db.transaction('alert_picture', 'readonly').objectStore('alert_picture').getAll();
+      read.onerror = () => { db.close(); reject(read.error); };
+      read.onsuccess = () => { db.close(); resolve(read.result); };
+    };
+  }));
 }
 
 /** From the nap page's notice through the three checks, to the enabled last key. */
@@ -91,6 +116,38 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   // The camera runs again: the key reads Stop Monitoring and the Stream tile reads Active.
   await expect(page.getByRole('button', { name: 'Stop Monitoring', exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText('Stream', { exact: true }).locator('xpath=following-sibling::div[1]')).toHaveText('Active', { timeout: 30_000 });
+});
+
+test('Start Nap Mode on a device that has not answered the notice opens it before the camera', async ({ page, context }) => {
+  test.setTimeout(180_000);
+  await setUpDevice(context, { noticeAnswered: false });
+
+  await page.goto('/nap/', { waitUntil: 'networkidle', timeout: 60_000 });
+  const start = await passChecks(page);
+  await start.click();
+  await expect(page).toHaveURL(/\/monitor\/?$/, { timeout: 30_000 });
+
+  // The notice stands before the camera starts, and nothing is kept.
+  const notice = page.getByRole('dialog', { name: 'Each alert keeps a picture', exact: true });
+  await expect(notice).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('LIVE', { exact: true })).toHaveCount(0);
+  expect(await pictureRows(page)).toEqual([]);
+
+  // Go back leaves the nap waiting with Resume nap, which opens the notice again.
+  await notice.getByRole('button', { name: 'Go back', exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  const resume = page.getByRole('button', { name: 'Resume nap', exact: true });
+  await expect(resume).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('LIVE', { exact: true })).toHaveCount(0);
+  await resume.click();
+  await expect(notice).toBeVisible();
+  expect(await pictureRows(page)).toEqual([]);
+
+  // Start watching starts the nap's watch, and the fake camera's moving picture raises its alert.
+  await notice.getByRole('button', { name: 'Start watching', exact: true }).click();
+  await expect(notice).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/^Picture change at /).first()).toBeVisible({ timeout: 45_000 });
 });
 
 test('says when quiet hours will silence a nap, and End nap ends a nap whose camera failed', async ({ page, context }) => {

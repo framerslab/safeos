@@ -87,7 +87,8 @@ export async function seedDevice(context: BrowserContext, device: DeviceSeed): P
       localStorage.setItem('safeos_backend_config', JSON.stringify({
         apiUrl: d.backend.wsUrl.replace(/^ws/, 'http').replace(/\/ws$/, ''),
         wsUrl: d.backend.wsUrl,
-        enabled: true,
+        ollamaUrl: '',
+        configured: true,
       }));
     }
   }, device);
@@ -615,3 +616,190 @@ export async function doubleText(page: Page): Promise<void> {
 /** True when the page scrolls sideways. */
 export const scrollsSideways = (page: Page): Promise<boolean> =>
   page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+
+// =============================================================================
+// The picture store's faults
+// =============================================================================
+
+export interface PictureFault {
+  /** The app hears of a saved picture this long after the browser wrote it. */
+  holdSaveMs?: number;
+  /** The app hears a read's answer (a picture, or the count) this long after the browser gave it. */
+  holdReadMs?: number;
+  /** A picture's JPEG is handed back this long after it was drawn: its save starts that much later. */
+  holdDrawMs?: number;
+  /** Every write of a kept picture fails: for lack of room, or with a plain error (the store's probe too). */
+  writes?: 'quota' | 'error';
+  /** A kept picture's write fails for lack of room until its transaction has deleted this many rows. */
+  quotaUntilDeletes?: number;
+  /** Every read of a picture fails. */
+  reads?: 'error';
+  /** Every delete of a kept picture (the row that says it went) fails. */
+  deletes?: 'error';
+}
+
+declare global {
+  interface Window {
+    __pictureFault?: PictureFault;
+  }
+}
+
+/** The key the fault is kept under across reloads; Clear All Local Data leaves it (it is not a `safeos` key). */
+const FAULT_KEY = 'walk-picture-fault';
+
+/**
+ * Wraps the browser's IndexedDB calls on the `alert_picture` store before
+ * the app's scripts run, so a walk can hold or fail a save, a read or a
+ * delete. With no fault set every call goes straight through.
+ */
+export async function faultPictureStore(page: Page, fault: PictureFault = {}): Promise<void> {
+  await page.addInitScript(({ key, first }: { key: string; first: PictureFault }) => {
+    const saved = localStorage.getItem(key);
+    window.__pictureFault = saved ? JSON.parse(saved) : first;
+    if (!saved) localStorage.setItem(key, JSON.stringify(first));
+    const fault = () => window.__pictureFault ?? {};
+    const STORE = 'alert_picture';
+    const storeOf = (source: unknown): IDBObjectStore | null =>
+      source instanceof IDBObjectStore ? source : source instanceof IDBIndex ? source.objectStore : null;
+    const onPictures = (source: unknown) => storeOf(source)?.name === STORE;
+
+    const deletes = new WeakMap<IDBTransaction, number>();
+    const heldSaves = new WeakMap<IDBTransaction, number>();
+    const heldReads = new WeakMap<IDBRequest, number>();
+    const countDelete = (tx: IDBTransaction) => deletes.set(tx, (deletes.get(tx) ?? 0) + 1);
+    const refuse = (name: string) => { throw new DOMException(`the walk refuses this ${STORE} call`, name); };
+
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (this: IDBObjectStore, value: { id?: string; state?: string }, ...rest: [IDBValidKey?]) {
+      if (this.name === STORE && value) {
+        const f = fault();
+        const kept = value.state === 'kept';
+        if ((kept || value.id === 'probe') && f.writes === 'error') refuse('UnknownError');
+        if (kept && f.writes === 'quota') refuse('QuotaExceededError');
+        if (kept && f.quotaUntilDeletes && (deletes.get(this.transaction) ?? 0) < f.quotaUntilDeletes) refuse('QuotaExceededError');
+        if (!kept && value.id !== 'probe' && f.deletes === 'error') refuse('UnknownError');
+        if (kept && f.holdSaveMs) heldSaves.set(this.transaction, f.holdSaveMs);
+      }
+      return put.call(this, value, ...rest);
+    } as typeof put;
+
+    const remove = IDBObjectStore.prototype.delete;
+    IDBObjectStore.prototype.delete = function (this: IDBObjectStore, query: IDBValidKey | IDBKeyRange) {
+      if (this.name === STORE && query !== 'probe') countDelete(this.transaction);
+      return remove.call(this, query);
+    } as typeof remove;
+
+    const cursorDelete = IDBCursor.prototype.delete;
+    IDBCursor.prototype.delete = function (this: IDBCursor) {
+      const store = storeOf(this.source);
+      if (store?.name === STORE) countDelete(store.transaction);
+      return cursorDelete.call(this);
+    } as typeof cursorDelete;
+
+    const cursorUpdate = IDBCursor.prototype.update;
+    IDBCursor.prototype.update = function (this: IDBCursor, value: { state?: string }) {
+      if (onPictures(this.source) && value?.state === 'gone' && fault().deletes === 'error') refuse('UnknownError');
+      return cursorUpdate.call(this, value);
+    } as typeof cursorUpdate;
+
+    const read = <T extends IDBRequest>(request: T): T => {
+      const hold = fault().holdReadMs;
+      if (hold) heldReads.set(request, hold);
+      return request;
+    };
+    const get = IDBObjectStore.prototype.get;
+    IDBObjectStore.prototype.get = function (this: IDBObjectStore, query: IDBValidKey | IDBKeyRange) {
+      if (this.name !== STORE) return get.call(this, query);
+      if (fault().reads === 'error') refuse('UnknownError');
+      return read(get.call(this, query));
+    } as typeof get;
+    const count = IDBIndex.prototype.count;
+    IDBIndex.prototype.count = function (this: IDBIndex, query?: IDBValidKey | IDBKeyRange) {
+      const request = count.call(this, query);
+      return this.objectStore.name === STORE ? read(request) : request;
+    } as typeof count;
+
+    // The app hears of a held save's `complete`, and of a held read's `success`, late.
+    type Listen = (this: EventTarget, name: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) => void;
+    const late = new WeakMap<EventListenerOrEventListenerObject, EventListener>();
+    const call = (listener: EventListenerOrEventListenerObject, target: EventTarget, event: Event) =>
+      typeof listener === 'function' ? listener.call(target, event) : listener.handleEvent(event);
+    const hold = (proto: EventTarget, type: string, waits: WeakMap<object, number>) => {
+      const target = proto as { addEventListener: Listen; removeEventListener: Listen };
+      const add = target.addEventListener;
+      const drop = target.removeEventListener;
+      target.addEventListener = function (this: EventTarget, name, listener, options) {
+        if (name !== type || !listener) return add.call(this, name, listener, options);
+        const wrapped: EventListener = (event) => {
+          const wait = waits.get(this);
+          if (wait) setTimeout(() => call(listener, this, event), wait);
+          else call(listener, this, event);
+        };
+        late.set(listener, wrapped);
+        return add.call(this, name, wrapped, options);
+      };
+      target.removeEventListener = function (this: EventTarget, name, listener, options) {
+        return drop.call(this, name, (listener && name === type && late.get(listener)) || listener, options);
+      };
+    };
+    hold(IDBTransaction.prototype, 'complete', heldSaves);
+    hold(IDBRequest.prototype, 'success', heldReads);
+
+    // A picture's JPEG handed back late: its save starts that much after its alert.
+    const toBlob = HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob = function (this: HTMLCanvasElement, callback: BlobCallback, type?: string, quality?: number) {
+      const wait = type === 'image/jpeg' ? fault().holdDrawMs : 0;
+      const handBack: BlobCallback = wait ? (blob: Blob | null) => { setTimeout(() => callback(blob), wait); } : callback;
+      return toBlob.call(this, handBack, type, quality);
+    } as typeof toBlob;
+  }, { key: FAULT_KEY, first: fault });
+}
+
+/** Changes the fault while the walk runs; a reload keeps it. */
+export async function setFault(page: Page, fault: PictureFault): Promise<void> {
+  await page.evaluate(({ key, next }) => {
+    window.__pictureFault = next;
+    localStorage.setItem(key, JSON.stringify(next));
+  }, { key: FAULT_KEY, next: fault });
+}
+
+/** Sets the time a kept picture was taken, on the walk's own connection. */
+export function redatePicture(page: Page, id: string, takenAt: number): Promise<void> {
+  return page.evaluate(({ pictureId, at }) => new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open('safeos-guardian');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const tx = db.transaction('alert_picture', 'readwrite');
+      const store = tx.objectStore('alert_picture');
+      const read = store.get(pictureId);
+      read.onsuccess = () => {
+        if (!read.result) return;
+        store.put({ ...read.result, takenAt: at });
+      };
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+      tx.onabort = () => { db.close(); reject(tx.error); };
+    };
+  }), { pictureId: id, at: takenAt });
+}
+
+// =============================================================================
+// A connected server
+// =============================================================================
+
+export interface RoutedServer {
+  /** Every message the page sent, as text (binary messages as base64). */
+  messages: string[];
+}
+
+/** Answers the page's WebSocket at `url` and records every message it sends. */
+export async function routedServer(page: Page, url: string | RegExp): Promise<RoutedServer> {
+  const server: RoutedServer = { messages: [] };
+  await page.routeWebSocket(url, (socket) => {
+    socket.onMessage((message) => {
+      server.messages.push(typeof message === 'string' ? message : Buffer.from(message).toString('base64'));
+    });
+  });
+  return server;
+}
