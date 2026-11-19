@@ -190,9 +190,11 @@ export function SinceYouLastLooked() {
             </button>
             <Link href="/history/" className="link-row">
               {more > 0 ? (
-                <>
+                // One span: the link is a flex row, where a run of words
+                // directly inside it would lose the space at its edge.
+                <span>
                   Open history, and <Num>{more}</Num> more
-                </>
+                </span>
               ) : (
                 'Open history'
               )}
