@@ -15,6 +15,9 @@
 # dashboard's Lost & Found, Security and Wildlife cards open their pages.
 # The app's header, phone bar and footer are checked by
 # scripts/app-checks.mjs.
+# Both versions capture the monitor on a device whose setup chose Lost & Found,
+# with no pet saved and with a pet; the pull request's own capture checks that
+# Watch for shows Lost and Found checked with "No pet saved" or the pet.
 # Both versions capture setup's camera step after a refused camera request;
 # the pull request's own capture walks setup to the dashboard with no camera;
 # see scripts/capture-pictures.mjs.

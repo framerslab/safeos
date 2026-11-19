@@ -32,6 +32,12 @@
 // shows. The app's header, phone bar and footer are checked by
 // scripts/app-checks.mjs.
 //
+// When /monitor/ is captured, both versions also capture the watch's first
+// screen on a device whose setup chose Lost & Found, with no pet saved and
+// with a pet of three photos (monitor-lost-found-<none|pet>-<width>-<look>.png);
+// the pull request's own build is checked to show Lost and Found checked with
+// "No pet saved" or the pet's count of photos.
+//
 // When /setup/ is captured, both versions also capture setup's camera step
 // after a refused camera request (setup-camera-refused-<width>-<look>.png).
 // The pull request's own build is then walked from a first visit to the
@@ -262,6 +268,7 @@ try {
         }
       }
     }
+    failures += await captureLostAndFoundWatch(browser, baseUrl, outDir);
   }
   // A profile save of a server session that the server does not take, and one of a browser-only
   // session that this browser cannot write. The base build shows its own words for the same saves;
@@ -683,6 +690,128 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
 
   for (const p of problems) console.error(`failed first-visit check: ${p}`);
   return problems.length;
+}
+
+// -----------------------------------------------------------------------------
+// The watch with Lost and Found chosen
+// -----------------------------------------------------------------------------
+
+// Saves Miso, a pet with three photos, into this browser's database as the
+// Lost & Found page saves one. The page must have opened the database first.
+async function savePicturePet(page) {
+  for (let tries = 0; tries < 60; tries += 1) {
+    const ready = await page.evaluate(async () => {
+      const known = await indexedDB.databases();
+      if (!known.some((database) => database.name === 'safeos-guardian')) return false;
+      return new Promise((resolve) => {
+        const opening = indexedDB.open('safeos-guardian');
+        opening.onerror = () => resolve(false);
+        opening.onsuccess = () => {
+          const has = opening.result.objectStoreNames.contains('subject_profile');
+          opening.result.close();
+          resolve(has);
+        };
+      });
+    });
+    if (ready) break;
+    await page.waitForTimeout(500);
+  }
+  await page.evaluate(async () => {
+    // A stand-in photo: a light floor with a brown and white dog's shape.
+    const photo = (shift) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 240;
+      canvas.height = 240;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#d9c3a0';
+      ctx.fillRect(0, 0, 240, 240);
+      ctx.fillStyle = '#8a5a2b';
+      ctx.beginPath();
+      ctx.ellipse(120 + shift, 150, 70, 45, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(120 + shift, 80, 38, 34, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f5f1ea';
+      ctx.beginPath();
+      ctx.ellipse(120 + shift, 95, 18, 22, 0, 0, Math.PI * 2);
+      ctx.fill();
+      return canvas.toDataURL('image/png');
+    };
+    const database = await new Promise((resolve, reject) => {
+      const opening = indexedDB.open('safeos-guardian');
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    const saving = database.transaction('subject_profile', 'readwrite');
+    saving.objectStore('subject_profile').put({
+      id: 'picture-miso', name: 'Miso', type: 'pet', description: '',
+      fingerprint: { id: 'picture-miso-fingerprint', name: 'Miso', colorHistogram: [], dominantColors: [],
+        averageColor: { r: 138, g: 90, b: 43 }, colorVariance: 0, estimatedSizeRatio: 0.3, edgeSignature: [],
+        referenceImages: [], createdAt: '2026-11-02T10:00:00.000Z' },
+      referenceImages: [photo(0), photo(-20), photo(20)],
+      createdAt: '2026-11-02T10:00:00.000Z', lastActiveAt: null, matchCount: 0,
+    });
+    await new Promise((resolve, reject) => {
+      saving.oncomplete = resolve;
+      saving.onerror = () => reject(saving.error);
+    });
+    database.close();
+  });
+}
+
+// The watch's first screen with Lost and Found chosen, with no pet saved
+// (monitor-lost-found-none-<width>-<look>.png) and with Miso
+// (monitor-lost-found-pet-<width>-<look>.png), on a device whose setup chose
+// Lost & Found. The base build has no Watch for, so its pictures show its
+// watch for the same device; the pull request's own build is checked first:
+// Lost and Found checked, and "No pet saved" or Miso's count of photos shown.
+async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
+  let failed = 0;
+  for (const pets of ['none', 'pet']) {
+    for (const size of WIDTHS) {
+      for (const look of LOOKS) {
+        const context = await browser.newContext({
+          viewport: { width: size.width, height: size.height },
+          isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look,
+        });
+        await context.addInitScript(() => {
+          if (localStorage.getItem('safeos-onboarding') !== null) return;
+          localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
+            isComplete: true, selectedScenario: 'pet', lostFoundChosen: true,
+            acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
+          }, version: 0 }));
+          localStorage.setItem('guardian-onboarding-complete', 'true');
+          localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
+          localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+        });
+        const page = await context.newPage();
+        const file = path.join(outDir, `monitor-lost-found-${pets}-${size.width}-${look}.png`);
+        try {
+          await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+          if (pets === 'pet') {
+            await savePicturePet(page);
+            await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+          }
+          if (process.env.PICTURE_VERSION === 'after') {
+            const lostAndFound = page.getByRole('radiogroup', { name: 'Watch for' }).getByRole('radio', { name: 'Lost and Found' });
+            await lostAndFound.waitFor({ state: 'attached', timeout: 20_000 });
+            if (!(await lostAndFound.isChecked())) throw new Error('Lost and Found is not checked');
+            const shown = pets === 'pet' ? page.getByText('3 photos', { exact: true }) : page.getByText('No pet saved', { exact: true });
+            await shown.filter({ visible: true }).waitFor({ timeout: 20_000 });
+          }
+          await page.screenshot({ path: file });
+          console.log(`captured ${file}`);
+        } catch (err) {
+          failed += 1;
+          console.error(`failed monitor Lost and Found ${pets} at ${size.width} ${look}: ${err.message}`);
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  }
+  return failed;
 }
 
 // -----------------------------------------------------------------------------

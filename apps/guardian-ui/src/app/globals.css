@@ -19,6 +19,9 @@
 @import '../styles/visitor.css';
 @import '../styles/app.css';
 
+/* Import the watch's Watch for, its pet and Choose a pet */
+@import '../styles/watch-for.css';
+
 /* =============================================================================
    Additional Base Styles
    ============================================================================= */

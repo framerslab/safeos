@@ -31,8 +31,10 @@ export interface OnboardingState {
   // Profile selection
   selectedScenario: 'pet' | 'baby' | 'elderly' | 'security' | null;
   /**
-   * Setup's Lost & Found choice was made: it saves the pet use, and this
-   * marks it, so setup run again shows it chosen and ends on Lost & Found.
+   * Lost & Found is chosen: in setup, where it saves the pet use, on the
+   * watch's Watch for, and by the Lost & Found page's start key. Setup run
+   * again shows it chosen and ends on Lost & Found, and the watch opens with
+   * Lost and Found, so setup and the watch show the same choice.
    */
   lostFoundChosen: boolean;
   profileName: string;

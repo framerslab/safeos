@@ -1,0 +1,483 @@
+/* =============================================================================
+   Watch for: the watch's choice of Motion and sound or Lost and Found, the
+   pet it compares with and the dialog "Choose a pet"
+   (src/components/monitor/WatchFor.tsx).
+
+   On the readable look's tokens, so the light look follows from html.light:
+   the page steel-950, the panel steel-900, the track steel-800, the ink
+   steel-50, the quiet tone steel-200, every drawn line steel-300 and the green
+   (--look-accent) for the check glyph and the focus ring only. Words in rem so
+   the browser's text size scales them; the edges, glyphs and photos in px.
+   ============================================================================= */
+
+.watch-for {
+  margin-bottom: 1.5rem;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+}
+
+.watch-for__bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.watch-for__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 2rem;
+  color: var(--color-steel-50);
+}
+
+/* The two options, joined in one control across the column. */
+.watch-for__options {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.watch-for__options:has(input:focus-visible) {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+}
+
+.watch-for__option {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 6px 12px;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  font-weight: 400;
+  text-align: center;
+  color: var(--color-steel-50);
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.watch-for__option + .watch-for__option {
+  border-left: 1px solid var(--color-steel-300);
+}
+
+.watch-for__option:not([data-chosen]):hover {
+  background: var(--color-steel-900);
+}
+
+.watch-for__option[data-chosen] {
+  background: var(--color-steel-800);
+  font-weight: 600;
+}
+
+/* The radio covers its option, so a press anywhere on it chooses. */
+.watch-for__option input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.watch-for__check {
+  flex: none;
+  color: var(--look-accent);
+}
+
+.watch-for__line {
+  margin: 12px 0 0;
+  max-width: 40rem;
+  font-size: 1.125rem;
+  line-height: 1.55;
+  color: var(--color-steel-50);
+  text-wrap: pretty;
+}
+
+/* On a phone the line steps aside while the watch runs. */
+.watch-for__line--watching {
+  display: none;
+}
+
+@media (min-width: 360px) {
+  .watch-for__option {
+    font-size: 1rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .watch-for__heading {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+  }
+
+  .watch-for__line--watching {
+    display: block;
+  }
+}
+
+/* From 1024 px the options stand in the heading's row, about 200 px each. */
+@media (min-width: 1024px) {
+  .watch-for__bar {
+    flex-direction: row;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .watch-for__options {
+    width: auto;
+  }
+
+  .watch-for__option {
+    flex: 0 0 auto;
+    min-width: 200px;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   The pet: a row under the chooser on a phone, a band beside its limits line
+   on a tablet, a card heading the right column from 1024 px.
+   ----------------------------------------------------------------------------- */
+
+.watch-pet {
+  margin-top: 16px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+}
+
+.watch-pet__main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.watch-pet__photo {
+  flex: none;
+  box-sizing: border-box;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.watch-pet__photo--empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-steel-800);
+  color: var(--color-steel-300);
+}
+
+.watch-pet__words {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.watch-pet__name {
+  margin: 0;
+  font-size: 1.125rem;
+  line-height: 1.55;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.watch-pet__count,
+.watch-pet__line {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-steel-50);
+}
+
+.watch-pet__line {
+  text-wrap: pretty;
+}
+
+.watch-pet__limits {
+  margin: 12px 0 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-steel-50);
+  text-wrap: pretty;
+}
+
+.watch-pet__failed {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--color-steel-50);
+}
+
+.watch-pet__problem {
+  flex: none;
+  color: var(--look-alert);
+}
+
+.watch-pet__more {
+  display: none;
+}
+
+/* Outlined keys: Change pet, Add a pet and Close. */
+.watch-key {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.watch-key:hover {
+  background: var(--color-steel-900);
+  border-color: var(--color-steel-50);
+  color: var(--color-steel-50);
+}
+
+.watch-key:focus-visible {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+}
+
+.watch-key:active {
+  transform: translateY(1px);
+}
+
+.watch-key--square {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+}
+
+.watch-pet--row .watch-pet__main > .watch-pet__key {
+  margin-left: auto;
+}
+
+.watch-pet--row > .watch-pet__key {
+  margin-top: 12px;
+}
+
+/* A tablet: the pet at the left half, its limits line at the right half. */
+@media (min-width: 768px) {
+  .watch-pet--row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    column-gap: 24px;
+  }
+
+  .watch-pet--row .watch-pet__limits {
+    margin-top: 0;
+  }
+
+  .watch-pet--row > .watch-pet__key {
+    margin-top: 0;
+    justify-self: start;
+  }
+}
+
+/* The card heading the right column. */
+.watch-pet--card {
+  margin-top: 0;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--color-steel-300);
+}
+
+.watch-pet--card .watch-pet__main {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.watch-pet--card .watch-pet__photo {
+  width: 96px;
+  height: 96px;
+}
+
+.watch-pet--card .watch-pet__key {
+  margin-top: 8px;
+}
+
+.watch-pet--card > .watch-pet__key {
+  margin-top: 12px;
+}
+
+/* Wide: the photo 120 px, the other saved photos as 48 px thumbnails. */
+@media (min-width: 1440px) {
+  .watch-pet--card .watch-pet__photo {
+    width: 120px;
+    height: 120px;
+  }
+
+  .watch-pet--card .watch-pet__more {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .watch-pet__more img {
+    box-sizing: border-box;
+    width: 48px;
+    height: 48px;
+    border: 1px solid var(--color-steel-300);
+    border-radius: 4px;
+    object-fit: cover;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Choose a pet
+   ----------------------------------------------------------------------------- */
+
+.watch-dialog__scrim {
+  position: fixed;
+  inset: 0;
+  /* Above the app's fixed navigation (z-index 100), which takes no press while the dialog is open. */
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.watch-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 28rem;
+  max-height: min(80vh, 40rem);
+  border: 1px solid var(--color-steel-300);
+  border-radius: 8px;
+  background: var(--color-steel-900);
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+}
+
+.watch-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 12px 12px 16px;
+  border-bottom: 1px solid var(--color-steel-300);
+}
+
+.watch-dialog__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+}
+
+.watch-dialog__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.watch-dialog__pet {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--color-steel-300);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.watch-dialog__pet:hover {
+  background: var(--color-steel-800);
+}
+
+.watch-dialog__pet:has(input:focus-visible) {
+  outline: 2px solid var(--look-accent);
+  outline-offset: -2px;
+}
+
+/* The radio is read by assistive technology; the whole row is its target. */
+.watch-dialog__pet input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.watch-dialog__photo,
+.watch-dialog__pet .watch-pet__photo {
+  flex: none;
+  box-sizing: border-box;
+  width: 48px;
+  height: 48px;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.watch-dialog__words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.watch-dialog__name {
+  font-size: 1.125rem;
+  line-height: 1.55;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.watch-dialog__count {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.watch-dialog__pet .watch-for__check {
+  flex: none;
+  color: var(--look-accent);
+}
+
+.watch-dialog__foot {
+  padding: 12px 16px;
+  border-top: 1px solid var(--color-steel-300);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-key:active {
+    transform: none;
+  }
+}
