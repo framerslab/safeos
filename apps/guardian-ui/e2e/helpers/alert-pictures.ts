@@ -1,0 +1,413 @@
+/**
+ * The alert pictures walks' device, camera and database.
+ *
+ * A device that has finished setup (the localStorage seeds
+ * e2e/helpers/seeded-device.ts writes) with its alert pictures settings; a
+ * reading of the site's IndexedDB with its Blobs reported by type and size;
+ * a database saved by the release before alert pictures (version 7); rows
+ * written straight into the alert and picture stores; and a camera that is a
+ * canvas stream whose moving part is redrawn at random grey levels every
+ * 40 ms, as e2e/alerts-repeat.spec.ts builds one, which `window.__camera`
+ * changes while the walk runs.
+ *
+ * @module e2e/helpers/alert-pictures
+ */
+
+import type { BrowserContext, Page } from '@playwright/test';
+
+// =============================================================================
+// The device
+// =============================================================================
+
+export interface PicturesSeed {
+  keep?: boolean;
+  deleteAfterDays?: 1 | 3 | 7 | 30 | null;
+  noticeAnswered?: boolean;
+  inNotifications?: boolean;
+}
+
+export interface DeviceSeed {
+  use?: 'pet' | 'baby';
+  /** The saved settings (merged over the store's defaults), or none. */
+  settings?: Record<string, unknown> | null;
+  /** The alert pictures settings; none leaves the store's defaults. */
+  pictures?: PicturesSeed;
+  /** A server the page connects to. */
+  backend?: { wsUrl: string };
+}
+
+/** The Custom preset with only motion on, its line at 20 % (sensitivity 80), as the alert walk seeds it. */
+export const CUSTOM_PRESET = {
+  id: 'custom',
+  name: 'Maximum Alert',
+  description: 'High sensitivity (80%), max volume, 5-second intervals.',
+  motionSensitivity: 80,
+  audioSensitivity: 80,
+  pixelThreshold: 20,
+  absolutePixelThreshold: 50,
+  analysisInterval: 5,
+  alertDelay: 30,
+  alertVolume: 100,
+  emergencyMode: false,
+  pixelDetectionEnabled: false,
+  motionDetectionEnabled: true,
+  audioDetectionEnabled: false,
+  processingMode: 'hybrid',
+  useAbsoluteThreshold: false,
+};
+export const MOTION_ONLY = { activePresetId: 'custom', globalSettings: CUSTOM_PRESET };
+
+/** The store's timing defaults with the Cooldown Period at `seconds`. */
+export const cooldownPeriod = (seconds: number) => ({
+  cooldownPeriod: seconds,
+  minimumMotionDuration: 500,
+  emergencyEscalationDelay: 300,
+});
+
+export async function seedDevice(context: BrowserContext, device: DeviceSeed): Promise<void> {
+  await context.grantPermissions(['camera', 'microphone']);
+  await context.addInitScript((d: DeviceSeed) => {
+    // Seeded once: a reload or a second page keeps what the walk changed.
+    if (localStorage.getItem('safeos-walk-seeded')) return;
+    localStorage.setItem('safeos-walk-seeded', 'true');
+    localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
+      isComplete: true, selectedScenario: d.use ?? 'pet',
+      acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
+    }, version: 0 }));
+    localStorage.setItem('guardian-onboarding-complete', 'true');
+    if (d.settings) localStorage.setItem('safeos-settings', JSON.stringify({ state: d.settings, version: 0 }));
+    localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
+    localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+    if (d.pictures) {
+      localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+        keep: true, deleteAfterDays: 3, noticeAnswered: false, inNotifications: false, ...d.pictures,
+      }, version: 0 }));
+    }
+    if (d.backend) {
+      localStorage.setItem('safeos_backend_config', JSON.stringify({
+        apiUrl: d.backend.wsUrl.replace(/^ws/, 'http').replace(/\/ws$/, ''),
+        wsUrl: d.backend.wsUrl,
+        enabled: true,
+      }));
+    }
+  }, device);
+}
+
+// =============================================================================
+// The database
+// =============================================================================
+
+export interface DatabaseReading {
+  version: number;
+  stores: string[];
+  alerts: Array<Record<string, any>>;
+  pictures: Array<Record<string, any>>;
+  matchFrames: Array<Record<string, any>>;
+}
+
+/** The site's database as it stands, read on its own connection, which it closes. Blobs read as `{ type, size }`. */
+export function readDatabase(page: Page): Promise<DatabaseReading> {
+  return page.evaluate(() => new Promise<DatabaseReading>((resolve, reject) => {
+    const plain = (value: unknown): unknown => {
+      if (value instanceof Blob) return { type: value.type, size: value.size };
+      if (Array.isArray(value)) return value.map(plain);
+      if (value && typeof value === 'object') {
+        return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, plain(v)]));
+      }
+      return value;
+    };
+    const opening = indexedDB.open('safeos-guardian');
+    opening.onerror = () => reject(opening.error);
+    opening.onsuccess = () => {
+      const db = opening.result;
+      // The app's own upgrade is never held up by this connection.
+      db.onversionchange = () => db.close();
+      const stores = Array.from(db.objectStoreNames);
+      const wanted = ['alert_cache', 'alert_picture', 'match_frame'].filter((name) => stores.includes(name));
+      const reading: DatabaseReading = { version: db.version, stores, alerts: [], pictures: [], matchFrames: [] };
+      if (wanted.length === 0) { db.close(); resolve(reading); return; }
+      const tx = db.transaction(wanted, 'readonly');
+      const read = (name: string, into: Array<Record<string, any>>) => {
+        if (!wanted.includes(name)) return;
+        const request = tx.objectStore(name).getAll();
+        request.onsuccess = () => { for (const row of request.result) into.push(plain(row) as Record<string, any>); };
+      };
+      read('alert_cache', reading.alerts);
+      read('alert_picture', reading.pictures);
+      read('match_frame', reading.matchFrames);
+      tx.oncomplete = () => { db.close(); resolve(reading); };
+      tx.onerror = () => { db.close(); reject(tx.error); };
+    };
+  }));
+}
+
+export interface Version7Records {
+  alerts?: Array<Record<string, unknown>>;
+  matchFrames?: Array<Record<string, unknown>>;
+  subjects?: Array<Record<string, unknown>>;
+}
+
+/**
+ * Makes the database the release before alert pictures saved: version 7 with
+ * every store and index it had, holding `records`. It runs on a page of the
+ * site that does not open the database, before the app opens it.
+ */
+export async function seedVersion7(page: Page, records: Version7Records): Promise<void> {
+  await page.goto('/manifest.json');
+  await page.evaluate((r: Version7Records) => new Promise<void>((resolve, reject) => {
+    const opening = indexedDB.open('safeos-guardian', 7);
+    opening.onerror = () => reject(opening.error);
+    opening.onupgradeneeded = () => {
+      const db = opening.result;
+      db.createObjectStore('local_session', { keyPath: 'id' });
+      db.createObjectStore('profile_cache', { keyPath: 'id' });
+      db.createObjectStore('stream_cache', { keyPath: 'id' }).createIndex('by-created', 'createdAt');
+      const alerts = db.createObjectStore('alert_cache', { keyPath: 'id' });
+      alerts.createIndex('by-stream', 'streamId');
+      alerts.createIndex('by-created', 'createdAt');
+      alerts.createIndex('by-producer-created', ['producer', 'createdAt']);
+      alerts.createIndex('by-retention', ['retentionClass', 'acknowledgementOrder', 'createdAt']);
+      alerts.createIndex('by-producer-retention', ['producer', 'retentionClass', 'acknowledgementOrder', 'createdAt']);
+      const frames = db.createObjectStore('frame_cache', { keyPath: 'id' });
+      frames.createIndex('by-stream', 'streamId');
+      frames.createIndex('by-created', 'createdAt');
+      db.createObjectStore('sync_queue', { keyPath: 'id' }).createIndex('by-created', 'createdAt');
+      db.createObjectStore('settings_cache', { keyPath: 'key' });
+      db.createObjectStore('consent_log', { keyPath: 'id' }).createIndex('by-type', 'consentType');
+      const subjects = db.createObjectStore('subject_profile', { keyPath: 'id' });
+      subjects.createIndex('by-type', 'type');
+      subjects.createIndex('by-created', 'createdAt');
+      const matches = db.createObjectStore('match_frame', { keyPath: 'id' });
+      matches.createIndex('by-subject', 'subjectId');
+      matches.createIndex('by-timestamp', 'timestamp');
+      matches.createIndex('by-confidence', 'confidence');
+      const intrusions = db.createObjectStore('intrusion_frame', { keyPath: 'id' });
+      intrusions.createIndex('by-timestamp', 'timestamp');
+      intrusions.createIndex('by-personCount', 'personCount');
+      const media = db.createObjectStore('custom_media', { keyPath: 'id' });
+      media.createIndex('by-subject', 'subjectId');
+      media.createIndex('by-type', 'type');
+      media.createIndex('by-order', 'order');
+      const animals = db.createObjectStore('animal_detection', { keyPath: 'id' });
+      animals.createIndex('by-timestamp', 'timestamp');
+      animals.createIndex('by-type', 'type');
+      animals.createIndex('by-danger', 'dangerLevel');
+      db.createObjectStore('clear_generation');
+      const tx = opening.transaction!;
+      tx.objectStore('clear_generation').put(`${Date.now()}-seeded`, 'current');
+      for (const row of r.alerts ?? []) tx.objectStore('alert_cache').put(row);
+      for (const row of r.matchFrames ?? []) tx.objectStore('match_frame').put(row);
+      for (const row of r.subjects ?? []) tx.objectStore('subject_profile').put(row);
+    };
+    opening.onsuccess = () => { opening.result.close(); resolve(); };
+  }), records);
+}
+
+export interface PictureRow {
+  /** The alert's record in alert_cache; its `pictureId` names the picture row. */
+  alert: Record<string, unknown>;
+  /** The picture row; `frame` and `closeUp` true are drawn as small JPEGs in the page. */
+  picture?: Record<string, unknown> & { frame?: boolean; closeUp?: boolean };
+}
+
+/**
+ * Writes alert and picture rows into the database the app has opened (it
+ * opens it at /history/). The pictures' Blobs are small JPEGs drawn in the
+ * page. The page is left on /history/; reload or go on from there.
+ */
+export async function seedPictureRows(page: Page, rows: PictureRow[]): Promise<void> {
+  await page.goto('/history/', { waitUntil: 'networkidle' });
+  await page.waitForFunction(async () => (await indexedDB.databases()).some((d) => d.name === 'safeos-guardian'), undefined, { timeout: 15_000 });
+  await page.evaluate((list: PictureRow[]) => new Promise<void>((resolve, reject) => {
+    const jpeg = (width: number, height: number, grey: number) => new Promise<Blob>((done, fail) => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = `rgb(${grey}, ${grey}, ${grey})`;
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = 'rgb(200, 60, 60)';
+      ctx.fillRect(width / 4, height / 4, width / 4, height / 4);
+      canvas.toBlob((blob) => (blob ? done(blob) : fail(new Error('no JPEG'))), 'image/jpeg', 0.7);
+    });
+    void (async () => {
+      const prepared = [] as Array<{ alert: Record<string, unknown>; picture?: Record<string, unknown> }>;
+      for (const row of list) {
+        if (!row.picture) { prepared.push({ alert: row.alert }); continue; }
+        const { frame, closeUp, ...rest } = row.picture;
+        const width = (rest.frameWidth as number | undefined) ?? 64;
+        const height = (rest.frameHeight as number | undefined) ?? 48;
+        prepared.push({
+          alert: row.alert,
+          picture: {
+            ...rest,
+            ...(frame ? { frame: await jpeg(width, height, 110) } : {}),
+            ...(closeUp ? { closeUp: await jpeg(Math.round(width / 2), Math.round(height / 2), 150) } : {}),
+          },
+        });
+      }
+      const opening = indexedDB.open('safeos-guardian');
+      opening.onerror = () => reject(opening.error);
+      opening.onsuccess = () => {
+        const db = opening.result;
+        db.onversionchange = () => db.close();
+        let tx: IDBTransaction;
+        try {
+          tx = db.transaction(['alert_cache', 'alert_picture'], 'readwrite');
+        } catch (error) {
+          db.close();
+          reject(error);
+          return;
+        }
+        for (const row of prepared) {
+          tx.objectStore('alert_cache').put(row.alert);
+          if (row.picture) tx.objectStore('alert_picture').put(row.picture);
+        }
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => { db.close(); reject(tx.error); };
+      };
+    })().catch(reject);
+  }), rows);
+}
+
+/** A monitoring alert's record as the watch saves it. */
+export function savedAlert(id: string, at: number, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const acknowledged = extra.acknowledged === true;
+  return {
+    id,
+    monitoring: true,
+    producer: 'monitoring',
+    savedBeforeUpgrade: false,
+    retentionClass: 'new',
+    acknowledgementOrder: acknowledged ? 0 : 1,
+    streamId: 'local',
+    severity: 'low',
+    message: 'Motion detected: 30% (threshold: 20% · zone: Full Screen)',
+    acknowledged,
+    createdAt: new Date(at).toISOString(),
+    timestamp: new Date(at).toISOString(),
+    syncedAt: new Date(at).toISOString(),
+    ...extra,
+  };
+}
+
+/** A kept picture row for `id`, taken at `at`, with a drawn frame and close-up. */
+export function keptPicture(id: string, at: number, extra: Record<string, unknown> = {}): PictureRow['picture'] {
+  return {
+    id,
+    state: 'kept',
+    kind: 'motion',
+    takenAt: at,
+    frame: true,
+    frameWidth: 64,
+    frameHeight: 48,
+    box: { x: 16, y: 12, width: 16, height: 12 },
+    sourceWidth: 64,
+    sourceHeight: 48,
+    closeUp: true,
+    closeUpWidth: 32,
+    closeUpHeight: 24,
+    dark: false,
+    ...extra,
+  };
+}
+
+// =============================================================================
+// The camera
+// =============================================================================
+
+export interface CanvasCamera {
+  width: number;
+  height: number;
+  /** The grey of the still part, 0 to 255. */
+  background: number;
+  /** The part redrawn every 40 ms, in fractions of the picture. */
+  moving: { x: number; y: number; width: number; height: number };
+  /** The grey levels the moving part is redrawn at, at random a pixel. */
+  levels: number[];
+  /** A sawtooth tone at full gain on the microphone, in place of silence. */
+  tone?: boolean;
+}
+
+declare global {
+  interface Window {
+    __camera?: CanvasCamera;
+  }
+}
+
+/**
+ * Hands the page a canvas stream in place of the browser's camera. The
+ * page's own detectors read it the way they read a real camera.
+ */
+export async function canvasCamera(page: Page, camera: CanvasCamera): Promise<void> {
+  await page.addInitScript((c: CanvasCamera) => {
+    window.__camera = { ...c };
+    navigator.mediaDevices.getUserMedia = async (constraints?: MediaStreamConstraints) => {
+      const live = window.__camera!;
+      const canvas = document.createElement('canvas');
+      canvas.width = live.width;
+      canvas.height = live.height;
+      canvas.style.cssText = 'position:fixed;left:-10000px;top:0;width:1px;height:1px';
+      document.body.appendChild(canvas);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no 2d context for the test camera');
+      const draw = () => {
+        const cam = window.__camera!;
+        const W = canvas.width;
+        const H = canvas.height;
+        const image = ctx.createImageData(W, H);
+        const d = image.data;
+        const x0 = Math.round(W * cam.moving.x);
+        const x1 = Math.round(W * (cam.moving.x + cam.moving.width));
+        const y0 = Math.round(H * cam.moving.y);
+        const y1 = Math.round(H * (cam.moving.y + cam.moving.height));
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const i = (y * W + x) * 4;
+            const inside = x >= x0 && x < x1 && y >= y0 && y < y1;
+            const v = inside ? cam.levels[Math.floor(Math.random() * cam.levels.length)] : cam.background;
+            d[i] = v;
+            d[i + 1] = v;
+            d[i + 2] = v;
+            d[i + 3] = 255;
+          }
+        }
+        ctx.putImageData(image, 0, 0);
+      };
+      draw();
+      setInterval(draw, 40);
+      const stream = canvas.captureStream(25);
+      if (constraints && constraints.audio) {
+        const audio = new AudioContext();
+        const microphone = audio.createMediaStreamDestination();
+        if (live.tone) {
+          const tone = audio.createOscillator();
+          tone.type = 'sawtooth';
+          tone.frequency.value = 440;
+          const gain = audio.createGain();
+          gain.gain.value = 1;
+          tone.connect(gain).connect(microphone);
+          tone.start();
+        }
+        void audio.resume();
+        for (const track of microphone.stream.getAudioTracks()) stream.addTrack(track);
+      }
+      return stream;
+    };
+  }, camera);
+}
+
+/** The camera stand-in's change: the left third redrawn at grey levels 0, 85, 170 and 255 on a 128 grey, 320 by 240. */
+export const LEFT_THIRD: CanvasCamera = {
+  width: 320,
+  height: 240,
+  background: 128,
+  moving: { x: 0, y: 0, width: 1 / 3, height: 1 },
+  levels: [0, 85, 170, 255],
+};
+
+/** Presses Start Monitoring and waits for the live picture. */
+export async function startWatching(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
+  await page.getByText('LIVE', { exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+}

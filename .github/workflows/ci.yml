@@ -177,11 +177,14 @@ jobs:
 
   # Walks the monitor in Chromium against the static export: a test camera
   # whose picture keeps changing, and the alerts that come while it does
-  # (e2e/alerts-repeat.spec.ts).
+  # (e2e/alerts-repeat.spec.ts); then each alert's picture, its box and its
+  # close-up on the card, on the live picture, opened, in History and in the
+  # notification (e2e/alert-pictures.spec.ts), with Chromium's fake camera
+  # playing the committed sample clip or a canvas stream.
   web-alert-walk:
     name: Web app alert walk
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -209,6 +212,20 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 
+      - name: Install ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+
+      # Chromium's fake camera reads a .y4m file and its fake microphone a
+      # .wav file. Both are made here from the committed clip and never
+      # committed, as pictures.yml makes them.
+      - name: Make the fake camera's files from the sample clip
+        run: |
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -an -pix_fmt yuv420p "$RUNNER_TEMP/sample-clip.y4m"
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -vn -ac 1 -ar 48000 -c:a pcm_s16le "$RUNNER_TEMP/sample-clip.wav"
+          ls -l "$RUNNER_TEMP"/sample-clip.*
+          echo "SAMPLE_CLIP_Y4M=$RUNNER_TEMP/sample-clip.y4m" >> "$GITHUB_ENV"
+          echo "SAMPLE_CLIP_WAV=$RUNNER_TEMP/sample-clip.wav" >> "$GITHUB_ENV"
+
       - name: Serve the site and walk the monitor
         run: |
           python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &
@@ -218,6 +235,16 @@ jobs:
           done
           PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts --project=chromium --retries=0 --reporter=list
 
+      - name: Walk the alert pictures
+        if: always()
+        run: |
+          curl -sf http://127.0.0.1:4173/ >/dev/null || (python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alert-pictures.spec.ts --project=chromium --retries=0 --reporter=list --workers=2 --output="$RUNNER_TEMP/alert-pictures-results"
+
       # `npm run e2e` runs every project in playwright.config.ts. The walk
       # needs desktop Chromium, so under Firefox it skips instead of failing.
       # Its own output folder keeps the walk's pictures above for the upload.
@@ -225,14 +252,16 @@ jobs:
         if: always()
         run: |
           npx playwright install --with-deps firefox
-          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts --project=firefox --retries=0 --reporter=list --output="$RUNNER_TEMP/walk-firefox"
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts e2e/alert-pictures.spec.ts --project=firefox --retries=0 --reporter=list --output="$RUNNER_TEMP/walk-firefox"
 
       - name: Upload the walk's report and pictures
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: alert-walk-report
-          path: apps/guardian-ui/test-results
+          path: |
+            apps/guardian-ui/test-results
+            ${{ runner.temp }}/alert-pictures-results
           if-no-files-found: ignore
           retention-days: 14
 
