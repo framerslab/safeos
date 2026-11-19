@@ -271,7 +271,7 @@ async function saveAlert(
   }
   unsavedAlerts.delete(alert.id);
   if (outcome.kind === 'stale' && fresh) {
-    await showOnFreshCard(alert, outcome.stored, marker, fresh, { marker, generation: outcome.generation }, clears);
+    await showOnFreshCard(alert, outcome.stored, marker, fresh, { marker, generation: outcome.generation }, clears, repeats);
     return;
   }
   if (!shows()) return;
@@ -296,14 +296,20 @@ async function saveAlert(
 /**
  * Another tab cleared, removed or acknowledged the card a repeat was for. The card is shown as it
  * is stored, or left out when it is gone, and the repeat goes on a fresh card of its own: it starts
- * at the repeat's time and counts no repeats.
+ * at the repeat's time and counts no repeats. `occurrences` is how many alerts the save carries:
+ * repeats whose saves failed go on the fresh card together, the first as the card and the rest as
+ * its repeats.
  */
 async function showOnFreshCard(
   alert: Alert, stored: Alert | null, marker: string, fresh: FreshCard, stamp: ClearStamp, clears: number,
+  occurrences = 1,
 ): Promise<void> {
   const { id, createdAt } = fresh(alert.id);
   replacements.set(alert.id, { id, createdAt, stamp });
-  const card: Alert = { ...alert, id, createdAt, timestamp: alert.timestamp || createdAt, repeats: undefined, savedBeforeUpgrade: undefined };
+  const card: Alert = {
+    ...alert, id, createdAt, timestamp: alert.timestamp || createdAt,
+    repeats: occurrences > 1 ? occurrences - 1 : undefined, savedBeforeUpgrade: undefined,
+  };
   const kept = stored ? { ...stored, severity: knownSeverity(stored.severity) } : null;
   // Queued before this tab's Clear all: the fresh card is saved, and the clear after it removes it.
   if (clears === localClears) useMonitoringStore.setState((state) => ({
@@ -417,6 +423,9 @@ export const useMonitoringStore = create<MonitoringState>()(
         writeAlerts(async () => {
           await clearCachedMonitoringAlerts();
           unsavedAlerts.clear();
+          // The fresh cards the clear removed take no more repeats: a repeat after it goes on a
+          // card of its own.
+          replacements.clear();
         });
       },
 
