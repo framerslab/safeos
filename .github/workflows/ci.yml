@@ -247,12 +247,13 @@ jobs:
   # use rows, set times at the browser's clock, the sound saved for a Lost &
   # Found alert, and the pitch range with two tones fed to the fake microphone.
   # It walks the watch's Watch for (e2e/watch-for.spec.ts) with axe in both
-  # looks. The other specs in e2e/ are not run here.
+  # looks, and a pet changed while the watch compares
+  # (e2e/watch-for-pet-change.spec.ts). The other specs in e2e/ are not run here.
   # ---------------------------------------------------------------------------
   web-lost-found:
     name: Web app Lost & Found browser test
     runs-on: ubuntu-24.04
-    # Ten walks on one build, Watch for's among them with axe in both looks.
+    # Eleven walks on one build, Watch for's among them with axe in both looks.
     timeout-minutes: 45
     defaults:
       run:
@@ -294,6 +295,7 @@ jobs:
           npx playwright test e2e/lost-found-edge.spec.ts e2e/nap-opens-the-watch.spec.ts e2e/setup-lost-found.spec.ts \
             e2e/quiet-hours-critical.spec.ts e2e/detection-use-values.spec.ts e2e/set-times-apply.spec.ts \
             e2e/lost-found-sound.spec.ts e2e/lost-found-sound-stop.spec.ts e2e/sound-pitch-range.spec.ts e2e/watch-for.spec.ts \
+            e2e/watch-for-pet-change.spec.ts \
             --project=chromium
 
       - name: Upload the test's report
@@ -329,6 +331,10 @@ jobs:
             apps/guardian-ui/test-results/**/detection-baby-row-1280.png
             apps/guardian-ui/test-results/**/set-time-night-1280.png
             apps/guardian-ui/test-results/**/set-time-needs-a-setting-*-1280.png
+            apps/guardian-ui/test-results/**/set-time-account-restored-1280.png
+            apps/guardian-ui/test-results/**/watch-for-cleared-in-another-tab-1280.png
+            apps/guardian-ui/test-results/**/watch-for-pet-changed-1280.png
+            apps/guardian-ui/test-results/**/watch-for-long-name-320.png
             apps/guardian-ui/test-results/**/lost-found-alert-1280.png
             apps/guardian-ui/test-results/**/sounds-played-1280.png
             apps/guardian-ui/test-results/**/pitch-range-*-1280.png

@@ -77,21 +77,22 @@ export const timesPlayed = (page: Page) =>
     };
   }), SOUND_ID);
 
-/** Enrols the striped pet, opens the watch and waits for the comparison to match. */
-export async function watchStripes(page: Page) {
+/** Enrols a pet on the Lost & Found page from one photo, as a person adds one. */
+export async function enrolPet(page: Page, name: string, photo: Buffer) {
   await page.getByText('Add New Subject to Watch').click();
   await expect(page.getByText('What are you looking for?')).toBeVisible();
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByPlaceholder('e.g., Max, Luna, Dad').fill('Stripes');
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'stripes.png',
-    mimeType: 'image/png',
-    buffer: await stripedPhoto(page),
-  });
+  await page.getByPlaceholder('e.g., Max, Luna, Dad').fill(name);
+  await page.locator('input[type="file"]').setInputFiles({ name: `${name.toLowerCase()}.png`, mimeType: 'image/png', buffer: photo });
   const next = page.getByRole('button', { name: 'Continue', exact: true });
   await expect(next).toBeEnabled();
   await next.click();
   await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
+}
+
+/** Enrols the striped pet, opens the watch and waits for the comparison to match. */
+export async function watchStripes(page: Page) {
+  await enrolPet(page, 'Stripes', await stripedPhoto(page));
 
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
   await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
