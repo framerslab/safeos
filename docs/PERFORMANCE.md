@@ -99,7 +99,9 @@ browser contexts.
   first: the first run is reported on its own, and the median and 95th
   percentile come from the others (the table gives how many). The app
   keeps the model files in the browser's Cache Storage after the first load;
-  this page does not, so each load is a first load.
+  this page does not, so each load is a first load. A model part that has
+  not finished in 300 s is written down as not measured, with that reason,
+  and the run goes on to Lost & Found.
 - **Lost & Found.** One pet is enrolled through Lost & Found's own form from
   one frame of the clip (at 1 s). That page's Start Monitoring opens the watch
   with Lost and Found chosen and the pet, and the watch's Start Monitoring

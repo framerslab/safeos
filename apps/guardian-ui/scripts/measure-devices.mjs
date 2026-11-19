@@ -87,6 +87,8 @@ const WATCH_MS = 60_000;
 const LOST_FOUND_MS = 30_000;
 const INFERENCES = 40;
 const INFERENCE_LIMIT_MS = 120_000;
+// The whole model part: loading, the camera and the inferences.
+const MODEL_LIMIT_MS = 300_000;
 const CALIBRATION_STEPS = 20_000_000;
 
 // =============================================================================
@@ -268,10 +270,24 @@ async function startMonitoring(page) {
 
 const firstLine = (error) => String(error?.message ?? error).split('\n')[0].slice(0, 300);
 
+/** Keeps a picture of a page whose part could not be measured, if it can. */
 async function keepPicture(page, name) {
   const file = path.join(outDir, 'failures', `${name}.png`);
-  await mkdir(path.dirname(file), { recursive: true });
+  await mkdir(path.dirname(file), { recursive: true }).catch(() => undefined);
   await page.screenshot({ path: file, timeout: 10_000 }).catch(() => undefined);
+}
+
+/**
+ * Rejects when `promise` has not settled after `ms`. page.evaluate takes no
+ * timeout, so a page that stops answering would otherwise hold the run.
+ */
+function withDeadline(promise, ms, what) {
+  let timer;
+  promise.catch(() => undefined);
+  const deadline = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${what} did not finish within ${ms / 1000} s`)), ms);
+  });
+  return Promise.race([promise, deadline]).finally(() => clearTimeout(timer));
 }
 
 // =============================================================================
@@ -279,11 +295,15 @@ async function keepPicture(page, name) {
 // =============================================================================
 
 async function measureWatch(browser, cls, rate, name) {
-  const context = await browser.newContext({ ...cls.context, permissions: ['camera', 'microphone'] });
-  await context.addInitScript(seed, SETTINGS);
-  await context.addInitScript(instrument);
-  const { page, cdp } = await slowedPage(context, rate);
+  let context = null;
+  let page = null;
   try {
+    context = await browser.newContext({ ...cls.context, permissions: ['camera', 'microphone'] });
+    await context.addInitScript(seed, SETTINGS);
+    await context.addInitScript(instrument);
+    const slowed = await slowedPage(context, rate);
+    page = slowed.page;
+    const { cdp } = slowed;
     await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 180_000 });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate });
     const calibration = await calibrate(page, CALIBRATION_STEPS);
@@ -346,10 +366,10 @@ async function measureWatch(browser, cls, rate, name) {
         : null,
     };
   } catch (error) {
-    await keepPicture(page, `${name}-watch`);
+    if (page) await keepPicture(page, `${name}-watch`);
     return { error: firstLine(error) };
   } finally {
-    await context.close();
+    if (context) await context.close().catch(() => undefined);
   }
 }
 
@@ -362,47 +382,51 @@ const MODEL_PAGE = `<!doctype html>
 <body><video id="camera" muted playsinline autoplay></video><canvas id="frame" width="320" height="240"></canvas></body></html>`;
 
 async function measureModel(browser, cls, rate, name) {
-  const context = await browser.newContext({ ...cls.context, permissions: ['camera'] });
-  // The page and the two library files are handed to the browser from here;
-  // the model file comes from its own host over the network.
-  await context.route('**/__measure/**', async (route) => {
-    const { pathname } = new URL(route.request().url());
-    if (pathname.endsWith('/model.html')) return route.fulfill({ contentType: 'text/html', body: MODEL_PAGE });
-    if (pathname.endsWith('/tf.min.js')) return route.fulfill({ contentType: 'text/javascript', path: TFJS });
-    if (pathname.endsWith('/coco-ssd.min.js')) return route.fulfill({ contentType: 'text/javascript', path: COCO });
-    return route.fulfill({ status: 404, body: '' });
-  });
-  const { page, cdp } = await slowedPage(context, rate);
-  // TensorFlow.js says on the console why a backend it was asked for did not start.
-  const warnings = [];
-  page.on('console', (message) => {
-    if (['warning', 'error'].includes(message.type()) && warnings.length < 5) warnings.push(message.text().slice(0, 300));
-  });
-
-  // The network log: each response from the model's host, with the bytes
-  // that crossed the wire (headers and body) and the body's decoded bytes.
-  const requests = new Map();
-  await cdp.send('Network.enable');
-  cdp.on('Network.responseReceived', (event) => {
-    if (new URL(event.response.url).host === MODEL_HOST) {
-      requests.set(event.requestId, { url: event.response.url, status: event.response.status, wire: 0, body: 0 });
-    }
-  });
-  cdp.on('Network.dataReceived', (event) => {
-    const request = requests.get(event.requestId);
-    if (request) request.body += event.dataLength;
-  });
-  cdp.on('Network.loadingFinished', (event) => {
-    const request = requests.get(event.requestId);
-    if (request) request.wire = event.encodedDataLength;
-  });
-
+  let context = null;
+  let page = null;
   try {
+    context = await browser.newContext({ ...cls.context, permissions: ['camera'] });
+    // The page and the two library files are handed to the browser from here;
+    // the model file comes from its own host over the network.
+    await context.route('**/__measure/**', async (route) => {
+      const { pathname } = new URL(route.request().url());
+      if (pathname.endsWith('/model.html')) return route.fulfill({ contentType: 'text/html', body: MODEL_PAGE });
+      if (pathname.endsWith('/tf.min.js')) return route.fulfill({ contentType: 'text/javascript', path: TFJS });
+      if (pathname.endsWith('/coco-ssd.min.js')) return route.fulfill({ contentType: 'text/javascript', path: COCO });
+      return route.fulfill({ status: 404, body: '' });
+    });
+    const slowed = await slowedPage(context, rate);
+    page = slowed.page;
+    const { cdp } = slowed;
+    // TensorFlow.js says on the console why a backend it was asked for did not start.
+    const warnings = [];
+    page.on('console', (message) => {
+      if (['warning', 'error'].includes(message.type()) && warnings.length < 5) warnings.push(message.text().slice(0, 300));
+    });
+
+    // The network log: each response from the model's host, with the bytes
+    // that crossed the wire (headers and body) and the body's decoded bytes.
+    const requests = new Map();
+    await cdp.send('Network.enable');
+    cdp.on('Network.responseReceived', (event) => {
+      if (new URL(event.response.url).host === MODEL_HOST) {
+        requests.set(event.requestId, { url: event.response.url, status: event.response.status, wire: 0, body: 0 });
+      }
+    });
+    cdp.on('Network.dataReceived', (event) => {
+      const request = requests.get(event.requestId);
+      if (request) request.body += event.dataLength;
+    });
+    cdp.on('Network.loadingFinished', (event) => {
+      const request = requests.get(event.requestId);
+      if (request) request.wire = event.encodedDataLength;
+    });
+
     await page.goto(new URL('/__measure/model.html', baseUrl).toString(), { waitUntil: 'load', timeout: 60_000 });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate });
     const calibration = await calibrate(page, CALIBRATION_STEPS);
 
-    const read = await page.evaluate(async ({ modelUrl, inferences, limitMs }) => {
+    const read = await withDeadline(page.evaluate(async ({ modelUrl, inferences, limitMs }) => {
       const loadScript = (src) => new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = src;
@@ -456,7 +480,7 @@ async function measureModel(browser, cls, rate, name) {
         found,
         camera: { width: video.videoWidth, height: video.videoHeight },
       };
-    }, { modelUrl: MODEL_URL, inferences: INFERENCES, limitMs: INFERENCE_LIMIT_MS });
+    }, { modelUrl: MODEL_URL, inferences: INFERENCES, limitMs: INFERENCE_LIMIT_MS }), MODEL_LIMIT_MS, 'the model measurement');
 
     const files = [...requests.values()];
     const wire = files.reduce((sum, r) => sum + r.wire, 0);
@@ -483,10 +507,10 @@ async function measureModel(browser, cls, rate, name) {
       detections: Object.fromEntries(Object.entries(read.found).map(([kind, count]) => [kind, q(count, 'boxes', 0)])),
     };
   } catch (error) {
-    await keepPicture(page, `${name}-model`);
+    if (page) await keepPicture(page, `${name}-model`);
     return { error: firstLine(error) };
   } finally {
-    await context.close();
+    if (context) await context.close().catch(() => undefined);
   }
 }
 
@@ -495,11 +519,15 @@ async function measureModel(browser, cls, rate, name) {
 // =============================================================================
 
 async function measureLostFound(browser, cls, rate, name, watchDelay) {
-  const context = await browser.newContext({ ...cls.context, permissions: ['camera', 'microphone'] });
-  await context.addInitScript(seed, SETTINGS);
-  await context.addInitScript(instrument);
-  const { page, cdp } = await slowedPage(context, rate);
+  let context = null;
+  let page = null;
   try {
+    context = await browser.newContext({ ...cls.context, permissions: ['camera', 'microphone'] });
+    await context.addInitScript(seed, SETTINGS);
+    await context.addInitScript(instrument);
+    const slowed = await slowedPage(context, rate);
+    page = slowed.page;
+    const { cdp } = slowed;
     await page.goto(new URL('/lost-found/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 180_000 });
     await cdp.send('Emulation.setCPUThrottlingRate', { rate });
     const calibration = await calibrate(page, CALIBRATION_STEPS);
@@ -536,10 +564,10 @@ async function measureLostFound(browser, cls, rate, name, watchDelay) {
       matchingTimeWithQueuedMicrotasks: spread(matching.filter((t) => t.settledMs !== null).map((t) => t.settledMs), 'ms'),
     };
   } catch (error) {
-    await keepPicture(page, `${name}-lost-found`);
+    if (page) await keepPicture(page, `${name}-lost-found`);
     return { error: firstLine(error) };
   } finally {
-    await context.close();
+    if (context) await context.close().catch(() => undefined);
   }
 }
 
