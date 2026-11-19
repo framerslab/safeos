@@ -137,30 +137,51 @@ export function binsInRange(
 }
 
 /**
+ * The bins the level is measured against: every bin of the analyser for every
+ * pitch. A tone is a peak a few bins wide at any analyser size, so its energy
+ * over this fixed count reads the same in any range that holds it, at any
+ * analyser size, and as every pitch reads it.
+ */
+export const REFERENCE_BINS = ANALYSER_SIZE / 2;
+
+/**
+ * The level of bins `first` to `last` of a byte spectrum: the root of their
+ * energy over REFERENCE_BINS, from 0 to 1. A wider range adds the energy of
+ * the pitches it adds and nothing else, so widening a range never lowers the
+ * level of a sound inside it.
+ */
+export function levelOfBins(bins: Uint8Array, first: number, last: number): number {
+  let sum = 0;
+  for (let i = first; i <= last; i++) {
+    sum += bins[i] * bins[i];
+  }
+  return Math.min(1, Math.sqrt(sum / REFERENCE_BINS) / 255);
+}
+
+/**
  * Get overall audio level from analyser
  *
  * @param analyser - Web Audio AnalyserNode
  * @param range - The pitches to read; every pitch when none is given
- * @returns Normalized audio level (0-1), from the bins inside the range
+ * @returns Normalized audio level (0-1), from the bins inside the range. Every
+ *   pitch, at ANALYSER_SIZE, reads the root mean square of every bin.
  */
 export function getAudioLevel(analyser: AnalyserNode, range: PitchRange | null = null): number {
   const bufferLength = analyser.frequencyBinCount;
   const dataArray = new Uint8Array(bufferLength);
   analyser.getByteFrequencyData(dataArray);
 
-  const [first, last] = range
-    ? binsInRange(range, bufferLength, analyser.context.sampleRate, analyser.fftSize)
-    : [0, bufferLength - 1];
-
-  // Calculate RMS (Root Mean Square)
-  let sum = 0;
-  for (let i = first; i <= last; i++) {
-    sum += dataArray[i] * dataArray[i];
+  if (!range) {
+    // Root mean square of every bin: the level saved sensitivities were set against.
+    let sum = 0;
+    for (let i = 0; i < bufferLength; i++) {
+      sum += dataArray[i] * dataArray[i];
+    }
+    return Math.sqrt(sum / bufferLength) / 255;
   }
-  const rms = Math.sqrt(sum / (last - first + 1));
 
-  // Normalize to 0-1 (max byte value is 255)
-  return rms / 255;
+  const [first, last] = binsInRange(range, bufferLength, analyser.context.sampleRate, analyser.fftSize);
+  return levelOfBins(dataArray, first, last);
 }
 
 /**
