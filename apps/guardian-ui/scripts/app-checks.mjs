@@ -2638,6 +2638,115 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // Setup on a first visit, through its own keys, to its last step: the
+  // notice, the use given, and the camera step left with no request.
+  const throughSetup = async (page, use) => {
+    const step = page.locator('#main-content main');
+    await step.getByRole('button', { name: /Begin Setup/ }).click();
+    await step.getByRole('checkbox').check();
+    await step.getByRole('button', { name: /Accept & Continue/ }).click();
+    await step.getByRole('button', { name: new RegExp(use) }).click();
+    await step.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
+    await step.getByRole('button', { name: /Enable & Continue/ }).click();
+    return step;
+  };
+  const settingsOf = (page) => page.evaluate(() => (JSON.parse(localStorage.getItem('safeos-settings') || '{}').state || {}));
+  const pathOf = (page) => new URL(page.url()).pathname.replace(/\/$/, '') || '/';
+
+  // ---------------------------------------------------------------------------
+  // Setup
+  // ---------------------------------------------------------------------------
+  // Setup's last key names where its press goes: the way whose row on the
+  // dashboard opened setup, or the dashboard, and it opens that page once. A
+  // use applies the Motion and sound setting it stands for, and a second run
+  // that chooses another use applies that one at the last key. Setup names
+  // the two pages it speaks of as the app names them.
+
+  // The last step, once it shows, and the words of its keys.
+  const lastStep = (step) => step.getByRole('heading', { name: 'Setup Complete' }).waitFor({ timeout: 10_000 });
+  const keysOf = async (step) => (await step.getByRole('button').allInnerTexts()).map((text) => `"${plain(text)}"`).join(', ') || 'no key';
+  // The address once it reads `path`, or after `ms`.
+  const reaches = (page, path, ms) => page.waitForURL((url) => (url.pathname.replace(/\/$/, '') || '/') === path, { timeout: ms }).catch(() => {});
+
+  await open({ name: 'setup, a way named', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/setup/?next=lost-found');
+    const step = await throughSetup(page, 'Pet Monitoring');
+    await lastStep(step);
+    const key = step.getByRole('button', { name: 'Open Lost and Found', exact: true });
+    if (!(await key.count())) {
+      check(false, `the last key reads ${await keysOf(step)}, not "Open Lost and Found"`);
+      return;
+    }
+    check((await page.getByRole('button', { name: /Launch Dashboard/ }).count()) === 0, 'a button reads "Launch Dashboard"');
+    await key.click();
+    await reaches(page, '/lost-found', 20_000);
+    check(pathOf(page) === '/lost-found', `the last key opens ${pathOf(page)}, not /lost-found`);
+    await page.waitForTimeout(2_000);
+    check(pathOf(page) === '/lost-found', `two seconds after the last key the address is ${pathOf(page)}, not /lost-found`);
+    await visit(page, '/setup/');
+    await reaches(page, '/dashboard', 10_000);
+    check(pathOf(page) === '/dashboard', `setup opened again on this device ends on ${pathOf(page)}, not /dashboard`);
+  }, { state: 'new' });
+
+  await open({ name: 'setup, the dashboard named', width: 1280, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    const step = await throughSetup(page, 'Pet Monitoring');
+    await lastStep(step);
+    const key = step.getByRole('button', { name: 'Open dashboard', exact: true });
+    if (!(await key.count())) {
+      check(false, `the last key reads ${await keysOf(step)}, not "Open dashboard"`);
+      return;
+    }
+    await key.click();
+    await reaches(page, '/dashboard', 20_000);
+    check(pathOf(page) === '/dashboard', `the last key opens ${pathOf(page)}, not /dashboard`);
+  }, { state: 'new' });
+
+  await open({ name: "setup, a use's setting", width: 390, look: 'light' }, async (page, context, check) => {
+    const holds = async (when, preset, motion) => {
+      const saved = await settingsOf(page);
+      const seen = { preset: saved.activePresetId, motion: saved.globalSettings ? saved.globalSettings.motionSensitivity : undefined };
+      check(seen.preset === preset && seen.motion === motion, `${when} the saved setting is ${seen.preset} at ${seen.motion}, not ${preset} at ${motion}`);
+    };
+    // The last step's one key, whatever it reads, and the page it opens.
+    const finish = async (step) => {
+      await step.getByRole('button').first().click();
+      await reaches(page, '/dashboard', 20_000);
+    };
+
+    await visit(page, '/setup/');
+    let step = await throughSetup(page, 'Baby Monitoring');
+    await lastStep(step);
+    await holds('with the baby use, before the last key,', 'infant_sleep', 98);
+    await finish(step);
+    await holds('with the baby use, after the last key,', 'infant_sleep', 98);
+
+    await visit(page, '/setup/?again=1');
+    step = await throughSetup(page, 'Elderly Care');
+    await lastStep(step);
+    await holds('run again with the elderly use, before the last key,', 'infant_sleep', 98);
+    await finish(step);
+    await holds('run again with the elderly use, after the last key,', 'maximum', 80);
+  }, { state: 'new' });
+
+  await open({ name: 'setup, the pages it names', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    const step = page.locator('#main-content main');
+    await step.getByRole('button', { name: /Begin Setup/ }).click();
+    await step.getByRole('checkbox').check();
+    await step.getByRole('button', { name: /Accept & Continue/ }).click();
+    const emptyPlace = step.getByRole('button', { name: /Security Mode/ });
+    await emptyPlace.waitFor({ timeout: 10_000 });
+    const holding = plain(await emptyPlace.innerText());
+    check(holding.includes('The People page counts the people in view.'), `the button holding "Security Mode" reads "${holding}"`);
+
+    await step.getByRole('button', { name: /Pet Monitoring/ }).click();
+    await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 });
+    const lines = (await step.locator('p').allInnerTexts()).map((text) => plain(text));
+    const line = lines.find((text) => text.startsWith('You can allow the camera later'));
+    check(line === 'You can allow the camera later, on the Motion and sound page.', `the camera step's line reads "${line || 'nothing'}", not "You can allow the camera later, on the Motion and sound page."`);
+  }, { state: 'new' });
+
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
 }
