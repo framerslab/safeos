@@ -915,7 +915,11 @@ html[data-app-started='true'] .dash-state[data-read='no'] .dash-heading {
   border-width: 0;
 }
 
-.dash-state[data-read='no'] :is(.dash-line, .dash-problems, .dash-fixes) {
+.dash-state[data-read='no'] .dash-line {
+  visibility: hidden;
+}
+
+.dash-state[data-read='no'] :is(.dash-problems, .dash-fixes) {
   display: none;
 }
 
@@ -1241,12 +1245,20 @@ html[data-app-started='true'] .needs-script {
    part stands in the first screen, beside the watching state and the ways,
    so it has no rule there. */
 .since {
-  margin-top: 32px;
+  margin-top: calc(var(--phone-bar-height) + 16px);
   container-type: inline-size;
 }
 
 .since__rule {
   margin-bottom: 16px;
+}
+
+/* On a phone the rule stands below the first screen, under the space the
+   phone bar covers; from the tablet width there is no bar. */
+@media (min-width: 48em) {
+  .since {
+    margin-top: 32px;
+  }
 }
 
 @media (min-width: 90em) {
