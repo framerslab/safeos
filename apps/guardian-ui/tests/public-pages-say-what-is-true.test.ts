@@ -97,7 +97,7 @@ const PUBLIC_FILES = [
   component('visitor', 'StartLink.tsx'), // visitor header and footer, home
   component('layout', 'SiteShell.tsx'), // root layout: every page
   app('src', 'lib', 'page-metadata.ts'), // every public page's title and cards
-  component('NotAMedicalDevice.tsx'), // home, FAQ, Help, Tutorials, Tutorial, blog post, Terms
+  component('NotAMedicalDevice.tsx'), // home, FAQ, Help, Tutorials, blog post, Terms
   component('ModelDownloadProgress.tsx'), // Security
   component('CameraFeed.tsx'), // Security
   component('SecurityPanel.tsx'), // Security
