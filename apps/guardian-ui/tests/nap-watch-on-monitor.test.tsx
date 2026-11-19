@@ -9,16 +9,21 @@
  * 30 seconds at the effective volume once the planned minutes have passed,
  * whether or not the camera is running, and ends
  * the nap on Stop or on End nap, where the infant_sleep preset gives way while
- * it is the setting in use. A watch opened any other way has no nap.
+ * it is the setting in use. A watch opened any other way has no nap. While
+ * another tab watches, the nap's watch asks first, as a start key does; the
+ * nap stands whatever the answer. The monitor's list of settings links Nap
+ * Mode.
  */
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import { getSoundManager } from '@/lib/sound-manager';
+import { askOtherTabs, takeOverWatch } from '@/lib/tab-channel';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
+import { bare } from './helpers/served-html';
 
 jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -27,6 +32,13 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ config: { wsUrl: '' } }),
 }));
+jest.mock('@/lib/tab-channel', () => ({
+  ...jest.requireActual('@/lib/tab-channel'),
+  askOtherTabs: jest.fn(),
+  takeOverWatch: jest.fn(),
+}));
+
+const QUESTION = 'Watch here instead? The other tab stops.';
 
 function arriveFromNap(minutes: number) {
   sessionStorage.setItem('safeos-nap-handoff', JSON.stringify({ minutes, at: Date.now() }));
@@ -78,6 +90,8 @@ beforeEach(() => {
   useOnboardingStore.getState().setScenario('baby');
   browser = installCameraBrowser();
   play = jest.spyOn(getSoundManager(), 'play');
+  jest.mocked(askOtherTabs).mockReset().mockResolvedValue({ watching: false });
+  jest.mocked(takeOverWatch).mockReset().mockResolvedValue(true);
   warnings = () => play.mock.calls.filter(([type]) => type === 'warning').length;
 });
 afterEach(() => { cleanup(); jest.useRealTimers(); jest.restoreAllMocks(); });
@@ -300,4 +314,46 @@ it('keeps the setting of a watch not started from Nap Mode when it stops', async
   await act(async () => {});
 
   expect(useSettingsStore.getState().activePresetId).toBe('night');
+});
+
+it('links Nap Mode from the settings menu', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Select Security Mode' }));
+
+  const links = screen.getAllByRole('link', { name: 'Nap Mode' });
+  expect(links.map((link) => bare(link.getAttribute('href')))).toEqual(['/nap']);
+});
+
+it("asks before a nap's watch starts while another tab watches", async () => {
+  stillCamera();
+  jest.mocked(askOtherTabs).mockResolvedValue({ watching: true, way: 'monitor' });
+
+  // Watch here: the other tab stops, then the nap's watch starts.
+  arriveFromNap(30);
+  render(<MonitorPage />);
+  await act(async () => {});
+  const asked = screen.getByRole('dialog', { name: QUESTION });
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+  expect(stopKey()).toBeNull();
+  fireEvent.click(within(asked).getByRole('button', { name: 'Watch here' }));
+  await act(async () => {});
+  expect(takeOverWatch).toHaveBeenCalledTimes(1);
+  expect(stopKey()).not.toBeNull();
+  cleanup();
+
+  // Cancel: nothing watches, and the nap stays.
+  browser.getUserMedia.mockClear();
+  window.history.replaceState(null, '', '/monitor/');
+  arriveFromNap(30);
+  render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Cancel' }));
+  await act(async () => {});
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+  expect(stopKey()).toBeNull();
+  expect(screen.getByRole('button', { name: 'End nap' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(window.history.state.safeosNap).toMatchObject({ minutes: 30 });
 });
