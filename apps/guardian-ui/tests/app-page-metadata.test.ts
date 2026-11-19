@@ -20,6 +20,7 @@ import { metadata as wildlifeMetadata } from '@/app/wildlife/layout';
 import { metadata as historyMetadata } from '@/app/history/layout';
 import { metadata as settingsMetadata } from '@/app/settings/layout';
 import { metadata as setupMetadata } from '@/app/setup/layout';
+import { metadata as napMetadata } from '@/app/nap/layout';
 import robots from '@/app/robots';
 import sitemap from '@/app/sitemap';
 import { WAYS, type WayId } from '@/lib/app-routes';
@@ -39,6 +40,7 @@ const PAGES: [string, string, string, Metadata][] = [
     'Set up SafeOS Guardian in six steps: a welcome, the safety notice, what you are watching, camera and microphone access, notifications and a summary.',
     setupMetadata,
   ],
+  ['/nap/', 'Nap Mode', 'A watch while you rest, with a reminder when your planned time is up.', napMetadata],
 ];
 
 const WAY_PAGES: Record<WayId, Metadata> = {
@@ -76,12 +78,14 @@ it('lets a crawler fetch every page that carries the tag, so the tag is read', (
   const { rules } = robots();
   const list = Array.isArray(rules) ? rules : [rules];
   expect(list).toHaveLength(1);
-  expect(list[0].disallow).toEqual(['/api/', '/admin/', '/profiles/', '/export/', '/analytics/', '/webhooks/', '/nap/', '/private/']);
+  expect(list[0].disallow).toEqual(['/api/', '/admin/', '/export/', '/webhooks/', '/private/']);
 });
 
 it('keeps the app\'s pages out of the sitemap and the home page and Help in it', () => {
   const urls = sitemap().map((entry) => entry.url);
   expect(urls.filter((url) => SECTIONS.test(url))).toEqual([]);
+  // Nap Mode and the old addresses that forward are not listed either.
+  expect(urls.filter((url) => /\/(nap|tutorial|analytics|profiles|donate)\//.test(url))).toEqual([]);
   expect(urls).toContain('https://safeos.sh/');
   expect(urls).toContain('https://safeos.sh/help/');
 });
