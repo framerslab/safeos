@@ -282,11 +282,6 @@ jobs:
         # The Ubuntu runner already supplies the shared browser libraries.
         run: npx playwright install chromium
 
-      - name: Install axe for the accessibility checks
-        # e2e/watch-for.spec.ts runs axe-core in the page; it is installed for
-        # the run only, so package.json and the lock file stay as they are.
-        run: npm install --no-save --no-audit --no-fund axe-core@4.10.3
-
       - name: Serve the site and run the test
         env:
           PLAYWRIGHT_BASE_URL: http://127.0.0.1:4173
