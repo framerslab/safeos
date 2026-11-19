@@ -261,6 +261,10 @@ export default function SetupPage() {
                 }
                 goNext();
               }}
+              // Lost & Found shown as chosen from the watch's Watch for, over a use saved earlier:
+              // Continue keeps that use and Lost & Found with it. Only a press of a card changes the use.
+              keptUse={lostFound ? staged.scenario ?? onboarding.selectedScenario : null}
+              onKeep={goNext}
               onBack={goBack}
             />
           )}
@@ -431,10 +435,16 @@ function DisclaimerStep({
 function ScenarioStep({
   selectedScenario,
   onSelect,
+  keptUse,
+  onKeep,
   onBack,
 }: {
   selectedScenario: Choice | null;
   onSelect: (choice: Choice) => void;
+  /** The use saved under Lost & Found when Lost & Found is the choice shown, or null. */
+  keptUse: Scenario | null;
+  /** Continue with the answers as they are: nothing about the use changes. */
+  onKeep: () => void;
   onBack: () => void;
 }) {
   const scenarios: Array<{ id: Choice; label: string; description: string; icon: ReactNode }> = [
@@ -472,7 +482,9 @@ function ScenarioStep({
     },
   ];
   // A scenario already chosen (saved earlier, or chosen before Back) is
-  // confirmed with Continue.
+  // confirmed with Continue. Lost & Found shown over a saved use (it was
+  // chosen on the watch of a baby, elderly or security device) is confirmed as
+  // it is: the device keeps its use.
   const chosen = selectedScenario;
 
   return (
@@ -533,7 +545,7 @@ function ScenarioStep({
             Back
           </button>
           {chosen && (
-            <button onClick={() => onSelect(chosen)} className="btn btn-primary flex-1">
+            <button onClick={() => (keptUse ? onKeep() : onSelect(chosen))} className="btn btn-primary flex-1">
               Continue
               <IconChevronRight size={16} />
             </button>
