@@ -7,9 +7,10 @@
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp } from '../lib/local-data-generation';
 import { cacheAlert, updateCachedAlert, repeatCachedAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, MAX_MONITORING_ALERTS } from '../lib/client-db';
+import { guardedStorage } from '../lib/storage-full';
 import { watchRaised } from '../lib/watch-sound';
 
 // =============================================================================
@@ -525,6 +526,10 @@ export const useMonitoringStore = create<MonitoringState>()(
     }),
     {
       name: 'safeos-monitoring',
+      // Every app page reads the saved alerts into this store as it opens. A
+      // browser that refuses storage keeps the list for the visit, and the
+      // refused write is never thrown out of the read.
+      storage: createJSONStorage(() => guardedStorage),
       partialize: (state) => ({
         settings: state.settings,
         // Don't persist real-time data
