@@ -302,7 +302,7 @@ for (const look of ['dark', 'light'] as const) {
         await expect(closeUp).toBeVisible();
         await expect(card.getByText('Close-up', { exact: true })).toBeVisible();
         if (width === 390) {
-          const tile = (await card.locator('.alert-picture__tile', { has: closeUp }).boundingBox())!;
+          const tile = (await card.locator('.alert-picture__tile', { has: page.getByRole('img', { name: closeUpName(time), exact: true }) }).boundingBox())!;
           expect(Math.round(tile.width)).toBe(112);
           expect(Math.round(tile.height)).toBe(84);
           const line = (await card.getByText(kindLine('Motion')).boundingBox())!;
