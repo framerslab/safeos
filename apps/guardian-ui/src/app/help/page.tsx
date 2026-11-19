@@ -117,7 +117,7 @@ const faqs: FAQItem[] = [
   {
     category: 'privacy',
     question: 'What happens to my video data?',
-    answer: 'Video is processed in your browser. The motion check keeps only the last three frames in memory. Frames that Security, Wildlife or Lost & Found save stay in your browser\'s IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to it.',
+    answer: 'Video is processed in your browser. The motion check keeps only the last three frames in memory. Frames that People, Wildlife or Lost and Found save stay in your browser\'s IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to it.',
   },
   {
     category: 'privacy',
@@ -142,7 +142,7 @@ const faqs: FAQItem[] = [
   {
     category: 'technical',
     question: 'How does the AI work?',
-    answer: 'On safeos.sh, the monitor compares frames and sound levels in your browser, and Security and Wildlife modes run the COCO-SSD model in your browser. If you run the optional SafeOS server, it can also send frames to a local Ollama model, and to a cloud model you configure when the local one fails.',
+    answer: 'On safeos.sh, the monitor compares frames and sound levels in your browser, and People and Wildlife run the COCO-SSD model in your browser. If you run the optional SafeOS server, it can also send frames to a local Ollama model, and to a cloud model you configure when the local one fails.',
   },
   {
     category: 'alerts',
