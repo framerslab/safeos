@@ -45,6 +45,15 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   };
 
+  // A headless browser reads Notification.permission as denied whatever its
+  // window allows, so a walk whose window allows notifications tells the
+  // page so. A walk that answers otherwise adds its own answer after this.
+  const NOTIFICATIONS_ALLOWED = () => {
+    try {
+      Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
+    } catch (e) { /* this browser has no notifications */ }
+  };
+
   // One walk in a context of its own. `state` seeds the device before the
   // first page loads: 'set-up' (a finished setup), 'new' (nothing saved).
   // The walk is given the page, its context and check(ok, what), which
@@ -57,6 +66,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768, colorScheme: look, ...rest,
       });
       await made.context.grantPermissions(permissions, { origin: new URL(baseUrl).origin });
+      if (permissions.includes('notifications')) await made.context.addInitScript(NOTIFICATIONS_ALLOWED);
       if (state === 'set-up') await made.context.addInitScript(SETUP_DONE);
       // A context made here keeps nothing on disk, as a private window. Walks
       // say so only when they mean to: the others tell the app this window's
@@ -79,6 +89,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768, colorScheme: look,
         permissions: ['camera', 'microphone', 'notifications'],
       });
+      await made.context.addInitScript(NOTIFICATIONS_ALLOWED);
       return made.context.pages()[0] || made.context.newPage();
     }, run, check);
   };
