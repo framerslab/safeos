@@ -11,9 +11,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import { getAllSubjectProfiles, type SubjectProfileDB } from '@/lib/client-db';
 import { useDeviceAlerts } from '@/lib/device-alerts';
 import { useSetupState } from '@/lib/use-setup-done';
+import { useWebSocket } from '@/lib/websocket';
+import { useMonitoringStore } from '@/stores/monitoring-store';
 import { SinceYouLastLooked } from './SinceYouLastLooked';
 import { WatchState } from './WatchState';
 import { WaysToWatch } from './WaysToWatch';
@@ -38,7 +41,24 @@ export function useSavedSubjects(): SubjectProfileDB[] | null {
   return subjects;
 }
 
+/**
+ * On a device with its own server connected, the dashboard keeps that
+ * server's socket open, which starts the device's session there, and adds the
+ * alerts the server sends. safeos.sh as served connects to no server.
+ */
+function useServerAlerts(): void {
+  const { status, config } = useBackendStatus();
+  const addAlert = useMonitoringStore((state) => state.addAlert);
+  const connected = status.api === 'connected' && !!config.apiUrl;
+  useWebSocket(connected ? config.wsUrl : '', {
+    onMessage: (message) => {
+      if (message.type === 'alert') addAlert(message.payload);
+    },
+  });
+}
+
 export function Dashboard() {
+  useServerAlerts();
   const setUp = useSetupState();
   const subjects = useSavedSubjects();
   const { status, newAlerts } = useDeviceAlerts();
