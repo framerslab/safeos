@@ -613,8 +613,8 @@ html:has(.app-shell) {
    width. The keys keep one line and scroll inside their row, with the right
    edge faded as the phone bar's is until the end is reached; the row's
    padding keeps a focused key's ring whole. A key's menu opens under the head
-   at its right edge, so it stays on the screen and the row's scroll does not
-   clip it. */
+   at its right edge, no wider than the head, so it stays on the screen with
+   text at any size and the row's scroll does not clip it. */
 @media not all and (min-width: 64em) {
   .way-head {
     position: relative;
@@ -632,6 +632,7 @@ html:has(.app-shell) {
 
   .way-head__menu > .absolute {
     top: 100%;
+    max-width: 100%;
   }
 
   .key-row {
