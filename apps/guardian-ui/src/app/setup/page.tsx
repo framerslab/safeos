@@ -12,6 +12,7 @@ import { useCameraStore } from '../../stores/camera-store';
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useOnboardingStore, canSkipOnboarding } from '../../stores/onboarding-store';
+import { useSettingsStore } from '../../stores/settings-store';
 import {
   IconShield,
   IconShieldCheck,
@@ -30,7 +31,8 @@ import {
 } from '../../components/icons';
 import { SafeOSLogo, FrameWordmark } from '../../components/Logo';
 import { SAFE_SLEEP_URL } from '../../components/NotAMedicalDevice';
-import { SETUP_STEPS, type SetupStep } from '../../lib/setup-steps';
+import { WAYS, wayFromParam, type Way } from '../../lib/app-routes';
+import { SETUP_STEPS, USE_SETTING, type SetupStep, type SetupUse } from '../../lib/setup-steps';
 
 // =============================================================================
 // Types
@@ -40,7 +42,7 @@ import { SETUP_STEPS, type SetupStep } from '../../lib/setup-steps';
 // are and which one asks for the camera.
 type Step = SetupStep;
 
-type Scenario = 'pet' | 'baby' | 'elderly' | 'security';
+type Scenario = SetupUse;
 // What the question of what is being watched offers: the four uses, and Lost
 // & Found, which compares the camera's picture with a pet's photos and so
 // saves the pet use.
@@ -84,20 +86,30 @@ export default function SetupPage() {
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
 
-  // A person whose setup is done goes on to the dashboard, unless they asked
-  // to run setup again. Arriving that way resets nothing: the saved setup
-  // stays as it is until the last step is finished. The address is read here,
-  // after the page has rendered: on a move from another page of the site the
-  // address bar changes only then.
+  // The way whose row on the dashboard opened setup (/setup/?next=lost-found):
+  // the last key names it and opens its page. Any other value names none.
+  const [nextWay, setNextWay] = useState<Way | null>(null);
+  // The page the last key names and opens: Lost & Found when it is chosen,
+  // where the pet's photos are added; else the way named; else the dashboard.
+  const lastWay: Way | null = lostFound ? (WAYS.find((way) => way.id === 'lost-found') ?? null) : nextWay;
+
+  // A person whose setup is done goes on to the way named, or to the
+  // dashboard, unless they asked to run setup again. Arriving that way resets
+  // nothing: the saved setup stays as it is until the last step is finished.
+  // The address is read here, after the page has rendered: on a move from
+  // another page of the site the address bar changes only then.
   // Set as the last step finishes. The forwarding below is for a person
   // arriving; once setup is finished here, the last key's page is the one opened.
   const finishing = useRef(false);
   useEffect(() => {
     if (finishing.current) return;
-    const asked = new URLSearchParams(window.location.search).get('again') === '1';
+    const params = new URLSearchParams(window.location.search);
+    const asked = params.get('again') === '1';
+    const way = wayFromParam(params.get('next'));
     setAgain(asked);
+    setNextWay(way);
     if (!asked && canSkipOnboarding(onboarding)) {
-      router.push('/dashboard');
+      router.push(way ? way.href : '/dashboard');
     }
   }, [onboarding, router]);
 
@@ -115,13 +127,19 @@ export default function SetupPage() {
     }
   };
 
+  // A use applies the Motion and sound setting it stands for, unless it is the
+  // use this device has already, so a second run keeps a person's own setting.
+  const applyUse = (use: Scenario) => {
+    if (use !== onboarding.selectedScenario) useSettingsStore.getState().setActivePreset(USE_SETTING[use]);
+  };
+
   // Each camera request has a number. "Continue without the camera" and a newer
   // request raise it, so an answer that arrives for an earlier request is
   // dropped: a prompt answered after the person went on changes nothing.
   const cameraRequest = useRef(0);
 
   // "Continue without the camera": setup goes on with both permissions
-  // recorded as off. The Monitor page asks for the camera when monitoring starts.
+  // recorded as off. Motion and sound's page asks for the camera when monitoring starts.
   // A visitor running setup again keeps that answer on this page, like the
   // others, until the last step.
   const continueWithoutCamera = () => {
@@ -186,12 +204,15 @@ export default function SetupPage() {
     onboarding.setLostFoundChosen(lostFound);
     if (again) {
       if (staged.disclaimers) onboarding.acceptAllDisclaimers();
-      if (staged.scenario) onboarding.setScenario(staged.scenario);
+      if (staged.scenario) {
+        applyUse(staged.scenario);
+        onboarding.setScenario(staged.scenario);
+      }
       if (staged.camera !== null) onboarding.setCameraPermission(staged.camera);
       if (staged.microphone !== null) onboarding.setMicrophonePermission(staged.microphone);
     }
     onboarding.setComplete(true);
-    router.push(lostFound ? '/lost-found/' : '/dashboard');
+    router.push(lastWay ? lastWay.href : '/dashboard');
   };
 
   return (
@@ -255,6 +276,7 @@ export default function SetupPage() {
                 setLostFoundNow(choice === 'lost_found');
                 if (again) setStaged((answers) => ({ ...answers, scenario }));
                 else {
+                  applyUse(scenario);
                   onboarding.setScenario(scenario);
                   onboarding.setLostFoundChosen(choice === 'lost_found');
                 }
@@ -280,7 +302,7 @@ export default function SetupPage() {
             />
           )}
           {currentStep === 'complete' && (
-            <CompleteStep onFinish={completeSetup} lostFound={lostFound} />
+            <CompleteStep label={lastWay ? `Open ${lastWay.name}` : 'Open dashboard'} onFinish={completeSetup} lostFound={lostFound} />
           )}
         </div>
       </main>
@@ -459,7 +481,7 @@ function ScenarioStep({
     {
       id: 'security' as const,
       label: 'Security Mode',
-      description: 'Motion and sound alerts while the room is empty. The Security page counts the people in view.',
+      description: 'Motion and sound alerts while the room is empty. The People page counts the people in view.',
       icon: <IconShield size={24} />,
     },
     {
@@ -627,7 +649,7 @@ function PermissionsStep({
               <IconChevronRight size={16} />
             </button>
             <p className="text-base text-[var(--color-steel-300)]">
-              You can allow the camera later, on the Monitor page.
+              You can allow the camera later, on the Motion and sound page.
             </p>
           </>
         )}
@@ -730,7 +752,7 @@ function NotificationsStep({
   );
 }
 
-function CompleteStep({ onFinish, lostFound }: { onFinish: () => void; lostFound: boolean }) {
+function CompleteStep({ label, onFinish, lostFound }: { label: string; onFinish: () => void; lostFound: boolean }) {
   return (
     <div className="panel">
       <div className="panel-body text-center py-8">
@@ -746,7 +768,7 @@ function CompleteStep({ onFinish, lostFound }: { onFinish: () => void; lostFound
         </p>
 
         <button onClick={onFinish} className="btn btn-primary px-8">
-          {lostFound ? 'Open Lost and Found' : 'Launch Dashboard'}
+          {label}
           <IconChevronRight size={16} />
         </button>
       </div>
