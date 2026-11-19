@@ -88,7 +88,7 @@ it('ends on the dashboard for another use, as before', async () => {
   await toTheQuestion();
   fireEvent.click(screen.getByRole('button', { name: /Pet Monitoring/ }));
   await toTheLastStep();
-  fireEvent.click(await screen.findByRole('button', { name: /Launch Dashboard/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Open dashboard' }));
 
   expect(useOnboardingStore.getState().selectedScenario).toBe('pet');
   await act(async () => {});
