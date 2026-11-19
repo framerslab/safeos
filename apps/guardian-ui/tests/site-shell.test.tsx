@@ -111,7 +111,7 @@ it('gives Setup the app header and no phone bar', () => {
 });
 
 it('marks a page built in the readable look, so its whole body follows the device before script', () => {
-  for (const pathname of ['/dashboard/', '/nap/']) {
+  for (const pathname of ['/dashboard/', '/tutorial/']) {
     const { container } = open(pathname);
     expect([pathname, container.querySelector('.app-shell--look.look-part') !== null]).toEqual([pathname, true]);
     cleanup();
@@ -122,6 +122,9 @@ it('marks a page built in the readable look, so its whole body follows the devic
   expect(container.querySelector('header.app-header')?.classList.contains('look-part')).toBe(true);
   expect(container.querySelector('.app-shell__footer')?.classList.contains('look-part')).toBe(true);
   expect(container.querySelector('nav.phone-bar')?.classList.contains('look-part')).toBe(true);
+  cleanup();
+  // Nap Mode's page keeps its own build, outside the look.
+  expect(open('/nap/').container.querySelector('.app-shell--look.look-part')).toBeNull();
 });
 
 it('marks the document once its script has started', () => {
