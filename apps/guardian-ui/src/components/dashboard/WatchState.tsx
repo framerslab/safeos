@@ -192,22 +192,23 @@ export function WatchState({ setUp, subjects, newAlerts }: WatchStateProps) {
           </span>
         </p>
       )}
-      {read && (
-        <p id="dash-line" className="dash-line">
-          {setUp ? startLine(choice) : 'Set up this device first. Setup asks for the camera and the microphone.'}
-          {setUp && session && (
-            session.endedAt !== null ? (
-              <>
-                {' '}The last watch ended at <Num>{clockTime(session.endedAt)}</Num>.
-              </>
-            ) : (
-              <>
-                {' '}The last watch ran until at least <Num>{clockTime(session.seenAt)}</Num>.
-              </>
-            )
-          )}
-        </p>
-      )}
+      {/* The line's place is held before the read by one no-break space, so
+          the key's place does not move when a one-line line arrives. */}
+      <p id="dash-line" className="dash-line">
+        {!read && '\u00a0'}
+        {read && (setUp ? startLine(choice) : 'Set up this device first. Setup asks for the camera and the microphone.')}
+        {read && setUp && session && (
+          session.endedAt !== null ? (
+            <>
+              {' '}The last watch ended at <Num>{clockTime(session.endedAt)}</Num>.
+            </>
+          ) : (
+            <>
+              {' '}The last watch ran until at least <Num>{clockTime(session.seenAt)}</Num>.
+            </>
+          )
+        )}
+      </p>
       <div className="dash-problems" role="status" aria-live="polite">
         {read && problems}
       </div>
