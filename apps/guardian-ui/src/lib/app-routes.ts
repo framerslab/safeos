@@ -45,7 +45,8 @@ export const DESTINATIONS: readonly Destination[] = [
 
 // The hub, the four ways, History, Settings and its pages, Help and its
 // guides, Setup, the two pages of a connected server, the two pages History
-// will take in, and the four old addresses that forward to an app page.
+// will take in, Nap Mode, and the three old addresses that forward to an app
+// page.
 const APP_SECTIONS = [
   '/dashboard', '/monitor', '/lost-found', '/security', '/wildlife', '/history', '/settings', '/help', '/setup',
   '/webhooks', '/admin', '/export', '/nap', '/tutorial', '/analytics', '/profiles',
@@ -53,7 +54,7 @@ const APP_SECTIONS = [
 
 // The pages built in the readable look: their whole body follows the device's
 // light or dark setting before any script runs.
-const LOOK_SECTIONS = ['/dashboard', '/nap', '/tutorial', '/analytics', '/profiles'];
+const LOOK_SECTIONS = ['/dashboard', '/tutorial', '/analytics', '/profiles'];
 
 /** A pathname without its query, fragment and closing slash; the root stays "/". */
 export function barePath(pathname: string | null | undefined): string {
