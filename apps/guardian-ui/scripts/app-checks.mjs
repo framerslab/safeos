@@ -3415,7 +3415,8 @@ export async function checkApp(browser, baseUrl, outDir) {
   for (const look of LOOKS) {
     await open({ name: 'dashboard, storage refused', width: 390, look }, async (page, context, check) => {
       const raised = [];
-      page.on('pageerror', (err) => raised.push(err.message.split('\n')[0]));
+      // Each error with the first lines of its stack, which name the part that threw.
+      page.on('pageerror', (err) => raised.push([err.message.split('\n')[0], ...(err.stack || '').split('\n').slice(1, 3).map((line) => line.trim())].join(' ')));
       await page.goto(address('/dashboard/'), { waitUntil: 'load', timeout: 60_000 });
       await page.waitForTimeout(3_000);
       const seen = await page.evaluate(() => {
@@ -4767,6 +4768,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   // dashboard shows a new device.
   await open({ name: 'cleared device offline', width: 390, look: 'light' }, async (page, context, check) => {
     await visit(page, '/settings/');
+    if (!(await installed(page))) throw new Error('the installed copy is not whole after a visit to /settings/');
     await page.getByRole('button', { name: 'Privacy', exact: true }).click();
     page.once('dialog', (dialog) => { dialog.accept().catch(() => {}); });
     await Promise.all([
