@@ -400,6 +400,49 @@ test('Change pet opens Choose a pet; choosing the other pet names it, and Escape
   await expect(shown(page.getByRole('img', { name: 'Tofu’s first saved photo' }))).toBeVisible();
 });
 
+test('a photo added to the pet while the watch compares counts on the pet row and in Choose a pet, and choosing the pet again keeps it', async ({ page, context }) => {
+  test.setTimeout(120_000);
+  await setUpDevice(context, { lostFoundChosen: true });
+  await openWatchWithPets(page, [MISO, TOFU]);
+  await expect(shown(page.getByText('3 photos', { exact: true }))).toBeVisible();
+  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
+  await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
+
+  // A fourth photo of Miso, added with the Lost and Found panel's Add Photos as a person adds one.
+  const photo = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 160;
+    canvas.height = 120;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('no 2D canvas');
+    ctx.fillStyle = '#f4f1ea';
+    ctx.fillRect(0, 0, 160, 120);
+    ctx.fillStyle = 'hsl(200, 70%, 45%)';
+    ctx.fillRect(40, 30, 80, 60);
+    return canvas.toDataURL('image/png').split(',')[1];
+  });
+  const picking = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Add Photos', exact: true }).click();
+  await (await picking).setFiles({ name: 'miso-4.png', mimeType: 'image/png', buffer: Buffer.from(photo, 'base64') });
+  await expect(page.getByRole('img', { name: 'Reference 4', exact: true })).toBeVisible({ timeout: 60_000 });
+
+  // The pet row counts it, and so does Choose a pet.
+  await expect(shown(page.getByText('4 photos', { exact: true }))).toBeVisible();
+  await changePet(page).click();
+  const dialog = choosePet(page);
+  await expect(dialog.getByText('4 photos', { exact: true })).toBeVisible();
+
+  // Tofu, then Miso again: Miso keeps the photo added, for the count and the comparison.
+  await dialog.getByText('Tofu', { exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(shown(page.getByText('1 photo', { exact: true }))).toBeVisible();
+  await changePet(page).click();
+  await dialog.getByText('Miso', { exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(shown(page.getByText('4 photos', { exact: true }))).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Reference 4', exact: true })).toBeVisible();
+});
+
 test('twelve saved pets scroll inside Choose a pet with Add a pet at its foot, and a person saved by an earlier version is not listed', async ({ page, context }) => {
   await setUpDevice(context, { lostFoundChosen: true });
   const pets: Pet[] = Array.from({ length: 12 }, (_, i) => ({
@@ -661,7 +704,7 @@ test('the pet band, the pet card and its photos follow the width: 768, 1024 and 
 // Accessibility
 // =============================================================================
 
-/** axe-core, installed for the run by CI. */
+/** axe-core, from the dev dependencies that npm ci installs. */
 const AXE = readFileSync(path.join(process.cwd(), 'node_modules', 'axe-core', 'axe.min.js'), 'utf8');
 
 interface AxeViolation { id: string; impact: string | null; help: string; nodes: Array<{ target: string[] }> }
