@@ -23,9 +23,15 @@
   --ap-acknowledge-ink: #ffffff;
   --ap-box-line: #4ade80;
   --ap-box-edge: #0b131b;
+  --ap-solid-ground: #4ade80;
+  --ap-solid-ink: #0b131b;
+  --ap-veil: rgba(11, 19, 27, 0.72);
 }
 
 html.light {
+  --ap-solid-ground: #14532d;
+  --ap-solid-ink: #ffffff;
+  --ap-veil: rgba(17, 24, 39, 0.56);
   --ap-ground: #ffffff;
   --ap-ink: #111827;
   --ap-quiet: #374151;
@@ -158,8 +164,20 @@ html.light {
   color: var(--ap-ink);
 }
 
-.alert-card__level svg {
+.alert-card__icon {
   flex: none;
+  display: inline-flex;
+}
+
+/* The card's keys beside its counts; on their own row where the two do not fit on one. */
+.alert-card__counts {
+  flex: 1 1 auto;
+}
+
+.alert-card__keys {
+  flex: 0 1 auto;
+  max-width: 100%;
+  margin-left: auto;
 }
 
 .alert-card__ago {
@@ -196,6 +214,8 @@ html.light {
 }
 
 .alert-card__acknowledge {
+  flex: none;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -440,5 +460,512 @@ html.light {
 @media (min-width: 1440px) {
   .alert-picture__lead {
     font-size: 1.25rem;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   The picture's lines on a card: not kept, could not be saved
+   ----------------------------------------------------------------------------- */
+
+.alert-picture__link-row {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.alert-picture__link,
+.alert-pictures-link {
+  color: var(--ap-ink);
+  font-size: 1rem;
+  text-decoration: underline;
+  text-decoration-color: var(--ap-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.alert-picture__link:focus-visible,
+.alert-pictures-link:focus-visible {
+  outline: 2px solid var(--ap-ring);
+  outline-offset: 2px;
+}
+
+/* -----------------------------------------------------------------------------
+   The alert list's one line about a device that cannot keep pictures
+   ----------------------------------------------------------------------------- */
+
+.alert-list-line__words {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ap-divider);
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.alert-list-line__words svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* -----------------------------------------------------------------------------
+   Keep alert pictures: the group, the notice and the delete question
+   ----------------------------------------------------------------------------- */
+
+.alert-pictures-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.alert-pictures-group,
+.alert-pictures-notice,
+.alert-pictures-question {
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.alert-pictures-group p,
+.alert-pictures-notice p,
+.alert-pictures-question p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-pictures-line {
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--ap-ink);
+}
+
+.alert-pictures-line--strong {
+  font-weight: 600;
+}
+
+.alert-pictures-quiet {
+  font-size: 1rem;
+  color: var(--ap-quiet);
+}
+
+.alert-pictures-problem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ap-ink);
+}
+
+.alert-pictures-problem svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.alert-pictures-drawing {
+  flex: none;
+  display: block;
+}
+
+/* The switch's row and the select's row: the label, then the control, on one row. */
+.alert-pictures-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.alert-pictures-row__label {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 1.125rem;
+  color: var(--ap-ink);
+  overflow-wrap: anywhere;
+}
+
+.alert-pictures-switch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.alert-pictures-switch__track {
+  position: relative;
+  display: block;
+  width: 52px;
+  height: 28px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 14px;
+  background: transparent;
+}
+
+.alert-pictures-switch__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ap-edge);
+}
+
+.alert-pictures-switch[aria-checked='true'] .alert-pictures-switch__track {
+  border-color: var(--ap-accent);
+  background: var(--ap-accent);
+}
+
+.alert-pictures-switch[aria-checked='true'] .alert-pictures-switch__knob {
+  left: 27px;
+  background: var(--ap-ground);
+}
+
+.alert-pictures-select {
+  flex: none;
+  max-width: 60%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.alert-pictures-switch:focus-visible,
+.alert-pictures-select:focus-visible,
+.alert-pictures-key:focus-visible,
+.alert-pictures-keys__arrow:focus-visible {
+  outline: 2px solid var(--ap-ring);
+  outline-offset: 2px;
+}
+
+.alert-pictures-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 44px;
+}
+
+/* An outlined key, and the solid key that starts the watch. */
+.alert-pictures-key {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.alert-pictures-key--wide {
+  width: 100%;
+  white-space: normal;
+}
+
+.alert-pictures-key--solid {
+  min-height: 52px;
+  border-color: var(--ap-solid-ground);
+  background: var(--ap-solid-ground);
+  color: var(--ap-solid-ink);
+}
+
+/* A row of keys stays one row; where they do not fit it scrolls inside itself. */
+.alert-pictures-keys {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.alert-pictures-keys__row {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px;
+}
+
+.alert-pictures-keys[data-overflows] > .alert-pictures-keys__row {
+  justify-content: flex-start;
+}
+
+.alert-pictures-keys__row[data-more-after] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+
+.alert-pictures-keys__row[data-more-before] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+}
+
+.alert-pictures-keys__row[data-more-before][data-more-after] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+}
+
+.alert-pictures-keys__arrow {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  cursor: pointer;
+}
+
+.alert-pictures-keys__arrow:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The group: its first line beside the drawing, the controls, then the other lines. */
+.alert-pictures-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+}
+
+.alert-pictures-group__heading {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ap-ink);
+}
+
+.alert-pictures-group__first {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 16px;
+}
+
+.alert-pictures-group__first > p {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.alert-pictures-group__controls,
+.alert-pictures-group__choices,
+.alert-pictures-group__choice,
+.alert-pictures-group__count,
+.alert-pictures-group__lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.alert-pictures-group__controls {
+  gap: 16px;
+}
+
+.alert-pictures-group__choices {
+  gap: 12px;
+}
+
+.alert-pictures-group__choice,
+.alert-pictures-group__count {
+  gap: 4px;
+}
+
+.alert-pictures-group__count .alert-pictures-key {
+  margin-top: 8px;
+}
+
+.alert-pictures-group__lines {
+  gap: 12px;
+}
+
+/* The bar that stands in the count's place until the store is read. */
+.alert-pictures-group__count-wait {
+  display: block;
+  width: 14rem;
+  max-width: 100%;
+  height: 1.6875rem;
+  border-radius: 4px;
+  background: var(--ap-track);
+}
+
+.alert-pictures-section {
+  display: block;
+}
+
+/* A tablet: the switch and the select on one row. */
+@media (min-width: 768px) {
+  .alert-pictures-group__choices {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 24px;
+    align-items: start;
+  }
+}
+
+/* A desktop: the lines, held to 640 px, with the controls in a column beside them. */
+@media (min-width: 1024px) {
+  .alert-pictures-group {
+    grid-template-columns: minmax(0, 640px) minmax(0, 1fr);
+    grid-template-areas:
+      'heading heading'
+      'first controls'
+      'lines controls';
+    grid-template-rows: auto auto 1fr;
+    column-gap: 32px;
+  }
+
+  .alert-pictures-group__heading { grid-area: heading; }
+  .alert-pictures-group__first { grid-area: first; }
+  .alert-pictures-group__controls { grid-area: controls; }
+  .alert-pictures-group__lines { grid-area: lines; }
+
+  .alert-pictures-group__choices {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* The wide page: the lines in the left seven columns at 20 px, the controls in the right five. */
+@media (min-width: 1440px) {
+  .alert-pictures-group {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+
+  .alert-pictures-line {
+    font-size: 1.25rem;
+  }
+}
+
+/* The notice and the delete question stand over the page. */
+.alert-pictures-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ap-veil);
+}
+
+/* A phone: the notice is a panel over the whole screen that scrolls inside itself, its keys at its foot. */
+.alert-pictures-notice {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  outline: none;
+}
+
+.alert-pictures-notice__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 20px 16px 16px;
+  overflow-y: auto;
+}
+
+.alert-pictures-notice__title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--ap-ink);
+}
+
+.alert-pictures-notice__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--ap-divider);
+  border-bottom: 1px solid var(--ap-divider);
+}
+
+.alert-pictures-notice__foot {
+  flex: none;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ap-divider);
+}
+
+.alert-pictures-question {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(100% - 32px, 480px);
+  padding: 20px 16px 12px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+}
+
+@media (min-width: 768px) {
+  .alert-pictures-notice {
+    width: 560px;
+    height: auto;
+    max-height: calc(100% - 48px);
+    border: 1px solid var(--ap-edge);
+    border-radius: 6px;
+  }
+
+  .alert-pictures-notice__body {
+    padding: 24px 24px 16px;
+  }
+
+  .alert-pictures-notice__foot {
+    padding: 12px 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .alert-pictures-notice {
+    width: 640px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .alert-pictures-notice {
+    width: 720px;
   }
 }

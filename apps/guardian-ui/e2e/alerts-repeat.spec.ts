@@ -140,6 +140,10 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
     }
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+    // The device has answered the notice about alert pictures, so a watch starts at its key.
+    localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+      keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+    }, version: 0 }));
 
     const walk: Walk = {
       alerts: { motion: [], pixel: [], audio: [] },
@@ -340,7 +344,7 @@ function savedMessage(page: Page, kind: RegExp): Promise<string> {
 
 /** Waits until the newest saved alert of `kind` reads as `reading`. */
 const expectSavedMessage = (page: Page, kind: RegExp, reading: RegExp, soft = false) =>
-  (soft ? expect.soft : expect).poll(() => savedMessage(page, kind), { timeout: 10_000 }).toMatch(reading);
+  expect.configure({ soft }).poll(() => savedMessage(page, kind), { timeout: 10_000 }).toMatch(reading);
 
 const MOTION_MESSAGE = /^Motion detected: \d+%/;
 

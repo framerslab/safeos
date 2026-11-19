@@ -17,6 +17,7 @@ import { cardTime } from '../lib/alert-event';
 import { kindOfAlert } from '../lib/alert-pictures/rules';
 import { announceAlert, levelWords } from '../lib/alert-pictures/words';
 import { PictureBlock, alertMoment } from './alert-pictures/PictureBlock';
+import { KeyRow } from './alert-pictures/KeyRow';
 import {
   IconInfo,
   IconBell,
@@ -353,7 +354,8 @@ function CardHead({ alert }: { alert: Alert }) {
   return (
     <div className="alert-card__head">
       <span className="alert-card__level">
-        <IconComponent size={18} aria-hidden="true" />
+        {/* The level's word carries the meaning; its icon is not read. */}
+        <span className="alert-card__icon" aria-hidden="true"><IconComponent size={18} /></span>
         <span>{levelWords(alert.severity)}</span>
       </span>
       <span className="alert-card__ago">{timeAgo}</span>
@@ -393,9 +395,12 @@ function AlertCard({ alert, form, escalationLevel, onAcknowledge }: AlertCardPro
           <span>Level {escalationLevel}</span>
           {repeats > 0 && <span>Repeated {repeats} {repeats === 1 ? 'time' : 'times'}</span>}
         </span>
-        <button onClick={() => onAcknowledge(alert.id)} className="alert-card__acknowledge">
-          Acknowledge
-        </button>
+        {/* The card's keys keep one row; where they do not fit, the row scrolls inside itself. */}
+        <KeyRow className="alert-card__keys">
+          <button type="button" onClick={() => onAcknowledge(alert.id)} className="alert-card__acknowledge">
+            Acknowledge
+          </button>
+        </KeyRow>
       </div>
     </div>
   );
