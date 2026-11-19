@@ -39,10 +39,16 @@ export function StatusBanner({ onConfigureClick, dismissible = true }: StatusBan
   }, []);
   const [isVisible, setIsVisible] = useState(false);
 
-  // Restore dismissed state from localStorage
+  // Restore dismissed state from localStorage. A browser that refuses this
+  // site's storage has no dismissed mark.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const dismissed = localStorage.getItem('safeos_status_banner_dismissed');
+    let dismissed: string | null = null;
+    try {
+      dismissed = localStorage.getItem('safeos_status_banner_dismissed');
+    } catch {
+      return;
+    }
     if (dismissed === 'true') {
       setIsDismissed(true);
     }
@@ -56,7 +62,11 @@ export function StatusBanner({ onConfigureClick, dismissible = true }: StatusBan
   const handleDismiss = () => {
     setIsDismissed(true);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('safeos_status_banner_dismissed', 'true');
+      try {
+        localStorage.setItem('safeos_status_banner_dismissed', 'true');
+      } catch {
+        // Dismissed for this page only.
+      }
     }
   };
 
@@ -64,7 +74,11 @@ export function StatusBanner({ onConfigureClick, dismissible = true }: StatusBan
     // Clear dismissed state when user wants to configure
     setIsDismissed(false);
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('safeos_status_banner_dismissed');
+      try {
+        localStorage.removeItem('safeos_status_banner_dismissed');
+      } catch {
+        // Nothing saved to remove.
+      }
       // Fall through to the global handler when no callback was passed —
       // Providers listens for this event and opens the BackendSettings modal.
       if (!onConfigureClick) {
