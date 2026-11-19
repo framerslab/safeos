@@ -8,7 +8,6 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { chromium } from '@playwright/test';
 import { SETUP_DONE, measureText, plain, readStrokes } from './home-checks.mjs';
 
 export const LOOKS = ['light', 'dark'];
@@ -68,14 +67,15 @@ export async function checkApp(browser, baseUrl, outDir) {
     }, run, check);
   };
 
-  // A walk in a browser profile kept on disk, as a person's own window is.
-  // A context made with newContext keeps nothing after it closes.
+  // A walk in a browser profile kept on disk, as a person's own window is,
+  // launched by the browser's own type. A context made with newContext keeps
+  // nothing after it closes.
   const openKept = async (options, run) => {
     const { name, width, height = heightOf(width), look = 'light' } = options;
     const check = (ok, what) => expect(ok, `${name} at ${width} px, ${look}: ${what}`);
     await walk({ name, width, look }, async (made) => {
       made.folder = await mkdtemp(path.join(os.tmpdir(), 'safeos-profile-'));
-      made.context = await chromium.launchPersistentContext(made.folder, {
+      made.context = await browser.browserType().launchPersistentContext(made.folder, {
         viewport: { width, height }, isMobile: width < 768, hasTouch: width < 768, colorScheme: look,
         permissions: ['camera', 'microphone', 'notifications'],
       });
