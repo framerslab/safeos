@@ -4,7 +4,8 @@
  * Detection's Custom Range is set to 300 to 3,000 Hz. Chromium's fake
  * microphone plays a tone from a WAV file written here: a 100 Hz tone, under
  * the range, leaves the watch's Audio level near 0; a 1,000 Hz tone at the same
- * loudness, inside it, raises the level.
+ * loudness, inside it, raises the level. Widened to 20 to 20,000 Hz, the range
+ * still holds the 1,000 Hz tone, and at a sensitivity of 90 the tone alerts.
  *
  * The tone sounds in bursts with soft edges, so the browser's noise
  * suppression, which learns a steady sound as noise, keeps it.
@@ -61,11 +62,22 @@ test.skip(
   'The fake microphone file is a Chromium switch; the walk runs at desktop width'
 );
 
+/** The range and the sound sensitivity a walk sets. */
+interface Watch {
+  low: number;
+  high: number;
+  audioSensitivity: number;
+}
+const NARROW: Watch = { low: 300, high: 3000, audioSensitivity: OWN_SETTING.audioSensitivity };
+
 /**
  * Starts the watch in a browser whose fake microphone plays `hz`, with the
- * range set, and returns the highest Audio level it shows over 6 seconds.
+ * range set, and returns the Audio levels it shows over 6 seconds and the
+ * number of sound alert cards on the page after them.
  */
-async function highestLevel(browserType: BrowserType, baseURL: string | undefined, hz: number): Promise<number> {
+async function walk(
+  browserType: BrowserType, baseURL: string | undefined, hz: number, watch: Watch = NARROW,
+): Promise<{ highest: number; alerts: number }> {
   // Each tone needs its own browser: the fake microphone's file is a launch switch.
   const browser = await browserType.launch({
     args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', `--use-file-for-fake-audio-capture=${toneFile(hz)}`],
@@ -76,8 +88,8 @@ async function highestLevel(browserType: BrowserType, baseURL: string | undefine
       use: 'pet',
       settings: {
         activePresetId: 'custom',
-        globalSettings: OWN_SETTING,
-        audioSettings: { frequencyRange: 'custom', customLowFreq: 300, customHighFreq: 3000, backgroundNoiseFilter: true },
+        globalSettings: { ...OWN_SETTING, audioSensitivity: watch.audioSensitivity },
+        audioSettings: { frequencyRange: 'custom', customLowFreq: watch.low, customHighFreq: watch.high, backgroundNoiseFilter: true },
       },
     });
     const page = await context.newPage();
@@ -94,9 +106,10 @@ async function highestLevel(browserType: BrowserType, baseURL: string | undefine
       readings.push(Number.parseFloat((await level.textContent()) ?? ''));
       await page.waitForTimeout(200);
     }
-    console.log(`Audio levels read with a ${hz} Hz tone: ${readings.join(', ')}`);
-    await page.screenshot({ path: test.info().outputPath(`pitch-range-${hz}hz-1280.png`) });
-    return Math.max(...readings.filter(Number.isFinite));
+    const alerts = await page.locator('p').filter({ hasText: /^Audio detected: \d+%/ }).count();
+    console.log(`Audio levels read with a ${hz} Hz tone at ${watch.low} to ${watch.high} Hz: ${readings.join(', ')}; ${alerts} sound alert cards`);
+    await page.screenshot({ path: test.info().outputPath(`pitch-range-${hz}hz-${watch.low}-${watch.high}-1280.png`) });
+    return { highest: Math.max(...readings.filter(Number.isFinite)), alerts };
   } finally {
     await browser.close();
   }
@@ -104,10 +117,20 @@ async function highestLevel(browserType: BrowserType, baseURL: string | undefine
 
 test('a 100 Hz tone, under the range, leaves the Audio level near 0', async ({ playwright, baseURL }) => {
   test.setTimeout(90_000);
-  expect(await highestLevel(playwright.chromium, baseURL, 100)).toBeLessThan(5);
+  expect((await walk(playwright.chromium, baseURL, 100)).highest).toBeLessThan(5);
 });
 
 test('a 1,000 Hz tone, inside the range, raises the Audio level', async ({ playwright, baseURL }) => {
   test.setTimeout(90_000);
-  expect(await highestLevel(playwright.chromium, baseURL, 1000)).toBeGreaterThan(10);
+  expect((await walk(playwright.chromium, baseURL, 1000)).highest).toBeGreaterThan(10);
+});
+
+test('widened to 20 to 20,000 Hz, the range keeps the 1,000 Hz tone\'s level and its alert at a sensitivity of 90', async ({ playwright, baseURL }) => {
+  test.setTimeout(150_000);
+  const narrow = await walk(playwright.chromium, baseURL, 1000, { ...NARROW, audioSensitivity: 90 });
+  const wide = await walk(playwright.chromium, baseURL, 1000, { low: 20, high: 20000, audioSensitivity: 90 });
+  // Sensitivity 90 alerts at a level of 10 %.
+  expect(narrow.alerts, 'the tone alerts at 300 to 3,000 Hz').toBeGreaterThan(0);
+  expect(wide.highest, `the wide range reads the tone as the narrow one does (${narrow.highest} %)`).toBeGreaterThanOrEqual(narrow.highest - 3);
+  expect(wide.alerts, 'the tone alerts at 20 to 20,000 Hz').toBeGreaterThan(0);
 });
