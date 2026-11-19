@@ -726,6 +726,7 @@ export async function getCachedStreams(): Promise<any[]> {
 async function writeAlert(
   alert: any, stamp: ClearStamp | undefined, mode: 'save' | 'update' | 'repeat',
   found?: { stored: any | null; generation?: string; repeats?: number },
+  repeats = 1,
 ): Promise<'saved' | 'cancelled' | 'gone' | 'stale' | 'failed'> {
   let tx: IDBPTransaction<SafeOSDB, AlertStores, 'readwrite'> | undefined;
   try {
@@ -764,10 +765,11 @@ async function writeAlert(
       ...previous,
       ...Object.fromEntries(Object.entries(alert).filter(([, value]) => value !== undefined)),
     };
-    // A repeat counts onto the stored card in the order repeats are saved.
+    // A repeat counts onto the stored card in the order repeats are saved: `repeats` of them, when
+    // the saves of earlier repeats failed and wait with this one.
     if (mode === 'repeat') {
       const counted = previous?.repeats;
-      merged.repeats = (typeof counted === 'number' ? counted : 0) + 1;
+      merged.repeats = (typeof counted === 'number' ? counted : 0) + repeats;
       if (found) found.repeats = merged.repeats;
     }
     let createdAt: string;
@@ -838,18 +840,19 @@ export async function updateCachedAlert(alert: any, stamp?: ClearStamp): Promise
 
 /**
  * A repeat of an event's alert, written onto the event's card. The card is read in the same
- * transaction as the write, and its count of repeats is the stored count plus one, so repeats
+ * transaction as the write, and its count of repeats is the stored count plus `repeats` (one, or
+ * more when the saves of earlier repeats failed and are written with this one), so repeats
  * count in the order they are saved. It is written only while it is stored and not acknowledged: another
  * tab may have cleared, removed or acknowledged it. `stale` carries the stored card, or null when
  * it is gone, and the clear generation read with it. `cancelled`: a clear came after a failed save's stamp, and nothing is left to save.
  */
-export async function repeatCachedAlert(alert: any, stamp?: ClearStamp): Promise<
+export async function repeatCachedAlert(alert: any, stamp?: ClearStamp, repeats = 1): Promise<
   | { kind: 'updated'; repeats: number }
   | { kind: 'cancelled' | 'failed' }
   | { kind: 'stale'; stored: any | null; generation: string }
 > {
   const found: { stored: any | null; generation?: string; repeats?: number } = { stored: null };
-  const result = await writeAlert(alert, stamp, 'repeat', found);
+  const result = await writeAlert(alert, stamp, 'repeat', found, repeats);
   if (result === 'stale') return { kind: 'stale', stored: found.stored, generation: found.generation ?? '' };
   if (result === 'saved') return { kind: 'updated', repeats: found.repeats ?? 1 };
   return { kind: result === 'failed' ? 'failed' : 'cancelled' };
