@@ -1114,9 +1114,11 @@ html[data-app-started='true'] .needs-script {
   background: var(--color-steel-850);
 }
 
+/* The site's own rule for reduced motion gives every transition 0.01 ms and
+   marks it important, so the row marks its own to have none at all. */
 @media (prefers-reduced-motion: reduce) {
   .way__link {
-    transition: none;
+    transition: none !important;
   }
 }
 
