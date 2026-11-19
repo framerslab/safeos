@@ -60,8 +60,9 @@ the browser without an account. Values explicitly saved on this browser take
 precedence, including zero values. Account sensitivity and volume are imported
 only when they differ from a new session's defaults; account quiet hours are
 imported only when both times are set. Creating a session therefore preserves
-the sensitivity, volume and quiet hours already in effect. Later edits use the
-shared store. Account preferences remain compatible with the server profile.
+the sensitivity, volume and quiet hours already in effect. While a set time's
+setting is on, an import leaves the sensitivity and volume at the set time's
+values and takes the quiet hours. Later edits use the shared store. Account preferences remain compatible with the server profile.
 
 Where the profile lives decides a profile save. For a session on a server,
 the change is sent to the server and its answer decides: when the server takes
