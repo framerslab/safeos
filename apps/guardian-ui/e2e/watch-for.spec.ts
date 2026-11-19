@@ -69,8 +69,8 @@ interface Pet {
   id: string;
   name: string;
   photos: number;
-  /** An earlier version saved people too. */
-  type?: 'pet' | 'person';
+  /** An earlier version saved people too; the Lost & Found page saves things as other. */
+  type?: 'pet' | 'person' | 'other';
   createdAt: string;
 }
 
