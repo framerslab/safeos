@@ -559,14 +559,17 @@ export default function MonitorPage() {
 
   // A watch opened from Nap Mode takes the one-use hand-off, keeps the nap in
   // this history entry and starts: the person's click on Start Nap Mode, in
-  // this same page, has turned the sound on. A reload or Back finds the kept
+  // this same page, has turned the sound on. While another tab watches it asks
+  // first, as a start key does; the nap stands whatever the answer, so after
+  // Cancel, End nap and Start Monitoring show. A reload or Back finds the kept
   // nap and waits for a tap: a browser keeps a new page's sound off until one,
   // so the nap's alarm and reminder could not sound. Resume nap is that tap.
-  // The ref keeps this mount's reading, so React's Strict Mode, which runs the
-  // effect again after the unmount cleanup below has cleared
-  // captureRequestedRef, requests the capture again.
+  // The refs keep this mount's reading and its one question: React's Strict
+  // Mode runs the effect twice, and the start comes with the answer, after
+  // the unmount cleanup below has cleared captureRequestedRef.
   const [napWaitsForTap, setNapWaitsForTap] = useState(false);
   const napArrivalRef = useRef<{ nap: Nap; restored: boolean } | null | undefined>(undefined);
+  const napAskedRef = useRef(false);
   useEffect(() => {
     if (napArrivalRef.current === undefined) {
       const minutes = takeNapHandoff();
@@ -586,9 +589,11 @@ export default function MonitorPage() {
       setNapWaitsForTap(true);
       return;
     }
-    captureRequestedRef.current = true;
-    setCaptureRequested(true);
-    setVideoSeen(false);
+    if (napAskedRef.current) return;
+    napAskedRef.current = true;
+    void guard(startStream);
+    // Runs when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (captureRequested) setNapWaitsForTap(false); }, [captureRequested]);
   const resumeNap = () => {
@@ -1262,6 +1267,14 @@ export default function MonitorPage() {
                             </button>
                           );
                         })}
+                        {/* A watch while you rest, with its reminder: Nap Mode's own page. */}
+                        <Link
+                          href="/nap/"
+                          onClick={() => setShowModeDropdown(false)}
+                          className="flex items-center w-full min-h-[44px] text-left px-3 py-2 rounded-lg transition-colors text-gray-300 hover:bg-gray-700"
+                        >
+                          <span className="font-medium text-sm">Nap Mode</span>
+                        </Link>
                       </div>
 
                       {/* General Presets */}
