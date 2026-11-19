@@ -2891,6 +2891,9 @@ export async function checkApp(browser, baseUrl, outDir) {
     await dashRead(page);
   };
   const startKey = (page) => page.locator('.dash-key-place .dash-key');
+  // The dashboard's own Start setup. Before setup the footer's start link
+  // reads Start setup too, so a walk names the one it presses.
+  const setupKey = (page) => page.locator('main.dash').getByRole('link', { name: 'Start setup', exact: true });
   // The key's words, its aria-disabled and how it is drawn.
   const keyState = (page) => page.evaluate(() => {
     const key = document.querySelector('.dash-key-place .dash-key');
@@ -3396,7 +3399,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         const seen = await lineAbove(page, FORGETS);
         check(seen.line === BEFORE_SETUP && seen.under, `before setup the sentence stands ${seen.under ? 'under' : 'not under'} the line "${seen.line}"`);
       }
-      await pressTo(page, page.getByRole('link', { name: 'Start setup', exact: true }), '/setup');
+      await pressTo(page, setupKey(page), '/setup');
       const step = await throughSetup(page, 'Pet Monitoring');
       await lastStep(step);
       await pressTo(page, step.getByRole('button', { name: 'Open dashboard', exact: true }), '/dashboard');
@@ -4408,7 +4411,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     await open({ name: 'before setup, a damaged record', width: 390, look }, async (page, context, check) => {
       await openDash(page);
       await checkBeforeSetup(page, check);
-      await pressTo(page, page.getByRole('link', { name: 'Start setup', exact: true }), '/setup', 15_000);
+      await pressTo(page, setupKey(page), '/setup', 15_000);
       check(pathOf(page) === '/setup', `Start setup opened ${pathOf(page)}, not /setup`);
     }, { state: 'new', script: DAMAGED_SETUP });
   }
@@ -4420,7 +4423,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       await stateShown(page);
       await dashRead(page);
       await checkBeforeSetup(page, check, 'offline ');
-      await pressTo(page, page.getByRole('link', { name: 'Start setup', exact: true }), '/setup', 15_000);
+      await pressTo(page, setupKey(page), '/setup', 15_000);
       check(pathOf(page) === '/setup', `offline Start setup opened ${pathOf(page)}, not /setup`);
       const step = page.locator('#main-content main');
       await step.getByRole('button', { name: /Begin Setup/ }).click();
@@ -4468,7 +4471,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   for (const look of LOOKS) {
     await open({ name: 'setup to the dashboard', width: 390, look }, async (page, context, check) => {
       await openDash(page);
-      await pressTo(page, page.getByRole('link', { name: 'Start setup', exact: true }), '/setup', 15_000);
+      await pressTo(page, setupKey(page), '/setup', 15_000);
       check(pathOf(page) === '/setup', `Start setup opened ${pathOf(page)}, not /setup`);
       const step = await throughSetup(page, 'Pet Monitoring');
       await lastStep(step);
