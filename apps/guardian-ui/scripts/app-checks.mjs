@@ -4273,8 +4273,14 @@ export async function checkApp(browser, baseUrl, outDir) {
   }
 
   // A device with no room left for the alert just raised.
+  // The database's own first write, made as it is created, goes through:
+  // the device ran out of room after SafeOS first opened on it.
   const REFUSE_ROOM = () => {
-    IDBObjectStore.prototype.put = function () { throw new DOMException('full', 'QuotaExceededError'); };
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.transaction.mode === 'versionchange') return put.apply(this, args);
+      throw new DOMException('full', 'QuotaExceededError');
+    };
   };
   for (const width of [390, 1280]) {
     for (const look of LOOKS) {
