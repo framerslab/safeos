@@ -70,10 +70,22 @@ async function record(relative, details) {
   console.log(`saved ${relative}: ${details.width} by ${details.height}, ${bytes.length} bytes`);
 }
 
+// A window opened here keeps nothing on disk, and a headless browser reads
+// notifications as blocked; the dashboard says each of the two to a person.
+// A picture stands for a person's own window, so the page is told that its
+// storage is kept and that notifications are allowed.
+const OWN_WINDOW = () => {
+  try { sessionStorage.setItem('safeos-window-storage', 'kept'); } catch (e) { /* storage refused */ }
+  try {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
+  } catch (e) { /* this browser has no notifications */ }
+};
+
 // A person who has finished setup, with the capture's preset saved, and the
 // two cards that appear unasked already put away.
 async function seededContext(browser, options) {
   const context = await browser.newContext({ ...options, permissions: ['camera', 'microphone'] });
+  await context.addInitScript(OWN_WINDOW);
   await context.addInitScript((settings) => {
     localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
       isComplete: true, selectedScenario: 'pet',

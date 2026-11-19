@@ -67,6 +67,17 @@ const WIDTHS = [
 ];
 const LOOKS = ['light', 'dark'];
 
+// A window opened here keeps nothing on disk, and a headless browser reads
+// notifications as blocked; the dashboard says each of the two to a person.
+// A picture stands for a person's own window, so the page is told that its
+// storage is kept and that notifications are allowed.
+const OWN_WINDOW = () => {
+  try { sessionStorage.setItem('safeos-window-storage', 'kept'); } catch (e) { /* storage refused */ }
+  try {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
+  } catch (e) { /* this browser has no notifications */ }
+};
+
 function slug(route) {
   const s = route.replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9]+/g, '-');
   return s || 'home';
@@ -86,6 +97,7 @@ try {
           colorScheme: look,
           deviceScaleFactor: 1,
         });
+        await context.addInitScript(OWN_WINDOW);
         if (route === '/export/') {
           // Render the signed-in server export screen in both base and head builds.
           await context.addInitScript(() => {
@@ -818,6 +830,7 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
 async function finishedSetupContext(browser, options) {
   const context = await browser.newContext(options);
+  await context.addInitScript(OWN_WINDOW);
   await context.addInitScript(() => {
     localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
       isComplete: true, selectedScenario: 'pet',
