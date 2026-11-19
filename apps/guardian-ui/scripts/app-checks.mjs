@@ -4276,7 +4276,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     await visit(second, '/settings/test-alerts/');
     const at = await second.evaluate(() => Date.now());
     await lowAlert(second).click();
-    check(await countReads(page, 1), `within 5 seconds the first screen reads "${await wordsAt(page, 'p.dash-new')}", not "1 new alert since you last looked."`);
+    check(await waitWords(page, 'p.dash-new', '1 new alert since you last looked.', 5_000), `within 5 seconds the first screen reads "${await wordsAt(page, 'p.dash-new')}", not "1 new alert since you last looked."`);
     checkHistory(check, await historyReads(page, 390, 'History 1'), 'History 1', 'History, 1 new alert');
     const times = [plain(await clockAt(page, at)), plain(await clockAt(page, at + 60_000))];
     const row = await wordsAt(page, 'section.since li.since__item .since__what');
