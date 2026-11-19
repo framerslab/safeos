@@ -188,11 +188,13 @@ In the browser, an alert that nobody acknowledges climbs these levels. Levels 1 
 
 | Level | Wait after the level before | From the alert | Volume | Sound |
 |-------|-----------------------------|----------------|--------|-------|
-| 1 | - | 0 s | 1.0x the alert volume (0 when muted, the quiet-hours volume in quiet hours) | Notification: one beep |
+| 1 | - | 0 s | 1.0x the alert volume (0 when muted, the quiet-hours volume in quiet hours: see below) | Notification: one beep |
 | 2 | 30 s | 30 s | 1.3x | Alert: two rising beeps |
 | 3 | 60 s | 90 s | 1.5x | Warning: three beeps |
 | 4 | 120 s | 210 s | 1.8x | Alarm: two alternating tones, twice |
 | 5 | 180 s | 390 s | Full | Emergency: a higher, faster pair of tones, repeating |
+
+In quiet hours each alert's volume follows its own level: **Silent** plays every alert at 0, **Reduced** at the reduced volume, and **Emergency Only** plays a critical alert at the alert volume and every other alert at 0. The same rule sets the volume of the watch's own alert sounds.
 
 Volumes stop at full. With the panel muted or the volume at 0, levels 1 to 4 make no sound. The top level plays at full volume even then, as one loop for every alert at that level, until each of them is acknowledged. The loop plays on, without starting over, when another alert arrives, when one of several alerts at that level is acknowledged and when the volume or mute changes. A browser may hold a page's sound until a person has clicked, tapped or pressed a key on it: a loop that starts before that waits and begins with their next click, tap or key press.
 

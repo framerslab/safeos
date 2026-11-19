@@ -10,9 +10,9 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { detectMotion, detectMotionInZones, getThresholdForScenario } from '../lib/motion-detection';
-import { getAudioLevel, detectCryingPattern, resetCryDetection, AUDIO_THRESHOLDS } from '../lib/audio-levels';
+import { getAudioLevel, detectCryingPattern, resetCryDetection, AUDIO_THRESHOLDS, ANALYSER_SIZE, analyserSizeFor, pitchRangeOf } from '../lib/audio-levels';
 import { PixelDetectionEngine, type PixelDetectionResult } from '../lib/pixel-detection';
-import type { DetectionZone as SettingsDetectionZone } from '../stores/settings-store';
+import { useSettingsStore, type DetectionZone as SettingsDetectionZone } from '../stores/settings-store';
 
 // =============================================================================
 // Types
@@ -344,7 +344,7 @@ export function CameraFeed({
         audioContextRef.current = new AudioContext();
         const source = audioContextRef.current.createMediaStreamSource(acquired);
         analyserRef.current = audioContextRef.current.createAnalyser();
-        analyserRef.current.fftSize = 256;
+        analyserRef.current.fftSize = ANALYSER_SIZE;
         source.connect(analyserRef.current);
       } else if (audioEnabled) {
         audioLost();
@@ -452,7 +452,11 @@ export function CameraFeed({
     const interval = setInterval(() => {
       if (!analyserRef.current) return;
 
-      const level = getAudioLevel(analyserRef.current);
+      // The level comes from the pitches set on Detection; a range reads finer bins.
+      const range = pitchRangeOf(useSettingsStore.getState().audioSettings);
+      const size = analyserSizeFor(range);
+      if (analyserRef.current.fftSize !== size) analyserRef.current.fftSize = size;
+      const level = getAudioLevel(analyserRef.current, range);
       const audioPercent = Math.round(level * 100);
       setAudioLevel(audioPercent);
       audioLevelRef.current = audioPercent;

@@ -12,6 +12,7 @@
 import React, { useState, useEffect } from 'react';
 import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 import {
+  effectiveSettings,
   useSettingsStore,
   type AlertSeverity,
   type ScenarioType,
@@ -28,11 +29,6 @@ interface ScenarioConfig {
   icon: React.ReactNode;
   description: string;
   colorClass: string;
-  defaults: {
-    motionSensitivity: number;
-    audioSensitivity: number;
-    inactivityMinutes: number;
-  };
 }
 
 const SCENARIOS: ScenarioConfig[] = [
@@ -47,7 +43,6 @@ const SCENARIOS: ScenarioConfig[] = [
     ),
     description: 'Optimized for infant detection and cry monitoring',
     colorClass: 'pink',
-    defaults: { motionSensitivity: 35, audioSensitivity: 40, inactivityMinutes: 30 },
   },
   {
     id: 'pet',
@@ -62,7 +57,6 @@ const SCENARIOS: ScenarioConfig[] = [
     ),
     description: 'Balanced sensitivity for pets',
     colorClass: 'amber',
-    defaults: { motionSensitivity: 40, audioSensitivity: 50, inactivityMinutes: 60 },
   },
   {
     id: 'elderly',
@@ -76,7 +70,6 @@ const SCENARIOS: ScenarioConfig[] = [
     ),
     description: 'Fall detection and wellness monitoring',
     colorClass: 'blue',
-    defaults: { motionSensitivity: 30, audioSensitivity: 35, inactivityMinutes: 45 },
   },
   {
     id: 'security',
@@ -89,7 +82,6 @@ const SCENARIOS: ScenarioConfig[] = [
     ),
     description: 'Intrusion detection focus',
     colorClass: 'red',
-    defaults: { motionSensitivity: 95, audioSensitivity: 85, inactivityMinutes: 0 },
   },
 ];
 
@@ -296,7 +288,7 @@ export default function DetectionSettingsPage() {
         <section className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
           <h2 className="text-lg font-semibold text-white mb-2">Audio Frequency Filtering</h2>
           <p className="text-sm text-slate-400 mb-6">
-            Focus on specific sound patterns for better detection accuracy.
+            The sound check reads the Audio level from these pitches. Custom Range reads the two pitches you set and Baby Cry Detection reads 300 to 600 Hz; the others read every pitch.
           </p>
 
           <div className="space-y-3">
@@ -475,6 +467,9 @@ export default function DetectionSettingsPage() {
           <div className="space-y-3">
             {SCENARIOS.map((scenario) => {
               const override = getScenarioOverride(scenario.id);
+              // The values a watch for this use runs at: the setting's, with
+              // the ones saved for the use laid over them.
+              const runsAt = effectiveSettings(globalSettings, scenarioOverrides, scenario.id);
               const isExpanded = expandedScenario === scenario.id;
               const hasOverride = Object.keys(override).length > 0;
 
@@ -523,14 +518,14 @@ export default function DetectionSettingsPage() {
                         <div className="flex justify-between text-xs mb-2">
                           <span className="text-slate-400">Motion Sensitivity</span>
                           <span className="text-blue-400 font-mono">
-                            {(override as { motionSensitivity?: number }).motionSensitivity ?? scenario.defaults.motionSensitivity}%
+                            {runsAt.motionSensitivity}%
                           </span>
                         </div>
                         <input
                           type="range"
                           min={0}
                           max={100}
-                          value={(override as { motionSensitivity?: number }).motionSensitivity ?? scenario.defaults.motionSensitivity}
+                          value={runsAt.motionSensitivity}
                           onChange={(e) => updateScenarioOverride(scenario.id, 'motionSensitivity', Number(e.target.value))}
                           className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
                                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5
@@ -545,14 +540,14 @@ export default function DetectionSettingsPage() {
                         <div className="flex justify-between text-xs mb-2">
                           <span className="text-slate-400">Audio Sensitivity</span>
                           <span className="text-purple-400 font-mono">
-                            {(override as { audioSensitivity?: number }).audioSensitivity ?? scenario.defaults.audioSensitivity}%
+                            {runsAt.audioSensitivity}%
                           </span>
                         </div>
                         <input
                           type="range"
                           min={0}
                           max={100}
-                          value={(override as { audioSensitivity?: number }).audioSensitivity ?? scenario.defaults.audioSensitivity}
+                          value={runsAt.audioSensitivity}
                           onChange={(e) => updateScenarioOverride(scenario.id, 'audioSensitivity', Number(e.target.value))}
                           className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
                                      [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5
