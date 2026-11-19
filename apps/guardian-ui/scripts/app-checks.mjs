@@ -87,8 +87,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   const sidewaysScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
   // The checks of each part are added below this line.
-  void open; void openKept; void visit; void sidewaysScroll; void expect; void measureText; void plain; void readStrokes;
-  void LOOKS; void ROW_WIDTHS; void LAYOUT_WIDTHS; void outDir;
+  void expect;
 
   // ---------------------------------------------------------------------------
   // The app's frame
@@ -1663,7 +1662,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   const LINE = { light: 'rgb(73, 80, 87)', dark: 'rgb(156, 163, 175)' };
   const ACCENT_HOVER = { light: 'rgb(5, 46, 22)', dark: 'rgb(134, 239, 172)' };
   const ALERT = { light: 'rgb(153, 27, 27)', dark: 'rgb(251, 146, 60)' };
-  void PANEL; void LINE; void ACCENT_HOVER; void ALERT;
+  void PANEL; void ALERT;
 
   // ---------------------------------------------------------------------------
   // The page before script runs
@@ -2746,6 +2745,2050 @@ export async function checkApp(browser, baseUrl, outDir) {
     const line = lines.find((text) => text.startsWith('You can allow the camera later'));
     check(line === 'You can allow the camera later, on the Motion and sound page.', `the camera step's line reads "${line || 'nothing'}", not "You can allow the camera later, on the Motion and sound page."`);
   }, { state: 'new' });
+
+  // Holds each database's answer for three seconds, so every read of the saved
+  // alerts and pets waits, as on a slow device.
+  const HOLD_STORES = () => {
+    const open = IDBFactory.prototype.open;
+    IDBFactory.prototype.open = function (...args) {
+      const request = open.apply(this, args);
+      request.addEventListener('success', (event) => {
+        event.stopImmediatePropagation();
+        setTimeout(() => request.dispatchEvent(new Event('success')), 3000);
+      }, { once: true });
+      return request;
+    };
+  };
+
+  // The browser's answers for the camera and for notifications on this site,
+  // given here: a headless browser has no prompt to refuse.
+  const CAMERA_ANSWER = (state) => {
+    const query = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = (asked) => (asked && asked.name === 'camera'
+      ? Promise.resolve({ state, onchange: null, addEventListener() {}, removeEventListener() {} })
+      : query(asked));
+  };
+  const NOTIFICATIONS_ANSWER = (state) => {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => state });
+    window.__notificationAsks = 0;
+    Notification.requestPermission = async () => {
+      window.__notificationAsks += 1;
+      return state;
+    };
+  };
+
+  // What a device remembers of its last watch, as the way pages write it.
+  const remember = (page, { way, pet, session }) => page.evaluate((kept) => {
+    if (kept.way) localStorage.setItem('safeos-last-way', JSON.stringify(kept.pet ? { way: kept.way, pet: kept.pet } : { way: kept.way }));
+    if (kept.session) localStorage.setItem('safeos-watch-session', JSON.stringify(kept.session));
+  }, { way, pet, session });
+  const clockAt = (page, at) => page.evaluate((t) => new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(t)), at);
+  const lineOf = (page) => page.locator('#dash-line').innerText().then(plain);
+
+  // The first screen as a person sees it at 390 by 844, the phone bar
+  // included; what stands behind the bar is not seen. The mark is the brand's
+  // own drawing, counted as a picture is, and the skip link stands off screen
+  // until it has focus: neither counts.
+  const firstScreen = (page) => page.evaluate(() => {
+    const foot = window.innerHeight;
+    const bar = document.querySelector('nav.phone-bar');
+    const barTop = bar ? bar.getBoundingClientRect().top : foot;
+    const ground = getComputedStyle(document.querySelector('.app-shell')).backgroundColor;
+    const clear = 'rgba(0, 0, 0, 0)';
+    const seen = (el) => {
+      if (el.closest('.sr-only, .skip-link, .site-mark')) return false;
+      const box = el.getBoundingClientRect();
+      const style = getComputedStyle(el);
+      const limit = bar && bar.contains(el) ? foot : barTop;
+      return box.width >= 2 && box.height >= 2 && box.top < limit && box.bottom > 0
+        && style.visibility !== 'hidden' && parseFloat(style.opacity) > 0;
+    };
+    const parts = [...document.body.querySelectorAll('*')].filter(seen);
+    const controls = parts.filter((el) => el.matches('a[href], button'))
+      .map((el) => (el.getAttribute('aria-label') || el.textContent || '').trim());
+    const styles = new Set();
+    const colours = new Set();
+    const boxes = [];
+    for (const el of parts) {
+      const style = getComputedStyle(el);
+      if ([...el.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim())) {
+        styles.add([style.fontFamily.split(',')[0].trim(), style.fontWeight, style.fontSize, style.color].join(' '));
+        colours.add(style.color);
+      }
+      const edges = ['Top', 'Right', 'Bottom', 'Left']
+        .filter((side) => parseFloat(style[`border${side}Width`]) > 0 && style[`border${side}Style`] !== 'none');
+      for (const side of edges) colours.add(style[`border${side}Color`]);
+      if (style.backgroundColor !== clear) colours.add(style.backgroundColor);
+      const filled = style.backgroundColor !== clear && style.backgroundColor !== ground;
+      const shadow = style.boxShadow === 'none' ? null : (style.boxShadow.match(/rgba?\([^)]*\)/) || [null])[0];
+      if (shadow) colours.add(shadow);
+      if (el instanceof SVGElement) {
+        if (style.fill !== 'none') colours.add(style.fill);
+        if (style.stroke !== 'none') colours.add(style.stroke);
+      }
+      const before = getComputedStyle(el, '::before');
+      const marked = before.content !== 'none' && before.backgroundColor !== clear;
+      if (marked) colours.add(before.backgroundColor);
+      if ((edges.length || filled || shadow || marked) && !el.parentElement.closest('.drawn-frame, .key--solid')) {
+        boxes.push(`${el.tagName.toLowerCase()}.${[...el.classList].join('.')}${marked ? '::before' : ''}`);
+      }
+    }
+    return { controls, styles: [...styles], colours: [...colours], boxes };
+  });
+
+  // ---------------------------------------------------------------------------
+  // The dashboard
+  // ---------------------------------------------------------------------------
+  // One page on every device: whether it watches and its one key, the four
+  // ways to watch, and the alerts since the person last looked. Before setup
+  // the key is Start setup and each row opens setup with its way named; the
+  // page never forwards to setup and nothing opens over it.
+
+  const STATEMENT = 'SafeOS adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.';
+  const BEFORE_SETUP = 'Set up this device first. Setup asks for the camera and the microphone.';
+  const MOTION_LINE = 'Start watching uses Motion and sound.';
+  const NOTHING_NEW = 'Nothing new since you last looked.';
+  const FORGETS = 'This browser forgets SafeOS when the window closes. Your settings and alerts last for this visit.';
+  const NOTIFICATIONS_BLOCKED = 'Alerts show in this tab only. Notifications are blocked for safeos.sh in this browser.';
+  const OUT_OF_ROOM = "This device is out of room, so new alerts and pictures cannot be saved. Free room on the device, or clear SafeOS's saved data in Settings.";
+  const NEEDS_SCRIPT_WORDS = 'SafeOS needs JavaScript to watch. Turn it on for safeos.sh, then reload this page.';
+  const NEEDS_CONNECTION = 'Needs a connection the first time.';
+  const CAMERA_WORDS = {
+    blocked: "The camera is blocked for safeos.sh in this browser. Allow it in the site's settings, then press Start watching.",
+    inUse: 'The camera is in use by another tab or app. Close it, then press Start watching.',
+    failed: 'The camera did not start. Press Start watching to try again.',
+  };
+  const WAY_ROWS = ['Motion and sound', 'Lost and Found', 'People', 'Wildlife'];
+  const WAY_PATHS = ['/monitor', '/lost-found', '/security', '/wildlife'];
+  const WAY_IDS = ['monitor', 'lost-found', 'security', 'wildlife'];
+  const isGrotesk = (family) => /Space_Grotesk|Space Grotesk/i.test(face(family));
+
+  // The watching state, once it shows; a finding names what the address
+  // showed instead. Then the device's setup record and saved pets are read.
+  const stateShown = async (page) => {
+    const which = await whichDashboard(page).catch((err) => err.message.split('\n')[0]);
+    if (which === 'earlier') throw new Error('the page shows the earlier dashboard, with Quick Actions, not the watching state');
+    if (which !== 'redesigned') throw new Error(which);
+  };
+  const dashRead = (page) => page.locator('section.dash-state[data-read="yes"]').waitFor({ state: 'attached', timeout: 20_000 })
+    .catch(() => { throw new Error('the dashboard did not finish reading this device within 20 seconds'); });
+  const openDash = async (page) => {
+    await visit(page, '/dashboard/');
+    await stateShown(page);
+    await dashRead(page);
+  };
+  const startKey = (page) => page.locator('.dash-key-place .dash-key');
+  // The key's words, its aria-disabled and how it is drawn.
+  const keyState = (page) => page.evaluate(() => {
+    const key = document.querySelector('.dash-key-place .dash-key');
+    if (!key) return { words: 'no key', disabled: null, background: null, color: null, edges: [] };
+    const style = getComputedStyle(key);
+    return {
+      words: (key.textContent || '').replace(/\s+/g, ' ').trim(),
+      disabled: key.getAttribute('aria-disabled'),
+      background: style.backgroundColor,
+      color: style.color,
+      edges: ['Top', 'Right', 'Bottom', 'Left'].map((side) => `${style[`border${side}Width`]} ${style[`border${side}Style`]} ${style[`border${side}Color`]}`),
+    };
+  });
+  // An element's words as a reader takes them, or null when it is not there.
+  const wordsAt = (page, selector) => page.evaluate((s) => {
+    const element = document.querySelector(s);
+    return element ? (element.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() : null;
+  }, selector);
+  // True once the element reads `wanted`, false after `ms`.
+  const waitWords = (page, selector, wanted, ms = 10_000) => page.waitForFunction(({ s, w }) => {
+    const element = document.querySelector(s);
+    return !!element && (element.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() === w;
+  }, { s: selector, w: wanted }, { timeout: ms }).then(() => true, () => false);
+  // The sentences of a part that say what stands in the way, each with
+  // whether the problem glyph stands before its words.
+  const problemsOf = (page, part = '.dash-problems') => page.evaluate((s) => [...document.querySelectorAll(`${s} p.dash-problem`)].map((p) => ({
+    words: (p.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim(),
+    glyph: !!p.firstElementChild && p.firstElementChild.matches('svg.problem-mark'),
+  })), part);
+  const saysProblem = (page, wanted, part = '.dash-problems', ms = 10_000) => page.waitForFunction(({ s, w }) => [...document.querySelectorAll(`${s} p.dash-problem`)]
+    .some((p) => (p.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() === w), { s: part, w: wanted }, { timeout: ms }).then(() => true, () => false);
+  // The sentence `wanted` in the part, after the problem glyph.
+  const checkProblem = async (page, check, wanted, part = '.dash-problems', when = '') => {
+    const said = await saysProblem(page, wanted, part);
+    if (!said) {
+      const held = (await problemsOf(page, part)).map((p) => `"${p.words}"`).join(', ') || 'nothing';
+      check(false, `${when}${part} does not say "${wanted}"; it holds ${held}`);
+      return false;
+    }
+    const sentence = (await problemsOf(page, part)).find((p) => p.words === wanted);
+    check(sentence && sentence.glyph, `${when}"${wanted}" does not follow the problem glyph`);
+    return true;
+  };
+  // Where Help's entry stands once the page has scrolled to it.
+  const helpEntryInView = async (page, check, title) => {
+    const heading = page.getByRole('heading', { name: title, exact: true });
+    const shown = await heading.waitFor({ state: 'visible', timeout: 10_000 }).then(() => true, () => false);
+    check(shown, `${new URL(page.url()).pathname}${new URL(page.url()).hash} shows no heading "${title}"`);
+    if (!shown) return;
+    await scrollSettled(page);
+    const seen = await heading.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const header = document.querySelector('header.app-header')?.getBoundingClientRect();
+      const bar = document.querySelector('nav.phone-bar');
+      const barBox = bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect() : null;
+      return {
+        top: box.top,
+        bottom: box.bottom,
+        headerFoot: header ? header.bottom : 0,
+        screenFoot: barBox && barBox.height > 0 ? barBox.top : window.innerHeight,
+      };
+    });
+    check(seen.top >= seen.headerFoot - 0.5, `"${title}" starts ${Math.round(seen.top)} px from the top, above the header's foot at ${Math.round(seen.headerFoot)} px`);
+    check(seen.bottom <= seen.screenFoot + 0.5, `"${title}" ends ${Math.round(seen.bottom)} px from the top, past the screen's foot at ${Math.round(seen.screenFoot)} px`);
+  };
+  // A press on a control that opens a page; the address once it reads `to`.
+  const pressTo = async (page, locator, to, ms = 20_000) => {
+    await locator.click();
+    await reaches(page, to, ms);
+  };
+  // A history step back or forward, which the app's router answers in the page.
+  const back = async (page) => { await page.goBack({ waitUntil: 'commit', timeout: 15_000 }).catch(() => {}); };
+  const forward = async (page) => { await page.goForward({ waitUntil: 'commit', timeout: 15_000 }).catch(() => {}); };
+  const watchRuns = (page) => page.getByRole('button', { name: 'Stop Monitoring', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+  const noCameraOn = (page, ms) => page.waitForFunction(() => window.__camera.live
+    .filter((s) => s.getVideoTracks().some((t) => t.readyState === 'live')).length === 0, null, { timeout: ms }).then(() => true, () => false);
+  // A pet saved on this device: removed, or put again with a change.
+  const forgetPet = (page, id) => page.evaluate(async (petId) => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('safeos-guardian');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('subject_profile', 'readwrite');
+      tx.objectStore('subject_profile').delete(petId);
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error);
+    });
+    db.close();
+  }, id);
+  const changePet = (page, id, change) => page.evaluate(async ({ petId, change: given }) => {
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open('safeos-guardian');
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const record = await new Promise((resolve, reject) => {
+      const read = db.transaction('subject_profile').objectStore('subject_profile').get(petId);
+      read.onsuccess = () => resolve(read.result);
+      read.onerror = () => reject(read.error);
+    });
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('subject_profile', 'readwrite');
+      tx.objectStore('subject_profile').put({ ...record, ...given });
+      tx.oncomplete = () => resolve();
+      tx.onabort = () => reject(tx.error);
+    });
+    db.close();
+  }, { petId: id, change });
+  // Test Alerts' low alert, from the section headed Alert Simulation.
+  const lowAlert = (page) => page.locator('section')
+    .filter({ has: page.getByRole('heading', { name: 'Alert Simulation', exact: true }) })
+    .getByRole('button', { name: 'low', exact: true });
+  // The frame's Dashboard where the width shows it.
+  const dashboardLink = (page, width) => (width < 768
+    ? page.locator('nav.phone-bar a').filter({ hasText: 'Dashboard' })
+    : page.locator(headerLink('Dashboard')));
+  // The first element of `selector` that has a box, and how opaque it is
+  // drawn with every element round it; -1 when none has a box.
+  const shownOpacity = (page, selector) => page.evaluate((s) => {
+    const element = [...document.querySelectorAll(s)].find((el) => {
+      const box = el.getBoundingClientRect();
+      return box.width > 0 && box.height > 0;
+    });
+    if (!element) return -1;
+    let opacity = 1;
+    for (let node = element; node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
+    return opacity;
+  }, selector);
+  // Words in `main.dash` that run past their box.
+  const cutIn = (page) => page.evaluate(() => {
+    const cut = [];
+    for (const element of document.querySelectorAll('main.dash *')) {
+      if (![...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.trim())) continue;
+      if (element.scrollWidth > element.clientWidth + 1) {
+        cut.push(`${element.tagName.toLowerCase()}.${[...element.classList].join('.')} "${element.textContent.trim().slice(0, 40)}" (${element.scrollWidth} in ${element.clientWidth} px)`);
+      }
+    }
+    return cut;
+  });
+  // The page's boxes of the three parts and the footer, from the page's top.
+  const partsOf = (page) => page.evaluate(() => Object.fromEntries([
+    ['the watching state', 'section.dash-state'], ['the ways', 'section.ways'], ['since you last looked', 'section.since'], ['the footer', '.app-shell__footer'],
+  ].map(([name, selector]) => {
+    const element = document.querySelector(selector);
+    if (!element) return [name, null];
+    const box = element.getBoundingClientRect();
+    return [name, { top: box.top + window.scrollY, bottom: box.bottom + window.scrollY, left: box.left, right: box.right }];
+  })));
+  // The pairs of boxes that overlap.
+  const meeting = (parts) => {
+    const named = Object.entries(parts).filter(([, box]) => box);
+    const met = [];
+    for (let i = 0; i < named.length; i += 1) {
+      for (let j = i + 1; j < named.length; j += 1) {
+        const [a, one] = named[i];
+        const [b, two] = named[j];
+        const across = Math.min(one.right, two.right) - Math.max(one.left, two.left);
+        const down = Math.min(one.bottom, two.bottom) - Math.max(one.top, two.top);
+        if (across > 0.5 && down > 0.5) met.push(`${a} and ${b}`);
+      }
+    }
+    return met;
+  };
+
+  // Four new alerts, one of each way, all within the last minute: newest
+  // first the sighting, the person, Mittens, then the movement.
+  const fourNew = (now = Date.now()) => ({
+    pets: [{ id: 'pet-mittens', name: 'Mittens' }],
+    motion: [{ id: 'motion-walk-4', at: now - 60_000 }],
+    matches: [{ id: 'match-walk-1', pet: 'pet-mittens', at: now - 50_000, alerted: true }],
+    people: [{ id: 'intrusion-walk-1', at: now - 40_000 }],
+    sightings: [{ id: 'animal-walk-1', at: now - 30_000 }],
+  });
+  const sixNew = () => {
+    const saved = fourNew();
+    saved.motion = [...saved.motion, ...motionAlerts(2)];
+    return saved;
+  };
+  // A device holding `saved` after its first run, on the dashboard.
+  const dashboardWith = async (page, saved) => {
+    await withNew(page, '/settings/', saved);
+    await openDash(page);
+    return saved;
+  };
+  const countReads = (page, count) => waitWords(page, 'p.dash-new', `${count} new ${count === 1 ? 'alert' : 'alerts'} since you last looked.`);
+
+  // ----- The first screen -----
+
+  // The use setup stored, written after the finished setup.
+  const USE_STORED = (use) => {
+    localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
+      isComplete: true, selectedScenario: use,
+      acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
+    }, version: 0 }));
+  };
+  for (const [look, use] of [['light', 'baby'], ['dark', 'security']]) {
+    await open({ name: 'dashboard, first screen', width: 390, height: 844, look }, async (page, context, check) => {
+      await context.addInitScript(USE_STORED, use);
+      await openDash(page);
+      await page.evaluate(() => document.fonts.ready);
+      const seen = await page.evaluate(() => {
+        const words = (el) => (el ? (el.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() : null);
+        const key = document.querySelector('.dash-key-place .dash-key');
+        const keyBox = key ? key.getBoundingClientRect() : null;
+        const bar = document.querySelector('nav.phone-bar');
+        return {
+          h1: words(document.querySelector('main.dash h1')),
+          line: words(document.getElementById('dash-line')),
+          key: key ? { words: words(key), width: keyBox.width, height: keyBox.height } : null,
+          statement: words(document.querySelector('.dash-statement')),
+          label: words(document.querySelector('section.ways h2')),
+          rows: [...document.querySelectorAll('section.ways li.way')].map((li) => {
+            const box = li.getBoundingClientRect();
+            const line = li.querySelector('.way__line');
+            return {
+              name: words(li.querySelector('.way__name')), width: box.width, height: box.height, bottom: box.bottom,
+              lineHeight: line ? line.getBoundingClientRect().height : 0, lineStep: line ? parseFloat(getComputedStyle(line).lineHeight) : 0,
+            };
+          }),
+          barTop: bar ? bar.getBoundingClientRect().top : null,
+        };
+      });
+      check(seen.h1 === 'Not watching', `the heading reads "${seen.h1}", not "Not watching"`);
+      check(seen.line === MOTION_LINE, `the line reads "${seen.line}", not "${MOTION_LINE}"`);
+      if (!seen.key) {
+        check(false, "the key's place holds no key");
+      } else {
+        check(seen.key.words === 'Start watching', `the key reads "${seen.key.words}", not "Start watching"`);
+        check(seen.key.height >= 52, `the key is ${seen.key.height} px tall, under 52`);
+        check(Math.abs(seen.key.width - 358) <= 0.5, `the key is ${seen.key.width} px wide, not 358`);
+      }
+      check(seen.statement === plain(STATEMENT), `the statement reads "${seen.statement}"`);
+      check(seen.label === 'Ways to watch', `the ways are headed "${seen.label}", not "Ways to watch"`);
+      const names = seen.rows.map((row) => row.name).join(', ');
+      check(names === WAY_ROWS.join(', '), `the rows read ${names}, not ${WAY_ROWS.join(', ')}`);
+      for (const row of seen.rows) {
+        check(row.height >= 74, `the ${row.name} row is ${row.height} px tall, under 74`);
+        check(Math.abs(row.width - 358) <= 0.5, `the ${row.name} row is ${row.width} px wide, not 358`);
+        check(row.lineStep === 24 && Math.abs(row.lineHeight - row.lineStep) <= 0.5, `the ${row.name} row's line is ${row.lineHeight} px tall on a ${row.lineStep} px line, not one 24 px line`);
+      }
+      const fourth = seen.rows[3];
+      check(seen.barTop !== null, 'the page has no phone bar');
+      if (fourth && seen.barTop !== null) check(fourth.bottom <= seen.barTop + 0.5, `the fourth row ends at ${fourth.bottom} px, past the phone bar's top at ${seen.barTop} px`);
+      await page.screenshot({ path: path.join(outDir, `dashboard-first-390-${look}.png`) });
+    });
+  }
+
+  // The first screen holds 8 controls, 7 text styles, these 8 boxes, and
+  // 7 colours in the light look and 6 in the dark.
+  const FIRST_BOXES = [
+    /^span\.drawn-frame$/, /^button\.key\..*key--solid/, /^span\.way__square$/, /^li\.way$/, /^li\.way$/, /^li\.way$/,
+    /^nav\.phone-bar\..*look-part/, /^a\.phone-bar__place.*::before$/,
+  ];
+  const FIRST_CONTROLS = [
+    (name) => name === 'Start watching', ...WAY_ROWS.map((way) => (name) => name.startsWith(`${way}:`)),
+    (name) => name === 'Dashboard', (name) => name === 'History', (name) => name === 'Settings',
+  ];
+  // Each wanted entry matched to one item of `items`, none left over.
+  const matchesAll = (items, wanted) => {
+    const left = [...items];
+    for (const want of wanted) {
+      const at = left.findIndex((item) => (typeof want === 'function' ? want(item) : want.test(item)));
+      if (at === -1) return false;
+      left.splice(at, 1);
+    }
+    return left.length === 0;
+  };
+  for (const look of LOOKS) {
+    await open({ name: 'first screen, counted', width: 390, height: 844, look }, async (page, context, check) => {
+      await openDash(page);
+      await page.evaluate(() => document.fonts.ready);
+      const seen = await firstScreen(page);
+      check(seen.controls.length === 8 && matchesAll(seen.controls, FIRST_CONTROLS),
+        `the first screen holds ${seen.controls.length} controls, not 8: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
+      check(seen.styles.length === 7, `the first screen holds ${seen.styles.length} text styles, not 7: ${seen.styles.join(' | ')}`);
+      check(seen.boxes.length === 8 && matchesAll(seen.boxes, FIRST_BOXES), `the first screen draws ${seen.boxes.length} boxes, not the 8 named: ${seen.boxes.join(', ')}`);
+      const colours = look === 'light' ? 7 : 6;
+      check(seen.colours.length === colours, `the first screen holds ${seen.colours.length} colours, not ${colours}: ${seen.colours.join(', ')}`);
+    });
+  }
+
+  // The words' sizes, faces, weights and colours at each layout width, then
+  // every word of the dashboard measured, and its quiet words from their
+  // own pixels.
+  const HEADING_TYPE = { 390: ['30px', '46px'], 820: ['40px', '60px'], 1280: ['48px', '72px'], 1920: ['52px', '78px'] };
+  for (const width of LAYOUT_WIDTHS) {
+    for (const look of LOOKS) {
+      await open({ name: 'dashboard, readable', width, look }, async (page, context, check) => {
+        await dashboardWith(page, fourNew());
+        check(await countReads(page, 4), `the first screen does not read "4 new alerts since you last looked."; it reads "${await wordsAt(page, 'p.dash-new')}"`);
+        await page.evaluate(() => document.fonts.ready);
+        const wide = width >= 1440;
+        const body = wide ? ['20px', '30px'] : ['18px', '28px'];
+        const entry = wide ? ['22px', '34px'] : ['20px', '30px'];
+        const keyInk = look === 'light' ? 'rgb(255, 255, 255)' : PAGE.dark;
+        // [what, selector, face, weight, size, line, colour]; a null is not read.
+        const parts = [
+          ['the heading', 'main.dash h1', 'grotesk', '700', ...HEADING_TYPE[width], INK[look]],
+          ['the line', '#dash-line', 'inter', '400', ...body, INK[look]],
+          ['the statement', '.dash-statement', 'inter', '400', ...body, INK[look]],
+          ['the new alerts sentence', 'p.dash-new', 'inter', '400', ...body, null],
+          ['the label of the ways', 'section.ways .dash-label', 'inter', '400', ...body, null],
+          ['the label of the alerts', 'section.since .dash-label', 'inter', '400', ...body, null],
+          ["the key's label", '.dash-key-place .dash-key', 'inter', '700', '18px', null, keyInk],
+          ["a way's name", '.way__name', 'grotesk', '700', ...entry, INK[look]],
+          ["a way's line", '.way__line', 'inter', '400', '16px', '24px', QUIET[look]],
+          ["an alert's way", '.since__way', 'inter', '400', '16px', '24px', null],
+          ['what an alert was', '.since__what', 'inter', '400', ...body, null],
+        ];
+        for (const [what, selector, family, weight, size, line, colour] of parts) {
+          const styles = await page.evaluate((s) => [...document.querySelectorAll(s)].map((el) => {
+            const style = getComputedStyle(el);
+            return { family: style.fontFamily, weight: style.fontWeight, size: style.fontSize, line: style.lineHeight, color: style.color, ground: style.backgroundColor };
+          }), selector);
+          check(styles.length > 0, `the page has no ${what} (${selector})`);
+          for (const style of styles) {
+            const faceIs = family === 'grotesk' ? isGrotesk(style.family) : isInter(style.family);
+            check(faceIs, `${what} is set in ${face(style.family)}, not ${family === 'grotesk' ? 'Space Grotesk' : 'Inter'}`);
+            check(style.weight === weight, `${what} has weight ${style.weight}, not ${weight}`);
+            check(style.size === size, `${what} is ${style.size}, not ${size}`);
+            if (line) check(style.line === line, `${what} stands on a ${style.line} line, not ${line}`);
+            if (colour) check(style.color === colour, `${what} is ${style.color}, not ${colour}`);
+            if (selector === '.dash-key-place .dash-key') check(style.ground === ACCENT[look], `the key is filled ${style.ground}, not ${ACCENT[look]}`);
+          }
+        }
+        await page.screenshot({ path: path.join(outDir, `dashboard-readable-${width}-${look}.png`), fullPage: true });
+        const dash = await page.$('main.dash');
+        if (!dash) throw new Error('the page has no main.dash');
+        const texts = await page.evaluate(measureText, dash);
+        check(texts.length > 20, `only ${texts.length} pieces of the dashboard's text were measured`);
+        for (const text of texts) {
+          const where = `"${text.words}" (${text.tag})`;
+          check(text.size >= 16, `${where} is ${text.size} px, under 16`);
+          check(isGrotesk(text.face) || isInter(text.face), `${where} is set in ${face(text.face)}`);
+          check(['400', '700'].includes(text.weight), `${where} has weight ${text.weight}`);
+          check(!/mono/i.test(face(text.face)), `${where} is set in ${face(text.face)}`);
+          const least = text.body ? 12 : 7;
+          check(text.contrast >= least, `${where} has contrast ${text.contrast.toFixed(2)}, under ${least}`);
+        }
+        const marked = await page.evaluate(() => {
+          const part = document.querySelector('main.dash');
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--color-steel-200)';
+          part.appendChild(probe);
+          const quiet = getComputedStyle(probe).color;
+          probe.remove();
+          const blocks = new Set();
+          const walker = document.createTreeWalker(part, NodeFilter.SHOW_TEXT);
+          while (walker.nextNode()) {
+            if (!walker.currentNode.textContent.trim()) continue;
+            let element = walker.currentNode.parentElement;
+            // Words inside a line (a name, a number) are measured with it.
+            while (element && element !== part && getComputedStyle(element).display === 'inline') element = element.parentElement;
+            if (element) blocks.add(element);
+          }
+          const out = [];
+          for (const element of blocks) {
+            if (element.closest('script, style, [hidden], .sr-only')) continue;
+            const box = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            if (box.width < 4 || box.height < 4 || style.visibility === 'hidden' || style.opacity === '0') continue;
+            if (style.color !== quiet) continue;
+            element.setAttribute('data-measure', String(out.length));
+            out.push(element.textContent.trim().replace(/\s+/g, ' ').slice(0, 40));
+          }
+          return out;
+        });
+        // The fixed header and bar would cover words scrolled under them.
+        await page.addStyleTag({ content: 'header.app-header, nav.phone-bar { visibility: hidden !important; }' });
+        const scratch = await context.newPage();
+        for (const [index, words] of marked.entries()) {
+          const picture = await page.locator(`[data-measure="${index}"]`).screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
+          const read = await scratch.evaluate(readStrokes, picture.toString('base64'));
+          if (!read) continue;
+          check(read.strokes >= 7, `"${words}" measures ${read.strokes.toFixed(2)}:1 on its strokes (core ${read.core.toFixed(2)}:1), under 7`);
+        }
+        await scratch.close();
+        check(marked.length >= 4, `only ${marked.length} quiet words of the dashboard were measured from the pixels`);
+      });
+    }
+  }
+
+  // Notifications not asked for: one row asks, above the key, and nothing
+  // else asks or floats over the page.
+  for (const look of LOOKS) {
+    await open({ name: 'notifications, not asked', width: 390, look }, async (page, context, check) => {
+      await context.addInitScript(NOTIFICATIONS_ANSWER, 'default');
+      await openDash(page);
+      const ask = page.getByRole('button', { name: 'Show alerts outside this tab', exact: true });
+      const shown = await ask.waitFor({ timeout: 10_000 }).then(() => true, () => false);
+      check(shown, 'no button reads "Show alerts outside this tab"');
+      if (!shown) return;
+      const before = await page.evaluate(() => {
+        const asking = [...document.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Show alerts outside this tab');
+        const key = document.querySelector('.dash-key-place .dash-key');
+        return !!asking && !!key && Boolean(asking.compareDocumentPosition(key) & Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      check(before, '"Show alerts outside this tab" does not stand before "Start watching"');
+      const counted = await firstScreen(page);
+      check(counted.controls.length === 9, `the first screen holds ${counted.controls.length} controls, not 9: ${counted.controls.map((name) => `"${name}"`).join(', ')}`);
+      await page.waitForTimeout(10_000);
+      const words = plain(await page.evaluate(() => document.body.innerText));
+      for (const gone of ['Enable notifications', 'Install SafeOS']) check(!words.includes(gone), `ten seconds on the page reads "${gone}"`);
+      const dialogs = await page.locator('[role="dialog"]').count();
+      check(dialogs === 0, `ten seconds on ${dialogs} elements have role="dialog"`);
+      await ask.click();
+      await page.waitForTimeout(500);
+      const asks = await page.evaluate(() => window.__notificationAsks);
+      check(asks === 1, `a press asked the browser ${asks} times, not once`);
+    }, { permissions: ['camera', 'microphone'] });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'notifications, blocked', width: 390, look }, async (page, context, check) => {
+      await context.addInitScript(NOTIFICATIONS_ANSWER, 'denied');
+      await openDash(page);
+      await checkProblem(page, check, NOTIFICATIONS_BLOCKED);
+      const asks = await page.getByRole('button', { name: 'Show alerts outside this tab', exact: true }).count();
+      check(asks === 0, 'a button reads "Show alerts outside this tab"');
+      const link = page.getByRole('link', { name: 'How to turn on notifications', exact: true });
+      if (!(await link.count())) {
+        check(false, 'no link reads "How to turn on notifications"');
+        return;
+      }
+      await link.click();
+      await page.waitForURL((url) => url.pathname === '/help/' && url.hash === '#notifications', { timeout: 15_000 }).catch(() => {});
+      const at = new URL(page.url());
+      check(at.pathname === '/help/' && at.hash === '#notifications', `the link opens ${at.pathname}${at.hash}, not /help/#notifications`);
+      await helpEntryInView(page, check, 'Notifications not appearing');
+    }, { permissions: ['camera', 'microphone'] });
+  }
+
+  // The camera: blocked at rest or by a press, in use, or failed to start.
+  for (const look of LOOKS) {
+    await open({ name: 'camera blocked', width: 390, look }, async (page, context, check) => {
+      await context.addInitScript(CAMERA_ANSWER, 'denied');
+      await openDash(page);
+      await checkProblem(page, check, CAMERA_WORDS.blocked, '.dash-problems', 'at rest ');
+      await page.screenshot({ path: path.join(outDir, `dashboard-camera-blocked-390-${look}.png`) });
+      const link = page.getByRole('link', { name: 'How to allow the camera', exact: true });
+      if (!(await link.count())) {
+        check(false, 'no link reads "How to allow the camera"');
+        return;
+      }
+      await link.click();
+      await page.waitForURL((url) => url.pathname === '/help/' && url.hash === '#camera', { timeout: 15_000 }).catch(() => {});
+      const at = new URL(page.url());
+      check(at.pathname === '/help/' && at.hash === '#camera', `the link opens ${at.pathname}${at.hash}, not /help/#camera`);
+      await helpEntryInView(page, check, 'Camera not working');
+    }, { script: FAKE_CAMERA });
+
+    await open({ name: 'camera blocked', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await page.evaluate(() => { window.__camera.answer = 'NotAllowedError'; });
+      await startKey(page).click();
+      await checkProblem(page, check, CAMERA_WORDS.blocked, '.dash-problems', 'after a refused request ');
+      const key = await keyState(page);
+      check(key.words === 'Start watching' && key.disabled === null, `after a refused request the key reads "${key.words}" with aria-disabled ${key.disabled}`);
+    }, { script: FAKE_CAMERA });
+
+    await open({ name: 'camera failed', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await page.evaluate(() => { window.__camera.answer = 'AbortError'; });
+      await startKey(page).click();
+      await checkProblem(page, check, CAMERA_WORDS.failed);
+      await page.waitForTimeout(400);
+      const key = await keyState(page);
+      check(key.words === 'Start watching', `the key reads "${key.words}", not "Start watching"`);
+      check(key.background === ACCENT[look], `the key is filled ${key.background}, not ${ACCENT[look]}`);
+    }, { script: FAKE_CAMERA });
+
+    await open({ name: 'camera in use', width: 1280, look }, async (page, context, check) => {
+      await openDash(page);
+      await page.evaluate(() => { window.__camera.answer = 'NotReadableError'; });
+      await startKey(page).click();
+      await checkProblem(page, check, CAMERA_WORDS.inUse);
+      const allow = await page.getByRole('link', { name: 'How to allow the camera', exact: true }).count();
+      check(allow === 0, 'the page offers "How to allow the camera" for a camera in use');
+    }, { script: FAKE_CAMERA });
+  }
+
+  // A window that keeps nothing once it closes says so; a profile on disk
+  // does not.
+  const lineAbove = (page, wanted) => page.evaluate((w) => {
+    const words = (el) => (el ? (el.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() : '');
+    const line = document.getElementById('dash-line');
+    const sentence = [...document.querySelectorAll('.dash-problems p.dash-problem')].find((p) => words(p) === w);
+    return { line: words(line), under: !!line && !!sentence && sentence.getBoundingClientRect().top >= line.getBoundingClientRect().bottom - 0.5 };
+  }, wanted);
+  for (const look of LOOKS) {
+    await open({ name: 'private window', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await checkProblem(page, check, FORGETS);
+      const keys = await startKey(page).count();
+      check(keys === 1, `with the sentence the page holds ${keys} keys, not the key`);
+    }, { windowStorage: 'probe' });
+
+    await open({ name: 'private window', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      if (await checkProblem(page, check, FORGETS, '.dash-problems', 'before setup ')) {
+        const seen = await lineAbove(page, FORGETS);
+        check(seen.line === BEFORE_SETUP && seen.under, `before setup the sentence stands ${seen.under ? 'under' : 'not under'} the line "${seen.line}"`);
+      }
+      await pressTo(page, page.getByRole('link', { name: 'Start setup', exact: true }), '/setup');
+      const step = await throughSetup(page, 'Pet Monitoring');
+      await lastStep(step);
+      await pressTo(page, step.getByRole('button', { name: 'Open dashboard', exact: true }), '/dashboard');
+      await stateShown(page);
+      await dashRead(page);
+      if (await checkProblem(page, check, FORGETS, '.dash-problems', 'after setup ')) {
+        const seen = await lineAbove(page, FORGETS);
+        check(seen.line === MOTION_LINE && seen.under, `after setup the sentence stands ${seen.under ? 'under' : 'not under'} the line "${seen.line}"`);
+      }
+    }, { state: 'new', windowStorage: 'probe' });
+
+    await openKept({ name: 'private window', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/dashboard/');
+      await stateShown(page);
+      await dashRead(page);
+      await page.waitForTimeout(3_000);
+      const said = (await problemsOf(page)).some((p) => p.words === FORGETS);
+      check(!said, `a profile kept on disk is told "${FORGETS}"`);
+    });
+  }
+
+  // A browser that refuses this site's storage on every call: the page
+  // shows a new device's state, and no part of it throws.
+  const REFUSE_STORAGE = () => {
+    for (const name of ['getItem', 'setItem', 'removeItem']) {
+      Storage.prototype[name] = function () { throw new DOMException('denied', 'SecurityError'); };
+    }
+  };
+  for (const look of LOOKS) {
+    await open({ name: 'dashboard, storage refused', width: 390, look }, async (page, context, check) => {
+      const raised = [];
+      page.on('pageerror', (err) => raised.push(err.message.split('\n')[0]));
+      await page.goto(address('/dashboard/'), { waitUntil: 'load', timeout: 60_000 });
+      await page.waitForTimeout(3_000);
+      const seen = await page.evaluate(() => {
+        const words = (el) => (el ? (el.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() : null);
+        const setup = [...document.querySelectorAll('main.dash a')].find((a) => words(a) === 'Start setup');
+        const shown = (el) => !!el && el.getBoundingClientRect().height > 0;
+        return {
+          h1: words(document.querySelector('main.dash h1')),
+          line: words(document.getElementById('dash-line')),
+          setup: setup ? setup.getAttribute('href') : null,
+          rows: [...document.querySelectorAll('section.ways li.way a')].map((a) => a.getAttribute('href')),
+          header: shown(document.querySelector('header.app-header')),
+          footer: shown(document.querySelector('.app-shell__footer footer')),
+        };
+      });
+      const errors = raised.length ? `; the page raised ${raised.map((message) => `"${message}"`).join(', ')}` : '; the page raised no error';
+      check(seen.h1 === 'Not watching', `three seconds on the heading reads "${seen.h1}", not "Not watching"${errors}`);
+      check(seen.line === BEFORE_SETUP, `three seconds on the line reads "${seen.line}", not "${BEFORE_SETUP}"${errors}`);
+      check(seen.setup === '/setup/', `three seconds on Start setup ${seen.setup ? `leads to ${seen.setup}` : 'is not there'}${errors}`);
+      const wanted = WAY_IDS.map((way) => `/setup/?next=${way}`).join(', ');
+      check(seen.rows.join(', ') === wanted, `three seconds on the rows lead to ${seen.rows.join(', ') || 'nothing'}, not ${wanted}${errors}`);
+      check(seen.header && seen.footer, `three seconds on the page shows ${seen.header ? 'the' : 'no'} header and ${seen.footer ? 'the' : 'no'} footer${errors}`);
+      check(raised.length === 0, `the page raised ${raised.map((message) => `"${message}"`).join(', ')}`);
+    }, { state: 'new', script: REFUSE_STORAGE });
+  }
+
+  // The saved pets held for three seconds: the places stand still while the
+  // device is read.
+  for (const [look, reduced] of [['light', false], ['dark', false], ['dark', true]]) {
+    const motion = reduced ? { reducedMotion: 'reduce' } : {};
+    await open({ name: 'dashboard, stores held', width: 390, look, ...motion }, async (page, context, check) => {
+      const said = reduced ? 'under reduced motion, ' : '';
+      await withNew(page, '/dashboard/', { pets: [{ id: 'pet-mittens', name: 'Mittens' }] });
+      await context.addInitScript(HOLD_STORES);
+      await page.goto(address('/dashboard/'), { waitUntil: 'load', timeout: 60_000 });
+      const read = () => page.evaluate(() => {
+        const state = document.querySelector('section.dash-state');
+        const frame = document.querySelector('section.dash-state .drawn-frame[data-loading="true"]');
+        const frameBox = frame ? frame.getBoundingClientRect() : null;
+        const after = frame ? getComputedStyle(frame, '::after') : null;
+        const place = document.querySelector('.dash-key-place');
+        const placeBox = place ? place.getBoundingClientRect() : null;
+        const rows = [...document.querySelectorAll('section.ways li.way')];
+        return {
+          read: state ? state.getAttribute('data-read') : null,
+          loading: (document.querySelector('p.dash-loading')?.textContent || '').trim(),
+          frame: !!frameBox && frameBox.width > 0 && frameBox.height > 0 && getComputedStyle(frame).visibility !== 'hidden',
+          bar: after ? { display: after.display, content: after.content } : null,
+          place: placeBox ? { top: placeBox.top, height: placeBox.height, empty: place.children.length === 0 && !place.textContent.trim() } : null,
+          key: (place?.querySelector('a, button')?.textContent || '').trim(),
+          line: (document.getElementById('dash-line')?.textContent || '').trim(),
+          rows: rows.map((row) => {
+            const link = row.querySelector('a');
+            const box = row.getBoundingClientRect();
+            return { top: box.top, shown: box.height > 0, href: link ? link.getAttribute('href') : null };
+          }),
+          photo: !!rows[1]?.querySelector('img[alt="Photo of Mittens"]'),
+          square: !!rows[0]?.querySelector('.way__name .way__square'),
+        };
+      });
+      const early = await read();
+      check(early.read === 'no', `${said}at once the watching state has data-read "${early.read}", not "no"`);
+      check(early.loading === 'Loading the dashboard…', `${said}at once p.dash-loading reads "${early.loading}"`);
+      check(early.frame, `${said}at once the drawn frame is not shown loading`);
+      if (reduced) check(!!early.bar && early.bar.display === 'none', `${said}the loading bar is drawn with display ${early.bar ? early.bar.display : 'nothing'}`);
+      else check(!!early.bar && early.bar.display !== 'none' && early.bar.content !== 'none', `at once the loading bar is ${early.bar ? `display ${early.bar.display}, content ${early.bar.content}` : 'not there'}`);
+      check(!!early.place && early.place.height >= 52 && early.place.empty, `${said}at once the key's place is ${early.place ? `${early.place.height} px tall and ${early.place.empty ? 'empty' : 'not empty'}` : 'not there'}`);
+      const hrefs = early.rows.map((row) => row.href).join(', ');
+      check(early.rows.length === 4 && early.rows.every((row) => row.shown), `${said}at once ${early.rows.filter((row) => row.shown).length} of 4 rows are shown`);
+      check(hrefs === '/monitor/, /lost-found/, /security/, /wildlife/', `${said}at once the rows lead to ${hrefs}`);
+      await page.waitForTimeout(3_500);
+      await page.locator('.dash-key-place .dash-key').waitFor({ timeout: 5_000 }).catch(() => {});
+      const late = await read();
+      check(late.key === 'Start watching', `${said}3.5 seconds on the key reads "${late.key}", not "Start watching"`);
+      check(plain(late.line) === MOTION_LINE, `${said}3.5 seconds on the line reads "${late.line}"`);
+      check(late.photo, `${said}3.5 seconds on the Lost and Found row shows no "Photo of Mittens"`);
+      check(late.square, `${said}3.5 seconds on Motion and sound has no square`);
+      if (early.place && late.place) check(Math.abs(late.place.top - early.place.top) <= 0.5, `${said}the key's place moved from ${early.place.top} to ${late.place.top} px`);
+      early.rows.forEach((row, i) => {
+        const now = late.rows[i];
+        if (now) check(Math.abs(now.top - row.top) <= 0.5, `${said}the ${WAY_ROWS[i]} row moved from ${row.top} to ${now.top} px`);
+      });
+    });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'dashboard, alerts held', width: 390, look }, async (page, context, check) => {
+      await withNew(page, '/settings/', fourNew());
+      await context.addInitScript(HOLD_STORES);
+      await page.goto(address('/dashboard/'), { waitUntil: 'load', timeout: 60_000 });
+      const early = await page.evaluate(() => ({
+        label: (document.querySelector('section.since h2')?.textContent || '').trim(),
+        loading: !!document.querySelector('section.since .drawn-frame[data-loading="true"]'),
+        count: !!document.querySelector('p.dash-new'),
+      }));
+      const history = await page.evaluate(readHistory, { selector: historyLink(390), want: null });
+      check(early.label === 'Since you last looked', `at once the part below is headed "${early.label}"`);
+      check(early.loading, 'at once the part below shows no loading drawn frame');
+      check(!early.count, 'at once the first screen shows p.dash-new');
+      check(history.words === 'History', `at once History reads "${history.words}"`);
+      await page.waitForTimeout(3_500);
+      check(await countReads(page, 4), `3.5 seconds on the first screen reads "${await wordsAt(page, 'p.dash-new')}", not "4 new alerts since you last looked."`);
+      checkHistory(check, await historyReads(page, 390, 'History 4'), 'History 4', 'History, 4 new alerts');
+      const rows = await page.locator('section.since li.since__item').count();
+      check(rows === 3, `3.5 seconds on the part below lists ${rows} rows, not 3`);
+    });
+  }
+
+  // With scripts off: the heading, the line for a page whose script did not
+  // start, the frame drawn whole, no key, and the footer's links work.
+  for (const look of LOOKS) {
+    await open({ name: 'dashboard, scripts off', width: 390, look, javaScriptEnabled: false }, async (page, context, check) => {
+      await visit(page, '/dashboard/');
+      const seen = await page.evaluate(() => {
+        const words = (el) => (el ? (el.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() : null);
+        const h1 = document.querySelector('main.dash h1');
+        const note = document.getElementById('dash-needs-script');
+        return {
+          h1: words(h1),
+          note: words(note),
+          after: !!h1 && !!note && Boolean(h1.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING),
+          buttons: [...document.querySelectorAll('button')].filter((button) => button.getBoundingClientRect().height > 0).map((button) => button.textContent.trim()),
+        };
+      });
+      check(seen.h1 === 'Not watching', `the heading reads "${seen.h1}", not "Not watching"`);
+      check(seen.note === NEEDS_SCRIPT_WORDS, `#dash-needs-script reads "${seen.note}", not "${NEEDS_SCRIPT_WORDS}"`);
+      check(seen.after, '#dash-needs-script does not follow the heading');
+      for (const [what, selector] of [
+        ["the header's brand", 'header.app-header .app-header__brand'],
+        ['the heading', 'main.dash h1'],
+        ['the line', '#dash-line'],
+        ["the footer's Site links", '.app-shell__footer nav[aria-label="Site links"]'],
+      ]) {
+        const opacity = await shownOpacity(page, selector);
+        check(opacity === 1, `${what} is ${opacity === -1 ? 'not shown' : `drawn at opacity ${opacity}, not 1`}`);
+      }
+      check(seen.buttons.length === 0, `the page shows the buttons ${seen.buttons.map((name) => `"${name}"`).join(', ')}`);
+      await page.locator('.app-shell__footer nav[aria-label="Site links"] a[href^="/privacy"]').first().click();
+      await page.waitForLoadState('load');
+      check(new URL(page.url()).pathname === '/privacy/', `a press on Privacy opened ${new URL(page.url()).pathname}, not /privacy/`);
+    });
+  }
+
+  // One banner, one main, one level-1 heading, the App navigation, the
+  // footer with Site links; the key described by the line; the ways a list.
+  for (const state of ['set-up', 'new']) {
+    await open({ name: 'dashboard, landmarks', width: 1280, look: 'light' }, async (page, context, check) => {
+      await openDash(page);
+      const counts = {
+        banner: await page.getByRole('banner').count(),
+        main: await page.getByRole('main').count(),
+        heading: await page.getByRole('heading', { level: 1 }).count(),
+        app: await page.getByRole('navigation', { name: 'App' }).filter({ visible: true }).count(),
+        contentinfo: await page.getByRole('contentinfo').count(),
+        siteLinks: await page.getByRole('contentinfo').getByRole('navigation', { name: 'Site links' }).count(),
+      };
+      const when = state === 'new' ? 'before setup ' : '';
+      for (const [what, count] of Object.entries(counts)) check(count === 1, `${when}the page holds ${count} ${what}, not 1`);
+      const key = await page.evaluate(() => {
+        const element = document.querySelector('.dash-key-place .dash-key');
+        return element ? { words: element.textContent.trim(), described: element.getAttribute('aria-describedby') } : null;
+      });
+      const wanted = state === 'new' ? 'Start setup' : 'Start watching';
+      check(!!key && key.words === wanted, `${when}the key reads "${key ? key.words : 'nothing'}", not "${wanted}"`);
+      check(!!key && key.described === 'dash-line', `${when}the key's aria-describedby is ${key ? key.described : 'not there'}, not dash-line`);
+      const ways = await page.evaluate(() => {
+        const heading = [...document.querySelectorAll('h2')].find((h) => h.textContent.trim() === 'Ways to watch');
+        const list = heading ? heading.parentElement.querySelector('ul') : null;
+        return {
+          heading: !!heading,
+          over: !!heading && !!list && Boolean(heading.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING),
+          items: list ? [...list.children].map((item) => `${item.tagName.toLowerCase()} with ${item.querySelectorAll('a').length} links`) : [],
+        };
+      });
+      check(ways.heading && ways.over, `${when}"Ways to watch" is ${ways.heading ? 'not over a list' : 'no level-2 heading'}`);
+      check(ways.items.length === 4 && ways.items.every((item) => item === 'li with 1 links'), `${when}the list of ways holds ${ways.items.join(', ') || 'nothing'}`);
+    }, { state });
+  }
+
+  // What the earlier dashboard showed is gone, with no word the page may not
+  // carry, nothing over the page and nothing that clears or deletes.
+  const GONE_WORDS = ['by SuperCloud', 'LOCAL-ONLY', 'Active Streams', 'Alerts Today', 'Queue Depth', 'Avg Response', '+ NEW', 'System Status', 'SafeOS Guardian v1.0', 'Monitoring Server', 'Quick Actions', 'Recent Alerts', 'CLEAR ALL'];
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'dashboard, what leaves', width, look }, async (page, context, check) => {
+        await openDash(page);
+        const words = plain(await page.evaluate(() => document.body.innerText));
+        for (const gone of GONE_WORDS) check(!words.includes(gone), `the page reads "${gone}"`);
+        const banned = words.match(/babysitter|carer|security system|medical|identify|recogni[sz]e|nonprofit|donate/i);
+        check(!banned, `the page reads "${banned ? banned[0] : ''}"`);
+        const users = words.match(/\b\d[\d,]*\s+(users|people use)/i);
+        check(!users, `the page reads "${users ? users[0] : ''}"`);
+        check((await page.locator('[role="dialog"]').count()) === 0, 'an element has role="dialog"');
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(500);
+        check((await page.locator('[role="dialog"]').count()) === 0, 'after Escape an element has role="dialog"');
+        const named = await page.evaluate(() => [...document.querySelectorAll('main.dash button, main.dash a')]
+          .map((element) => (element.getAttribute('aria-label') || element.textContent || '').replace(/\s+/g, ' ').trim())
+          .filter((name) => /clear|delete/i.test(name)));
+        check(named.length === 0, `the dashboard holds ${named.map((name) => `"${name}"`).join(', ')}`);
+      });
+    }
+  }
+
+  // ----- The start key -----
+
+  await open({ name: 'start watching', width: 390, look: 'dark' }, async (page, context, check) => {
+    await openDash(page);
+    await page.evaluate(() => { window.__camera.waitMs = 1500; });
+    await startKey(page).click();
+    const waits = await page.waitForFunction(() => (document.querySelector('.dash-key-place .dash-key')?.textContent || '').trim() === 'Starting the camera…', null, { timeout: 1_000 }).then(() => true, () => false);
+    check(waits, `within a second of the press the key reads "${(await keyState(page)).words}", not "Starting the camera…"`);
+    check(pathOf(page) === '/dashboard', `while the camera starts the address is ${pathOf(page)}, not /dashboard`);
+    const asked = await cameraRequests(page);
+    check(asked === 1, `while the camera starts it was asked for ${asked} times, not once`);
+    await reaches(page, '/monitor', 20_000);
+    check(pathOf(page) === '/monitor', `the press opened ${pathOf(page)}, not /monitor`);
+    check(await watchRuns(page), '/monitor/ does not show Stop Monitoring with no press of its own');
+    const once = await cameraRequests(page);
+    check(once === 1, `the watch asked for the camera ${once} times in all, not once`);
+    const query = new URL(page.url()).search;
+    check(query === '', `the address carries the query ${query}`);
+    await back(page);
+    await reaches(page, '/dashboard', 15_000);
+    check(pathOf(page) === '/dashboard', `Back opened ${pathOf(page)}, not /dashboard`);
+    check(await noCameraOn(page, 2_000), `two seconds after Back ${await camerasOn(page)} cameras are on`);
+    await forward(page);
+    await reaches(page, '/monitor', 15_000);
+    const rests = await page.getByRole('button', { name: 'Start Monitoring', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+    check(rests, 'after Forward /monitor/ does not show Start Monitoring');
+    const still = await cameraRequests(page);
+    check(still === 1, `after Forward the camera was asked for ${still} times in all, not once`);
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    const reloaded = await page.getByRole('button', { name: 'Start Monitoring', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+    check(reloaded, 'a reload of /monitor/ does not show Start Monitoring');
+    const fresh = await page.evaluate(() => window.__camera.requests);
+    check(fresh === 0, `a reload of /monitor/ asked for the camera ${fresh} times`);
+  }, { script: FAKE_CAMERA });
+
+  for (const look of LOOKS) {
+    await open({ name: 'start watching, waiting', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await page.evaluate(() => { window.__camera.waitMs = 3000; });
+      await startKey(page).click();
+      await page.waitForFunction(() => (document.querySelector('.dash-key-place .dash-key')?.textContent || '').trim() === 'Starting the camera…', null, { timeout: 2_000 }).catch(() => {});
+      // The fill fades out over the key's own transition.
+      await page.waitForTimeout(300);
+      const key = await keyState(page);
+      check(key.disabled === 'true', `the waiting key has aria-disabled ${key.disabled}, not true`);
+      check(key.background === 'rgba(0, 0, 0, 0)', `the waiting key is filled ${key.background}`);
+      for (const edge of key.edges) check(edge === `1px dashed ${LINE[look]}`, `the waiting key's edge is ${edge}, not 1px dashed ${LINE[look]}`);
+      check(key.color === QUIET[look], `the waiting key's words are ${key.color}, not ${QUIET[look]}`);
+      if (pathOf(page) === '/dashboard' && key.words === 'Starting the camera…') {
+        await page.screenshot({ path: path.join(outDir, `dashboard-waiting-390-${look}.png`) });
+      } else {
+        check(false, `the waiting key was not pictured: the address is ${pathOf(page)} and the key reads "${key.words}"`);
+      }
+      // The waiting key takes the press and does nothing with it.
+      await startKey(page).click({ force: true, timeout: 2_000 }).catch(() => {});
+      const asked = await cameraRequests(page);
+      check(asked === 1, `a second press asked for the camera again (${asked} requests)`);
+      await reaches(page, '/monitor', 20_000);
+      check(await watchRuns(page), '/monitor/ does not show Stop Monitoring');
+    }, { script: FAKE_CAMERA });
+  }
+
+  await open({ name: 'start watching, keyboard', width: 1280, look: 'dark' }, async (page, context, check) => {
+    await openDash(page);
+    let reached = null;
+    for (let i = 0; i < 15 && !reached; i += 1) {
+      await page.keyboard.press('Tab');
+      const at = await page.evaluate(stop);
+      if (at && at.name === 'Start watching') reached = at;
+    }
+    check(!!reached, 'Tab from the top does not reach "Start watching" within 15 presses');
+    if (!reached) return;
+    check(reached.ring === `solid 2px ${ACCENT.dark}`, `"Start watching" is ringed ${reached.ring}, not solid 2px ${ACCENT.dark}`);
+    await page.keyboard.press('Enter');
+    await reaches(page, '/monitor', 20_000);
+    check(pathOf(page) === '/monitor', `Enter opened ${pathOf(page)}, not /monitor`);
+    check(await watchRuns(page), 'after Enter /monitor/ does not show Stop Monitoring');
+  }, { script: FAKE_CAMERA });
+
+  for (const look of LOOKS) {
+    await open({ name: 'start key, hover', width: 1280, look }, async (page, context, check) => {
+      await openDash(page);
+      await startKey(page).hover();
+      await page.waitForTimeout(400);
+      const key = await keyState(page);
+      check(key.background === ACCENT_HOVER[look], `under the pointer the key is filled ${key.background}, not ${ACCENT_HOVER[look]}`);
+    });
+  }
+
+  await open({ name: 'start watching, Lost and Found', width: 390, look: 'light' }, async (page, context, check) => {
+    await withNew(page, '/dashboard/', { pets: [{ id: 'pet-mittens', name: 'Mittens' }] });
+    const t0 = await page.evaluate(() => Date.now());
+    await remember(page, { way: 'lost-found', pet: 'pet-mittens', session: { startedAt: t0 - 60_000, seenAt: t0 - 30_000, endedAt: t0 - 30_000 } });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    await stateShown(page);
+    await dashRead(page);
+    const ended = await clockAt(page, t0 - 30_000);
+    const wanted = plain(`Start watching uses Lost and Found, for Mittens. The last watch ended at ${ended}.`);
+    const line = await lineOf(page);
+    check(line === wanted, `the line reads "${line}", not "${wanted}"`);
+    const time = await page.evaluate(() => (document.querySelector('#dash-line .num')?.textContent || '').replace(/\s+/g, ' ').trim());
+    check(time === plain(ended), `the time in the line's .num reads "${time}", not "${plain(ended)}"`);
+    await startKey(page).click();
+    await reaches(page, '/monitor', 20_000);
+    check(pathOf(page) === '/monitor', `the press opened ${pathOf(page)}, not /monitor`);
+    check(await watchRuns(page), '/monitor/ does not show Stop Monitoring');
+    // Watch for names the way the watch runs with.
+    const lostAndFound = page.getByRole('radiogroup', { name: 'Watch for' }).getByRole('radio', { name: 'Lost and Found', exact: true });
+    const chosen = (await lostAndFound.count()) === 1 && (await lostAndFound.isChecked());
+    check(chosen, 'on /monitor/ Watch for does not show Lost and Found checked');
+    const kept = await page.waitForFunction(() => localStorage.getItem('safeos-last-way') === '{"way":"lost-found","pet":"pet-mittens"}', null, { timeout: 10_000 }).then(() => true, () => false);
+    check(kept, `safeos-last-way reads ${await page.evaluate(() => localStorage.getItem('safeos-last-way'))}, not {"way":"lost-found","pet":"pet-mittens"}`);
+    await forgetPet(page, 'pet-mittens');
+    await openDash(page);
+    const after = await lineOf(page);
+    check(after.startsWith(MOTION_LINE), `with Mittens deleted the line reads "${after}"`);
+  }, { script: FAKE_CAMERA });
+
+  await open({ name: 'start watching, People without the model', width: 1280, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/dashboard/');
+    await remember(page, { way: 'security' });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    await stateShown(page);
+    await dashRead(page);
+    const line = await lineOf(page);
+    check(line.startsWith('Start watching uses People.'), `the line reads "${line}"`);
+    await startKey(page).click();
+    await reaches(page, '/security', 20_000);
+    check(pathOf(page) === '/security', `the press opened ${pathOf(page)}, not /security`);
+    const offered = await page.getByRole('button', { name: 'Download detection model', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+    check(offered, '/security/ shows no button "Download detection model"');
+    const asked = await cameraRequests(page);
+    check(asked === 0, `the camera was asked for ${asked} times`);
+  }, { script: FAKE_CAMERA });
+
+  await open({ name: 'the last watch', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/monitor/');
+    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).waitFor({ timeout: 20_000 });
+    const noted = await page.evaluate(() => Date.now());
+    await pressTo(page, dashboardLink(page, 390), '/dashboard');
+    await stateShown(page);
+    await dashRead(page);
+    const times = [plain(await clockAt(page, noted)), plain(await clockAt(page, noted + 60_000))];
+    const line = await lineOf(page);
+    check(times.some((at) => line.endsWith(`The last watch ended at ${at}.`)), `the line reads "${line}", not ending "The last watch ended at ${times[0]}."`);
+    const t0 = await page.evaluate(() => Date.now());
+    await remember(page, { session: { startedAt: t0 - 180_000, seenAt: t0 - 60_000, endedAt: null } });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    await stateShown(page);
+    await dashRead(page);
+    const ran = plain(await clockAt(page, t0 - 60_000));
+    const again = await lineOf(page);
+    check(again.endsWith(`The last watch ran until at least ${ran}.`), `with no end written the line reads "${again}", not ending "The last watch ran until at least ${ran}."`);
+    check(!again.includes('ended at'), `with no end written the line reads "${again}"`);
+  }, { script: FAKE_CAMERA });
+
+  for (const look of LOOKS) {
+    await open({ name: 'dashboard, offline', width: 390, look }, async (page, context, check) => {
+      await withNew(page, '/settings/', fourNew());
+      await visitThenOffline(page, context);
+      await page.reload({ waitUntil: 'load', timeout: 60_000 });
+      await stateShown(page);
+      await dashRead(page);
+      check(await countReads(page, 4), `offline the first screen reads "${await wordsAt(page, 'p.dash-new')}", not "4 new alerts since you last looked."`);
+      const seen = await page.evaluate(() => ({
+        header: !!document.querySelector('header.app-header'),
+        h1: (document.querySelector('main.dash h1')?.textContent || '').trim(),
+        rows: document.querySelectorAll('section.since li.since__item').length,
+        footer: !!document.querySelector('.app-shell__footer footer'),
+      }));
+      check(seen.header, 'offline the page has no header');
+      check(seen.h1 === 'Not watching', `offline the heading reads "${seen.h1}"`);
+      const line = await lineOf(page);
+      check(line === MOTION_LINE, `offline the line reads "${line}"`);
+      check(seen.rows === 3, `offline the part below lists ${seen.rows} rows, not 3`);
+      checkHistory(check, await historyReads(page, 390, 'History 4'), 'History 4', 'History, 4 new alerts');
+      check(seen.footer, 'offline the page has no footer');
+      await startKey(page).click();
+      await reaches(page, '/monitor', 20_000);
+      check(pathOf(page) === '/monitor', `offline the press opened ${pathOf(page)}, not /monitor`);
+      check(await watchRuns(page), 'offline /monitor/ does not show Stop Monitoring');
+    }, { script: FAKE_CAMERA });
+  }
+
+  // A watch in another tab: the heading says so, and the key asks first.
+  const watchingElsewhere = async (page, context) => {
+    await visit(page, '/monitor/');
+    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).waitFor({ timeout: 20_000 });
+    const second = await context.newPage();
+    await visit(second, '/dashboard/');
+    await stateShown(second);
+    await dashRead(second);
+    return second;
+  };
+  const headingSays = (page, wanted, ms) => page.waitForFunction((w) => (document.querySelector('main.dash h1')?.textContent || '').trim() === w, wanted, { timeout: ms }).then(() => true, () => false);
+  for (const look of LOOKS) {
+    await open({ name: 'second tab, the dashboard', width: 1280, look }, async (page, context, check) => {
+      const second = await watchingElsewhere(page, context);
+      check(await headingSays(second, 'Watching in another tab', 2_000), `within 2 seconds the heading reads "${await wordsAt(second, 'main.dash h1')}", not "Watching in another tab"`);
+      await startKey(second).click();
+      const asked = await theQuestion(second).waitFor({ timeout: 5_000 }).then(() => true, () => false);
+      check(asked, `a press showed no dialog named "${QUESTION}"`);
+      if (!asked) return;
+      const keys = (await theQuestion(second).getByRole('button').allTextContents()).map(plain);
+      check(keys.join(' | ') === 'Watch here | Cancel', `the dialog's keys read ${keys.map((key) => `"${key}"`).join(', ')}, not "Watch here" then "Cancel"`);
+      const first = await focusedOn(second);
+      check(first === 'Cancel', `focus starts on "${first}", not Cancel`);
+      const before = await cameraRequests(second);
+      check(before === 0, `the dashboard asked for the camera ${before} times before the person chose`);
+      await theQuestion(second).getByRole('button', { name: 'Cancel', exact: true }).click();
+      check(await gone(theQuestion(second)), 'Cancel left the dialog open');
+      const returned = await focusedOn(second);
+      check(returned === 'Start watching', `after Cancel focus is on "${returned}", not Start watching`);
+      check((await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).count()) === 1, 'after Cancel the first tab no longer reads Stop Monitoring');
+      const kept = await camerasOn(page);
+      check(kept === 1, `after Cancel the first tab holds ${kept} live cameras, not 1`);
+      await startKey(second).click();
+      await theQuestion(second).waitFor({ timeout: 5_000 });
+      await theQuestion(second).getByRole('button', { name: 'Watch here', exact: true }).click();
+      const ended = await page.getByRole('button', { name: 'Start Monitoring', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+      check(ended, 'after Watch here the first tab does not read Start Monitoring');
+      check(await noCameraOn(page, 5_000), `after Watch here the first tab holds ${await camerasOn(page)} live cameras`);
+      await reaches(second, '/monitor', 20_000);
+      check(pathOf(second) === '/monitor', `Watch here opened ${pathOf(second)}, not /monitor`);
+      check(await watchRuns(second), 'after Watch here /monitor/ does not show Stop Monitoring');
+      const asks = await cameraRequests(second);
+      check(asks === 1, `after Watch here the dashboard's tab asked for the camera ${asks} times, not once`);
+      const both = (await camerasOn(page)) + (await camerasOn(second));
+      check(both === 1, `the two tabs hold ${both} live cameras, not 1`);
+    }, { script: FAKE_CAMERA });
+  }
+
+  // The dialog's two keys on one row at every phone width, and with larger
+  // text a row that scrolls inside itself where the two do not fit.
+  const dialogRow = (page) => page.evaluate(() => {
+    const row = document.querySelector('[role="dialog"] .app-dialog__keys');
+    if (!row) return null;
+    return {
+      keys: [...row.querySelectorAll('button')].map((key) => {
+        const box = key.getBoundingClientRect();
+        return { name: key.textContent.trim(), top: box.top, height: box.height, whole: key.scrollWidth <= key.clientWidth + 0.5 };
+      }),
+      scrolls: row.scrollWidth > row.clientWidth + 0.5,
+    };
+  });
+  const openTheQuestion = async (page, context) => {
+    const second = await watchingElsewhere(page, context);
+    await headingSays(second, 'Watching in another tab', 5_000);
+    await startKey(second).click();
+    await theQuestion(second).waitFor({ timeout: 5_000 });
+    return second;
+  };
+  for (const width of ROW_WIDTHS) {
+    await open({ name: "second tab, the dialog's row", width, look: 'light' }, async (page, context, check) => {
+      const second = await openTheQuestion(page, context);
+      const row = await dialogRow(second);
+      if (!row) throw new Error('the dialog has no row of keys');
+      const tops = row.keys.map((key) => key.top);
+      check(row.keys.length === 2, `the row holds ${row.keys.length} keys, not 2`);
+      check(Math.max(...tops) - Math.min(...tops) <= 0.5, `the keys' tops are ${tops.map((top) => top.toFixed(1)).join(' and ')} px`);
+      for (const key of row.keys) {
+        check(key.height >= 44, `"${key.name}" is ${key.height} px tall, under 44`);
+        check(key.whole, `"${key.name}" is cut`);
+      }
+      const sideways = await sidewaysScroll(second);
+      check(sideways <= 0, `the page scrolls ${sideways} px sideways`);
+    }, { script: FAKE_CAMERA });
+  }
+  await open({ name: "second tab, the dialog's row", width: 390, look: 'light' }, async (page, context, check) => {
+    const second = await openTheQuestion(page, context);
+    await largerText(second);
+    const row = await dialogRow(second);
+    if (!row) throw new Error('with larger text the dialog has no row of keys');
+    const tops = row.keys.map((key) => key.top);
+    check(Math.max(...tops) - Math.min(...tops) <= 0.5, `with larger text the keys' tops are ${tops.map((top) => top.toFixed(1)).join(' and ')} px`);
+    check(row.scrolls || row.keys.every((key) => key.whole), `with larger text the keys do not fit and the row does not scroll inside itself (${row.keys.filter((key) => !key.whole).map((key) => key.name).join(', ')} cut)`);
+    const sideways = await sidewaysScroll(second);
+    check(sideways <= 0, `with larger text the page scrolls ${sideways} px sideways`);
+  }, { script: FAKE_CAMERA });
+
+  // ----- The ways -----
+
+  await open({ name: 'ways, presses', width: 390, look: 'dark' }, async (page, context, check) => {
+    for (const [index, name] of WAY_ROWS.entries()) {
+      await openDash(page);
+      await pressTo(page, page.locator('section.ways a.way__link').nth(index), WAY_PATHS[index]);
+      check(pathOf(page) === WAY_PATHS[index], `the ${name} row opened ${pathOf(page)}, not ${WAY_PATHS[index]}`);
+      const heading = await firstHeading(page).catch(() => 'no heading');
+      check(heading === name, `the ${name} row opened a page headed "${heading}"`);
+    }
+  });
+
+  // The Lost and Found row: the pet's photo and name, or its glyph.
+  const lostAndFoundRow = (page) => page.evaluate(() => {
+    const rows = [...document.querySelectorAll('section.ways li.way')];
+    const row = rows[1];
+    const img = row ? row.querySelector('.way__glyph img') : null;
+    const box = img ? img.getBoundingClientRect() : null;
+    return {
+      img: img ? { alt: img.getAttribute('alt'), width: box.width, height: box.height } : null,
+      svg: !!row && !!row.querySelector('.way__glyph svg'),
+      line: row ? (row.querySelector('.way__line')?.textContent || '').replace(/’/g, "'").trim() : '',
+      lefts: rows.map((one) => one.querySelector('.way__name')?.getBoundingClientRect().left ?? null),
+      words: (document.querySelector('main.dash')?.innerText || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim(),
+    };
+  });
+  await open({ name: 'ways, a pet', width: 390, look: 'light' }, async (page, context, check) => {
+    const t0 = Date.now();
+    await withNew(page, '/dashboard/', { pets: [{ id: 'pet-mittens', name: 'Mittens', at: t0 - 60_000 }, { id: 'pet-rex', name: 'Rex', at: t0 }] });
+    await stateShown(page);
+    await dashRead(page);
+    await page.locator('section.ways .way__glyph img').first().waitFor({ timeout: 10_000 }).catch(() => {});
+    let seen = await lostAndFoundRow(page);
+    check(!!seen.img && seen.img.alt === 'Photo of Rex', `the Lost and Found row shows ${seen.img ? `"${seen.img.alt}"` : 'no photo'}, not "Photo of Rex"`);
+    check(!!seen.img && seen.img.width === 32 && seen.img.height === 32, `the photo is ${seen.img ? `${seen.img.width} by ${seen.img.height}` : 'not there'}, not 32 by 32 px`);
+    const lefts = seen.lefts.filter((left) => left !== null);
+    check(lefts.length === 4 && Math.max(...lefts) - Math.min(...lefts) <= 0.5, `the way names start at ${seen.lefts.join(', ')} px`);
+    check(seen.line === "Watches for Rex's colours.", `the row's line reads "${seen.line}"`);
+
+    await remember(page, { way: 'lost-found', pet: 'pet-mittens' });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    await dashRead(page);
+    await page.locator('section.ways .way__glyph img[alt="Photo of Mittens"]').waitFor({ timeout: 10_000 }).catch(() => {});
+    seen = await lostAndFoundRow(page);
+    check(!!seen.img && seen.img.alt === 'Photo of Mittens', `with Mittens watched last the row shows ${seen.img ? `"${seen.img.alt}"` : 'no photo'}`);
+    check(seen.line === "Watches for Mittens's colours.", `with Mittens watched last the row's line reads "${seen.line}"`);
+    const words = seen.words;
+
+    await changePet(page, 'pet-mittens', { referenceImages: ['data:image/png;base64,AAAA'] });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    await dashRead(page);
+    await page.waitForFunction(() => !!document.querySelectorAll('section.ways li.way')[1]?.querySelector('.way__glyph svg'), null, { timeout: 10_000 }).catch(() => {});
+    seen = await lostAndFoundRow(page);
+    check(seen.svg && !seen.img, `with a photo that cannot be read the row shows ${seen.img ? 'an img' : 'no img'} and ${seen.svg ? 'its glyph' : 'no glyph'}`);
+    check(seen.line === "Watches for Mittens's colours.", `with a photo that cannot be read the row's line reads "${seen.line}"`);
+    check(seen.words === words, `with a photo that cannot be read the page's words change: "${seen.words}"`);
+  });
+
+  await open({ name: "ways, People's line", width: 1280, look: 'dark' }, async (page, context, check) => {
+    for (const [allowed, wanted] of [[2, 'Alerts above 2 people in view.'], [1, 'Alerts above 1 person in view.']]) {
+      await visit(page, '/security/');
+      const range = page.getByText('Allowed Persons', { exact: true }).first().locator('xpath=../..').locator('input[type="range"]').first();
+      await range.waitFor({ timeout: 20_000 });
+      // The value as a drag of the range sets it: through the input's own
+      // setter, then its input event, which the page's handler hears.
+      await range.evaluate((input, value) => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }, String(allowed));
+      await pressTo(page, dashboardLink(page, 1280), '/dashboard');
+      await stateShown(page);
+      await dashRead(page);
+      const line = await page.evaluate(() => (document.querySelectorAll('section.ways .way__line')[2]?.textContent || '').trim());
+      check(line === wanted, `with ${allowed} allowed People's line reads "${line}", not "${wanted}"`);
+    }
+  });
+
+  await open({ name: 'ways, the square', width: 390, look: 'dark' }, async (page, context, check) => {
+    await withNew(page, '/dashboard/', { pets: [{ id: 'pet-mittens', name: 'Mittens' }] });
+    await remember(page, { way: 'lost-found', pet: 'pet-mittens' });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    await stateShown(page);
+    await dashRead(page);
+    const seen = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll('section.ways li.way')];
+      const square = rows[1]?.querySelector('.way__name')?.firstElementChild;
+      const box = square ? square.getBoundingClientRect() : null;
+      return {
+        first: square ? `${square.tagName.toLowerCase()}.${[...square.classList].join('.')}` : 'nothing',
+        size: box ? `${box.width} by ${box.height}` : 'nothing',
+        fill: square ? getComputedStyle(square).backgroundColor : null,
+        others: rows.filter((row, i) => i !== 1 && row.querySelector('.way__square')).length,
+        name: rows[1]?.querySelector('a')?.getAttribute('aria-label') || '',
+      };
+    });
+    check(seen.first === 'span.way__square', `the first child of Lost and Found's name is ${seen.first}`);
+    check(seen.size === '8 by 8', `the square is ${seen.size} px, not 8 by 8`);
+    check(seen.fill === ACCENT.dark, `the square is filled ${seen.fill}, not ${ACCENT.dark}`);
+    check(seen.others === 0, `${seen.others} other rows hold a square`);
+    check(seen.name.endsWith('Start watching uses this way'), `the row's link is named "${seen.name}"`);
+  });
+
+  for (const look of LOOKS) {
+    await open({ name: 'ways, offline', width: 390, look }, async (page, context, check) => {
+      await visitThenOffline(page, context);
+      await page.reload({ waitUntil: 'load', timeout: 60_000 });
+      await stateShown(page);
+      await dashRead(page);
+      await page.waitForFunction((w) => (document.querySelectorAll('section.ways .way__line')[2]?.textContent || '').trim() === w, NEEDS_CONNECTION, { timeout: 10_000 }).catch(() => {});
+      const lines = await page.evaluate(() => [...document.querySelectorAll('section.ways .way__line')].map((line) => line.textContent.replace(/’/g, "'").trim()));
+      const wanted = ['Alerts on movement or sound.', "Watches for your pet's colours.", NEEDS_CONNECTION, NEEDS_CONNECTION];
+      check(lines.join(' | ') === wanted.join(' | '), `offline the rows' lines read ${lines.map((line) => `"${line}"`).join(', ')}`);
+      await pressTo(page, page.locator('section.ways a.way__link').nth(0), '/monitor');
+      const monitor = await firstHeading(page).catch(() => 'no heading');
+      check(pathOf(page) === '/monitor' && monitor === 'Motion and sound', `offline Motion and sound opened ${pathOf(page)}, headed "${monitor}"`);
+      await back(page);
+      await reaches(page, '/dashboard', 15_000);
+      await stateShown(page);
+      await pressTo(page, page.locator('section.ways a.way__link').nth(1), '/lost-found');
+      const lostFound = await firstHeading(page).catch(() => 'no heading');
+      check(pathOf(page) === '/lost-found' && lostFound === 'Lost and Found', `offline Lost and Found opened ${pathOf(page)}, headed "${lostFound}"`);
+    });
+  }
+
+  for (const reduced of [false, true]) {
+    const motion = reduced ? { reducedMotion: 'reduce' } : {};
+    await open({ name: 'ways, hover', width: 1280, look: 'dark', ...motion }, async (page, context, check) => {
+      await openDash(page);
+      const row = page.locator('section.ways a.way__link').nth(2);
+      await row.hover();
+      await page.waitForTimeout(400);
+      const seen = await row.evaluate((link) => ({ ground: getComputedStyle(link).backgroundColor, duration: getComputedStyle(link).transitionDuration }));
+      const said = reduced ? 'under reduced motion ' : '';
+      check(seen.ground === RAISED.dark, `${said}under the pointer People's row is filled ${seen.ground}, not ${RAISED.dark}`);
+      const wanted = reduced ? '0s' : '0.12s';
+      check(seen.duration.split(',').every((duration) => duration.trim() === wanted), `${said}the row's transition takes ${seen.duration}, not ${wanted}`);
+    });
+  }
+
+  await open({ name: 'ways, a long pet name', width: 320, look: 'light' }, async (page, context, check) => {
+    await withNew(page, '/dashboard/', { pets: [{ id: 'pet-long', name: 'Bartholomew-Fitzwilliam-the-Third-of-Ely' }] });
+    await stateShown(page);
+    await dashRead(page);
+    await page.locator('section.ways .way__glyph img').first().waitFor({ timeout: 10_000 }).catch(() => {});
+    const seen = await page.evaluate(() => {
+      const row = document.querySelectorAll('section.ways li.way')[1];
+      const line = row ? row.querySelector('.way__line') : null;
+      const img = row ? row.querySelector('.way__glyph img') : null;
+      const box = img ? img.getBoundingClientRect() : null;
+      return {
+        height: line ? line.getBoundingClientRect().height : 0,
+        inside: !!line && line.scrollWidth <= line.clientWidth + 0.5,
+        photo: box ? `${box.width} by ${box.height}` : 'nothing',
+      };
+    });
+    check(seen.height > 24, `the row's line is ${seen.height} px tall, one line`);
+    check(seen.inside, "the row's line runs past its box");
+    check(seen.photo === '32 by 32', `the photo is ${seen.photo} px, not 32 by 32`);
+    const sideways = await sidewaysScroll(page);
+    check(sideways <= 0, `the page scrolls ${sideways} px sideways`);
+  });
+
+  await open({ name: 'ways, a person saved', width: 1280, look: 'light' }, async (page, context, check) => {
+    const at = Date.now() - 60_000;
+    await withNew(page, '/dashboard/', {
+      pets: [{ id: 'subject-sam', name: 'Sam', type: 'person' }],
+      matches: [0, 1, 2].map((i) => ({ id: `match-sam-dash${i}`, pet: 'subject-sam', at: at + i * 2_000, confidence: 90, alerted: true })),
+    });
+    await remember(page, { way: 'lost-found', pet: 'subject-sam' });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    await stateShown(page);
+    await dashRead(page);
+    const seen = await lostAndFoundRow(page);
+    check(seen.svg && !seen.img, `the Lost and Found row shows ${seen.img ? `the photo "${seen.img.alt}"` : 'no glyph'}`);
+    check(seen.line === "Watches for your pet's colours.", `the row's line reads "${seen.line}"`);
+    const line = await lineOf(page);
+    check(line.startsWith(MOTION_LINE), `the line reads "${line}"`);
+    const shownWords = await page.evaluate(() => ({
+      words: document.body.innerText,
+      rows: [...document.querySelectorAll('section.ways li.way')].map((row) => `${row.textContent} ${row.querySelector('a')?.getAttribute('aria-label') || ''}`).join(' '),
+    }));
+    const named = (shownWords.words.match(/\bSam\b/g) || []).length;
+    check(named === 0, `the page names Sam ${named} times`);
+    const finding = shownWords.rows.match(/identif|recogni[sz]|match/i);
+    check(!finding, `the rows read "${finding ? finding[0] : ''}"`);
+  });
+
+  for (const look of LOOKS) {
+    await open({ name: 'ways, a page not stored', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/dashboard/');
+      if (!(await installed(page))) throw new Error('the installed copy is not whole after a visit to /dashboard/');
+      const removed = await page.evaluate(async () => {
+        const name = (await caches.keys()).find((key) => key.startsWith('safeos-shell-'));
+        const cache = await caches.open(name);
+        return [await cache.delete('/wildlife/'), await cache.delete('/wildlife/index.txt')];
+      });
+      check(removed[0] && removed[1], `the installed copy ${removed[0] ? 'held' : 'did not hold'} /wildlife/ and ${removed[1] ? 'held' : 'did not hold'} /wildlife/index.txt`);
+      const answers = [];
+      page.on('response', (response) => {
+        if (new URL(response.url()).pathname === '/wildlife/index.txt') answers.push(response.status());
+      });
+      await context.setOffline(true);
+      await page.reload({ waitUntil: 'load', timeout: 60_000 });
+      await stateShown(page);
+      await page.locator('section.ways a.way__link').nth(3).click();
+      await page.waitForFunction((h1) => (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim() === h1, OFFLINE_H1, { timeout: 20_000 }).catch(() => {});
+      const heading = await page.evaluate(() => (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim());
+      check(heading === OFFLINE_H1, `offline, Wildlife with its files gone shows "${heading}", not "${OFFLINE_H1}"`);
+      check(answers.includes(503), `Wildlife's route data answered ${answers.join(', ') || 'nothing'}, not 503`);
+      await pressTo(page, page.getByRole('link', { name: 'Open dashboard', exact: true }), '/dashboard');
+      check(pathOf(page) === '/dashboard', `"Open dashboard" opened ${pathOf(page)}, not /dashboard`);
+    });
+  }
+
+  // ----- The alerts -----
+
+  const emptyShown = (page, ms = 10_000) => waitWords(page, 'section.since .since__empty', NOTHING_NEW, ms);
+
+  for (const look of LOOKS) {
+    await open({ name: 'since, nothing new', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await emptyShown(page);
+      const seen = await page.evaluate(() => {
+        const since = document.querySelector('section.since');
+        const order = since ? [...since.querySelectorAll('h2, p, svg.level-line, a')]
+          .map((element) => (element.matches('svg.level-line') ? 'the level line' : `${element.tagName.toLowerCase()} "${(element.textContent || '').replace(/\s+/g, ' ').trim()}"`)) : [];
+        return {
+          order,
+          mark: [...document.querySelectorAll('button')].some((button) => button.textContent.trim() === 'Mark all as seen'),
+          count: !!document.querySelector('p.dash-new'),
+        };
+      });
+      const wanted = ['h2 "Since you last looked"', `p "${NOTHING_NEW}"`, 'the level line', 'a "Open history"'];
+      check(seen.order.join(' > ') === wanted.join(' > '), `the part below reads ${seen.order.join(' > ')}`);
+      check(!seen.mark, 'a button reads "Mark all as seen"');
+      check(!seen.count, 'the first screen shows p.dash-new');
+      checkHistory(check, await historyReads(page, 390, 'History'), 'History');
+    });
+  }
+
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'since, four ways', width, look }, async (page, context, check) => {
+        const saved = await dashboardWith(page, fourNew());
+        const counted = await countReads(page, 4);
+        if (width === 390) {
+          check(counted, `the first screen reads "${await wordsAt(page, 'p.dash-new')}", not "4 new alerts since you last looked."`);
+          const sentence = await page.evaluate(() => {
+            const p = document.querySelector('p.dash-new');
+            return p ? { glyph: !!p.firstElementChild && p.firstElementChild.matches('svg.problem-mark'), controls: p.querySelectorAll('a, button').length } : null;
+          });
+          check(!!sentence && sentence.glyph, 'the sentence does not follow the problem glyph');
+          check(!!sentence && sentence.controls === 0, `the sentence holds ${sentence ? sentence.controls : 0} links or buttons`);
+          const at = page.url();
+          await page.locator('p.dash-new').click();
+          await page.waitForTimeout(500);
+          check(page.url() === at, `a press on the sentence opened ${page.url()}`);
+          checkHistory(check, await historyReads(page, 390, 'History 4'), 'History 4', 'History, 4 new alerts');
+          const rows = await page.locator('section.since li.since__item').count();
+          check(rows === 3, `the part below lists ${rows} rows, not 3`);
+          const more = await wordsAt(page, 'section.since .since__ways-on a.link-row');
+          check(more === 'Open history, and 1 more', `the link row reads "${more}", not "Open history, and 1 more"`);
+        } else {
+          const at = [saved.sightings[0].at, saved.people[0].at, saved.matches[0].at, saved.motion[0].at];
+          const times = [];
+          for (const one of at) times.push(plain(await clockAt(page, one)));
+          const wanted = [`Looks like a bird at ${times[0]}`, `1 person in view at ${times[1]}`, `Colours like Mittens's at ${times[2]}`, `Movement at ${times[3]}`];
+          const entries = await page.evaluate(() => [...document.querySelectorAll('section.since li.since__item')].map((item) => ({
+            what: (item.querySelector('.since__what')?.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim(),
+            way: (item.querySelector('.since__way')?.textContent || '').trim(),
+            picture: !!item.querySelector('img'),
+          })));
+          check(entries.map((entry) => entry.what).join(' | ') === wanted.join(' | '), `the entries read ${entries.map((entry) => `"${entry.what}"`).join(', ')}`);
+          const ways = entries.map((entry) => entry.way).join(', ');
+          check(ways === 'Wildlife, People, Lost and Found, Motion and sound', `the entries name the ways ${ways}`);
+          check(entries.length >= 3 && entries.slice(0, 3).every((entry) => entry.picture), `of the first three entries ${entries.slice(0, 3).filter((entry) => entry.picture).length} show a picture`);
+        }
+        await page.screenshot({ path: path.join(outDir, `dashboard-alerts-${width}-${look}.png`), fullPage: true });
+        if (width === 1280) {
+          await pressTo(page, page.locator('section.since li.since__item a').first(), '/history', 15_000);
+          check(pathOf(page) === '/history', `a press on the sighting's entry opened ${pathOf(page)}, not /history`);
+          await page.waitForTimeout(1_000);
+          await back(page);
+          await reaches(page, '/dashboard', 15_000);
+          check(await emptyShown(page), `back on the dashboard the part below reads "${await wordsAt(page, 'section.since')}"`);
+        }
+      });
+    }
+  }
+
+  await open({ name: 'since, mark all as seen', width: 390, look: 'light' }, async (page, context, check) => {
+    await dashboardWith(page, fourNew());
+    await countReads(page, 4);
+    await page.getByRole('button', { name: 'Mark all as seen', exact: true }).click();
+    check(await emptyShown(page), `after Mark all as seen the part below reads "${await wordsAt(page, 'section.since')}"`);
+    check((await page.locator('p.dash-new').count()) === 0, 'after Mark all as seen the first screen shows p.dash-new');
+    checkHistory(check, await historyReads(page, 390, 'History'), 'History');
+    const focused = await page.evaluate(() => {
+      const element = document.activeElement;
+      return element ? `${element.tagName.toLowerCase()} "${(element.textContent || '').trim()}"` : 'nothing';
+    });
+    check(focused === 'h2 "Since you last looked"', `after Mark all as seen focus is on ${focused}`);
+    await visit(page, '/history/');
+    await localTimeline(page);
+    await page.getByRole('checkbox', { name: 'Unacknowledged only' }).check();
+    const none = await page.getByText('No local events yet', { exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    check(none, 'History lists alerts not acknowledged after Mark all as seen');
+  });
+
+  await open({ name: 'since, open history', width: 390, look: 'dark' }, async (page, context, check) => {
+    await dashboardWith(page, { motion: motionAlerts(2) });
+    await countReads(page, 2);
+    await pressTo(page, page.locator('section.since').getByRole('link', { name: 'Open history', exact: true }), '/history', 15_000);
+    check(pathOf(page) === '/history', `Open history opened ${pathOf(page)}, not /history`);
+    await page.waitForTimeout(1_000);
+    await back(page);
+    await reaches(page, '/dashboard', 15_000);
+    check(await emptyShown(page), `back on the dashboard the part below reads "${await wordsAt(page, 'section.since')}"`);
+    checkHistory(check, await historyReads(page, 390, 'History'), 'History');
+  });
+
+  // The saved alerts cannot be read until the person asks again.
+  const REFUSE_DATABASE = () => {
+    const opening = IDBFactory.prototype.open;
+    IDBFactory.prototype.open = function (...args) {
+      if (window.__refuse !== false) throw new DOMException('refused', 'UnknownError');
+      return opening.apply(this, args);
+    };
+  };
+  for (const look of LOOKS) {
+    await open({ name: 'since, could not be read', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await checkProblem(page, check, 'Alerts could not be read on this device.', 'section.since');
+      const again = page.locator('section.since').getByRole('button', { name: 'Try again', exact: true });
+      check((await again.count()) === 1, 'the part below has no button "Try again"');
+      check((await page.locator('p.dash-new').count()) === 0, 'the first screen shows p.dash-new');
+      if (!(await again.count())) return;
+      await page.evaluate(() => { window.__refuse = false; });
+      await again.click();
+      check(await emptyShown(page, 15_000), `after Try again the part below reads "${await wordsAt(page, 'section.since')}"`);
+    }, { script: REFUSE_DATABASE });
+  }
+
+  // A device with no room left for the alert just raised.
+  const REFUSE_ROOM = () => {
+    IDBObjectStore.prototype.put = function () { throw new DOMException('full', 'QuotaExceededError'); };
+  };
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'since, out of room', width, look }, async (page, context, check) => {
+        await visit(page, '/settings/test-alerts/');
+        await lowAlert(page).click();
+        await page.waitForTimeout(1_000);
+        await pressTo(page, dashboardLink(page, width), '/dashboard');
+        await stateShown(page);
+        await checkProblem(page, check, OUT_OF_ROOM, 'section.since');
+        await pressTo(page, page.locator('section.since').getByRole('link', { name: 'Open settings', exact: true }), '/settings', 15_000);
+        check(pathOf(page) === '/settings', `Open settings opened ${pathOf(page)}, not /settings`);
+      }, { script: REFUSE_ROOM });
+    }
+  }
+
+  // An alert raised in another tab arrives with no reload, and the focus
+  // stays where it was.
+  await open({ name: 'since, another tab', width: 390, look: 'light' }, async (page, context, check) => {
+    await openDash(page);
+    await emptyShown(page);
+    await startKey(page).focus();
+    const second = await context.newPage();
+    await visit(second, '/settings/test-alerts/');
+    const at = await second.evaluate(() => Date.now());
+    await lowAlert(second).click();
+    check(await countReads(page, 1), `within 5 seconds the first screen reads "${await wordsAt(page, 'p.dash-new')}", not "1 new alert since you last looked."`);
+    checkHistory(check, await historyReads(page, 390, 'History 1'), 'History 1', 'History, 1 new alert');
+    const times = [plain(await clockAt(page, at)), plain(await clockAt(page, at + 60_000))];
+    const row = await wordsAt(page, 'section.since li.since__item .since__what');
+    check(times.some((time) => row === `Alert at ${time}`), `the row reads "${row}", not "Alert at ${times[0]}"`);
+    const said = await wordsAt(page, '.app-shell > [role="status"]');
+    check(said === '1 new alert', `the status region reads "${said}", not "1 new alert"`);
+    const focused = await focusedOn(page);
+    check(focused === 'Start watching', `focus moved to "${focused}"`);
+  });
+
+  for (const reduced of [false, true]) {
+    const motion = reduced ? { reducedMotion: 'reduce' } : {};
+    await open({ name: 'since, reduced motion', width: 390, look: 'dark', ...motion }, async (page, context, check) => {
+      const said = reduced ? 'under reduced motion ' : '';
+      await dashboardWith(page, { motion: motionAlerts(1) });
+      await countReads(page, 1);
+      const second = await context.newPage();
+      await visit(second, '/settings/test-alerts/');
+      await lowAlert(second).click();
+      check(await countReads(page, 2), `${said}the second alert did not arrive: the first screen reads "${await wordsAt(page, 'p.dash-new')}"`);
+      const rows = await page.evaluate(() => [...document.querySelectorAll('section.since li.since__item')].map((item) => ({
+        arrived: item.classList.contains('since__item--arrived'),
+        animation: getComputedStyle(item).animationName,
+        what: (item.querySelector('.since__what')?.textContent || '').replace(/\s+/g, ' ').trim(),
+      })));
+      const arrived = rows.filter((row) => row.arrived);
+      check(arrived.length === 1 && arrived[0].what.startsWith('Alert at '), `${said}the rows marked arrived read ${arrived.map((row) => `"${row.what}"`).join(', ') || 'nothing'}`);
+      const wanted = reduced ? 'none' : 'since-in';
+      if (arrived.length) check(arrived[0].animation === wanted, `${said}the arrived row's animation is ${arrived[0].animation}, not ${wanted}`);
+    });
+  }
+
+  await open({ name: 'since, the clock set back', width: 390, look: 'light' }, async (page, context, check) => {
+    const t0 = Date.now();
+    await dashboardWith(page, {
+      motion: [{ id: `motion-${t0}-seen`, at: t0, seen: true }, { id: `motion-${t0 - 3_600_000}-earlier`, at: t0 - 3_600_000 }],
+      people: [{ id: 'intrusion-earlier', at: t0 - 3_590_000 }],
+    });
+    check(await countReads(page, 2), `the first screen reads "${await wordsAt(page, 'p.dash-new')}", not "2 new alerts since you last looked."`);
+    checkHistory(check, await historyReads(page, 390, 'History 2'), 'History 2', 'History, 2 new alerts');
+  });
+
+  await open({ name: 'since, a run that goes on', width: 1280, look: 'light' }, async (page, context, check) => {
+    const t0 = Date.now();
+    await dashboardWith(page, {
+      people: [{ id: 'intrusion-run-1', at: t0 - 60_000, seen: true }, { id: 'intrusion-run-2', at: t0 - 55_000 }, { id: 'intrusion-run-3', at: t0 - 50_000 }],
+    });
+    checkHistory(check, await historyReads(page, 1280, 'History'), 'History');
+    await seedAlerts(page, { people: [{ id: 'intrusion-run-4', at: t0 - 10_000 }] });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    checkHistory(check, await historyReads(page, 1280, 'History 1'), 'History 1', 'History, 1 new alert');
+  });
+
+  // Lost and Found's threshold, written once for this tab, so a later
+  // value written by the walk stands after a reload.
+  const THRESHOLD_95 = () => {
+    if (sessionStorage.getItem('walk-threshold-written')) return;
+    sessionStorage.setItem('walk-threshold-written', '1');
+    localStorage.setItem('safeos-lost-found', '{"state":{"settings":{"minConfidenceForAlert":95}},"version":0}');
+  };
+  await open({ name: 'since, older frames and the threshold', width: 390, look: 'light' }, async (page, context, check) => {
+    const t0 = Date.now();
+    await dashboardWith(page, {
+      pets: [{ id: 'pet-mittens', name: 'Mittens' }],
+      matches: [{ id: 'match-older-1', pet: 'pet-mittens', at: t0 - 4_000, confidence: 80 }, { id: 'match-older-2', pet: 'pet-mittens', at: t0 - 2_000, confidence: 80 }],
+    });
+    check(await emptyShown(page), `at a threshold of 95 the part below reads "${await wordsAt(page, 'section.since')}"`);
+    await page.evaluate(() => {
+      const kept = JSON.parse(localStorage.getItem('safeos-lost-found') || '{"state":{},"version":0}');
+      kept.state = kept.state || {};
+      kept.state.settings = { ...(kept.state.settings || {}), minConfidenceForAlert: 70 };
+      localStorage.setItem('safeos-lost-found', JSON.stringify(kept));
+    });
+    await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+    check(await countReads(page, 1), `at a threshold of 70 the first screen reads "${await wordsAt(page, 'p.dash-new')}", not "1 new alert since you last looked."`);
+  }, { script: THRESHOLD_95 });
+
+  // ----- Before setup, the layouts, every width -----
+
+  const checkBeforeSetup = async (page, check, when = '') => {
+    await emptyShown(page);
+    const seen = await page.evaluate(() => {
+      const words = (el) => (el ? (el.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() : null);
+      const setup = [...document.querySelectorAll('main.dash a')].find((a) => words(a) === 'Start setup');
+      return {
+        h1: words(document.querySelector('main.dash h1')),
+        line: words(document.getElementById('dash-line')),
+        setup: setup ? setup.getAttribute('href') : null,
+        statement: words(document.querySelector('.dash-statement')),
+        rows: [...document.querySelectorAll('section.ways li.way')].map((li) => words(li.querySelector('.way__name'))),
+        squares: document.querySelectorAll('section.ways .way__square').length,
+        since: words(document.querySelector('section.since .since__empty')),
+      };
+    });
+    check(seen.h1 === 'Not watching', `${when}the heading reads "${seen.h1}", not "Not watching"`);
+    check(seen.line === BEFORE_SETUP, `${when}the line reads "${seen.line}", not "${BEFORE_SETUP}"`);
+    check(seen.setup === '/setup/', `${when}Start setup ${seen.setup ? `leads to ${seen.setup}` : 'is not there'}`);
+    check(seen.statement === plain(STATEMENT), `${when}the statement reads "${seen.statement}"`);
+    check(seen.rows.join(', ') === WAY_ROWS.join(', '), `${when}the rows read ${seen.rows.join(', ')}`);
+    check(seen.squares === 0, `${when}${seen.squares} rows hold a square`);
+    check(seen.since === NOTHING_NEW, `${when}the part below reads "${seen.since}"`);
+  };
+
+  for (const look of LOOKS) {
+    await open({ name: 'before setup', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await page.waitForTimeout(3_000);
+      check(pathOf(page) === '/dashboard', `three seconds on the address is ${pathOf(page)}, not /dashboard`);
+      await checkBeforeSetup(page, check);
+      await page.screenshot({ path: path.join(outDir, `dashboard-new-390-${look}.png`) });
+    }, { state: 'new' });
+  }
+
+  const DAMAGED_SETUP = () => { localStorage.setItem('safeos-onboarding', '{bad'); };
+  for (const look of LOOKS) {
+    await open({ name: 'before setup, a damaged record', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await checkBeforeSetup(page, check);
+      await pressTo(page, page.getByRole('link', { name: 'Start setup', exact: true }), '/setup', 15_000);
+      check(pathOf(page) === '/setup', `Start setup opened ${pathOf(page)}, not /setup`);
+    }, { state: 'new', script: DAMAGED_SETUP });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'before setup, offline', width: 390, look }, async (page, context, check) => {
+      await visitThenOffline(page, context);
+      await page.reload({ waitUntil: 'load', timeout: 60_000 });
+      await stateShown(page);
+      await dashRead(page);
+      await checkBeforeSetup(page, check, 'offline ');
+      await pressTo(page, page.getByRole('link', { name: 'Start setup', exact: true }), '/setup', 15_000);
+      check(pathOf(page) === '/setup', `offline Start setup opened ${pathOf(page)}, not /setup`);
+      const step = page.locator('#main-content main');
+      await step.getByRole('button', { name: /Begin Setup/ }).click();
+      await step.getByRole('checkbox').check();
+      await step.getByRole('button', { name: /Accept & Continue/ }).click();
+      await step.getByRole('button', { name: /Pet Monitoring/ }).click();
+      const camera = await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+      check(camera, 'offline setup does not reach the camera step, "Device Access"');
+      if (!camera) return;
+      await step.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
+      await step.getByRole('button', { name: /Enable & Continue/ }).click();
+      await lastStep(step);
+    }, { state: 'new' });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'before setup, script held', width: 390, look }, async (page, context, check) => {
+      await context.route('**/_next/static/chunks/**', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await route.continue().catch(() => {});
+      });
+      await page.goto(address('/dashboard/'), { waitUntil: 'commit', timeout: 60_000 });
+      // The page's own styles have applied once the header stands fixed.
+      await page.waitForFunction(() => {
+        const header = document.querySelector('header.app-header');
+        return !!header && !!document.querySelector('.dash-key-place') && getComputedStyle(header).position === 'fixed';
+      }, null, { timeout: 30_000 });
+      const frame = await opacityOf(page, 'section.dash-state .drawn-frame[data-loading="true"]');
+      check(frame === 1, `while the script is held the drawn frame is ${frame === -1 ? 'not loading' : `drawn at opacity ${frame}`}`);
+      const held = await page.evaluate(() => {
+        const place = document.querySelector('.dash-key-place');
+        const box = place.getBoundingClientRect();
+        return { top: box.top, height: box.height, empty: place.children.length === 0 && !place.textContent.trim() };
+      });
+      check(Math.abs(held.height - 52) <= 0.5, `while the script is held the key's place is ${held.height} px tall, not 52`);
+      check(held.empty, "while the script is held the key's place is not empty");
+      const came = await page.locator('.dash-key-place').getByRole('link', { name: 'Start setup', exact: true }).waitFor({ timeout: 30_000 }).then(() => true, () => false);
+      check(came, "Start setup did not come into the key's place");
+      if (!came) return;
+      const top = await page.evaluate(() => document.querySelector('.dash-key-place').getBoundingClientRect().top);
+      check(Math.abs(top - held.top) <= 28, `the key's place moved ${Math.abs(top - held.top).toFixed(1)} px when Start setup came, more than one body line`);
+    }, { state: 'new' });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup to the dashboard', width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await pressTo(page, page.getByRole('link', { name: 'Start setup', exact: true }), '/setup', 15_000);
+      check(pathOf(page) === '/setup', `Start setup opened ${pathOf(page)}, not /setup`);
+      const step = await throughSetup(page, 'Pet Monitoring');
+      await lastStep(step);
+      const key = step.getByRole('button', { name: 'Open dashboard', exact: true });
+      if (!(await key.count())) {
+        check(false, `the last key reads ${await keysOf(step)}, not "Open dashboard"`);
+        return;
+      }
+      check((await page.getByText('Launch Dashboard').count()) === 0, 'an element reads "Launch Dashboard"');
+      await pressTo(page, key, '/dashboard');
+      await stateShown(page);
+      await dashRead(page);
+      const heading = await wordsAt(page, 'main.dash h1');
+      check(heading === 'Not watching', `after setup the heading reads "${heading}"`);
+      const line = await lineOf(page);
+      check(line === MOTION_LINE, `after setup the line reads "${line}", not "${MOTION_LINE}"`);
+      await page.waitForTimeout(3_000);
+      check((await page.locator('[role="dialog"]').count()) === 0, 'three seconds after setup an element has role="dialog"');
+    }, { state: 'new' });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: "setup from a way's row", width: 390, look }, async (page, context, check) => {
+      await openDash(page);
+      await page.locator('section.ways a.way__link').nth(1).click();
+      await page.waitForURL((url) => url.pathname === '/setup/' && url.search === '?next=lost-found', { timeout: 15_000 }).catch(() => {});
+      const at = new URL(page.url());
+      check(at.pathname === '/setup/' && at.search === '?next=lost-found', `Lost and Found opened ${at.pathname}${at.search}, not /setup/?next=lost-found`);
+      const step = await throughSetup(page, 'Pet Monitoring');
+      await lastStep(step);
+      const key = step.getByRole('button', { name: 'Open Lost and Found', exact: true });
+      if (!(await key.count())) {
+        check(false, `the last key reads ${await keysOf(step)}, not "Open Lost and Found"`);
+        return;
+      }
+      await pressTo(page, key, '/lost-found');
+      check(pathOf(page) === '/lost-found', `the last key opened ${pathOf(page)}, not /lost-found`);
+      await page.waitForTimeout(2_000);
+      check(pathOf(page) === '/lost-found', `two seconds on the address is ${pathOf(page)}, not /lost-found`);
+      await visit(page, '/setup/');
+      await reaches(page, '/dashboard', 10_000);
+      check(pathOf(page) === '/dashboard', `setup opened again ends on ${pathOf(page)}, not /dashboard`);
+    }, { state: 'new' });
+  }
+
+  await open({ name: "setup, a use's watch", width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    const step = await throughSetup(page, 'Baby Monitoring');
+    await lastStep(step);
+    await pressTo(page, step.getByRole('button', { name: 'Open dashboard', exact: true }), '/dashboard');
+    await stateShown(page);
+    await dashRead(page);
+    await pressTo(page, startKey(page), '/monitor');
+    check(await watchRuns(page), '/monitor/ does not show Stop Monitoring');
+    const saved = await settingsOf(page);
+    const motion = saved.globalSettings ? saved.globalSettings.motionSensitivity : undefined;
+    check(saved.activePresetId === 'infant_sleep' && motion === 98, `the watch runs with ${saved.activePresetId} at ${motion}, not infant_sleep at 98`);
+  }, { state: 'new', script: FAKE_CAMERA });
+
+  // The three parts on the grid at each width, from the page's top.
+  const layoutOf = (page) => page.evaluate(() => {
+    const box = (element) => {
+      if (!element) return null;
+      const b = element.getBoundingClientRect();
+      return { top: b.top + window.scrollY, bottom: b.bottom + window.scrollY, left: b.left, right: b.right, width: b.width, height: b.height };
+    };
+    const dash = document.querySelector('main.dash');
+    const style = getComputedStyle(dash);
+    const outer = dash.getBoundingClientRect();
+    return {
+      content: { left: outer.left + parseFloat(style.paddingLeft), right: outer.right - parseFloat(style.paddingRight) },
+      state: box(document.querySelector('section.dash-state')),
+      ways: box(document.querySelector('section.ways')),
+      since: box(document.querySelector('section.since')),
+      frame: box(document.querySelector('section.dash-state .drawn-frame')),
+      key: box(document.querySelector('.dash-key-place .dash-key')),
+      rows: [...document.querySelectorAll('section.ways li.way')].map(box),
+      entries: [...document.querySelectorAll('section.since li.since__item')].map(box),
+      markAll: box([...document.querySelectorAll('section.since button')].find((button) => button.textContent.trim() === 'Mark all as seen')),
+      linkRow: box(document.querySelector('section.since .since__ways-on a.link-row')),
+    };
+  });
+  const near = (a, b, within = 1) => Math.abs(a - b) <= within;
+  const px = (n) => `${Math.round(n * 10) / 10} px`;
+  const keyPlace = {};
+  const checkLayout = (check, width, seen, setUp) => {
+    const { state, ways, since, frame, key, rows, entries, markAll, linkRow, content } = seen;
+    if (!state || !ways || !since) {
+      check(false, `the page has ${[['the watching state', state], ['the ways', ways], ['since you last looked', since]].filter(([, b]) => !b).map(([name]) => `no ${name}`).join(', ')}`);
+      return;
+    }
+    const sixteenNine = (what) => {
+      check(!!frame && near(frame.width, what.width), `the drawn frame is ${frame ? px(frame.width) : 'not there'} wide, not across the ${px(what.width)} column`);
+      if (frame) check(near(frame.height, frame.width * 9 / 16), `the drawn frame is ${px(frame.width)} by ${px(frame.height)}, not 16:9`);
+    };
+    if (width === 820) {
+      for (const [name, part] of [['the watching state', state], ['the ways', ways], ['since you last looked', since]]) check(near(part.width, 704), `${name} is ${px(part.width)} wide, not 704`);
+      sixteenNine(state);
+      check(!!key && key.width <= 400.5, `the key is ${key ? px(key.width) : 'not there'} wide, over 400`);
+      const lefts = [...new Set(rows.map((row) => Math.round(row.left)))];
+      const tops = [...new Set(rows.map((row) => Math.round(row.top)))];
+      check(rows.length === 4 && lefts.length === 2 && tops.length === 2, `the four ways stand in ${lefts.length} columns and ${tops.length} rows, not two by two`);
+      if (setUp) {
+        check(entries.length >= 1 && entries.length <= 4, `the part below lists ${entries.length} entries, not 1 to 4`);
+        check(!!markAll && !!linkRow && near(markAll.top, linkRow.top, 2), `Mark all as seen and the link row stand at ${markAll ? px(markAll.top) : 'nothing'} and ${linkRow ? px(linkRow.top) : 'nothing'}`);
+      }
+    } else if (width === 1280) {
+      check(near(state.width, 690) && near(state.left, content.left), `the watching state is ${px(state.width)} wide from ${px(state.left)}, not 690 from the row's left at ${px(content.left)}`);
+      check(near(ways.width, 486) && near(ways.left, state.right + 24), `the ways are ${px(ways.width)} wide from ${px(ways.left)}, not 486 from ${px(state.right + 24)}`);
+      const lefts = [...new Set(rows.map((row) => Math.round(row.left)))];
+      check(rows.length === 4 && lefts.length === 1 && rows.every((row, i) => i === 0 || row.top >= rows[i - 1].bottom - 0.5), 'the four ways do not stand stacked');
+      for (const [i, row] of rows.entries()) check(row.height >= 80, `the ${WAY_ROWS[i]} row is ${px(row.height)} tall, under 80`);
+      check(since.top >= Math.max(state.bottom, ways.bottom) - 0.5, `since you last looked starts at ${px(since.top)}, above the foot of the parts over it`);
+      check(near(since.width, 1200), `since you last looked is ${px(since.width)} wide, not 1200`);
+      if (setUp) {
+        const tops = entries.map((entry) => entry.top);
+        check(entries.length === 5 && Math.max(...tops) - Math.min(...tops) <= 1, `the part below lists ${entries.length} entries${entries.length ? ` with tops ${tops.map(px).join(', ')}` : ''}, not 5 on one row`);
+        check(!!markAll && !!linkRow && near(markAll.top, linkRow.top, 2), `Mark all as seen and the link row stand at ${markAll ? px(markAll.top) : 'nothing'} and ${linkRow ? px(linkRow.top) : 'nothing'}`);
+      }
+    } else {
+      const wanted = width === 1440 ? [528, 416, 304] : [531, 419, 306];
+      const parts = [state, ways, since];
+      check(Math.max(...parts.map((part) => part.top)) - Math.min(...parts.map((part) => part.top)) <= 1, `the three parts start at ${parts.map((part) => px(part.top)).join(', ')}`);
+      check(parts.every((part, i) => near(part.width, wanted[i])), `the three parts are ${parts.map((part) => px(part.width)).join(', ')} wide, not ${wanted.join(', ')} px`);
+      sixteenNine(state);
+      if (setUp) {
+        const lefts = [...new Set(entries.map((entry) => Math.round(entry.left)))];
+        check(entries.length >= 1 && entries.length <= 5 && lefts.length === 1, `the part below lists ${entries.length} entries in ${lefts.length} columns, not up to 5 stacked`);
+        check(!!markAll && !!linkRow && markAll.bottom <= linkRow.top + 0.5, `Mark all as seen ends at ${markAll ? px(markAll.bottom) : 'nothing'}, not above the link row at ${linkRow ? px(linkRow.top) : 'nothing'}`);
+      }
+    }
+    const met = meeting({ 'the watching state': state, 'the ways': ways, 'since you last looked': since });
+    check(met.length === 0, `${met.join(', ')} meet`);
+  };
+  for (const width of [820, 1280, 1440, 1920]) {
+    for (const look of LOOKS) {
+      await open({ name: 'dashboard, layouts', width, look }, async (page, context, check) => {
+        await dashboardWith(page, sixNew());
+        await countReads(page, 6);
+        await page.evaluate(() => document.fonts.ready);
+        const seen = await layoutOf(page);
+        checkLayout(check, width, seen, true);
+        if (seen.key) keyPlace[`${width}-${look}`] = seen.key;
+        await page.screenshot({ path: path.join(outDir, `dashboard-layout-${width}-${look}.png`), fullPage: true });
+      });
+    }
+  }
+  for (const width of [820, 1280, 1440]) {
+    for (const look of LOOKS) {
+      await open({ name: 'dashboard, layouts', width, look }, async (page, context, check) => {
+        await openDash(page);
+        await emptyShown(page);
+        await page.evaluate(() => document.fonts.ready);
+        const seen = await layoutOf(page);
+        checkLayout((ok, what) => check(ok, `before setup ${what}`), width, seen, false);
+        const setUpKey = keyPlace[`${width}-${look}`];
+        if (width === 1440 && setUpKey && seen.key) {
+          check(near(seen.key.left, setUpKey.left) && near(seen.key.width, setUpKey.width) && near(seen.key.height, setUpKey.height),
+            `before setup Start setup stands ${px(seen.key.left)} from the left, ${px(seen.key.width)} by ${px(seen.key.height)}, not where Start watching stands (${px(setUpKey.left)}, ${px(setUpKey.width)} by ${px(setUpKey.height)})`);
+        }
+        await page.screenshot({ path: path.join(outDir, `dashboard-layout-new-${width}-${look}.png`), fullPage: true });
+      }, { state: 'new' });
+    }
+  }
+
+  // Nothing runs past its box or the screen at any width.
+  const checkWhole = async (page, check) => {
+    const sideways = await sidewaysScroll(page);
+    check(sideways <= 0, `the page scrolls ${sideways} px sideways${sideways > 0 ? `: ${await widest(page)}` : ''}`);
+    const cut = await cutIn(page);
+    check(cut.length === 0, `words run past their box: ${cut.join('; ')}`);
+    const met = meeting(await partsOf(page));
+    check(met.length === 0, `${met.join(', ')} meet`);
+  };
+  for (const width of [320, 390, 820, 1280, 1440, 1920]) {
+    for (const look of LOOKS) {
+      await open({ name: 'dashboard, every width', width, look }, async (page, context, check) => {
+        await dashboardWith(page, fourNew());
+        await countReads(page, 4);
+        await page.evaluate(() => document.fonts.ready);
+        await checkWhole(page, check);
+        await page.screenshot({ path: path.join(outDir, `dashboard-full-${width}-${look}.png`), fullPage: true });
+      });
+    }
+  }
+
+  await open({ name: 'dashboard, landscape', width: 844, height: 390, look: 'light', isMobile: true, hasTouch: true }, async (page, context, check) => {
+    await dashboardWith(page, fourNew());
+    await countReads(page, 4);
+    await page.evaluate(() => document.fonts.ready);
+    await checkWhole(page, check);
+  });
+
+  // Text at 200 per cent: the heading wraps, the key grows and nothing is
+  // cut; Mark all as seen and its link row stand side by side where both
+  // fit and stack whole where they do not.
+  for (const [state, width, look] of [['set-up', 390, 'light'], ['set-up', 1280, 'light'], ['set-up', 820, 'light'], ['new', 390, 'dark']]) {
+    await open({ name: 'dashboard, larger text', width, look }, async (page, context, check) => {
+      const when = state === 'new' ? 'before setup ' : '';
+      if (state === 'new') await openDash(page);
+      else {
+        await dashboardWith(page, fourNew());
+        await countReads(page, 4);
+      }
+      await largerText(page);
+      const seen = await page.evaluate(() => {
+        const h1 = document.querySelector('main.dash h1');
+        const key = document.querySelector('.dash-key-place .dash-key');
+        const keyBox = key ? key.getBoundingClientRect() : null;
+        return {
+          h1: h1 ? h1.getBoundingClientRect().height / parseFloat(getComputedStyle(h1).lineHeight) : 0,
+          key: key ? { whole: key.scrollWidth <= key.clientWidth + 0.5, height: keyBox.height } : null,
+        };
+      });
+      check(seen.h1 > 1.5, `${when}the heading takes ${seen.h1.toFixed(2)} lines, not more than one`);
+      check(!!seen.key && seen.key.whole, `${when}the key's words run past it`);
+      check(!!seen.key && seen.key.height > 52, `${when}the key is ${seen.key ? px(seen.key.height) : 'not there'} tall, not over 52`);
+      const cut = await cutIn(page);
+      check(cut.length === 0, `${when}words run past their box: ${cut.join('; ')}`);
+      if (state === 'set-up' && width >= 768) {
+        const pair = await page.evaluate(() => {
+          const row = document.querySelector('section.since .since__ways-on');
+          const mark = row ? [...row.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Mark all as seen') : null;
+          const link = row ? row.querySelector('a.link-row') : null;
+          if (!row || !mark || !link) return null;
+          const a = mark.getBoundingClientRect();
+          const b = link.getBoundingClientRect();
+          return {
+            side: Math.abs(a.top - b.top) <= 2,
+            stacked: b.top >= a.bottom - 0.5,
+            markWhole: mark.scrollWidth <= mark.clientWidth + 0.5,
+            linkWhole: link.scrollWidth <= link.clientWidth + 0.5,
+            rowStill: row.scrollWidth <= row.clientWidth + 0.5,
+          };
+        });
+        if (!pair) {
+          check(false, 'the part below has no Mark all as seen and link row');
+        } else {
+          check(pair.side || pair.stacked, `Mark all as seen and the link row stand ${pair.side ? 'side by side' : pair.stacked ? 'stacked' : 'neither side by side nor stacked'}`);
+          check(pair.markWhole && pair.linkWhole, `${pair.markWhole ? 'the link row' : 'Mark all as seen'} is cut, standing ${pair.side ? 'side by side' : pair.stacked ? 'stacked' : 'apart'}`);
+          check(pair.rowStill, '.since__ways-on scrolls sideways');
+        }
+      }
+      if (state === 'set-up') {
+        const counted = await page.evaluate((selectors) => {
+          for (const selector of selectors) {
+            const link = document.querySelector(selector);
+            if (!link || link.getBoundingClientRect().height === 0) continue;
+            const number = link.querySelector('.new-count .num');
+            const word = [...link.querySelectorAll('*'), link].flatMap((node) => [...node.childNodes])
+              .find((node) => node.nodeType === Node.TEXT_NODE && node.textContent.includes('History'));
+            if (!number || !word) return { found: true, apart: null };
+            const range = document.createRange();
+            range.selectNodeContents(word);
+            const wordTop = range.getClientRects()[0]?.top ?? null;
+            range.selectNodeContents(number);
+            const numberTop = range.getClientRects()[0]?.top ?? null;
+            return { found: true, apart: wordTop === null || numberTop === null ? null : Math.abs(wordTop - numberTop) };
+          }
+          return { found: false, apart: null };
+        }, [historyLink(width), headerLink('History')]);
+        if (counted.found) check(counted.apart !== null && counted.apart <= 2, `History's count stands ${counted.apart === null ? 'apart from' : `${counted.apart.toFixed(1)} px from`} History's line`);
+        else check(width >= 768, 'History is not shown');
+      }
+      const sideways = await sidewaysScroll(page);
+      check(sideways <= 0, `${when}the page scrolls ${sideways} px sideways`);
+    }, { state });
+  }
+
+  // Tab from the header's last stop runs through the dashboard in order.
+  for (const [state, look] of [['new', 'light'], ['set-up', 'dark']]) {
+    await open({ name: 'dashboard, focus', width: 1280, look }, async (page, context, check) => {
+      const when = state === 'new' ? 'before setup ' : '';
+      if (state === 'new') await openDash(page);
+      else {
+        await dashboardWith(page, fourNew());
+        await countReads(page, 4);
+      }
+      await page.locator('header.app-header').getByRole('button', { name: `Switch to the ${OTHER[look]} look`, exact: true }).focus();
+      const rows = WAY_ROWS.map((way) => (name) => name.startsWith(`${way}:`));
+      const wanted = state === 'new'
+        ? [(name) => name === 'Start setup', ...rows]
+        : [(name) => name === 'Start watching', ...rows,
+          ...['Looks like a bird at ', '1 person in view at ', "Colours like Mittens's at ", 'Movement at '].map((what) => (name) => name.startsWith(what)),
+          (name) => name === 'Mark all as seen', (name) => name === 'Open history'];
+      const order = [];
+      for (let i = 0; i < wanted.length; i += 1) {
+        await page.keyboard.press('Tab');
+        order.push(await page.evaluate(stop));
+      }
+      const names = order.map((item) => (item ? item.name : 'nothing'));
+      check(names.every((name, i) => wanted[i](name)), `${when}Tab from the header's last stop reaches ${names.map((name) => `"${name}"`).join(' > ')}`);
+      for (const item of order.filter(Boolean)) check(item.ring === `solid 2px ${ACCENT[look]}`, `${when}"${item.name}" is ringed ${item.ring}, not solid 2px ${ACCENT[look]}`);
+      if (state === 'set-up') {
+        await page.keyboard.press('Shift+Tab');
+        const on = await page.evaluate(stop);
+        check(!!on && on.name === 'Mark all as seen', `Shift+Tab from Open history reaches "${on ? on.name : 'nothing'}"`);
+        await page.keyboard.press('Enter');
+        await emptyShown(page);
+        const focused = await page.evaluate(() => {
+          const element = document.activeElement;
+          return element ? `${element.tagName.toLowerCase()} "${(element.textContent || '').trim()}"` : 'nothing';
+        });
+        check(focused === 'h2 "Since you last looked"', `Enter on Mark all as seen puts focus on ${focused}`);
+      }
+    }, { state });
+  }
+
+  // A device cleared of its data installs its copy again, and offline the
+  // dashboard shows a new device.
+  await open({ name: 'cleared device offline', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    await page.getByRole('button', { name: 'Privacy', exact: true }).click();
+    page.once('dialog', (dialog) => { dialog.accept().catch(() => {}); });
+    await Promise.all([
+      page.waitForEvent('load', { timeout: 30_000 }).catch(() => {}),
+      page.getByRole('button', { name: 'Clear All Local Data', exact: true }).click(),
+    ]);
+    let whole = false;
+    const until = Date.now() + 30_000;
+    while (!whole && Date.now() < until) {
+      whole = await installed(page).catch(() => false);
+      if (!whole) await page.waitForTimeout(1_000);
+    }
+    check(whole, 'thirty seconds after the clear the installed copy is not whole');
+    await context.setOffline(true);
+    await page.goto(address('/dashboard/'), { waitUntil: 'load', timeout: 60_000 });
+    await stateShown(page);
+    await dashRead(page);
+    const heading = await wordsAt(page, 'main.dash h1');
+    check(heading === 'Not watching', `offline after the clear the heading reads "${heading}"`);
+    const line = await lineOf(page);
+    check(line === BEFORE_SETUP, `offline after the clear the line reads "${line}", not "${BEFORE_SETUP}"`);
+  });
 
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
