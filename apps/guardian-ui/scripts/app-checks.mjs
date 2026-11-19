@@ -2526,17 +2526,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       await visit(page, '/settings/');
       await firstRunDone(page);
       await seedAlerts(page, { motion: motionAlerts(2) });
-      await context.route('**/_next/static/chunks/**', async (route) => {
-        await new Promise((resolve) => setTimeout(resolve, 3_000));
-        await route.continue().catch(() => {});
-      });
-      await page.goto(address('/history/'), { waitUntil: 'commit', timeout: 60_000 });
-      await page.waitForFunction(() => {
-        const header = document.querySelector('header.app-header');
-        return !!header && getComputedStyle(header).position === 'fixed';
-      }, null, { timeout: 30_000 });
-      await page.evaluate(() => document.fonts.ready);
-      // Read in one frame: History opens and marks its alerts as seen, so the
+      // Read in one go: History opens and marks its alerts as seen, so the
       // count stands only until the marks are saved. With `want`, false until
       // History reads that.
       const read = ({ selectors, want }) => {
@@ -2554,9 +2544,33 @@ export async function checkApp(browser, baseUrl, outDir) {
         };
       };
       const selectors = [headerLink('Dashboard'), headerLink('History')];
+      // The count can stand for less than a frame, so a poll from outside can
+      // pass it by. An observer set before the page's own script reads the
+      // row at the change that shows the count.
+      await context.addInitScript({
+        content: `(() => {
+          const read = ${read.toString()};
+          const args = ${JSON.stringify({ selectors, want: 'History 2' })};
+          new MutationObserver(() => {
+            if (window.__countShown) return;
+            const seen = read(args);
+            if (seen) window.__countShown = seen;
+          }).observe(document, { subtree: true, childList: true, characterData: true });
+        })();`,
+      });
+      await context.route('**/_next/static/chunks/**', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await route.continue().catch(() => {});
+      });
+      await page.goto(address('/history/'), { waitUntil: 'commit', timeout: 60_000 });
+      await page.waitForFunction(() => {
+        const header = document.querySelector('header.app-header');
+        return !!header && getComputedStyle(header).position === 'fixed';
+      }, null, { timeout: 30_000 });
+      await page.evaluate(() => document.fonts.ready);
       const before = await page.evaluate(read, { selectors, want: null });
       check(before.word === 'History', `while the script is held, History reads "${before.word}"`);
-      const after = await page.waitForFunction(read, { selectors, want: 'History 2' }, { timeout: 30_000 })
+      const after = await page.waitForFunction(() => window.__countShown || false, null, { timeout: 30_000 })
         .then((handle) => handle.jsonValue(), () => null);
       if (!after) {
         const now = await page.evaluate(read, { selectors, want: null });
