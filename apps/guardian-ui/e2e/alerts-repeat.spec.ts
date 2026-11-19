@@ -598,9 +598,14 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await runUntil(page, first + 3_000);
     await page.evaluate(() => { window.__walkCamera!.changingWidth = 1 / 3; });
     await expect.poll(async () => (await walkOf(page)).cards.motion, { timeout: 40_000 }).toBe(2);
+    // The second card shows before its notification is delivered: the notification
+    // waits for the service worker's registration.
+    const motionNotifications = async () => (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    await expect.poll(async () => (await motionNotifications()).length, {
+      message: 'a notification for each event', timeout: 15_000,
+    }).toBeGreaterThanOrEqual(2);
 
-    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
-    expect(shown.length, `a notification for each event (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
+    const shown = await motionNotifications();
     expect.soft(shown[0]?.requireInteraction, 'the critical notification stays up').toBe(true);
     expect(shown[shown.length - 1]?.tag, `the new event has its own tag (${JSON.stringify(shown)})`).not.toBe(shown[0]?.tag);
   });
