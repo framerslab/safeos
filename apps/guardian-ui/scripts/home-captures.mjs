@@ -318,7 +318,7 @@ try {
     const details = { look: 'dark', viewport: '1280x720', deviceScaleFactor: 1 };
     try {
       await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-      await page.getByRole('heading', { name: 'Quick Actions', exact: true }).waitFor({ timeout: 20_000 });
+      await page.getByRole('heading', { level: 1, name: 'Not watching', exact: true }).waitFor({ timeout: 20_000 });
       await page.screenshot({ path: path.join(outDir, 'screenshots/dashboard.png') });
       await record('screenshots/dashboard.png', { ...details, crop: 'the dashboard after setup', ...pngSize(await readFile(path.join(outDir, 'screenshots/dashboard.png'))) });
 
