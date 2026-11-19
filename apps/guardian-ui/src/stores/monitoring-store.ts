@@ -170,7 +170,7 @@ function latestReplacement(id: string): Replacement | undefined {
   while (found && replacements.has(found.id)) found = replacements.get(found.id);
   return found;
 }
-// Counts this tab's Clear all. A write queued before one is still written, as the clear runs after
+// Counts this tab's Clear all. A write queued before one is written, as the clear runs after
 // it and removes what it saved, but it changes nothing on the emptied list. Should the clear fail,
 // what it wrote stays, and a save of it that failed waits for its retry.
 let localClears = 0;

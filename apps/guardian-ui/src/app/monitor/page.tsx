@@ -225,7 +225,7 @@ export default function MonitorPage() {
   }, [activeSubject, isLostFoundWatching, lostFoundSettings]);
 
   // The person's own sounds for Lost Item Found that the last match started.
-  // `round` moves on when they are let go, so a start still on its way when
+  // `round` moves on when they are let go, so a start on its way when
   // the watch stops starts nothing. Each sound is held from its start, and
   // letting go stops it unless another alert's trigger plays it too.
   const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; round: number }>({ starting: false, ids: [], round: 0 });

@@ -156,7 +156,7 @@ export function useWatchFor(watching: boolean): WatchFor {
   // the account marker's storage event tells this one. The pets held here and
   // the Lost & Found store's pet, its matches and its saved subjects are the
   // cleared device's, so they go in one step and the comparison ends with
-  // them; a read of the pets still on its way is void, and they are read again.
+  // them; a read of the pets on its way is void, and they are read again.
   useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== ACCOUNT_CLEAR_MARKER_KEY) return;

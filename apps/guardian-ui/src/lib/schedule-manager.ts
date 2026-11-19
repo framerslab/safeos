@@ -370,7 +370,7 @@ export const useScheduleStore = create<ScheduleState>()(
 
 /**
  * The setting a set time put on and the watch runs at now: the set time in
- * force, whose occurrence a check put on, while the active setting is still
+ * force, whose occurrence a check put on, while the active setting is
  * its setting. Null when the person changed the setting since, or none holds.
  */
 export function setTimeSettingInForce(now: Date = new Date()): PresetId | null {
