@@ -56,3 +56,27 @@ export function ProblemGlyph({ size = 24, className = '' }: GlyphProps) {
     </svg>
   );
 }
+
+/**
+ * A frame with a box in it and a smaller frame at its side: the picture of
+ * the moment, the box and the close-up. The frames are drawn in the line
+ * colour and the box in the accent.
+ */
+export function PicturesDrawing({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={`alert-pictures-drawing ${className}`.trim()}
+      width={132}
+      height={60}
+      viewBox="0 0 132 60"
+      fill="none"
+      strokeWidth={2}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <rect x="1" y="1" width="78" height="58" stroke="var(--ap-edge)" />
+      <rect x="34" y="22" width="30" height="24" stroke="var(--ap-accent)" />
+      <rect x="89" y="13" width="42" height="34" stroke="var(--ap-edge)" />
+    </svg>
+  );
+}

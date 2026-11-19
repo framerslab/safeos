@@ -15,6 +15,8 @@ jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => ({
 
 it('discards a thumbnail that finishes after Clear All', async () => {
   localStorage.clear();
+  // The device has answered the notice about alert pictures, so a watch starts at its key.
+  localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: { keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false }, version: 0 }));
   const cached = fakeCaches();
   const pixels = new ImageData(new Uint8ClampedArray(8 * 8 * 4).fill(255), 8, 8);
   const context = { drawImage: jest.fn(), getImageData: () => pixels, putImageData: jest.fn() };

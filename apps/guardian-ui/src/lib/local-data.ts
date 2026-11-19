@@ -12,6 +12,8 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useScheduleStore } from './schedule-manager';
 import { useThemeStore } from './theme-manager';
 import { useOnboardingStore } from '../stores/onboarding-store';
+import { useAlertPicturesStore } from '../stores/alert-pictures-store';
+import { forgetAllPictures } from './alert-pictures/keeper';
 
 /** Browser keys written without the safeos prefix. */
 const GUARDIAN_KEYS = ['guardian-schedules', 'guardian-theme', 'guardian-onboarding-complete'];
@@ -39,6 +41,9 @@ export async function clearLocalData(options: { preserveBackendConfig?: boolean 
   useAnimalAlertStore.setState({ settings: DEFAULT_ANIMAL_SETTINGS });
   useSettingsStore.getState().resetToDefaults();
   useOnboardingStore.getState().reset();
+  // The alert pictures' choices go back to their first state, and this tab lets go of every picture it shows.
+  useAlertPicturesStore.getState().reset();
+  forgetAllPictures();
 
   await Promise.all([clearClientData(), clearCustomSounds()]);
   if ('caches' in window) {

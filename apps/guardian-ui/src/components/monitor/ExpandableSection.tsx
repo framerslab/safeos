@@ -15,6 +15,8 @@ interface ExpandableSectionProps {
   icon?: React.ReactNode;
   summary: React.ReactNode;
   defaultExpanded?: boolean;
+  /** Expands the section when it turns true; the header still closes it. */
+  open?: boolean;
   children: React.ReactNode;
   onToggle?: (expanded: boolean) => void;
 }
@@ -25,10 +27,14 @@ export function ExpandableSection({
   icon,
   summary,
   defaultExpanded = false,
+  open,
   children,
   onToggle,
 }: ExpandableSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  useEffect(() => {
+    if (open) setIsExpanded(true);
+  }, [open]);
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
 

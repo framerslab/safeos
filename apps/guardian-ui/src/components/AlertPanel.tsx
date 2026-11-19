@@ -17,6 +17,7 @@ import { cardTime } from '../lib/alert-event';
 import { kindOfAlert } from '../lib/alert-pictures/rules';
 import { announceAlert, levelWords } from '../lib/alert-pictures/words';
 import { PictureBlock, alertMoment } from './alert-pictures/PictureBlock';
+import { ListLine } from './alert-pictures/ListLine';
 import { KeyRow } from './alert-pictures/KeyRow';
 import {
   IconInfo,
@@ -305,6 +306,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
           )}
         </button>
       </div>
+
+      {/* Said once: a device that ran out of room for pictures, or a window that keeps none */}
+      <ListLine />
 
       {/* Content: every card stands whole and the list scrolls with the page */}
       <div>

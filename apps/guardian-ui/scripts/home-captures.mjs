@@ -84,6 +84,10 @@ async function seededContext(browser, options) {
     localStorage.setItem('safeos-settings', JSON.stringify({ state: settings, version: 0 }));
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+    // The device has answered the notice about alert pictures, so a watch starts at its key.
+    localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+      keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+    }, version: 0 }));
   }, CAPTURE_SETTINGS);
   return context;
 }

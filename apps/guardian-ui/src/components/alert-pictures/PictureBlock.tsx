@@ -20,14 +20,17 @@ import type { CSSProperties } from 'react';
 import type { Alert } from '../../stores/monitoring-store';
 import { cardTime } from '../../lib/alert-event';
 import { kindOfAlert, type AlertKind, type Box } from '../../lib/alert-pictures/rules';
-import { usePicture, type PictureView } from '../../lib/alert-pictures/keeper';
+import { usePicture, usePictureStoreState, type PictureView } from '../../lib/alert-pictures/keeper';
 import type { PictureSet } from '../../lib/alert-pictures/capture';
 import {
   CLOSE_UP,
   DARK_LINE,
   DELETED_BY_PERSON,
+  KEEP_SWITCH,
+  NOT_KEPT_LINE,
   NO_PICTURE,
   PICTURE_CHANGE_LINE,
+  SAVE_FAILED,
   SOUND_LINE,
   UNREADABLE,
   closeUpName,
@@ -36,6 +39,7 @@ import {
   kindAtTime,
   pictureName,
 } from '../../lib/alert-pictures/words';
+import { KEEP_SWITCH_HASH, OPEN_GROUP_EVENT } from './AlertPicturesGroup';
 import { EmptyFrameGlyph, ProblemGlyph } from './Glyphs';
 
 interface PictureBlockProps {
@@ -121,6 +125,7 @@ function Words({ kind, at, zone, children }: { kind: AlertKind; at: number; zone
 export function PictureBlock({ alert, form }: PictureBlockProps) {
   const kind = kindOfAlert(alert);
   const view = usePicture(alert.pictureId);
+  const store = usePictureStoreState();
   if (!kind) return null;
 
   const at = alertMoment(alert);
@@ -139,8 +144,8 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
     );
   }
 
-  if (view.status !== 'shown') {
-    // The card and its sound come at once; a tile stands in the picture's place until it is drawn.
+  if (view.status !== 'shown' || view.kept === 'saving') {
+    // The card and its sound come at once; a tile stands in the picture's place until it is drawn and saved.
     return (
       <div className="alert-picture" data-form={form} data-status="loading">
         <div className={form === 'large' ? 'alert-picture__wait' : 'alert-picture__wait alert-picture__wait--tile'} aria-hidden="true" />
@@ -150,6 +155,11 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
   }
 
   const { set, frameUrl, closeUpUrl } = view;
+  // A picture this device could not save says so. One that is not kept by the person's choice
+  // says that and links to the switch; a window that keeps nothing and a tab that waits for a
+  // reload say it once elsewhere, and their cards carry no line of their own.
+  const failed = view.kept === 'failed';
+  const notKept = view.kept === 'memory' && store === 'usable';
 
   if (form === 'small') {
     return (
@@ -174,8 +184,28 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
           {kind === 'sound' && <p className="alert-picture__quiet">{SOUND_LINE}</p>}
         </Words>
       </div>
-      {(kind === 'picture-change' || set.dark) && (
+      {(kind === 'picture-change' || set.dark || failed || notKept) && (
         <div className="alert-picture__notes">
+          {failed && (
+            <p className="alert-picture__quiet alert-picture__why">
+              <ProblemGlyph />
+              <span>{SAVE_FAILED}</span>
+            </p>
+          )}
+          {notKept && (
+            <>
+              <p className="alert-picture__quiet">{NOT_KEPT_LINE}</p>
+              <p className="alert-picture__link-row">
+                <a
+                  className="alert-picture__link"
+                  href={KEEP_SWITCH_HASH}
+                  onClick={() => window.dispatchEvent(new Event(OPEN_GROUP_EVENT))}
+                >
+                  {KEEP_SWITCH}
+                </a>
+              </p>
+            </>
+          )}
           {kind === 'picture-change' && <p className="alert-picture__quiet">{PICTURE_CHANGE_LINE}</p>}
           {set.dark && <p className="alert-picture__quiet">{DARK_LINE}</p>}
         </div>

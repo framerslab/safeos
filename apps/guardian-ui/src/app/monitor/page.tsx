@@ -40,7 +40,8 @@ import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { detectRegionalMotion } from '../../lib/motion-detection';
 import { alertBox, boxFromCells, boxFromHotspots, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
 import { capturePictureSet, newPictureId, type PictureSet } from '../../lib/alert-pictures/capture';
-import { holdPicture } from '../../lib/alert-pictures/keeper';
+import { holdPicture, startPictureWatch, stopPictureWatch } from '../../lib/alert-pictures/keeper';
+import { useNoticeGate } from '../../components/alert-pictures/PicturesNotice';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 
@@ -414,12 +415,20 @@ export default function MonitorPage() {
   // Handlers
   // ---------------------------------------------------------------------------
 
-  const startStream = () => {
-    // A click here turns the sound on in a browser that keeps it off until a tap.
-    getSoundManager().unlockAudio();
+  // Every start of a watch goes through the notice about alert pictures: a device that has not
+  // answered it gets it before the camera starts, and keeps no picture before it has.
+  const { askBeforeStart, notice: picturesNotice } = useNoticeGate();
+
+  const beginCapture = () => {
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
+  };
+
+  const startStream = (onBack?: () => void) => {
+    // A click here turns the sound on in a browser that keeps it off until a tap.
+    getSoundManager().unlockAudio();
+    askBeforeStart(beginCapture, onBack);
   };
 
   const stopStream = () => {
@@ -503,14 +512,22 @@ export default function MonitorPage() {
       setNapWaitsForTap(true);
       return;
     }
-    captureRequestedRef.current = true;
-    setCaptureRequested(true);
-    setVideoSeen(false);
+    // On a device that has not answered the notice, it opens before the camera; Go back leaves
+    // the nap waiting for Resume nap.
+    askBeforeStart(beginCapture, () => setNapWaitsForTap(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the arrival is read once, on this mount
   }, []);
   useEffect(() => { if (captureRequested) setNapWaitsForTap(false); }, [captureRequested]);
+  // At each start the picture store is tried and pictures past their age are deleted, then
+  // every minute while the watch runs.
+  useEffect(() => {
+    if (!captureRequested) return;
+    void startPictureWatch();
+    return stopPictureWatch;
+  }, [captureRequested]);
   const resumeNap = () => {
     setNapWaitsForTap(false);
-    startStream();
+    startStream(() => setNapWaitsForTap(true));
   };
 
   // Once the nap's planned minutes have passed, the warning plays every 30
@@ -1288,7 +1305,7 @@ export default function MonitorPage() {
 
               {!captureRequested && (
                 <button
-                  onClick={startStream}
+                  onClick={() => startStream()}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
                 >
                   Start Monitoring
@@ -1629,6 +1646,9 @@ export default function MonitorPage() {
         {/* Inline Settings Panel */}
         <InlineSettingsPanel defaultExpanded={['detection']} />
       </main>
+
+      {/* The notice before the first watch on this device */}
+      {picturesNotice}
 
       {/* Quick Settings Panel - floating bottom-right (mobile fallback) */}
       <div className="lg:hidden">

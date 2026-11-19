@@ -952,13 +952,17 @@ test.describe('Keeping pictures, 390 px', () => {
   });
 });
 
-test.describe('Keeping pictures on the sample clip, 1280 px', () => {
+test.describe('The kept files, 1280 px', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
-  test.beforeEach(() => requireSampleClip());
 
   test('the frame and the close-up are kept at their sizes as JPEG files', async ({ page, context }) => {
     test.setTimeout(180_000);
-    await watchWith(page, context, { settings: clipSettings({ motion: true, sound: false }) });
+    // A 1280 by 720 camera whose left third changes: the kept frame is the frame at 640 px on its
+    // long edge, and the close-up, cut from the full frame, is brought down to 480 px on its own.
+    await watchWith(page, context, {
+      settings: MOTION_ONLY,
+      camera: { width: 1280, height: 720, background: 128, moving: { x: 0, y: 0, width: 1 / 3, height: 1 }, levels: [0, 85, 170, 255] },
+    });
     const card = cards(page).first();
     const time = await timeOf(card, 'Motion');
     await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
@@ -967,11 +971,15 @@ test.describe('Keeping pictures on the sample clip, 1280 px', () => {
     const row = keptRows(reading).find((picture) => picture.id === alert.pictureId)!;
     expect(row, 'the alert names its kept picture').toBeTruthy();
     expect(row.frame.type).toBe('image/jpeg');
-    expect([row.frameWidth, row.frameHeight]).toEqual([640, 480]);
+    expect([row.frameWidth, row.frameHeight]).toEqual([640, 360]);
+    expect([row.sourceWidth, row.sourceHeight]).toEqual([1280, 720]);
+    // The box is the six changed columns of the check's grid, 480 by 720 of the camera's frame;
+    // widened by an eighth and kept inside the frame it is 540 by 720, kept at 360 by 480.
+    expect(row.box).toEqual({ x: 0, y: 0, width: 240, height: 360 });
     expect(row.closeUp.type).toBe('image/jpeg');
-    expect(Math.max(row.closeUpWidth, row.closeUpHeight)).toBeLessThanOrEqual(480);
-    expect(await naturalSize(card.getByRole('img', { name: pictureName(time, true), exact: true }))).toEqual({ width: 640, height: 480 });
-    expect(await naturalSize(card.getByRole('img', { name: closeUpName(time), exact: true }))).toEqual({ width: row.closeUpWidth, height: row.closeUpHeight });
+    expect([row.closeUpWidth, row.closeUpHeight]).toEqual([360, 480]);
+    expect(await naturalSize(card.getByRole('img', { name: pictureName(time, true), exact: true }))).toEqual({ width: 640, height: 360 });
+    expect(await naturalSize(card.getByRole('img', { name: closeUpName(time), exact: true }))).toEqual({ width: 360, height: 480 });
     // No picture stands as a data URL in an alert's record or in local storage.
     expect(JSON.stringify(reading.alerts)).not.toContain('data:image');
     expect(await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))).not.toContain('data:image');
