@@ -1,7 +1,8 @@
 /** @jest-environment jsdom */
 /**
- * Lost & Found, Security and Wildlife can be reached from inside the app: the
- * dashboard's Quick Actions link each of them after Nap Mode.
+ * The four ways to watch can be reached from the dashboard, in one order:
+ * Motion and sound, Lost and Found, People and Wildlife, each a link to its
+ * page; before setup each opens setup with its way named.
  */
 import React from 'react';
 import { cleanup, render, screen, within } from '@testing-library/react';
@@ -19,39 +20,59 @@ jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ status: { api: 'disconnected', ollama: 'disconnected' }, config: { apiUrl: '', wsUrl: '' } }),
 }));
 
-const MODES = [
-  { name: 'Lost & Found', href: '/lost-found' },
-  { name: 'Security', href: '/security' },
-  { name: 'Wildlife', href: '/wildlife' },
-];
+// An address without its closing slash; a query stays as it is.
 const path = (link: HTMLElement) => (link.getAttribute('href') || '').replace(/\/$/, '');
+const words = (element: Element | null) => (element?.textContent || '').replace(/\s+/g, ' ').trim();
+
+/** Each way's name and the address its link opens, in the order the dashboard lists them. */
+async function ways(readKey: string): Promise<Array<[string, string]>> {
+  const section = await screen.findByRole('region', { name: 'Ways to watch' });
+  // The rows open setup once the device is read; its key shows then.
+  await screen.findByRole(readKey === 'Start setup' ? 'link' : 'button', { name: readKey });
+  return within(section).getAllByRole('link').map((link): [string, string] => [words(link.querySelector('.way__name')), path(link)]);
+}
 
 beforeEach(() => {
+  window.matchMedia = ((query: string) => ({
+    media: query,
+    matches: false,
+    onchange: null,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => true,
+  })) as unknown as typeof window.matchMedia;
   localStorage.clear();
   replace.mockClear();
   global.fetch = jest.fn().mockRejectedValue(new TypeError('Offline'));
 });
 afterEach(cleanup);
 
-it('links Lost & Found, Security and Wildlife from the Quick Actions of a dashboard opened after setup', async () => {
-  // A person who has finished setup: the page shows the dashboard, not the setup redirect.
-  localStorage.setItem('guardian-onboarding-complete', 'true');
+it('lists the four ways on a dashboard opened after setup, each a link to its page', async () => {
   useOnboardingStore.setState({
     isComplete: true,
     selectedScenario: 'pet',
     acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
   });
   render(<DashboardPage />);
-  const heading = await screen.findByRole('heading', { name: 'Quick Actions' });
+  expect(await ways('Start watching')).toEqual([
+    ['Motion and sound', '/monitor'],
+    ['Lost and Found', '/lost-found'],
+    ['People', '/security'],
+    ['Wildlife', '/wildlife'],
+  ]);
   expect(replace).not.toHaveBeenCalled();
-  const panel = within(heading.closest('.panel') as HTMLElement);
-  for (const mode of MODES) {
-    // The link's name, as a screen reader reads it, starts with the page's name.
-    const link = panel.getByRole('link', { name: new RegExp(`^${mode.name}`) });
-    expect(path(link)).toBe(mode.href);
-  }
-  // After Nap Mode, in this order; the cards that were there keep their places.
-  expect(panel.getAllByRole('link').map(path)).toEqual(
-    ['/monitor', '/nap', '/lost-found', '/security', '/wildlife', '/history', '/settings'],
-  );
+});
+
+it('before setup each way opens setup with its way named', async () => {
+  useOnboardingStore.getState().reset();
+  render(<DashboardPage />);
+  expect(await ways('Start setup')).toEqual([
+    ['Motion and sound', '/setup?next=monitor'],
+    ['Lost and Found', '/setup?next=lost-found'],
+    ['People', '/setup?next=security'],
+    ['Wildlife', '/setup?next=wildlife'],
+  ]);
+  expect(replace).not.toHaveBeenCalled();
 });

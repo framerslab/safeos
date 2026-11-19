@@ -28,14 +28,13 @@ async function app() {
   const { default: NotificationSettings } = await import('@/app/settings/notifications/page');
   const { default: Export } = await import('@/app/export/page');
   const { StatusBanner } = await import('@/components/StatusBanner');
-  const { Dashboard } = await import('@/components/Dashboard');
   const { useAuthStore: auth } = await import('@/stores/auth-store');
   const { useMonitoringStore: monitoring } = await import('@/stores/monitoring-store');
   const db = await import('@/lib/client-db');
   const { clearLocalData } = await import('@/lib/local-data');
   const { useSettingsStore: settings } = await import('@/stores/settings-store');
   settings.setState({ globalMute: true });
-  return { Providers, Monitor, History, Settings, NotificationSettings, Export, StatusBanner, Dashboard, auth, monitoring, db, clearLocalData, settings };
+  return { Providers, Monitor, History, Settings, NotificationSettings, Export, StatusBanner, auth, monitoring, db, clearLocalData, settings };
 }
 async function expectBundle(expected: string[] = ids) {
   let bundle: Blob | undefined;
@@ -86,7 +85,7 @@ beforeEach(() => {
 afterEach(() => { cleanup(); jest.restoreAllMocks(); });
 
 const six = ['saved-one', 'saved-two', 'saved-three', 'saved-four', 'saved-five', 'saved-six'];
-it.each(['Monitor', 'History', 'Dashboard'])('shows history saved before the update when %s opens first and after a reload', async (page) => {
+it.each(['Monitor', 'History'])('shows history saved before the update when %s opens first and after a reload', async (page) => {
   (await oldTab({ sessions: [], alerts: [...six.map((id, day) => monitoringAlert(id, `2026-10-0${day + 1}T00:00:00Z`)), engineOld] })).close();
   localStorage.setItem('guardian-onboarding-complete', 'true');
   for (const load of ['first', 'after the reload']) {
@@ -94,18 +93,12 @@ it.each(['Monitor', 'History', 'Dashboard'])('shows history saved before the upd
       cleanup();
       jest.resetModules();
     }
-    const { Providers, Monitor, History, Dashboard, monitoring } = await app();
-    const Page = page === 'Monitor' ? Monitor : page === 'History' ? History : Dashboard;
+    const { Providers, Monitor, History, monitoring } = await app();
+    const Page = page === 'Monitor' ? Monitor : History;
     render(<Providers><Page /></Providers>);
     if (page === 'History') fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
-    if (page === 'Dashboard') {
-      // The dashboard's panel shows the top five of the same list.
-      for (const id of six.slice(1)) expect(await screen.findByText(id)).toBeTruthy();
-      expect(screen.queryByText('saved-one')).toBeNull();
-    } else {
-      for (const id of six) expect(await screen.findByText(id)).toBeTruthy();
-      expect(listed(monitoring)).toEqual([...six].sort());
-    }
+    for (const id of six) expect(await screen.findByText(id)).toBeTruthy();
+    expect(listed(monitoring)).toEqual([...six].sort());
     expect(listed(monitoring)).not.toContain('engine-old');
     expect(screen.queryByText('Engine history')).toBeNull();
     if (page === 'History') await expectBundle(six);
