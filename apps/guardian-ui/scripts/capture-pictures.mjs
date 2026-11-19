@@ -893,7 +893,7 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
     noSupport: 'This browser cannot use a camera on this page.',
     other: 'Unable to access the camera or microphone. Check the device and try again.',
   };
-  const CAMERA_LATER = 'You can allow the camera later, on the Monitor page.';
+  const CAMERA_LATER = 'You can allow the camera later, on the Motion and sound page.';
   const CAMERA_SKIP = 'Continue without the camera';
   const problems = [];
   const PHONE = { width: 390, height: 844, isMobile: true };
@@ -1021,7 +1021,7 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
       await step.getByRole('heading', { name: /Setup Complete/ }).waitFor({ timeout: 10_000 });
       await Promise.all([
         page.waitForURL((url) => /^\/dashboard\/?$/.test(url.pathname), { timeout: 20_000 }),
-        step.getByRole('button', { name: /Launch Dashboard/ }).click(),
+        step.getByRole('button', { name: 'Open dashboard', exact: true }).click(),
       ]);
       const quickActions = page.locator('.panel')
         .filter({ has: page.getByRole('heading', { name: 'Quick Actions', exact: true }) });
