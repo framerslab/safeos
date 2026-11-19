@@ -4119,6 +4119,13 @@ export async function checkApp(browser, baseUrl, outDir) {
         return [await cache.delete('/wildlife/'), await cache.delete('/wildlife/index.txt')];
       });
       check(removed[0] && removed[1], `the installed copy ${removed[0] ? 'held' : 'did not hold'} /wildlife/ and ${removed[1] ? 'held' : 'did not hold'} /wildlife/index.txt`);
+      // The browser's own cache holds both files too, from the worker's
+      // install and from the route data the dashboard fetched ahead of a
+      // press, and it answers without a connection while they are fresh. It
+      // is emptied, so nothing on the device holds Wildlife's page.
+      const tools = await context.newCDPSession(page);
+      await tools.send('Network.clearBrowserCache');
+      await tools.detach();
       const answers = [];
       page.on('response', (response) => {
         if (new URL(response.url()).pathname === '/wildlife/index.txt') answers.push(response.status());
