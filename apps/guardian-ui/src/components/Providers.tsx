@@ -18,6 +18,7 @@ import { hydrateSavedSettings } from '@/lib/settings-hydration';
 import { useAuthStore } from '@/stores/auth-store';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { getSoundManager } from '@/lib/sound-manager';
+import { useScheduleChecker } from '@/lib/schedule-manager';
 
 // =============================================================================
 // Types
@@ -36,6 +37,9 @@ export function Providers({ children }: ProvidersProps) {
 
   const profile = useAuthStore((state) => state.profile);
   useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
+  // Set times apply on every page, from this one place. Mounted after the
+  // saved preferences are read, so a set time in force goes on over them.
+  useScheduleChecker();
   useEffect(() => { void useMonitoringStore.getState().hydrateAlerts(); }, []);
 
   // Keep SoundManager synced with user settings globally (quiet hours + emergency/mute).
@@ -45,6 +49,8 @@ export function Providers({ children }: ProvidersProps) {
     const apply = () => {
       const state = useSettingsStore.getState();
       manager.setUserVolume(state.getEffectiveVolume());
+      // Quiet hours in Emergency Only silence every level but critical.
+      manager.setCriticalVolume(state.getEffectiveVolume('critical'));
       manager.setGlobalMute(state.globalMute);
       manager.setEmergencyMode(state.emergencyModeActive);
     };

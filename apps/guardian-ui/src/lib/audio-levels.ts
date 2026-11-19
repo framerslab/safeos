@@ -73,23 +73,91 @@ const CRY_BUFFER_SIZE = 20; // ~2 seconds at 100ms intervals
 // Core Functions
 // =============================================================================
 
+/** The pitches the sound check reads, in Hz, from `low` to `high`. */
+export interface PitchRange {
+  low: number;
+  high: number;
+}
+
+/** The audio settings that choose the pitches the sound check reads. */
+export interface PitchSettings {
+  frequencyRange: string;
+  customLowFreq: number;
+  customHighFreq: number;
+}
+
+/**
+ * The pitch range the sound check reads: the two pitches set under Custom
+ * Range, 300 to 600 Hz under Baby Cry Detection (the range its line names),
+ * and every pitch (null) otherwise.
+ */
+export function pitchRangeOf(settings: PitchSettings): PitchRange | null {
+  if (settings.frequencyRange === 'custom') {
+    const { customLowFreq: a, customHighFreq: b } = settings;
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+    return { low: Math.min(a, b), high: Math.max(a, b) };
+  }
+  if (settings.frequencyRange === 'baby_cry') return { low: 300, high: 600 };
+  return null;
+}
+
+/** The analyser's size for every pitch. */
+export const ANALYSER_SIZE = 256;
+/**
+ * The analyser's size for a pitch range: about 23 Hz a bin at 48 kHz, fine
+ * enough that a sound below or above the range stays out of the bins inside it.
+ */
+export const PITCH_RANGE_ANALYSER_SIZE = 2048;
+
+/** The analyser's size the sound check uses for `range`. */
+export function analyserSizeFor(range: PitchRange | null): number {
+  return range ? PITCH_RANGE_ANALYSER_SIZE : ANALYSER_SIZE;
+}
+
+/**
+ * The analyser's bins whose pitch lies inside `range`, as [first, last]. A
+ * range narrower than a bin reads the one bin nearest its middle.
+ */
+export function binsInRange(
+  range: PitchRange,
+  binCount: number,
+  sampleRate: number,
+  fftSize: number,
+): [number, number] {
+  const binWidth = sampleRate / fftSize;
+  const last = binCount - 1;
+  const clamp = (bin: number) => Math.max(0, Math.min(last, bin));
+  const first = Math.ceil(range.low / binWidth);
+  const end = Math.floor(range.high / binWidth);
+  if (first > end) {
+    const middle = clamp(Math.round((range.low + range.high) / 2 / binWidth));
+    return [middle, middle];
+  }
+  return [clamp(first), clamp(end)];
+}
+
 /**
  * Get overall audio level from analyser
  *
  * @param analyser - Web Audio AnalyserNode
- * @returns Normalized audio level (0-1)
+ * @param range - The pitches to read; every pitch when none is given
+ * @returns Normalized audio level (0-1), from the bins inside the range
  */
-export function getAudioLevel(analyser: AnalyserNode): number {
+export function getAudioLevel(analyser: AnalyserNode, range: PitchRange | null = null): number {
   const bufferLength = analyser.frequencyBinCount;
   const dataArray = new Uint8Array(bufferLength);
   analyser.getByteFrequencyData(dataArray);
 
+  const [first, last] = range
+    ? binsInRange(range, bufferLength, analyser.context.sampleRate, analyser.fftSize)
+    : [0, bufferLength - 1];
+
   // Calculate RMS (Root Mean Square)
   let sum = 0;
-  for (let i = 0; i < bufferLength; i++) {
+  for (let i = first; i <= last; i++) {
     sum += dataArray[i] * dataArray[i];
   }
-  const rms = Math.sqrt(sum / bufferLength);
+  const rms = Math.sqrt(sum / (last - first + 1));
 
   // Normalize to 0-1 (max byte value is 255)
   return rms / 255;

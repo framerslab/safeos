@@ -111,7 +111,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
 
     const cfgByLevel = new Map(sortedLevels.map((l) => [l.level, l]));
 
-    const playLevel = (level: number) => {
+    const playLevel = (level: number, alert: Alert) => {
       const cfg = cfgByLevel.get(level);
       if (!cfg) return;
 
@@ -119,11 +119,15 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
       // below starts and stops for every alert at that level together.
       if (level >= maxLevel) return;
 
+      // The alert's own level sets its volume: quiet hours in Emergency Only
+      // sound a critical alert and silence the others.
+      const critical = alert.severity === 'critical';
+      const alertVolume = useSettingsStore.getState().getEffectiveVolume(alert.severity);
       const soundType = cfg.soundType as SoundType;
-      if (muted || effectiveVolume <= 0) return;
+      if (muted || alertVolume <= 0) return;
 
-      const volume = Math.max(0, Math.min(100, effectiveVolume * cfg.volumeMultiplier));
-      getSoundManager().play(soundType, { loop: false, volume });
+      const volume = Math.max(0, Math.min(100, alertVolume * cfg.volumeMultiplier));
+      getSoundManager().play(soundType, { loop: false, volume, critical });
     };
 
     const tick = () => {
@@ -144,7 +148,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
         nextLevels.set(alert.id, nextLevel);
 
         if (nextLevel > prevLevel) {
-          playLevel(nextLevel);
+          playLevel(nextLevel, alert);
         }
       }
 
