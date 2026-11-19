@@ -152,16 +152,29 @@ const savedSessions = (page: Page): Promise<number> =>
 const settingsSource = (page: Page): Promise<string | null> =>
   page.evaluate(() => JSON.parse(localStorage.getItem('safeos-settings') || '{}')?.state?.settingsSourceId ?? null);
 
+/**
+ * A monitoring server's address the person saved in the app, where nothing
+ * answers. With an address saved, the watch starts a session; with no answer,
+ * the session and its account are this browser's own.
+ */
+const SERVER_WITH_NO_ANSWER = { apiUrl: 'http://127.0.0.1:4174', wsUrl: 'ws://127.0.0.1:4174', configured: true };
+
 test("a set time in force is put on over the preferences an account brings when it is restored", async ({ page, context }) => {
   test.setTimeout(120_000);
-  // 21:00: the night set time is not in force. The first visit makes the browser's account.
+  // 21:00: the night set time is not in force. The first visit to the watch makes the browser's account.
   await page.clock.install({ time: new Date('2026-11-18T21:00:00Z') });
   await setUpDevice(context, { use: 'baby', schedules: NIGHT_EVERY_DAY });
-  await page.goto('/dashboard/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await context.addInitScript((server) => {
+    if (!localStorage.getItem('safeos_backend_config')) localStorage.setItem('safeos_backend_config', JSON.stringify(server));
+  }, SERVER_WITH_NO_ANSWER);
+  await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   await expect.poll(() => savedSessions(page), { timeout: 30_000 }).toBeGreaterThan(0);
   await expect.poll(() => settingsSource(page), { timeout: 15_000 }).toMatch(/^account:/);
+  expect(await savedSetting(page)).toBe('maximum');
 
-  // The account holds sensitivities and a volume an earlier version saved, which this browser has not imported.
+  // The account holds sensitivities and a volume an earlier version saved, which this browser has
+  // not imported. They are written from a page the app does not run on, so nothing saves over them.
+  await page.goto('/manifest.json', { timeout: 60_000 });
   await page.evaluate(() => new Promise<void>((resolve, reject) => {
     const preferences = { motionSensitivity: 0.3, audioSensitivity: 0.3, alertVolume: 0.5, theme: 'dark' };
     const opening = indexedDB.open('safeos-guardian');
@@ -186,17 +199,21 @@ test("a set time in force is put on over the preferences an account brings when 
       writing.onerror = () => { database.close(); reject(writing.error); };
     };
   }));
+  expect(await settingsSource(page)).toBeNull();
 
-  // 23:00, inside the night set time: the app opens again and restores the account.
+  // 23:00, inside the night set time: the watch opens again and restores the account.
   await page.clock.setSystemTime(new Date('2026-11-18T23:00:00Z'));
-  await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+  await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   await expect.poll(() => settingsSource(page), { timeout: 30_000 }).toMatch(/^account:/);
   await expect.poll(() => savedSetting(page), { timeout: 15_000 }).toBe('night');
-  // Night's own values, motion 40, not the account's 30.
+  // Night's own values, motion 40 and audio 60, not the account's 30.
   expect(await savedValue(page, 'motionSensitivity')).toBe(40);
+  await expect(page.getByText('Night Mode', { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/^Motion: 40% \| Audio: 60%/)).toBeVisible();
   await page.waitForTimeout(2_000);
   expect(await savedValue(page, 'motionSensitivity')).toBe(40);
   expect(await savedSetting(page)).toBe('night');
+  await page.screenshot({ path: test.info().outputPath('set-time-account-restored-1280.png') });
 });
 
 /** A set time saved with a setting the form does not offer: `balanced` from an earlier form, or Custom. */
