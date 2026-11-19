@@ -3387,12 +3387,67 @@ export async function checkApp(browser, baseUrl, outDir) {
     const sentence = [...document.querySelectorAll('.dash-problems p.dash-problem')].find((p) => words(p) === w);
     return { line: words(line), under: !!line && !!sentence && sentence.getBoundingClientRect().top >= line.getBoundingClientRect().bottom - 0.5 };
   }, wanted);
+  // What this window's storage measures, as the page's own check reads it:
+  // the answer the page kept, and what a commit asked to reach the disk costs
+  // beside one that is not. Printed for each private window walk, so a
+  // finding can be read against the window it ran in.
+  const storageMeasure = (page) => page.evaluate(async () => {
+    let memo = 'unreadable';
+    try { memo = sessionStorage.getItem('safeos-window-storage'); } catch (e) { /* storage refused */ }
+    try {
+      const name = `walk-measure-${Math.random().toString(36).slice(2)}`;
+      const db = await new Promise((resolve, reject) => {
+        const request = indexedDB.open(name, 1);
+        request.onupgradeneeded = () => request.result.createObjectStore('s');
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+      const timed = (durability) => new Promise((resolve, reject) => {
+        const started = performance.now();
+        const payload = new Uint8Array(16384);
+        let written = 0;
+        const next = () => {
+          if (written === 15) {
+            resolve(performance.now() - started);
+            return;
+          }
+          const tx = db.transaction('s', 'readwrite', { durability });
+          tx.objectStore('s').put(payload, written);
+          written += 1;
+          tx.oncomplete = next;
+          tx.onerror = () => reject(tx.error);
+          tx.onabort = () => reject(tx.error);
+        };
+        next();
+      });
+      const hinted = db.transaction('s', 'readwrite', { durability: 'strict' });
+      const honoured = hinted.durability;
+      hinted.abort();
+      await timed('relaxed');
+      await timed('strict');
+      const ratios = [];
+      const costs = [];
+      for (let round = 0; round < 7; round += 1) {
+        const relaxed = await timed('relaxed');
+        const strict = await timed('strict');
+        ratios.push(relaxed > 0 ? strict / relaxed : Infinity);
+        costs.push(`${relaxed.toFixed(1)}/${strict.toFixed(1)}`);
+      }
+      db.close();
+      indexedDB.deleteDatabase(name);
+      ratios.sort((a, b) => a - b);
+      return `the page kept "${memo}"; a commit asked to reach the disk costs ${ratios[3].toFixed(2)} times one that is not (durability ${honoured}; ms of each round ${costs.join(' ')})`;
+    } catch (err) {
+      return `the page kept "${memo}"; the measure failed: ${err && err.message}`;
+    }
+  });
   for (const look of LOOKS) {
     await open({ name: 'private window', width: 390, look }, async (page, context, check) => {
       await openDash(page);
       await checkProblem(page, check, FORGETS);
       const keys = await startKey(page).count();
       check(keys === 1, `with the sentence the page holds ${keys} keys, not the key`);
+      console.log(`measured private window at 390 px, ${look}, a window that keeps nothing: ${await storageMeasure(page)}`);
     }, { windowStorage: 'probe' });
 
     await open({ name: 'private window', width: 390, look }, async (page, context, check) => {
@@ -3420,14 +3475,17 @@ export async function checkApp(browser, baseUrl, outDir) {
       await page.waitForTimeout(3_000);
       const said = (await problemsOf(page)).some((p) => p.words === FORGETS);
       check(!said, `a profile kept on disk is told "${FORGETS}"`);
+      console.log(`measured private window at 390 px, ${look}, a profile kept on disk: ${await storageMeasure(page)}`);
     });
   }
 
   // A browser that refuses this site's storage on every call: the page
   // shows a new device's state, and no part of it throws.
+  // Each refusal names its call and its key, so an error the page raises
+  // says which part let it out.
   const REFUSE_STORAGE = () => {
     for (const name of ['getItem', 'setItem', 'removeItem']) {
-      Storage.prototype[name] = function () { throw new DOMException('denied', 'SecurityError'); };
+      Storage.prototype[name] = function (key) { throw new DOMException(`denied: ${name} of ${key}`, 'SecurityError'); };
     }
   };
   for (const look of LOOKS) {
