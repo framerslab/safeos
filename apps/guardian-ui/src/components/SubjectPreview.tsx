@@ -33,6 +33,12 @@ interface SubjectPreviewProps {
   onClick?: () => void;
   /** Photos added here were saved to the subject, as given. */
   onPhotosSaved?: (saved: SubjectProfileDB) => void;
+  /**
+   * The account marker the subject was read under, when the caller knows it.
+   * Photos are saved only while local storage holds that marker; without it,
+   * the marker read as the photos are picked counts.
+   */
+  savedUnder?: () => string;
 }
 
 // =============================================================================
@@ -45,6 +51,7 @@ export function SubjectPreview({
   onClose,
   onClick,
   onPhotosSaved,
+  savedUnder,
 }: SubjectPreviewProps) {
   const {
     activeSubject,
@@ -98,7 +105,7 @@ export function SubjectPreview({
     setIsUpdatingReferences(true);
     // The photos are added to the subject as it is now. Once all local data is cleared, in this
     // tab or another, the subject is gone and nothing of it is saved back.
-    const clearedUnder = readAccountClearMarker();
+    const clearedUnder = savedUnder ? savedUnder() : readAccountClearMarker();
     const current = () => readAccountClearMarker() === clearedUnder;
 
     try {
@@ -150,7 +157,7 @@ export function SubjectPreview({
       setIsUpdatingReferences(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
-  }, [activeSubject, updateSubject, onPhotosSaved]);
+  }, [activeSubject, updateSubject, onPhotosSaved, savedUnder]);
 
   if (!activeSubject) {
     return null;

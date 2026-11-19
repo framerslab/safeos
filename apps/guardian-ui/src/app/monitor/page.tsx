@@ -136,6 +136,7 @@ export default function MonitorPage() {
   // with. It compares while the watch runs; from 1024 px the pet's card
   // heads the right column.
   const watchFor = useWatchFor(captureRequested);
+  const petsMarker = watchFor.petsMarker;
   const wide = useWideWatch();
   const petCard = wide && watchFor.way === 'lost_found';
 
@@ -252,9 +253,11 @@ export default function MonitorPage() {
       if (matcher.shouldRecord() && result.frameData) {
         // Create match frame and save to IndexedDB (async thumbnail creation)
         // A match is the pet's it was read for: once all local data is cleared,
-        // in this tab or another, it is not saved.
+        // in this tab or another, it is not saved. The pet counts under the
+        // account marker the watch read its pets under, so a match made after
+        // another tab's clear landed and before this tab heard of it is void too.
         const generation = getLocalDataGeneration();
-        const clearedUnder = readAccountClearMarker();
+        const clearedUnder = petsMarker();
         const current = () => readAccountClearMarker() === clearedUnder;
         const frameData = result.frameData;
         createThumbnail(frameData).then((thumbnailData) => {
@@ -336,6 +339,7 @@ export default function MonitorPage() {
     addRecentMatch,
     addMatchFrameToStore,
     recordLostFoundAlert,
+    petsMarker,
   ]);
 
   // The person's own Lost & Found sounds stop when the Lost & Found watch ends,
@@ -1544,7 +1548,7 @@ export default function MonitorPage() {
                   <IconSearch size={18} />
                   Lost and Found
                 </h2>
-                <SubjectPreview mode="full" showClose={false} onPhotosSaved={watchFor.photosSaved} />
+                <SubjectPreview mode="full" showClose={false} onPhotosSaved={watchFor.photosSaved} savedUnder={petsMarker} />
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <Link
                     href="/lost-found/gallery"

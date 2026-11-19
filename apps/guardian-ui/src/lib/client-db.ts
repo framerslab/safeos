@@ -1292,27 +1292,42 @@ export interface MatchFrameDB {
 
 /**
  * Saves a match of the comparison. Nothing is written once this tab has cleared all local data
- * since `generation`, or once `current()` no longer holds (another tab's clear, which this tab
- * reads from the account marker).
+ * since `generation`. With `current`, the match is written only while `current()` holds, read
+ * inside this write's own transaction after its first request, so a save queued behind another
+ * tab's clear of all local data in progress is cancelled once that clear has committed.
  */
 export async function saveMatchFrame(
   frame: MatchFrameDB,
   generation = getLocalDataGeneration(),
   current?: () => boolean
 ): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    if (!isCurrentLocalData(generation) || (current && !current())) return;
-    await db.put('match_frame', frame);
-    
-    // Update subject match count
     if (!isCurrentLocalData(generation)) return;
+    if (current) {
+      tx = db.transaction('match_frame', 'readwrite');
+      await tx.store.get(frame.id);
+      if (!current()) {
+        await tx.done;
+        return;
+      }
+      await tx.store.put(frame);
+      await tx.done;
+      tx = undefined;
+    } else {
+      await db.put('match_frame', frame);
+    }
+
+    // Update subject match count
+    if (!isCurrentLocalData(generation) || (current && !current())) return;
     await updateSubjectMatchCount(frame.subjectId, 1);
-    
+
     // Enforce max limit
     await cleanupExcessMatchFrames();
   } catch (error) {
     console.warn('[ClientDB] Failed to save match frame:', error);
+    await abandonTransaction(tx);
   }
 }
 

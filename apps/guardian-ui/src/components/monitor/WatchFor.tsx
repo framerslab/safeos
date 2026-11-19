@@ -86,6 +86,12 @@ export interface WatchFor {
    * saved pet by its id, whichever pet is the watch's by then.
    */
   photosSaved: (saved: SubjectProfileDB) => void;
+  /**
+   * The account marker the pets were read under. A photo or a match of one of
+   * them is saved only while local storage holds this same marker: a clear of
+   * all local data in another tab writes a new one, before this watch hears of it.
+   */
+  petsMarker: () => string;
 }
 
 const toSubject = (pet: SubjectProfileDB): SubjectProfile => ({
@@ -121,6 +127,7 @@ export function useWatchFor(watching: boolean): WatchFor {
   const [petsRead, setPetsRead] = useState<PetsRead>('loading');
   // Counts the clears of all local data this watch has heard of; each one reads the pets again.
   const [clears, setClears] = useState(0);
+  const readUnderRef = useRef(readAccountClearMarker());
   useEffect(() => {
     let current = true;
     const readUnder = readAccountClearMarker();
@@ -133,6 +140,7 @@ export function useWatchFor(watching: boolean): WatchFor {
           setClears((count) => count + 1);
           return;
         }
+        readUnderRef.current = readUnder;
         setPets(saved);
         setPetsRead('ready');
       })
@@ -254,7 +262,9 @@ export function useWatchFor(watching: boolean): WatchFor {
     setPets((held) => held.map((record) => (record.id === saved.id ? saved : record)));
   }, []);
 
-  return { way, lostFoundChosen, chooseWay, pets, petsRead, pet, choosePet, comparing, status, photosSaved };
+  const petsMarker = useCallback(() => readUnderRef.current, []);
+
+  return { way, lostFoundChosen, chooseWay, pets, petsRead, pet, choosePet, comparing, status, photosSaved, petsMarker };
 }
 
 const WIDE = '(min-width: 1024px)';
