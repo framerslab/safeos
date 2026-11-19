@@ -984,7 +984,7 @@ test('a person an earlier version saved, opened and closed on the Lost & Found p
   await expect(page.getByRole('button', { name: 'Start Monitoring' })).toHaveCount(0);
   expect(await storedPetId(page)).toBe(TOFU.id);
   // And closed again.
-  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.getByRole('button', { name: 'Close Sam', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Currently Watching' })).toHaveCount(0);
   expect(await storedPetId(page)).toBe(TOFU.id);
 
