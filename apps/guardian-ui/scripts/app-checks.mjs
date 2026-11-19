@@ -98,7 +98,6 @@ export async function checkApp(browser, baseUrl, outDir) {
   const sidewaysScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
   // The checks of each part are added below this line.
-  void expect;
 
   // ---------------------------------------------------------------------------
   // The app's frame
@@ -1692,7 +1691,6 @@ export async function checkApp(browser, baseUrl, outDir) {
   const LINE = { light: 'rgb(73, 80, 87)', dark: 'rgb(156, 163, 175)' };
   const ACCENT_HOVER = { light: 'rgb(5, 46, 22)', dark: 'rgb(134, 239, 172)' };
   const ALERT = { light: 'rgb(153, 27, 27)', dark: 'rgb(251, 146, 60)' };
-  void PANEL; void ALERT;
 
   // ---------------------------------------------------------------------------
   // The page before script runs
@@ -4911,6 +4909,247 @@ export async function checkApp(browser, baseUrl, outDir) {
     const line = await lineOf(page);
     check(line === BEFORE_SETUP, `offline after the clear the line reads "${line}", not "${BEFORE_SETUP}"`);
   });
+
+  // ---------------------------------------------------------------------------
+  // Old addresses
+  // ---------------------------------------------------------------------------
+  // Four old addresses forward to the page that does their job now. With
+  // script the page replaces itself, adding no entry to the history, so Back
+  // returns to the page before it. Without script it says in one line where
+  // the page went and links it. Each asks search engines not to index it, and
+  // robots.txt and the sitemap name none of them. Nap Mode, the gallery and
+  // the export keep their own pages, and Help holds no key to the tip walk.
+
+  const FORWARDS = [
+    { from: '/tutorial/', to: '/help/', line: 'Getting started is in Help.', link: 'Open help' },
+    { from: '/analytics/', to: '/history/', line: 'Past alerts are in History.', link: 'Open history' },
+    { from: '/profiles/', to: '/settings/detection/', line: 'Watch settings are in Detection.', link: 'Open Detection' },
+    { from: '/donate/', to: '/about/', line: 'Read about SafeOS.', link: 'Open About SafeOS' },
+  ];
+  // The address a page shows, with its query.
+  const whereIs = (page) => {
+    const url = new URL(page.url());
+    return `${url.pathname}${url.search}`;
+  };
+  const reaches = (page, to, timeout) => page.waitForURL((url) => url.pathname === to && url.search === '', { timeout })
+    .then(() => true, () => false);
+
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'forwards, each', width, look }, async (page, context, check) => {
+        for (const { from, to } of FORWARDS) {
+          await visit(page, '/settings/');
+          await page.goto(address(from), { waitUntil: 'load', timeout: 60_000 });
+          const reached = await reaches(page, to, 5_000);
+          check(reached, `${from} is kept at ${whereIs(page)} 5 seconds after it loads, not ${to}`);
+          if (!reached) continue;
+          await page.goBack({ waitUntil: 'commit', timeout: 15_000 }).catch(() => {});
+          const back = await reaches(page, '/settings/', 10_000);
+          check(back, `Back from ${to}, where ${from} went, gives ${whereIs(page)}, not /settings/`);
+        }
+      });
+    }
+  }
+
+  // Without script: the address stays, the line and the link are drawn at
+  // full strength and whole with text at 200 per cent, the held link sits
+  // 1 px lower (in place under reduced motion), and the press opens the
+  // target.
+  const scriptsOff = async (page, check, rows, reduced) => {
+    for (const { from, to, line, link } of rows) {
+      await visit(page, from);
+      check(whereIs(page) === from, `${from} without script moves to ${whereIs(page)}`);
+      const headings = await page.evaluate(() => [...document.querySelectorAll('h1')]
+        .map((h1) => (h1.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim()));
+      check(headings.length === 1 && headings[0] === line,
+        `${from} without script is headed ${headings.map((words) => `"${words}"`).join(', ') || 'by nothing'}, not "${line}" alone`);
+      const named = page.getByRole('link', { name: link, exact: true });
+      const count = await named.count();
+      check(count === 1, `${from} without script holds ${count} links named "${link}", not 1`);
+      if (count !== 1) continue;
+      for (const [what, selector] of [['the line', 'main.forward h1'], ['the link', 'main.forward a']]) {
+        const opacity = await opacityOf(page, selector);
+        check(opacity === 1, `on ${from} ${what} is ${opacity === -1 ? 'not in main.forward' : `drawn at opacity ${opacity}, not 1`}`);
+      }
+      await largerText(page);
+      const sideways = await sidewaysScroll(page);
+      check(sideways <= 0, `${from} with text at 200 per cent scrolls ${sideways} px sideways`);
+      const cut = await page.evaluate(() => [['the line', 'main.forward h1'], ['the link', 'main.forward a']]
+        .filter(([, selector]) => {
+          const element = document.querySelector(selector);
+          return !element || element.scrollWidth > element.clientWidth;
+        })
+        .map(([what]) => what));
+      check(cut.length === 0, `on ${from} with text at 200 per cent ${cut.join(' and ')} is cut`);
+      await named.hover({ timeout: 5_000 });
+      await page.mouse.down();
+      await page.waitForTimeout(300);
+      const transform = await named.evaluate((a) => getComputedStyle(a).transform);
+      const want = reduced ? 'none' : 'matrix(1, 0, 0, 1, 0, 1)';
+      check(transform === want, `on ${from} the link held down is drawn with ${transform}, not ${want}${reduced ? ' under reduced motion' : ''}`);
+      await page.mouse.up();
+      const opened = await reaches(page, to, 15_000);
+      check(opened, `the press on "${link}" on ${from} opened ${whereIs(page)}, not ${to}`);
+    }
+  };
+  for (const look of LOOKS) {
+    await open({ name: 'forwards, scripts off', width: 390, look, javaScriptEnabled: false }, async (page, context, check) => {
+      await scriptsOff(page, check, FORWARDS, false);
+    });
+  }
+  await open({ name: 'forwards, scripts off', width: 390, look: 'light', javaScriptEnabled: false, reducedMotion: 'reduce' }, async (page, context, check) => {
+    await scriptsOff(page, check, FORWARDS.filter(({ from }) => from === '/tutorial/' || from === '/donate/'), true);
+  });
+
+  // The forward's layout without script: a centred block 640 px wide at
+  // 820 px, the line in the 12 columns' left 7 beside the link in the right 5
+  // at 1280 px, the line at 20 on 30 px in the left 5 beside the link in the
+  // middle 4 at 1440 px; words in the ink and the underline in the accent.
+  for (const width of [820, 1280, 1440]) {
+    for (const look of LOOKS) {
+      await open({ name: 'forwards, layouts', width, look, javaScriptEnabled: false }, async (page, context, check) => {
+        await visit(page, '/tutorial/');
+        const seen = await page.evaluate(() => {
+          const block = document.querySelector('main.forward');
+          const line = block?.querySelector('.forward__line');
+          const link = block?.querySelector('.forward__link');
+          if (!block || !line || !link) return null;
+          // The box of the first line of an element's words. The line and the
+          // link share one face and one size, so the foot of each box stands
+          // one descent below its baseline, and two feet level are two
+          // baselines level.
+          const firstLine = (element) => {
+            const texts = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+            for (let text = texts.nextNode(); text; text = texts.nextNode()) {
+              if (!text.textContent.trim()) continue;
+              const range = document.createRange();
+              range.selectNodeContents(text);
+              const box = [...range.getClientRects()].find((rect) => rect.width > 0);
+              if (box) return box;
+            }
+            return null;
+          };
+          const box = block.getBoundingClientRect();
+          const lineBox = line.getBoundingClientRect();
+          const linkBox = link.getBoundingClientRect();
+          const lineStyle = getComputedStyle(line);
+          const linkStyle = getComputedStyle(link);
+          return {
+            width: box.width,
+            centre: box.left + box.width / 2,
+            screen: document.documentElement.clientWidth,
+            rowLeft: box.left + parseFloat(getComputedStyle(block).paddingLeft),
+            lineLeft: lineBox.left,
+            lineBottom: lineBox.bottom,
+            linkLeft: linkBox.left,
+            linkTop: linkBox.top,
+            lineFoot: firstLine(line)?.bottom ?? null,
+            linkFoot: firstLine(link)?.bottom ?? null,
+            size: `${lineStyle.fontSize}/${lineStyle.lineHeight}`,
+            lineColour: lineStyle.color,
+            linkColour: linkStyle.color,
+            underline: linkStyle.textDecorationColor,
+          };
+        });
+        if (!seen) throw new Error('/tutorial/ without script holds no main.forward with its line and its link');
+        if (width === 820) {
+          check(Math.abs(seen.width - 640) <= 0.5, `the block is ${seen.width} px wide, not 640`);
+          check(Math.abs(seen.centre - seen.screen / 2) <= 2, `the block's centre is at ${seen.centre} px on a ${seen.screen} px screen`);
+          check(seen.lineBottom <= seen.linkTop + 0.5, `the line ends at ${seen.lineBottom} px, below the link's top at ${seen.linkTop} px`);
+        }
+        if (width === 1280) {
+          check(Math.abs(seen.lineLeft - seen.rowLeft) <= 0.5, `the line starts at ${seen.lineLeft} px, not at the row's left, ${seen.rowLeft} px`);
+          check(Math.abs(seen.linkLeft - seen.lineLeft - 714) <= 1, `the link starts ${seen.linkLeft - seen.lineLeft} px from the line, not 714 (the eighth column)`);
+        }
+        if (width === 1440) {
+          check(Math.abs(seen.linkLeft - seen.lineLeft - 560) <= 1, `the link starts ${seen.linkLeft - seen.lineLeft} px from the line, not 560 (the sixth column)`);
+          check(seen.size === '20px/30px', `the line is set at ${seen.size}, not 20px/30px`);
+        }
+        if (width >= 1280) {
+          check(seen.lineFoot !== null && seen.linkFoot !== null && Math.abs(seen.lineFoot - seen.linkFoot) <= 2,
+            `the first lines of the line and the link are not level: their feet are at ${seen.lineFoot} and ${seen.linkFoot} px`);
+        }
+        check(seen.lineColour === INK[look], `the line is ${seen.lineColour}, not ${INK[look]}`);
+        check(seen.linkColour === INK[look], `the link's words are ${seen.linkColour}, not ${INK[look]}`);
+        check(seen.underline === ACCENT[look], `the link's underline is ${seen.underline}, not ${ACCENT[look]}`);
+        await page.screenshot({ path: path.join(outDir, `forward-tutorial-${width}-${look}.png`), fullPage: true });
+      });
+    }
+  }
+
+  // Offline, the installed copy holds the forward and its target.
+  for (const look of LOOKS) {
+    await open({ name: 'forwards, offline', width: 390, look }, async (page, context, check) => {
+      await visitThenOffline(page, context);
+      await page.goto(address('/tutorial/'), { waitUntil: 'load', timeout: 30_000 });
+      const reached = await reaches(page, '/help/', 15_000);
+      check(reached, `/tutorial/ opened offline is kept at ${whereIs(page)}, not /help/`);
+      if (!reached) return;
+      const headed = await page.waitForFunction(() => (document.querySelector('h1')?.textContent || '').trim() === 'Help & FAQ', null, { timeout: 15_000 })
+        .then(() => true, () => false);
+      const h1 = await page.evaluate(() => (document.querySelector('h1')?.textContent || '').replace(/\s+/g, ' ').trim());
+      check(headed, `/help/ reached offline from /tutorial/ is headed "${h1}", not "Help & FAQ"`);
+    });
+  }
+
+  // Each forward's own head, read without script so the page that is read is
+  // the forward itself: with script it replaces itself, and the head becomes
+  // its target's.
+  await open({ name: 'forwards, heads', width: 1280, look: 'light', javaScriptEnabled: false }, async (page, context, check) => {
+    for (const { from } of FORWARDS) {
+      await visit(page, from);
+      const robots = await page.evaluate(() => [...document.querySelectorAll('meta[name="robots"]')].map((tag) => tag.getAttribute('content') || '').join('; '));
+      check(/\bnoindex\b/.test(robots), `${from} carries ${robots ? `the robots tag "${robots}"` : 'no robots tag'}, not one that holds noindex`);
+    }
+    const read = async (file) => {
+      const response = await context.request.get(address(file), { timeout: 30_000 });
+      if (!response.ok()) throw new Error(`${file} answers ${response.status()}`);
+      return response.text();
+    };
+    // A Disallow line keeps a crawler from every address that starts with it.
+    const kept = (await read('/robots.txt')).split('\n').map((line) => line.match(/^\s*Disallow:\s*(\S+)/i)?.[1]).filter(Boolean);
+    for (const { from } of FORWARDS) {
+      const rule = kept.find((start) => from.startsWith(start));
+      check(!rule, `robots.txt keeps a crawler from ${from} with "Disallow: ${rule}", so its noindex tag is never read`);
+    }
+    const listed = [...(await read('/sitemap.xml')).matchAll(/<loc>([^<]+)<\/loc>/g)].map((entry) => new URL(entry[1].trim()).pathname);
+    for (const { from } of FORWARDS) {
+      const found = listed.filter((pathname) => pathname.startsWith(from));
+      check(found.length === 0, `the sitemap lists ${found.join(', ')}`);
+    }
+  });
+
+  // What keeps its own page: the gallery and the export, which History will
+  // take in, and Nap Mode.
+  await open({ name: 'forwards, what stays', width: 1280, look: 'light' }, async (page, context, check) => {
+    for (const route of ['/lost-found/gallery/', '/export/', '/nap/']) {
+      await visit(page, route);
+      await page.waitForTimeout(3_000);
+      const seen = await page.evaluate(() => ({ at: `${location.pathname}${location.search}`, forward: document.querySelector('main.forward') !== null }));
+      check(seen.at === route, `${route} moves to ${seen.at} within 3 seconds of its load`);
+      check(!seen.forward, `${route} holds a forward`);
+    }
+  });
+
+  // Help holds no key to the tip walk in any section.
+  const HELP_SECTIONS = ['Getting Started', 'FAQ', 'Keyboard Shortcuts', 'Troubleshooting', 'Contact Support'];
+  for (const width of [390, 1280]) {
+    await open({ name: 'help, no tip walk', width, look: 'light' }, async (page, context, check) => {
+      await visit(page, '/help/');
+      for (const section of HELP_SECTIONS) {
+        await page.locator('#main-content').getByRole('button', { name: section, exact: true }).click({ timeout: 5_000 });
+        await page.waitForTimeout(300);
+        const seen = await page.evaluate(() => ({
+          words: [...document.querySelectorAll('body *')]
+            .filter((element) => !element.closest('script, style, template, noscript'))
+            .some((element) => [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent.includes('Start Interactive Tutorial'))),
+          links: [...document.querySelectorAll('a[href]')].map((a) => a.getAttribute('href')).filter((href) => /^\/tutorial\/?(?:[?#]|$)/.test(href)),
+        }));
+        check(!seen.words, `with ${section} open, the page reads "Start Interactive Tutorial"`);
+        check(seen.links.length === 0, `with ${section} open, the page links ${seen.links.join(', ')}`);
+      }
+    });
+  }
 
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
