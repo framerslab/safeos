@@ -213,6 +213,7 @@ test("a set time in force is put on over the preferences an account brings when 
   await page.waitForTimeout(2_000);
   expect(await savedValue(page, 'motionSensitivity')).toBe(40);
   expect(await savedSetting(page)).toBe('night');
+  await page.getByText(/^Motion: 40% \| Audio: 60%/).scrollIntoViewIfNeeded();
   await page.screenshot({ path: test.info().outputPath('set-time-account-restored-1280.png') });
 });
 
@@ -239,6 +240,7 @@ for (const preset of ['balanced', 'custom']) {
     const card = page.locator('div.rounded-xl').filter({ has: page.getByRole('heading', { name: `Saved with ${preset}` }) }).last();
     await expect(card.getByText('This schedule needs a setting chosen. Press Edit to choose one; until then it never applies.')).toBeVisible();
     await expect(card.getByText('Active', { exact: true })).toHaveCount(0);
+    await card.scrollIntoViewIfNeeded();
     await page.screenshot({ path: test.info().outputPath(`set-time-needs-a-setting-${preset}-1280.png`) });
   });
 }

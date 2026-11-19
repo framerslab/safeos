@@ -5,7 +5,7 @@
  * microphone plays a tone from a WAV file written here: a 100 Hz tone, under
  * the range, leaves the watch's Audio level near 0; a 1,000 Hz tone at the same
  * loudness, inside it, raises the level. Widened to 20 to 20,000 Hz, the range
- * still holds the 1,000 Hz tone, and at a sensitivity of 90 the tone alerts.
+ * holds the 1,000 Hz tone as before, and at a sensitivity of 85 the tone alerts.
  *
  * The tone sounds in bursts with soft edges, so the browser's noise
  * suppression, which learns a steady sound as noise, keeps it.
@@ -125,11 +125,12 @@ test('a 1,000 Hz tone, inside the range, raises the Audio level', async ({ playw
   expect((await walk(playwright.chromium, baseURL, 1000)).highest).toBeGreaterThan(10);
 });
 
-test('widened to 20 to 20,000 Hz, the range keeps the 1,000 Hz tone\'s level and its alert at a sensitivity of 90', async ({ playwright, baseURL }) => {
+test('widened to 20 to 20,000 Hz, the range keeps the 1,000 Hz tone\'s level and its alert at a sensitivity of 85', async ({ playwright, baseURL }) => {
   test.setTimeout(150_000);
-  const narrow = await walk(playwright.chromium, baseURL, 1000, { ...NARROW, audioSensitivity: 90 });
-  const wide = await walk(playwright.chromium, baseURL, 1000, { low: 20, high: 20000, audioSensitivity: 90 });
-  // Sensitivity 90 alerts at a level of 10 %.
+  const narrow = await walk(playwright.chromium, baseURL, 1000, { ...NARROW, audioSensitivity: 85 });
+  const wide = await walk(playwright.chromium, baseURL, 1000, { low: 20, high: 20000, audioSensitivity: 85 });
+  // Sensitivity 85 alerts at a level of 15 %: the tone reads 17 to 25 %. A level that falls with the
+  // range's width (7 to 9 % at this width, when the level was the mean over the range's bins) stays under it.
   expect(narrow.alerts, 'the tone alerts at 300 to 3,000 Hz').toBeGreaterThan(0);
   expect(wide.highest, `the wide range reads the tone as the narrow one does (${narrow.highest} %)`).toBeGreaterThanOrEqual(narrow.highest - 3);
   expect(wide.alerts, 'the tone alerts at 20 to 20,000 Hz').toBeGreaterThan(0);
