@@ -5,8 +5,9 @@
  * tabs, from the press that starts it until it ends.
  */
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
+import { readSavedPets } from '@/lib/client-db';
 import SecurityPage from '@/app/security/page';
 import WildlifePage from '@/app/wildlife/page';
 import { announceWatch } from '@/lib/tab-channel';
@@ -72,9 +73,11 @@ jest.mock('@/lib/animal-detection', () => {
   };
   return { ...jest.requireActual('@/lib/animal-detection'), getAnimalDetector: () => detector };
 });
+// No database here: the pets Watch for reads are given by each case.
 jest.mock('@/lib/client-db', () => ({
   ...jest.requireActual('@/lib/client-db'),
   saveIntrusionFrame: jest.fn(),
+  readSavedPets: jest.fn(async () => []),
 }));
 jest.mock('@/lib/tts-alerts', () => {
   const manager = { initialize: async () => {}, setCustomMessages() {}, speak: jest.fn(), stop: jest.fn() };
@@ -142,8 +145,9 @@ beforeEach(() => {
   useSettingsStore.setState({ globalMute: true });
   useSettingsStore.getState().updateGlobalSettings({ processingMode: 'local', analysisInterval: 1 });
   useSettingsStore.setState({ scenarioOverrides: {} });
-  useOnboardingStore.setState({ selectedScenario: null });
-  useLostFoundStore.setState({ isWatching: false, activeSubject: null });
+  useOnboardingStore.setState({ selectedScenario: null, lostFoundChosen: false });
+  useLostFoundStore.setState({ isWatching: false, activeSubject: null, chosenPetId: null });
+  jest.mocked(readSavedPets).mockResolvedValue([]);
   useSecurityStore.setState({ armingState: 'disarmed', armingTimeRemaining: 0, settings: DEFAULT_SECURITY_SETTINGS });
   useAnimalAlertStore.setState({ isMonitoring: false, currentDetections: [], settings: DEFAULT_ANIMAL_SETTINGS });
   browser = installCameraBrowser();
@@ -180,10 +184,16 @@ it('tells the other tabs from the press, before the camera answers', async () =>
 });
 
 it('a Lost and Found watch writes the pet it looks for', async () => {
-  useLostFoundStore.setState({ isWatching: true, activeSubject: pet('pet-1') });
+  // The watch compares while it runs with Lost and Found chosen on Watch for
+  // and the pet saved on this device.
+  jest.mocked(readSavedPets).mockResolvedValue([pet('pet-1')]);
+  useOnboardingStore.setState({ lostFoundChosen: true });
+  useLostFoundStore.setState({ activeSubject: pet('pet-1'), chosenPetId: 'pet-1' });
   render(<MonitorPage />);
+  await screen.findByRole('radio', { name: 'Lost and Found', checked: true });
   await act(async () => {});
   await startMonitoring();
+  await waitFor(() => expect(useLostFoundStore.getState().isWatching).toBe(true));
   expect(readLastWay()).toEqual({ way: 'lost-found', pet: 'pet-1' });
   expect(announceWatch).toHaveBeenCalledWith('lost-found', expect.any(Function));
 });

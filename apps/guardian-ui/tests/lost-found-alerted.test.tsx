@@ -7,9 +7,9 @@
  * nothing already saved, and a frame saved before the field existed has none.
  */
 import React from 'react';
-import { act, cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, waitFor } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
-import { getAllMatchFrames, getMatchFrame, saveMatchFrame, type MatchFrameDB } from '@/lib/client-db';
+import { getAllMatchFrames, getMatchFrame, saveMatchFrame, saveSubjectProfile, type MatchFrameDB } from '@/lib/client-db';
 import type { MatchResult } from '@/lib/subject-matcher';
 import {
   calculateAverageColor,
@@ -122,10 +122,16 @@ function keptFrames(...ids: string[]) {
 
 /** Watches for Mittens on Motion and sound's page while two checks run, at 75 and then 55 per cent. */
 async function twoChecks(high: string, low: string) {
+  // The watch compares while it runs with Lost and Found chosen on Watch for
+  // and Mittens saved on this device.
+  await saveSubjectProfile(pet());
+  useOnboardingStore.setState({ lostFoundChosen: true });
+  useLostFoundStore.setState({ chosenPetId: 'pet-1' });
   mockResults.push(result(high, 75), result(low, 55));
   render(<MonitorPage />);
   await act(async () => {});
   await startMonitoring();
+  await waitFor(() => expect(useLostFoundStore.getState().isWatching).toBe(true));
   await act(async () => {
     jest.advanceTimersByTime(500);
   });
@@ -143,7 +149,7 @@ beforeEach(() => {
   useSettingsStore.setState({ globalMute: true });
   useSettingsStore.getState().updateGlobalSettings({ processingMode: 'local', analysisInterval: 1 });
   useSettingsStore.setState({ scenarioOverrides: {} });
-  useOnboardingStore.setState({ selectedScenario: null });
+  useOnboardingStore.setState({ selectedScenario: null, lostFoundChosen: false });
   mockResults.length = 0;
   mockMatcher.last = null;
   useLostFoundStore.setState({
