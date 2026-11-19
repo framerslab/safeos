@@ -178,7 +178,8 @@ jobs:
   # (e2e/alerts-repeat.spec.ts).
   web-alert-walk:
     name: Web app alert walk
-    runs-on: ubuntu-latest
+    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -244,7 +245,8 @@ jobs:
   # ---------------------------------------------------------------------------
   web-lost-found:
     name: Web app Lost & Found browser test
-    runs-on: ubuntu-latest
+    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
+    runs-on: ubuntu-24.04
     # Four walks on one build, Watch for's among them with axe in both looks.
     timeout-minutes: 30
     defaults:
@@ -352,7 +354,8 @@ jobs:
 
   account-pictures:
     name: Account form pictures
-    runs-on: ubuntu-latest
+    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Checkout

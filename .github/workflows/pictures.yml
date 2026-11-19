@@ -69,7 +69,8 @@ jobs:
       fail-fast: false
       matrix:
         version: ${{ fromJSON(github.event_name == 'pull_request' && '["after","before"]' || '["after"]') }}
-    runs-on: ubuntu-latest
+    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
+    runs-on: ubuntu-24.04
     # A capture takes about seven minutes.
     timeout-minutes: 30
     defaults:
@@ -139,7 +140,8 @@ jobs:
 
   home-captures:
     name: Capture the home page pictures
-    runs-on: ubuntu-latest
+    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:
       run:

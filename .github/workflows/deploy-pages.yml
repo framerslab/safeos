@@ -39,7 +39,8 @@ concurrency:
 jobs:
   # Build job
   build:
-    runs-on: ubuntu-latest
+    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/guardian-ui
