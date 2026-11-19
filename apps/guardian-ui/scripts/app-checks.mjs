@@ -3361,6 +3361,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       await page.evaluate(() => { window.__camera.answer = 'AbortError'; });
       await startKey(page).click();
       await checkProblem(page, check, CAMERA_WORDS.failed);
+      // The pointer leaves the key: under it the key takes its hover fill.
+      await page.mouse.move(0, 0);
       await page.waitForTimeout(400);
       const key = await keyState(page);
       check(key.words === 'Start watching', `the key reads "${key.words}", not "Start watching"`);
