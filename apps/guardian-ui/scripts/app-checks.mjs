@@ -2833,7 +2833,9 @@ export async function checkApp(browser, baseUrl, outDir) {
       const filled = style.backgroundColor !== clear && style.backgroundColor !== ground;
       const shadow = style.boxShadow === 'none' ? null : (style.boxShadow.match(/rgba?\([^)]*\)/) || [null])[0];
       if (shadow) colours.add(shadow);
-      if (el instanceof SVGElement) {
+      // A drawing's colours are those of its shapes. Its <svg> root and its
+      // groups paint nothing, whatever fill they would hand down.
+      if (el instanceof SVGGeometryElement) {
         if (style.fill !== 'none') colours.add(style.fill);
         if (style.stroke !== 'none') colours.add(style.stroke);
       }
