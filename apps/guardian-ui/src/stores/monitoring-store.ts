@@ -383,9 +383,15 @@ export const useMonitoringStore = create<MonitoringState>()(
             // The repeat acknowledged as it showed went on a fresh card: that card is the one
             // acknowledged, and the card it replaced keeps what is stored. Queued before this
             // tab's Clear all, the acknowledgement is written and changes nothing on screen.
+            // A Clear all in this tab since it was queued has emptied the list. The fresh card is
+            // acknowledged as it was saved: the clear removes it, or it stays acknowledged should
+            // the clear fail.
             const replacement = latestReplacement(id);
+            const cleared = replacement && clears !== localClears
+              ? unsavedAlerts.get(replacement.id)?.alert ?? ({ id: replacement.id } as Alert)
+              : undefined;
             const target = replacement
-              ? get().alerts.find(a => a.id === replacement.id)
+              ? get().alerts.find(a => a.id === replacement.id) ?? cleared
               : alert;
             if (!target) return Promise.resolve();
             const acknowledged = { ...target, acknowledged: true };
