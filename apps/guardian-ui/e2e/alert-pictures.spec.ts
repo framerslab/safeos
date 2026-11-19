@@ -14,6 +14,7 @@
 
 import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
+import { coverBox } from '../src/lib/alert-pictures/rules';
 import {
   BLOCK_READABILITY,
   CUSTOM_PRESET,
@@ -42,6 +43,7 @@ import {
   seedVersion7,
   setFault,
   startWatching,
+  wordsOn,
   type CanvasCamera,
   type DatabaseReading,
   type PicturesSeed,
@@ -1495,6 +1497,266 @@ test.describe('The group and the notice: order, sizes and faults', () => {
         expect(await found.getByText(STAY_LINE, { exact: true }).evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
       }
       expect(await scrollsSideways(page)).toBe(false);
+    });
+  }
+});
+
+// =============================================================================
+// The box on the live picture
+// =============================================================================
+
+const liveBox = (page: Page) => page.locator('.alert-live__box');
+const livePlate = (page: Page) => page.locator('.alert-live__plate');
+const livePicture = (page: Page) => page.locator('.alert-live');
+
+/** A sound alone: a tone on the microphone over a 5 % line, with the motion check off. */
+const SOUND_ONLY = {
+  activePresetId: 'custom',
+  globalSettings: { ...CUSTOM_PRESET, motionDetectionEnabled: false, audioDetectionEnabled: true, audioSensitivity: 95 },
+};
+
+/** A 640 by 480 camera whose middle band changes: six whole rows of the motion check's grid, across the picture. */
+const MIDDLE_BAND: CanvasCamera = { width: 640, height: 480, background: 128, moving: { x: 0, y: 0.25, width: 1, height: 0.5 }, levels: [0, 85, 170, 255] };
+/** A 1280 by 720 camera whose top third changes: four whole rows of the grid, across the picture. */
+const TOP_BAND: CanvasCamera = { width: 1280, height: 720, background: 128, moving: { x: 0, y: 0, width: 1, height: 1 / 3 }, levels: [0, 85, 170, 255] };
+
+/** True when `inner` stands inside `outer`, within a pixel. */
+const inside = (inner: { x: number; y: number; width: number; height: number }, outer: { x: number; y: number; width: number; height: number }) =>
+  inner.x >= outer.x - 1 && inner.y >= outer.y - 1 && inner.x + inner.width <= outer.x + outer.width + 1 && inner.y + inner.height <= outer.y + outer.height + 1;
+
+for (const look of ['dark', 'light'] as const) {
+  for (const width of [390, 1280]) {
+    test.describe(`The live picture's box, ${width} px, ${look}`, () => {
+      test.use({ colorScheme: look, viewport: { width, height: 900 } });
+
+      test(`a Motion alert boxes the change on the live picture, ${width} px, ${look}`, async ({ page, context }) => {
+        test.setTimeout(180_000);
+        requireSampleClip();
+        await watchWith(page, context, { settings: clipSettings({ motion: true, sound: false }) });
+        const time = await timeOf(cards(page).first(), 'Motion');
+        // Within a second of the alert: one box, and the plate with the alert's kind and time.
+        await expect(livePlate(page)).toHaveText(`Motion here at ${time}`, { timeout: 1_000 });
+        await expect(liveBox(page)).toHaveCount(1);
+        expect(inside((await livePlate(page).boundingBox())!, (await livePicture(page).boundingBox())!), 'the plate stands inside the picture').toBe(true);
+        const plate = await wordsOn(livePlate(page), livePlate(page).locator('p').first());
+        expect(plate.size, 'the plate’s words are 16 px').toBe(16);
+        expect(plate.solid, 'the plate carries its own ground').toBe(true);
+        expect(plate.ratio).toBeGreaterThanOrEqual(12);
+      });
+
+      test(`the live box lands where the frame's numbers fall through the picture's crop, ${width} px, ${look}`, async ({ page, context }) => {
+        test.setTimeout(120_000);
+        await watchWith(page, context, { settings: MOTION_ONLY, camera: MIDDLE_BAND });
+        await timeOf(cards(page).first(), 'Motion');
+        await expect(liveBox(page)).toHaveCount(1);
+        const view = (await livePicture(page).boundingBox())!;
+        const drawn = (await liveBox(page).boundingBox())!;
+        // The frame's numbers: rows 3 to 8 of the grid, 640 by 240 at (0, 120) of a 640 by 480 frame.
+        await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+        const [row] = keptRows(await readDatabase(page));
+        expect([row.sourceWidth, row.sourceHeight, row.box]).toEqual([640, 480, { x: 0, y: 120, width: 640, height: 240 }]);
+        const want = coverBox(row.box, 640, 480, view.width, view.height)!;
+        expect(want, 'the box falls inside the live picture’s crop').not.toBeNull();
+        for (const key of ['x', 'y'] as const) {
+          expect(Math.abs(drawn[key] - (view[key] + want[key])), `the box's ${key} (${drawn[key]} against ${view[key] + want[key]})`).toBeLessThanOrEqual(2);
+        }
+        for (const key of ['width', 'height'] as const) {
+          expect(Math.abs(drawn[key] - want[key]), `the box's ${key} (${drawn[key]} against ${want[key]})`).toBeLessThanOrEqual(2);
+        }
+        // Not the per cents of the 16:9 box, where a quarter of the way down a 4:3 frame stands lower.
+        expect(Math.abs(drawn.y - (view.y + view.height * 0.25)), 'the box is not placed by per cents of the 16:9 box').toBeGreaterThan(4);
+      });
+    });
+  }
+}
+
+for (const reduced of [false, true]) {
+  test.describe(`The live box's 10 seconds${reduced ? ' under reduced motion' : ''}`, () => {
+    test.use({ viewport: { width: 390, height: 900 }, contextOptions: { reducedMotion: reduced ? 'reduce' : 'no-preference' } });
+
+    test(`the box and its plate stand for 10 seconds from the alert and leave, with no slide and no fade${reduced ? ', under reduced motion' : ''}`, async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+      await timeOf(cards(page).first(), 'Motion');
+      await expect(liveBox(page)).toHaveCount(1);
+      const seen = Date.now();
+      for (const part of [liveBox(page), livePlate(page)]) {
+        const moves = await part.evaluate((el) => {
+          const style = getComputedStyle(el);
+          return { transition: style.transitionDuration, animation: style.animationName };
+        });
+        expect(moves.animation).toBe('none');
+        expect(moves.transition.split(',').every((time) => parseFloat(time) === 0), `no transition (${moves.transition})`).toBe(true);
+      }
+      // Up at 7 seconds, gone by 11 from when it was seen (it came up to a second before that).
+      await page.waitForTimeout(Math.max(0, 7_000 - (Date.now() - seen)));
+      await expect(liveBox(page)).toHaveCount(1);
+      await expect(livePlate(page)).toHaveCount(1);
+      await expect(liveBox(page)).toHaveCount(0, { timeout: 4_500 });
+      await expect(livePlate(page)).toHaveCount(0);
+    });
+  });
+}
+
+test.describe('The live box: one at a time, never for a sound, clear of the picture’s top', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('a second alert inside the 10 seconds replaces the box', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    const first = await timeOf(cards(page).first(), 'Motion');
+    await expect(livePlate(page)).toHaveText(`Motion here at ${first}`);
+    await raiseEvents(page, 2, 2);
+    const second = await timeOf(cards(page).first(), 'Motion');
+    expect(second).not.toBe(first);
+    await expect(livePlate(page)).toHaveText(`Motion here at ${second}`);
+    await expect(liveBox(page)).toHaveCount(1);
+    await expect(livePlate(page)).toHaveCount(1);
+  });
+
+  test('a Sound alert draws no box', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await watchWith(page, context, { settings: SOUND_ONLY, camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0, height: 0 }, tone: true } });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Sound');
+    await expect(card.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
+    await expect(liveBox(page)).toHaveCount(0);
+    await expect(livePlate(page)).toHaveCount(0);
+  });
+
+  test('a box touching the picture’s top puts its plate under it; a press reaches the picture; neither is read', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: TOP_BAND });
+    const time = await timeOf(cards(page).first(), 'Motion');
+    await expect(livePlate(page)).toHaveText(`Motion here at ${time}`);
+    const view = (await livePicture(page).boundingBox())!;
+    const box = (await liveBox(page).boundingBox())!;
+    const plate = (await livePlate(page).boundingBox())!;
+    expect(Math.abs(box.y - view.y), 'the box touches the picture’s top').toBeLessThanOrEqual(1);
+    expect(plate.y, 'the plate stands under the box').toBeGreaterThanOrEqual(box.y + box.height);
+    expect(Math.abs(plate.x - Math.max(box.x, view.x + 8)), 'at the box’s bottom left').toBeLessThanOrEqual(12);
+    expect(inside(plate, view), 'the plate stands inside the picture').toBe(true);
+
+    // A press on the box reaches the picture under it, and nothing opens.
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    expect(await page.evaluate(({ x, y }) => {
+      const under = document.elementFromPoint(x, y);
+      return under ? Boolean(under.closest('.alert-live')) : true;
+    }, point), 'the box takes no press').toBe(false);
+    await page.mouse.click(point.x, point.y);
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+
+    // Neither is read: the alert is read once from the list's status.
+    await expect(livePicture(page)).toHaveAttribute('aria-hidden', 'true');
+    await expect(page.getByRole('status').filter({ hasText: new RegExp(`^New alert: Motion, (Low|Medium|High|Critical), at ${timePattern(time)}\\.`) })).toHaveCount(1);
+  });
+
+  test('a change along the top of a 4:3 camera outside the live picture draws nothing there and the card’s picture keeps its box', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // One zone over the top tenth of a 640 by 480 frame: the 16:9 live picture cuts the frame's top eighth.
+    await watchWith(page, context, {
+      settings: { ...MOTION_ONLY, detectionZones: [{ id: 'top', name: 'Top', enabled: true, x: 0, y: 0, width: 100, height: 10 }] },
+      camera: { width: 640, height: 480, background: 128, moving: { x: 0, y: 0, width: 1, height: 0.1 }, levels: [0, 85, 170, 255] },
+    });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+    await expect(card.locator('.alert-picture__box')).toHaveCount(1);
+    await expect(card.getByText('in Top', { exact: true })).toBeVisible();
+    await expect(liveBox(page)).toHaveCount(0);
+    await expect(livePlate(page)).toHaveCount(0);
+  });
+
+  test('another profile’s live picture carries no box', async ({ page, context, browser }) => {
+    test.setTimeout(120_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    await timeOf(cards(page).first(), 'Motion');
+    await expect(liveBox(page)).toHaveCount(1);
+    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await seedDevice(other, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+    const stranger = await other.newPage();
+    await canvasCamera(stranger, { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0, height: 0 } });
+    await stranger.goto('/monitor/', { waitUntil: 'networkidle' });
+    await startWatching(stranger);
+    await expect(liveBox(stranger)).toHaveCount(0);
+    await expect(cards(stranger)).toHaveCount(0);
+    await other.close();
+  });
+});
+
+for (const look of ['dark', 'light'] as const) {
+  test.describe(`The live box on a narrow picture, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 320, height: 800 } });
+
+    test(`a one-cell change on a 1280 by 720 camera at 320 px draws a box 24 px a side or more, ${look}`, async ({ page, context }) => {
+      test.setTimeout(120_000);
+      // One zone round one cell of the grid (80 by 60 px at 640, 360), which is 18 by 13.5 px on a 288 px picture.
+      await watchWith(page, context, {
+        settings: { ...MOTION_ONLY, detectionZones: [{ id: 'cell', name: 'Cell', enabled: true, x: 50, y: 50, width: 6.25, height: 100 / 12 }] },
+        camera: { width: 1280, height: 720, background: 128, moving: { x: 0.5, y: 0.5, width: 0.0625, height: 1 / 12 }, levels: [0, 85, 170, 255] },
+      });
+      await timeOf(cards(page).first(), 'Motion');
+      await expect(liveBox(page)).toHaveCount(1);
+      const box = (await liveBox(page).boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(24);
+      expect(box.height).toBeGreaterThanOrEqual(24);
+      expect(inside(box, (await livePicture(page).boundingBox())!)).toBe(true);
+    });
+
+    test(`the plate at 320 px and at 200 per cent text wraps inside the picture, ${look}`, async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+      await timeOf(cards(page).first(), 'Motion');
+      await expect(livePlate(page)).toHaveCount(1);
+      const view = (await livePicture(page).boundingBox())!;
+      const plate = (await livePlate(page).boundingBox())!;
+      expect(inside(plate, view), 'the plate stands inside the picture').toBe(true);
+      expect(plate.width).toBeLessThanOrEqual(view.width - 16 + 1);
+      expect(plate.height, 'one line covers no more than a third of the picture').toBeLessThanOrEqual(view.height / 3);
+      await doubleText(page);
+      // The line wraps inside the plate, the plate grows down, and nothing is cut.
+      await expect.poll(async () => (await livePlate(page).locator('p').first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize)))).toBe(32);
+      const grown = await livePlate(page).boundingBox();
+      if (grown) {
+        expect(grown.width).toBeLessThanOrEqual(view.width - 16 + 1);
+        expect(grown.x).toBeGreaterThanOrEqual(view.x - 1);
+        expect(await livePlate(page).locator('p').first().evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the line is not cut').toBe(true);
+      }
+    });
+  });
+}
+
+test.describe('The live box offline and on wider pictures', () => {
+  test('the live box offline', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 390, height: 900 });
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+    await canvasCamera(page, LEFT_THIRD);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await context.setOffline(true);
+    await startWatching(page);
+    const time = await timeOf(cards(page).first(), 'Motion');
+    await expect(livePlate(page)).toHaveText(`Motion here at ${time}`);
+    await expect(liveBox(page)).toHaveCount(1);
+    await context.setOffline(false);
+  });
+
+  for (const width of [768, 1440]) {
+    test(`the plate at ${width} px stands on one line inside the picture`, async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await page.setViewportSize({ width, height: 900 });
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+      const time = await timeOf(cards(page).first(), 'Motion');
+      await expect(livePlate(page)).toHaveText(`Motion here at ${time}`);
+      const view = (await livePicture(page).boundingBox())!;
+      const plate = (await livePlate(page).boundingBox())!;
+      expect(inside(plate, view)).toBe(true);
+      expect(plate.width).toBeLessThanOrEqual(420);
+      // The plate's words stay 16 px while the page's lead lines grow on the wide page.
+      expect(await livePlate(page).locator('p').first().evaluate((el) => getComputedStyle(el).fontSize)).toBe('16px');
+      expect(plate.height, 'one line').toBeLessThanOrEqual(32);
+      // 12 px clear of the picture's edges.
+      expect(plate.x - view.x).toBeGreaterThanOrEqual(11);
     });
   }
 });

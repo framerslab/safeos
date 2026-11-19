@@ -803,3 +803,28 @@ export async function routedServer(page: Page, url: string | RegExp): Promise<Ro
   });
   return server;
 }
+
+/**
+ * The size of an element's words and their contrast against the element's
+ * own solid ground, for words under a part hidden from a screen reader,
+ * which `readable` leaves out.
+ */
+export async function wordsOn(ground: Locator, words: Locator): Promise<{ size: number; ratio: number; solid: boolean }> {
+  return ground.evaluate((plate: Element, text: Element | null) => {
+    const parse = (value: string): [number, number, number, number] => {
+      const parts = (/rgba?\(([^)]+)\)/.exec(value)?.[1] ?? '0,0,0,0').split(/[,\s/]+/).filter(Boolean).map(Number);
+      return [parts[0], parts[1], parts[2], parts.length > 3 ? parts[3] : 1];
+    };
+    const luminance = ([R, G, B]: number[]) => {
+      const c = [R, G, B].map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const under = parse(getComputedStyle(plate).backgroundColor);
+    const style = getComputedStyle(text ?? plate);
+    const [hi, lo] = [luminance(parse(style.color)), luminance(under)].sort((a, b) => b - a);
+    return { size: parseFloat(style.fontSize), ratio: (hi + 0.05) / (lo + 0.05), solid: under[3] >= 1 };
+  }, await words.elementHandle());
+}
