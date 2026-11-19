@@ -380,7 +380,7 @@ prints an error and carries on.
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
 | `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
-| `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the dashboard for the pull request's own build |
+| `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the app's pages for the pull request's own build |
 | `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera (see below) |
 
 Concurrency: a newer push to a pull request cancels that pull request's older
@@ -417,9 +417,23 @@ beside Back for a scenario already chosen. The headless browser has no prompt,
 so the refused and none-found answers are given to the page's camera request by
 the script; the third walk uses the browser's own answer. A finding fails the run.
 
+When `/dashboard/` is captured, both versions also capture the dashboard after
+setup (`dashboard-setup-<width>-<look>.png`), and the pull request's own build
+checks that each of the four ways to watch opens its page. For the pull
+request's own build the script also walks the app's pages
+(`apps/guardian-ui/scripts/app-checks.mjs`): the header, the phone bar and the
+footer at every width from 320 px, each page with scripts off and with its
+script held, the dashboard in each state (before setup, the camera blocked or
+in use, notifications blocked or not asked, a second tab, alerts new, the
+stores held, a private window) at every width with its first screen counted,
+sizes and contrast against the readable look's figures, the old addresses and
+the offline page. The camera in these walks is a stand-in that draws a
+changing picture, and the browser's answers for the camera and notifications
+are given by the script. A finding fails the run.
+
 - On a pull request: add the label `pictures`. It runs on the labelling and on
   every later push to that pull request, for the routes in `DEFAULT_ROUTES`
-  (home, monitoring, setup, dashboard, settings, notifications, models, nap,
+  (home, monitoring, setup, dashboard, history, settings, notifications, models, nap,
   admin, privacy, FAQ and help).
 - By hand: Actions, Pictures, Run workflow. Give a branch, tag or commit and the
   routes separated by spaces (for example `/ /about/ /faq/`).
