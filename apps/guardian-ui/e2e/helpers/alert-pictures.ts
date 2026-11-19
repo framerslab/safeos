@@ -13,7 +13,7 @@
  * @module e2e/helpers/alert-pictures
  */
 
-import type { BrowserContext, Page } from '@playwright/test';
+import type { BrowserContext, Locator, Page } from '@playwright/test';
 
 // =============================================================================
 // The device
@@ -411,3 +411,203 @@ export async function startWatching(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
   await page.getByText('LIVE', { exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
 }
+
+// =============================================================================
+// The sample clip
+// =============================================================================
+
+/**
+ * Chromium's launch arguments for its fake camera and microphone playing the
+ * committed sample clip, converted in CI by ci.yml's step "Make the fake
+ * camera's files from the sample clip" (SAMPLE_CLIP_Y4M and SAMPLE_CLIP_WAV).
+ */
+export function sampleClipLaunch(): string[] {
+  return [
+    '--use-fake-ui-for-media-stream',
+    '--use-fake-device-for-media-stream',
+    `--use-file-for-fake-video-capture=${process.env.SAMPLE_CLIP_Y4M ?? ''}`,
+    `--use-file-for-fake-audio-capture=${process.env.SAMPLE_CLIP_WAV ?? ''}`,
+    '--autoplay-policy=no-user-gesture-required',
+  ];
+}
+
+/** Fails the test when the clip's files were not made. */
+export function requireSampleClip(): void {
+  if (!process.env.SAMPLE_CLIP_Y4M || !process.env.SAMPLE_CLIP_WAV) {
+    throw new Error('SAMPLE_CLIP_Y4M and SAMPLE_CLIP_WAV are not set: run ci.yml\'s step "Make the fake camera\'s files from the sample clip" first');
+  }
+}
+
+/** The capture preset (scripts/home-capture-settings.json) with its detectors set. */
+export function clipSettings(detectors: { motion: boolean; sound: boolean }): Record<string, unknown> {
+  return {
+    activePresetId: 'custom',
+    globalSettings: {
+      ...CUSTOM_PRESET,
+      motionDetectionEnabled: detectors.motion,
+      audioDetectionEnabled: detectors.sound,
+    },
+  };
+}
+
+// =============================================================================
+// Reading what the page draws
+// =============================================================================
+
+/** The colour of the pixel at (x, y) of an image the page can load (a blob, data or site URL). */
+export function pixelAt(page: Page, imageUrl: string, x: number, y: number): Promise<[number, number, number]> {
+  return page.evaluate(({ url, px, py }) => new Promise<[number, number, number]>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(image, 0, 0);
+      const [r, g, b] = ctx.getImageData(Math.round(px), Math.round(py), 1, 1).data;
+      resolve([r, g, b]);
+    };
+    image.onerror = () => reject(new Error(`the image ${url.slice(0, 40)} did not load`));
+    image.src = url;
+  }), { url: imageUrl, px: x, py: y });
+}
+
+/** Many pixels of one image at once. */
+export function pixelsAt(page: Page, imageUrl: string, points: Array<[number, number]>): Promise<Array<[number, number, number]>> {
+  return page.evaluate(({ url, list }) => new Promise<Array<[number, number, number]>>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(image, 0, 0);
+      resolve(list.map(([px, py]) => {
+        const [r, g, b] = ctx.getImageData(Math.round(px), Math.round(py), 1, 1).data;
+        return [r, g, b] as [number, number, number];
+      }));
+    };
+    image.onerror = () => reject(new Error('the image did not load'));
+    image.src = url;
+  }), { url: imageUrl, list: points });
+}
+
+/** A screenshot as a data URL the page can sample. */
+export const pngUrl = (bytes: Buffer): string => `data:image/png;base64,${bytes.toString('base64')}`;
+
+/** The natural size of the image an `img` locator shows. */
+export function naturalSize(locator: Locator): Promise<{ width: number; height: number }> {
+  return locator.evaluate((img: HTMLImageElement) => ({ width: img.naturalWidth, height: img.naturalHeight }));
+}
+
+/** True when each channel is within `tolerance` of the hex colour. */
+export function near(rgb: [number, number, number], hex: string, tolerance = 40): boolean {
+  const want = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  return rgb.every((value, i) => Math.abs(value - want[i]) <= tolerance);
+}
+
+export interface Readability {
+  lead: number;
+  other: number;
+  floor: number;
+  leadRatio: number;
+  otherRatio: number;
+}
+
+export interface ReadabilityFault {
+  text: string;
+  size: number;
+  ratio: number;
+  lead: boolean;
+  why: string;
+}
+
+/**
+ * Reads every visible text element under `root`: its computed size and its
+ * contrast against the ground painted under it (the first solid background up
+ * the tree, with any see-through ones laid over it). Elements under a
+ * `data-lead` element are lead lines. Answers what falls short.
+ */
+export function readable(root: Locator, rules: Readability): Promise<ReadabilityFault[]> {
+  return root.evaluate((element: Element, r: Readability) => {
+    type RGBA = [number, number, number, number];
+    const parse = (value: string): RGBA | null => {
+      const m = /rgba?\(([^)]+)\)/.exec(value);
+      if (!m) return null;
+      const parts = m[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+      return [parts[0], parts[1], parts[2], parts.length > 3 ? parts[3] : 1];
+    };
+    const over = (top: RGBA, under: RGBA): RGBA => {
+      const a = top[3] + under[3] * (1 - top[3]);
+      if (a === 0) return [0, 0, 0, 0];
+      const mix = (i: number) => (top[i] * top[3] + under[i] * under[3] * (1 - top[3])) / a;
+      return [mix(0), mix(1), mix(2), a];
+    };
+    const luminance = ([R, G, B]: RGBA) => {
+      const c = [R, G, B].map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const ratio = (a: RGBA, b: RGBA) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const ground = (el: Element): RGBA | null => {
+      const layers: RGBA[] = [];
+      for (let node: Element | null = el; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.backgroundImage && style.backgroundImage !== 'none') return null;
+        const bg = parse(style.backgroundColor);
+        if (bg && bg[3] > 0) {
+          layers.push(bg);
+          if (bg[3] >= 1) break;
+        }
+      }
+      let painted: RGBA = [255, 255, 255, 1];
+      for (const layer of layers.reverse()) painted = over(layer, painted);
+      return painted;
+    };
+    const faults: Array<{ text: string; size: number; ratio: number; lead: boolean; why: string }> = [];
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    const seen = new Set<Element>();
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = (node.textContent || '').trim();
+      const el = node.parentElement;
+      if (!text || !el || seen.has(el)) continue;
+      seen.add(el);
+      const style = getComputedStyle(el);
+      const box = el.getBoundingClientRect();
+      if (box.width <= 1 || box.height <= 1 || style.visibility === 'hidden' || el.closest('[aria-hidden="true"]')) continue;
+      if (style.clip === 'rect(0px, 0px, 0px, 0px)' || style.clipPath === 'inset(50%)') continue;
+      const lead = Boolean(el.closest('[data-lead]'));
+      const size = parseFloat(style.fontSize);
+      const under = ground(el);
+      const ink = parse(style.color);
+      if (!under || !ink) {
+        faults.push({ text, size, ratio: 0, lead, why: 'no solid ground under the words' });
+        continue;
+      }
+      const shown = ratio(over(ink, under), under);
+      const wantSize = lead ? r.lead : r.other;
+      const wantRatio = lead ? r.leadRatio : r.otherRatio;
+      if (size < r.floor) faults.push({ text, size, ratio: shown, lead, why: `under ${r.floor} px` });
+      else if (size < wantSize) faults.push({ text, size, ratio: shown, lead, why: `under ${wantSize} px` });
+      if (shown < wantRatio) faults.push({ text, size, ratio: shown, lead, why: `under ${wantRatio}:1` });
+    }
+    return faults;
+  }, rules);
+}
+
+/** The block's rules for today's look: lead 18 px at 12:1, other words 16 px at 7:1, nothing under 15 px. */
+export const BLOCK_READABILITY: Readability = { lead: 18, other: 16, floor: 15, leadRatio: 12, otherRatio: 7 };
+
+/** Text at 200 per cent: every size in rem doubles. */
+export async function doubleText(page: Page): Promise<void> {
+  await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+}
+
+/** True when the page scrolls sideways. */
+export const scrollsSideways = (page: Page): Promise<boolean> =>
+  page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
