@@ -169,6 +169,17 @@ it('lists the newest alerts on a phone, each a link to History named by its word
   expect(bare(linkRow()?.getAttribute('href'))).toBe('/history');
 });
 
+it('keeps the words of the way to History in one piece inside its row, so the spaces beside the number stay', () => {
+  shown({ newAlerts: alerts });
+
+  // The link is a flex row: a run of words directly inside it is drawn as an
+  // item of its own and loses the space at its edge ("and1more").
+  const row = linkRow() as HTMLElement;
+  expect(Array.from(row.childNodes, (node) => node.nodeName)).toEqual(['SPAN']);
+  expect(words(row.firstElementChild)).toBe('Open history, and 1 more');
+  expect(words(row.firstElementChild?.querySelector('.num'))).toBe('1');
+});
+
 it("shows the saved picture of a way that keeps one, and the way's glyph for Motion and sound", () => {
   const view = shown({ newAlerts: alerts });
   rowLinks().forEach((link, index) => {
