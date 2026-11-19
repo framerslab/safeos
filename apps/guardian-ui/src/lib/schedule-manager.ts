@@ -166,11 +166,36 @@ export function isPresetId(preset: unknown): preset is PresetId {
   return typeof preset === 'string' && Object.prototype.hasOwnProperty.call(DEFAULT_PRESETS, preset);
 }
 
-/** The set time in force at `now` with the highest priority, or null. */
+/**
+ * Whether a set time can put `preset` on: a named setting. Custom is not one,
+ * as it holds whatever the watch runs at, and a set time has no values of its
+ * own to restore.
+ */
+export function isSchedulablePreset(preset: unknown): preset is Exclude<PresetId, 'custom'> {
+  return isPresetId(preset) && preset !== 'custom';
+}
+
+/** The settings the schedule form offers: the named ones. */
+export const SCHEDULABLE_PRESETS = (Object.keys(DEFAULT_PRESETS) as PresetId[]).filter(isSchedulablePreset);
+
+/**
+ * The set time in force at `now` with the highest priority, or null. A set
+ * time saved without a named setting (Custom, or one an earlier form saved)
+ * never applies, and never outranks one that has a named setting.
+ */
 export function activeScheduleAt(schedules: Schedule[], now: Date): Schedule | null {
   return schedules
-    .filter((s) => isScheduleActive(s, now))
+    .filter((s) => isSchedulablePreset(s.preset) && isScheduleActive(s, now))
     .sort((a, b) => b.priority - a.priority)[0] || null;
+}
+
+/**
+ * The record of one occurrence of a set time: the set time, its setting, its
+ * hours and the day it began. The hours are in the record too, so an edit to
+ * them puts the setting on again.
+ */
+function occurrenceKey(schedule: Schedule, day: Date): string {
+  return `${schedule.id}|${schedule.preset}|${schedule.timeSlot.start}-${schedule.timeSlot.end}|${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
 }
 
 /**
@@ -178,7 +203,7 @@ export function activeScheduleAt(schedules: Schedule[], now: Date): Schedule | n
  * set time begins, when the app opens inside one it has not put on, when the
  * set time in force is edited to another setting, and when set times are
  * turned back on inside one. Between those the person's own changes stay. A
- * setting the app does not have is never put on.
+ * set time without a named setting is never put on (activeScheduleAt).
  *
  * @returns the setting to put on (or null), and the record to keep of it
  */
@@ -193,13 +218,12 @@ export function setTimeStep(
   const day = active && stretchStartDay(active, now);
   if (!active || !day) return { preset: null, appliedKey: null };
 
-  // The hours are in the record too, so an edit to them puts the setting on again.
-  const key = `${active.id}|${active.preset}|${active.timeSlot.start}-${active.timeSlot.end}|${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
+  const key = occurrenceKey(active, day);
   // The record holds, for each set time, the occurrence last put on, one a line. A set time
   // in force again after an overlapping one ends was put on already, and the person's change
   // stays; an edit of its hours or its setting, also back to a setting it had, is put on.
   const applied = appliedSetTime ? appliedSetTime.split('\n') : [];
-  if (applied.includes(key) || !isPresetId(active.preset)) return { preset: null, appliedKey: appliedSetTime };
+  if (applied.includes(key)) return { preset: null, appliedKey: appliedSetTime };
   const kept = applied.filter((k) => !k.startsWith(`${active.id}|`) && schedules.some((s) => k.startsWith(`${s.id}|`)));
   return { preset: active.preset, appliedKey: [...kept, key].join('\n') };
 }
@@ -343,6 +367,20 @@ export const useScheduleStore = create<ScheduleState>()(
     }
   )
 );
+
+/**
+ * The setting a set time put on and the watch runs at now: the set time in
+ * force, whose occurrence a check put on, while the active setting is still
+ * its setting. Null when the person changed the setting since, or none holds.
+ */
+export function setTimeSettingInForce(now: Date = new Date()): PresetId | null {
+  const { schedules, schedulingEnabled, appliedSetTime } = useScheduleStore.getState();
+  if (!schedulingEnabled || !appliedSetTime) return null;
+  const active = activeScheduleAt(schedules, now);
+  const day = active && stretchStartDay(active, now);
+  if (!active || !day || !appliedSetTime.split('\n').includes(occurrenceKey(active, day))) return null;
+  return useSettingsStore.getState().activePresetId === active.preset ? active.preset : null;
+}
 
 // =============================================================================
 // Hook for schedule checking
