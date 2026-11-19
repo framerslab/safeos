@@ -17,6 +17,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { DEFAULT_PRESETS, useSettingsStore, type PresetId } from '../stores/settings-store';
+import { guardedStorage } from './storage-full';
 
 // =============================================================================
 // Types
@@ -334,7 +335,8 @@ export const useScheduleStore = create<ScheduleState>()(
     }),
     {
       name: 'guardian-schedules',
-      storage: createJSONStorage(() => localStorage),
+      // Every page runs the set-time check, so a refused write must not throw.
+      storage: createJSONStorage(() => guardedStorage),
       partialize: (state) => ({
         schedules: state.schedules,
         schedulingEnabled: state.schedulingEnabled,
