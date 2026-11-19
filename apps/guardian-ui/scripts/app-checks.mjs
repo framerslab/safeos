@@ -2749,6 +2749,10 @@ export async function checkApp(browser, baseUrl, outDir) {
     await emptyPlace.waitFor({ timeout: 10_000 });
     const holding = plain(await emptyPlace.innerText());
     check(holding.includes('The People page counts the people in view.'), `the button holding "Security Mode" reads "${holding}"`);
+    // A use names a place the device can watch, a yard as well as a room.
+    check(holding.includes('Motion and sound alerts while the place is empty.'), `the button holding "Security Mode" reads "${holding}", without "Motion and sound alerts while the place is empty."`);
+    const pet = plain(await step.getByRole('button', { name: /Pet Monitoring/ }).innerText());
+    check(pet.includes('Motion and sound alerts while your pet is in another room or in the yard'), `the button holding "Pet Monitoring" reads "${pet}", without "Motion and sound alerts while your pet is in another room or in the yard"`);
 
     await step.getByRole('button', { name: /Pet Monitoring/ }).click();
     await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 });

@@ -8,7 +8,8 @@
  * no way. A device whose setup is done goes on to the way named. Choosing a
  * use applies the Motion and sound setting it stands for, unless it is the
  * use this device has already, so a second run keeps a person's own setting.
- * The camera step and the use step name the two pages as the app names them.
+ * The camera step and the use step name the two pages as the app names them,
+ * and the uses name a place the device can watch, a yard as well as a room.
  */
 
 import React from 'react';
@@ -173,4 +174,14 @@ it('names the two pages as they are named', async () => {
   await screen.findByRole('heading', { name: /Device Access/ });
   expect(screen.getByText('You can allow the camera later, on the Motion and sound page.').tagName).toBe('P');
   expect(document.body.textContent).not.toMatch(/The Security page|on the Monitor page/);
+});
+
+it('names a place a use can watch, a yard as well as a room', async () => {
+  await open('/setup/');
+  toUseStep();
+  expect(screen.getByRole('button', { name: /Pet Monitoring/ }).textContent)
+    .toContain('Motion and sound alerts while your pet is in another room or in the yard');
+  expect(screen.getByRole('button', { name: /Security Mode/ }).textContent)
+    .toContain('Motion and sound alerts while the place is empty.');
+  expect(document.body.textContent).not.toMatch(/the room is empty|in another room(?! or in the yard)/);
 });
