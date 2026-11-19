@@ -356,7 +356,8 @@
 .watch-dialog__scrim {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /* Above the app's fixed navigation (z-index 100), which takes no press while the dialog is open. */
+  z-index: 200;
   display: flex;
   align-items: center;
   justify-content: center;

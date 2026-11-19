@@ -29,8 +29,10 @@ The choice is setup's Lost & Found choice (`lostFoundChosen` in the onboarding
 store): setup and Monitor show the same one, whatever the use setup saved, and
 the Lost & Found page's **Start Monitoring** opens Monitor with Lost and Found
 and the pet it shows. The pet is kept as `chosenPetId` in the Lost & Found store;
-until one is chosen it is the newest saved pet. A subject an earlier version
-saved as a person is never the watch's pet.
+until one is chosen it is the newest saved pet. A thing saved on the Lost &
+Found page as an object is the watch's only once it is chosen there or in
+**Choose a pet**. A subject an earlier version saved as a person is never the
+watch's pet, and the Lost & Found page offers no **Start Monitoring** for it.
 
 With Lost and Found chosen, Monitor shows the pet's first saved photo, its name,
 its count of photos, **Change pet** and the line "It can alert on an animal that
@@ -38,9 +40,9 @@ looks alike. It works best in daylight, with a pet whose colours stand out."
 Under 1024 px they stand under the options (on a tablet the pet at the left and
 the line at the right); from 1024 px they head the right column, and from 1440
 px the pet's other photos stand under its photo. **Change pet** opens **Choose a
-pet**, which lists every saved pet with its photo and count; a press chooses and
-closes, the arrow keys move the choice, and Escape or **Close** close it with no
-change. With no pet saved, Monitor shows "No pet saved" and **Add a pet**, which
+pet**, which lists every saved pet and thing with its photo and count; the arrow
+keys move the check, a press (or Enter) chooses and closes, and Escape or
+**Close** close it with no change. It stands above the page's navigation. With no pet saved, Monitor shows "No pet saved" and **Add a pet**, which
 opens the Lost & Found page, and the camera's panel says "Without a saved pet, it
 watches for motion and sound." While the saved pets are read it shows "Loading
 saved pets…"; when they cannot be read it says "Saved pets could not be read on

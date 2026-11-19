@@ -127,7 +127,9 @@ export function useWatchFor(watching: boolean): WatchFor {
 
   const lostFoundChosen = mounted && lostFoundStored;
   const way: WatchWay = lostFoundChosen && petsRead !== 'failed' ? 'lost_found' : 'motion_sound';
-  const pet = pets.find((saved) => saved.id === chosenPetId) ?? pets[0] ?? null;
+  // The pet chosen here or on the Lost & Found page; until one is, the newest
+  // saved pet. A thing saved there is the watch's only once it is chosen.
+  const pet = pets.find((saved) => saved.id === chosenPetId) ?? pets.find((saved) => saved.type === 'pet') ?? null;
 
   // The comparison reads the pet from the Lost & Found store.
   useEffect(() => {
@@ -289,6 +291,9 @@ export function WatchForChooser({ watchFor, watching, wide }: ChooserProps) {
                   value={option}
                   checked={chosen}
                   onChange={() => chooseWay(option)}
+                  // A press keeps the option also when it shows checked while the
+                  // stored choice differs (after a failed read of the saved pets).
+                  onClick={() => chooseWay(option)}
                 />
                 {chosen && <CheckGlyph />}
                 <span>{label}</span>
@@ -429,7 +434,9 @@ interface ChoosePetProps {
  */
 function ChoosePet({ pets, chosenId, onChoose, onClose }: ChoosePetProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  // A choice the arrow keys made leaves the dialog open; a press closes it.
+  // The arrow keys move the checked pet here; a press chooses it for the
+  // watch and closes, and Escape or Close leave the watch's pet as it was.
+  const [picked, setPicked] = useState(chosenId);
   const byArrow = useRef(false);
 
   useEffect(() => {
@@ -481,7 +488,7 @@ function ChoosePet({ pets, chosenId, onChoose, onClose }: ChoosePetProps) {
         </div>
         <div role="radiogroup" aria-labelledby="choose-pet-heading" className="watch-dialog__list">
           {pets.map((saved) => {
-            const chosen = saved.id === chosenId;
+            const chosen = saved.id === picked;
             const count = saved.referenceImages.length;
             return (
               <label key={saved.id} className="watch-dialog__pet" data-chosen={chosen ? 'true' : undefined}>
@@ -490,7 +497,7 @@ function ChoosePet({ pets, chosenId, onChoose, onClose }: ChoosePetProps) {
                   name="choose-pet"
                   aria-label={saved.name}
                   checked={chosen}
-                  onChange={() => onChoose(saved.id)}
+                  onChange={() => setPicked(saved.id)}
                   onKeyDown={(event) => {
                     byArrow.current = event.key.startsWith('Arrow');
                     if (event.key === 'Enter') {

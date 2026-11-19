@@ -84,9 +84,10 @@ export default function LostFoundPage() {
   };
 
   // Handle start monitoring: the watch opens with Lost and Found chosen and
-  // this pet, the one the watch compares with.
+  // this pet, the one the watch compares with. A person an earlier version
+  // saved is never compared, so it has no start key.
   const handleStartMonitoring = () => {
-    if (activeSubject) {
+    if (activeSubject && activeSubject.type !== 'person') {
       setLostFoundChosen(true);
       startWatching();
       router.push('/monitor');
@@ -147,7 +148,7 @@ export default function LostFoundPage() {
                   <h2 className="text-lg font-semibold text-white">
                     Currently Watching
                   </h2>
-                  {!isWatching && (
+                  {!isWatching && activeSubject.type !== 'person' && (
                     <button
                       onClick={handleStartMonitoring}
                       className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-2 transition-colors"

@@ -46,7 +46,7 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   const subject = { id: 'subject', name: 'Subject', type: 'other' as const, description: '', fingerprint, referenceImages: [], createdAt: fingerprint.createdAt, lastActiveAt: null, matchCount: 0 };
   await saveSubjectProfile(subject);
   useOnboardingStore.setState({ lostFoundChosen: true });
-  useLostFoundStore.setState({ activeSubject: subject, settings: { ...DEFAULT_SETTINGS, scanGridSize: 2, minConfidenceForRecord: 0, alertSound: false, alertNotification: false, adaptiveLighting: false, motionPriority: false } });
+  useLostFoundStore.setState({ activeSubject: subject, chosenPetId: subject.id, settings: { ...DEFAULT_SETTINGS, scanGridSize: 2, minConfidenceForRecord: 0, alertSound: false, alertNotification: false, adaptiveLighting: false, motionPriority: false } });
   const camera = render(<MonitorPage />);
   await screen.findByRole('radio', { name: 'Lost and Found', checked: true });
   fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));

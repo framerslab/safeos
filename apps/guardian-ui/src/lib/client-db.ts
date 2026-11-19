@@ -1180,10 +1180,11 @@ export async function getAllSubjectProfiles(): Promise<SubjectProfileDB[]> {
 }
 
 /**
- * The pets saved on this device for Lost and Found, newest first, for the
- * watch's Watch for. A subject an earlier version saved as a person is left
- * out. Unlike getAllSubjectProfiles, a read that fails throws, so the watch
- * can say the saved pets could not be read.
+ * The pets saved on this device for Lost and Found, and the things saved
+ * there as objects, newest first, for the watch's Watch for, which takes the
+ * newest pet until one is chosen. A subject an earlier version saved as a
+ * person is left out. Unlike getAllSubjectProfiles, a read that fails throws,
+ * so the watch can say the saved pets could not be read.
  */
 export async function readSavedPets(): Promise<SubjectProfileDB[]> {
   const db = await getDB();
