@@ -4,12 +4,15 @@
  *
  * The dashboard links to /help/#camera and /help/#notifications when the
  * camera or notifications are blocked. Help opens Troubleshooting with that
- * entry in view; any other address opens the page as before.
+ * entry in view; any other address opens the page as before. Getting started
+ * is in Help itself: no section holds a key to the old tip walk, whose
+ * address forwards to Help.
  */
 
 import React from 'react';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import HelpPage from '@/app/help/page';
+import { bare } from './helpers/served-html';
 
 const scrolled: Element[] = [];
 const original = Element.prototype.scrollIntoView;
@@ -66,4 +69,14 @@ it('any other fragment opens the page as before', () => {
   expect(screen.getByRole('heading', { name: 'Getting Started with SafeOS' })).toBeTruthy();
   expect(screen.queryByRole('heading', { name: 'Camera not working' })).toBeNull();
   expect(scrolled).toEqual([]);
+});
+
+it('holds no key to the tip walk in any section', () => {
+  render(<HelpPage />);
+  for (const section of ['Getting Started', 'FAQ', 'Keyboard Shortcuts', 'Troubleshooting', 'Contact Support']) {
+    fireEvent.click(screen.getByRole('button', { name: section }));
+    expect([section, screen.queryAllByText('Start Interactive Tutorial').length]).toEqual([section, 0]);
+    const links = screen.queryAllByRole('link').map((link) => bare(link.getAttribute('href')));
+    expect([section, links.filter((href) => href === '/tutorial')]).toEqual([section, []]);
+  }
 });
