@@ -369,12 +369,6 @@ Every pull request into `master` and every push to `master` runs these
 workflows in `.github/workflows/`. Any failing step fails the run; no check
 prints an error and carries on.
 
-The jobs that install Playwright's browsers (the alert walk, the Lost & Found
-browser test, the account form pictures, both picture jobs and the Pages build)
-run on `ubuntu-24.04`: Playwright 1.57 installs no browser on `ubuntu-26.04`,
-and `ubuntu-latest` moves to newer images over one to two months
-(https://github.com/actions/runner-images, "Latest Migration Process").
-
 | Workflow | Job | What it proves |
 |---|---|---|
 | `ci.yml` | Server type check and lint | `tsc --noEmit` on `src` has no errors; ESLint on `src` and `tests` has no errors (explicit `any` is reported as a warning) |

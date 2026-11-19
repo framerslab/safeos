@@ -63,13 +63,14 @@ env:
   DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/ /about/ /blog/ /blog/how-safeos-guardian-works/ /tutorials/ /tutorial/ /donate/ /terms/ /lost-found/ /404.html
 
 jobs:
+  # Every job runs on ubuntu-24.04: ubuntu-latest moved to Ubuntu 26.04, where the
+  # Playwright this app uses does not install its browsers.
   pictures:
     name: ${{ matrix.version == 'before' && 'Capture before pictures' || 'Capture pictures' }}
     strategy:
       fail-fast: false
       matrix:
         version: ${{ fromJSON(github.event_name == 'pull_request' && '["after","before"]' || '["after"]') }}
-    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
     runs-on: ubuntu-24.04
     # A capture takes about seven minutes.
     timeout-minutes: 30
@@ -140,7 +141,6 @@ jobs:
 
   home-captures:
     name: Capture the home page pictures
-    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     defaults:

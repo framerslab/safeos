@@ -26,12 +26,14 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Every job runs on ubuntu-24.04: ubuntu-latest moved to Ubuntu 26.04, where the
+  # Playwright this app uses does not install its browsers.
   # ---------------------------------------------------------------------------
   # Server: type check and lint
   # ---------------------------------------------------------------------------
   server-checks:
     name: Server type check and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,7 +57,7 @@ jobs:
   # ---------------------------------------------------------------------------
   server-tests:
     name: Server tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -99,7 +101,7 @@ jobs:
   # ---------------------------------------------------------------------------
   server-build:
     name: Server build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -120,7 +122,7 @@ jobs:
   # ---------------------------------------------------------------------------
   web-checks:
     name: Web app type check and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -152,7 +154,7 @@ jobs:
 
   web-tests:
     name: Web app tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -178,7 +180,6 @@ jobs:
   # (e2e/alerts-repeat.spec.ts).
   web-alert-walk:
     name: Web app alert walk
-    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
@@ -245,7 +246,6 @@ jobs:
   # ---------------------------------------------------------------------------
   web-lost-found:
     name: Web app Lost & Found browser test
-    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
     runs-on: ubuntu-24.04
     # Four walks on one build, Watch for's among them with axe in both looks.
     timeout-minutes: 30
@@ -323,7 +323,7 @@ jobs:
   # ---------------------------------------------------------------------------
   compose-ports:
     name: Compose ports
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Checkout
@@ -354,7 +354,6 @@ jobs:
 
   account-pictures:
     name: Account form pictures
-    # Playwright 1.57 installs no browser on ubuntu-26.04, where ubuntu-latest is moving.
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
