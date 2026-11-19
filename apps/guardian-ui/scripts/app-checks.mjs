@@ -4951,6 +4951,19 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // Text at 200 per cent on a page with script off. The style goes in through
+  // the walk's own call: a style tag added the usual way waits for the page
+  // to hear the tag load, and a page with script off hears nothing, so that
+  // wait never ends.
+  const largerTextWithoutScript = async (page) => {
+    await page.evaluate((css) => {
+      const style = document.createElement('style');
+      style.textContent = css;
+      document.head.appendChild(style);
+    }, LARGER_TEXT);
+    await page.waitForTimeout(300);
+  };
+
   // Without script: the address stays, the line and the link are drawn at
   // full strength and whole with text at 200 per cent, the held link sits
   // 1 px lower (in place under reduced motion), and the press opens the
@@ -4971,9 +4984,9 @@ export async function checkApp(browser, baseUrl, outDir) {
         const opacity = await opacityOf(page, selector);
         check(opacity === 1, `on ${from} ${what} is ${opacity === -1 ? 'not in main.forward' : `drawn at opacity ${opacity}, not 1`}`);
       }
-      await largerText(page);
+      await largerTextWithoutScript(page);
       const sideways = await sidewaysScroll(page);
-      check(sideways <= 0, `${from} with text at 200 per cent scrolls ${sideways} px sideways`);
+      if (sideways > 0) check(false, `${from} with text at 200 per cent scrolls ${sideways} px sideways: ${await widest(page)}`);
       const cut = await page.evaluate(() => [['the line', 'main.forward h1'], ['the link', 'main.forward a']]
         .filter(([, selector]) => {
           const element = document.querySelector(selector);
