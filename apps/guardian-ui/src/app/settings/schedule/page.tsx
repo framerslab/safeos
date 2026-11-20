@@ -15,7 +15,8 @@ import {
   DAYS_OF_WEEK as SCHEDULE_DAYS,
   formatTimeSlot,
   isScheduleActive,
-  isPresetId,
+  isSchedulablePreset,
+  SCHEDULABLE_PRESETS,
   type Schedule,
   type DayOfWeek,
 } from '../../../lib/schedule-manager';
@@ -536,6 +537,11 @@ function ScheduleCard({ schedule, isActive, onToggle, onEdit, onDelete }: Schedu
           {schedule.description && (
             <p className="text-sm text-slate-400 mb-2">{schedule.description}</p>
           )}
+          {!isSchedulablePreset(schedule.preset) && (
+            <p className="text-sm text-amber-400 mb-2">
+              This schedule needs a setting chosen. Press Edit to choose one; until then it never applies.
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
             <span className="flex items-center gap-1">
               <ClockIcon className="w-3.5 h-3.5" />
@@ -587,9 +593,10 @@ function ScheduleForm({ initialData, onSave, onCancel }: ScheduleFormProps) {
   const [name, setName] = useState(initialData?.name || '');
   const [description, setDescription] = useState(initialData?.description || '');
   // A set time opens on Maximum Alert, the setting a new device starts on; a
-  // saved set time that names a setting the app does not have opens on it too.
+  // saved set time without a named setting (Custom, or one an earlier form
+  // saved) opens on it too.
   const initialPreset = initialData?.preset;
-  const [preset, setPreset] = useState<PresetId>(isPresetId(initialPreset) ? initialPreset : 'maximum');
+  const [preset, setPreset] = useState<PresetId>(isSchedulablePreset(initialPreset) ? initialPreset : 'maximum');
   const [startTime, setStartTime] = useState(initialData?.timeSlot?.start || '09:00');
   const [endTime, setEndTime] = useState(initialData?.timeSlot?.end || '17:00');
   const [days, setDays] = useState<DayOfWeek[]>(initialData?.days || ['mon', 'tue', 'wed', 'thu', 'fri']);
@@ -656,9 +663,9 @@ function ScheduleForm({ initialData, onSave, onCancel }: ScheduleFormProps) {
           className="w-full px-4 py-2 bg-slate-900 border border-slate-600 rounded-lg text-white
                      focus:outline-none focus:border-emerald-500"
         >
-          {Object.entries(DEFAULT_PRESETS).map(([id, p]) => (
+          {SCHEDULABLE_PRESETS.map((id) => (
             <option key={id} value={id}>
-              {p.name}
+              {DEFAULT_PRESETS[id].name}
             </option>
           ))}
         </select>

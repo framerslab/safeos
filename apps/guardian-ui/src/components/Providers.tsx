@@ -38,7 +38,9 @@ export function Providers({ children }: ProvidersProps) {
   const profile = useAuthStore((state) => state.profile);
   useEffect(() => { hydrateSavedSettings(profile); }, [profile]);
   // Set times apply on every page, from this one place. Mounted after the
-  // saved preferences are read, so a set time in force goes on over them.
+  // saved preferences are read, so a set time in force goes on over them. An
+  // account restored later brings its preferences after the first check:
+  // hydrateSavedSettings then leaves a set time's setting as it is.
   useScheduleChecker();
   useEffect(() => { void useMonitoringStore.getState().hydrateAlerts(); }, []);
 
@@ -56,6 +58,12 @@ export function Providers({ children }: ProvidersProps) {
     };
 
     apply();
+    // A saved sound reads the volumes at the instant it starts, so quiet hours
+    // that began or ended a moment ago hold for it.
+    manager.setVolumeSource(() => {
+      const state = useSettingsStore.getState();
+      return { user: state.getEffectiveVolume(), critical: state.getEffectiveVolume('critical') };
+    });
 
     // React to settings changes immediately, and also re-apply periodically so
     // quiet-hours transitions take effect without requiring a settings change.
@@ -65,6 +73,7 @@ export function Providers({ children }: ProvidersProps) {
     return () => {
       unsubscribe();
       window.clearInterval(interval);
+      manager.setVolumeSource(null);
     };
   }, []);
 

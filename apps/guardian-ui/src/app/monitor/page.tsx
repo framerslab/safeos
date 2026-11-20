@@ -8,7 +8,7 @@
  * @module app/monitor/page
  */
 
-import { getLocalDataGeneration, isCurrentLocalData } from '@/lib/local-data-generation';
+import { getLocalDataGeneration, isCurrentLocalData, readAccountClearMarker } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
 import { newDetectorEvent, endDetectorEvent, freshCardFor, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
@@ -136,6 +136,7 @@ export default function MonitorPage() {
   // with. It compares while the watch runs; from 1024 px the pet's card
   // heads the right column.
   const watchFor = useWatchFor(captureRequested);
+  const petsMarker = watchFor.petsMarker;
   const wide = useWideWatch();
   const petCard = wide && watchFor.way === 'lost_found';
 
@@ -224,13 +225,29 @@ export default function MonitorPage() {
   }, [activeSubject, isLostFoundWatching, lostFoundSettings]);
 
   // The person's own sounds for Lost Item Found that the last match started.
-  // `round` moves on when they are stopped, so a start still on its way when
-  // the watch stops is stopped as it arrives.
-  const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; round: number }>({ starting: false, ids: [], round: 0 });
-  const stopOwnLostFoundSounds = useCallback(() => {
+  // `round` moves on when they are let go, so a start on its way when
+  // the watch stops starts nothing. Each sound is held from its start. When
+  // Lost & Found ends and monitoring goes on, letting go stops a sound unless
+  // another alert's trigger plays it too; when the watch stops, it stops.
+  // `shared` keeps each sound that was let go and plays on for another alert,
+  // so the watch's stop reaches it after Lost & Found has ended.
+  const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; shared: Set<string>; round: number }>(
+    { starting: false, ids: [], shared: new Set(), round: 0 }
+  );
+  const stopOwnLostFoundSounds = useCallback((watchStops = false) => {
     const own = ownLostFoundSoundRef.current;
     own.round += 1;
-    own.ids.forEach((id) => getSoundManager().stop(id, 0));
+    if (watchStops) {
+      own.ids.forEach((id) => getSoundManager().stop(id, 0));
+      own.shared.forEach((id) => getSoundManager().stop(id, 0));
+      own.shared.clear();
+    } else {
+      own.ids.forEach((id) => {
+        const manager = getSoundManager();
+        manager.release(id, 'object_found');
+        if (manager.isActive(id)) own.shared.add(id);
+      });
+    }
     own.ids = [];
   }, []);
 
@@ -250,10 +267,16 @@ export default function MonitorPage() {
       // Check if should record
       if (matcher.shouldRecord() && result.frameData) {
         // Create match frame and save to IndexedDB (async thumbnail creation)
+        // A match is the pet's it was read for: once all local data is cleared,
+        // in this tab or another, it is not saved. The pet counts under the
+        // account marker the watch read its pets under, so a match made after
+        // another tab's clear landed and before this tab heard of it is void too.
         const generation = getLocalDataGeneration();
+        const clearedUnder = petsMarker();
+        const current = () => readAccountClearMarker() === clearedUnder;
         const frameData = result.frameData;
         createThumbnail(frameData).then((thumbnailData) => {
-          if (!isCurrentLocalData(generation)) return;
+          if (!isCurrentLocalData(generation) || !current()) return;
           const matchFrame: MatchFrameDB = {
             id: result.id,
             subjectId: activeSubject.id,
@@ -268,7 +291,7 @@ export default function MonitorPage() {
             exported: false,
           };
 
-          saveMatchFrame(matchFrame, generation);
+          saveMatchFrame(matchFrame, generation, current);
         });
         addMatchFrameToStore(createMatchFrame(activeSubject.id, result));
       }
@@ -287,13 +310,15 @@ export default function MonitorPage() {
           const own = ownLostFoundSoundRef.current;
           if (!own.starting && !own.ids.some((id) => manager.isActive(id))) {
             own.starting = true;
+            own.ids = [];
             const round = own.round;
-            void manager.playForTrigger('object_found')
-              .then((ids) => {
-                if (round === own.round) own.ids = ids;
-                else ids.forEach((id) => manager.stop(id, 0));
-              })
-              .finally(() => { own.starting = false; });
+            void manager.playForTrigger('object_found', {
+              cancelled: () => round !== own.round,
+              onStart: (id) => {
+                if (round === own.round) own.ids.push(id);
+                else manager.release(id, 'object_found');
+              },
+            }).finally(() => { own.starting = false; });
           }
           if (!lostFoundSettings.customMediaEnabled) manager.play('alert');
         }
@@ -329,11 +354,12 @@ export default function MonitorPage() {
     addRecentMatch,
     addMatchFrameToStore,
     recordLostFoundAlert,
+    petsMarker,
   ]);
 
   // The person's own Lost & Found sounds stop when the Lost & Found watch ends,
   // its pet changes or the page closes (and with the camera, in stopStream).
-  useEffect(() => stopOwnLostFoundSounds, [isLostFoundWatching, activeSubject?.id, stopOwnLostFoundSounds]);
+  useEffect(() => () => stopOwnLostFoundSounds(), [isLostFoundWatching, activeSubject?.id, stopOwnLostFoundSounds]);
 
   // Drive Lost & Found matching on a lightweight interval (avoids relying on websocket frames)
   useEffect(() => {
@@ -408,7 +434,7 @@ export default function MonitorPage() {
   };
 
   const stopStream = () => {
-    stopOwnLostFoundSounds();
+    stopOwnLostFoundSounds(true);
     captureRequestedRef.current = false;
     setCaptureRequested(false);
     setVideoSeen(false);
@@ -1537,7 +1563,7 @@ export default function MonitorPage() {
                   <IconSearch size={18} />
                   Lost and Found
                 </h2>
-                <SubjectPreview mode="full" showClose={false} />
+                <SubjectPreview mode="full" showClose={false} onPhotosSaved={watchFor.photosSaved} savedUnder={petsMarker} />
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <Link
                     href="/lost-found/gallery"
