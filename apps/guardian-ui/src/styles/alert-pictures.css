@@ -1388,3 +1388,75 @@ html.light {
     height: 150px;
   }
 }
+
+/* -----------------------------------------------------------------------------
+   Settings, Notifications: Show the picture in alert notifications
+   ----------------------------------------------------------------------------- */
+
+/* A phone: the label and its switch on one row, the lines under them across the column. */
+.alert-pictures-notification {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--ap-divider);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.alert-pictures-notification p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-pictures-notification__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.alert-pictures-notification__row > .alert-pictures-row__label {
+  padding-top: 8px;
+}
+
+.alert-pictures-notification__row:has([aria-disabled='true']) {
+  cursor: default;
+}
+
+.alert-pictures-notification__row:has([aria-disabled='true']) > .alert-pictures-row__label {
+  color: var(--ap-quiet);
+}
+
+.alert-pictures-notification__ask {
+  display: flex;
+}
+
+/* A tablet: the label and its lines at the left, held to 520 px; the switch at the row's end. */
+@media (min-width: 768px) {
+  .alert-pictures-notification__row > .alert-pictures-row__label,
+  .alert-pictures-notification__line {
+    max-width: 520px;
+  }
+}
+
+/* A desktop: the label and its lines in the left seven twelfths, held to 640 px. */
+@media (min-width: 1024px) {
+  .alert-pictures-notification__row > .alert-pictures-row__label,
+  .alert-pictures-notification__line {
+    max-width: min(640px, 58.333%);
+  }
+}
+
+@media (min-width: 1440px) {
+  .alert-pictures-notification .alert-pictures-line {
+    font-size: 1.25rem;
+  }
+}

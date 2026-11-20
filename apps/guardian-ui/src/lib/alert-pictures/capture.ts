@@ -8,8 +8,8 @@
  * JPEG; the close-up is cut from the full-size copy, never from a JPEG.
  *
  * The drawn copies are made from a kept set for one use and never stored:
- * the file Save picture hands the browser, and the brightened view of a
- * dark picture.
+ * the file Save picture hands the browser, the brightened view of a dark
+ * picture, and the picture a notification carries.
  *
  * @module lib/alert-pictures/capture
  */
@@ -22,6 +22,8 @@ import {
   CLOSE_UP_QUALITY,
   FRAME_LONG_EDGE,
   FRAME_QUALITY,
+  NOTIFICATION_LONG_EDGE,
+  NOTIFICATION_QUALITY,
   SAVED_FILE_QUALITY,
   closeUpRect,
   fitLongEdge,
@@ -251,4 +253,25 @@ export async function brightenedUrl(set: PictureSet): Promise<{ frame: string; c
     close ? jpeg(close.canvas, SAVED_FILE_QUALITY) : Promise.resolve(null),
   ]);
   return { frame: URL.createObjectURL(frameBlob), closeUp: closeBlob ? URL.createObjectURL(closeBlob) : null };
+}
+
+/** True in a browser that shows a notification's picture; elsewhere a notification is its words alone. */
+export function showsNotificationPictures(): boolean {
+  return typeof Notification !== 'undefined' && 'image' in Notification.prototype;
+}
+
+/**
+ * The picture a notification carries: the kept frame at 640 px on its long
+ * edge, with the box drawn in at twice the photograph's widths (4 px of its
+ * green inside 2 px of its dark line) so it reads at a notification's size,
+ * and no words. A data URL handed to the browser for that one notification
+ * and never stored.
+ */
+export async function notificationCopy(set: PictureSet): Promise<string> {
+  const frame = await drawn(set.frame);
+  const scale = NOTIFICATION_LONG_EDGE / Math.max(frame.canvas.width, frame.canvas.height);
+  const copy = canvasOf(Math.max(1, Math.round(frame.canvas.width * scale)), Math.max(1, Math.round(frame.canvas.height * scale)));
+  copy.ctx.drawImage(frame.canvas, 0, 0, copy.canvas.width, copy.canvas.height);
+  if (set.box) drawBox(copy.ctx, scaleBox(set.box, copy.canvas.width / set.frameWidth), 4, 2);
+  return copy.canvas.toDataURL('image/jpeg', NOTIFICATION_QUALITY);
 }

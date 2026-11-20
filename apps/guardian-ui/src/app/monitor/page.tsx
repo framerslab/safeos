@@ -38,10 +38,11 @@ import { getSoundManager } from '../../lib/sound-manager';
 import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { detectRegionalMotion } from '../../lib/motion-detection';
-import { LIVE_BOX_MS, alertBox, boxFromCells, boxFromHotspots, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
-import { plateLine } from '../../lib/alert-pictures/words';
+import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, boxFromCells, boxFromHotspots, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { notificationBody, notificationTitle, plateLine } from '../../lib/alert-pictures/words';
+import { useAlertPicturesStore } from '../../stores/alert-pictures-store';
 import type { LiveAlertBox } from '../../components/alert-pictures/LiveBox';
-import { capturePictureSet, newPictureId, type PictureSet } from '../../lib/alert-pictures/capture';
+import { capturePictureSet, newPictureId, notificationCopy, showsNotificationPictures, type PictureSet } from '../../lib/alert-pictures/capture';
 import { holdPicture, startPictureWatch, stopPictureWatch } from '../../lib/alert-pictures/keeper';
 import { useNoticeGate } from '../../components/alert-pictures/PicturesNotice';
 import { getNotificationManager } from '../../lib/notification-manager';
@@ -775,19 +776,46 @@ export default function MonitorPage() {
     return 'low';
   };
 
-  const maybeNotify = async (
-    title: string,
-    body: string,
-    severity: 'low' | 'medium' | 'high' | 'critical',
-    event?: DetectorEvent
-  ) => {
+  /**
+   * Asks the browser for an alert's notification: its title and body carry
+   * every word. Where the person turned on Show the picture in alert
+   * notifications, in a browser that shows a notification's picture, a Motion,
+   * Picture change or Lost and Found alert's notification carries the camera's
+   * picture with its box drawn in; it waits for that picture at most 300 ms
+   * from the alert and then goes with its words alone. A Sound alert's
+   * notification never carries a picture, and a picture that cannot be drawn
+   * leaves the words.
+   */
+  const maybeNotify = async (note: {
+    kind: AlertKind;
+    title: string;
+    body: string;
+    severity: AlertSeverity | 'info';
+    at: number;
+    event?: DetectorEvent;
+    picture?: Promise<PictureSet>;
+  }) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const { title, body, severity, event } = note;
+
+    let image: string | undefined;
+    if (
+      note.picture && note.kind !== 'sound' &&
+      useAlertPicturesStore.getState().inNotifications && showsNotificationPictures()
+    ) {
+      const left = Math.max(0, NOTIFICATION_WAIT_MS - (Date.now() - note.at));
+      image = await Promise.race([
+        note.picture.then(notificationCopy).catch(() => undefined),
+        new Promise<undefined>((resolve) => { window.setTimeout(() => resolve(undefined), left); }),
+      ]);
+    }
 
     // High and critical notifications stay up until dismissed; so do the
     // notifications of an event that has alerted at high or critical, since
     // each replaces the one before it.
     const requireInteraction = event ? keepsNotificationUp(event) : severity === 'high' || severity === 'critical';
     await getNotificationManager().show(title, {
+      image,
       body,
       // One tag an event, whatever its severity: a repeat, or a rise in severity,
       // replaces the event's notification in place of standing beside it, and a
@@ -978,7 +1006,10 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
     playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity, motionEventRef.current);
+    void maybeNotify({
+      kind: 'motion', title: notificationTitle('motion'), body: notificationBody(severity, now),
+      severity, at: now, event: motionEventRef.current, picture: taken?.picture,
+    });
   }, [
     isStreaming,
     currentPreset.motionDetectionEnabled,
@@ -1027,7 +1058,10 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('audio_detected', { critical: severity === 'critical' });
     getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
-    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity, audioEventRef.current);
+    void maybeNotify({
+      kind: 'sound', title: notificationTitle('sound'), body: notificationBody(severity, now),
+      severity, at: now, event: audioEventRef.current,
+    });
   }, [isStreaming, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, showDetectorAlert, takePicture, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
 
   const handlePixel = useCallback((result: PixelDetectionResult, frames?: CheckFrames) => {
@@ -1118,7 +1152,10 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
     playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity, pixelEventRef.current);
+    void maybeNotify({
+      kind: 'picture-change', title: notificationTitle('picture-change'), body: notificationBody(severity, now),
+      severity, at: now, event: pixelEventRef.current, picture: taken?.picture,
+    });
   }, [
     isStreaming,
     currentPreset.absolutePixelThreshold,

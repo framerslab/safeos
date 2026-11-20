@@ -118,6 +118,23 @@ export const UNREADABLE_DELETE = 'This picture could not be read on this device.
 export const PICTURE_DELETE_FAILED = 'The picture could not be deleted. Press Delete picture to try again.';
 
 // =============================================================================
+// The notification's words, and its picture's switch on Settings, Notifications
+// =============================================================================
+
+/** "Motion alert", "Sound alert" or "Picture change alert". */
+export const notificationTitle = (kind: AlertKind): string => `${kindWords(kind)} alert`;
+
+/** "Low, 9:42:40 PM." */
+export const notificationBody = (severity: Severity, at: number | Date): string => `${levelWords(severity)}, ${timeWords(at)}.`;
+
+export const NOTIFICATION_PICTURE_SWITCH = 'Show the picture in alert notifications';
+export const LOCK_SCREEN_LINE = 'The picture shows in the notification, and on some phones on the lock screen, to anyone who can see this device. The phone’s own settings decide what a locked screen shows.';
+export const THIS_DEVICE_LINE = 'A notification shows on this device, the one that watches.';
+export const WORDS_ALONE_LINE = 'This browser shows a notification’s words alone.';
+export const ALLOW_NOTIFICATIONS = 'Allow notifications';
+export const BLOCKED_LINE = 'To allow them, open the site settings from the address bar and set Notifications to Allow.';
+
+// =============================================================================
 // Keep alert pictures: the group, the notice and the alert list's line
 // =============================================================================
 

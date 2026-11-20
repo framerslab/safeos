@@ -475,7 +475,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await pictureOfAlerts(page, testInfo, 'critical-motion-repeated');
 
     // The repeat replaces the first notification (same tag) and alerts again.
-    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     expect.soft(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect.soft(shown[1]?.tag).toBe(shown[0]?.tag);
     expect.soft(shown[1]?.renotify, 'the repeat notification sets renotify, so it alerts again').toBe(true);
@@ -568,7 +568,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
 
     // The rise's notification keeps the event's tag, so it replaces the low
     // one in place of standing beside it.
-    const shown = walk.notifications.filter((n) => n.title === 'Motion Detected');
+    const shown = walk.notifications.filter((n) => n.title === 'Motion alert');
     expect.soft(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect.soft(shown[shown.length - 1]?.tag, `the rise keeps the notification tag (${JSON.stringify(shown)})`).toBe(shown[0]?.tag);
   });
@@ -588,7 +588,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await page.evaluate(() => { window.__walkCamera!.changingWidth = 1 / 3; });
     await runUntil(page, first + 10_000 + LATE_MS);
 
-    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     expect(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect.soft(shown[0]?.requireInteraction, 'the critical notification stays up').toBe(true);
     expect.soft(shown[shown.length - 1]?.tag, 'the repeat replaces the event\'s notification').toBe(shown[0]?.tag);
@@ -610,7 +610,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await page.getByRole('button', { name: 'Acknowledge', exact: true }).first().click();
     await runUntil(page, first + 10_000 + LATE_MS);
 
-    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     expect(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect(shown[shown.length - 1]?.tag, `the event keeps its tag on its new card (${JSON.stringify(shown)})`).toBe(shown[0]?.tag);
   });
@@ -633,7 +633,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await expect.poll(async () => (await walkOf(page)).cards.motion, { timeout: 40_000 }).toBe(2);
     // The second card shows before its notification is delivered: the notification
     // waits for the service worker's registration.
-    const motionNotifications = async () => (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    const motionNotifications = async () => (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     await expect.poll(async () => (await motionNotifications()).length, {
       message: 'a notification for each event', timeout: 15_000,
     }).toBeGreaterThanOrEqual(2);

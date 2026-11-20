@@ -48,6 +48,9 @@ export const LIVE_BOX_MS = 10_000;
 export const MIN_LIVE_BOX_PX = 24;
 /** How long a notification waits for its picture before it goes as words. */
 export const NOTIFICATION_WAIT_MS = 300;
+/** A notification's drawn copy: this long on its long edge, a JPEG at this quality. */
+export const NOTIFICATION_LONG_EDGE = 640;
+export const NOTIFICATION_QUALITY = 0.8;
 /** The choices of "Delete pictures after", in days; null keeps them until the person deletes them. */
 export const DELETE_AFTER_CHOICES = [1, 3, 7, 30, null] as const;
 
