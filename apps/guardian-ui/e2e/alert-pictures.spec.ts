@@ -1279,8 +1279,13 @@ test.describe('Keeping pictures, 1280 px', () => {
     }));
     const sent = [...server.messages, ...bodies].join('\n');
     expect(sent).not.toContain(kept.id);
-    expect(sent).not.toContain(kept.frame.slice(0, 400));
-    if (kept.closeUp) expect(sent).not.toContain(kept.closeUp.slice(0, 400));
+    // A JPEG opens with its encoder's header, the same in every file this browser writes, so the
+    // kept picture is told by its own data: a stretch from its middle and its end.
+    const own = (file: string) => [file.slice(Math.floor(file.length / 2), Math.floor(file.length / 2) + 400), file.slice(-400)];
+    for (const stretch of own(kept.frame)) expect(sent.includes(stretch), 'no stretch of the kept frame reaches the server').toBe(false);
+    if (kept.closeUp) {
+      for (const stretch of own(kept.closeUp)) expect(sent.includes(stretch), 'no stretch of the close-up reaches the server').toBe(false);
+    }
     expect(sent).not.toContain(kept.box);
     expect(sent).not.toMatch(/pictureId|sourceBox|closeUp|alert_picture/);
   });
@@ -1373,8 +1378,13 @@ test.describe('The group and the notice: order, sizes and faults', () => {
           const keys = dialog.locator('.alert-pictures-keys');
           if (await keys.locator('.alert-pictures-keys__row').evaluate((row) => row.scrollWidth > row.clientWidth + 1)) {
             await expect(keys.getByRole('button', { name: 'Previous keys', exact: true })).toBeDisabled();
-            await keys.getByRole('button', { name: 'Next keys', exact: true }).click();
-            await expect(start).toBeInViewport({ ratio: 0.9 });
+            // Next keys moves the row on until its last key's end shows, where it is inactive.
+            const next = keys.getByRole('button', { name: 'Next keys', exact: true });
+            for (let press = 0; press < 6 && await next.isEnabled(); press++) await next.click();
+            await expect(next).toBeDisabled();
+            await expect(start).toBeInViewport();
+            const [row, last] = [(await keys.locator('.alert-pictures-keys__row').boundingBox())!, (await start.boundingBox())!];
+            expect(last.x + last.width, 'the last key’s end shows inside the row').toBeLessThanOrEqual(row.x + row.width + 1);
             await expect(keys.getByRole('button', { name: 'Previous keys', exact: true })).toBeEnabled();
           }
           expect(await fits(dialog), `nothing in the notice is cut at ${text} per cent`).toEqual([]);
@@ -1604,7 +1614,8 @@ for (const reduced of [false, true]) {
           return { transition: style.transitionDuration, animation: style.animationName };
         });
         expect(moves.animation).toBe('none');
-        expect(moves.transition.split(',').every((time) => parseFloat(time) === 0), `no transition (${moves.transition})`).toBe(true);
+        // The page's own reduced-motion rule sets every transition to a hundredth of a millisecond.
+        expect(moves.transition.split(',').every((time) => parseFloat(time) <= 0.001), `no transition (${moves.transition})`).toBe(true);
       }
       // Up at 7 seconds, gone by 11 from when it was seen (it came up to a second before that).
       await page.waitForTimeout(Math.max(0, 7_000 - (Date.now() - seen)));
@@ -1981,7 +1992,7 @@ test.describe('The opened picture on the watch, 390 px', () => {
     // Show the box: off shows the clean picture under its plain name; on brings the box back; nothing fades.
     const box = dialog.locator('.alert-picture__box');
     await expect(box).toHaveCount(1);
-    expect(await box.evaluate((el) => getComputedStyle(el).transitionDuration.split(',').every((t) => parseFloat(t) === 0)), 'the box has no transition').toBe(true);
+    expect(await box.evaluate((el) => getComputedStyle(el).transitionDuration.split(',').every((t) => parseFloat(t) <= 0.001)), 'the box has no transition').toBe(true);
     await boxSwitch(dialog).click();
     await expect(boxSwitch(dialog)).toHaveAttribute('aria-checked', 'false');
     await expect(box).toHaveCount(0);
