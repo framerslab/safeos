@@ -8,7 +8,11 @@ picture its walk takes once it passes.
 
 `after/`: the `settings-pictures` and `nap-pictures` artifacts of
 [CI run 44532334311](https://github.com/framerslab/safeos/actions/runs/44532334311)
-on commit 373fb9b, where every walk passed.
+on commit 373fb9b, where every walk passed. The two `pitch-range-*` pictures are
+the widened range walk's, from the `settings-pictures` artifact of
+[CI run 44806854547](https://github.com/framerslab/safeos/actions/runs/44806854547)
+on commit 15fcadd, where every walk passed: a range of up to 128 bins reads its
+own bins there.
 
 `before/`: the walks' red runs, on the tests before their fixes.
 
