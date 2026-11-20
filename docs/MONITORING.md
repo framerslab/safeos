@@ -149,7 +149,8 @@ matching frame, and it stops when the watch stops, when Lost & Found stops
 watching or its pet changes, and when the page closes. A start on its way when
 the watch stops plays nothing, a sound set to repeat starts no further pass once
 it has stopped, and a loop that a motion or sound alert plays too keeps playing
-while monitoring goes on and stops when the watch stops.
+while monitoring goes on and stops when the watch stops, also when **Watch for**
+moved to Motion and sound while it played.
 
 A saved sound for any alert plays nothing when the alert's volume is 0: in
 Silent quiet hours, in Emergency Only quiet hours for an alert that is not

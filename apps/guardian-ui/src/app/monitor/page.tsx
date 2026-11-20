@@ -229,11 +229,25 @@ export default function MonitorPage() {
   // the watch stops starts nothing. Each sound is held from its start. When
   // Lost & Found ends and monitoring goes on, letting go stops a sound unless
   // another alert's trigger plays it too; when the watch stops, it stops.
-  const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; round: number }>({ starting: false, ids: [], round: 0 });
+  // `shared` keeps each sound that was let go and plays on for another alert,
+  // so the watch's stop reaches it after Lost & Found has ended.
+  const ownLostFoundSoundRef = useRef<{ starting: boolean; ids: string[]; shared: Set<string>; round: number }>(
+    { starting: false, ids: [], shared: new Set(), round: 0 }
+  );
   const stopOwnLostFoundSounds = useCallback((watchStops = false) => {
     const own = ownLostFoundSoundRef.current;
     own.round += 1;
-    own.ids.forEach((id) => watchStops ? getSoundManager().stop(id, 0) : getSoundManager().release(id, 'object_found'));
+    if (watchStops) {
+      own.ids.forEach((id) => getSoundManager().stop(id, 0));
+      own.shared.forEach((id) => getSoundManager().stop(id, 0));
+      own.shared.clear();
+    } else {
+      own.ids.forEach((id) => {
+        const manager = getSoundManager();
+        manager.release(id, 'object_found');
+        if (manager.isActive(id)) own.shared.add(id);
+      });
+    }
     own.ids = [];
   }, []);
 
