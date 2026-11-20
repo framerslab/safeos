@@ -12,6 +12,8 @@
  * - a loop that a motion or sound alert plays too keeps playing when the
  *   Lost & Found watch ends and monitoring goes on;
  * - the same loop stops when the watch stops;
+ * - and it stops with the watch after Watch for moved to Motion and sound
+ *   while it played;
  * - Silent quiet hours that begin while the watch runs keep the next match
  *   from playing the sound at once, without waiting for the app's periodic
  *   volume check.
@@ -127,6 +129,36 @@ test('a loop that a motion or sound alert plays too stops when the watch stops',
   await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 10_000 });
   await expect.poll(async () => (await ownSoundCounts(page)).pauses, { message: 'Stop Monitoring stops the loop', timeout: 10_000 })
     .toBeGreaterThan(before.pauses);
+});
+
+test('a loop that a motion or sound alert plays too, left playing when Watch for moves to Motion and sound, stops when the watch stops', async ({ page, context }) => {
+  test.setTimeout(240_000);
+  await setUpDevice(context, { use: 'pet', settings: monitorSettings });
+  await countOwnSoundPasses(page);
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await saveOwnSound(page, { loop: true, triggers: ['motion_detected', 'audio_detected', 'object_found'] });
+  await watchStripes(page);
+  await expect(page.locator('p').filter({ hasText: /^(Motion|Audio) detected: \d+%/ }).first(), 'a motion or sound alert plays the loop')
+    .toBeVisible({ timeout: 60_000 });
+  // Lost & Found's matches alert on each matching frame and find the loop playing.
+  await page.waitForTimeout(5_000);
+  const before = await ownSoundCounts(page);
+  expect(before.passes, 'the loop plays').toBeGreaterThan(0);
+
+  // Lost & Found lets go of the loop; the motion or sound alert still plays it.
+  await page.getByRole('radiogroup', { name: 'Watch for' }).getByRole('radio', { name: 'Motion and sound' }).click();
+  await expect(page.getByRole('button', { name: 'Stop Monitoring', exact: true })).toBeVisible();
+  await page.waitForTimeout(3_000);
+  const switched = await ownSoundCounts(page);
+  expect(switched.pauses, 'the loop is not stopped by the change of Watch for').toBe(before.pauses);
+  expect(switched.passes, 'the loop goes on playing after the change of Watch for').toBeGreaterThan(before.passes);
+
+  await stop(page);
+  await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 10_000 });
+  await expect.poll(async () => (await ownSoundCounts(page)).pauses, {
+    message: 'Stop Monitoring stops the loop that Lost & Found let go of when Watch for changed', timeout: 10_000,
+  }).toBeGreaterThan(switched.pauses);
 });
 
 test('Silent quiet hours that begin while the watch runs keep the next match from playing the saved sound', async ({ page, context }) => {
