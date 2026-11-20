@@ -1,5 +1,6 @@
 import type { UserProfile } from '../stores/auth-store';
 import { useSettingsStore, type SecurityPreset } from '../stores/settings-store';
+import { setTimeSettingInForce } from './schedule-manager';
 
 type SavedSettings = Partial<Pick<UserProfile, 'preferences' | 'notificationSettings'>>;
 
@@ -32,7 +33,9 @@ function readBrowserSettings(): SavedSettings | null {
  * Import preferences a person saved before the shared store held them, once per
  * account (or once for the browser), then use the shared store. A value saved on
  * this browser wins; an account value is used only when it differs from a new
- * profile's default; account quiet hours only when both times are set.
+ * profile's default; account quiet hours only when both times are set. While a
+ * set time's setting is on, the sensitivities and the volume stay the set
+ * time's: the import is recorded as done, and quiet hours are taken.
  */
 export function hydrateSavedSettings(profile: UserProfile | null): void {
   const state = useSettingsStore.getState();
@@ -73,9 +76,13 @@ export function hydrateSavedSettings(profile: UserProfile | null): void {
     };
   }
 
+  // A set time's setting that is on goes on over the imported sensitivities and volume, as it does
+  // over the preferences read when the app opens: an account restored after the set time began
+  // leaves the watch at the set time's values.
+  const heldBySetTime = setTimeSettingInForce() !== null;
   useSettingsStore.setState({
     settingsSourceId: sourceId,
-    globalSettings: { ...state.globalSettings, ...values },
+    globalSettings: heldBySetTime ? state.globalSettings : { ...state.globalSettings, ...values },
     quietHoursSettings,
   });
 }

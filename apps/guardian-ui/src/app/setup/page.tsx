@@ -283,6 +283,10 @@ export default function SetupPage() {
                 }
                 goNext();
               }}
+              // Lost & Found shown as chosen from the watch's Watch for, over a use saved earlier:
+              // Continue keeps that use and Lost & Found with it. Only a press of a card changes the use.
+              keptUse={lostFound ? staged.scenario ?? onboarding.selectedScenario : null}
+              onKeep={goNext}
               onBack={goBack}
             />
           )}
@@ -453,10 +457,16 @@ function DisclaimerStep({
 function ScenarioStep({
   selectedScenario,
   onSelect,
+  keptUse,
+  onKeep,
   onBack,
 }: {
   selectedScenario: Choice | null;
   onSelect: (choice: Choice) => void;
+  /** The use saved under Lost & Found when Lost & Found is the choice shown, or null. */
+  keptUse: Scenario | null;
+  /** Continue with the answers as they are: nothing about the use changes. */
+  onKeep: () => void;
   onBack: () => void;
 }) {
   const scenarios: Array<{ id: Choice; label: string; description: string; icon: ReactNode }> = [
@@ -494,7 +504,9 @@ function ScenarioStep({
     },
   ];
   // A scenario already chosen (saved earlier, or chosen before Back) is
-  // confirmed with Continue.
+  // confirmed with Continue. Lost & Found shown over a saved use (it was
+  // chosen on the watch of a baby, elderly or security device) is confirmed as
+  // it is: the device keeps its use.
   const chosen = selectedScenario;
 
   return (
@@ -555,7 +567,7 @@ function ScenarioStep({
             Back
           </button>
           {chosen && (
-            <button onClick={() => onSelect(chosen)} className="btn btn-primary flex-1">
+            <button onClick={() => (keptUse ? onKeep() : onSelect(chosen))} className="btn btn-primary flex-1">
               Continue
               <IconChevronRight size={16} />
             </button>
@@ -764,7 +776,7 @@ function CompleteStep({ label, onFinish, lostFound }: { label: string; onFinish:
         <h1 className="text-heading-lg mb-2">Setup Complete</h1>
         <p className="text-[var(--color-steel-400)] mb-8 max-w-md mx-auto">
           {lostFound
-            ? 'Your Guardian system is configured. Next, add photos of your pet on the Lost & Found page and press its Start Monitoring. On Monitor, press Start Monitoring to start the camera; what it sees is then compared with the photos.'
+            ? 'Your Guardian system is configured. Next, add photos of your pet on the Lost & Found page, then press Start Monitoring there. While a watch is on, that page shows Go to Monitor in its place. On Monitor, press Start Monitoring to start the camera; what it sees is then compared with the photos.'
             : 'Your Guardian system is configured and ready. You can now start monitoring.'}
         </p>
 

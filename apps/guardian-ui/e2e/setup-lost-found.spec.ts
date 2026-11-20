@@ -3,7 +3,9 @@
  *
  * A first visit to /setup/ goes through the steps, chooses Lost & Found at
  * the question of what is being watched, and the last key, "Open Lost and
- * Found", opens the Lost & Found page, where the pet's photos are added.
+ * Found", opens the Lost & Found page, where the pet's photos are added. The
+ * last step names that page's key both ways: Start Monitoring when no watch is
+ * on, Go to Monitor while one is.
  * Pictures of the question and of the last step are kept for the pull
  * request (ci.yml uploads setup-*-1280.png).
  *
@@ -43,6 +45,8 @@ test('setup offers Lost & Found, and its last key opens the Lost & Found page', 
 
   const open = page.getByRole('button', { name: 'Open Lost and Found' });
   await expect(open).toBeVisible();
+  // The Lost & Found page's key is Start Monitoring with no watch on, and Go to Monitor while one is: both are named.
+  await expect(page.getByText(/press Start Monitoring there\. While a watch is on, that page shows Go to Monitor in its place\./)).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('setup-last-step-1280.png'), fullPage: true });
   await open.click();
 

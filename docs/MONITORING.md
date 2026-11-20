@@ -22,8 +22,10 @@ makes a sound. Lost and Found does the same and, while the watch runs, compares
 what the camera sees with a saved pet's photos, by colour and shape, one pet at a
 time. Choosing either during a watch starts or stops the comparison at once with
 no restart of the camera, and a polite status reads "Comparing with {name}'s
-photos from {time}." or "Stopped comparing at {time}.". The page's title reads
-"Motion and sound | SafeOS" or "Lost and Found | SafeOS".
+photos from {time}." or "Stopped comparing at {time}.". The pet's name over the
+camera's picture has no key of its own: Watch for is the one place the comparison
+starts and stops. The page's title reads "Motion and sound | SafeOS" or "Lost and
+Found | SafeOS".
 
 The choice is setup's Lost & Found choice (`lostFoundChosen` in the onboarding
 store): setup and Monitor show the same one, whatever the use setup saved, and
@@ -32,7 +34,11 @@ and the pet it shows. The pet is kept as `chosenPetId` in the Lost & Found store
 until one is chosen it is the newest saved pet. A thing saved on the Lost &
 Found page as an object is the watch's only once it is chosen there or in
 **Choose a pet**. A subject an earlier version saved as a person is never the
-watch's pet, and the Lost & Found page offers no **Start Monitoring** for it.
+watch's pet, and the Lost & Found page offers no **Start Monitoring** for it;
+opening such a person there, or closing it again, leaves the chosen pet as it
+is. Setup run again on a device with another use (a baby device with Lost and
+Found chosen on Monitor) shows Lost & Found chosen, and its **Continue** keeps
+the device's use: only a press of a use's card changes it.
 
 With Lost and Found chosen, Monitor shows the pet's first saved photo, its name,
 its count of photos, **Change pet** and the line "It can alert on an animal that
@@ -48,12 +54,23 @@ watches for motion and sound." While the saved pets are read it shows "Loading
 saved pets…"; when they cannot be read it says "Saved pets could not be read on
 this device. Reload the page to try again." and watches for motion and sound
 until a reload. The pets and their photos are this device's, so Watch for and the
-comparison work offline.
+comparison work offline. A long name with no spaces breaks inside the line that
+names the pet, at every width from 320 px.
 
 While the watch compares, the Lost & Found panel under the alerts shows the pet's
 matches and links to its match history. A photo added there with **Add Photos**
 counts at once on the pet and in **Choose a pet**, and stays with the pet when it
-is chosen again.
+is chosen again, also when another pet is chosen before the photo is saved.
+Another pet chosen while the watch compares starts with none of the first pet's
+matches, with no restart of the camera.
+
+When another tab of this browser clears all local data (**Clear All Local Data**,
+or a sign-out), the open watch drops the pets it had read and ends the
+comparison: it says "Stopped comparing at {time}.", shows "No pet saved", and
+goes on watching for motion and sound. A read of the saved pets on its way at
+that moment shows none of them, and a photo being added or a match being saved
+then is not written back. The watch hears of the clear from the account marker
+in local storage, which a browser may show to another tab a moment late.
 
 Setup does not need the camera. Until access is granted, its **Device Access**
 step shows **Continue without the camera**, which records camera and microphone
@@ -92,36 +109,54 @@ to defaults** clears it, and the use shows the setting's values again.
 
 Under **Audio Frequency Filtering** the sound check reads the Audio level from
 the pitches chosen: **Custom Range** reads the two pitches set below it and
-the baby cry choice reads 300 to 600 Hz. The level is the loudness in the
-analyser's bins inside the range, so a sound well outside it leaves the level near 0.
+the baby cry choice reads 300 to 600 Hz. A range of up to 128 bins reads the root
+mean square of the analyser's bins inside it; the baby cry range holds 13 bins at
+48 kHz. Up to 128 bins, a wider range spreads a sound's energy over more bins and
+reads it lower. A range wider than 128 bins reads the energy of its bins against
+128 bins (every bin at the 256 points that every pitch is read with), so widening
+a range past 128 bins never lowers the level of a sound inside it. A 1,000 Hz tone
+reads about 5 per cent higher at 300 to 3,000 Hz (116 bins at 48 kHz) than at 20
+to 20,000 Hz. A sound well outside the range leaves the level near 0.
 The analyser applies a Blackman window before its transform, so a tone just outside an
 edge spreads into the nearest bin inside the range and can raise the level a little.
 With a range set the analyser uses 2,048 points (about 23 Hz a bin at 48 kHz) in
 place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
-read every pitch.
+read every pitch, as the root mean square of every bin, so a sensitivity saved
+for them means what it did.
 
 **Scheduled Presets** on **Settings > Quiet Hours** apply on every page: the app
 checks once a minute and whenever a set time or the Scheduled Presets switch
 changes. A set time's setting goes on once each time the set time begins, and
-when the app opens inside a set time it has not yet put on, after any saved
-preferences are read. It goes on again when the set time in force is edited to
+when the app opens inside a set time whose setting it has not put on, after any
+saved preferences are read. Preferences an account brings when it is restored
+after that leave the sensitivities and the volume at the set time's values. It
+goes on again when the set time in force is edited to
 another setting, or when Scheduled Presets are turned off and on again during
 it. Changes made while it lasts stay, a reload included, until the next set time
 begins. An overnight set time (22:00 to 06:00) lasts into the next morning; its
-days name the day it begins. A new set time's form opens on Maximum Alert, and a
-set time that names a setting the app does not have puts nothing on.
+days name the day it begins. A new set time's form opens on Maximum Alert and
+offers the named settings; Custom is not one, as it has no values of its own to
+put on. A set time saved earlier with Custom, or with a setting the app does not
+have, shows "This schedule needs a setting chosen. Press Edit to choose one;
+until then it never applies.": it never applies, and never outranks a set time
+that has a named setting.
 
 A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
 **Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
 sound is on. With Lost & Found's custom media on, the full-screen media takes the
 built-in sound's place: the saved sounds play and the built-in alert sound does not. A saved sound that still plays is not started again by the next
 matching frame, and it stops when the watch stops, when Lost & Found stops
-watching or its pet changes, and when the page closes.
+watching or its pet changes, and when the page closes. A start on its way when
+the watch stops plays nothing, a sound set to repeat starts no further pass once
+it has stopped, and a loop that a motion or sound alert plays too keeps playing
+while monitoring goes on and stops when the watch stops, also when **Watch for**
+moved to Motion and sound while it played.
 
 A saved sound for any alert plays nothing when the alert's volume is 0: in
 Silent quiet hours, in Emergency Only quiet hours for an alert that is not
-critical, and with the alert volume at 0. Emergency mode and the Emergency
-trigger always play.
+critical, and with the alert volume at 0. The volume is read at the instant the
+saved sound starts, so quiet hours that began or ended a moment ago hold for it.
+Emergency mode and the Emergency trigger always play.
 
 ## When an alert comes again
 
@@ -211,7 +246,14 @@ released and upgrade the same way.
 
 If a history read fails, the alerts on screen stay and the next read retries. A failed
 save keeps the alert on screen and in History's offline export and is retried at the
-next history read; an acknowledgement updates it, and dismiss and clear drop it. An
+next history read; an acknowledgement updates it, and dismiss and clear drop it.
+Repeats whose saves fail wait together, and the retry adds each of them to the saved
+count; a repeat that goes on a fresh card whose own save waits counts from that save.
+When their retry finds the card acknowledged in another tab, they go on one fresh
+card together: the first as the card, the rest as its repeats.
+When Clear all itself fails, the alerts and acknowledgements queued before it are kept:
+they are written, or wait for their retry. A repeat made after this tab's Clear all
+goes on a card of its own. An
 acknowledgement or a dismissal never creates a record: when the alert is no longer
 saved, because another tab cleared or dismissed it or a limit removed it, nothing is
 written, and an acknowledged alert leaves that tab's list. Clear All Local Data, a
