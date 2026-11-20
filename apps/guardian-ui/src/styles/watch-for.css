@@ -94,6 +94,7 @@
   color: var(--look-accent);
 }
 
+/* The line names the pet: a long name with no spaces breaks inside it. */
 .watch-for__line {
   margin: 12px 0 0;
   max-width: 40rem;
@@ -101,6 +102,7 @@
   line-height: 1.55;
   color: var(--color-steel-50);
   text-wrap: pretty;
+  overflow-wrap: anywhere;
 }
 
 /* On a phone the line steps aside while the watch runs. */
