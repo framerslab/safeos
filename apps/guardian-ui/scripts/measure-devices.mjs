@@ -333,10 +333,12 @@ async function measureWatch(browser, cls, rate, name) {
         video: video ? { width: video.videoWidth, height: video.videoHeight } : null,
       };
     });
-    // The same heap once a garbage collection has run: what the page holds on to.
-    await cdp.send('HeapProfiler.collectGarbage').catch(() => undefined);
-    const usedAfterGc = await page.evaluate(() => performance.memory?.usedJSHeapSize ?? null);
-    const cdpHeap = await cdp.send('Runtime.getHeapUsage').catch(() => null);
+    // The same heap once a garbage collection has run: what the page holds on
+    // to. When DevTools could not run the collection, those two figures are
+    // left unread and the reason is kept.
+    const gcFailed = await cdp.send('HeapProfiler.collectGarbage').then(() => null, (error) => firstLine(error));
+    const usedAfterGc = gcFailed === null ? await page.evaluate(() => performance.memory?.usedJSHeapSize ?? null) : null;
+    const cdpHeap = gcFailed === null ? await cdp.send('Runtime.getHeapUsage').catch(() => null) : null;
 
     const inWindow = (t) => t.at >= first.at && t.at < end;
     // The first read has no earlier frame to compare with: it only keeps its
@@ -351,6 +353,11 @@ async function measureWatch(browser, cls, rate, name) {
       ? null
       : soundAfter === null || (motionAfter !== null && motionAfter <= soundAfter) ? 'motion' : 'sound';
     const noAlert = `no alert within the ${WATCH_MS / 1000} s`;
+    // The camera can start without its microphone (CameraFeed asks again
+    // without audio when none is found); then no tick reads the analyser and
+    // sound is written down as not measured, not as zero readings.
+    const soundRead = read.ticks.some((t) => t.sound > 0);
+    const noSound = 'not measured: no tick read the microphone';
 
     console.log(`${name}: watch read ${frames.length} frames in ${WATCH_MS / 1000} s`);
     return {
@@ -361,16 +368,18 @@ async function measureWatch(browser, cls, rate, name) {
       framesAnalysedPerSecond: q(frames.length / (WATCH_MS / 1000), 'frames/s'),
       frameAnalysisTime: spread(frames.map((t) => t.ms), 'ms'),
       frameAnalysisTimeWithQueuedMicrotasks: spread(frames.filter((t) => t.settledMs !== null).map((t) => t.settledMs), 'ms'),
-      soundReadingsPerSecond: q(sound.length / (WATCH_MS / 1000), 'readings/s'),
-      soundReadingTime: spread(sound.map((t) => t.ms), 'ms'),
+      soundMeasured: soundRead ? 'yes' : noSound,
+      soundReadingsPerSecond: soundRead ? q(sound.length / (WATCH_MS / 1000), 'readings/s') : null,
+      soundReadingTime: soundRead ? spread(sound.map((t) => t.ms), 'ms') : null,
       timeToFirstAlert: q(firstKind === 'motion' ? motionAfter : soundAfter, 's'),
       firstAlertKind: firstKind ?? noAlert,
       timeToFirstMotionAlert: q(motionAfter, 's'),
       firstMotionAlert: motionAfter === null ? noAlert : read.alerts.motion.text,
       timeToFirstSoundAlert: q(soundAfter, 's'),
-      firstSoundAlert: soundAfter === null ? noAlert : read.alerts.sound.text,
+      firstSoundAlert: soundAfter !== null ? read.alerts.sound.text : soundRead ? noAlert : noSound,
       jsHeapUsedAfter60s: q(read.heap ? MB(read.heap.used) : null, 'MB'),
       jsHeapTotalAfter60s: q(read.heap ? MB(read.heap.total) : null, 'MB'),
+      garbageCollection: gcFailed === null ? 'run' : `not run: ${gcFailed}`,
       jsHeapUsedAfter60sAndGarbageCollection: q(usedAfterGc === null ? null : MB(usedAfterGc), 'MB'),
       jsHeapUsedAfter60sAndGarbageCollectionByDevTools: q(cdpHeap ? MB(cdpHeap.usedSize) : null, 'MB'),
       longTasks: longTasks
@@ -630,10 +639,10 @@ function table(results) {
   row('Calibration loop on the page', (r) => part(r, 'watch', (w) => show(w.calibrationLoop)));
   row('Watch: frames analysed per second', (r) => part(r, 'watch', (w) => show(w.framesAnalysedPerSecond)));
   row('Watch: frame analysis time, median / 95th percentile', (r) => part(r, 'watch', (w) => showSpread(w.frameAnalysisTime)));
-  row('Watch: sound reading time, median / 95th percentile', (r) => part(r, 'watch', (w) => showSpread(w.soundReadingTime)));
+  row('Watch: sound reading time, median / 95th percentile', (r) => part(r, 'watch', (w) => (w.soundReadingTime ? showSpread(w.soundReadingTime) : w.soundMeasured)));
   row('Watch: time from Start Monitoring to the first alert', (r) => part(r, 'watch', (w) => (w.timeToFirstAlert ? `${show(w.timeToFirstAlert)} (${w.firstAlertKind})` : w.firstAlertKind)));
   row('Watch: time from Start Monitoring to the first motion alert', (r) => part(r, 'watch', (w) => (w.timeToFirstMotionAlert ? show(w.timeToFirstMotionAlert) : w.firstMotionAlert)));
-  row('Watch: JS heap used after 60 s (as read, after a garbage collection)', (r) => part(r, 'watch', (w) => `${show(w.jsHeapUsedAfter60s)}, ${show(w.jsHeapUsedAfter60sAndGarbageCollection)}`));
+  row('Watch: JS heap used after 60 s (as read, after a garbage collection)', (r) => part(r, 'watch', (w) => `${show(w.jsHeapUsedAfter60s)}, ${w.garbageCollection === 'run' ? show(w.jsHeapUsedAfter60sAndGarbageCollection) : w.garbageCollection.replace(/\|/g, '/')}`));
   row('Watch: long tasks in 60 s (count, total)', (r) => part(r, 'watch', (w) => (w.longTasks ? `${w.longTasks.count.value}, ${show(w.longTasks.total)}` : 'not read')));
   row('Model: downloaded (decoded, on the wire)', (r) => part(r, 'model', (m) => `${(m.downloadDecoded.value / 1e6).toFixed(2)} MB, ${(m.downloadOnTheWire.value / 1e6).toFixed(2)} MB`));
   row('Model: load time (scripts, model)', (r) => part(r, 'model', (m) => `${show(m.loadTime)} (${m.scriptLoadTime.value}, ${m.modelLoadTime.value})`));

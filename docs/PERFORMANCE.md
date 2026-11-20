@@ -70,7 +70,9 @@ browser contexts.
   the camera's pixels (`getImageData`) is one analysed frame, except the
   first: it has no earlier frame to compare with and only keeps its frame for
   the next tick, so it is left out of the count and the times. A tick that
-  reads the microphone's analyser is one sound reading. From these come the
+  reads the microphone's analyser is one sound reading. When the camera starts
+  without its microphone, no tick reads the analyser, and the sound figures
+  say not measured rather than zero. From these come the
   frames analysed per second (the motion timer runs every 200 ms, so 5 is the
   most), and the per-frame analysis time as a median and 95th percentile: the tick itself, in which the frame is drawn, its pixels
   are read and compared with the last frame, and the alert check runs. The
@@ -81,7 +83,9 @@ browser contexts.
   line as much as on the device. It records the JS heap in use after the 60 s
   (`performance.memory` with Chromium's precise memory figures on), as read
   and again after DevTools has run a garbage collection
-  (`HeapProfiler.collectGarbage`, with `Runtime.getHeapUsage` beside it), and
+  (`HeapProfiler.collectGarbage`, with `Runtime.getHeapUsage` beside it; when
+  DevTools cannot run the collection, those figures are left unread and the
+  table gives the reason), and
   the main thread's long tasks (over 50 ms) in the 60 s.
 - **The detection model (COCO-SSD, used by Security and Wildlife).** A page
   the script hands to the browser loads the TensorFlow.js and COCO-SSD builds
