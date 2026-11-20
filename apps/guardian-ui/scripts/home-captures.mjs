@@ -215,7 +215,9 @@ async function portraitFrame(page, name) {
 // Every crop shows the Motion indicator in its alert colour, as its text
 // equivalent says: the picture is taken while the indicator reads "motion
 // detected" and kept only if it still does once the picture is saved;
-// otherwise it is taken again at the next motion, up to five times.
+// otherwise it is taken again at the next motion, up to five times. A crop
+// that runs past the edge of the screen is saved cut short, so a picture is
+// kept only at the size its crop asks for.
 async function saveCrop(page, relative, clip, details) {
   const file = path.join(outDir, relative);
   const indicator = page.getByRole('status', { name: /^Motion level/ });
@@ -228,6 +230,10 @@ async function saveCrop(page, relative, clip, details) {
     console.log(`${relative}: the Motion indicator read "${after}" once the picture was saved; taking it again`);
   }
   const size = pngSize(await readFile(file));
+  const asked = { width: clip.width * details.deviceScaleFactor, height: clip.height * details.deviceScaleFactor };
+  if (Math.abs(size.width - asked.width) > 1 || Math.abs(size.height - asked.height) > 1) {
+    throw new Error(`${relative} is ${size.width} by ${size.height} px, not the ${Math.round(asked.width)} by ${Math.round(asked.height)} px its crop asks for: the crop runs past the edge of the ${details.viewport} screen`);
+  }
   await record(relative, { ...details, ...size });
   const webp = relative.replace(/\.png$/, '.webp');
   execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', file, '-c:v', 'libwebp', '-quality', '86', '-compression_level', '6', path.join(outDir, webp)]);
