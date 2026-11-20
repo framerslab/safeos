@@ -86,6 +86,26 @@ interface ActiveSound {
   namedVolume?: number;
   /** A critical alert's sound, which follows the critical volume. */
   critical?: boolean;
+  /**
+   * The alert triggers that played this copy of a saved sound: the trigger
+   * that started it and each one whose alert found it playing. `release`
+   * stops it once none holds it.
+   */
+  owners?: Set<string>;
+  /** The pause before a saved sound's next pass, while one runs. */
+  repeatTimer?: ReturnType<typeof setTimeout> | null;
+}
+
+/** Where the manager reads the volumes in effect: the user volume and the critical volume, 0-100. */
+export type VolumeSource = () => { user: number; critical: number };
+
+/** How playForTrigger starts the saved sounds of a trigger. */
+export interface TriggerPlay {
+  critical?: boolean;
+  /** Read before each start: true when the alert the sounds are for is over, and nothing starts. */
+  cancelled?: () => boolean;
+  /** Called with each sound's id as it starts, before its play is counted. */
+  onStart?: (id: string) => void;
 }
 
 interface Fade {
@@ -302,6 +322,8 @@ class SoundManager {
   private watchedContexts = new WeakSet<AudioContext>();
   /** Contexts a sound waits for, each with the gesture listener that resumes it. */
   private gestureResumes = new Map<AudioContext, () => void>();
+  /** Reads the volumes in effect at the instant a saved sound starts, when one is set. */
+  private volumeSource: VolumeSource | null = null;
 
   constructor() {
     // The audio context is made on the first play
@@ -336,6 +358,24 @@ class SoundManager {
 
   getCriticalVolume(): number {
     return this.criticalVolume;
+  }
+
+  /**
+   * Sets where the manager reads the volumes in effect (quiet hours, the alert
+   * volume). playForTrigger reads them at the instant each saved sound
+   * starts, so quiet hours that began or ended since the last setUserVolume
+   * hold at once.
+   */
+  setVolumeSource(source: VolumeSource | null): void {
+    this.volumeSource = source;
+  }
+
+  /** Takes the volumes in effect from the volume source, when one is set. */
+  private readVolumes(): void {
+    if (!this.volumeSource) return;
+    const { user, critical } = this.volumeSource();
+    this.setUserVolume(user);
+    this.setCriticalVolume(critical);
   }
 
   /** The base volume a sound follows: the critical volume for a critical alert's sound, else the user volume. */
@@ -695,11 +735,16 @@ class SoundManager {
    * // When a person is detected at night:
    * await soundManager.playForTrigger('person_detected');
    */
-  async playForTrigger(trigger: SoundTrigger, options: { critical?: boolean } = {}): Promise<string[]> {
+  async playForTrigger(trigger: SoundTrigger, options: TriggerPlay = {}): Promise<string[]> {
     // A volume of 0 for the alert (Silent quiet hours, Emergency Only for an
     // alert that is not critical, or the alert volume at 0) plays no saved
-    // sound either. Emergency mode and the emergency trigger always play.
-    if (!this.emergencyModeActive && trigger !== 'emergency' && this.baseVolumeOf(options.critical) <= 0) {
+    // sound either. Emergency mode and the emergency trigger always play. The
+    // volume is read now, not taken from the last periodic check.
+    const silenced = () => {
+      this.readVolumes();
+      return !this.emergencyModeActive && trigger !== 'emergency' && this.baseVolumeOf(options.critical) <= 0;
+    };
+    if (options.cancelled?.() || silenced()) {
       return [];
     }
     try {
@@ -715,15 +760,23 @@ class SoundManager {
       const playedIds: string[] = [];
 
       for (const sound of customSounds) {
-        // The volume may have gone to 0 while the sounds were read (quiet hours
-        // beginning): checked again before each start.
-        if (!this.emergencyModeActive && trigger !== 'emergency' && this.baseVolumeOf(options.critical) <= 0) break;
+        // The alert may have ended, or the volume gone to 0 (quiet hours
+        // beginning), while the sounds were read or a play was counted:
+        // checked again before each start.
+        if (options.cancelled?.() || silenced()) break;
         // A loop that plays keeps its one copy: a repeat alert that finds it
         // starts nothing, so it is not a play to count.
         const started = !(sound.loop && this.playingLoopOf(sound.id));
         const id = await this.playCustomSound(sound, { critical: options.critical });
         if (id) {
+          const active = this.activeSounds.get(id);
+          if (active) {
+            if (!active.owners) active.owners = new Set();
+            active.owners.add(trigger);
+          }
           playedIds.push(id);
+          // The caller holds the sound from its start, so it can stop it while the play is counted.
+          options.onStart?.(id);
           if (started) await recordSoundPlay(sound.id);
         }
       }
@@ -810,7 +863,11 @@ class SoundManager {
       let repeatCount = 0;
       const maxRepeats = sound.loop ? Infinity : sound.repeatCount;
 
+      // A pass starts only while this copy plays: a copy stopped during the
+      // pause before its next pass stays stopped.
       const playOnce = () => {
+        activeSound.repeatTimer = null;
+        if (this.activeSounds.get(id) !== activeSound) return;
         audio.currentTime = 0;
         audio.play().catch((err) => {
           console.warn('Failed to play custom sound:', err);
@@ -828,7 +885,7 @@ class SoundManager {
         } else if (repeatCount < maxRepeats) {
           // Repeat with delay
           repeatCount++;
-          setTimeout(playOnce, sound.repeatDelayMs);
+          activeSound.repeatTimer = setTimeout(playOnce, sound.repeatDelayMs);
         } else {
           // Done playing
           URL.revokeObjectURL(url);
@@ -855,6 +912,18 @@ class SoundManager {
         this.stop(id, 0);
       }
     });
+  }
+
+  /**
+   * Lets go of a saved sound that `owner`'s alert played. It stops when no
+   * other trigger's alert holds it: a loop that a motion alert plays too goes
+   * on when the Lost & Found watch ends.
+   */
+  release(id: string, owner: string): void {
+    const sound = this.activeSounds.get(id);
+    if (!sound) return;
+    sound.owners?.delete(owner);
+    if (!sound.owners || sound.owners.size === 0) this.stop(id, 0);
   }
 
   // ==========================================================================
@@ -1264,6 +1333,10 @@ class SoundManager {
       tones.oscillators.clear();
       tones.gain.disconnect();
       if (!this.hasWaiting(tones.context)) this.forgetGesture(tones.context);
+    }
+    if (sound.repeatTimer) {
+      clearTimeout(sound.repeatTimer);
+      sound.repeatTimer = null;
     }
     if (sound.audio) {
       sound.audio.pause();

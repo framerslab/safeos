@@ -528,3 +528,146 @@ it('keeps an alert raised while a history read waits for a held save', async () 
   expect(one.listed()).toEqual(['first', 'second']);
   expect(await storedAlerts()).toEqual(['first', 'second']);
 });
+
+it('counts every repeat whose save failed while the database was unavailable', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  await watching.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  // Two repeats of the saved card fail to save, and so does their retry at the next history read.
+  const failing = failSaves();
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the second repeat', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh: () => FRESH });
+  await watching.read();
+  failing.mockRestore();
+  await watching.read();
+
+  expect((await stored('alert_cache')).find((row) => row.id === 'event-card')).toMatchObject({ message: 'the second repeat', repeats: 2 });
+  expect(watching.monitoring.getState().alerts.find((alert) => alert.id === 'event-card')).toMatchObject({ message: 'the second repeat', repeats: 2 });
+});
+
+it("counts a repeat redirected to a fresh card from the fresh card's waiting save, not from the newer repeat on screen", async () => {
+  const { watching } = await acknowledgedElsewhere({ held: true });
+  let open = () => {};
+  watching.hold.gate = new Promise<void>((resolve) => { open = resolve; });
+  const calls = watching.hold.calls.length;
+  const fresh = jest.fn(() => FRESH);
+  // The first repeat finds the card acknowledged and goes on the fresh card; the second is queued behind it.
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the second', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh });
+  // The fresh card's first save waits; the event, on the fresh card now, alerts a third time, as the monitor counts it.
+  await waitFor(() => expect(watching.hold.calls.length).toBe(calls + 1), { timeout: 5000 });
+  const shown = watching.monitoring.getState().alerts.find((alert) => alert.id === FRESH.id);
+  watching.monitoring.getState().addAlert(
+    { ...REPEAT, id: FRESH.id, createdAt: FRESH.createdAt, message: 'the third', timestamp: '2026-11-01T10:03:00.000Z', repeats: (shown?.repeats ?? 0) + 1 },
+    { fresh },
+  );
+  // The fresh card's first save fails; the database answers again for the saves after it.
+  const put = IDBObjectStore.prototype.put;
+  jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementationOnce(() => {
+    throw new DOMException('Storage full', 'QuotaExceededError');
+  }).mockImplementation(function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore['put']>) { return put.apply(this, args); });
+  open();
+  await waitFor(async () => expect((await stored('alert_cache')).find((row) => row.id === FRESH.id)?.message).toBe('the third'), { timeout: 5000 });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // The fresh card holds the first repeat; the second and the third are its two repeats.
+  expect((await stored('alert_cache')).find((row) => row.id === FRESH.id)).toMatchObject({ message: 'the third', repeats: 2 });
+  expect(watching.monitoring.getState().alerts.find((alert) => alert.id === FRESH.id)).toMatchObject({ message: 'the third', repeats: 2 });
+});
+
+it.each(['the database fails the clear', 'local storage refuses the clear marker'])(
+  'keeps the alert and the acknowledgement queued just before Clear all when %s', async (how) => {
+    (await oldTab()).close();
+    const watching = await tab();
+    await watching.read();
+    watching.monitoring.getState().addAlert(FIRST);
+    await watching.read();
+    const setItem = localStorage.setItem.bind(localStorage);
+    const refusing = how.startsWith('local')
+      ? jest.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+        if (key === MARKER) throw new DOMException('full', 'QuotaExceededError');
+        setItem(key, value);
+      })
+      : jest.spyOn(IDBCursor.prototype, 'delete').mockImplementation(() => {
+        throw new DOMException('The connection is unavailable', 'InvalidStateError');
+      });
+    watching.monitoring.getState().addAlert(live('raised-before-the-clear'));
+    watching.monitoring.getState().acknowledgeAlert('event-card');
+    watching.monitoring.getState().clearAlerts();
+    // The list empties at once.
+    expect(watching.listed()).toEqual([]);
+    await watching.read();
+    refusing.mockRestore();
+    await watching.read();
+
+    const rows = await monitoringRows();
+    expect(rows.map((row) => row.id)).toEqual(expect.arrayContaining(['raised-before-the-clear', 'event-card', ...ids]));
+    expect(rows.find((row) => row.id === 'event-card')).toMatchObject({ acknowledged: true });
+    expect(watching.listed()).toEqual(expect.arrayContaining(['raised-before-the-clear', 'event-card']));
+  });
+
+it.each(['the database fails the clear', 'local storage refuses the clear marker'])(
+  'keeps the acknowledgement of a repeat that went on a fresh card, queued just before Clear all, when %s', async (how) => {
+    const { watching } = await acknowledgedElsewhere();
+    const setItem = localStorage.setItem.bind(localStorage);
+    const refusing = how.startsWith('local')
+      ? jest.spyOn(localStorage, 'setItem').mockImplementation((key, value) => {
+        if (key === MARKER) throw new DOMException('full', 'QuotaExceededError');
+        setItem(key, value);
+      })
+      : jest.spyOn(IDBCursor.prototype, 'delete').mockImplementation(() => {
+        throw new DOMException('The connection is unavailable', 'InvalidStateError');
+      });
+    // The repeat finds the card acknowledged in the other tab and goes on a fresh card; the person
+    // acknowledges it as it shows, then presses Clear all, whose write fails.
+    watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+    watching.monitoring.getState().acknowledgeAlert('event-card');
+    watching.monitoring.getState().clearAlerts();
+    expect(watching.listed()).toEqual([]);
+    await watching.read();
+    refusing.mockRestore();
+    await watching.read();
+
+    expect((await monitoringRows()).find((row) => row.id === FRESH.id)).toMatchObject({ acknowledged: true });
+  });
+
+it('saves a repeat made after Clear all on a card of its own, not on the fresh card the clear removed', async () => {
+  const { watching } = await acknowledgedElsewhere();
+  let made = 0;
+  const fresh = jest.fn(() => ({ id: `fresh-${++made}`, createdAt: FRESH.createdAt }));
+  // A repeat queued before the clear goes on a fresh card, which the clear then removes; the event
+  // alerts again after the clear.
+  watching.monitoring.getState().addAlert(REPEAT, { fresh });
+  watching.monitoring.getState().clearAlerts();
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'after the clear', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh });
+  await watching.read();
+
+  expect((await monitoringRows()).map((row) => row.message)).toEqual(['after the clear']);
+  expect(watching.monitoring.getState().alerts.map((alert) => alert.message)).toEqual(['after the clear']);
+});
+
+it('carries the repeats of failed saves onto the fresh card when another tab acknowledged the card meanwhile', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  const other = await tab();
+  await watching.read();
+  await other.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  await other.read();
+  // Two repeats fail to save, and so does their retry at the next history read.
+  const failing = failSaves();
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  watching.monitoring.getState().addAlert({ ...REPEAT, message: 'the second repeat', timestamp: '2026-11-01T10:02:00.000Z', repeats: 2 }, { fresh: () => FRESH });
+  await watching.read();
+  failing.mockRestore();
+  // The other tab acknowledges the saved card; the retry finds it acknowledged and goes on a fresh card.
+  other.monitoring.getState().acknowledgeAlert('event-card');
+  await other.read();
+  await watching.read();
+
+  // The fresh card holds the two repeats: the first, and the second as its repeat.
+  expect((await stored('alert_cache')).find((row) => row.id === FRESH.id)).toMatchObject({ message: 'the second repeat', repeats: 1 });
+});

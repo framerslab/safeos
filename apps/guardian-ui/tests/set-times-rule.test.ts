@@ -6,7 +6,7 @@
  * the set time begins (or when it is edited, or turned back on, while in
  * force); the person's own changes while it lasts stay.
  */
-import { isScheduleActive, setTimeStep, type DayOfWeek, type Schedule } from '@/lib/schedule-manager';
+import { activeScheduleAt, isSchedulablePreset, isScheduleActive, setTimeStep, type DayOfWeek, type Schedule } from '@/lib/schedule-manager';
 
 const at = (day: number, hours: number, minutes = 0) => new Date(2026, 10, day, hours, minutes);
 // 16 November 2026 is a Monday.
@@ -115,5 +115,27 @@ describe('setTimeStep', () => {
   it('puts nothing on for a setting that does not exist', () => {
     const unknown = { ...night, preset: 'balanced' as Schedule['preset'] };
     expect(setTimeStep([unknown], true, null, at(MONDAY, 22)).preset).toBeNull();
+  });
+});
+
+describe('set times without a named setting', () => {
+  const every: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  const night = setTime('night', every);
+  const saved = (preset: string): Schedule => ({ ...setTime(preset as Schedule['preset'], every), id: `sched_${preset}`, priority: 20 });
+
+  it.each(['balanced', 'custom'])('a set time saved with %s does not outrank a working one', (preset) => {
+    expect(activeScheduleAt([saved(preset), night], at(MONDAY, 23))?.id).toBe('sched_night');
+    expect(setTimeStep([saved(preset), night], true, null, at(MONDAY, 23)).preset).toBe('night');
+  });
+
+  it.each(['balanced', 'custom'])('a set time saved with %s, alone, puts nothing on', (preset) => {
+    expect(activeScheduleAt([saved(preset)], at(MONDAY, 23))).toBeNull();
+    expect(setTimeStep([saved(preset)], true, null, at(MONDAY, 23)).preset).toBeNull();
+  });
+
+  it('names every setting a set time can put on, and Custom is not one', () => {
+    expect(isSchedulablePreset('night')).toBe(true);
+    expect(isSchedulablePreset('custom')).toBe(false);
+    expect(isSchedulablePreset('balanced')).toBe(false);
   });
 });
