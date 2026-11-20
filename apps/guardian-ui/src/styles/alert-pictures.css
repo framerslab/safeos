@@ -1248,3 +1248,143 @@ html.light {
     max-width: min(100%, 360px);
   }
 }
+
+/* -----------------------------------------------------------------------------
+   History's rows for the watch's alerts
+   ----------------------------------------------------------------------------- */
+
+/* A phone: the thumbnail and the words on one row, Open picture under them at
+   the row's end, then the row's own keys. */
+.alert-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--ap-divider);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.alert-picture[data-form='row'] {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.alert-picture[data-form='row'] .alert-picture__words {
+  flex: 1 1 0;
+}
+
+.alert-picture__kind {
+  font-weight: 600;
+}
+
+.alert-picture__level {
+  font-weight: 400;
+}
+
+/* The tile that says a picture could not be read. */
+.alert-picture__tile--problem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alert-history-row__open {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.alert-history-row__open:empty {
+  display: none;
+}
+
+.alert-history-row__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.alert-history-row__state {
+  color: var(--ap-quiet);
+}
+
+.alert-history-row__keys {
+  flex: 0 1 auto;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.alert-history-row__details {
+  display: grid;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ap-divider);
+  color: var(--ap-quiet);
+}
+
+.alert-history-row__details p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A tablet: a larger thumbnail, and Open picture at the row's end beside the words. */
+@media (min-width: 768px) {
+  .alert-history-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 16px;
+  }
+
+  .alert-history-row__open {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .alert-history-row__foot,
+  .alert-history-row__details {
+    grid-column: 1 / -1;
+  }
+
+  .alert-picture[data-form='row'] .alert-picture__tile,
+  .alert-picture[data-form='row'] .alert-picture__wait--tile {
+    width: 144px;
+    height: 108px;
+  }
+}
+
+/* A desktop: the words in one column held to 640 px. */
+@media (min-width: 1024px) {
+  .alert-picture[data-form='row'] .alert-picture__tile,
+  .alert-picture[data-form='row'] .alert-picture__wait--tile {
+    width: 160px;
+    height: 120px;
+  }
+
+  .alert-picture[data-form='row'] .alert-picture__words {
+    max-width: 640px;
+  }
+}
+
+/* A wide screen: the rows keep to the left 8 columns of the 1320 px grid. */
+@media (min-width: 1440px) {
+  .alert-history-row {
+    max-width: 880px;
+  }
+
+  .alert-picture[data-form='row'] .alert-picture__tile,
+  .alert-picture[data-form='row'] .alert-picture__wait--tile {
+    width: 200px;
+    height: 150px;
+  }
+}

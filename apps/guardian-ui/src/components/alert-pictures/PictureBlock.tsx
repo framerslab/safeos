@@ -35,9 +35,12 @@ import {
   SOUND_LINE,
   UNREADABLE,
   closeUpName,
+  dateAtTime,
   deletedAfter,
   inZone,
   kindAtTime,
+  kindWords,
+  levelWords,
   openPictureName,
   pictureName,
 } from '../../lib/alert-pictures/words';
@@ -50,7 +53,8 @@ const OPEN_KEY_MARK = 'data-open-picture';
 
 interface PictureBlockProps {
   alert: Alert;
-  form: 'large' | 'small';
+  /** The newest card's large form, the other cards' small form, or a History row's. */
+  form: 'large' | 'small' | 'row';
 }
 
 /** The time a card's words say: its newest alert's. */
@@ -170,6 +174,74 @@ export function OpenPictureKey({ alert, withDate = false }: { alert: Alert; with
   );
 }
 
+/** A History row's words: the kind and its level on one line, then the date and the time. */
+function RowWords({ kind, at, alert, children }: { kind: AlertKind; at: number; alert: Alert; children?: React.ReactNode }) {
+  return (
+    <div className="alert-picture__words">
+      <p className="alert-picture__lead" data-lead="">
+        <span className="alert-picture__kind">{kindWords(kind)}</span>{' '}
+        <span className="alert-picture__level">{levelWords(alert.severity)}</span>
+      </p>
+      <p className="alert-picture__quiet">{dateAtTime(at)}</p>
+      {alert.zone && <p className="alert-picture__quiet alert-picture__zone">{inZone(alert.zone)}</p>}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * A History row's block: the thumbnail in its 4:3 tile (the close-up, or the
+ * whole picture where there is none), beside the kind, the level, the date
+ * and the time. A picture that is gone leaves its words and the line that
+ * says why; one that cannot be read leaves the problem glyph in the tile's
+ * place and its line under the words.
+ */
+function RowBlock({ alert, kind, view, at, press }: { alert: Alert; kind: AlertKind; view: PictureView; at: number; press: () => void }) {
+  const mark = { [PICTURE_BLOCK_MARK]: alert.id, tabIndex: -1 };
+  const empty = emptyLine(view);
+  if (empty && !empty.problem) {
+    return (
+      <div className="alert-picture" data-form="row" data-status={view.status} {...mark}>
+        <RowWords kind={kind} at={at} alert={alert}>
+          <p className="alert-picture__quiet alert-picture__why">
+            <EmptyFrameGlyph />
+            <span>{empty.line}</span>
+          </p>
+        </RowWords>
+      </div>
+    );
+  }
+  if (empty) {
+    return (
+      <div className="alert-picture" data-form="row" data-status={view.status} {...mark}>
+        <div className="alert-picture__tile alert-picture__tile--problem" aria-hidden="true"><ProblemGlyph /></div>
+        <RowWords kind={kind} at={at} alert={alert}>
+          <p className="alert-picture__quiet">{empty.line}</p>
+        </RowWords>
+      </div>
+    );
+  }
+  if (view.status !== 'shown' || view.kept === 'saving') {
+    return (
+      <div className="alert-picture" data-form="row" data-status="loading" {...mark}>
+        <div className="alert-picture__wait alert-picture__wait--tile" aria-hidden="true" />
+        <RowWords kind={kind} at={at} alert={alert} />
+      </div>
+    );
+  }
+  const { set, frameUrl, closeUpUrl } = view;
+  return (
+    <div className="alert-picture" data-form="row" data-status="shown" {...mark}>
+      {closeUpUrl ? (
+        <CloseUp set={set} url={closeUpUrl} at={at} onPress={press} />
+      ) : (
+        <Moment set={set} url={frameUrl} at={at} className="alert-picture__tile alert-picture__tile--whole" onPress={press} />
+      )}
+      <RowWords kind={kind} at={at} alert={alert} />
+    </div>
+  );
+}
+
 export function PictureBlock({ alert, form }: PictureBlockProps) {
   const kind = kindOfAlert(alert);
   const view = usePicture(alert.pictureId);
@@ -181,6 +253,8 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
   // The block takes focus when its picture's key has gone with the picture.
   const mark = { [PICTURE_BLOCK_MARK]: alert.id, tabIndex: -1 };
   const press = () => openPicture(alert, openKeyOf(alert.id));
+
+  if (form === 'row') return <RowBlock alert={alert} kind={kind} view={view} at={at} press={press} />;
 
   if (empty) {
     return (

@@ -55,6 +55,9 @@ export function dateWords(at: number | Date): string {
   return calendar.format(at);
 }
 
+/** The day and the time of day: "Nov 18, 2026 at 9:42:40 PM". */
+export const dateAtTime = (at: number | Date): string => `${dateWords(at)} at ${timeWords(at)}`;
+
 /** True when `at` falls on the device's own day of `now`. */
 export function isSameDay(at: number | Date, now: number | Date = Date.now()): boolean {
   const [a, b] = [new Date(at), new Date(now)];
@@ -100,7 +103,7 @@ export const openPictureName = (kind: AlertKind, at: number | Date, withDate = f
 
 /** The opened picture's title: "Motion at 9:42:40 PM" today, "Motion, Nov 18, 2026 at 9:42:40 PM" for an earlier day. */
 export const openedTitle = (kind: AlertKind, at: number | Date, now: number | Date = Date.now()): string =>
-  isSameDay(at, now) ? kindAtTime(kind, at) : `${kindWords(kind)}, ${dateWords(at)} at ${timeWords(at)}`;
+  isSameDay(at, now) ? kindAtTime(kind, at) : `${kindWords(kind)}, ${dateAtTime(at)}`;
 
 export const CLOSE = 'Close';
 export const SHOW_THE_BOX = 'Show the box';
