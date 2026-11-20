@@ -16,16 +16,19 @@
 // Each class and slow-down gets three fresh browser contexts:
 //
 //   watch       /monitor/ with motion and sound on and pixel detection off,
-//               watched for 60 s after its first analysed frame. The page's
+//               watched for 60 s from its first camera read. The page's
 //               own timers are timed from inside the page: a tick of an
 //               interval timer that reads the camera's pixels
 //               (getImageData) is one analysed frame, and a tick that reads
-//               the microphone's analyser is one sound reading.
+//               the microphone's analyser is one sound reading. The first
+//               read only keeps its frame for the next tick to compare with,
+//               so it is not counted.
 //   model       a page that loads the TensorFlow.js and COCO-SSD builds the
 //               app installs and the model file the app downloads (base
-//               lite_mobilenet_v2, WebGL), then runs detect on a 320 by 240
-//               copy of the camera's frame, as Security's person detector
-//               does, back to back.
+//               lite_mobilenet_v2, WebGL) through the app's own route and
+//               Cache Storage reads and writes, then runs detect on a 320 by
+//               240 copy of the camera's frame, as Security's person
+//               detector does, back to back.
 //   lost-found  a pet enrolled through Lost & Found's own form from one
 //               frame of the clip, the watch opened with Lost and Found by
 //               that page's Start Monitoring, then its matching ticks for 30 s.
@@ -61,6 +64,13 @@ const statedBytes = (name) => Number((new RegExp(`${name} = ([\\d_]+);`).exec(FA
 const MODEL_STATED_BYTES = statedBytes('MODEL_MANIFEST_BYTES') + statedBytes('MODEL_WEIGHTS_BYTES');
 if (!MODEL_URL) throw new Error('src/lib/detection-model-facts.ts names no MODEL_URL');
 const MODEL_HOST = new URL(MODEL_URL).host;
+
+// The load route and the Cache Storage name the app's loader uses, read from
+// the loader, so the measured load takes the same path.
+const LOADER = await readFile(path.join(APP_ROOT, 'src', 'lib', 'detection-model.ts'), 'utf8');
+const MODEL_ROUTE = /MODEL_ROUTE = '([^']+)'/.exec(LOADER)?.[1];
+const MODEL_CACHE = /MODEL_CACHE = '([^']+)'/.exec(LOADER)?.[1];
+if (!MODEL_ROUTE || !MODEL_CACHE) throw new Error('src/lib/detection-model.ts names no MODEL_ROUTE or MODEL_CACHE');
 
 // The library builds the app installs (package-lock.json pins their versions).
 const TFJS = require.resolve('@tensorflow/tfjs/dist/tf.min.js');
@@ -329,7 +339,9 @@ async function measureWatch(browser, cls, rate, name) {
     const cdpHeap = await cdp.send('Runtime.getHeapUsage').catch(() => null);
 
     const inWindow = (t) => t.at >= first.at && t.at < end;
-    const frames = read.ticks.filter((t) => t.reads > 0 && t.delay === first.delay && inWindow(t));
+    // The first read has no earlier frame to compare with: it only keeps its
+    // frame for the next tick, so the analysed frames are the reads after it.
+    const frames = read.ticks.filter((t) => t.reads > 0 && t.delay === first.delay && t.at > first.at && t.at < end);
     const sound = read.ticks.filter((t) => t.reads === 0 && t.sound > 0 && inWindow(t));
     const longTasks = read.longTasks ? read.longTasks.filter((t) => t.at >= first.at && t.at < end) : null;
     const after = (alert) => (alert && read.startPressedAt !== null && alert.at <= end ? (alert.at - read.startPressedAt) / 1000 : null);
@@ -426,7 +438,7 @@ async function measureModel(browser, cls, rate, name) {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate });
     const calibration = await calibrate(page, CALIBRATION_STEPS);
 
-    const read = await withDeadline(page.evaluate(async ({ modelUrl, inferences, limitMs }) => {
+    const read = await withDeadline(page.evaluate(async ({ modelUrl, route, cacheName, inferences, limitMs }) => {
       const loadScript = (src) => new Promise((resolve, reject) => {
         const script = document.createElement('script');
         script.src = src;
@@ -441,8 +453,32 @@ async function measureModel(browser, cls, rate, name) {
       while (video.readyState < 2) await new Promise((resolve) => setTimeout(resolve, 50));
 
       // As lib/detection-model loads it: WebGL, then the lite_mobilenet_v2
-      // model from its address. coco-ssd's load runs the model once on an
-      // empty picture before it returns.
+      // model through a load route whose fetch looks in Cache Storage first
+      // and waits for each downloaded file to be written there. The context
+      // is fresh, so the cache is empty and every file is downloaded and
+      // written. coco-ssd's load runs the model once on an empty picture
+      // before it returns.
+      let notStored = null;
+      const cachedFetch = async (input, init) => {
+        const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+        let cache = null;
+        try {
+          if (typeof caches === 'undefined') throw new Error('Cache Storage is unavailable.');
+          cache = await caches.open(cacheName);
+          const cached = await cache.match(url);
+          if (cached) return cached;
+        } catch (error) {
+          cache = null;
+          notStored = notStored ?? String(error?.message ?? error);
+        }
+        const response = await fetch(input, init);
+        if (!response.ok) throw new Error(`Model download returned HTTP ${response.status}.`);
+        if (cache) {
+          try { await cache.put(url, response.clone()); } catch (error) { notStored = notStored ?? String(error?.message ?? error); }
+        }
+        return response;
+      };
+
       const started = performance.now();
       await loadScript('/__measure/tf.min.js');
       await loadScript('/__measure/coco-ssd.min.js');
@@ -450,7 +486,10 @@ async function measureModel(browser, cls, rate, name) {
       await window.tf.setBackend('webgl');
       await window.tf.ready();
       const backend = window.tf.getBackend();
-      const model = await window.cocoSsd.load({ base: 'lite_mobilenet_v2', modelUrl });
+      window.tf.io.registerLoadRouter((url) => (url === route
+        ? window.tf.io.browserHTTPRequest(modelUrl, { fetchFunc: cachedFetch })
+        : null));
+      const model = await window.cocoSsd.load({ base: 'lite_mobilenet_v2', modelUrl: route });
       const loadedAt = performance.now();
 
       const gl = document.createElement('canvas').getContext('webgl2') || document.createElement('canvas').getContext('webgl');
@@ -475,12 +514,13 @@ async function measureModel(browser, cls, rate, name) {
         scriptsMs: scriptsAt - started,
         modelMs: loadedAt - scriptsAt,
         backend,
+        notStored,
         renderer,
         times,
         found,
         camera: { width: video.videoWidth, height: video.videoHeight },
       };
-    }, { modelUrl: MODEL_URL, inferences: INFERENCES, limitMs: INFERENCE_LIMIT_MS }), MODEL_LIMIT_MS, 'the model measurement');
+    }, { modelUrl: MODEL_URL, route: MODEL_ROUTE, cacheName: MODEL_CACHE, inferences: INFERENCES, limitMs: INFERENCE_LIMIT_MS }), MODEL_LIMIT_MS, 'the model measurement');
 
     const files = [...requests.values()];
     const wire = files.reduce((sum, r) => sum + r.wire, 0);
@@ -502,6 +542,7 @@ async function measureModel(browser, cls, rate, name) {
       loadTime: q((read.scriptsMs + read.modelMs) / 1000, 's'),
       scriptLoadTime: q(read.scriptsMs / 1000, 's'),
       modelLoadTime: q(read.modelMs / 1000, 's'),
+      keptInCacheStorage: read.notStored === null ? 'yes' : `no: ${read.notStored.slice(0, 200)}`,
       firstInferenceTime: q(firstInference, 'ms', 1),
       inferenceTime: spread(rest, 'ms'),
       detections: Object.fromEntries(Object.entries(read.found).map(([kind, count]) => [kind, q(count, 'boxes', 0)])),
@@ -596,6 +637,7 @@ function table(results) {
   row('Watch: long tasks in 60 s (count, total)', (r) => part(r, 'watch', (w) => (w.longTasks ? `${w.longTasks.count.value}, ${show(w.longTasks.total)}` : 'not read')));
   row('Model: downloaded (decoded, on the wire)', (r) => part(r, 'model', (m) => `${(m.downloadDecoded.value / 1e6).toFixed(2)} MB, ${(m.downloadOnTheWire.value / 1e6).toFixed(2)} MB`));
   row('Model: load time (scripts, model)', (r) => part(r, 'model', (m) => `${show(m.loadTime)} (${m.scriptLoadTime.value}, ${m.modelLoadTime.value})`));
+  row('Model: files kept in Cache Storage', (r) => part(r, 'model', (m) => m.keptInCacheStorage.replace(/\|/g, '/')));
   row('Model: first inference', (r) => part(r, 'model', (m) => show(m.firstInferenceTime)));
   row('Model: inference time, median / 95th percentile', (r) => part(r, 'model', (m) => showSpread(m.inferenceTime)));
   row('Model: backend', (r) => part(r, 'model', (m) => m.backend));

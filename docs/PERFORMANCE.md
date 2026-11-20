@@ -65,9 +65,11 @@ browser contexts.
 - **The watch (motion and sound).** `/monitor/` with motion and sound on and
   pixel detection off (`apps/guardian-ui/scripts/home-capture-settings.json`),
   started with its own Start Monitoring button and watched for 60 s from its
-  first analysed frame. A script added before the page's own scripts times
+  first camera read. A script added before the page's own scripts times
   each tick of the page's interval timers, inside the page. A tick that reads
-  the camera's pixels (`getImageData`) is one analysed frame; a tick that
+  the camera's pixels (`getImageData`) is one analysed frame, except the
+  first: it has no earlier frame to compare with and only keeps its frame for
+  the next tick, so it is left out of the count and the times. A tick that
   reads the microphone's analyser is one sound reading. From these come the
   frames analysed per second (the motion timer runs every 200 ms, so 5 is the
   most), and the per-frame analysis time as a median and 95th percentile: the tick itself, in which the frame is drawn, its pixels
@@ -87,7 +89,10 @@ browser contexts.
   `@tensorflow-models/coco-ssd/dist/coco-ssd.min.js`), picks the WebGL
   backend and loads `lite_mobilenet_v2` from the address in
   `apps/guardian-ui/src/lib/detection-model-facts.ts`, as
-  `src/lib/detection-model.ts` does. The bytes are the model host's responses
+  `src/lib/detection-model.ts` does: through the loader's own load route,
+  whose fetch looks in Cache Storage first and waits for each downloaded file
+  to be written there before the load goes on. The route and the cache name
+  are read from that file. The bytes are the model host's responses
   in Chromium's network log: the bodies after decoding, and the bytes on the
   wire with their headers. The load time runs from the start of the two
   script loads to the end of COCO-SSD's `load`, which runs the model once on
@@ -97,9 +102,10 @@ browser contexts.
   with at most 10 boxes at a 0.5 score line, as Security's person detector
   calls it. It runs back to back, 41 times or for 120 s, whichever ends
   first: the first run is reported on its own, and the median and 95th
-  percentile come from the others (the table gives how many). The app
-  keeps the model files in the browser's Cache Storage after the first load;
-  this page does not, so each load is a first load. A model part that has
+  percentile come from the others (the table gives how many). Each part
+  opens a fresh browser context with an empty cache, so each load is a first
+  load: every file is downloaded and written to Cache Storage, and the table
+  says whether the browser kept them. A model part that has
   not finished in 300 s is written down as not measured, with that reason,
   and the run goes on to Lost & Found.
 - **Lost & Found.** One pet is enrolled through Lost & Found's own form from
