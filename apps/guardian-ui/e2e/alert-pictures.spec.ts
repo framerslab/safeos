@@ -1863,6 +1863,8 @@ const onOneRow = async (a: Locator, b: Locator) => {
 const cutWords = (root: Locator) => root.evaluate((el) => {
   const edge = el.getBoundingClientRect();
   return Array.from(el.querySelectorAll('p, span, label, button, a, h2, h3')).filter((child) => {
+    // A key in a row that scrolls inside itself is reached by scrolling the row.
+    if (child.closest('.alert-pictures-keys[data-overflows] .alert-pictures-keys__row')) return false;
     const box = child.getBoundingClientRect();
     if (box.width <= 1) return false;
     return box.right > edge.right + 1 || box.left < edge.left - 1 || child.scrollWidth > child.clientWidth + 1;
@@ -2417,4 +2419,295 @@ test.describe('The opened picture at each width', () => {
       expect(await scrollsSideways(page)).toBe(false);
     });
   }
+});
+
+// =============================================================================
+// History's entries with their pictures
+// =============================================================================
+
+const UNREADABLE_LINE = 'This picture could not be read on this device.';
+const historyRows = (page: Page) => page.locator('[data-history-row]');
+/** The day as the device writes it: "Nov 18, 2026". */
+const dayOf = (page: Page, at: number) => page.evaluate((time) => new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(time), at);
+/** The time of day as the device writes it, with plain spaces: "9:42:40 PM". */
+const clockOf = async (page: Page, at: number) =>
+  (await page.evaluate((time) => new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(time), at)).replace(/\s+/g, ' ');
+
+/** A History row's thumbnail tile at each width. */
+const THUMBNAIL_SIZES: Record<number, [number, number]> = { 320: [112, 84], 768: [144, 108], 1024: [160, 120], 1440: [200, 150] };
+
+/** Motion and Sound together on the canvas camera: its left third changes and its microphone carries a tone. */
+const MOTION_AND_SOUND = {
+  activePresetId: 'custom',
+  globalSettings: { ...CUSTOM_PRESET, audioDetectionEnabled: true, audioSensitivity: 95 },
+};
+
+/** A device with `count` saved Motion alerts and their kept pictures, the newest a minute old; answers their times, newest first. */
+async function seedHistory(page: Page, count: number, extra: Record<string, unknown> = {}): Promise<number[]> {
+  const now = Date.now();
+  const times = Array.from({ length: count }, (_, i) => now - (i + 1) * 60_000);
+  await seedPictureRows(page, times.map((at, i) => ({
+    alert: savedAlert(`motion-${at}-history${i}`, at, { kind: 'motion', pictureId: `picture-${at}-history${i}` }),
+    picture: keptPicture(`picture-${at}-history${i}`, at, { ...LARGE_PICTURE, ...extra }),
+  })));
+  return times;
+}
+
+for (const look of ['dark', 'light'] as const) {
+  for (const width of [390, 1280]) {
+    test.describe(`History's rows, ${width} px, ${look}`, () => {
+      test.use({ colorScheme: look, viewport: { width, height: 900 } });
+
+      test(`History lists each watch alert with its picture, ${width} px, ${look}`, async ({ page, context }) => {
+        test.setTimeout(180_000);
+        await watchWith(page, context, { settings: MOTION_AND_SOUND, camera: { ...LEFT_THIRD, tone: true } });
+        const motionTime = await timeOf(cards(page).filter({ hasText: new RegExp(`Motion at ${TIME}`) }).first(), 'Motion');
+        const soundTime = await timeOf(cards(page).filter({ hasText: new RegExp(`Sound at ${TIME}`) }).first(), 'Sound');
+        await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
+        await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+        const kept = keptRows(await readDatabase(page));
+        const motionAt = kept.find((row) => row.kind === 'motion')!.takenAt as number;
+
+        await page.goto('/history/', { waitUntil: 'networkidle' });
+        const motion = historyRows(page).filter({ hasText: motionTime }).filter({ hasText: 'Motion' }).first();
+        const sound = historyRows(page).filter({ hasText: soundTime }).filter({ hasText: 'Sound' }).first();
+        await expect(motion).toBeVisible();
+
+        // The Motion row: the close-up's thumbnail in its tile, the kind at 600 and its level at 400,
+        // the date and time in the quiet tone, and Open picture named with the kind, the date and the time.
+        const thumbnail = motion.getByRole('img', { name: closeUpName(motionTime), exact: true });
+        await expect(thumbnail).toBeVisible();
+        const tile = (await motion.locator('.alert-picture__tile').boundingBox())!;
+        expect([Math.round(tile.width), Math.round(tile.height)]).toEqual(width === 390 ? [112, 84] : [160, 120]);
+        const kind = motion.getByText('Motion', { exact: true });
+        expect(await kind.evaluate((el) => getComputedStyle(el).fontWeight)).toBe('600');
+        const level = motion.getByText(LEVELS);
+        await expect(level).toBeVisible();
+        expect(await level.evaluate((el) => getComputedStyle(el).fontWeight)).toBe('400');
+        expect(await onOneRow(kind, level), 'the kind and its level share a line').toBe(true);
+        const day = await dayOf(page, motionAt);
+        const when = motion.getByText(`${day} at ${motionTime}`, { exact: true });
+        await expect(when).toBeVisible();
+        expect(await when.evaluate((el) => el.classList.contains('alert-picture__quiet'))).toBe(true);
+        await expect(motion.getByText(/Motion detected/)).toHaveCount(0);
+        await expect(page.getByText('Monitoring Alert', { exact: true })).toHaveCount(0);
+        const key = motion.getByRole('button', { name: `Open picture: Motion, ${day}, ${motionTime}`, exact: true });
+        await expect(key).toBeVisible();
+        const keyBox = (await key.boundingBox())!;
+        expect(keyBox.height).toBeGreaterThanOrEqual(44);
+        expect(keyBox.width).toBeGreaterThanOrEqual(120);
+
+        // The Sound row: the whole picture's thumbnail, with no box.
+        await expect(sound.getByRole('img', { name: pictureName(soundTime, false), exact: true })).toBeVisible();
+        await expect(sound.locator('.alert-picture__box')).toHaveCount(0);
+
+        // Open picture, and a press on the thumbnail, open the picture over History.
+        await key.click();
+        const dialog = page.getByRole('dialog', { name: `Motion at ${motionTime}`, exact: true });
+        await expect(dialog.getByRole('img', { name: pictureName(motionTime, true), exact: true })).toBeVisible();
+        await expect(closeKey(dialog)).toBeFocused();
+        await closeKey(dialog).click();
+        await expect(key).toBeFocused();
+        await thumbnail.click();
+        await expect(dialog).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(dialog).toHaveCount(0);
+
+        // After a reload the thumbnails show again from the store.
+        await page.reload({ waitUntil: 'networkidle' });
+        await expect(historyRows(page).filter({ hasText: motionTime }).filter({ hasText: 'Motion' }).first().getByRole('img', { name: closeUpName(motionTime), exact: true })).toBeVisible();
+      });
+
+      test(`History’s words meet the sizes and contrast, ${width} px, ${look}`, async ({ page, context }) => {
+        await seedDevice(context, { pictures: { noticeAnswered: true } });
+        await seedHistory(page, 2);
+        await page.goto('/history/', { waitUntil: 'networkidle' });
+        const row = historyRows(page).first();
+        await expect(row.getByRole('img')).toHaveCount(1);
+        expect(await readable(row, BLOCK_READABILITY), 'a row’s words').toEqual([]);
+      });
+    });
+  }
+}
+
+test.describe('History’s rows of saved alerts, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('an earlier day’s picture opens titled with its date, and a picture deleted in the dialog leaves its row', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true, deleteAfterDays: 7 } });
+    const { at, pictureId } = await seedOne(page, {}, Date.now() - 2 * DAY);
+    await page.goto('/history/', { waitUntil: 'networkidle' });
+    const row = historyRows(page).first();
+    const [day, time] = [await dayOf(page, at), await clockOf(page, at)];
+    await row.getByRole('button', { name: `Open picture: Motion, ${day}, ${time}`, exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: `Motion, ${day} at ${time}`, exact: true });
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(row.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    await expect(row.locator('.alert-picture__empty')).toHaveCount(1);
+    await expect(row.getByRole('img')).toHaveCount(0);
+    await expect(openKey(row)).toHaveCount(0);
+    // The row keeps its words.
+    await expect(row.getByText('Motion', { exact: true })).toBeVisible();
+    expect((await readDatabase(page)).pictures.find((picture) => picture.id === pictureId)).toMatchObject({ state: 'gone', gone: 'person' });
+  });
+
+  test('a picture past its age is deleted before History shows its row', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    const { pictureId } = await seedOne(page, {}, Date.now() - 4 * DAY);
+    await page.goto('/history/', { waitUntil: 'networkidle' });
+    const row = historyRows(page).first();
+    await expect(row.getByText('Its picture was deleted after 3 days.', { exact: true })).toBeVisible();
+    await expect(row.getByText('Motion', { exact: true })).toBeVisible();
+    await expect(row.getByRole('img')).toHaveCount(0);
+    await expect(openKey(row)).toHaveCount(0);
+    const gone = (await readDatabase(page)).pictures.find((picture) => picture.id === pictureId)!;
+    expect(gone).toMatchObject({ state: 'gone', gone: 'age', goneAfterDays: 3 });
+    expect(Object.keys(gone).filter((name) => ['frame', 'closeUp', 'box'].includes(name))).toEqual([]);
+  });
+
+  test('a picture History cannot read keeps its row and offers the dialog’s Delete picture', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedOne(page);
+    await faultPictureStore(page, { reads: 'error' });
+    await page.goto('/history/', { waitUntil: 'networkidle' });
+    const row = historyRows(page).first();
+    await expect(row.getByText(UNREADABLE_LINE, { exact: true })).toBeVisible();
+    await expect(row.locator('.alert-picture__problem')).toHaveCount(1);
+    await expect(row.getByText('Motion', { exact: true })).toBeVisible();
+    await expect(row.getByRole('img')).toHaveCount(0);
+    await openKey(row).click();
+    const dialog = opened(page);
+    await expect(dialog.getByText(READ_FAILED_LINE, { exact: true })).toBeVisible();
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(row.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    await expect(openKey(row)).toHaveCount(0);
+  });
+
+  test('History’s held reads show tiles first', async ({ page, context }) => {
+    test.setTimeout(90_000);
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedHistory(page, 2);
+    await faultPictureStore(page, { holdReadMs: 5_000 });
+    await page.goto('/history/', { waitUntil: 'domcontentloaded' });
+    await expect(historyRows(page)).toHaveCount(2);
+    for (const row of await historyRows(page).all()) {
+      const tile = row.locator('.alert-picture__wait');
+      await expect(tile).toBeVisible();
+      await expect(tile).toHaveAttribute('aria-hidden', 'true');
+      await expect(row.getByRole('img')).toHaveCount(0);
+      await expect(row.getByText('Motion', { exact: true })).toBeVisible();
+    }
+    for (const row of await historyRows(page).all()) {
+      await expect(row.getByRole('img')).toHaveCount(1, { timeout: 20_000 });
+      await expect(row.locator('.alert-picture__wait')).toHaveCount(0);
+    }
+  });
+
+  test('History offline', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedHistory(page, 2);
+    await page.goto('/history/', { waitUntil: 'networkidle' });
+    await context.setOffline(true);
+    await expect(historyRows(page)).toHaveCount(2);
+    for (const row of await historyRows(page).all()) await expect(row.getByRole('img')).toHaveCount(1);
+    await openKey(historyRows(page).first()).click();
+    const dialog = opened(page);
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+    await closeKey(dialog).click();
+    await expect(dialog).toHaveCount(0);
+    await context.setOffline(false);
+  });
+});
+
+test.describe('History’s rows at each width, in keyboard order and in another profile', () => {
+  for (const width of [320, 768, 1024, 1440]) {
+    test(`History at ${width} px`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await seedDevice(context, { pictures: { noticeAnswered: true } });
+      await seedHistory(page, 2);
+      await page.goto('/history/', { waitUntil: 'networkidle' });
+      const row = historyRows(page).first();
+      await expect(row.getByRole('img')).toHaveCount(1);
+      const tile = (await row.locator('.alert-picture__tile').boundingBox())!;
+      expect([Math.round(tile.width), Math.round(tile.height)]).toEqual(THUMBNAIL_SIZES[width]);
+      const kind = (await row.getByText('Motion', { exact: true }).boundingBox())!;
+      const key = (await openKey(row).boundingBox())!;
+      const edge = (await row.boundingBox())!;
+      // The words stand beside the thumbnail at every width.
+      expect(kind.x).toBeGreaterThanOrEqual(tile.x + tile.width);
+      expect(kind.y).toBeLessThan(tile.y + tile.height);
+      if (width === 320) {
+        // Open picture stands under the thumbnail and the words.
+        expect(key.y).toBeGreaterThanOrEqual(tile.y + tile.height);
+      } else {
+        // Open picture stands at the row's right end, beside the words.
+        expect(key.x).toBeGreaterThanOrEqual(kind.x);
+        expect(key.y).toBeLessThan(tile.y + tile.height);
+        expect(edge.x + edge.width - (key.x + key.width)).toBeLessThanOrEqual(32);
+      }
+      if (width === 1440) expect(edge.width, 'the rows keep to the left 8 columns of the 1320 px grid').toBeLessThanOrEqual(880);
+      expect(key.height).toBeGreaterThanOrEqual(44);
+      expect(await cutWords(row), 'nothing in the row is cut').toEqual([]);
+      if (width === 320) {
+        await doubleText(page);
+        expect(await row.evaluate((el) => {
+          const within = el.getBoundingClientRect().right;
+          return Array.from(el.querySelectorAll('p, span, button'))
+            .filter((child) => !child.closest('.alert-pictures-keys[data-overflows] .alert-pictures-keys__row'))
+            .filter((child) => child.getBoundingClientRect().right > within + 1 || child.scrollWidth > child.clientWidth + 1)
+            .map((child) => (child.textContent || '').slice(0, 40));
+        }), 'nothing in the row is cut or overlaps at 200 per cent').toEqual([]);
+      }
+      expect(await scrollsSideways(page)).toBe(false);
+    });
+  }
+
+  test('History in keyboard order', async ({ page, context }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedHistory(page, 2);
+    await page.goto('/history/', { waitUntil: 'networkidle' });
+    await expect(historyRows(page)).toHaveCount(2);
+    const [first, second] = [openKey(historyRows(page).nth(0)), openKey(historyRows(page).nth(1))];
+    // The thumbnail takes no stop of its own.
+    expect(await historyRows(page).first().locator('.alert-picture__tile').evaluate((el) => el.tabIndex)).toBe(-1);
+    await first.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(first).toBeFocused();
+    expect(await first.evaluate((el) => getComputedStyle(el).outlineStyle), 'the key shows its ring').not.toBe('none');
+    // The second row's key comes after the first row's own keys, in the list's order.
+    let reached = false;
+    for (let presses = 0; presses < 6 && !reached; presses++) {
+      await page.keyboard.press('Tab');
+      reached = await second.evaluate((el) => el === document.activeElement);
+      if (!reached) {
+        expect(await historyRows(page).first().evaluate((el) => el.contains(document.activeElement)), 'focus stays in the first row until the second row’s key').toBe(true);
+      }
+    }
+    expect(reached, 'the second row’s Open picture is reached in order').toBe(true);
+    expect(await second.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none');
+  });
+
+  test('another profile’s History shows none of these', async ({ page, context, browser }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedHistory(page, 2);
+    await page.goto('/history/', { waitUntil: 'networkidle' });
+    await expect(historyRows(page)).toHaveCount(2);
+    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await seedDevice(other, { pictures: { noticeAnswered: true } });
+    const stranger = await other.newPage();
+    await stranger.goto('/history/', { waitUntil: 'networkidle' });
+    await expect(historyRows(stranger)).toHaveCount(0);
+    await expect(stranger.getByRole('img', { name: /^(Close-up of the boxed part|What the camera saw) at / })).toHaveCount(0);
+    expect((await readDatabase(stranger)).pictures).toEqual([]);
+    await other.close();
+  });
 });
