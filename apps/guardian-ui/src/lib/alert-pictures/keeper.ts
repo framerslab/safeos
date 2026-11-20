@@ -23,6 +23,7 @@ import {
   countKeptAlertPictures,
   getAlertPicture,
   getCachedAlerts,
+  goneAlertPicture,
   goneAllAlertPictures,
   goneExpiredAlertPictures,
   probeAlertPictureStore,
@@ -35,7 +36,7 @@ import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useAlertPicturesStore } from '../../stores/alert-pictures-store';
 import type { PictureSet } from './capture';
 import { onPictureNews, postPictureNews, type PictureNews } from './channel';
-import { scaleBox } from './rules';
+import { scaleBox, type AlertKind } from './rules';
 
 type Kept = 'memory' | 'saving' | 'saved' | 'failed';
 
@@ -306,6 +307,30 @@ export function holdPicture(promise: Promise<PictureSet>, id: string): void {
 // =============================================================================
 // Deletes and sweeps
 // =============================================================================
+
+/**
+ * Delete picture: one set leaves, in every tab; the alert's words stay. A
+ * set that lives in this tab's memory alone (keeping off, or a save that
+ * failed) is forgotten here and nothing is written. A kept set leaves the
+ * row that says the person deleted it; one that cannot be read is cleared
+ * from what its alert says of it (`known`), without a read.
+ */
+export async function deletePicture(id: string, known: { kind: AlertKind; takenAt: number }): Promise<'deleted' | 'failed'> {
+  const entry = entries.get(id);
+  const inMemoryAlone = entry?.view.status === 'shown' && (entry.view.kept === 'memory' || entry.view.kept === 'failed');
+  if (entry && inMemoryAlone) {
+    // It stays this tab's own answer: nothing is stored, so nothing is read again.
+    settle(entry, GONE_PERSON);
+    tell();
+    return 'deleted';
+  }
+  if ((await goneAlertPicture(id, 'person', known)) === 'failed') return 'failed';
+  gone([id], 'person');
+  postPictureNews({ type: 'gone', ids: [id], reason: 'person' });
+  tell();
+  await readCount();
+  return 'deleted';
+}
 
 /** Delete all pictures: every kept set leaves, in every tab; the alerts' words stay. */
 export async function deleteAllPictures(): Promise<'deleted' | 'failed'> {

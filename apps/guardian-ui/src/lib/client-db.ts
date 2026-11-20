@@ -1083,8 +1083,16 @@ export async function getAlertPicture(id: string): Promise<AlertPictureDB | null
   return (await db.get('alert_picture', id)) ?? null;
 }
 
-/** Deletes one kept picture set, leaving the row that says the person deleted it. */
-export async function goneAlertPicture(id: string, reason: 'person'): Promise<'deleted' | 'failed'> {
+/**
+ * Deletes one kept picture set, leaving the row that says the person deleted it. A set that
+ * cannot be read is cleared without reading it, from what the alert itself says of it (`known`):
+ * the row that says it went takes its place.
+ */
+export async function goneAlertPicture(
+  id: string,
+  reason: 'person',
+  known?: { kind: AlertKind; takenAt: number },
+): Promise<'deleted' | 'failed'> {
   let tx: Abandonable | undefined;
   try {
     const db = await getDB();
@@ -1097,6 +1105,18 @@ export async function goneAlertPicture(id: string, reason: 'person'): Promise<'d
     return 'deleted';
   } catch {
     await abandonTransaction(tx);
+  }
+  if (!known) return 'failed';
+  let blind: Abandonable | undefined;
+  try {
+    const db = await getDB();
+    const write = db.transaction(['alert_picture'], 'readwrite');
+    blind = write;
+    await write.objectStore('alert_picture').put({ id, state: 'gone', kind: known.kind, takenAt: known.takenAt, gone: reason });
+    await blind.done;
+    return 'deleted';
+  } catch {
+    await abandonTransaction(blind);
     return 'failed';
   }
 }

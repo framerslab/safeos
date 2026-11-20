@@ -47,6 +47,20 @@ export const kindAtTime = (kind: AlertKind, at: number | Date): string => `${kin
 /** The live picture's plate: "Motion here at 9:42:40 PM". */
 export const plateLine = (kind: AlertKind, at: number | Date): string => `${kindWords(kind)} here at ${timeWords(at)}`;
 
+let calendar: Intl.DateTimeFormat | null = null;
+
+/** The day, in the device's own format: "Nov 18, 2026". */
+export function dateWords(at: number | Date): string {
+  calendar ??= new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' });
+  return calendar.format(at);
+}
+
+/** True when `at` falls on the device's own day of `now`. */
+export function isSameDay(at: number | Date, now: number | Date = Date.now()): boolean {
+  const [a, b] = [new Date(at), new Date(now)];
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 /** "in Doorway", where zones are set. */
 export const inZone = (zone: string): string => `in ${zone}`;
 
@@ -73,6 +87,32 @@ export const deletedAfter = (days: number): string =>
 /** The polite status for a new alert: "New alert: Motion, Low, at 9:42:40 PM." */
 export const announceAlert = (kind: AlertKind, severity: Severity, at: number | Date): string =>
   `New alert: ${kindWords(kind)}, ${levelWords(severity)}, at ${timeWords(at)}.`;
+
+// =============================================================================
+// The picture, opened
+// =============================================================================
+
+export const OPEN_PICTURE = 'Open picture';
+
+/** The key's name: "Open picture: Motion, 9:42:40 PM"; in History, with the day: "Open picture: Motion, Nov 18, 2026, 9:42:40 PM". */
+export const openPictureName = (kind: AlertKind, at: number | Date, withDate = false): string =>
+  `${OPEN_PICTURE}: ${kindWords(kind)}, ${withDate ? `${dateWords(at)}, ` : ''}${timeWords(at)}`;
+
+/** The opened picture's title: "Motion at 9:42:40 PM" today, "Motion, Nov 18, 2026 at 9:42:40 PM" for an earlier day. */
+export const openedTitle = (kind: AlertKind, at: number | Date, now: number | Date = Date.now()): string =>
+  isSameDay(at, now) ? kindAtTime(kind, at) : `${kindWords(kind)}, ${dateWords(at)} at ${timeWords(at)}`;
+
+export const CLOSE = 'Close';
+export const SHOW_THE_BOX = 'Show the box';
+export const BRIGHTEN = 'Brighten the picture';
+export const BRIGHTENED_VIEW = 'Brightened view';
+export const SAVE_PICTURE = 'Save picture';
+export const DELETE_PICTURE = 'Delete picture';
+export const DELETE_PICTURE_QUESTION = 'Delete this picture? The alert’s words stay.';
+export const KEEP_IT = 'Keep it';
+export const LOADING_PICTURE = 'Loading the picture…';
+export const UNREADABLE_DELETE = 'This picture could not be read on this device. Delete it to clear it; the alert’s words stay.';
+export const PICTURE_DELETE_FAILED = 'The picture could not be deleted. Press Delete picture to try again.';
 
 // =============================================================================
 // Keep alert pictures: the group, the notice and the alert list's line

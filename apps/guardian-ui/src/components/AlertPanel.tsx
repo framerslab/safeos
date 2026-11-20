@@ -16,7 +16,8 @@ import { getSoundManager, type SoundType } from '../lib/sound-manager';
 import { cardTime } from '../lib/alert-event';
 import { kindOfAlert } from '../lib/alert-pictures/rules';
 import { announceAlert, levelWords } from '../lib/alert-pictures/words';
-import { PictureBlock, alertMoment } from './alert-pictures/PictureBlock';
+import { OpenPictureKey, PictureBlock, alertMoment } from './alert-pictures/PictureBlock';
+import { PictureDialogHost } from './alert-pictures/PictureDialog';
 import { ListLine } from './alert-pictures/ListLine';
 import { KeyRow } from './alert-pictures/KeyRow';
 import {
@@ -307,6 +308,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
         </button>
       </div>
 
+      {/* An alert's picture, opened large over the watch */}
+      <PictureDialogHost />
+
       {/* Said once: a device that ran out of room for pictures, or a window that keeps none */}
       <ListLine />
 
@@ -401,6 +405,7 @@ function AlertCard({ alert, form, escalationLevel, onAcknowledge }: AlertCardPro
         </span>
         {/* The card's keys keep one row; where they do not fit, the row scrolls inside itself. */}
         <KeyRow className="alert-card__keys">
+          {kind && <OpenPictureKey alert={alert} />}
           <button type="button" onClick={() => onAcknowledge(alert.id)} className="alert-card__acknowledge">
             Acknowledge
           </button>
@@ -442,6 +447,11 @@ function AcknowledgedSection({ alerts }: AcknowledgedSectionProps) {
             <div key={alert.id} className="alert-card" data-alert-card="" data-acknowledged="" data-form="small">
               <CardHead alert={alert} />
               <PictureBlock alert={alert} form="small" />
+              <div className="alert-card__foot">
+                <KeyRow className="alert-card__keys">
+                  <OpenPictureKey alert={alert} />
+                </KeyRow>
+              </div>
             </div>
           ) : (
             <div key={alert.id} className="p-3 opacity-60" data-alert-card="" data-acknowledged="">

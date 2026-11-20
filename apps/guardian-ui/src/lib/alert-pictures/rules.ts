@@ -37,6 +37,11 @@ export const CLOSE_UP_LONG_EDGE = 480;
 export const CLOSE_UP_QUALITY = 0.8;
 /** A kept frame whose mean brightness is under this, of 255, is dark. */
 export const DARK_MEAN = 26;
+/** The box on any photograph: a green line inside a dark line, in both looks. */
+export const BOX_LINE = '#4ade80';
+export const BOX_EDGE = '#0b131b';
+/** A picture saved to the device's files with its box drawn in is a JPEG at this quality. */
+export const SAVED_FILE_QUALITY = 0.92;
 /** How long the live picture carries an alert's box. */
 export const LIVE_BOX_MS = 10_000;
 /** The smallest side of a box drawn on the live picture. */
