@@ -1,0 +1,114 @@
+# SafeOS Guardian - measurements on slowed devices
+#
+# Records how the watch, the COCO-SSD model and Lost & Found matching run in
+# Chromium at two device classes with the CPU slowed. It runs on each push to
+# master and on a manual run, never on a pull request push. It records: a slow
+# number never fails the run. See docs/PERFORMANCE.md.
+
+name: Measure
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: measure-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The job runs on ubuntu-24.04: ubuntu-latest moved to Ubuntu 26.04, where the
+  # Playwright this app uses does not install its browsers.
+  measure:
+    name: Measure the watch on slowed devices
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read the runner's CPU and memory
+        run: |
+          {
+            echo "### Runner"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Image | ${ImageOS:-unknown} ${ImageVersion:-} |"
+            echo "| CPU | $(lscpu | sed -n 's/^Model name:[[:space:]]*//p' | head -n 1) |"
+            echo "| Logical CPUs | $(nproc) |"
+            echo "| Memory | $(awk '/^MemTotal:/ { printf "%.1f GiB", $2 / 1048576 }' /proc/meminfo) |"
+            echo "| Architecture | $(uname -m) |"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/guardian-ui/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/guardian-ui
+        run: npm ci
+
+      - name: Build static site
+        working-directory: apps/guardian-ui
+        run: npm run build
+        env:
+          NEXT_PUBLIC_STATIC_MODE: 'true'
+          NEXT_PUBLIC_API_URL: ''
+          NEXT_PUBLIC_WS_URL: ''
+
+      - name: Install Chromium for Playwright
+        # The Ubuntu runner already supplies the shared browser libraries.
+        working-directory: apps/guardian-ui
+        run: npx playwright install chromium
+
+      - name: Install ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+
+      # Chromium's fake camera reads a .y4m file and its fake microphone a
+      # .wav file, made here from the committed sample clip as the Pictures
+      # workflow makes them. The frame at 1 s is Lost & Found's reference photo.
+      - name: Make the fake camera's files from the sample clip
+        working-directory: apps/guardian-ui
+        run: |
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -an -pix_fmt yuv420p "$RUNNER_TEMP/sample-clip.y4m"
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -vn -ac 1 -ar 48000 -c:a pcm_s16le "$RUNNER_TEMP/sample-clip.wav"
+          ffmpeg -nostdin -v error -y -ss 1 -i public/home/sample-clip.mp4 -frames:v 1 "$RUNNER_TEMP/subject.png"
+          ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration -of default=noprint_wrappers=1 public/home/sample-clip.mp4 || true
+
+      # The script records each number and the reason for any part it could
+      # not measure; a slow number does not fail the step.
+      - name: Serve the site and measure
+        working-directory: apps/guardian-ui
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node scripts/measure-devices.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/measurements" \
+            "$RUNNER_TEMP/sample-clip.y4m" "$RUNNER_TEMP/sample-clip.wav" "$RUNNER_TEMP/subject.png"
+
+      - name: Write the table to the job summary
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/measurements/summary.md" ]; then
+            cat "$RUNNER_TEMP/measurements/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No measurements were written." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: measurements
+          path: ${{ runner.temp }}/measurements
+          if-no-files-found: warn
+          retention-days: 90
