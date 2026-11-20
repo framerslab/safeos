@@ -12,6 +12,8 @@
  * Run in CI by ci.yml's "Web app alert walk" job against the static export.
  */
 
+import { readFile } from 'node:fs/promises';
+
 import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
 import { coverBox } from '../src/lib/alert-pictures/rules';
@@ -1770,6 +1772,649 @@ test.describe('The live box offline and on wider pictures', () => {
       expect(plate.height, 'one line').toBeLessThanOrEqual(32);
       // 12 px clear of the picture's edges.
       expect(plate.x - view.x).toBeGreaterThanOrEqual(11);
+    });
+  }
+});
+
+// =============================================================================
+// The picture, opened
+// =============================================================================
+
+const LOADING_LINE = 'Loading the picture…';
+const READ_FAILED_LINE = 'This picture could not be read on this device. Delete it to clear it; the alert’s words stay.';
+const DELETE_QUESTION = 'Delete this picture? The alert’s words stay.';
+const PICTURE_DELETE_FAILED_LINE = 'The picture could not be deleted. Press Delete picture to try again.';
+const DELETED_LINE = 'You deleted its picture.';
+const SOUND_CAME_LINE = 'What the camera saw when the sound came.';
+const TOO_DARK_LINE = 'This picture is too dark to show much. With a night light in the room, the camera shows more.';
+
+const openKey = (root: Page | Locator) => root.getByRole('button', { name: /^Open picture: / });
+/** The opened picture, whatever its alert: a dialog named by the kind and the time. */
+const opened = (page: Page) => page.getByRole('dialog', { name: /^(Motion|Sound|Picture change)(,| at) / });
+const closeKey = (dialog: Locator) => dialog.getByRole('button', { name: 'Close', exact: true });
+const boxSwitch = (dialog: Locator) => dialog.getByRole('switch', { name: 'Show the box', exact: true });
+const brightenSwitch = (dialog: Locator) => dialog.getByRole('switch', { name: 'Brighten the picture', exact: true });
+const saveKey = (dialog: Locator) => dialog.getByRole('button', { name: 'Save picture', exact: true });
+const deleteKey = (dialog: Locator) => dialog.getByRole('button', { name: 'Delete picture', exact: true });
+const question = (page: Page) => page.getByRole('alertdialog', { name: DELETE_QUESTION, exact: true });
+const confirmDelete = (page: Page) => question(page).getByRole('button', { name: 'Delete picture', exact: true });
+const keepIt = (page: Page) => question(page).getByRole('button', { name: 'Keep it', exact: true });
+
+/** The camera holds still: the event ends, and no repeat changes the card under the walk. */
+const holdStill = (page: Page) => page.evaluate(() => { window.__camera!.moving.width = 0; });
+
+/** A kept picture's frame as the store holds it, in base64, read on the walk's own connection. */
+function keptFrame(page: Page, id: string): Promise<string> {
+  return page.evaluate((pictureId) => new Promise<string>((resolve, reject) => {
+    const open = indexedDB.open('safeos-guardian');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      const read = db.transaction('alert_picture', 'readonly').objectStore('alert_picture').getAll();
+      read.onerror = () => { db.close(); reject(read.error); };
+      read.onsuccess = () => {
+        db.close();
+        const row = read.result.find((picture) => picture.id === pictureId);
+        if (!row?.frame) { reject(new Error('the store holds no frame for that picture')); return; }
+        void (row.frame as Blob).arrayBuffer().then((buffer) => {
+          let text = '';
+          for (const byte of new Uint8Array(buffer)) text += String.fromCharCode(byte);
+          resolve(btoa(text));
+        }, reject);
+      };
+    };
+  }), id);
+}
+
+/** A 640 by 480 kept picture with its box and a 320 by 240 close-up. */
+const LARGE_PICTURE = {
+  frameWidth: 640, frameHeight: 480, sourceWidth: 640, sourceHeight: 480,
+  box: { x: 160, y: 120, width: 160, height: 120 }, closeUpWidth: 320, closeUpHeight: 240,
+};
+
+/** A device with one saved Motion alert and its kept picture, a minute old. */
+async function seedOne(page: Page, extra: Record<string, unknown> = {}, at = Date.now() - 60_000): Promise<{ alertId: string; pictureId: string; at: number }> {
+  const alertId = `motion-${at}-opened1`;
+  const pictureId = `picture-${at}-opened1`;
+  await seedPictureRows(page, [{
+    alert: savedAlert(alertId, at, { kind: 'motion', pictureId }),
+    picture: keptPicture(pictureId, at, { ...LARGE_PICTURE, ...extra }),
+  }]);
+  return { alertId, pictureId, at };
+}
+
+/** Opens the watch and the saved alert's picture. */
+async function openSaved(page: Page): Promise<{ card: Locator; dialog: Locator; time: string }> {
+  await page.goto('/monitor/', { waitUntil: 'networkidle' });
+  const card = cards(page).first();
+  const time = await timeOf(card, 'Motion');
+  await openKey(card).click();
+  const dialog = opened(page);
+  await expect(dialog).toBeVisible();
+  return { card, dialog, time };
+}
+
+const onOneRow = async (a: Locator, b: Locator) => {
+  const [first, second] = [(await a.boundingBox())!, (await b.boundingBox())!];
+  return first.y < second.y + second.height && second.y < first.y + first.height;
+};
+
+/** The words under `root` that reach past its edges or are cut. */
+const cutWords = (root: Locator) => root.evaluate((el) => {
+  const edge = el.getBoundingClientRect();
+  return Array.from(el.querySelectorAll('p, span, label, button, a, h2, h3')).filter((child) => {
+    const box = child.getBoundingClientRect();
+    if (box.width <= 1) return false;
+    return box.right > edge.right + 1 || box.left < edge.left - 1 || child.scrollWidth > child.clientWidth + 1;
+  }).map((child) => (child.textContent || '').slice(0, 40));
+});
+
+for (const look of ['dark', 'light'] as const) {
+  test.describe(`The opened picture, 390 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 390, height: 844 } });
+
+    test(`Open picture opens the picture with its box, its close-up and its keys, ${look}`, async ({ page, context }) => {
+      test.setTimeout(150_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await holdStill(page);
+      const onCard = card.getByRole('img', { name: pictureName(time, true), exact: true });
+      await expect(onCard).toBeVisible();
+
+      // The card's last row: Open picture, then Acknowledge.
+      const key = card.getByRole('button', { name: `Open picture: Motion, ${time}`, exact: true });
+      await expect(key).toHaveText('Open picture');
+      const acknowledge = card.getByRole('button', { name: 'Acknowledge', exact: true });
+      const [open, ack] = [(await key.boundingBox())!, (await acknowledge.boundingBox())!];
+      expect(open.height).toBeGreaterThanOrEqual(44);
+      expect(open.width).toBeGreaterThanOrEqual(120);
+      expect(await onOneRow(key, acknowledge), 'Open picture and Acknowledge share the card’s last row').toBe(true);
+      expect(open.x + open.width, 'Open picture stands before Acknowledge').toBeLessThanOrEqual(ack.x);
+
+      await key.click();
+      const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
+      await expect(dialog).toBeVisible();
+      await expect(closeKey(dialog)).toBeFocused();
+      const picture = dialog.getByRole('img', { name: pictureName(time, true), exact: true });
+      await expect(picture).toBeVisible();
+      await expect(dialog.locator('.alert-picture__box')).toHaveCount(1);
+      const closeUp = dialog.getByRole('img', { name: closeUpName(time), exact: true });
+      await expect(closeUp).toBeVisible();
+      const label = dialog.getByText('Close-up', { exact: true });
+      expect((await label.boundingBox())!.y, '“Close-up” stands over the close-up').toBeLessThan((await closeUp.boundingBox())!.y);
+      await expect(boxSwitch(dialog)).toHaveAttribute('aria-checked', 'true');
+      // A picture that is not dark has no switch to brighten it.
+      await expect(brightenSwitch(dialog)).toHaveCount(0);
+
+      // The panel is the screen; the picture and Save picture span its column, and Delete picture
+      // stands on its own row 24 px under Save picture.
+      const panel = (await dialog.boundingBox())!;
+      expect([Math.round(panel.x), Math.round(panel.width)]).toEqual([0, 390]);
+      const [shown, save, remove] = [(await picture.boundingBox())!, (await saveKey(dialog).boundingBox())!, (await deleteKey(dialog).boundingBox())!];
+      expect(Math.round(shown.width)).toBe(358);
+      expect(Math.round(save.width)).toBe(358);
+      expect(Math.round(remove.width)).toBe(358);
+      expect(Math.round(remove.y - (save.y + save.height)), 'Delete picture stands 24 px under Save picture').toBe(24);
+      for (const control of [closeKey(dialog), boxSwitch(dialog), saveKey(dialog), deleteKey(dialog)]) {
+        expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      }
+      // Delete picture is an outlined key at full strength, as Save picture is.
+      expect(await deleteKey(dialog).evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+      // The watch runs under the panel.
+      await expect(live(page)).toHaveCount(1);
+
+      // Close gives focus back to the key that opened it; a press on the picture opens the same dialog.
+      await closeKey(dialog).click();
+      await expect(dialog).toHaveCount(0);
+      await expect(key).toBeFocused();
+      await onCard.click();
+      await expect(dialog).toBeVisible();
+      await expect(closeKey(dialog)).toBeFocused();
+    });
+
+    test(`the dialog’s words meet the sizes and contrast, 390 px, ${look}`, async ({ page, context }) => {
+      await seedDevice(context, { pictures: { noticeAnswered: true } });
+      await seedOne(page);
+      const { dialog } = await openSaved(page);
+      await expect(dialog.getByRole('img')).toHaveCount(2);
+      expect(await readable(dialog, BLOCK_READABILITY), 'the dialog’s words').toEqual([]);
+      await deleteKey(dialog).click();
+      expect(await readable(question(page), BLOCK_READABILITY), 'the question’s words').toEqual([]);
+    });
+  });
+
+  test.describe(`The opened picture, 1280 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 1280, height: 900 } });
+
+    test(`the dialog’s words meet the sizes and contrast, 1280 px, ${look}`, async ({ page, context }) => {
+      await seedDevice(context, { pictures: { noticeAnswered: true } });
+      await seedOne(page);
+      const { dialog } = await openSaved(page);
+      await expect(dialog.getByRole('img')).toHaveCount(2);
+      expect(await readable(dialog, BLOCK_READABILITY), 'the dialog’s words').toEqual([]);
+      await deleteKey(dialog).click();
+      expect(await readable(question(page), BLOCK_READABILITY), 'the question’s words').toEqual([]);
+    });
+  });
+}
+
+test.describe('The opened picture on the watch, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('a new alert leaves the opened picture open; Show the box hides and shows the box at once; Delete picture asks first, then deletes the frame, the box and the close-up', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    const time = await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+    const [row] = keptRows(await readDatabase(page));
+    await openKey(cards(page).first()).click();
+    const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
+    await expect(dialog).toBeVisible();
+
+    // Show the box: off shows the clean picture under its plain name; on brings the box back; nothing fades.
+    const box = dialog.locator('.alert-picture__box');
+    await expect(box).toHaveCount(1);
+    expect(await box.evaluate((el) => getComputedStyle(el).transitionDuration.split(',').every((t) => parseFloat(t) === 0)), 'the box has no transition').toBe(true);
+    await boxSwitch(dialog).click();
+    await expect(boxSwitch(dialog)).toHaveAttribute('aria-checked', 'false');
+    await expect(box).toHaveCount(0);
+    await expect(dialog.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
+    await expect(dialog.getByRole('img', { name: pictureName(time, true), exact: true })).toHaveCount(0);
+    await boxSwitch(dialog).click();
+    await expect(boxSwitch(dialog)).toHaveAttribute('aria-checked', 'true');
+    await expect(box).toHaveCount(1);
+    await expect(dialog.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+
+    // A new alert comes while the picture is open: its card joins the list and the dialog stays as it was.
+    await page.waitForTimeout(3_000);
+    await page.evaluate(() => { window.__camera!.moving.width = 1 / 3; });
+    await expect(cards(page)).toHaveCount(2, { timeout: 40_000 });
+    await holdStill(page);
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(2);
+
+    // Delete picture asks first, with focus on Keep it; Keep it gives focus back to Delete picture.
+    await deleteKey(dialog).click();
+    await expect(question(page)).toBeVisible();
+    await expect(keepIt(page)).toBeFocused();
+    await keepIt(page).click();
+    await expect(question(page)).toHaveCount(0);
+    await expect(deleteKey(dialog)).toBeFocused();
+    expect(await keptCount(page)).toBe(2);
+
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    await expect(dialog).toHaveCount(0);
+    const card = cards(page).filter({ hasText: `Motion at ${time}` });
+    await expect(card.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    await expect(openKey(card)).toHaveCount(0);
+    await expect(card.getByRole('img')).toHaveCount(0);
+    // Focus stands on the card whose picture went.
+    expect(await card.evaluate((el) => el.contains(document.activeElement)), 'focus stands on the alert’s card').toBe(true);
+    const gone = (await readDatabase(page)).pictures.find((picture) => picture.id === row.id)!;
+    expect(gone).toMatchObject({ id: row.id, state: 'gone', gone: 'person' });
+    expect(Object.keys(gone).filter((name) => ['frame', 'closeUp', 'box'].includes(name)), 'no frame, box or close-up is left').toEqual([]);
+    expect(await keptCount(page)).toBe(1);
+  });
+
+  test('a Sound alert’s picture opens with no Show the box', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await watchWith(page, context, { settings: SOUND_ONLY, camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0, height: 0 }, tone: true } });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Sound');
+    await card.getByRole('button', { name: `Open picture: Sound, ${time}`, exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: `Sound at ${time}`, exact: true });
+    await expect(dialog.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
+    await expect(dialog.getByText(SOUND_CAME_LINE, { exact: true })).toBeVisible();
+    await expect(boxSwitch(dialog)).toHaveCount(0);
+    await expect(dialog.locator('.alert-picture__box')).toHaveCount(0);
+    await expect(dialog.getByText('Close-up', { exact: true })).toHaveCount(0);
+    await expect(dialog.getByRole('img')).toHaveCount(1);
+    await expect(saveKey(dialog)).toBeVisible();
+    await expect(deleteKey(dialog)).toBeVisible();
+  });
+
+  test('a picture not kept opens from memory, saves and deletes', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, keep: false } });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await holdStill(page);
+    await openKey(card).click();
+    const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
+    const picture = dialog.getByRole('img', { name: pictureName(time, true), exact: true });
+    await expect(picture).toBeVisible();
+    // Its line stands under the title, over the picture.
+    const line = dialog.getByText(NOT_KEPT_LINE, { exact: true });
+    await expect(line).toBeVisible();
+    expect((await line.boundingBox())!.y).toBeLessThan((await picture.boundingBox())!.y);
+    const [saved] = await Promise.all([page.waitForEvent('download'), saveKey(dialog).click()]);
+    expect(saved.suggestedFilename()).toMatch(/^safeos-motion-\d{4}-\d{2}-\d{2}-\d{6}\.jpg$/);
+    const bytes = await readFile((await saved.path())!);
+    expect([bytes[0], bytes[1]], 'a JPEG file').toEqual([0xff, 0xd8]);
+    expect((await readDatabase(page)).pictures).toEqual([]);
+
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(card.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    await expect(openKey(card)).toHaveCount(0);
+    expect((await readDatabase(page)).pictures).toEqual([]);
+  });
+
+  test('a dark picture offers Brighten the picture, for the view alone', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: { ...LEFT_THIRD, background: 10, levels: [0, 40, 80] } });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await holdStill(page);
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+    const [row] = keptRows(await readDatabase(page));
+    await openKey(card).click();
+    const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
+    const picture = dialog.getByRole('img', { name: pictureName(time, true), exact: true });
+    const closeUp = dialog.getByRole('img', { name: closeUpName(time), exact: true });
+    await expect(picture).toBeVisible();
+    await expect(dialog.getByText(TOO_DARK_LINE, { exact: true })).toBeVisible();
+    await expect(brightenSwitch(dialog)).toHaveAttribute('aria-checked', 'false');
+    const plate = dialog.getByText('Brightened view', { exact: true });
+    await expect(plate).toHaveCount(0);
+
+    // The still part of the picture, right of the moving third: a flat grey of 10.
+    const keptSrc = (await picture.getAttribute('src'))!;
+    const keptCloseUp = (await closeUp.getAttribute('src'))!;
+    const size = await naturalSize(picture);
+    const still: Array<[number, number]> = [[size.width * 0.7, size.height / 2], [size.width * 0.9, size.height / 4]];
+    const before = await pixelsAt(page, keptSrc, still);
+
+    await brightenSwitch(dialog).click();
+    await expect(brightenSwitch(dialog)).toHaveAttribute('aria-checked', 'true');
+    await expect(plate).toBeVisible();
+    await expect.poll(() => picture.getAttribute('src')).not.toBe(keptSrc);
+    await expect.poll(() => closeUp.getAttribute('src')).not.toBe(keptCloseUp);
+    const after = await pixelsAt(page, (await picture.getAttribute('src'))!, still);
+    after.forEach(([grey], i) => expect(grey, `the still part shows brighter (${before[i][0]} to ${grey})`).toBeGreaterThan(before[i][0] + 10));
+    // The label stands at the picture's top left, on its own plate.
+    const [where, shown] = [(await plate.boundingBox())!, (await picture.boundingBox())!];
+    expect(where.x - shown.x).toBeLessThanOrEqual(16);
+    expect(where.y - shown.y).toBeLessThanOrEqual(16);
+    expect(inside(where, shown), 'the label stands inside the picture').toBe(true);
+
+    // Save picture saves the kept picture, never the brightened one.
+    await boxSwitch(dialog).click();
+    const [saved] = await Promise.all([page.waitForEvent('download'), saveKey(dialog).click()]);
+    expect((await readFile((await saved.path())!)).toString('base64')).toBe(await keptFrame(page, row.id));
+
+    await brightenSwitch(dialog).click();
+    await expect(plate).toHaveCount(0);
+    await expect.poll(() => picture.getAttribute('src')).toBe(keptSrc);
+  });
+});
+
+test.describe('The opened picture on the watch, 1280 px', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('Save picture saves the picture as it shows; Escape and a press outside close it and focus returns to Open picture', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await holdStill(page);
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+    const [row] = keptRows(await readDatabase(page));
+    const key = openKey(card);
+    await key.click();
+    const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
+    await expect(saveKey(dialog)).toBeVisible();
+
+    // With the box on: a JPEG named for the kind and the time, with the box drawn in.
+    const [boxed] = await Promise.all([page.waitForEvent('download'), saveKey(dialog).click()]);
+    expect(boxed.suggestedFilename()).toMatch(/^safeos-motion-\d{4}-\d{2}-\d{2}-\d{6}\.jpg$/);
+    const boxedBytes = await readFile((await boxed.path())!);
+    expect([boxedBytes[0], boxedBytes[1]], 'a JPEG file').toEqual([0xff, 0xd8]);
+    // The box's right edge stands inside the picture: its green line is the two pixels inside it.
+    const edge = Math.round(row.box.x + row.box.width);
+    const middle = Math.round(row.box.y + row.box.height / 2);
+    expect(edge, 'the box’s right edge stands inside the frame').toBeLessThan(row.frameWidth - 2);
+    const across = await pixelsAt(page, `data:image/jpeg;base64,${boxedBytes.toString('base64')}`, [[edge - 2, middle], [edge - 1, middle]]);
+    expect(across.some((rgb) => near(rgb, '#4ade80', 60)), `the box’s green line is drawn in (${JSON.stringify(across)})`).toBe(true);
+
+    // With the box off: the kept frame itself, byte for byte, under the same name.
+    await boxSwitch(dialog).click();
+    const [clean] = await Promise.all([page.waitForEvent('download'), saveKey(dialog).click()]);
+    expect(clean.suggestedFilename()).toBe(boxed.suggestedFilename());
+    const kept = await keptFrame(page, row.id);
+    expect((await readFile((await clean.path())!)).toString('base64')).toBe(kept);
+    expect(boxedBytes.toString('base64')).not.toBe(kept);
+
+    // Escape closes it and focus returns to the key that opened it; so does a press outside the panel.
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(key).toBeFocused();
+    await key.click();
+    await expect(dialog).toBeVisible();
+    const panel = (await dialog.boundingBox())!;
+    expect(Math.round(panel.width), 'a 960 px panel at 1280 px').toBe(960);
+    await page.mouse.click(Math.max(4, panel.x / 2), panel.y + panel.height / 2);
+    await expect(dialog).toHaveCount(0);
+    await expect(key).toBeFocused();
+  });
+
+  test('the dialog in keyboard order', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedOne(page);
+    const { dialog } = await openSaved(page);
+    await expect(closeKey(dialog)).toBeFocused();
+    for (const stop of [boxSwitch(dialog), saveKey(dialog), deleteKey(dialog), closeKey(dialog)]) {
+      await page.keyboard.press('Tab');
+      await expect(stop).toBeFocused();
+      expect(await stop.evaluate((el) => getComputedStyle(el).outlineStyle), 'each stop shows its ring').not.toBe('none');
+    }
+    await page.keyboard.press('Shift+Tab');
+    await expect(deleteKey(dialog)).toBeFocused();
+    // The delete question holds focus on its two keys, and Escape is Keep it.
+    await page.keyboard.press('Enter');
+    await expect(keepIt(page)).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(confirmDelete(page)).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(keepIt(page)).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(question(page)).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await expect(deleteKey(dialog)).toBeFocused();
+    expect(await keptCount(page)).toBe(1);
+  });
+
+  test('another profile can open no picture of this one', async ({ page, context, browser }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedOne(page);
+    const { dialog } = await openSaved(page);
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await seedDevice(other, { pictures: { noticeAnswered: true } });
+    const stranger = await other.newPage();
+    await stranger.goto('/monitor/', { waitUntil: 'networkidle' });
+    await expect(startKey(stranger)).toBeVisible();
+    await expect(cards(stranger)).toHaveCount(0);
+    await expect(openKey(stranger)).toHaveCount(0);
+    expect((await readDatabase(stranger)).pictures).toEqual([]);
+    await other.close();
+  });
+});
+
+test.describe('The opened picture of a saved alert, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('a held read shows a tile and inactive keys, then the picture', async ({ page, context }) => {
+    test.setTimeout(90_000);
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedOne(page);
+    await faultPictureStore(page, { holdReadMs: 6_000 });
+    await page.goto('/monitor/', { waitUntil: 'domcontentloaded' });
+    await openKey(cards(page).first()).click();
+    const dialog = opened(page);
+    await expect(dialog).toBeVisible();
+    const tile = dialog.locator('.alert-picture-dialog__wait');
+    await expect(tile).toBeVisible();
+    await expect(tile).toHaveAttribute('aria-hidden', 'true');
+    await expect(dialog.getByText(LOADING_LINE, { exact: true })).toBeVisible();
+    await expect(dialog.getByRole('img')).toHaveCount(0);
+    await expect(closeKey(dialog)).toBeFocused();
+    for (const control of [boxSwitch(dialog), saveKey(dialog), deleteKey(dialog)]) {
+      await expect(control).toHaveAttribute('aria-disabled', 'true');
+    }
+    for (const control of [saveKey(dialog), deleteKey(dialog)]) {
+      expect(await control.evaluate((el) => getComputedStyle(el).borderTopStyle), 'an inactive key has a dashed edge').toBe('dashed');
+    }
+    // An inactive Delete picture asks nothing.
+    await deleteKey(dialog).click({ force: true });
+    await expect(question(page)).toHaveCount(0);
+
+    await expect(dialog.getByRole('img')).toHaveCount(2, { timeout: 20_000 });
+    await expect(tile).toHaveCount(0);
+    await expect(dialog.getByText(LOADING_LINE, { exact: true })).toHaveCount(0);
+    for (const control of [boxSwitch(dialog), saveKey(dialog), deleteKey(dialog)]) {
+      await expect(control).not.toHaveAttribute('aria-disabled', 'true');
+    }
+    expect(await saveKey(dialog).evaluate((el) => getComputedStyle(el).borderTopStyle)).toBe('solid');
+  });
+
+  test('a picture that cannot be read offers Delete picture, which clears it', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    const { pictureId } = await seedOne(page);
+    await faultPictureStore(page, { reads: 'error' });
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    const card = cards(page).first();
+    await expect(card.getByText('This picture could not be read on this device.', { exact: true })).toBeVisible();
+    await openKey(card).click();
+    const dialog = opened(page);
+    await expect(dialog.getByText(READ_FAILED_LINE, { exact: true })).toBeVisible();
+    await expect(dialog.locator('.alert-picture__problem')).toHaveCount(1);
+    await expect(dialog.getByRole('img')).toHaveCount(0);
+    await expect(saveKey(dialog)).toHaveCount(0);
+    await expect(boxSwitch(dialog)).toHaveCount(0);
+    await expect(closeKey(dialog)).toBeVisible();
+
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(card.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    await expect(openKey(card)).toHaveCount(0);
+    expect((await readDatabase(page)).pictures.find((row) => row.id === pictureId)).toMatchObject({ state: 'gone', gone: 'person' });
+    expect(await keptCount(page)).toBe(0);
+  });
+
+  test('a failed delete says so and the dialog stays; with the store restored the same key deletes it', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedOne(page);
+    await faultPictureStore(page, { deletes: 'error' });
+    const { card, dialog } = await openSaved(page);
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    const failed = dialog.getByText(PICTURE_DELETE_FAILED_LINE, { exact: true });
+    await expect(failed).toBeVisible();
+    await expect(dialog.locator('.alert-picture__problem')).toHaveCount(1);
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+    await expect(deleteKey(dialog)).toBeFocused();
+    // The line stands over the keys it names.
+    expect((await failed.boundingBox())!.y).toBeLessThan((await saveKey(dialog).boundingBox())!.y);
+    expect(await keptCount(page)).toBe(1);
+
+    await setFault(page, {});
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(card.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    expect(await keptCount(page)).toBe(0);
+  });
+
+  test('a picture deleted in another tab leaves the open dialog and its card at once, and cannot be opened', async ({ page, context }) => {
+    test.setTimeout(90_000);
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedOne(page);
+    const { card, dialog } = await openSaved(page);
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+
+    const second = await context.newPage();
+    await second.goto('/monitor/', { waitUntil: 'networkidle' });
+    await openKey(cards(second).first()).click();
+    await deleteKey(opened(second)).click();
+    await confirmDelete(second).click();
+    await expect(opened(second)).toHaveCount(0);
+    await second.close();
+
+    // The first tab's dialog says that it went: the line beside the empty frame's glyph, with Close alone.
+    await expect(dialog.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    await expect(dialog.locator('.alert-picture__empty')).toHaveCount(1);
+    await expect(dialog.getByRole('img')).toHaveCount(0);
+    for (const left of [saveKey(dialog), deleteKey(dialog), boxSwitch(dialog)]) await expect(left).toHaveCount(0);
+    await expect(closeKey(dialog)).toBeFocused();
+    await closeKey(dialog).click();
+    await expect(dialog).toHaveCount(0);
+    // Its card says so too, and offers no Open picture: a picture deleted elsewhere cannot be opened here.
+    await expect(card.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    await expect(openKey(card)).toHaveCount(0);
+    await expect(card.getByRole('img')).toHaveCount(0);
+  });
+
+  test('the dialog works offline', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    const { pictureId } = await seedOne(page);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await context.setOffline(true);
+    const card = cards(page).first();
+    await openKey(card).click();
+    const dialog = opened(page);
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+    await boxSwitch(dialog).click();
+    await expect(dialog.locator('.alert-picture__box')).toHaveCount(0);
+    const [saved] = await Promise.all([page.waitForEvent('download'), saveKey(dialog).click()]);
+    expect((await readFile((await saved.path())!)).toString('base64')).toBe(await keptFrame(page, pictureId));
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(card.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    expect(await keptCount(page)).toBe(0);
+    await context.setOffline(false);
+  });
+
+  test('the dialog at 200 per cent text', async ({ page, context }) => {
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedOne(page);
+    const { dialog } = await openSaved(page);
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+    await doubleText(page);
+    const title = dialog.getByRole('heading', { level: 2 });
+    await expect.poll(() => title.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(36);
+    // The title wraps beside Close; each key holds its words on its own row; nothing is cut.
+    expect(await onOneRow(title, closeKey(dialog)), 'the title stands beside Close').toBe(true);
+    expect((await title.boundingBox())!.height, 'the title wraps').toBeGreaterThan(60);
+    const [save, remove] = [(await saveKey(dialog).boundingBox())!, (await deleteKey(dialog).boundingBox())!];
+    expect(remove.y).toBeGreaterThanOrEqual(save.y + save.height);
+    expect(await cutWords(dialog), 'nothing in the dialog is cut at 200 per cent').toEqual([]);
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the panel does not scroll sideways').toBe(true);
+    expect(await scrollsSideways(page)).toBe(false);
+  });
+});
+
+test.describe('The opened picture at each width', () => {
+  for (const width of [320, 768, 1024, 1440]) {
+    test(`the dialog at ${width} px`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await seedDevice(context, { pictures: { noticeAnswered: true } });
+      await seedOne(page);
+      const { dialog } = await openSaved(page);
+      await expect(dialog.getByRole('img')).toHaveCount(2);
+      const panel = (await dialog.boundingBox())!;
+      const picture = (await dialog.getByRole('img', { name: /^What the camera saw at / }).boundingBox())!;
+      const closeUp = (await dialog.getByRole('img', { name: /^Close-up of the boxed part at / }).boundingBox())!;
+      const [save, remove] = [(await saveKey(dialog).boundingBox())!, (await deleteKey(dialog).boundingBox())!];
+      expect(Math.round(remove.y - (save.y + save.height)), 'Delete picture stands 24 px under Save picture').toBe(24);
+      expect(closeUp.width, 'the close-up shows at its own size at most').toBeLessThanOrEqual(320 + 1);
+      if (width === 320) {
+        // The panel is the screen; the picture and each key span its column.
+        expect([Math.round(panel.x), Math.round(panel.width)]).toEqual([0, 320]);
+        expect(Math.round(picture.width)).toBe(288);
+        expect(Math.round(save.width)).toBe(288);
+        expect(Math.round(remove.width)).toBe(288);
+        // It scrolls down inside itself where its content is taller than the screen.
+        expect(await dialog.evaluate((el) => {
+          const scroller = el.querySelector('.alert-picture-dialog__body') ?? el;
+          return scroller.scrollHeight > scroller.clientHeight ? getComputedStyle(scroller).overflowY : 'fits';
+        })).toMatch(/^(auto|scroll|fits)$/);
+      } else if (width === 768) {
+        // A 640 px panel in the middle of the screen; Save picture at the row's right, Delete picture under it.
+        expect(Math.round(panel.width)).toBe(640);
+        expect(Math.abs(panel.x - (768 - 640) / 2)).toBeLessThanOrEqual(1);
+        expect(Math.abs(save.x + save.width - (picture.x + picture.width)), 'Save picture stands at the row’s right').toBeLessThanOrEqual(2);
+        expect(Math.abs(remove.x + remove.width - (save.x + save.width))).toBeLessThanOrEqual(2);
+        expect(save.width).toBeLessThan(picture.width);
+      } else if (width === 1024) {
+        // A 960 px panel: the picture in its left two thirds, the words and the keys in one column at its right.
+        expect(Math.round(panel.width)).toBe(960);
+        const title = (await dialog.getByRole('heading', { level: 2 }).boundingBox())!;
+        expect(picture.width / (panel.width - 48)).toBeGreaterThan(0.6);
+        expect(picture.width / (panel.width - 48)).toBeLessThan(0.7);
+        for (const part of [title, closeUp, save, remove]) expect(part.x, 'the column stands beside the picture').toBeGreaterThanOrEqual(picture.x + picture.width);
+      } else {
+        // A 1120 px panel: the picture 720 px wide, Save picture and Delete picture stacked beside it.
+        expect(Math.round(panel.width)).toBe(1120);
+        expect(Math.round(picture.width)).toBe(720);
+        expect(save.x).toBeGreaterThanOrEqual(picture.x + picture.width);
+        expect(Math.abs(save.x - remove.x)).toBeLessThanOrEqual(1);
+        expect(Math.abs(save.width - remove.width)).toBeLessThanOrEqual(1);
+        expect(closeUp.x).toBeGreaterThanOrEqual(picture.x + picture.width);
+      }
+      // Close stands at the panel's top right.
+      const close = (await closeKey(dialog).boundingBox())!;
+      expect(panel.x + panel.width - (close.x + close.width)).toBeLessThanOrEqual(26);
+      expect(close.y - panel.y).toBeLessThanOrEqual(26);
+      expect(await scrollsSideways(page)).toBe(false);
     });
   }
 });
