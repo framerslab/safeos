@@ -44,6 +44,9 @@ export function timeWords(at: number | Date): string {
 /** "Motion at 9:42:40 PM". */
 export const kindAtTime = (kind: AlertKind, at: number | Date): string => `${kindWords(kind)} at ${timeWords(at)}`;
 
+/** The live picture's plate: "Motion here at 9:42:40 PM". */
+export const plateLine = (kind: AlertKind, at: number | Date): string => `${kindWords(kind)} here at ${timeWords(at)}`;
+
 /** "in Doorway", where zones are set. */
 export const inZone = (zone: string): string => `in ${zone}`;
 

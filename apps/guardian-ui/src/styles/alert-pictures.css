@@ -970,3 +970,44 @@ html.light {
     width: 720px;
   }
 }
+
+/* -----------------------------------------------------------------------------
+   The box on the live picture and its plate
+   ----------------------------------------------------------------------------- */
+
+.alert-live {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.alert-live__box,
+.alert-live__plate {
+  position: absolute;
+  /* In place for 10 seconds, then gone: no slide, no fade, no pulse, under any motion setting. */
+  transition: none;
+  animation: none;
+}
+
+.alert-live__box {
+  box-sizing: border-box;
+  border: 2px solid var(--ap-box-line);
+  outline: 1px solid var(--ap-box-edge);
+}
+
+/* A page-colour plate that carries its own words on any picture. */
+.alert-live__plate {
+  box-sizing: border-box;
+  padding: 4px 8px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.25;
+  font-weight: 400;
+}
+
+.alert-live__plate p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

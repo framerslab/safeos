@@ -12,6 +12,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { detectMotion, detectMotionInZones, getThresholdForScenario } from '../lib/motion-detection';
 import { getAudioLevel, detectCryingPattern, resetCryDetection, AUDIO_THRESHOLDS, ANALYSER_SIZE, analyserSizeFor, pitchRangeOf } from '../lib/audio-levels';
 import { PixelDetectionEngine, type PixelDetectionResult } from '../lib/pixel-detection';
+import { LiveBox, LIVE_MARK, type LiveAlertBox } from './alert-pictures/LiveBox';
 import { useSettingsStore, type DetectionZone as SettingsDetectionZone } from '../stores/settings-store';
 
 // =============================================================================
@@ -57,6 +58,8 @@ interface CameraFeedProps {
   deviceId?: string;
   audioEnabled?: boolean;
   showDebug?: boolean;
+  /** The newest alert's box and plate, shown over the live picture for 10 seconds; none otherwise. */
+  alertBox?: LiveAlertBox | null;
   className?: string;
   showZonesOverlay?: boolean;
   /** Optional global detection zones (used for motion/pixel). */
@@ -104,6 +107,7 @@ export function CameraFeed({
   deviceId = '',
   audioEnabled = true,
   showDebug = false,
+  alertBox = null,
   className,
   showZonesOverlay = false,
   detectionZones,
@@ -611,24 +615,35 @@ export function CameraFeed({
         </p>
       )}
 
+      {/* The alert's box and its plate, under the page's own marks */}
+      {alertBox && cameraActive && !error && (
+        <LiveBox
+          key={alertBox.key}
+          box={alertBox.box}
+          frameWidth={alertBox.frameWidth}
+          frameHeight={alertBox.frameHeight}
+          lines={alertBox.lines}
+        />
+      )}
+
       {/* Status indicators */}
       {cameraActive && !videoPaused && !error && (
         <>
           {/* Recording indicator */}
-          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-slate-900/60 rounded-full backdrop-blur-sm">
+          <div {...{ [LIVE_MARK]: '' }} className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 bg-slate-900/60 rounded-full backdrop-blur-sm">
             <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             <span className="text-xs text-white">LIVE</span>
           </div>
 
           {/* Motion indicator */}
-          <div className="absolute top-4 right-4 flex items-center gap-2">
+          <div {...{ [LIVE_MARK]: '' }} className="absolute top-4 right-4 flex items-center gap-2">
             <MotionIndicator score={motionScore} threshold={motionThreshold} />
             <AudioIndicator level={audioLevel} threshold={audioThreshold} hasCrying={hasCrying} />
           </div>
 
           {/* Debug overlay */}
           {showDebug && (
-            <div className="absolute bottom-4 left-4 right-4 p-3 bg-slate-900/80 rounded-lg backdrop-blur-sm">
+            <div {...{ [LIVE_MARK]: '' }} className="absolute bottom-4 left-4 right-4 p-3 bg-slate-900/80 rounded-lg backdrop-blur-sm">
               <div className="grid grid-cols-3 gap-4 text-xs">
                 <div>
                   <span className="text-slate-500">Motion:</span>

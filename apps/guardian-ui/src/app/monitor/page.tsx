@@ -38,7 +38,9 @@ import { getSoundManager } from '../../lib/sound-manager';
 import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { detectRegionalMotion } from '../../lib/motion-detection';
-import { alertBox, boxFromCells, boxFromHotspots, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { LIVE_BOX_MS, alertBox, boxFromCells, boxFromHotspots, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { plateLine } from '../../lib/alert-pictures/words';
+import type { LiveAlertBox } from '../../components/alert-pictures/LiveBox';
 import { capturePictureSet, newPictureId, type PictureSet } from '../../lib/alert-pictures/capture';
 import { holdPicture, startPictureWatch, stopPictureWatch } from '../../lib/alert-pictures/keeper';
 import { useNoticeGate } from '../../components/alert-pictures/PicturesNotice';
@@ -857,6 +859,37 @@ export default function MonitorPage() {
     return { pictureId, picture };
   }, []);
 
+  // The live picture's box: where the newest Motion or Picture change alert's change was, for
+  // 10 seconds from the alert. One box at a time: a newer alert's box takes its place and
+  // starts its own 10 seconds; an alert with no box (a Sound alert, a change with no region)
+  // leaves the box that stands.
+  const [liveBox, setLiveBox] = useState<LiveAlertBox | null>(null);
+  const liveBoxRef = useRef<{ at: number; timer: number | null }>({ at: 0, timer: null });
+  const showLiveBox = useCallback((kind: AlertKind, at: number, taken: { pictureId: string; picture: Promise<PictureSet> } | undefined) => {
+    if (!taken) return;
+    void taken.picture.then((set) => {
+      const left = LIVE_BOX_MS - (Date.now() - at);
+      if (!set.sourceBox || left <= 0 || at < liveBoxRef.current.at) return;
+      if (liveBoxRef.current.timer !== null) window.clearTimeout(liveBoxRef.current.timer);
+      liveBoxRef.current.at = at;
+      setLiveBox({ key: taken.pictureId, box: set.sourceBox, frameWidth: set.sourceWidth, frameHeight: set.sourceHeight, lines: [plateLine(kind, at)] });
+      liveBoxRef.current.timer = window.setTimeout(() => {
+        liveBoxRef.current.timer = null;
+        setLiveBox((now) => (now?.key === taken.pictureId ? null : now));
+      }, left);
+    }, () => undefined);
+  }, []);
+  const clearLiveBox = useCallback(() => {
+    if (liveBoxRef.current.timer !== null) window.clearTimeout(liveBoxRef.current.timer);
+    liveBoxRef.current = { at: 0, timer: null };
+    setLiveBox(null);
+  }, []);
+  useEffect(() => clearLiveBox, [clearLiveBox]);
+  // The live picture's box belongs to the watch that raised it: it leaves when the watch stops.
+  useEffect(() => {
+    if (!captureRequested) clearLiveBox();
+  }, [captureRequested, clearLiveBox]);
+
   const handleMotion = useCallback((score: number) => {
     setMotionScore(score);
   }, [setMotionScore]);
@@ -914,6 +947,7 @@ export default function MonitorPage() {
       `Motion detected: ${best.score}% (threshold: ${best.threshold}% · zone: ${best.name})`,
       { pictureId: taken?.pictureId, zone: zone ? best.name : undefined },
     );
+    showLiveBox('motion', now, taken || undefined);
 
     getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
     playMovementSound(severity);
@@ -927,6 +961,7 @@ export default function MonitorPage() {
     getCooldownForSeverity,
     playMovementSound,
     showDetectorAlert,
+    showLiveBox,
     takePicture,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
@@ -1052,6 +1087,7 @@ export default function MonitorPage() {
       `Pixel movement detected${chosenZoneName ? ` in ${chosenZoneName}` : ''}: ${chosenChangedPx}px (threshold: ${chosenThresholdPx}px)`,
       { pictureId: taken?.pictureId, zone: chosenZoneName ?? undefined },
     );
+    showLiveBox('picture-change', now, taken || undefined);
 
     getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
     playMovementSound(severity);
@@ -1066,6 +1102,7 @@ export default function MonitorPage() {
     getCooldownForSeverity,
     playMovementSound,
     showDetectorAlert,
+    showLiveBox,
     takePicture,
     timingSettings.cooldownPeriod,
     timingSettings.minimumMotionDuration,
@@ -1366,6 +1403,7 @@ export default function MonitorPage() {
                 onMotionZones={handleMotionZones}
                 onAudio={handleAudio}
                 onPixel={handlePixel}
+                alertBox={liveBox}
                 onVideoReady={handleVideoReady}
                 onError={stopStream}
                 showDebug={true}
