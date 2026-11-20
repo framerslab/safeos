@@ -30,10 +30,12 @@ import {
   keptPicture,
   naturalSize,
   near,
+  notesOf,
   pixelsAt,
   pngUrl,
   readDatabase,
   readable,
+  recordNotifications,
   redatePicture,
   requireSampleClip,
   routedServer,
@@ -48,6 +50,7 @@ import {
   wordsOn,
   type CanvasCamera,
   type DatabaseReading,
+  type NotificationStandIn,
   type PicturesSeed,
 } from './helpers/alert-pictures';
 
@@ -2709,5 +2712,357 @@ test.describe('History’s rows at each width, in keyboard order and in another 
     await expect(stranger.getByRole('img', { name: /^(Close-up of the boxed part|What the camera saw) at / })).toHaveCount(0);
     expect((await readDatabase(stranger)).pictures).toEqual([]);
     await other.close();
+  });
+});
+
+// =============================================================================
+// The notification's words and picture
+// =============================================================================
+
+const PICTURE_SWITCH = 'Show the picture in alert notifications';
+const LOCK_SCREEN_LINE = 'The picture shows in the notification, and on some phones on the lock screen, to anyone who can see this device. The phone’s own settings decide what a locked screen shows.';
+const THIS_DEVICE_LINE = 'A notification shows on this device, the one that watches.';
+const WORDS_ALONE_LINE = 'This browser shows a notification’s words alone.';
+const BLOCKED_LINE = 'To allow them, open the site settings from the address bar and set Notifications to Allow.';
+
+const pictureRow = (page: Page) => page.locator('[data-notification-picture-row]');
+const pictureSwitch = (page: Page) => page.getByRole('switch', { name: PICTURE_SWITCH, exact: true });
+const allowKey = (page: Page) => page.getByRole('button', { name: 'Allow notifications', exact: true });
+const storedPictures = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('safeos-alert-pictures') ?? '{}').state ?? {});
+
+/** Opens Settings, Notifications on a seeded device with the browser's notifications stood in. */
+async function openNotificationSettings(page: Page, context: BrowserContext, standIn: NotificationStandIn = {}, pictures: PicturesSeed = { noticeAnswered: true }): Promise<void> {
+  await seedDevice(context, { pictures });
+  await recordNotifications(context, standIn);
+  await page.goto('/settings/notifications/', { waitUntil: 'networkidle' });
+  await expect(pictureRow(page)).toBeVisible();
+}
+
+/** Starts a watch whose notifications are recorded. */
+async function watchWithNotes(page: Page, context: BrowserContext, options: {
+  settings: Record<string, unknown>;
+  camera: CanvasCamera;
+  pictures?: PicturesSeed;
+  standIn?: NotificationStandIn;
+}): Promise<void> {
+  await recordNotifications(context, options.standIn ?? {});
+  await watchWith(page, context, { settings: options.settings, camera: options.camera, pictures: options.pictures ?? { noticeAnswered: true } });
+}
+
+const noteBody = (time: string) => new RegExp(`^(Low|Medium|High|Critical), ${timePattern(time)}\\.$`);
+
+for (const look of ['dark', 'light'] as const) {
+  for (const width of [390, 1280]) {
+    test.describe(`The notification's picture in Settings, ${width} px, ${look}`, () => {
+      test.use({ colorScheme: look, viewport: { width, height: 900 } });
+
+      test(`Settings, Notifications offers the notification's picture, off, ${width} px, ${look}`, async ({ page, context }) => {
+        await openNotificationSettings(page, context);
+        const row = pictureRow(page);
+        const found = pictureSwitch(page);
+        await expect(found).toHaveAttribute('aria-checked', 'false');
+        await expect(found).not.toHaveAttribute('aria-disabled', 'true');
+        const line = row.getByText(LOCK_SCREEN_LINE, { exact: true });
+        const quiet = row.getByText(THIS_DEVICE_LINE, { exact: true });
+        await expect(line).toBeVisible();
+        await expect(quiet).toBeVisible();
+        // The switch is described by its line, which stands under the label, with the quiet line under it.
+        const described = (await found.getAttribute('aria-describedby')) ?? '';
+        expect(described.split(/\s+/)).toContain(await line.getAttribute('id'));
+        const label = row.getByText(PICTURE_SWITCH, { exact: true });
+        const [labelBox, lineBox, quietBox, switchBox] = [(await label.boundingBox())!, (await line.boundingBox())!, (await quiet.boundingBox())!, (await found.boundingBox())!];
+        expect(lineBox.y).toBeGreaterThanOrEqual(labelBox.y + labelBox.height - 1);
+        expect(quietBox.y).toBeGreaterThanOrEqual(lineBox.y + lineBox.height - 1);
+        expect(switchBox.x, 'the switch stands at the right of its label').toBeGreaterThanOrEqual(labelBox.x + labelBox.width - 1);
+        expect(switchBox.height).toBeGreaterThanOrEqual(44);
+        await expect(allowKey(page)).toHaveCount(0);
+        expect(await readable(row, BLOCK_READABILITY), 'the row’s words').toEqual([]);
+        expect(await label.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
+        expect(await line.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(18);
+
+        // On: kept on this device, and on after a reload. A press on the label turns it too.
+        await found.click();
+        await expect(found).toHaveAttribute('aria-checked', 'true');
+        expect((await storedPictures(page)).inNotifications).toBe(true);
+        await page.reload({ waitUntil: 'networkidle' });
+        await expect(pictureSwitch(page)).toHaveAttribute('aria-checked', 'true');
+        await pictureRow(page).getByText(PICTURE_SWITCH, { exact: true }).click();
+        await expect(pictureSwitch(page)).toHaveAttribute('aria-checked', 'false');
+        expect((await storedPictures(page)).inNotifications).toBe(false);
+      });
+    });
+  }
+}
+
+test.describe('The notification’s picture in Settings: a browser that shows words alone, permission, widths and another profile', () => {
+  test('Settings, Notifications in a browser that shows words alone', async ({ page, context }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openNotificationSettings(page, context, { wordsAlone: true });
+    const found = pictureSwitch(page);
+    await expect(found).toHaveAttribute('aria-disabled', 'true');
+    await expect(found).toHaveAttribute('aria-checked', 'false');
+    const why = pictureRow(page).getByText(WORDS_ALONE_LINE, { exact: true });
+    await expect(why).toBeVisible();
+    expect(((await found.getAttribute('aria-describedby')) ?? '').split(/\s+/), 'the reason is in the switch’s description').toContain(await why.getAttribute('id'));
+    // It stays in the page's order, and a press changes nothing.
+    await found.focus();
+    await expect(found).toBeFocused();
+    await found.click({ force: true });
+    await expect(found).toHaveAttribute('aria-checked', 'false');
+    expect((await storedPictures(page)).inNotifications).toBe(false);
+  });
+
+  test('with notifications not allowed the switch waits beside Allow notifications, and an alert sends none', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true, inNotifications: true } });
+    await recordNotifications(context, { permission: 'default' });
+    await canvasCamera(page, LEFT_THIRD);
+
+    // An alert on the watch asks the browser for nothing.
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await startWatching(page);
+    await timeOf(cards(page).first(), 'Motion');
+    await page.waitForTimeout(1_500);
+    expect(await notesOf(page)).toEqual([]);
+    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+
+    await page.goto('/settings/notifications/', { waitUntil: 'networkidle' });
+    const found = pictureSwitch(page);
+    await expect(found).toHaveAttribute('aria-disabled', 'true');
+    const allow = allowKey(page);
+    await expect(allow).toBeVisible();
+    expect((await allow.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(() => window.__notificationAsks)).toBe(0);
+    await found.click({ force: true });
+    await expect(found).toHaveAttribute('aria-checked', 'true');
+    // The key asks the browser; once allowed, the switch is active and the key has gone.
+    await allow.click();
+    await expect.poll(() => page.evaluate(() => window.__notificationAsks)).toBe(1);
+    await expect(found).not.toHaveAttribute('aria-disabled', 'true');
+    await expect(allow).toHaveCount(0);
+    await found.click();
+    await expect(found).toHaveAttribute('aria-checked', 'false');
+  });
+
+  test('blocked notifications say how to allow them', async ({ page, context }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openNotificationSettings(page, context, { permission: 'denied' });
+    const found = pictureSwitch(page);
+    await expect(found).toHaveAttribute('aria-disabled', 'true');
+    const how = pictureRow(page).getByText(BLOCKED_LINE, { exact: true });
+    await expect(how).toBeVisible();
+    expect(((await found.getAttribute('aria-describedby')) ?? '').split(/\s+/)).toContain(await how.getAttribute('id'));
+    expect((await how.boundingBox())!.y, 'the line stands under the switch').toBeGreaterThan((await found.boundingBox())!.y);
+    await expect(allowKey(page)).toHaveCount(0);
+  });
+
+  for (const look of ['dark', 'light'] as const) {
+    test(`the row at 320 px and 200 per cent text, ${look}`, async ({ page, context }) => {
+      await page.emulateMedia({ colorScheme: look });
+      await page.setViewportSize({ width: 320, height: 800 });
+      await openNotificationSettings(page, context);
+      const row = pictureRow(page);
+      const label = row.getByText(PICTURE_SWITCH, { exact: true });
+      for (const text of [100, 200]) {
+        if (text === 200) await doubleText(page);
+        const [labelBox, switchBox, rowBox] = [(await label.boundingBox())!, (await pictureSwitch(page).boundingBox())!, (await row.boundingBox())!];
+        expect(await onOneRow(label, pictureSwitch(page)), `the label wraps beside the switch at ${text} per cent`).toBe(true);
+        expect(switchBox.x, `the switch keeps its place at the row's right at ${text} per cent`).toBeGreaterThanOrEqual(labelBox.x + labelBox.width - 1);
+        expect(rowBox.x + rowBox.width - (switchBox.x + switchBox.width)).toBeLessThanOrEqual(24);
+        expect(await cutWords(row), `nothing in the row is cut at ${text} per cent`).toEqual([]);
+        expect(await scrollsSideways(page)).toBe(false);
+      }
+      expect((await label.boundingBox())!.height, 'the label wraps').toBeGreaterThan(40);
+    });
+  }
+
+  for (const width of [768, 1440]) {
+    test(`the row at ${width} px`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await openNotificationSettings(page, context);
+      const row = pictureRow(page);
+      const label = row.getByText(PICTURE_SWITCH, { exact: true });
+      const line = row.getByText(LOCK_SCREEN_LINE, { exact: true });
+      const [labelBox, lineBox, switchBox, rowBox] = [(await label.boundingBox())!, (await line.boundingBox())!, (await pictureSwitch(page).boundingBox())!, (await row.boundingBox())!];
+      // The switch at the row's right end, beside the label's first line.
+      expect(rowBox.x + rowBox.width - (switchBox.x + switchBox.width)).toBeLessThanOrEqual(24);
+      expect(Math.abs(switchBox.y + switchBox.height / 2 - (labelBox.y + 14))).toBeLessThanOrEqual(22);
+      expect(lineBox.x + lineBox.width, 'the line keeps to the label’s side').toBeLessThanOrEqual(switchBox.x);
+      expect(lineBox.width).toBeLessThanOrEqual(width === 768 ? 520 : 640);
+      if (width === 1440) expect(await line.evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
+      expect(await scrollsSideways(page)).toBe(false);
+    });
+  }
+
+  test('another profile’s switch is off', async ({ page, context, browser }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await openNotificationSettings(page, context);
+    await pictureSwitch(page).click();
+    await expect(pictureSwitch(page)).toHaveAttribute('aria-checked', 'true');
+    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const stranger = await other.newPage();
+    await openNotificationSettings(stranger, other);
+    await expect(pictureSwitch(stranger)).toHaveAttribute('aria-checked', 'false');
+    await other.close();
+  });
+});
+
+test.describe('A watch alert’s notification, 1280 px', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('a Motion alert’s notification names the kind, the level and the time, with no picture while the switch is off', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: MIDDLE_BAND });
+    const time = await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Motion alert');
+    expect(note.body).toMatch(noteBody(time));
+    expect(note.image ?? null, 'no picture while the switch is off').toBeNull();
+    expect(note.tag).toMatch(/^safeos-/);
+    expect(note.renotify).toBe(true);
+    // No notification says Detected, a percentage or a threshold.
+    for (const said of await notesOf(page)) expect(`${said.title} ${said.body ?? ''}`).not.toMatch(/detected|%|threshold/i);
+  });
+
+  test('with the switch on, a Motion alert’s notification carries the picture with its box drawn in', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: MIDDLE_BAND, pictures: { noticeAnswered: true, inNotifications: true } });
+    const time = await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Motion alert');
+    expect(note.body).toMatch(noteBody(time));
+    expect(note.image, 'the notification carries a picture').toMatch(/^data:image\/jpeg;base64,/);
+    // The pet's photo or any other picture never stands as the notification's icon.
+    expect(note.icon ?? '').not.toMatch(/^(data|blob):/);
+
+    // The copy is 640 px on its long edge. The frame's box is its middle band, 640 by 240 at (0, 120):
+    // its top edge is 4 px of the box's green inside 2 px of its dark line, and outside the box the
+    // picture is the kept frame's, a flat grey.
+    const size = await page.evaluate((url) => new Promise<[number, number]>((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
+      image.onerror = () => reject(new Error('the notification’s picture did not load'));
+      image.src = url;
+    }), note.image!);
+    expect(size).toEqual([640, 480]);
+    const column = await pixelsAt(page, note.image!, [[320, 118], [320, 119], [320, 120], [320, 121], [320, 122], [320, 123], [320, 60], [320, 420]]);
+    expect(column.slice(2, 6).filter((rgb) => near(rgb, '#4ade80', 60)).length, `the box's green line is 4 px (${JSON.stringify(column)})`).toBeGreaterThanOrEqual(3);
+    expect(column.slice(0, 2).some((rgb) => near(rgb, '#0b131b', 40)), `its dark line stands outside it (${JSON.stringify(column)})`).toBe(true);
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+    const [row] = keptRows(await readDatabase(page));
+    const keptUrl = `data:image/jpeg;base64,${await keptFrame(page, row.id)}`;
+    const kept = await pixelsAt(page, keptUrl, [[320, 60], [320, 420]]);
+    [column[6], column[7]].forEach((rgb, i) => {
+      expect(Math.abs(rgb[0] - kept[i][0]), `outside the box the copy shows the kept frame (${rgb} against ${kept[i]})`).toBeLessThanOrEqual(12);
+    });
+    // The alert's words stay in the title and body: none of this is stored as a data URL.
+    const reading = await readDatabase(page);
+    expect(JSON.stringify(reading.alerts)).not.toContain('data:image');
+    expect(await page.evaluate(() => Object.values({ ...localStorage }).join(' ').includes('data:image'))).toBe(false);
+  });
+
+  test('a Sound alert’s notification never carries a picture', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await watchWithNotes(page, context, {
+      settings: SOUND_ONLY,
+      camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0, height: 0 }, tone: true },
+      pictures: { noticeAnswered: true, inNotifications: true },
+    });
+    const time = await timeOf(cards(page).first(), 'Sound');
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Sound alert');
+    expect(note.body).toMatch(noteBody(time));
+    expect(note.image ?? null).toBeNull();
+    expect(`${note.title} ${note.body ?? ''}`).not.toMatch(/detected|%|threshold/i);
+  });
+
+  test('a picture that takes too long goes as words at 300 ms', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // The picture's JPEG is handed back a second after it is drawn.
+    await faultPictureStore(page, { holdDrawMs: 1_000 });
+    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, inNotifications: true } });
+    await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Motion alert');
+    expect(note.image ?? null, 'the words go alone').toBeNull();
+    const [alert] = monitoringAlerts(await readDatabase(page));
+    const waited = note.at - Date.parse(alert.createdAt as string);
+    expect(waited, `sent ${waited} ms after the alert`).toBeGreaterThanOrEqual(290);
+    expect(waited, `sent ${waited} ms after the alert`).toBeLessThanOrEqual(900);
+    // The late picture sends no second notification.
+    await expect(cards(page).first().locator('.alert-picture__frame img')).toBeVisible({ timeout: 15_000 });
+    await page.waitForTimeout(500);
+    expect(await notesOf(page)).toHaveLength(1);
+  });
+
+  test('a picture that cannot be drawn leaves the notification’s words', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await watchWithNotes(page, context, {
+      settings: MOTION_ONLY, camera: LEFT_THIRD,
+      pictures: { noticeAnswered: true, inNotifications: true }, standIn: { failCopy: true },
+    });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await holdStill(page);
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Motion alert');
+    expect(note.body).toMatch(noteBody(time));
+    expect(note.image ?? null).toBeNull();
+    // The card shows its picture, and the page shows no error.
+    await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+    await expect(page.getByText(/could not be (drawn|sent|shown)/i)).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a repeat replaces the event’s notification with the newest picture and time', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await watchWithNotes(page, context, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(20) }, camera: LEFT_THIRD,
+      pictures: { noticeAnswered: true, inNotifications: true },
+    });
+    const card = cards(page).first();
+    const first = await timeOf(card, 'Motion');
+    await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 60_000 });
+    const later = await timeOf(card, 'Motion');
+    expect(later).not.toBe(first);
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+    const [one, two] = await notesOf(page);
+    expect([one.title, two.title]).toEqual(['Motion alert', 'Motion alert']);
+    expect(one.body).toMatch(noteBody(first));
+    expect(two.body).toMatch(noteBody(later));
+    expect(two.tag, 'the repeat keeps the event’s tag, so it replaces the first').toBe(one.tag);
+    expect(two.renotify).toBe(true);
+    expect(one.image).toMatch(/^data:image\/jpeg;base64,/);
+    expect(two.image).toMatch(/^data:image\/jpeg;base64,/);
+    expect(two.image, 'the newest picture').not.toBe(one.image);
+  });
+
+  test('a notification is asked for offline', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await recordNotifications(context, {});
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true, inNotifications: true } });
+    await canvasCamera(page, LEFT_THIRD);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await context.setOffline(true);
+    await startWatching(page);
+    const time = await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Motion alert');
+    expect(note.body).toMatch(noteBody(time));
+    expect(note.image).toMatch(/^data:image\/jpeg;base64,/);
+    await context.setOffline(false);
   });
 });

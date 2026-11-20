@@ -836,3 +836,86 @@ export async function wordsOn(ground: Locator, words: Locator): Promise<{ size: 
     return { size: parseFloat(style.fontSize), ratio: (hi + 0.05) / (lo + 0.05), solid: under[3] >= 1 };
   }, await words.elementHandle());
 }
+
+// =============================================================================
+// Notifications
+// =============================================================================
+
+export interface RecordedNote {
+  /** When the page asked the browser for it. */
+  at: number;
+  title: string;
+  body?: string;
+  image?: string;
+  icon?: string;
+  tag?: string;
+  renotify?: boolean;
+  requireInteraction?: boolean;
+}
+
+export interface NotificationStandIn {
+  /** What the browser answers for the site's notifications; `default` turns to `granted` when the page asks. */
+  permission?: 'granted' | 'default' | 'denied';
+  /** A browser that shows a notification's words alone: a notification has no `image` there. */
+  wordsAlone?: boolean;
+  /** A kept picture cannot be drawn again: the notification's copy fails. */
+  failCopy?: boolean;
+}
+
+declare global {
+  interface Window {
+    __notes?: RecordedNote[];
+    __notificationAsks?: number;
+  }
+}
+
+/**
+ * Replaces the browser's notifications before the app's scripts run and
+ * records each one the page asks for: its title, body, image, icon, tag,
+ * renotify and the time. Nothing is shown.
+ */
+export async function recordNotifications(target: Page | BrowserContext, standIn: NotificationStandIn = {}): Promise<void> {
+  await target.addInitScript((s: NotificationStandIn) => {
+    const notes: RecordedNote[] = [];
+    window.__notes = notes;
+    window.__notificationAsks = 0;
+    const record = (title: string, options?: NotificationOptions) => {
+      const o = (options || {}) as NotificationOptions & { renotify?: boolean; image?: string };
+      notes.push({
+        at: Date.now(), title, body: o.body, image: o.image, icon: o.icon, tag: o.tag,
+        renotify: o.renotify, requireInteraction: o.requireInteraction,
+      });
+    };
+    let permission: NotificationPermission = s.permission ?? 'granted';
+    class RecordedNotification extends EventTarget {
+      static get permission() { return permission; }
+      static requestPermission = async () => {
+        window.__notificationAsks = (window.__notificationAsks ?? 0) + 1;
+        if (permission === 'default') permission = 'granted';
+        return permission;
+      };
+      onclick: unknown = null;
+      onclose: unknown = null;
+      onerror: unknown = null;
+      onshow: unknown = null;
+      constructor(title: string, options?: NotificationOptions) {
+        super();
+        record(title, options);
+      }
+      close() {}
+    }
+    if (!s.wordsAlone) Object.defineProperty(RecordedNotification.prototype, 'image', { get: () => '', configurable: true });
+    Object.defineProperty(window, 'Notification', { value: RecordedNotification, configurable: true, writable: true });
+    if ('ServiceWorkerRegistration' in window) {
+      ServiceWorkerRegistration.prototype.showNotification = async function (title: string, options?: NotificationOptions) {
+        record(title, options);
+      };
+    }
+    if (s.failCopy) {
+      window.createImageBitmap = (() => Promise.reject(new DOMException('the walk refuses this drawing', 'InvalidStateError'))) as typeof window.createImageBitmap;
+    }
+  }, standIn);
+}
+
+/** The notifications the page has asked for, oldest first. */
+export const notesOf = (page: Page): Promise<RecordedNote[]> => page.evaluate(() => window.__notes ?? []);
