@@ -13,7 +13,7 @@ import { extractColorHistogram, extractDominantColors, calculateAverageColor, ex
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => ({ status: { api: 'disconnected' }, config: { apiUrl: '', wsUrl: '' } }) }));
 
-it('discards a thumbnail that finishes after Clear All', async () => {
+it('a comparison keeps no frame of its own, in memory or in the store, also after Clear All', async () => {
   localStorage.clear();
   // The device has answered the notice about alert pictures, so a watch starts at its key.
   localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: { keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false }, version: 0 }));
@@ -39,9 +39,6 @@ it('discards a thumbnail that finishes after Clear All', async () => {
     createAnalyser() { return { fftSize: 256, frequencyBinCount: 128, getByteFrequencyData: jest.fn(), context: { sampleRate: 44100 } }; }
     close() { return Promise.resolve(); }
   } });
-  const pending: HTMLImageElement[] = [];
-  const originalImage = window.Image;
-  Object.defineProperty(window, 'Image', { configurable: true, value: jest.fn(() => { const img = document.createElement('img'); pending.push(img); return img; }) });
   const fingerprint = { id: 'subject', name: 'Subject', colorHistogram: extractColorHistogram(pixels, 16), dominantColors: extractDominantColors(pixels, 3), averageColor: calculateAverageColor(pixels), colorVariance: 0, estimatedSizeRatio: estimateSizeRatio(pixels), edgeSignature: extractEdgeSignature(pixels, 4), referenceImages: [], createdAt: new Date().toISOString() };
   useSettingsStore.getState().updateGlobalSettings({ pixelDetectionEnabled: false });
   // The watch compares while it runs with Lost and Found chosen and the subject saved.
@@ -53,8 +50,9 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   await screen.findByRole('radio', { name: 'Lost and Found', checked: true });
   fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
   await waitFor(() => expect(useLostFoundStore.getState().isWatching).toBe(true));
-  await waitFor(() => expect(pending.length).toBeGreaterThan(0));
-  expect(pending[0].onload).toBeTruthy();
+  // A check that scores is reported; the watch keeps no frame for it. A sighting's picture is the alert's own.
+  await waitFor(() => expect(useLostFoundStore.getState().recentMatches.length).toBeGreaterThan(0), { timeout: 4000 });
+  expect(useLostFoundStore.getState().matchFrames).toEqual([]);
   render(<SettingsPage />);
   jest.spyOn(window, 'confirm').mockReturnValue(true);
   fireEvent.click(screen.getByRole('button', { name: 'Privacy' }));
@@ -62,10 +60,8 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   await waitFor(() => expect([...cached]).toEqual([]));
   camera.unmount();
   await act(async () => {
-    for (const img of pending) img.dispatchEvent(new Event('load'));
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   expect(await getAllMatchFrames()).toEqual([]);
   expect(useLostFoundStore.getState().matchFrames).toEqual([]);
-  Object.defineProperty(window, 'Image', { configurable: true, value: originalImage });
 });
