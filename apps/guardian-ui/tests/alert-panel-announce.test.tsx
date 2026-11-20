@@ -29,6 +29,9 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
+/** The panel's announcement: its first polite status. The alert list's line about pictures is another. */
+const announced = () => screen.getAllByRole('status')[0].textContent;
+
 it('announces each repeat of a card, also a repeat with the same reading and severity', async () => {
   const { AlertPanel } = await import('@/components/AlertPanel');
   const card: Alert = {
@@ -43,18 +46,18 @@ it('announces each repeat of a card, also a repeat with the same reading and sev
 
   const { rerender } = render(panel(card));
   await act(async () => { await settle(); });
-  const first = screen.getByRole('status').textContent;
+  const first = announced();
   // A Motion alert is read by its kind, level and time; its numbers stay in its record.
   expect(first).toMatch(/^New alert: Motion, High, at \d{1,2}:\d{2}:\d{2}/);
   expect(first).not.toContain('Motion detected');
 
   rerender(panel({ ...card, repeats: 1 }));
   await act(async () => { await settle(); });
-  const second = screen.getByRole('status').textContent;
+  const second = announced();
   expect(second).not.toBe(first);
   expect(second).toContain('Repeated 1 time.');
 
   rerender(panel({ ...card, repeats: 2 }));
   await act(async () => { await settle(); });
-  expect(screen.getByRole('status').textContent).toContain('Repeated 2 times.');
+  expect(announced()).toContain('Repeated 2 times.');
 });

@@ -793,12 +793,20 @@ export interface RoutedServer {
   messages: string[];
 }
 
-/** Answers the page's WebSocket at `url` and records every message it sends. */
+/**
+ * Answers the page's WebSocket at `url` and records every message it sends.
+ * It greets a page that presents its session the way the server does, with
+ * `connected`, since the page sends its frames only once it is greeted.
+ */
 export async function routedServer(page: Page, url: string | RegExp): Promise<RoutedServer> {
   const server: RoutedServer = { messages: [] };
   await page.routeWebSocket(url, (socket) => {
     socket.onMessage((message) => {
-      server.messages.push(typeof message === 'string' ? message : Buffer.from(message).toString('base64'));
+      const text = typeof message === 'string' ? message : Buffer.from(message).toString('base64');
+      server.messages.push(text);
+      if (/"type":\s*"authenticate"/.test(text)) {
+        socket.send(JSON.stringify({ type: 'connected', payload: { clientId: 'walk-client' } }));
+      }
     });
   });
   return server;

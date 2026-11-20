@@ -1043,6 +1043,8 @@ test.describe('Keeping pictures, 1280 px', () => {
     await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, deleteAfterDays: 1 } });
     const card = cards(page).first();
     await timeOf(card, 'Motion');
+    // The picture holds still from here, so the event ends and no repeat puts a newer picture on the card.
+    await page.evaluate(() => { window.__camera!.moving.width = 0; });
     await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
     const [first] = keptRows(await readDatabase(page));
     await redatePicture(page, first.id, Date.now() - 2 * DAY);
@@ -1057,6 +1059,7 @@ test.describe('Keeping pictures, 1280 px', () => {
     const found = await openWatchGroup(page);
     await afterSelect(found).selectOption({ label: 'Until I delete them' });
     await raiseEvents(page, 2, 2);
+    await page.evaluate(() => { window.__camera!.moving.width = 0; });
     await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
     const [second] = keptRows(await readDatabase(page));
     await redatePicture(page, second.id, Date.now() - 400 * DAY);
@@ -1225,13 +1228,23 @@ test.describe('Keeping pictures, 1280 px', () => {
       } });
     });
     page.on('request', (request) => { bodies.push(`${request.method()} ${request.url()} ${request.postData() ?? ''}`); });
+    // The device holds a session with that server, as a person who signed in to it does.
+    await context.addInitScript(() => {
+      localStorage.setItem('safeos-auth', JSON.stringify({ state: {
+        sessionToken: 'walk-token', sessionId: 'walk-session', deviceId: 'walk-device', isGuest: true,
+      }, version: 0 }));
+    });
     await page.goto('/monitor/', { waitUntil: 'networkidle' });
     await startWatching(page);
     await timeOf(cards(page).first(), 'Motion');
     await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
-    await expect.poll(() => server.messages.filter((message) => /"type":\s*"frame"/.test(message)).length, {
-      timeout: 60_000, message: 'the page’s ordinary frames reach the server',
-    }).toBeGreaterThanOrEqual(1);
+    const frames = () => server.messages.filter((message) => /"type":\s*"frame"/.test(message)).length;
+    await expect.poll(frames, { timeout: 60_000 }).toBeGreaterThanOrEqual(1).catch(() => {
+      // What the server did hear, so a missing frame says why.
+      throw new Error(`the page's ordinary frames did not reach the server; it heard ${server.messages.length} messages: `
+        + `${server.messages.map((message) => message.slice(0, 60)).join(' | ').slice(0, 600)}; requests: `
+        + `${bodies.map((body) => body.slice(0, 90)).join(' | ').slice(0, 1200)}`);
+    });
 
     // The kept picture's bytes, its id and its box, as the page holds them.
     const kept = await page.evaluate(() => new Promise<{ id: string; frame: string; closeUp: string; box: string }>((resolve, reject) => {

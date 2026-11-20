@@ -710,7 +710,6 @@ html.light {
   flex: 1 1 auto;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: flex-end;
   gap: 12px;
   min-width: 0;
   overflow-x: auto;
@@ -718,8 +717,10 @@ html.light {
   padding: 4px;
 }
 
-.alert-pictures-keys[data-overflows] > .alert-pictures-keys__row {
-  justify-content: flex-start;
+/* The keys stand at the row's end while they fit. A margin, not the row's alignment, puts them
+   there: keys that do not fit then run off the row's end, where the row scrolls to them. */
+.alert-pictures-keys__row > :first-child {
+  margin-left: auto;
 }
 
 .alert-pictures-keys__row[data-more-after] {
