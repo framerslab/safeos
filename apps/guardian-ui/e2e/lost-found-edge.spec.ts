@@ -1,8 +1,8 @@
 /**
- * Lost & Found: a saved match carries an edge score
+ * Lost & Found: a sighting carries an edge score
  *
  * Enrols a subject from a striped picture, shows the camera the same stripes
- * and reads the Edge value of the match the monitor saves, in the gallery.
+ * and reads the edge score the watch keeps with the sighting's alert.
  *
  * The camera is Chromium's fake one, fed from a .y4m file through
  * --use-file-for-fake-video-capture as scripts/home-captures.mjs feeds it.
@@ -18,39 +18,41 @@ import monitorSettings from '../scripts/home-capture-settings.json';
 import { CAMERA_FILE, stripedPhoto } from './helpers/striped-subject';
 
 // =============================================================================
-// The saved matches
+// The saved sighting
 // =============================================================================
 
+interface Scores { colorMatch: number; dominantMatch: number; edgeMatch: number; sizeMatch: number }
+
 /**
- * How many matches the browser's database holds. The monitor reports a match
- * on any frame that scores, and saves one only when the score reaches the
- * record line, a moment later (it makes a thumbnail first). Leaving the
- * monitor before that would leave the gallery empty.
+ * The four scores the watch keeps with a sighting's alert, read from the
+ * browser's database; null while no sighting is saved. They are kept as
+ * data: the alert's card shows none of them.
  */
-const savedMatches = (page: Page): Promise<number> =>
+const sightingScores = (page: Page): Promise<Scores | null> =>
   page.evaluate(async () => {
     const known = await indexedDB.databases();
     if (!known.some((database) => database.name === 'safeos-guardian')) {
-      return 0;
+      return null;
     }
-    return new Promise<number>((resolve) => {
+    return new Promise<Scores | null>((resolve) => {
       const opening = indexedDB.open('safeos-guardian');
-      opening.onerror = () => resolve(0);
+      opening.onerror = () => resolve(null);
       opening.onsuccess = () => {
         const database = opening.result;
-        if (!database.objectStoreNames.contains('match_frame')) {
+        if (!database.objectStoreNames.contains('alert_cache')) {
           database.close();
-          resolve(0);
+          resolve(null);
           return;
         }
-        const counting = database.transaction('match_frame').objectStore('match_frame').count();
-        counting.onsuccess = () => {
+        const reading = database.transaction('alert_cache').objectStore('alert_cache').getAll();
+        reading.onsuccess = () => {
           database.close();
-          resolve(counting.result);
+          const sighting = reading.result.find((alert) => alert.kind === 'sighting' && alert.details);
+          resolve(sighting ? sighting.details : null);
         };
-        counting.onerror = () => {
+        reading.onerror = () => {
           database.close();
-          resolve(0);
+          resolve(null);
         };
       };
     });
@@ -78,7 +80,7 @@ test.skip(
   'The fake camera file is a Chromium switch; the test runs at desktop width'
 );
 
-test('a match saved from a striped camera picture shows an Edge value above 0', async ({ page, context }) => {
+test('a sighting raised from a striped camera picture keeps an edge score above 0', async ({ page, context }) => {
   test.setTimeout(240_000);
 
   await context.grantPermissions(['camera', 'microphone']);
@@ -123,36 +125,17 @@ test('a match saved from a striped camera picture shows an Edge value above 0', 
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
   await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
 
-  // Start the camera and wait for the watch to report a match.
+  // Start the camera and wait for the watch to raise the sighting.
   await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click({ timeout: 60_000 });
   await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/consecutive match/).first()).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('[data-alert-card]').filter({ hasText: 'Could this be Stripes?' }).first()).toBeVisible({ timeout: 90_000 });
 
-  // Stay on the monitor until a match is in the browser's database; the
-  // gallery reads the database when it opens.
-  await expect.poll(() => savedMatches(page), { timeout: 60_000 }).toBeGreaterThan(0);
+  // The sighting's alert is saved with its four scores.
+  await expect.poll(() => sightingScores(page), { timeout: 60_000 }).not.toBeNull();
+  const scores = (await sightingScores(page))!;
 
-  const openMatch = page.getByRole('button', { name: 'View match details' }).first();
-  await expect(async () => {
-    await page.goto('/lost-found/gallery/', { waitUntil: 'networkidle', timeout: 30_000 });
-    await expect(openMatch).toBeVisible({ timeout: 5_000 });
-  }).toPass({ timeout: 60_000 });
-  await openMatch.click();
+  // The run's log keeps what the watch saved.
+  console.log(`The saved sighting keeps: Color ${scores.colorMatch}, Dominant ${scores.dominantMatch}, Edge ${scores.edgeMatch}, Size ${scores.sizeMatch}`);
 
-  // The four scores sit in a row, each a value over its label.
-  const score = (label: string) =>
-    page.getByText(label, { exact: true }).locator('xpath=..').locator('p').first();
-  const edge = score('Edge');
-  await expect(edge).toHaveText(/^\d+(\.\d+)?%$/);
-
-  // The run's log keeps what the gallery showed.
-  const shownScores: string[] = [];
-  for (const label of ['Confidence', 'Color', 'Dominant', 'Edge', 'Size']) {
-    const value = score(label);
-    shownScores.push(`${label} ${(await value.count()) === 1 ? await value.textContent() : 'not read'}`);
-  }
-  console.log(`The saved match shows: ${shownScores.join(', ')}`);
-
-  const shown = (await edge.textContent()) ?? '';
-  expect(Number.parseFloat(shown)).toBeGreaterThan(0);
+  expect(scores.edgeMatch).toBeGreaterThan(0);
 });
