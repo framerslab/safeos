@@ -484,6 +484,12 @@ pictures" makes it:
    `home/provenance.json`: the run, the commit, the clip's sha256 and each
    file's viewport, width, height and bytes.
 
+A crop is kept only at the size it asks for: one that runs past the edge of
+the screen is saved cut short, and the job fails on it. The landscape crop is
+16:10 from the top of the 1280 px monitor's grid; where the grid starts too
+far down the 1000 px screen for it, the script first moves the page up until
+the crop ends inside the screen.
+
 The files are uploaded as the run's `home-pictures` artifact. To ship them,
 download it and copy it over `apps/guardian-ui/public/`:
 

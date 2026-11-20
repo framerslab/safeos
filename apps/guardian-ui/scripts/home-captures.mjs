@@ -311,11 +311,23 @@ try {
         const sound = await page.getByText(SOUND_ALERT).count();
         console.log(`${name}: the alert list holds ${sound} sound alert${sound === 1 ? '' : 's'}`);
         await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
-        const grid = await page.locator('main > div.grid').first().boundingBox();
+        const gridPart = page.locator('main > div.grid').first();
+        let grid = await gridPart.boundingBox();
         if (!grid || grid.width < 1100 || grid.width > 1280) throw new Error(`${name}: the monitor's grid is ${grid ? Math.round(grid.width) : 'not'} px wide`);
         const width = Math.floor(grid.width);
+        const height = Math.round(width * 10 / 16);
+        // The crop is taken whole. Where the grid starts too far down the
+        // screen for it, the page moves up by what the crop lacks and 8 px
+        // more, so a move the browser rounds to its own pixels leaves room.
+        const lacking = Math.ceil(grid.y + height - viewport.height);
+        if (lacking > 0) {
+          await page.evaluate((by) => window.scrollBy({ top: by, behavior: 'instant' }), lacking + 8);
+          grid = await gridPart.boundingBox();
+          if (!grid) throw new Error(`${name}: the monitor's grid was not found once the page had moved up`);
+          console.log(`${name}: the landscape crop ran ${lacking} px past the foot of the screen; the page moved up and the grid starts ${grid.y.toFixed(1)} px down it`);
+        }
         await saveCrop(page, `home/capture-landscape-${look}.png`,
-          { x: grid.x, y: grid.y, width, height: Math.round(width * 10 / 16) },
+          { x: grid.x, y: grid.y, width, height },
           { look, viewport: `${viewport.width}x${viewport.height}`, deviceScaleFactor: scale, crop: 'camera view beside the alert list, 16:10' });
         console.log(`${name}: Motion indicator after saving: "${await indicator.getAttribute('aria-label')}"`);
       } catch (err) {
