@@ -12,7 +12,9 @@
  * Run in CI by ci.yml's "Web app alert walk" job against the static export.
  */
 
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 
 import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
@@ -3075,5 +3077,56 @@ test.describe('A watch alert’s notification, 1280 px', () => {
     expect(note.body).toMatch(noteBody(time));
     expect(note.image).toMatch(/^data:image\/jpeg;base64,/);
     await context.setOffline(false);
+  });
+});
+
+// =============================================================================
+// The privacy page and the third-party notices
+// =============================================================================
+
+test.describe('The privacy page and the notices', () => {
+  test('the privacy page names what an alert keeps, and the notices list the bundled packages', async ({ page }) => {
+    await page.goto('/privacy/', { waitUntil: 'networkidle' });
+    const words = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+    for (const sentence of [
+      'saved frames, alert pictures and reference photos in its IndexedDB',
+      'Alert pictures are not sent to that server.',
+      'For each Motion and Picture change alert on the monitor page, SafeOS keeps the camera\'s picture of the moment, a box round what changed and a close-up of that box.',
+      'A Sound alert keeps the picture with no box, and a Lost & Found alert keeps the camera\'s picture with a box round the part like your pet\'s photos.',
+      'They are kept in this browser\'s IndexedDB on this device; Frame, which runs safeos.sh, never receives them.',
+      'They are deleted after the time you choose under Keep alert pictures (3 days unless you choose 1, 7 or 30 days, or until you delete them); the alert\'s words stay in History.',
+      'A picture is also deleted with its alert when the alert leaves under the limits above.',
+      'You can delete one picture or all of them; Clear All Local Data and signing out delete them too.',
+      'SafeOS sends alert pictures to no server, a server you connect yourself included.',
+      'Anyone who can open SafeOS in this browser can see the alerts and their pictures.',
+      'Alerts are never removed because of their age; their pictures are, after the time you choose.',
+      'Clear All Local Data also removes recorded sounds, alert pictures and the offline cache.',
+      'clears the alerts and their pictures, frames, recordings and personal settings saved in this browser',
+      'If you turn on Show the picture in alert notifications, the picture shows in the notification, and on some phones on the lock screen, to anyone who can see this device.',
+      'Last updated: November 20, 2026',
+    ]) {
+      expect(words, `the privacy page says: ${sentence}`).toContain(sentence);
+    }
+
+    // The built site lists the packages it bundles, with their versions as the lockfile holds them.
+    const lock = JSON.parse(readFileSync(path.join(process.cwd(), 'package-lock.json'), 'utf8')) as { packages: Record<string, { version?: string }> };
+    const versionOf = (name: string) => lock.packages[`node_modules/${name}`]?.version ?? 'not in the lockfile';
+    const answer = await page.request.get('/third-party-notices.txt');
+    expect(answer.status(), 'the notices file is served').toBe(200);
+    const notices = await answer.text();
+    for (const name of ['@tensorflow-models/coco-ssd', '@tensorflow/tfjs']) {
+      expect(notices, `the notices list ${name} at ${versionOf(name)}`).toContain(`${name} ${versionOf(name)}`);
+    }
+    expect(notices).toContain('Apache License');
+    expect(notices).toContain('The COCO-SSD model was trained on the COCO dataset; COCO\'s annotations are © COCO Consortium, licensed CC BY 4.0 (https://cocodataset.org/#termsofuse).');
+    // A package used to build or test the site alone is not listed.
+    expect(notices).not.toMatch(/^@playwright\/test /m);
+
+    for (const address of ['/about/', '/settings/models/']) {
+      await page.goto(address, { waitUntil: 'networkidle' });
+      const link = page.getByRole('link', { name: 'Third-party notices', exact: true });
+      await expect(link, `${address} links the notices`).toBeVisible();
+      expect(await link.getAttribute('href')).toMatch(/\/third-party-notices\.txt$/);
+    }
   });
 });
