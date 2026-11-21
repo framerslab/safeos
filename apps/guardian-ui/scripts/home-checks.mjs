@@ -22,6 +22,11 @@ const PAGE_COLOURS = { light: 'rgb(248, 249, 250)', dark: 'rgb(11, 19, 27)' };
 const PANEL_COLOURS = { light: 'rgb(241, 243, 244)', dark: 'rgb(16, 26, 36)' };
 const INK = { light: 'rgb(15, 18, 21)', dark: 'rgb(244, 245, 246)' };
 const THEME_COLOURS = { light: '#f8f9fa', dark: '#0b131b' };
+// A solid key's fill and label in each look.
+const SOLID_KEY = {
+  light: { fill: 'rgb(20, 83, 45)', label: 'rgb(255, 255, 255)' },
+  dark: { fill: 'rgb(74, 222, 128)', label: 'rgb(11, 19, 27)' },
+};
 // The repository's star count, when the build was handed one: the GitHub link
 // then shows it and is named with it, and the footer's last line says it.
 const STARS = starsHanded();
@@ -841,9 +846,35 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       }));
       const before = await state();
       expect(before.background === PAGE_COLOURS[look], `look switch: with the device set to ${look} the page is ${before.background}`);
+      // Every frame from the press on is read: in the first frame the page
+      // shows the new look, each solid key already has its fill and label.
+      await page.evaluate((want) => {
+        window.__lookFrames = null;
+        const keys = () => [...document.querySelectorAll('.key--solid')].filter((key) => key.offsetParent !== null);
+        const read = () => {
+          if (getComputedStyle(document.body).backgroundColor === want) {
+            window.__lookFrames = keys().map((key) => ({
+              name: key.textContent.trim(),
+              fill: getComputedStyle(key).backgroundColor,
+              label: getComputedStyle(key).color,
+            }));
+            return;
+          }
+          requestAnimationFrame(read);
+        };
+        requestAnimationFrame(read);
+      }, PAGE_COLOURS[other]);
       const key = page.getByRole('button', { name: `Switch to the ${other} look`, exact: true });
       await key.click();
       await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
+      await page.waitForFunction(() => window.__lookFrames !== null, null, { timeout: 5_000 })
+        .catch(() => fail('look switch: the page never showed the new look in a frame'));
+      const firstFrame = (await page.evaluate(() => window.__lookFrames)) || [];
+      expect(firstFrame.length > 0, 'look switch: no solid key is shown on the first screen');
+      for (const solid of firstFrame) {
+        expect(solid.fill === SOLID_KEY[other].fill && solid.label === SOLID_KEY[other].label,
+          `look switch: in the first frame of the ${other} look, "${solid.name}" is ${solid.label} on ${solid.fill}, not ${SOLID_KEY[other].label} on ${SOLID_KEY[other].fill}`);
+      }
       const after = await state();
       expect(after.background === PAGE_COLOURS[other], `look switch: after a press the page is ${after.background}, not ${PAGE_COLOURS[other]}`);
       expect(after.said === `${other === 'dark' ? 'Dark' : 'Light'} look on`, `look switch: the press announced "${after.said}"`);
