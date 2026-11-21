@@ -163,7 +163,7 @@ it('a sighting storage refused stays gone after another tab clears History on a 
   const watching = openTab();
   const other = openTab();
   const write = localStorage.setItem.bind(localStorage);
-  let refuse = (key: string) => key === 'safeos-animal-alerts';
+  let refuse: (key: string) => boolean = (key) => key === 'safeos-animal-alerts';
   const refusing = jest.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
     if (refuse(key)) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
     write(key, value);

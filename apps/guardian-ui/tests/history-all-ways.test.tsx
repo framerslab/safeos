@@ -97,6 +97,31 @@ async function app() {
     if (press) fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
   };
 
+  /**
+   * History opened inside a provider that has already read the device's
+   * alerts, as when the app was open on another page first. Returns the call
+   * that opens it.
+   */
+  const openHistoryLater = () => {
+    let open: () => void = () => undefined;
+    function Later() {
+      const [shown, setShown] = React.useState(false);
+      open = () => setShown(true);
+      return shown ? <History /> : null;
+    }
+    render(
+      <Providers>
+        <alerts.DeviceAlertsProvider>
+          <Later />
+          <Probe />
+        </alerts.DeviceAlertsProvider>
+      </Providers>,
+    );
+    return () => {
+      act(() => { open(); });
+    };
+  };
+
   /** This code has run once on the device: what it held then is written. */
   const firstRun = async () => {
     const shown = render(<alerts.DeviceAlertsProvider><Probe /></alerts.DeviceAlertsProvider>);
@@ -104,7 +129,7 @@ async function app() {
     shown.unmount();
   };
 
-  return { alerts, groups, db, monitoring, animals, save, openHistory, firstRun };
+  return { alerts, groups, db, monitoring, animals, save, openHistory, openHistoryLater, firstRun };
 }
 
 function peopleFrame(id: string) {
@@ -360,8 +385,12 @@ describe('when its list is read late, or cannot be read', () => {
     await m.firstRun();
     await act(() => m.save.sighting('animal-1'));
 
-    m.openHistory();
+    // The app has read the device's alerts on another page; then History opens.
+    const show = m.openHistoryLater();
+    await waitFor(() => expect(screen.getByTestId('status').textContent).toBe('ready'), SLOW);
     await waitFor(() => expect(probeLines()).toHaveLength(1), SLOW);
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: /Local Timeline/i }));
 
     // Another tab saves an alert while History still reads its list.
     await act(() => putOwn('intrusion_frame', [peopleFrame('intrusion-late')]));
