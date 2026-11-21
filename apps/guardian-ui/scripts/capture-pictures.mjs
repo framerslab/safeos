@@ -19,9 +19,15 @@
 // the alert key on the Test Alerts page starts the alert's two generated tones
 // on a running audio context, an analyser on the way to the speakers reads
 // samples that are not all zero, and the page makes no request under /sounds/.
-// It then walks the home page part by part (scripts/home-checks.mjs). Any
-// failure fails the run. The dashboard's link to the Security page is checked
-// with the dashboard, below.
+// It then walks the home page part by part (scripts/home-checks.mjs) and
+// what every public page shares: the header's row, the GitHub link with its
+// star count, the keys and the makers' marks
+// (scripts/public-chrome-checks.mjs). Any failure fails the run. Both versions
+// also capture the public header and footer on their own
+// (site-header-<width>-<look>.png, site-footer-<width>-<look>.png), the open
+// Menu at 390 pixels (site-menu-390-<look>.png) and, with /about/, About's
+// part on who builds SafeOS (about-builders-<width>-<look>.png). The
+// dashboard's link to the Security page is checked with the dashboard, below.
 //
 // When /dashboard/ is captured, both versions also capture the dashboard as a
 // person who has finished setup sees it (dashboard-setup-<width>-<look>.png)
@@ -148,6 +154,32 @@ try {
             await page.screenshot({ path: file, fullPage: true });
           }
           console.log(`captured ${file}`);
+          // The public header, the footer and the open Menu on their own, and
+          // About's part on who builds SafeOS, so the two versions read side
+          // by side. The footer's pictures load when it comes into view.
+          if (route === '/') {
+            await page.locator('nav[aria-label="Site"]').screenshot({ path: path.join(outDir, `site-header-${size.width}-${look}.png`) });
+            const footer = page.locator('footer.site-footer');
+            await footer.scrollIntoViewIfNeeded();
+            await page.waitForFunction(() => [...document.querySelectorAll('footer.site-footer img')]
+              .filter((image) => getComputedStyle(image).display !== 'none').every((image) => image.complete), null, { timeout: 15_000 });
+            await footer.screenshot({ path: path.join(outDir, `site-footer-${size.width}-${look}.png`) });
+            if (size.width < 768) {
+              await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+              await page.locator('nav[aria-label="Site"] button.site-header__menu-key').click();
+              const menu = page.locator('#site-menu');
+              await menu.waitFor({ timeout: 5_000 });
+              await menu.evaluate((element) => Promise.all(element.getAnimations().map((animation) => animation.finished)).then(() => true));
+              await page.screenshot({ path: path.join(outDir, `site-menu-${size.width}-${look}.png`) });
+            }
+          }
+          if (route === '/about/') {
+            const builders = page.locator('section').filter({ has: page.getByRole('heading', { name: /Who builds SafeOS|Built by Frame\.dev/ }) }).first();
+            await builders.scrollIntoViewIfNeeded();
+            await page.waitForFunction((section) => [...section.querySelectorAll('img')]
+              .filter((image) => getComputedStyle(image).display !== 'none').every((image) => image.complete), await builders.elementHandle(), { timeout: 15_000 });
+            await builders.screenshot({ path: path.join(outDir, `about-builders-${size.width}-${look}.png`) });
+          }
         } catch (err) {
           failures += 1;
           console.error(`failed ${url} at ${size.width} ${look}: ${err.message}`);

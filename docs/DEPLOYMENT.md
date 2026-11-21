@@ -33,6 +33,14 @@ npm run build
 
 This creates a static `out/` folder ready for deployment.
 
+The public header's GitHub link shows the repository's star count only when
+the build is handed it. `node scripts/read-github-stars.mjs` reads the count
+once and prints two lines, `NEXT_PUBLIC_GITHUB_STARS` and
+`NEXT_PUBLIC_GITHUB_STARS_DATE`; set both in the environment of
+`npm run build`. Without them the link shows its word alone. No page asks
+GitHub for the count. See Continuous Integration in the
+[development guide](./DEVELOPMENT.md#continuous-integration).
+
 ### GitHub Pages
 
 1. Create a new repository or use an existing one

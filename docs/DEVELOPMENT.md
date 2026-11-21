@@ -388,6 +388,23 @@ prints an error and carries on.
 the detection model and Lost & Found matching run in Chromium with the CPU
 slowed, and a slow number does not fail it. See [Performance](./PERFORMANCE.md).
 
+The star count beside the public header's GitHub link is read when the site is
+built, never by a visitor's browser. Before the build, `deploy-pages.yml` and
+`pictures.yml` run `apps/guardian-ui/scripts/read-github-stars.mjs`. It asks
+GitHub's REST API for the repository once
+([Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository),
+the field `stargazers_count`) and appends `NEXT_PUBLIC_GITHUB_STARS` and
+`NEXT_PUBLIC_GITHUB_STARS_DATE` to the job's environment; the build writes them
+into every page (`apps/guardian-ui/src/lib/github-stars.ts`). The script needs
+no token. The workflows give it the run's own read-only token, because GitHub
+counts a request without one against the runner's address, at 60 requests an
+hour ([Rate limits for the REST API](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)).
+When GitHub does not answer within ten seconds, answers with an error, or
+answers with anything but a whole number above zero, the script prints a
+warning, writes nothing and ends with success: the pages then show the link's
+word alone. To see a count in a local build, set the two values yourself, for
+example `NEXT_PUBLIC_GITHUB_STARS=58 NEXT_PUBLIC_GITHUB_STARS_DATE=2026-11-18 npm run build`.
+
 Concurrency: a newer push to a pull request cancels that pull request's older
 runs, and a pull request never cancels a run on `master`. On `master`, every
 commit's checks run to the end (each run has its own group). The Pages deploy
@@ -443,6 +460,22 @@ and the words of each part, the footer, the title and cards, sizes and
 contrast against the readable look's figures, and the page offline after one
 visit. It saves the page from top to bottom at 820 and 1920 pixels too. A
 finding fails the run.
+
+It then walks what every public page shares
+(`apps/guardian-ui/scripts/public-chrome-checks.mjs`): the row's links at 820,
+1024, 1280, 1440 and 1920 pixels with GitHub and its star count; a row that
+runs short, which gives up GitHub first, then Privacy; every request each
+public page and each app page makes for ten seconds, none of it to another
+host; the keys of every public page; the footer's makers and About's part on
+who builds SafeOS. For the key sheet it lays the four kinds of key out on a
+public page with the site's own stylesheet, pictures each at rest, under the
+pointer, focused, pressed and inactive in both looks, measures its label, edge,
+ring and glyph from the picture's pixels, and saves the pictures side by side
+as `keys-sheet-<look>.png`. Both versions of a pull request also capture the
+public header and footer on their own (`site-header-<width>-<look>.png`,
+`site-footer-<width>-<look>.png`), the open Menu at 390 pixels
+(`site-menu-390-<look>.png`) and About's part
+(`about-builders-<width>-<look>.png`), so the two read side by side.
 
 #### The home page's own pictures
 
