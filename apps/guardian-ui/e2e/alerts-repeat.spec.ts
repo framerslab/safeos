@@ -329,7 +329,16 @@ function savedMessage(page: Page, kind: RegExp): Promise<string> {
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
       const db = open.result;
-      const read = db.transaction('alert_cache', 'readonly').objectStore('alert_cache').getAll();
+      // A database the page has not set up yet holds no saved alert; the poll reads again.
+      if (!db.objectStoreNames.contains('alert_cache')) { db.close(); resolve(''); return; }
+      let read: IDBRequest<any[]>;
+      try {
+        read = db.transaction('alert_cache', 'readonly').objectStore('alert_cache').getAll();
+      } catch (error) {
+        db.close();
+        reject(error);
+        return;
+      }
       read.onerror = () => { db.close(); reject(read.error); };
       read.onsuccess = () => {
         db.close();
@@ -384,7 +393,15 @@ function savedCards(page: Page): Promise<SavedCard[]> {
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
       const db = open.result;
-      const read = db.transaction('alert_cache', 'readonly').objectStore('alert_cache').getAll();
+      if (!db.objectStoreNames.contains('alert_cache')) { db.close(); resolve([]); return; }
+      let read: IDBRequest<any[]>;
+      try {
+        read = db.transaction('alert_cache', 'readonly').objectStore('alert_cache').getAll();
+      } catch (error) {
+        db.close();
+        reject(error);
+        return;
+      }
       read.onerror = () => { db.close(); reject(read.error); };
       read.onsuccess = () => {
         db.close();
@@ -587,6 +604,8 @@ test.describe('Alerts repeat while the activity goes on', () => {
     const first = await firstAlert(page, 'motion');
     await page.evaluate(() => { window.__walkCamera!.changingWidth = 1 / 3; });
     await runUntil(page, first + 10_000 + LATE_MS);
+    // The picture holds still from here: no later repeat writes over the first repeat's saved message.
+    await page.evaluate(() => { window.__walkCamera!.changingWidth = 0; });
 
     const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     expect(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);

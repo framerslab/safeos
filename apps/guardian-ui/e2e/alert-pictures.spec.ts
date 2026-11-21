@@ -83,6 +83,12 @@ async function databaseNow(page: Page): Promise<DatabaseReading | null> {
 
 const monitoringAlerts = (reading: DatabaseReading | null) => (reading?.alerts ?? []).filter((row) => row.monitoring === true);
 
+/** How many watch alerts the database holds, or -1 while it cannot be read: a failed read is never an empty store. */
+async function savedAlertCount(page: Page): Promise<number> {
+  const reading = await databaseNow(page);
+  return reading ? monitoringAlerts(reading).length : -1;
+}
+
 test.describe('The picture store and the alert record', () => {
   test('a device saved by the release before this one keeps every alert and frame', async ({ page, context }) => {
     await seedDevice(context, { pictures: { noticeAnswered: true } });
@@ -742,7 +748,11 @@ const live = (page: Page) => page.getByText('LIVE', { exact: true });
 const listLine = (page: Page, line: string) => page.locator('.alert-list-line').filter({ hasText: line });
 
 const keptRows = (reading: DatabaseReading | null) => (reading?.pictures ?? []).filter((row) => row.state === 'kept');
-const keptCount = async (page: Page) => keptRows(await databaseNow(page)).length;
+/** How many pictures the store keeps, or -1 while it cannot be read. */
+const keptCount = async (page: Page) => {
+  const reading = await databaseNow(page);
+  return reading ? keptRows(reading).length : -1;
+};
 
 /** Opens the watch's settings group "Alert pictures" and answers it. */
 async function openWatchGroup(page: Page): Promise<Locator> {
@@ -898,7 +908,11 @@ test.describe('Keeping pictures, 390 px', () => {
     // The next write fails for lack of room until its transaction has deleted one picture.
     await setFault(page, { quotaUntilDeletes: 1 });
     await raiseEvents(page, 4, 4);
-    await expect.poll(async () => keptRows(await databaseNow(page)).map((row) => row.id).includes(before[0]), { timeout: 15_000 }).toBe(false);
+    // A read that fails proves nothing: it answers neither yes nor no.
+    await expect.poll(async () => {
+      const reading = await databaseNow(page);
+      return reading ? keptRows(reading).map((row) => row.id).includes(before[0]) : 'unread';
+    }, { timeout: 15_000 }).toBe(false);
     const after = keptRows(await readDatabase(page)).map((row) => row.id as string);
     expect(after).toHaveLength(3);
     expect(after).toEqual(expect.arrayContaining([before[1], before[2]]));
@@ -1029,6 +1043,8 @@ for (const width of [390, 1280]) {
       await expect(question).toHaveCount(0);
       await expect(countLine(onWatch)).toHaveText('No pictures kept on this device');
       await expect(deleteAll(onWatch)).toHaveCount(0);
+      // The key left with the pictures: focus moves to the control before it in the group.
+      await expect(afterSelect(onWatch)).toBeFocused();
       await expect(cards(page)).toHaveCount(3);
       for (const card of await cards(page).all()) {
         await expect(card.getByText('You deleted its picture.', { exact: true })).toBeVisible();
@@ -1182,8 +1198,8 @@ test.describe('Keeping pictures, 1280 px', () => {
         await other.getByRole('button', { name: 'Privacy' }).click();
       } else await other.goto('/history/', { waitUntil: 'networkidle' });
 
-      // The next alert's picture is handed back five seconds after it is drawn: its save waits.
-      await setFault(page, { holdDrawMs: 5_000 });
+      // The next alert's picture is handed back ten seconds after it is drawn: its save waits.
+      await setFault(page, { holdDrawMs: 10_000 });
       await raiseEvents(page, 2, 2);
       const held = cards(page).first();
       await expect(held.locator('.alert-picture__wait')).toBeVisible();
@@ -1195,15 +1211,17 @@ test.describe('Keeping pictures, 1280 px', () => {
       } else if (way === 'Clear All Local Data') {
         other.once('dialog', (dialog) => void dialog.accept());
         await other.getByRole('button', { name: 'Clear All Local Data' }).click();
-        await expect.poll(async () => monitoringAlerts(await databaseNow(other)).length, { timeout: 15_000 }).toBe(0);
+        await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
       } else {
         await other.getByRole('button', { name: /Notifications/ }).first().click();
         await other.getByRole('button', { name: 'Clear all', exact: true }).click();
-        await expect.poll(async () => monitoringAlerts(await databaseNow(other)).length, { timeout: 15_000 }).toBe(0);
+        await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
       }
+      // The clear came while the save still waited.
+      await expect(held.locator('.alert-picture__wait'), 'the save waits until after the clear').toBeVisible();
 
       // The held save goes on now, and writes nothing.
-      await page.waitForTimeout(7_000);
+      await page.waitForTimeout(12_000);
       const reading = await readDatabase(page);
       expect(keptRows(reading)).toEqual([]);
       if (way === 'Delete all pictures') {
@@ -2862,6 +2880,22 @@ test.describe('The notification’s picture in Settings: a browser that shows wo
     await expect(found).toHaveAttribute('aria-checked', 'false');
   });
 
+  test('notifications allowed in the site settings make the switch usable with no reload', async ({ page, context }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openNotificationSettings(page, context, { permission: 'denied' });
+    const found = pictureSwitch(page);
+    await expect(found).toHaveAttribute('aria-disabled', 'true');
+    // The person allows notifications in the site settings and comes back to the page.
+    await page.evaluate(() => {
+      window.__setNotificationPermission!('granted');
+      window.dispatchEvent(new Event('focus'));
+    });
+    await expect(pictureRow(page).getByText(BLOCKED_LINE, { exact: true })).toHaveCount(0);
+    await expect(found).not.toHaveAttribute('aria-disabled', 'true');
+    await found.click();
+    await expect(found).toHaveAttribute('aria-checked', 'true');
+  });
+
   test('blocked notifications say how to allow them', async ({ page, context }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openNotificationSettings(page, context, { permission: 'denied' });
@@ -3324,5 +3358,99 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     const [note] = await notesOf(page);
     expect(note.title).toBe('Motion alert');
     expect(note.tag, 'the notification keeps the tag of the event that raised it').toMatch(/^safeos-Motion alert-.+/);
+  });
+
+  test('a save that fails on a picture a repeat replaced leaves the newer picture shown with Save picture', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    // While the page holds the flag, the next kept picture drawn for a file waits until the walk fails it.
+    await page.addInitScript(() => {
+      const draw = window.createImageBitmap.bind(window) as (...args: unknown[]) => Promise<ImageBitmap>;
+      window.createImageBitmap = ((...args: unknown[]) => {
+        if (window.__holdNextDraw && args[0] instanceof Blob) {
+          window.__holdNextDraw = false;
+          return new Promise<ImageBitmap>((_, reject) => {
+            window.__failHeldDraw = () => reject(new DOMException('The source image could not be decoded.', 'InvalidStateError'));
+          });
+        }
+        return draw(...args);
+      }) as typeof window.createImageBitmap;
+    });
+    await watchWith(page, context, { settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) }, camera: LEFT_THIRD });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await openKey(card).click();
+    await expect(page.getByRole('dialog', { name: `Motion at ${time}`, exact: true })).toBeVisible();
+    // The panel takes the newest alert's title with a repeat, so it is found by its own mark.
+    const dialog = page.locator('[role="dialog"].alert-picture-dialog');
+    const picture = dialog.getByRole('img', { name: /^What the camera saw at / });
+    const first = await picture.getAttribute('src');
+    // Save picture draws the first picture with its box, and that drawing waits.
+    await page.evaluate(() => { window.__holdNextDraw = true; });
+    await saveKey(dialog).click();
+    await expect.poll(() => page.evaluate(() => typeof window.__failHeldDraw), { timeout: 5_000 }).toBe('function');
+    // The event goes on and repeats: the opened picture becomes the newest alert's.
+    await expect.poll(() => picture.getAttribute('src'), { timeout: 60_000 }).not.toBe(first);
+    // The first picture's drawing fails after the newer picture shows.
+    await page.evaluate(() => { window.__failHeldDraw!(); });
+    await page.waitForTimeout(1_000);
+    // The failure belongs to the picture it was drawn for: the newer one shows, with Save picture.
+    await expect(dialog.getByText(UNREADABLE_LINE, { exact: false })).toHaveCount(0);
+    await expect(picture).toBeVisible();
+    await expect(saveKey(dialog)).toBeVisible();
+  });
+
+  test('a tab that reads an alert before its picture is saved shows the picture once it is', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+    await canvasCamera(page, LEFT_THIRD);
+    await faultPictureStore(page);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await startWatching(page);
+    await timeOf(cards(page).first(), 'Motion');
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+    // The next alert's picture is handed back 20 seconds after it is drawn: its save waits.
+    await setFault(page, { holdDrawMs: 20_000 });
+    await raiseEvents(page, 2, 2);
+    const held = cards(page).first();
+    await expect(held.locator('.alert-picture__wait')).toBeVisible();
+    const time = await timeOf(held, 'Motion');
+    // Another tab opens History once the alert is saved, while its picture waits.
+    await expect.poll(() => savedAlertCount(page), { timeout: 12_000 }).toBe(2);
+    const other = await context.newPage();
+    await other.goto('/history/', { waitUntil: 'networkidle' });
+    const row = historyRows(other).filter({ hasText: time }).filter({ hasText: 'Motion' });
+    await expect(row).toHaveCount(1);
+    await expect(held.locator('.alert-picture__wait'), 'the save waits while the other tab reads').toBeVisible();
+    // The save goes on: the other tab's row shows the picture with no reload.
+    await expect(row.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible({ timeout: 40_000 });
+    await other.close();
+  });
+
+  test('an age chosen in another tab is the one this tab sweeps by when it hears of it', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // This tab reads a choice another tab saved 3 seconds after the browser says it changed.
+    await page.addInitScript(() => {
+      const listen = window.addEventListener.bind(window);
+      window.addEventListener = function (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
+        if (type !== 'storage') return listen(type, listener, options);
+        const late = (event: Event) => {
+          setTimeout(() => (typeof listener === 'function' ? listener.call(window, event) : listener.handleEvent(event)), 3_000);
+        };
+        return listen(type, late, options);
+      } as typeof window.addEventListener;
+    });
+    await seedDevice(context, { pictures: { noticeAnswered: true, deleteAfterDays: 1 } });
+    await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await expect(countLine(group(page))).toBeVisible();
+    // A picture kept two days ago, written after this tab read the store.
+    const at = Date.now() - 2 * DAY;
+    const id = `picture-${at}-kept`;
+    await seedPictureRows(page, [{ alert: savedAlert(`motion-${at}-kept`, at, { kind: 'motion', pictureId: id }), picture: keptPicture(id, at) }], { here: true });
+    const other = await context.newPage();
+    await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await afterSelect(group(other)).selectOption({ label: 'Until I delete them' });
+    await page.waitForTimeout(6_000);
+    expect(keptRows(await readDatabase(page)).map((row) => row.id), 'the other tab chose Until I delete them').toEqual([id]);
+    await other.close();
   });
 });

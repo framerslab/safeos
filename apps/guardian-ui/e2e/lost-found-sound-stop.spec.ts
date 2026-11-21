@@ -98,7 +98,7 @@ test('a loop that a motion or sound alert plays too keeps playing when the Lost 
   // One looping sound for the drifting stripes' motion and the beep's sound alerts, and for Lost Item Found.
   await saveOwnSound(page, { loop: true, triggers: ['motion_detected', 'audio_detected', 'object_found'] });
   await watchStripes(page);
-  await expect(page.locator('p').filter({ hasText: /^(Motion|Sound) at \d/ }).first(), 'a motion or sound alert plays the loop')
+  await expect(page.locator('[data-alert-card]').filter({ hasText: /(Motion|Sound) at / }).first(), 'a motion or sound alert plays the loop')
     .toBeVisible({ timeout: 60_000 });
   // Lost & Found's sighting alerts and finds the loop playing.
   await page.waitForTimeout(5_000);
@@ -119,7 +119,7 @@ test('a loop that a motion or sound alert plays too stops when the watch stops',
   await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
   await saveOwnSound(page, { loop: true, triggers: ['motion_detected', 'audio_detected', 'object_found'] });
   await watchStripes(page);
-  await expect(page.locator('p').filter({ hasText: /^(Motion|Sound) at \d/ }).first(), 'a motion or sound alert plays the loop')
+  await expect(page.locator('[data-alert-card]').filter({ hasText: /(Motion|Sound) at / }).first(), 'a motion or sound alert plays the loop')
     .toBeVisible({ timeout: 60_000 });
   await page.waitForTimeout(5_000);
   const before = await ownSoundCounts(page);
@@ -139,7 +139,7 @@ test('a loop that a motion or sound alert plays too, left playing when Watch for
   await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
   await saveOwnSound(page, { loop: true, triggers: ['motion_detected', 'audio_detected', 'object_found'] });
   await watchStripes(page);
-  await expect(page.locator('p').filter({ hasText: /^(Motion|Sound) at \d/ }).first(), 'a motion or sound alert plays the loop')
+  await expect(page.locator('[data-alert-card]').filter({ hasText: /(Motion|Sound) at / }).first(), 'a motion or sound alert plays the loop')
     .toBeVisible({ timeout: 60_000 });
   // Lost & Found's sighting alerts and finds the loop playing.
   await page.waitForTimeout(5_000);

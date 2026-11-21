@@ -121,6 +121,19 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
 test('Start Nap Mode on a device that has not answered the notice opens it before the camera', async ({ page, context }) => {
   test.setTimeout(180_000);
   await setUpDevice(context, { noticeAnswered: false });
+  // Each camera request the watch makes is counted; the nap page's own checks before it are not.
+  await context.addInitScript(() => {
+    const counted = window as unknown as { __watchCameraAsks: number };
+    counted.__watchCameraAsks = 0;
+    const media = navigator.mediaDevices;
+    if (!media?.getUserMedia) return;
+    const ask = media.getUserMedia.bind(media);
+    media.getUserMedia = (constraints?: MediaStreamConstraints) => {
+      if (location.pathname.startsWith('/monitor')) counted.__watchCameraAsks += 1;
+      return ask(constraints);
+    };
+  });
+  const cameraAsks = () => page.evaluate(() => (window as unknown as { __watchCameraAsks: number }).__watchCameraAsks);
 
   await page.goto('/nap/', { waitUntil: 'networkidle', timeout: 60_000 });
   const start = await passChecks(page);
@@ -132,6 +145,7 @@ test('Start Nap Mode on a device that has not answered the notice opens it befor
   await expect(notice).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText('LIVE', { exact: true })).toHaveCount(0);
   expect(await pictureRows(page)).toEqual([]);
+  expect(await cameraAsks(), 'the watch asks for no camera while the notice stands').toBe(0);
 
   // Go back leaves the nap waiting with Resume nap, which opens the notice again.
   await notice.getByRole('button', { name: 'Go back', exact: true }).click();
@@ -142,11 +156,13 @@ test('Start Nap Mode on a device that has not answered the notice opens it befor
   await resume.click();
   await expect(notice).toBeVisible();
   expect(await pictureRows(page)).toEqual([]);
+  expect(await cameraAsks(), 'nor after Go back and Resume nap').toBe(0);
 
   // Start watching starts the nap's watch, and the fake camera's moving picture raises its alert.
   await notice.getByRole('button', { name: 'Start watching', exact: true }).click();
   await expect(notice).toHaveCount(0);
   await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
+  await expect.poll(cameraAsks, { timeout: 30_000 }).toBeGreaterThan(0);
   await expect(page.getByText(/^Picture change at /).first()).toBeVisible({ timeout: 45_000 });
 });
 

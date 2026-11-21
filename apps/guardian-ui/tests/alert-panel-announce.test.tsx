@@ -47,8 +47,10 @@ it('announces each repeat of a card, also a repeat with the same reading and sev
   const { rerender } = render(panel(card));
   await act(async () => { await settle(); });
   const first = announced();
-  // A Motion alert is read by its kind, level and time; its numbers stay in its record.
-  expect(first).toMatch(/^New alert: Motion, High, at \d{1,2}:\d{2}:\d{2}/);
+  // A Motion alert is read by its kind, level and time, as this device writes a time; its numbers stay in its record.
+  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(new Date(card.createdAt));
+  const opening = `New alert: Motion, High, at ${time}`;
+  expect(first?.slice(0, opening.length)).toBe(opening);
   expect(first).not.toContain('Motion detected');
 
   rerender(panel({ ...card, repeats: 1 }));

@@ -261,12 +261,21 @@ export async function seedPictureRows(page: Page, rows: PictureRow[], options: {
           reject(error);
           return;
         }
-        for (const row of prepared) {
-          tx.objectStore('alert_cache').put(row.alert);
-          if (row.picture) tx.objectStore('alert_picture').put(row.picture);
-        }
         tx.oncomplete = () => { db.close(); resolve(); };
         tx.onerror = () => { db.close(); reject(tx.error); };
+        try {
+          for (const row of prepared) {
+            tx.objectStore('alert_cache').put(row.alert);
+            if (row.picture) tx.objectStore('alert_picture').put(row.picture);
+          }
+        } catch (error) {
+          // A row the store refuses (one with no id) writes none of the rows.
+          tx.onerror = null;
+          tx.oncomplete = null;
+          tx.abort();
+          db.close();
+          reject(error);
+        }
       };
     })().catch(reject);
   }), rows);
@@ -857,7 +866,10 @@ export async function wordsOn(ground: Locator, words: Locator): Promise<{ size: 
     };
     const under = parse(getComputedStyle(plate).backgroundColor);
     const style = getComputedStyle(text ?? plate);
-    const [hi, lo] = [luminance(parse(style.color)), luminance(under)].sort((a, b) => b - a);
+    // Words drawn see-through show the plate under them: their colour is read as it lands on the plate.
+    const ink = parse(style.color);
+    const landed = [0, 1, 2].map((i) => ink[i] * ink[3] + under[i] * (1 - ink[3]));
+    const [hi, lo] = [luminance(landed), luminance(under)].sort((a, b) => b - a);
     return { size: parseFloat(style.fontSize), ratio: (hi + 0.05) / (lo + 0.05), solid: under[3] >= 1 };
   }, await words.elementHandle());
 }
@@ -891,6 +903,11 @@ declare global {
   interface Window {
     __notes?: RecordedNote[];
     __notificationAsks?: number;
+    /** Changes what the stand-in answers, as the browser's site settings would. */
+    __setNotificationPermission?: (next: NotificationPermission) => void;
+    /** The next kept picture drawn for a file waits until `__failHeldDraw` fails it. */
+    __holdNextDraw?: boolean;
+    __failHeldDraw?: () => void;
   }
 }
 
@@ -912,6 +929,7 @@ export async function recordNotifications(target: Page | BrowserContext, standIn
       });
     };
     let permission: NotificationPermission = s.permission ?? 'granted';
+    window.__setNotificationPermission = (next: NotificationPermission) => { permission = next; };
     class RecordedNotification extends EventTarget {
       static get permission() { return permission; }
       static requestPermission = async () => {

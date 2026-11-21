@@ -20,6 +20,7 @@ import { test, expect, type BrowserContext, type Locator, type Page } from '@pla
 
 import {
   CUSTOM_PRESET,
+  doubleText,
   near,
   notesOf,
   pixelsAt,
@@ -242,6 +243,32 @@ for (const look of ['dark', 'light'] as const) {
   }
 }
 
+test.describe('A sighting at 320 px and 200 per cent text', () => {
+  test.use({ viewport: { width: 320, height: 1000 } });
+
+  test('the close-up and the pet’s photo stand side by side inside the picture block, at the tiles’ shape', async ({ page, context }) => {
+    test.setTimeout(240_000);
+    await setUp(context);
+    await stripedCamera(page);
+    await watchForStripes(page);
+    const card = sightings(page).first();
+    await expect(card).toBeVisible({ timeout: 90_000 });
+    await timeOf(card);
+    await doubleText(page);
+    const tiles = card.locator('.alert-picture__tile');
+    await expect(tiles).toHaveCount(2);
+    await expect(card.getByRole('img', { name: PET_PHOTO, exact: true })).toBeVisible();
+    const block = (await card.locator('.alert-picture').first().boundingBox())!;
+    const [first, second] = [(await tiles.nth(0).boundingBox())!, (await tiles.nth(1).boundingBox())!];
+    expect(Math.abs(first.y - second.y), 'the two tiles stand side by side').toBeLessThanOrEqual(2);
+    expect(second.x).toBeGreaterThanOrEqual(first.x + first.width);
+    expect(second.x + second.width, 'the pet’s photo ends inside the picture block').toBeLessThanOrEqual(block.x + block.width + 0.5);
+    for (const tile of [first, second]) {
+      expect(Math.abs(tile.width / tile.height - 4 / 3), 'each tile keeps its 4:3 shape').toBeLessThanOrEqual(0.05);
+    }
+  });
+});
+
 test.describe('A sighting on the watch, 390 px', () => {
   test.use({ viewport: { width: 390, height: 1000 } });
 
@@ -321,13 +348,21 @@ test.describe('A sighting on the watch, 1280 px', () => {
 
     const card = sightings(page).first();
     const first = await timeOf(card);
+    const firstSeen = Date.now();
     const firstSrc = await card.getByRole('img', { name: pictureName(first), exact: true }).getAttribute('src');
+    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+    const [firstRow] = keptRows(await readDatabase(page));
     await expect.poll(async () => (await ownSoundCounts(page)).passes, { timeout: 15_000 }).toBe(1);
     // Between alerts the checks go on twice a second and start no sound.
     await page.waitForTimeout(10_000);
     expect((await ownSoundCounts(page)).passes, 'the sound plays once an alert, not once a check').toBe(1);
 
+    // Each repeat comes a Cooldown Period (30 seconds) after the alert before it, not sooner.
+    await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 60_000 });
+    const firstRepeat = Date.now();
+    expect(firstRepeat - firstSeen, 'the first repeat waits the Cooldown Period').toBeGreaterThanOrEqual(27_000);
     await expect(card.getByText('Repeated 2 times', { exact: true })).toBeVisible({ timeout: 90_000 });
+    expect(Date.now() - firstRepeat, 'the second repeat waits the Cooldown Period').toBeGreaterThanOrEqual(27_000);
     await expect(sightings(page)).toHaveCount(1);
     const newest = await timeOf(card);
     expect(newest).not.toBe(first);
@@ -335,9 +370,28 @@ test.describe('A sighting on the watch, 1280 px', () => {
     await expect(newestPicture).toBeVisible();
     expect(await newestPicture.getAttribute('src')).not.toBe(firstSrc);
     await expect.poll(async () => (await ownSoundCounts(page)).passes, { timeout: 15_000 }).toBe(3);
-    // The store holds one set for the entry: the newest.
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+    // The store holds one set for the entry: the newest, which the entry's alert names.
+    await expect.poll(async () => {
+      const reading = await readDatabase(page);
+      const kept = keptRows(reading);
+      const alert = reading.alerts.find((saved) => saved.kind === 'sighting');
+      return kept.length === 1 && kept[0].id !== firstRow.id && alert?.pictureId === kept[0].id;
+    }, { timeout: 15_000 }).toBe(true);
     expect((await readDatabase(page)).matchFrames).toEqual([]);
+  });
+
+  test('the stripes gone for 10 seconds keep the run: the next alert repeats on the same entry', async ({ page, context }) => {
+    test.setTimeout(300_000);
+    await setUp(context);
+    await stripedCamera(page);
+    await watchForStripes(page);
+    const card = sightings(page).first();
+    await timeOf(card);
+    await page.evaluate(() => { window.__stripes!.hidden = true; });
+    await page.waitForTimeout(10_000);
+    await page.evaluate(() => { window.__stripes!.hidden = false; });
+    await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 90_000 });
+    await expect(sightings(page)).toHaveCount(1);
   });
 
   test('the stripes gone for 40 seconds make the next sighting a new entry', async ({ page, context }) => {
@@ -388,12 +442,13 @@ test.describe('A sighting on the watch, 1280 px', () => {
       image.src = url;
     }), `data:image/jpeg;base64,${bytes.toString('base64')}`);
     expect(size, 'the camera’s whole picture, not the two side by side').toEqual([row.frameWidth, row.frameHeight]);
-    const edge = Math.round(row.box.x + row.box.width);
+    // The box's green line is the two pixels inside its right edge, as the file draws it, even where
+    // the region reaches the frame's right side.
+    const edge = Math.round(row.box.x) + Math.max(4, Math.round(row.box.width));
     const middle = Math.round(row.box.y + row.box.height / 2);
-    if (edge < row.frameWidth - 2) {
-      const across = await pixelsAt(page, `data:image/jpeg;base64,${bytes.toString('base64')}`, [[edge - 2, middle], [edge - 1, middle]]);
-      expect(across.some((rgb) => near(rgb, '#4ade80', 60)), `the region’s box is drawn in (${JSON.stringify(across)})`).toBe(true);
-    }
+    expect(edge, 'the region’s box stands inside the frame').toBeLessThanOrEqual(row.frameWidth);
+    const across = await pixelsAt(page, `data:image/jpeg;base64,${bytes.toString('base64')}`, [[edge - 2, middle], [edge - 1, middle]]);
+    expect(across.some((rgb) => near(rgb, '#4ade80', 60)), `the region’s box is drawn in (${JSON.stringify(across)})`).toBe(true);
   });
 
   test('History lists the sighting with its picture, and an older frame with the same words', async ({ page, context }) => {
@@ -455,8 +510,15 @@ test.describe('A sighting on the watch, 1280 px', () => {
     await expect(earlier.getByRole('img')).toHaveCount(1);
     expect(await wordsOf(earlier)).not.toMatch(/82|%|match/i);
 
-    // Both list under Lost & Found, and neither under Alerts.
     for (const row of [sighting, earlier]) expect(await wordsOf(row)).not.toMatch(FORBIDDEN);
+    // Both list under Lost & Found, and neither under Alerts.
+    const type = page.locator('select').filter({ has: page.locator('option[value="lost_found"]') });
+    await type.selectOption('lost_found');
+    await expect(sighting).toBeVisible();
+    await expect(earlier).toBeVisible();
+    await type.selectOption('alerts');
+    await expect(rows.filter({ hasText: QUESTION })).toHaveCount(0);
+    await type.selectOption('all');
     await sighting.getByRole('button', { name: /^Open picture: / }).click();
     const dialog = page.getByRole('dialog', { name: QUESTION, exact: true });
     await expect(dialog.getByRole('img', { name: PET_PHOTO, exact: true })).toBeVisible();
