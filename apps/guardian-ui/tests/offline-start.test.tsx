@@ -192,6 +192,28 @@ it('serves route data the router requests with a query from the installed build'
   expect(await response!.text()).toBe('route payload');
 });
 
+it('takes over once it has stored its build, so a returning visitor gets it on the next load', async () => {
+  const { cache } = prepareBrowser();
+  globalThis.fetch = jest.fn(async (input: RequestInfo | URL) => new Response(`page ${addressOf(input)}`));
+  const earlier = await cache.open('safeos-shell-earlier-build');
+  await earlier.put('http://localhost/', new Response('earlier page'));
+  const worker = loadWorker(cache, { version: 'build-b', urls: ['/', '/offline.html'] });
+  await worker.lifecycle('install');
+  expect(worker.self.skipWaiting).toHaveBeenCalledTimes(1);
+  await worker.lifecycle('activate');
+  expect(await cache.keys()).toEqual(['safeos-shell-build-b']);
+  expect(await (await worker.request('/', 'navigate'))!.text()).toBe('page /');
+});
+
+it('does not take over while its build could not be stored whole', async () => {
+  const { cache } = prepareBrowser();
+  globalThis.fetch = jest.fn(async (input: RequestInfo | URL) =>
+    addressOf(input) === '/offline.html' ? new Response('', { status: 404 }) : new Response(`page ${addressOf(input)}`));
+  const worker = loadWorker(cache, { version: 'build-c', urls: ['/', '/offline.html'] });
+  await expect(worker.lifecycle('install')).rejects.toThrow();
+  expect(worker.self.skipWaiting).not.toHaveBeenCalled();
+});
+
 it('a worker without a build list replaces an earlier build and leaves requests to the network', async () => {
   const { cache } = prepareBrowser();
   const earlier = await cache.open('safeos-shell-earlier-build');

@@ -56,8 +56,12 @@ self.addEventListener('install', (event) => {
     const cache = await caches.open(CACHE_NAME);
     // Installation succeeds only when HTML, scripts, styles and lazy chunks exist.
     await cache.addAll(manifest.urls);
+    // The new build takes over once it is stored whole, so a returning visitor
+    // gets it on their next page load, not after closing every tab. A page
+    // already open keeps the scripts it loaded; one that then asks for a file
+    // the new build replaced reloads once onto it (the app's error page).
+    await self.skipWaiting();
   })());
-  // Let an existing worker finish serving its build until its tabs close.
 });
 
 self.addEventListener('activate', (event) => {

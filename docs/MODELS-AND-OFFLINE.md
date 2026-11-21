@@ -33,8 +33,13 @@ Offline starts require two completed preparations:
 2. For person or animal detection, the agreed model download must finish. The
    model cache is separate from app caches and survives app updates.
 
-A worker serves one build consistently. A newer worker waits for tabs using the
-previous worker to close before activating and deleting the old app cache.
+A worker serves one build consistently. A newer worker takes over as soon as it
+has stored its whole build: it activates, deletes the old app cache and takes the
+open tabs, so a returning visitor gets the new build on the next page load, not
+after closing every tab. A page already open keeps the scripts it loaded; one that
+then asks for a file the new build replaced reloads once onto the new build (the
+app's error page). A worker whose build could not be stored whole does not take
+over.
 The worker file served before the postbuild step (`next dev`) carries no list:
 it stores nothing, leaves every request to the network, and replaces a worker an
 earlier build left on the same origin at once.
