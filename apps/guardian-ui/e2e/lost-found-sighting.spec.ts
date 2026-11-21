@@ -404,11 +404,11 @@ test.describe('A sighting on the watch, 1280 px', () => {
     const card = sightings(page).first();
     const time = await timeOf(card);
     await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
 
-    // The watch's Lost and Found panel links to History.
+    // The watch's Lost and Found panel, shown while it compares, links to History.
     const link = page.getByRole('link', { name: 'Open in History', exact: true });
     await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute('href', /^\/history\/?$/);
     await expect(page.getByText('View Match History')).toHaveCount(0);
 
     // A frame an earlier version saved for this pet, with its own thumbnail and score.
