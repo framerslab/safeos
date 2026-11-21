@@ -101,6 +101,8 @@ export interface AnimalAlertState {
   acknowledgeDetection: (id: string) => void;
   acknowledgeDetections: (ids: string[]) => void;
   updateDetectionNotes: (id: string, notes: string) => void;
+  /** Marks sightings as put in a downloaded bundle, so an incremental bundle leaves them out. */
+  markDetectionsExported: (ids: string[]) => void;
   deleteDetection: (id: string) => void;
   clearHistory: () => void;
   
@@ -175,6 +177,19 @@ function withStored(own: DetectionHistoryEntry[]): DetectionHistoryEntry[] {
   // A sighting this tab no longer holds is no longer waited on.
   for (const id of Array.from(unstored)) if (!mine.has(id)) unstored.delete(id);
   return Array.from(byId.values()).sort((a, b) => seenAt(b) - seenAt(a));
+}
+
+// The list this tab last wrote or read from storage, by reference. A write
+// whose list is still that one changes no sighting (the store persists its
+// whole state after every action, a live sighting cleared or the watch
+// stopped too), so storage keeps the list as stored, which another tab may
+// have changed since: this tab's copy never takes back another tab's mark or
+// delete.
+let historyWritten: DetectionHistoryEntry[] | null = null;
+function historyToWrite(own: DetectionHistoryEntry[]): DetectionHistoryEntry[] {
+  if (own === historyWritten) return storedSightings() ?? own;
+  historyWritten = own;
+  return own;
 }
 
 export const useAnimalAlertStore = create<AnimalAlertState>()(
@@ -272,6 +287,13 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
           ),
         })),
 
+      markDetectionsExported: (ids) => {
+        const put = new Set(ids);
+        set((state) => ({
+          detectionHistory: withStored(state.detectionHistory).map((d) => (put.has(d.id) ? { ...d, exported: true } : d)),
+        }));
+      },
+
       deleteDetection: (id) => {
         set((state) => ({
           detectionHistory: withStored(state.detectionHistory).filter((d) => d.id !== id),
@@ -327,9 +349,12 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
       // A sighting read from storage again calls none of the actions above,
       // so two tabs never answer each other without end.
       storage: createJSONStorage(() => guardedStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state) historyWritten = state.detectionHistory;
+      },
       partialize: (state) => ({
         settings: state.settings,
-        detectionHistory: state.detectionHistory,
+        detectionHistory: historyToWrite(state.detectionHistory),
         totalDetections: state.totalDetections,
         sizeFilter: state.sizeFilter,
         dangerFilter: state.dangerFilter,

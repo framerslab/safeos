@@ -21,21 +21,37 @@ import { SinceYouLastLooked } from './SinceYouLastLooked';
 import { WatchState } from './WatchState';
 import { WaysToWatch } from './WaysToWatch';
 
-/** Every saved Lost and Found subject, read once when the page opens; null until read, [] when the read fails. */
+/**
+ * Every saved Lost and Found subject, read when the page opens and again each
+ * time the person comes back to the tab, so a pet deleted in another tab is
+ * not offered; null until first read, [] when the read fails.
+ */
 export function useSavedSubjects(): SubjectProfileDB[] | null {
   const [subjects, setSubjects] = useState<SubjectProfileDB[] | null>(null);
   useEffect(() => {
     let live = true;
-    getAllSubjectProfiles()
-      .then((saved) => {
-        if (live) setSubjects(saved);
-      })
-      // A list that cannot be read counts as no pet saved.
-      .catch(() => {
-        if (live) setSubjects([]);
-      });
+    let reads = 0;
+    const read = () => {
+      const mine = ++reads;
+      getAllSubjectProfiles()
+        .then((saved) => {
+          if (live && mine === reads) setSubjects(saved);
+        })
+        // A list that cannot be read counts as no pet saved.
+        .catch(() => {
+          if (live && mine === reads) setSubjects([]);
+        });
+    };
+    const back = () => {
+      if (document.visibilityState !== 'hidden') read();
+    };
+    read();
+    window.addEventListener('focus', back);
+    document.addEventListener('visibilitychange', back);
     return () => {
       live = false;
+      window.removeEventListener('focus', back);
+      document.removeEventListener('visibilitychange', back);
     };
   }, []);
   return subjects;

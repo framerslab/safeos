@@ -177,6 +177,12 @@ function askOverChannel(start?: Turn): Promise<{ watching: boolean; way?: WayId 
       if (message.type === 'watch-answer' || message.type === 'watch-started') {
         done(message.way ? { watching: true, way: message.way } : { watching: true });
       }
+      // Another tab's start that came first: that tab goes on, and this one
+      // asks the person. The tab that came first may have heard this tab's
+      // ask before it had a start of its own to answer with.
+      if (start && message.type === 'watch-ask' && message.start && message.start.tab !== start.tab && first(message.start, start)) {
+        done({ watching: true });
+      }
     });
     const timer = setTimeout(() => done({ watching: false }), ANSWER_WAIT_MS);
     tellTabs(start ? { type: 'watch-ask', start } : { type: 'watch-ask' });

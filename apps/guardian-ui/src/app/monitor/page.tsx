@@ -406,18 +406,23 @@ export default function MonitorPage() {
           // Server acknowledgements do not own the local camera request.
           setStreamId(captureRequestedRef.current ? `local-${Date.now()}` : null);
           break;
-        case 'alert':
+        case 'alert': {
+          // Only the running watch's own alerts sound: a late alert of a watch that has ended is
+          // listed, new and silent.
+          const streamId = message.payload?.streamId || '';
+          const raised = captureRequestedRef.current && streamId !== '' && streamId === useMonitoringStore.getState().streamId;
           addAlert({
             id: message.payload?.id || newAlertId('server'),
-            streamId: message.payload?.streamId || '',
+            streamId,
             alertType: message.payload?.alertType,
             thumbnailUrl: message.payload?.thumbnailUrl,
             severity: message.payload?.severity || 'medium',
             message: message.payload?.message || 'Alert detected',
             timestamp: message.payload?.timestamp || new Date().toISOString(),
             acknowledged: false,
-          });
+          }, { raised });
           break;
+        }
         case 'pong':
           // Heartbeat received
           break;
@@ -465,7 +470,7 @@ export default function MonitorPage() {
   const { guard, dialog } = useStartGuard();
   // The press turns the sound on before the other tabs answer: a browser that
   // keeps a page's sound off until a tap turns it on only inside the tap.
-  const pressStart = (start: () => void) => (event: React.MouseEvent<HTMLButtonElement>) => {
+  const pressStart = (start: () => unknown) => (event: React.MouseEvent<HTMLButtonElement>) => {
     getSoundManager().unlockAudio();
     void guard(start, event.currentTarget);
   };
@@ -576,6 +581,8 @@ export default function MonitorPage() {
   // while it is the setting in use; a setting the person chose during the nap
   // stays.
   const endNap = () => {
+    // A Resume nap still waiting for the other tabs' answer starts nothing.
+    napRef.current = null;
     setNap(null);
     setNapWaitsForTap(false);
     keepNap(null);
@@ -629,7 +636,10 @@ export default function MonitorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (captureRequested) setNapWaitsForTap(false); }, [captureRequested]);
-  const resumeNap = () => {
+  // Resume nap resumes the nap it was pressed for: End nap while the other
+  // tabs answer leaves that press with nothing to start.
+  const resumeNap = (pressed: Nap | null) => () => {
+    if (!pressed || napRef.current !== pressed) return false;
     setNapWaitsForTap(false);
     startStream();
   };
@@ -1393,7 +1403,7 @@ export default function MonitorPage() {
               This nap stopped watching when the page reloaded, and the browser keeps its sound off until you tap. Resume nap turns the sound on and starts the camera again.
             </p>
             <button
-              onClick={pressStart(resumeNap)}
+              onClick={pressStart(resumeNap(nap))}
               className="min-h-[44px] px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
             >
               Resume nap

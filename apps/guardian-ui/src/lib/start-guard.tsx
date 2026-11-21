@@ -24,11 +24,16 @@ import { askOtherTabs, releaseStart, takeOverWatch } from './tab-channel';
  * to `opener`. A start whose page was left before it could run does not run.
  * A tab told none watches holds the start (`askOtherTabs`) until the way's
  * watch begins, so a press in another tab meanwhile asks the person; a
- * `start` that returns a promise lets go of it when the promise settles, and
- * leaving the page lets go of it too.
+ * `start` that returns a promise lets go of it when the promise settles, a
+ * `start` that returns false started nothing and lets go of it at once, and
+ * leaving the page lets go of it too. `ready`, when given, is asked as Watch
+ * here is pressed, before the other tab is stopped: false keeps the other
+ * tab watching and starts nothing (the page shows why). Watch here gives
+ * focus back to `opener`, as Cancel does, so a start that fails leaves the
+ * person on its key.
  */
 export function useStartGuard() {
-  const [asked, setAsked] = useState<{ start: () => unknown; opener: HTMLElement | null } | null>(null);
+  const [asked, setAsked] = useState<{ start: () => unknown; opener: HTMLElement | null; ready?: () => boolean } | null>(null);
   // An answer that comes after the page was left starts nothing.
   const shown = useRef(true);
   useEffect(() => {
@@ -39,17 +44,21 @@ export function useStartGuard() {
     };
   }, []);
 
-  const guard = useCallback(async (start: () => unknown, opener: HTMLElement | null = null) => {
+  const guard = useCallback(async (start: () => unknown, opener: HTMLElement | null = null, ready?: () => boolean) => {
     const answer = await askOtherTabs();
     if (!shown.current) {
       if (!answer.watching) releaseStart();
       return;
     }
     if (answer.watching) {
-      setAsked({ start, opener });
+      setAsked({ start, opener, ready });
       return;
     }
     const started = start();
+    if (started === false) {
+      releaseStart();
+      return;
+    }
     if (started instanceof Promise) {
       try {
         await started;
@@ -64,11 +73,24 @@ export function useStartGuard() {
       onWatchHere={() => {
         const ask = asked;
         setAsked(null);
+        const back = () => {
+          if (ask.opener?.isConnected) ask.opener.focus();
+        };
+        // What the start needs has changed since the question showed: the
+        // other tab goes on watching.
+        if (ask.ready && !ask.ready()) {
+          back();
+          return;
+        }
         void takeOverWatch().then((stopped) => {
           if (!shown.current) return;
           // A tab that goes on answering is watching: the question stays.
-          if (stopped) ask.start();
-          else setAsked(ask);
+          if (!stopped) {
+            setAsked(ask);
+            return;
+          }
+          ask.start();
+          back();
         });
       }}
       onCancel={() => {

@@ -291,7 +291,7 @@ export default function NapModePage() {
         // apply since the page last drew shows, and the nap waits for the next press.
         if (napSilence(useSettingsStore.getState(), napDuration) !== silence) {
             setClockNow(Date.now());
-            return;
+            return false;
         }
         // Stop any test sounds before activating nap mode
         if (testSoundId) {
@@ -322,13 +322,28 @@ export default function NapModePage() {
     // warning that has come to apply shows before anything is asked. The press
     // turns the sound on before the other tabs answer: a browser that keeps a
     // page's sound off until a tap turns it on only inside the tap.
+    // The start belongs to the check run it was pressed in: Back while the
+    // other tabs answer, or before Watch here's takeover ends, starts nothing.
+    // Watch here checks quiet hours again before it stops the other tab, so a
+    // warning that has come to apply shows while that tab goes on watching.
     const pressStartNap = (event: React.MouseEvent<HTMLButtonElement>) => {
         if (napSilence(useSettingsStore.getState(), napDuration) !== silence) {
             setClockNow(Date.now());
             return;
         }
         getSoundManager().unlockAudio();
-        void guard(activateNapMode, event.currentTarget);
+        const run = checkRunRef.current;
+        const sameRun = () => !closedRef.current && run === checkRunRef.current;
+        const quietUnchanged = () => {
+            if (napSilence(useSettingsStore.getState(), napDuration) === silence) return true;
+            setClockNow(Date.now());
+            return false;
+        };
+        void guard(
+            () => (sameRun() ? activateNapMode() : false),
+            event.currentTarget,
+            () => sameRun() && quietUnchanged(),
+        );
     };
 
     // ==========================================================================

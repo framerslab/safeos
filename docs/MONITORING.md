@@ -191,6 +191,10 @@ that has been acknowledged stays as it is, and the next repeat makes a new card.
 The same holds for a card acknowledged, dismissed or cleared in another tab: the
 repeat reads the saved card in the same database transaction as its write, leaves
 what the other tab did, and goes on a new card, which the event's later repeats update.
+The new card sounds and escalates while the watch that raised the old card runs; a
+repeat that lands after that watch ended goes on a silent card. An alert the
+monitoring server sends for another stream than the running watch's (a late alert of
+a watch that has ended) is listed as new and stays silent.
 A custom sound set to loop for the alert's trigger plays one copy while it loops: a
 repeat does not start a second copy on top of it, and counts no play in Settings >
 Sounds.

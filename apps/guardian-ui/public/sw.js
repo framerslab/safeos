@@ -24,11 +24,23 @@ function storedPage(url) {
 // "Clear All Local Data" removes the installed copy while this worker stays
 // active, and a worker installs again only for a new build. So a load that
 // reaches the network and finds the copy empty stores the build's files again.
+// A file that meets a passing error (a 503, a dropped connection) fails the
+// whole store, so it is tried again after 2, 8 and 30 seconds while the
+// device has a connection; a store that succeeds is not tried again.
+const REFILL_WAITS_MS = [2_000, 8_000, 30_000];
 let refilling = null;
 function refillIfEmpty(cache) {
   if (!refilling) {
     refilling = (async () => {
-      if ((await cache.keys()).length === 0) await cache.addAll(manifest.urls);
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          if ((await cache.keys()).length === 0) await cache.addAll(manifest.urls);
+          return;
+        } catch (error) {
+          if (attempt >= REFILL_WAITS_MS.length || self.navigator?.onLine === false) throw error;
+          await new Promise((resolve) => setTimeout(resolve, REFILL_WAITS_MS[attempt]));
+        }
+      }
     })().catch(() => {}).finally(() => { refilling = null; });
   }
   return refilling;

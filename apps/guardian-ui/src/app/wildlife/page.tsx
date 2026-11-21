@@ -193,7 +193,14 @@ export default function WildlifePage() {
 
   const download = useDetectionModel();
   const [detectorReady, setDetectorReady] = useState(false);
-  const modelStatus = !download.setupComplete ? 'idle' : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
+  // The animal check could not start on this device (its model files are
+  // stored, but the browser could not run them).
+  const [detectorFailed, setDetectorFailed] = useState(false);
+  const modelStatus = !download.setupComplete
+    ? 'idle'
+    : download.status === 'ready' && detectorFailed
+      ? 'error'
+      : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
   const [showSettings, setShowSettings] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [flashColor, setFlashColor] = useState('#ef4444');
@@ -226,10 +233,13 @@ export default function WildlifePage() {
     if (download.status !== 'ready' || !download.setupComplete) return;
     let cancelled = false;
     const detector = detectorRef.current;
+    setDetectorFailed(false);
     void detector.initialize().then(() => {
       if (!cancelled) setDetectorReady(true);
     }).catch(() => {
-      if (!cancelled) setDetectorReady(false);
+      if (cancelled) return;
+      setDetectorReady(false);
+      setDetectorFailed(true);
     });
     return () => {
       cancelled = true;
@@ -356,6 +366,12 @@ export default function WildlifePage() {
     if (startAsked.current) useAnimalAlertStore.getState().setMonitoring(true);
   }, []);
 
+  // A watch whose animal check cannot start ends: its camera closes, and the
+  // other tabs hear that nothing watches here.
+  useEffect(() => {
+    if (isMonitoring && detectorFailed) useAnimalAlertStore.getState().setMonitoring(false);
+  }, [isMonitoring, detectorFailed]);
+
   // The watch runs from its start until it stops, and the other tabs hear of
   // it from the start. This effect's end is the watch's one end, whatever
   // stopped it: the page's key, another tab, or leaving the page.
@@ -472,11 +488,22 @@ export default function WildlifePage() {
                   </span>
                 )}
               </div>
+              {detectorFailed && (
+                <p role="alert" className="p-4 text-sm text-amber-200 border-b border-slate-700">
+                  Wildlife could not start its animal check in this browser. Reload the page to try again.
+                </p>
+              )}
               <CameraFeed
                 scenario="pet"
                 enabled={isMonitoring && modelStatus === 'ready'}
                 showDebug={true}
                 audioEnabled={false}
+                onError={() => {
+                  // A camera that fails or is lost ends the watch; Start Monitoring starts it again.
+                  const store = useAnimalAlertStore.getState();
+                  store.setMonitoring(false);
+                  store.clearCurrentDetections();
+                }}
                 onVideoReady={(video) => {
                   videoRef.current = video;
                 }}

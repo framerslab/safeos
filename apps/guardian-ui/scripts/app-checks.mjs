@@ -41,7 +41,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     } finally {
       clearTimeout(limit);
       if (made.context) await made.context.close().catch((err) => fail(`${name} at ${width} px, ${look}: its browser did not close: ${err.message.split('\n')[0]}`));
-      if (made.folder) await rm(made.folder, { recursive: true, force: true });
+      if (made.folder) await rm(made.folder, { recursive: true, force: true }).catch((err) => fail(`${name} at ${width} px, ${look}: its profile folder was not removed: ${err.message.split('\n')[0]}`));
     }
   };
 
@@ -1089,7 +1089,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     const close = landsOn(controls[0], controls[0]);
     const last = controls[controls.length - 1];
     last.scrollIntoView({ block: 'end' });
-    return { close, offScreen, last: landsOn(last, overlay) };
+    return { close, offScreen, last: landsOn(last, last) };
   };
   const checkOverlay = async (overlay, check, what) => {
     await overlay.waitFor({ timeout: 10_000 });
@@ -1392,6 +1392,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         }, FRAME_PARTS);
         const scratch = await context.newPage();
         let covered = false;
+        let measured = 0;
         for (const [index, item] of marked.entries()) {
           if (item.part === '.app-shell__footer' && !covered) {
             // The fixed header and bar would cover footer words scrolled under them.
@@ -1401,10 +1402,11 @@ export async function checkApp(browser, baseUrl, outDir) {
           const picture = await page.locator(`[data-measure="${index}"]`).screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
           const read = await scratch.evaluate(readStrokes, picture.toString('base64'));
           if (!read) continue;
+          measured += 1;
           check(read.strokes >= 7, `"${item.words}" in ${item.part} measures ${read.strokes.toFixed(2)}:1 on its strokes (core ${read.core.toFixed(2)}:1), under 7`);
         }
         await scratch.close();
-        check(marked.length > 10, `only ${marked.length} quiet words of the frame were measured from the pixels`);
+        check(measured > 10, `only ${measured} of ${marked.length} quiet words of the frame were measured from the pixels; ${marked.length - measured} had too little ink to measure`);
       });
     }
   }
@@ -1761,8 +1763,12 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
 
     await open({ name: 'header, script held', width: 1280, look }, async (page, context, check) => {
+      // The script is held until the frame before it has been read, however
+      // long the fonts take.
+      let release;
+      const held = new Promise((resolve) => { release = resolve; });
       await context.route('**/_next/static/chunks/**', async (route) => {
-        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await held;
         await route.continue().catch(() => {});
       });
       await page.goto(address('/history/'), { waitUntil: 'commit', timeout: 60_000 });
@@ -1788,6 +1794,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       HEADER_ROW.forEach((words, i) => check(before.hrefs[i] !== '', `while the script is held, ${words} has no address`));
       check(before.place === 44, `while the script is held, the look switch's place is ${before.place} px wide, not 44`);
       check(before.history === 'History', `while the script is held, History reads "${before.history}"`);
+      release();
       await page.locator('header.app-header .look-switch').waitFor({ timeout: 30_000 });
       const after = await read();
       HEADER_ROW.forEach((words, i) => {
@@ -1869,10 +1876,11 @@ export async function checkApp(browser, baseUrl, outDir) {
 
   await open({ name: 'offline, typed addresses', width: 390, look: 'light' }, async (page, context, check) => {
     await visitThenOffline(page, context);
-    for (const typed of ['/monitor', '/history', '/monitor/?source=shortcut']) {
+    // Each address opens its own page: a nonempty page under another heading fails.
+    for (const [typed, heading] of [['/monitor', 'Motion and sound'], ['/history', 'History'], ['/monitor/?source=shortcut', 'Motion and sound']]) {
       await visit(page, typed);
       const seen = await shown(page);
-      check(itsPage(seen), `${typed} opened offline shows ${whatShows(seen)}, not its stored page`);
+      check(itsPage(seen) && seen.h1 === heading, `${typed} opened offline shows ${whatShows(seen)}, not its stored page headed "${heading}"`);
     }
   });
 
@@ -2238,6 +2246,9 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(ended, 'after Watch here the first tab does not read Start Monitoring');
     const on = await camerasOn(page);
     check(on === 0, `after Watch here the first tab holds ${on} live cameras`);
+    // The start then runs in the second tab: Lost and Found's key opens Monitor with the pet.
+    const opened = await second.waitForURL((url) => url.pathname === '/monitor/', { timeout: 10_000 }).then(() => true, () => false);
+    check(opened, `after Watch here the second tab stays on ${new URL(second.url()).pathname}, not Monitor`);
   }, { script: FAKE_CAMERA });
 
   for (const width of [390, 1280]) {
@@ -2736,23 +2747,24 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(seen.preset === preset && seen.motion === motion, `${when} the saved setting is ${seen.preset} at ${seen.motion}, not ${preset} at ${motion}`);
     };
     // The last step's one key, whatever it reads, and the page it opens.
-    const finish = async (step) => {
+    const finish = async (step, when) => {
       await step.getByRole('button').first().click();
       await reaches(page, '/dashboard', 20_000);
+      check(pathOf(page) === '/dashboard', `${when} the last key opens ${pathOf(page)}, not /dashboard`);
     };
 
     await visit(page, '/setup/');
     let step = await throughSetup(page, 'Baby Monitoring');
     await lastStep(step);
     await holds('with the baby use, before the last key,', 'infant_sleep', 98);
-    await finish(step);
+    await finish(step, 'with the baby use,');
     await holds('with the baby use, after the last key,', 'infant_sleep', 98);
 
     await visit(page, '/setup/?again=1');
     step = await throughSetup(page, 'Elderly Care');
     await lastStep(step);
     await holds('run again with the elderly use, before the last key,', 'infant_sleep', 98);
-    await finish(step);
+    await finish(step, 'run again with the elderly use,');
     await holds('run again with the elderly use, after the last key,', 'maximum', 80);
   }, { state: 'new' });
 
@@ -3105,17 +3117,22 @@ export async function checkApp(browser, baseUrl, outDir) {
 
   // ----- The first screen -----
 
-  // The use setup stored, written after the finished setup.
+  // The use setup stored, written after the finished setup. The walk installs
+  // it alone (no SETUP_DONE beside it), as the browser runs two init scripts
+  // in no set order and SETUP_DONE stores the pet use.
   const USE_STORED = (use) => {
     localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
       isComplete: true, selectedScenario: use,
       acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
     }, version: 0 }));
+    localStorage.setItem('guardian-onboarding-complete', 'true');
   };
   for (const [look, use] of [['light', 'baby'], ['dark', 'security']]) {
     await open({ name: 'dashboard, first screen', width: 390, height: 844, look }, async (page, context, check) => {
       await context.addInitScript(USE_STORED, use);
       await openDash(page);
+      const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-onboarding') || 'null')?.state?.selectedScenario ?? null);
+      check(stored === use, `the device holds the ${stored} use, not ${use}`);
       await page.evaluate(() => document.fonts.ready);
       const seen = await page.evaluate(() => {
         const words = (el) => (el ? (el.textContent || '').replace(/’/g, "'").replace(/\s+/g, ' ').trim() : null);
@@ -3161,7 +3178,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(seen.barTop !== null, 'the page has no phone bar');
       if (fourth && seen.barTop !== null) check(fourth.bottom <= seen.barTop + 0.5, `the fourth row ends at ${fourth.bottom} px, past the phone bar's top at ${seen.barTop} px`);
       await page.screenshot({ path: path.join(outDir, `dashboard-first-390-${look}.png`) });
-    });
+    }, { state: 'stored' });
   }
 
   // The first screen holds 8 controls, 7 text styles, these 8 boxes, and
@@ -3287,14 +3304,16 @@ export async function checkApp(browser, baseUrl, outDir) {
         // The fixed header and bar would cover words scrolled under them.
         await page.addStyleTag({ content: 'header.app-header, nav.phone-bar { visibility: hidden !important; }' });
         const scratch = await context.newPage();
+        let measured = 0;
         for (const [index, words] of marked.entries()) {
           const picture = await page.locator(`[data-measure="${index}"]`).screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
           const read = await scratch.evaluate(readStrokes, picture.toString('base64'));
           if (!read) continue;
+          measured += 1;
           check(read.strokes >= 7, `"${words}" measures ${read.strokes.toFixed(2)}:1 on its strokes (core ${read.core.toFixed(2)}:1), under 7`);
         }
         await scratch.close();
-        check(marked.length >= 4, `only ${marked.length} quiet words of the dashboard were measured from the pixels`);
+        check(measured >= 4, `only ${measured} of ${marked.length} quiet words of the dashboard were measured from the pixels; ${marked.length - measured} had too little ink to measure`);
       });
     }
   }

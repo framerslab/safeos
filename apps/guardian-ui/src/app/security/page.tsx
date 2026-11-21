@@ -31,7 +31,7 @@ import { startSecurityAlert, stopSecurityAlert } from '../../lib/tts-alerts';
 import { deleteIntrusionFrame, saveIntrusionFrame, type IntrusionFrameDB } from '../../lib/client-db';
 import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
 import { announceWatch } from '../../lib/tab-channel';
-import { dropStart, takeStart } from '../../lib/camera-handoff';
+import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
 import { useStartGuard } from '../../lib/start-guard';
 
 // =============================================================================
@@ -355,16 +355,17 @@ export default function SecurityPage() {
   const { guard, dialog } = useStartGuard();
 
   // A start the dashboard's key asked for arms the page once its model is
-  // ready; the camera the key opened waits for the countdown to end.
-  const [startAsked, setStartAsked] = useState(false);
+  // ready; the camera the key opened waits for the countdown to end. Another
+  // tab that took over while the model loaded dropped the start: nothing arms.
+  const [startAsked, setStartAsked] = useState<StartRequest | null>(null);
   useEffect(() => {
-    if (takeStart('security')) setStartAsked(true);
+    const start = takeStart('security');
+    if (start) setStartAsked(start);
   }, []);
   useEffect(() => {
-    if (startAsked && modelStatus === 'ready' && armingState === 'disarmed') {
-      setStartAsked(false);
-      useSecurityStore.getState().arm();
-    }
+    if (!startAsked || modelStatus !== 'ready' || armingState !== 'disarmed') return;
+    setStartAsked(null);
+    if (startHeld(startAsked)) useSecurityStore.getState().arm();
   }, [startAsked, modelStatus, armingState]);
 
   // The watch runs from the press that arms it until it is disarmed, and the

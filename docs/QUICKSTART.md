@@ -167,9 +167,11 @@ SafeOS keeps a local incident log in your browser:
   - Monitoring alerts (a card whose event alerted again is listed at its newest alert)
   - Lost & Found match frames
   - Security intrusion frames
-- Add notes, filter/search, and export a local bundle:
-  - **Download Bundle (.json)** (or **.json.gz** in supported browsers)
-  - Optional “incremental export” (only unexported frames)
+  - Wildlife sightings
+- History opens on Local Timeline when this device holds new alerts, and marks them as seen there.
+- Add notes, filter/search (the Type filter has Wildlife), and export a local bundle:
+  - **Download Bundle (.json)** (or **.json.gz** in supported browsers), with Wildlife's sightings under `wildlife.sightings`
+  - Optional “incremental export” (only unexported frames and sightings)
 
 ### Notification Channels
 

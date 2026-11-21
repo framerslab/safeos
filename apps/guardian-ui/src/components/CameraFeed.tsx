@@ -13,7 +13,7 @@ import { detectMotion, detectMotionInZones, getThresholdForScenario } from '../l
 import { getAudioLevel, detectCryingPattern, resetCryDetection, AUDIO_THRESHOLDS, ANALYSER_SIZE, analyserSizeFor, pitchRangeOf } from '../lib/audio-levels';
 import { PixelDetectionEngine, type PixelDetectionResult } from '../lib/pixel-detection';
 import { useSettingsStore, type DetectionZone as SettingsDetectionZone } from '../stores/settings-store';
-import { takeHeldCamera } from '@/lib/camera-handoff';
+import { closeCamera, takeHeldCamera } from '@/lib/camera-handoff';
 import { cameraConstraints } from '@/lib/camera-constraints';
 
 // =============================================================================
@@ -250,8 +250,17 @@ export function CameraFeed({
       setIsLoading(true);
       setError(null);
       // A camera the dashboard's key opened for this page is used as it is:
-      // the browser was asked once, while the dashboard was on screen.
+      // the browser was asked once, while the dashboard was on screen. One
+      // that is not the camera chosen now (another was chosen while the page
+      // got ready) is closed, and the chosen one is asked for.
       acquired = takeHeldCamera();
+      if (acquired && deviceId) {
+        const heldDevice = acquired.getVideoTracks()[0]?.getSettings?.().deviceId;
+        if (heldDevice !== undefined && heldDevice !== deviceId) {
+          closeCamera(acquired);
+          acquired = null;
+        }
+      }
       if (!acquired) {
         try {
           acquired = await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, audioEnabled));

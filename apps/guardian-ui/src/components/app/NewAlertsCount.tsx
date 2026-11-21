@@ -25,13 +25,18 @@ export function newAlertsWords(count: number): string {
   return `${count} new ${count === 1 ? 'alert' : 'alerts'}`;
 }
 
-/** A status region no eye sees: says the count once each time it rises after the first read, and nothing when it falls. */
+/**
+ * A status region no eye sees: says the count once each time it rises after
+ * the first read, and nothing when it falls. A fall empties it, so a rise to
+ * a count it said before is said again.
+ */
 export function NewAlertsSaid({ count, ready }: { count: number; ready: boolean }) {
   const [said, setSaid] = useState('');
   const last = useRef<number | null>(null);
   useEffect(() => {
     if (!ready) return;
     if (last.current !== null && count > last.current) setSaid(newAlertsWords(count));
+    else if (last.current !== null && count < last.current) setSaid('');
     last.current = count;
   }, [count, ready]);
   return (

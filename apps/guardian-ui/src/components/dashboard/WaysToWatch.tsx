@@ -7,7 +7,8 @@
  * device is read. Once it is read, Lost and Found shows the pet it watches
  * for (never a person), People's line follows the number of people allowed,
  * and a square stands before the name of the way Start watching uses. Before
- * setup each row opens setup with its way named. Offline, People and
+ * setup, and before the device is read, each row opens setup with its way
+ * named; setup sends a device already set up on to that way. Offline, People and
  * Wildlife say they need a connection until their detection model is on this
  * device.
  *
@@ -29,7 +30,7 @@ import { readLastWay, type LastWay } from '@/lib/watch-session';
 import { useSecurityStore } from '@/stores/security-store';
 
 export interface WaysToWatchProps {
-  /** null until read; false before setup, when a row opens setup with its way named. */
+  /** null until read; false before setup. Until it reads true a row opens setup with its way named. */
   setUp: boolean | null;
   /** Every saved Lost and Found subject; null until read. */
   subjects: SubjectProfileDB[] | null;
@@ -140,7 +141,7 @@ export function WaysToWatch({ setUp, subjects }: WaysToWatchProps) {
           return (
             <li key={way.id} className="way">
               <Link
-                href={setUp === false ? `/setup/?next=${way.id}` : way.href}
+                href={setUp === true ? way.href : `/setup/?next=${way.id}`}
                 className="way__link"
                 aria-label={`${way.name}: ${plain(words)}${uses ? ' Start watching uses this way' : ''}`}
               >

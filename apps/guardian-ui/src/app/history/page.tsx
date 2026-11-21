@@ -60,7 +60,7 @@ interface AnalysisResult {
 type ViewMode = 'local' | 'alerts' | 'analysis';
 type FilterSeverity = 'all' | 'info' | 'low' | 'medium' | 'high' | 'critical';
 
-type LocalFilterType = 'all' | 'alerts' | 'lost_found' | 'intrusions';
+type LocalFilterType = 'all' | 'alerts' | 'lost_found' | 'intrusions' | 'wildlife';
 type LocalTimelineSeverity = FilterSeverity;
 
 interface LocalTimelineEvent {
@@ -158,20 +158,30 @@ export default function HistoryPage() {
   const [isExportingLocal, setIsExportingLocal] = useState(false);
 
   // Quiet: another tab saved or marked an alert, and the list takes it in
-  // place, with no loading wheel over it.
+  // place, with no loading wheel over it. A read that began before an edit
+  // this page saved (Mark Exported, a note) could hold the frames as they were
+  // before it, so its answer is set aside and the frames are read again.
+  const localEdits = useRef(0);
+  const [localReady, setLocalReady] = useState(false);
   const loadLocalData = useCallback(async (quiet = false) => {
     if (!quiet) setLocalLoading(true);
     setLocalError(null);
 
     try {
-      const [matches, intrusions, profiles] = await Promise.all([
-        getAllMatchFrames(250),
-        getAllIntrusionFrames(250),
-        getAllSubjectProfiles(),
-      ]);
-      setMatchFrames(matches);
-      setIntrusionFrames(intrusions);
-      setSubjects(profiles);
+      for (;;) {
+        const edits = localEdits.current;
+        const [matches, intrusions, profiles] = await Promise.all([
+          getAllMatchFrames(250),
+          getAllIntrusionFrames(250),
+          getAllSubjectProfiles(),
+        ]);
+        if (edits !== localEdits.current) continue;
+        setMatchFrames(matches);
+        setIntrusionFrames(intrusions);
+        setSubjects(profiles);
+        setLocalReady(true);
+        break;
+      }
     } catch (err) {
       setLocalError('Failed to load local timeline data');
     } finally {
@@ -183,14 +193,23 @@ export default function HistoryPage() {
 
   // Opening History marks every new alert as seen, once for each opening: an
   // alert that arrives while it is open stays new, so a tab left on History
-  // never silences a running watch.
+  // never silences a running watch. The device's alerts are on Local
+  // Timeline, so History opens there when the device holds new alerts, and
+  // marks them once that list has been read; the server's Alerts stays one
+  // press away.
   const { status: alertsStatus, newAlerts, markAllSeen } = useDeviceAlerts();
-  const marked = useRef(false);
+  // null until the alerts are first read; then whether this opening has alerts to mark.
+  const toMark = useRef<boolean | null>(null);
   useEffect(() => {
-    if (marked.current || alertsStatus !== 'ready') return;
-    marked.current = true;
-    if (newAlerts.length > 0) void markAllSeen();
-  }, [alertsStatus, newAlerts, markAllSeen]);
+    if (toMark.current !== null || alertsStatus !== 'ready') return;
+    toMark.current = newAlerts.length > 0;
+    if (toMark.current) setViewMode('local');
+  }, [alertsStatus, newAlerts]);
+  useEffect(() => {
+    if (toMark.current !== true || viewMode !== 'local' || !localReady) return;
+    toMark.current = false;
+    void markAllSeen();
+  }, [alertsStatus, newAlerts, markAllSeen, viewMode, localReady]);
 
   useEffect(() => {
     // Detect static deployments (GitHub Pages, Pages.dev, etc) and default to local timeline.
@@ -361,7 +380,9 @@ export default function HistoryPage() {
         ? e.type === 'alert'
         : localFilter === 'lost_found'
           ? e.type === 'lost_found'
-          : e.type === 'intrusion'));
+          : localFilter === 'wildlife'
+            ? e.type === 'wildlife'
+            : e.type === 'intrusion'));
 
     const filteredByAck = localUnackOnly
       ? filteredByType.filter((e) => !e.acknowledged)
@@ -419,6 +440,14 @@ export default function HistoryPage() {
         ? selectedIntrusionFrames
         : selectedIntrusionFrames.map(({ frameData, ...rest }) => rest);
 
+      // Wildlife's sightings, under the same picture and incremental choices.
+      const selectedSightings = exportOnlyUnexportedFrames
+        ? sightings.filter((s) => !s.exported)
+        : sightings;
+      const sightingExport = exportIncludeFullFrames
+        ? selectedSightings
+        : selectedSightings.map(({ frameData, ...rest }) => rest);
+
       const payload = {
         version: 1,
         generatedAt: new Date().toISOString(),
@@ -430,6 +459,9 @@ export default function HistoryPage() {
         },
         security: {
           intrusionFrames: intrusionExport,
+        },
+        wildlife: {
+          sightings: sightingExport,
         },
       };
 
@@ -450,11 +482,15 @@ export default function HistoryPage() {
       if (exportMarkExported) {
         const matchIds = selectedMatchFrames.map((f) => f.id);
         const intrusionIds = selectedIntrusionFrames.map((f) => f.id);
+        const sightingIds = selectedSightings.map((s) => s.id);
+        if (sightingIds.length > 0) useAnimalAlertStore.getState().markDetectionsExported(sightingIds);
 
         await Promise.all([
           matchIds.length > 0 ? markMatchFramesExported(matchIds) : Promise.resolve(),
           intrusionIds.length > 0 ? markIntrusionFramesExported(intrusionIds) : Promise.resolve(),
         ]);
+        // A quiet read that began before these marks were saved holds the frames as they were.
+        localEdits.current += 1;
 
         if (matchIds.length > 0) {
           const matchIdSet = new Set(matchIds);
@@ -553,6 +589,7 @@ export default function HistoryPage() {
                   <option value="alerts">Alerts</option>
                   <option value="lost_found">Lost &amp; Found</option>
                   <option value="intrusions">Intrusions</option>
+                  <option value="wildlife">Wildlife</option>
                 </select>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-300 select-none">
@@ -739,11 +776,13 @@ export default function HistoryPage() {
 
                       if (event.type === 'lost_found') {
                         await acknowledgeMatchFrame(event.id);
+                        localEdits.current += 1;
                         setMatchFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, acknowledged: true } : f));
                         return;
                       }
 
                       await acknowledgeIntrusionFrame(event.id);
+                      localEdits.current += 1;
                       setIntrusionFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, acknowledged: true } : f));
                     } catch {
                       setLocalError('Failed to acknowledge item');
@@ -767,9 +806,11 @@ export default function HistoryPage() {
                     try {
                       if (event.type === 'lost_found') {
                         await updateMatchFrameNotes(event.id, notesDraft);
+                        localEdits.current += 1;
                         setMatchFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, notes: notesDraft } : f));
                       } else {
                         await updateIntrusionFrameNotes(event.id, notesDraft);
+                        localEdits.current += 1;
                         setIntrusionFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, notes: notesDraft } : f));
                       }
                     } catch {

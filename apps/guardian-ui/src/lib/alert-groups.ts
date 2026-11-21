@@ -159,9 +159,28 @@ function groupBy<T>(records: T[], key: (record: T) => string): Map<string, T[]> 
   const groups = new Map<string, T[]>();
   for (const record of records) {
     const name = key(record);
-    groups.set(name, [...(groups.get(name) ?? []), record]);
+    const group = groups.get(name);
+    if (group) group.push(record);
+    else groups.set(name, [record]);
   }
   return groups;
+}
+
+/**
+ * The frames to mark as seen so that each alert keeps its seen state when the
+ * frames in `removed` go (the frame limit removes the oldest seen frames): a
+ * run that is seen and keeps frames, none of them marked, has its first kept
+ * frame marked. `frames` is one group, one pet's or People's, cut into runs
+ * as groupAlerts cuts them.
+ */
+export function seenAfterRemoval<T extends { id: string; acknowledged: boolean }>(frames: T[], removed: ReadonlySet<string>): T[] {
+  const marks: T[] = [];
+  for (const run of runsOf(frames)) {
+    if (!run.some((timed) => timed.record.acknowledged === true)) continue;
+    const kept = run.filter((timed) => !removed.has(timed.record.id));
+    if (kept.length > 0 && !kept.some((timed) => timed.record.acknowledged === true)) marks.push(kept[0].record);
+  }
+  return marks;
 }
 
 const animalWord = (type: unknown) => (type === 'unknown_animal' || typeof type !== 'string' || type === '' ? 'animal' : type);

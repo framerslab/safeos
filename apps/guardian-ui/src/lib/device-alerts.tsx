@@ -15,8 +15,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type { WayId } from './app-routes';
 import { groupAlerts, onlyNew, unseenIds, type DeviceAlert, type SavedRecords } from './alert-groups';
 import {
-  acknowledgeIntrusionFrames, acknowledgeMatchFrames, getAllIntrusionFrames, getAllMatchFrames, getAllSubjectProfiles,
-  getCachedMonitoringAlerts,
+  acknowledgeIntrusionFrames, acknowledgeMatchFrames, getCachedMonitoringAlerts, readAllIntrusionFrames,
+  readAllMatchFrames, readSavedPets,
 } from './client-db';
 import { heldAtFirstRun } from './history-seen';
 import { onStorageFull, storageIsFull } from './storage-full';
@@ -45,11 +45,12 @@ const READ_GAP_MS = 2000;
 
 /** Reads the four stores. Throws when the browser will not open the saved alerts. */
 export async function readSavedRecords(): Promise<SavedRecords> {
-  // This read throws when the browser will not open the saved alerts; the
-  // three after it answer an empty list instead, so it goes first.
+  // Each read throws when the browser will not read its store, so a store
+  // that cannot be read is never taken for an empty one. Of the saved
+  // subjects only pets and things count for an alert.
   const alerts = await getCachedMonitoringAlerts();
   const [matchFrames, intrusionFrames, subjects] = await Promise.all([
-    getAllMatchFrames(), getAllIntrusionFrames(), getAllSubjectProfiles(),
+    readAllMatchFrames(), readAllIntrusionFrames(), readSavedPets(),
   ]);
   // Another tab may have written Wildlife's list since this tab read it. Once
   // a save failed for lack of room, this tab's list holds sightings storage

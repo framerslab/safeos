@@ -32,7 +32,7 @@
 // file that is missing or differs from that record.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
@@ -217,23 +217,27 @@ async function portraitFrame(page, name) {
 // detected" and kept only if it still does once the picture is saved;
 // otherwise it is taken again at the next motion, up to five times. A crop
 // that runs past the edge of the screen is saved cut short, so a picture is
-// kept only at the size its crop asks for.
+// kept only at the size its crop asks for: it is written beside its name and
+// takes the name only once its size is right.
 async function saveCrop(page, relative, clip, details) {
   const file = path.join(outDir, relative);
+  const taken = `${file}.taking.png`;
   const indicator = page.getByRole('status', { name: /^Motion level/ });
   for (let attempt = 1; ; attempt += 1) {
     await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
-    await page.screenshot({ path: file, clip });
+    await page.screenshot({ path: taken, clip });
     const after = (await indicator.getAttribute('aria-label')) || '';
     if (after.includes('motion detected')) break;
     if (attempt === 5) throw new Error(`${relative}: the Motion indicator left its alert state while each of five pictures was taken`);
     console.log(`${relative}: the Motion indicator read "${after}" once the picture was saved; taking it again`);
   }
-  const size = pngSize(await readFile(file));
+  const size = pngSize(await readFile(taken));
   const asked = { width: clip.width * details.deviceScaleFactor, height: clip.height * details.deviceScaleFactor };
   if (Math.abs(size.width - asked.width) > 1 || Math.abs(size.height - asked.height) > 1) {
+    await rm(taken, { force: true });
     throw new Error(`${relative} is ${size.width} by ${size.height} px, not the ${Math.round(asked.width)} by ${Math.round(asked.height)} px its crop asks for: the crop runs past the edge of the ${details.viewport} screen`);
   }
+  await rename(taken, file);
   await record(relative, { ...details, ...size });
   const webp = relative.replace(/\.png$/, '.webp');
   execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', file, '-c:v', 'libwebp', '-quality', '86', '-compression_level', '6', path.join(outDir, webp)]);

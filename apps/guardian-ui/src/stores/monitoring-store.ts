@@ -11,7 +11,7 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp } from '../lib/local-data-generation';
 import { cacheAlert, updateCachedAlert, repeatCachedAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, MAX_MONITORING_ALERTS } from '../lib/client-db';
 import { guardedStorage } from '../lib/storage-full';
-import { watchRaised } from '../lib/watch-sound';
+import { raisedByThisWatch, watchRaised } from '../lib/watch-sound';
 
 // =============================================================================
 // Types
@@ -100,7 +100,11 @@ export interface MonitoringState {
    * when another tab has cleared, removed or acknowledged that card, the card is left as stored and
    * the alert goes on the fresh card `fresh` names.
    */
-  addAlert: (alert: Alert, options?: { fresh?: FreshCard }) => void;
+  /**
+   * `raised: false` lists an alert the running watch did not raise (a late alert of a watch that
+   * has ended): it stays silent. A repeat's fresh card sounds only when the card it replaces does.
+   */
+  addAlert: (alert: Alert, options?: { fresh?: FreshCard; raised?: boolean }) => void;
   removeAlert: (id: string) => void;
   acknowledgeAlert: (id: string) => void;
   clearAlerts: () => void;
@@ -232,6 +236,7 @@ async function saveAlert(
         ...alert, id: replacement.id, createdAt: replacement.createdAt,
         repeats: (current?.repeats ?? 0) + 1, savedBeforeUpgrade: undefined,
       };
+      if (raisedByThisWatch(alert.id)) watchRaised(replacement.id);
       // The fresh card's own save failed and waits: the repeat goes with that save, and counts
       // from it.
       const waiting = unsavedAlerts.get(moved.id);
@@ -308,6 +313,9 @@ async function showOnFreshCard(
 ): Promise<void> {
   const { id, createdAt } = fresh(alert.id);
   replacements.set(alert.id, { id, createdAt, stamp });
+  // The repeat sounds on its fresh card when the running watch raised the card it replaces; a
+  // watch that has ended forgot that card, so its fresh card stays silent.
+  if (raisedByThisWatch(alert.id)) watchRaised(id);
   const card: Alert = {
     ...alert, id, createdAt, timestamp: alert.timestamp || createdAt,
     repeats: occurrences > 1 ? occurrences - 1 : undefined, savedBeforeUpgrade: undefined,
@@ -365,8 +373,9 @@ export const useMonitoringStore = create<MonitoringState>()(
           severity: knownSeverity(alert.severity),
           createdAt: alert.createdAt || alert.timestamp || new Date().toISOString(),
         };
-        // An alert added here was raised in this tab; one read from the device's saved list was not.
-        watchRaised(dated.id);
+        // An alert added here was raised in this tab; one read from the device's saved list was not,
+        // nor a late alert of a watch that has ended.
+        if (options?.raised !== false) watchRaised(dated.id);
         set((state) => ({ alerts: boundedAlerts([dated, ...state.alerts.filter(a => a.id !== dated.id)]) }));
         // The marker is noted when the save is queued, not when it runs.
         const marker = readLocalClearMarker();
