@@ -550,6 +550,7 @@ html.light {
 
 .alert-pictures-group,
 .alert-pictures-notice,
+.alert-pictures-setup,
 .alert-pictures-question {
   background: var(--ap-ground);
   color: var(--ap-ink);
@@ -560,6 +561,7 @@ html.light {
 
 .alert-pictures-group p,
 .alert-pictures-notice p,
+.alert-pictures-setup p,
 .alert-pictures-question p {
   margin: 0;
   overflow-wrap: anywhere;
@@ -669,6 +671,15 @@ html.light {
   color: var(--ap-ink);
   font: inherit;
   font-size: 1rem;
+}
+
+/* The light look gives every select a pale edge, a white fill and its own
+   ink, all !important (design-system.css). This select keeps the look's
+   edge, at 3:1 or more on its ground, and the look's fill and ink. */
+html.light .alert-pictures-select {
+  border-color: var(--ap-edge) !important;
+  background-color: var(--ap-ground) !important;
+  color: var(--ap-ink) !important;
 }
 
 .alert-pictures-switch:focus-visible,
@@ -950,6 +961,25 @@ html.light {
   flex: none;
   padding: 8px 12px;
   border-top: 1px solid var(--ap-divider);
+}
+
+/* Setup's camera step: the notice's title, choice and lines in a block of
+   their own, on the look's ground. */
+.alert-pictures-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+}
+
+.alert-pictures-setup__title {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--ap-ink);
 }
 
 .alert-pictures-question {
@@ -1513,14 +1543,30 @@ html.light {
   min-width: 0;
 }
 
-/* Each tile 112 by 84 px; where the block is narrower than the two (320 px
-   with large text) both shrink alike and keep their 4:3 shape. */
-.alert-picture__pair > .alert-picture__tile {
+/* Each tile 112 by 84 px with its quiet label under it; where the block is
+   narrower than the two (320 px with large text) both shrink alike, keep
+   their 4:3 shape, and their labels wrap under them. */
+.alert-picture__pair > .alert-picture__tile,
+.alert-picture__pair > .alert-picture__pair-item {
   flex: 0 1 112px;
+  min-width: 0;
+}
+
+.alert-picture__pair > .alert-picture__tile,
+.alert-picture__pair-item > .alert-picture__tile {
   width: auto;
   height: auto;
-  min-width: 0;
   aspect-ratio: 4 / 3;
+}
+
+.alert-picture__pair-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.alert-picture__pair-label {
+  line-height: 1.4;
 }
 
 .alert-picture__pair:empty {

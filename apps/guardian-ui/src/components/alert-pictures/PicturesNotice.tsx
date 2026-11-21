@@ -5,14 +5,16 @@
  * whichever key starts the watch. It shows the same switch, select and
  * lines as the group "Alert pictures": Start watching keeps the choice and
  * starts the watch, Go back closes it and leaves the watch not started. No
- * picture is kept before it is answered.
+ * picture is kept before it is answered. Setup's camera step shows the same
+ * title, choice and lines (`SetupPicturesChoice`); a device that went on
+ * past that step has answered, and its first watch starts with no notice.
  *
  * @module components/alert-pictures/PicturesNotice
  */
 
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { postPictureNews, settingsNews } from '../../lib/alert-pictures/channel';
@@ -30,6 +32,47 @@ interface PicturesNoticeProps {
   onStart: (choice: { keep: boolean; deleteAfterDays: DeleteAfterDays }) => void;
   /** Go back, or Escape: the watch is not started. */
   onBack: () => void;
+}
+
+/** What an alert keeps, as the person sets it: the switch and the select as set. */
+export interface PicturesChoiceProps {
+  keep: boolean;
+  days: DeleteAfterDays;
+  onKeep: (keep: boolean) => void;
+  onDays: (days: DeleteAfterDays) => void;
+}
+
+/** The notice's drawing, its switch and select, and its four lines with the regulator's guidance. */
+export function PicturesChoice({ keep, days, onKeep, onDays }: PicturesChoiceProps) {
+  return (
+    <>
+      <PicturesDrawing />
+      <div className="alert-pictures-notice__choices">
+        <KeepSwitchRow keep={keep} onChange={onKeep} />
+        {!keep && <p className="alert-pictures-quiet">{KEEP_OFF_LINE}</p>}
+        <DeleteAfterRow days={days} onChange={onDays} />
+      </div>
+      <p className="alert-pictures-line" data-lead="">{KEEPS_LINE}</p>
+      <p className="alert-pictures-line" data-lead="">{STAY_LINE}</p>
+      <p className="alert-pictures-line" data-lead="">{ASK_LINE}</p>
+      <StreetLine />
+    </>
+  );
+}
+
+/**
+ * Setup's camera step: the notice's title, choice and lines in a group of
+ * their own. Setup keeps the choice and answers the notice with it when the
+ * person goes on past the step.
+ */
+export function SetupPicturesChoice(props: PicturesChoiceProps) {
+  const title = useId();
+  return (
+    <div role="group" aria-labelledby={title} className="alert-pictures-setup">
+      <h3 id={title} className="alert-pictures-setup__title" data-lead="">{NOTICE_TITLE}</h3>
+      <PicturesChoice {...props} />
+    </div>
+  );
 }
 
 export function PicturesNotice({ onStart, onBack }: PicturesNoticeProps) {
@@ -75,16 +118,7 @@ export function PicturesNotice({ onStart, onBack }: PicturesNoticeProps) {
       >
         <div className="alert-pictures-notice__body">
           <h2 id={TITLE_ID} className="alert-pictures-notice__title" data-lead="">{NOTICE_TITLE}</h2>
-          <PicturesDrawing />
-          <div className="alert-pictures-notice__choices">
-            <KeepSwitchRow keep={keep} onChange={setKeep} />
-            {!keep && <p className="alert-pictures-quiet">{KEEP_OFF_LINE}</p>}
-            <DeleteAfterRow days={days} onChange={setDays} />
-          </div>
-          <p className="alert-pictures-line" data-lead="">{KEEPS_LINE}</p>
-          <p className="alert-pictures-line" data-lead="">{STAY_LINE}</p>
-          <p className="alert-pictures-line" data-lead="">{ASK_LINE}</p>
-          <StreetLine />
+          <PicturesChoice keep={keep} days={days} onKeep={setKeep} onDays={setDays} />
         </div>
         <KeyRow className="alert-pictures-notice__foot">
           <button type="button" className="alert-pictures-key" onClick={onBack}>{GO_BACK}</button>

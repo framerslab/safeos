@@ -221,7 +221,7 @@ The entry asks "Could this be {name}?" with the time, and says "Colours and shap
 {name}'s photos." and "Compare the two pictures. It can be another animal that looks alike.".
 It shows the camera's picture of that check with a box round the part of the frame that scored
 (the comparison's region) and, side by side under it, the close-up of that box and the pet's
-first saved photo. It has no level and takes no part in the list's escalation; its sound is
+first saved photo, labelled "Close-up" and "{name}'s saved photo" under them. It has no level and takes no part in the list's escalation; its sound is
 Lost Item Found's, at each of its alerts. Its notification, when Lost & Found's notifications
 are on, has the title "Could this be {name}?" and the body "Colours and shape like {name}'s
 photos, {time}."; with **Show the picture in alert notifications** on it carries the camera's
@@ -268,7 +268,11 @@ can open SafeOS in this browser can see them, when to ask first, and what the la
 camera that sees a street or a neighbour's home. It carries the **Keep alert pictures** switch
 and **Delete pictures after** (1, 3, 7 or 30 days, or "Until I delete them"; 3 days unless
 chosen). **Start watching** keeps the choice and starts the watch; **Go back** starts nothing
-and the notice opens again at the next start. No picture is kept before it is answered. The
+and the notice opens again at the next start. No picture is kept before it is answered.
+Setup's camera step shows the same title, switch, choice and lines: going on past that step
+(**Continue**, or **Continue without the camera**) answers the notice with the choice as set
+there, so the first watch starts with no notice; **Back** answers nothing. Running setup again
+keeps that choice with the step's other answers until its last step is finished. The
 same switch, choice and lines stand in the group **Alert pictures** in the watch's settings
 and on **Settings > Detection**, with the count of pictures kept and **Delete all pictures**,
 which asks first. With keeping off, each alert's picture shows on the watch until a reload and

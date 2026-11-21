@@ -173,13 +173,33 @@ function BlockWords({ alert, kind, at, lines = false, children }: { alert: Alert
   return <Words kind={kind} at={at} zone={alert.zone}>{children}</Words>;
 }
 
-/** The pet's saved photo in a tile beside a sighting's close-up; nothing where the pet has none. */
+/**
+ * The pet's saved photo in a tile beside a sighting's close-up, with its
+ * quiet label under it; nothing where the pet has none.
+ */
 export function PetTile({ alert }: { alert: Alert }) {
   const photo = usePetPhoto(alert.subjectId);
   if (!photo) return null;
+  const name = savedPhotoName(petNameOf(alert));
   return (
-    <div className="alert-picture__tile alert-picture__tile--pet">
-      <img className="alert-picture__image" src={photo} alt={savedPhotoName(petNameOf(alert))} draggable={false} />
+    <PairItem label={name}>
+      <div className="alert-picture__tile alert-picture__tile--pet">
+        <img className="alert-picture__image" src={photo} alt={name} draggable={false} />
+      </div>
+    </PairItem>
+  );
+}
+
+/**
+ * One of a sighting's two tiles with its quiet label under it, so the two
+ * pictures are told apart at a glance. The picture's own name says the same
+ * to a screen reader, so the label is not read twice.
+ */
+function PairItem({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="alert-picture__pair-item">
+      {children}
+      <p className="alert-picture__quiet alert-picture__pair-label" aria-hidden="true">{label}</p>
     </div>
   );
 }
@@ -358,7 +378,11 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
       <div className="alert-picture" data-form="large" data-kind="sighting" data-status="shown" {...mark}>
         <Moment set={set} url={frameUrl} at={at} className="alert-picture__frame" onPress={press} />
         <div className="alert-picture__pair">
-          {closeUpUrl && <CloseUp set={set} url={closeUpUrl} at={at} onPress={press} />}
+          {closeUpUrl && (
+            <PairItem label={CLOSE_UP}>
+              <CloseUp set={set} url={closeUpUrl} at={at} onPress={press} />
+            </PairItem>
+          )}
           <PetTile alert={alert} />
         </div>
         <SightingWords alert={alert} at={at} lines />

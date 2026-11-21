@@ -31,6 +31,9 @@ import {
 import { SafeOSLogo, FrameWordmark } from '../../components/Logo';
 import { SAFE_SLEEP_URL } from '../../components/NotAMedicalDevice';
 import { SETUP_STEPS, type SetupStep } from '../../lib/setup-steps';
+import { SetupPicturesChoice } from '../../components/alert-pictures/PicturesNotice';
+import { postPictureNews, settingsNews } from '../../lib/alert-pictures/channel';
+import { useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 
 // =============================================================================
 // Types
@@ -46,15 +49,32 @@ type Scenario = 'pet' | 'baby' | 'elderly' | 'security';
 // saves the pet use.
 type Choice = Scenario | 'lost_found';
 
+// What an alert keeps, as the camera step's switch and select are set.
+interface PicturesChoice {
+  keep: boolean;
+  deleteAfterDays: DeleteAfterDays;
+}
+
 // The answers a visitor running setup again gives before the last step.
 interface StagedAnswers {
   disclaimers: boolean;
   scenario: Scenario | null;
   camera: boolean | null;
   microphone: boolean | null;
+  pictures: PicturesChoice | null;
 }
 
-const NO_ANSWERS: StagedAnswers = { disclaimers: false, scenario: null, camera: null, microphone: null };
+const NO_ANSWERS: StagedAnswers = { disclaimers: false, scenario: null, camera: null, microphone: null, pictures: null };
+
+/**
+ * Keeps the camera step's choice of what an alert keeps as the answer to the
+ * notice before the first watch, and tells the site's other tabs. An answer
+ * the browser cannot keep holds until the page is reloaded, as the notice's does.
+ */
+function keepPicturesChoice(choice: PicturesChoice) {
+  useAlertPicturesStore.getState().answerNotice(choice);
+  postPictureNews(settingsNews(useAlertPicturesStore.getState()));
+}
 
 const STEPS: Step[] = SETUP_STEPS;
 
@@ -81,6 +101,12 @@ export default function SetupPage() {
   // whatever the use, so setup shows the one the watch last had.
   const [lostFoundNow, setLostFoundNow] = useState<boolean | null>(null);
   const lostFound = lostFoundNow ?? onboarding.lostFoundChosen;
+
+  // The camera step shows the notice's choice of what an alert keeps, as this device has it.
+  const [pictures, setPictures] = useState<PicturesChoice>(() => {
+    const { keep, deleteAfterDays } = useAlertPicturesStore.getState();
+    return { keep, deleteAfterDays };
+  });
 
   const currentIndex = STEPS.indexOf(currentStep);
   const progress = ((currentIndex + 1) / STEPS.length) * 100;
@@ -116,6 +142,19 @@ export default function SetupPage() {
     }
   };
 
+  // Going on past the camera step answers the notice before the first watch with
+  // the step's choice; Back answers nothing. A visitor running setup again keeps
+  // the choice on this page, like the other answers, until the last step.
+  const answerPictures = () => {
+    if (again) setStaged((answers) => ({ ...answers, pictures }));
+    else keepPicturesChoice(pictures);
+  };
+
+  const leaveCameraStep = () => {
+    answerPictures();
+    goNext();
+  };
+
   // Each camera request has a number. "Continue without the camera" and a newer
   // request raise it, so an answer that arrives for an earlier request is
   // dropped: a prompt answered after the person went on changes nothing.
@@ -127,6 +166,7 @@ export default function SetupPage() {
   // others, until the last step.
   const continueWithoutCamera = () => {
     cameraRequest.current += 1;
+    answerPictures();
     if (again) {
       setStaged((answers) => ({ ...answers, camera: false, microphone: false }));
     } else {
@@ -190,6 +230,7 @@ export default function SetupPage() {
       if (staged.scenario) onboarding.setScenario(staged.scenario);
       if (staged.camera !== null) onboarding.setCameraPermission(staged.camera);
       if (staged.microphone !== null) onboarding.setMicrophonePermission(staged.microphone);
+      if (staged.pictures) keepPicturesChoice(staged.pictures);
     }
     onboarding.setComplete(true);
     router.push(lostFound ? '/lost-found/' : '/dashboard');
@@ -272,8 +313,10 @@ export default function SetupPage() {
             <PermissionsStep
               status={permissionStatus}
               errorMessage={permissionError}
+              pictures={pictures}
+              onPictures={setPictures}
               onRequest={requestPermissions}
-              onContinue={goNext}
+              onContinue={leaveCameraStep}
               onSkip={continueWithoutCamera}
               onBack={goBack}
             />
@@ -559,6 +602,8 @@ function ScenarioStep({
 function PermissionsStep({
   status,
   errorMessage,
+  pictures,
+  onPictures,
   onRequest,
   onContinue,
   onSkip,
@@ -566,6 +611,8 @@ function PermissionsStep({
 }: {
   status: 'pending' | 'granted' | 'denied';
   errorMessage: string | null;
+  pictures: PicturesChoice;
+  onPictures: (choice: PicturesChoice) => void;
   onRequest: () => void;
   onContinue: () => void;
   onSkip: () => void;
@@ -607,6 +654,14 @@ function PermissionsStep({
             status={status}
           />
         </div>
+
+        {/* What an alert keeps: the notice before the first watch, answered here when the person goes on. */}
+        <SetupPicturesChoice
+          keep={pictures.keep}
+          days={pictures.deleteAfterDays}
+          onKeep={(keep) => onPictures({ ...pictures, keep })}
+          onDays={(deleteAfterDays) => onPictures({ ...pictures, deleteAfterDays })}
+        />
 
         {errorMessage && (
           <div role="alert" className="p-3 rounded bg-[var(--color-alert-critical)]/10 border border-[var(--color-alert-critical)]/30">
