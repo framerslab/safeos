@@ -16,9 +16,12 @@
  * Outside a workflow the two lines are printed instead, and they are all of
  * its standard output: the sentence with the count goes to standard error.
  * Export them only when they were printed, since a bare `export` lists the
- * whole environment:
+ * whole environment; unset them first, so a count an earlier run exported is
+ * not kept when this read fails; and clear GITHUB_ENV for the call, so it
+ * prints the two lines even inside a workflow step:
  *
- *   stars="$(node scripts/read-github-stars.mjs)"
+ *   unset NEXT_PUBLIC_GITHUB_STARS NEXT_PUBLIC_GITHUB_STARS_DATE
+ *   stars="$(GITHUB_ENV= node scripts/read-github-stars.mjs)"
  *   if [ -n "$stars" ]; then export $stars; fi
  *
  * A star count never holds a build. When GitHub does not answer within ten

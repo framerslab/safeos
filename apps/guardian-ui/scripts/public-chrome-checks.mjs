@@ -580,16 +580,26 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
             // worked out as a browser does: aria-labelledby counts only
             // through elements that exist and hold words, then aria-label,
             // then the key's own words, its title or a picture's text.
+            // Words inside the key that a reader is given: text, a picture's
+            // alt and an svg's title, leaving out every part that is
+            // aria-hidden or not shown.
+            const shownText = (node) => {
+              if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+              if (node.nodeType !== Node.ELEMENT_NODE) return '';
+              const style = getComputedStyle(node);
+              if (node.getAttribute('aria-hidden') === 'true' || node.hidden || style.display === 'none' || style.visibility === 'hidden') return '';
+              if (node.localName === 'img') return node.getAttribute('alt') || '';
+              if (node.localName === 'svg') return node.querySelector(':scope > title')?.textContent || '';
+              return [...node.childNodes].map(shownText).join(' ');
+            };
             const nameOf = (button) => {
               const by = (button.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
                 .map((id) => document.getElementById(id)?.textContent.trim() || '').join(' ').trim();
               if (by) return by;
               const label = (button.getAttribute('aria-label') || '').trim();
               if (label) return label;
-              const own = button.textContent.trim();
-              if (own) return own;
-              const pictured = [...button.querySelectorAll('img[alt], svg title')].map((part) => (part.getAttribute('alt') || part.textContent || '').trim()).join(' ').trim();
-              return pictured || (button.getAttribute('title') || '').trim();
+              const own = [...button.childNodes].map(shownText).join(' ').replace(/\s+/g, ' ').trim();
+              return own || (button.getAttribute('title') || '').trim();
             };
             const unnamed = [...document.querySelectorAll('nav[aria-label="Site"] button, footer.site-footer button, .key--icon, .look-switch')].filter(visible)
               .filter((button) => !nameOf(button)).length;

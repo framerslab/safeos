@@ -276,7 +276,7 @@
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 12px;
   min-width: 0;
   padding: 4px;
@@ -285,13 +285,9 @@
   scrollbar-width: none;
 }
 
-/* A row wider than its place starts at its first key, which a centred row
-   would push out of reach. */
-@supports (justify-content: safe center) {
-  .key-row__keys {
-    justify-content: safe center;
-  }
-}
+/* The keys' part is as wide as its keys while they fit, and the row centres
+   it; once the keys scroll, the part starts at its first key, in every
+   browser, so the first key stays in reach. */
 
 .key-row__keys::-webkit-scrollbar {
   display: none;

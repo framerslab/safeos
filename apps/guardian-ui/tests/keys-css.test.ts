@@ -184,6 +184,16 @@ describe('the keys\' stylesheet', () => {
   });
 });
 
+describe('a row of keys', () => {
+  it('starts its keys\' part at the first key, so a row that scrolls keeps its first key in reach', () => {
+    const part = rule(keys, '.key-row__keys')[0]?.declarations;
+    expect([part?.['justify-content'], part?.['flex-wrap'], part?.['overflow-x']]).toEqual(['flex-start', 'nowrap', 'auto']);
+    // No browser is left to centre a row that scrolls, where the first key would sit before the scroll's start.
+    expect(keys.filter((r) => r.selectors.includes('.key-row__keys')).map((r) => r.declarations['justify-content']).filter(Boolean)).toEqual(['flex-start']);
+    expect(rule(keys, '.key-row')[0]?.declarations['justify-content']).toBe('center');
+  });
+});
+
 describe('the other stylesheets', () => {
   it('leave the key\'s box to keys.css: no other stylesheet has a rule for .key itself', () => {
     for (const file of STYLESHEETS.filter((name) => name !== 'styles/keys.css')) {
