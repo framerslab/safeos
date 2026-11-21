@@ -383,6 +383,11 @@ prints an error and carries on.
 | `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the dashboard for the pull request's own build |
 | `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera (see below) |
 
+`measure.yml` (Measure) is apart from these: it runs on each push to
+`master` and by hand, never on a pull request. It records how fast the watch,
+the detection model and Lost & Found matching run in Chromium with the CPU
+slowed, and a slow number does not fail it. See [Performance](./PERFORMANCE.md).
+
 Concurrency: a newer push to a pull request cancels that pull request's older
 runs, and a pull request never cancels a run on `master`. On `master`, every
 commit's checks run to the end (each run has its own group). The Pages deploy
@@ -571,6 +576,7 @@ session token in the URL.
 
 ## See Also
 
+- [Performance](./PERFORMANCE.md)
 - [Architecture Overview](./ARCHITECTURE.md)
 - [Configuration Reference](./CONFIGURATION.md)
 - [API Documentation](./API.md)
