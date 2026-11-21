@@ -156,14 +156,17 @@ try {
           console.log(`captured ${file}`);
           // The public header, the footer and the open Menu on their own, and
           // About's part on who builds SafeOS, so the two versions read side
-          // by side. The footer's pictures load when it comes into view.
+          // by side. The footer's pictures load when it comes into view. The
+          // bars fixed to the screen would cover a part taller than it, so
+          // they are left out of the pictures of a part.
+          const noBars = 'nav[aria-label="Site"], nav[aria-label="Mobile navigation"] { visibility: hidden !important; }';
           if (route === '/') {
             await page.locator('nav[aria-label="Site"]').screenshot({ path: path.join(outDir, `site-header-${size.width}-${look}.png`) });
             const footer = page.locator('footer.site-footer');
             await footer.scrollIntoViewIfNeeded();
             await page.waitForFunction(() => [...document.querySelectorAll('footer.site-footer img')]
               .filter((image) => getComputedStyle(image).display !== 'none').every((image) => image.complete), null, { timeout: 15_000 });
-            await footer.screenshot({ path: path.join(outDir, `site-footer-${size.width}-${look}.png`) });
+            await footer.screenshot({ path: path.join(outDir, `site-footer-${size.width}-${look}.png`), style: noBars });
             if (size.width < 768) {
               await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
               await page.locator('nav[aria-label="Site"] button.site-header__menu-key').click();
@@ -178,7 +181,7 @@ try {
             await builders.scrollIntoViewIfNeeded();
             await page.waitForFunction((section) => [...section.querySelectorAll('img')]
               .filter((image) => getComputedStyle(image).display !== 'none').every((image) => image.complete), await builders.elementHandle(), { timeout: 15_000 });
-            await builders.screenshot({ path: path.join(outDir, `about-builders-${size.width}-${look}.png`) });
+            await builders.screenshot({ path: path.join(outDir, `about-builders-${size.width}-${look}.png`), style: noBars });
           }
         } catch (err) {
           failures += 1;

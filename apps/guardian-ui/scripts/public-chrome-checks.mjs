@@ -30,6 +30,9 @@ import path from 'node:path';
 const LOOKS = ['light', 'dark'];
 const REPOSITORY = 'https://github.com/framerslab/safeos';
 const WALK_LIMIT_MS = 180_000;
+// The bars fixed to the screen would cover a part taller than it, so they are
+// left out of the pictures of a part.
+const NO_BARS = 'nav[aria-label="Site"], nav[aria-label="Mobile navigation"] { visibility: hidden !important; }';
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 // The look's colours as a browser reports them (src/styles/design-system.css
@@ -196,7 +199,12 @@ function layKeySheet() {
   sheet.id = 'key-sheet';
   sheet.tabIndex = -1;
   sheet.style.cssText = 'position:fixed;inset:0;z-index:1000;overflow:auto;box-sizing:border-box;padding:32px;background:var(--color-steel-950);display:grid;grid-template-columns:repeat(4,272px);grid-auto-rows:72px;gap:0 32px;align-content:start;align-items:center;justify-items:start;';
+  // The page behind the sheet stays where it is: a stop of the sheet's own
+  // comes before its first key, so going back one stop from a key never
+  // leaves the sheet, and nothing scrolls while a picture is taken.
+  document.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
   sheet.innerHTML = [
+    '<span tabindex="0" data-key="before" style="position:absolute;top:0;left:0;width:1px;height:1px;overflow:hidden;opacity:0"></span>',
     '<button type="button" class="key key--solid" data-key="solid">Start setup</button>',
     '<button type="button" class="key key--solid" data-key="solid-inactive" aria-disabled="true">Starting the camera…</button>',
     '<button type="button" class="key key--outline" data-key="outline">Try again</button>',
@@ -595,7 +603,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
         await page.locator(`[data-key="${name}"]`).focus();
         await page.keyboard.press('Shift+Tab');
         await page.keyboard.press('Tab');
-        await page.waitForTimeout(100);
+        await page.waitForTimeout(150);
       };
       const words = (read, least, what) => {
         expect(!!read.words, `${what}: its label holds too little ink to read`);
@@ -880,7 +888,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
           expect(footer.github.words === 'SafeOS on GitHub' && footer.github.piece === null, `${at}: with no count the GitHub link reads "${footer.github.words}"`);
         }
         expect(!footer.github.over, `${at}: the GitHub link runs out of its column`);
-        await page.locator('footer.site-footer').screenshot({ path: path.join(outDir, `footer-makers-${width}-${look}.png`) });
+        await page.locator('footer.site-footer').screenshot({ path: path.join(outDir, `footer-makers-${width}-${look}.png`), style: NO_BARS });
       });
     }
   }
@@ -931,9 +939,11 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
           const box = (element) => { const b = element.getBoundingClientRect(); return { left: b.left, top: b.top, right: b.right, width: b.width, height: b.height }; };
           const shown = (image) => getComputedStyle(image).display !== 'none';
           const title = section.querySelector('h2');
+          // The words a reader sees: the page's scripts hold its words too.
+          const read = document.querySelector('#main-content').innerText;
           return {
-            tellings: (document.body.textContent.match(/Who builds SafeOS/gi) || []).length,
-            gone: ['Built by Frame.dev', 'Visit Frame.dev', 'Makers of SafeOS and AgentOS', 'Who Builds It'].filter((words) => document.body.textContent.includes(words)),
+            tellings: (read.match(/Who builds SafeOS/gi) || []).length,
+            gone: ['Built by Frame.dev', 'Visit Frame.dev', 'Makers of SafeOS and AgentOS', 'Who Builds It'].filter((words) => read.toLowerCase().includes(words.toLowerCase())),
             oldMark: document.querySelectorAll('img[src*="/logos/frame.svg"]').length,
             title: { words: title.textContent.trim(), type: type(title), colour: getComputedStyle(title).color, level: title.tagName },
             also: { words: section.querySelector('.who-builds__also').textContent.trim(), colour: getComputedStyle(section.querySelector('.who-builds__also')).color, type: type(section.querySelector('.who-builds__also')) },
@@ -996,7 +1006,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
           expect(paracosm.box.top > agentos.box.top && Math.abs(paracosm.box.left - agentos.box.left) < 0.5, `${at}: the two other entries are not one under the other`);
         }
         expect(seen.sideways <= 0, `${at}: the page scrolls sideways`);
-        await part.screenshot({ path: path.join(outDir, `about-who-builds-${width}-${look}.png`) });
+        await part.screenshot({ path: path.join(outDir, `about-who-builds-${width}-${look}.png`), style: NO_BARS });
       });
     }
   }
