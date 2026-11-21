@@ -174,12 +174,13 @@ export function readDetector(
     endDetectorEvent(event);
   }
   event.belowSince = null;
-  if (!event.active) {
+  // Require sustained readings to avoid single-frame spikes and lighting flicker; with no
+  // sustained window asked for (a sighting's check), the first reading over the line starts it.
+  if (!event.active && timing.sustainedMs > 0) {
     if (event.aboveSince === null) {
       event.aboveSince = now;
       return { kind: 'quiet' };
     }
-    // Require sustained readings to avoid single-frame spikes and lighting flicker.
     if (now - event.aboveSince < timing.sustainedMs) return { kind: 'quiet' };
   }
 
