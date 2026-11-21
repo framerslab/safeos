@@ -145,18 +145,17 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   // The delete question is asked of one picture: the one shown when Delete picture was pressed.
   const [asking, setAsking] = useState<string | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
-  const [saveFailed, setSaveFailed] = useState(false);
+  // The picture Save picture could not read. A read failure belongs to the picture it was read
+  // for, even when it comes back after a repeat put a newer picture in the panel.
+  const [unreadId, setUnreadId] = useState<string | null>(null);
   const busy = useRef(false);
 
   const set = view.status === 'shown' && view.kept !== 'saving' ? view.set : null;
   const loading = view.status === 'loading' || (view.status === 'shown' && view.kept === 'saving');
   // A picture that cannot be read when the panel opens, or when Save picture is pressed.
-  const unreadable = view.status === 'unreadable' || (saveFailed && set !== null);
+  const unreadable = view.status === 'unreadable' || (set !== null && set.id === unreadId);
   const shown = set !== null && !unreadable;
   const gone = !loading && !shown && !unreadable;
-
-  // A read failure belongs to the picture it was read for: a newer picture (a repeat) is read afresh.
-  useEffect(() => { setSaveFailed(false); }, [set]);
 
   // Focus starts on Close, and comes back to it when the picture leaves while the panel is open.
   useEffect(() => { closeRef.current?.focus(); }, []);
@@ -211,15 +210,16 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   };
 
   const save = async () => {
-    if (!set || busy.current) return;
+    const target = set;
+    if (!target || busy.current) return;
     busy.current = true;
     try {
       // As it shows: with the box drawn in while Show the box is on, clean while it is off; never brightened.
-      const file = await savedFile(set, showBox && Boolean(set.box));
+      const file = await savedFile(target, showBox && Boolean(target.box));
       const url = URL.createObjectURL(file);
       const link = document.createElement('a');
       link.href = url;
-      link.download = pictureFileName(kind, new Date(set.takenAt));
+      link.download = pictureFileName(kind, new Date(target.takenAt));
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -227,7 +227,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
     } catch (error) {
       // A picture that cannot be read says so; a file that could not be made leaves the picture
       // shown, and Save picture can be pressed again.
-      if (error instanceof PictureUnreadable) setSaveFailed(true);
+      if (error instanceof PictureUnreadable) setUnreadId(target.id);
     } finally {
       busy.current = false;
     }
