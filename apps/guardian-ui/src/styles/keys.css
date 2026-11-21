@@ -35,6 +35,8 @@
   line-height: var(--type-word-line);
   font-weight: var(--weight-bold);
   white-space: nowrap;
+  /* A press is a press at once: no wait for a second tap. */
+  touch-action: manipulation;
   transition: background-color 100ms ease-out;
 }
 
@@ -141,6 +143,7 @@
   border-radius: var(--key-radius);
   background: transparent;
   color: var(--color-steel-50);
+  touch-action: manipulation;
   transition: background-color 100ms ease-out;
 }
 
