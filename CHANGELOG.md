@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The API request log and the bundled Caddy access log print `[token]` in place of an unsubscribe token.
 - `SAFEOS_API_PUBLIC_URL`: the https address the unsubscribe link points at (falls back to `https://SAFEOS_DOMAIN`).
 - A browser test of Lost & Found in CI (`apps/guardian-ui/e2e/lost-found-edge.spec.ts`, job "Web app Lost & Found browser test"): it enrols a subject from a striped picture, shows Chromium's fake camera the same stripes and reads the Edge value of the saved match in the gallery. With `PLAYWRIGHT_BASE_URL` set, Playwright tests the site at that address and starts no development server.
+- The Measure workflow (`.github/workflows/measure.yml`, on each push to `master` and by hand, never on a pull request) records how fast the watch's motion and sound checks, the COCO-SSD detection model and Lost & Found matching run in Chromium on a phone class (CPU slowed 4 and 6 times) and a laptop class (not slowed, and slowed 2 times), with the sample clip on the fake camera. The model loads through the app's own load route, with its Cache Storage reads and writes. The numbers go to the run's summary and a `measurements` artifact; a slow number never fails the run. `docs/PERFORMANCE.md` says what is measured and how.
 
 ### Changed
 - Setup's last key reads "Open dashboard", or names the way whose row opened setup ("Open Lost and Found") and opens that page. The use chosen in setup applies the Motion and sound setting the first-visit wizard applied.
