@@ -2849,6 +2849,9 @@ test.describe('The notification’s picture in Settings: a browser that shows wo
     await expect(allow).toBeVisible();
     expect((await allow.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => window.__notificationAsks)).toBe(0);
+    // A press on the inactive switch changes nothing. The switch is brought to the middle of the
+    // screen first: a forced press does not wait for the phone's bottom bar to move off it.
+    await found.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     await found.click({ force: true });
     await expect(found).toHaveAttribute('aria-checked', 'true');
     // The key asks the browser; once allowed, the switch is active and the key has gone.
