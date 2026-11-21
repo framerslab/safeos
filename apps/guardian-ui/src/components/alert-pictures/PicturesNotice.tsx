@@ -136,7 +136,7 @@ export function useNoticeGate(): {
       onStart={(choice) => {
         // The answer holds in memory where the browser cannot keep it, until the page is reloaded.
         useAlertPicturesStore.getState().answerNotice(choice);
-        postPictureNews({ type: 'settings' });
+        postPictureNews({ type: 'settings', deleteAfterDays: choice.deleteAfterDays });
         close(pending.start);
       }}
       onBack={() => close(pending.onBack)}

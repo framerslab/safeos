@@ -50,6 +50,31 @@ export function NotificationPictureRow() {
     setReady(true);
   }, []);
 
+  // An answer changed in the browser's site settings is read again when the page comes back to view,
+  // and when the browser says the answer changed.
+  useEffect(() => {
+    const reread = () => setPermission(permissionNow());
+    const onView = () => { if (document.visibilityState === 'visible') reread(); };
+    window.addEventListener('focus', reread);
+    document.addEventListener('visibilitychange', onView);
+    let status: PermissionStatus | null = null;
+    let stopped = false;
+    navigator.permissions?.query({ name: 'notifications' }).then(
+      (found) => {
+        if (stopped) return;
+        status = found;
+        status.addEventListener('change', reread);
+      },
+      () => undefined,
+    );
+    return () => {
+      stopped = true;
+      window.removeEventListener('focus', reread);
+      document.removeEventListener('visibilitychange', onView);
+      status?.removeEventListener('change', reread);
+    };
+  }, []);
+
   const wordsAlone = ready && !pictures;
   const reason: 'words-alone' | 'ask' | 'blocked' | null = !ready ? null
     : wordsAlone ? 'words-alone'
@@ -62,7 +87,7 @@ export function NotificationPictureRow() {
   const toggle = () => {
     if (!ready || inactive) return;
     setInNotifications(!stored);
-    postPictureNews({ type: 'settings' });
+    postPictureNews({ type: 'settings', deleteAfterDays: useAlertPicturesStore.getState().deleteAfterDays });
   };
 
   const ask = async () => {

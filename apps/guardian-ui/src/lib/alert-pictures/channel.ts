@@ -7,10 +7,14 @@
  * @module lib/alert-pictures/channel
  */
 
+import type { DeleteAfterDays } from '../../stores/alert-pictures-store';
+
 export type PictureNews =
   | { type: 'gone'; ids: string[]; reason: 'person' | 'age' | 'with-alert' }
   | { type: 'saved'; id: string }
-  | { type: 'settings' };
+  // The age chosen travels with the news: a tab can hear it before the browser hands it the saved choice.
+  // A tab of an earlier release sends none.
+  | { type: 'settings'; deleteAfterDays?: DeleteAfterDays };
 
 const CHANNEL = 'safeos-alert-pictures';
 

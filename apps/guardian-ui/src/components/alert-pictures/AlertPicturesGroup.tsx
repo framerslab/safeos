@@ -176,6 +176,7 @@ export function AlertPicturesGroup({ place }: AlertPicturesGroupProps) {
   const [asking, setAsking] = useState(false);
   const [deleteFailed, setDeleteFailed] = useState(false);
   const deleteKey = useRef<HTMLButtonElement>(null);
+  const root = useRef<HTMLDivElement>(null);
 
   // The settings as this browser holds them, read after the first paint so the page's HTML and the device agree.
   const [ready, setReady] = useState(false);
@@ -186,11 +187,11 @@ export function AlertPicturesGroup({ place }: AlertPicturesGroupProps) {
 
   const changeKeep = (next: boolean) => {
     setKeep(next);
-    postPictureNews({ type: 'settings' });
+    postPictureNews({ type: 'settings', deleteAfterDays: useAlertPicturesStore.getState().deleteAfterDays });
   };
   const changeDays = (next: DeleteAfterDays) => {
     setDays(next);
-    postPictureNews({ type: 'settings' });
+    postPictureNews({ type: 'settings', deleteAfterDays: next });
     // A shorter age applies now, not at the next watch.
     void sweepPicturesByAge();
   };
@@ -203,14 +204,18 @@ export function AlertPicturesGroup({ place }: AlertPicturesGroupProps) {
     setAsking(false);
     const answer = await deleteAllPictures();
     setDeleteFailed(answer === 'failed');
-    requestAnimationFrame(() => deleteKey.current?.focus());
+    // The key leaves with the last picture: focus goes to the control before it, the age's select.
+    requestAnimationFrame(() => {
+      const target = deleteKey.current ?? root.current?.querySelector<HTMLSelectElement>('select.alert-pictures-select');
+      target?.focus();
+    });
   };
 
   const shownKeep = ready ? keep : true;
   const shownDays = ready ? days : 3;
 
   return (
-    <div role="group" aria-labelledby={heading} className="alert-pictures-group" data-place={place}>
+    <div ref={root} role="group" aria-labelledby={heading} className="alert-pictures-group" data-place={place}>
       <h3 id={heading} className={place === 'watch' ? 'alert-pictures-group__heading alert-pictures-hidden' : 'alert-pictures-group__heading'} data-lead="">
         {GROUP_NAME}
       </h3>

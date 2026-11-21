@@ -32,7 +32,7 @@ import {
 } from '../client-db';
 import { pictureStampNow } from '../local-data-generation';
 import { useMonitoringStore } from '../../stores/monitoring-store';
-import { useAlertPicturesStore } from '../../stores/alert-pictures-store';
+import { useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 import type { PictureSet } from './capture';
 import { onPictureNews, postPictureNews, type PictureNews } from './channel';
 import { scaleBox, type AlertKind } from './rules';
@@ -343,9 +343,13 @@ export async function deleteAllPictures(): Promise<'deleted' | 'failed'> {
   return 'deleted';
 }
 
-/** Deletes the kept pictures past the chosen age; nothing while the choice is "Until I delete them". */
-export async function sweepPicturesByAge(now: number = Date.now()): Promise<void> {
-  const days = useAlertPicturesStore.getState().deleteAfterDays;
+/**
+ * Deletes the kept pictures past the chosen age; nothing while the choice is
+ * "Until I delete them". `chosen` is an age another tab chose, which this
+ * tab's saved choice may not hold yet; without it, this tab's choice.
+ */
+export async function sweepPicturesByAge(now: number = Date.now(), chosen?: DeleteAfterDays): Promise<void> {
+  const days = chosen === undefined ? useAlertPicturesStore.getState().deleteAfterDays : chosen;
   if (days === null) return;
   const ids = await goneExpiredAlertPictures(days, now);
   if (ids.length === 0) return;
@@ -448,7 +452,12 @@ function hear(news: PictureNews): void {
     }
     tell();
   } else if (news.type === 'settings') {
-    void sweepPicturesByAge();
+    // By the age the other tab chose, which this tab may read from the browser only later.
+    void sweepPicturesByAge(Date.now(), news.deleteAfterDays);
+  } else if (news.type === 'saved') {
+    // A card that read this picture before it was saved found none: it reads it again.
+    const entry = entries.get(news.id);
+    if (entry && !entry.memory && entry.view.status !== 'shown') read(entry);
   }
   void readCount();
 }
