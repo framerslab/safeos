@@ -16,17 +16,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CONSENT_KEY, MODEL_CACHE } from './detection-model';
+import { MODEL_CACHE, modelAgreed } from './detection-model';
 import { MODEL_URL } from './detection-model-facts';
 
 interface StoredManifest {
   weightsManifest?: { paths?: unknown }[];
 }
 
-/** True when the person agreed to the detection model and its files are stored on this device. */
+/**
+ * True when the person agreed to the detection model, in this visit or an
+ * earlier one, and its files are stored on this device.
+ */
 export async function modelOnDevice(): Promise<boolean> {
   try {
-    if (localStorage.getItem(CONSENT_KEY) !== '1') return false;
+    if (!modelAgreed()) return false;
     if (typeof caches === 'undefined' || !(await caches.has(MODEL_CACHE))) return false;
     const cache = await caches.open(MODEL_CACHE);
     const stored = await cache.match(MODEL_URL);

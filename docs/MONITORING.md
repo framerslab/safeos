@@ -182,8 +182,8 @@ again, in place of the event's last one (each event has its own tag, which holds
 when the severity changes, so a new event's notification stands beside an earlier
 one; once an event has alerted at high or critical, each of its notifications
 stays up until it is dismissed), and updates the event's card in the alert list in place: the card
-shows the newest severity, reading and time, and "Repeated N times". History lists
-the card at its newest alert, and the alert
+shows the newest severity, reading and time, and "Repeated N times". History and the
+dashboard's **Since you last looked** list the card at its newest alert, and the alert
 panel's screen-reader announcement names the repeat count, so each repeat is read
 out. Escalation counts from the event's first alert, so one event climbs the
 escalation levels once. A card

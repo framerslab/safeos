@@ -121,8 +121,8 @@ export interface AnimalAlertState {
 
 const STORE_NAME = 'safeos-animal-alerts';
 
-/** The sightings as the last write of any tab left them; none when storage cannot be read. */
-function storedSightings(): DetectionHistoryEntry[] {
+/** The sightings as the last write of any tab left them; null when storage cannot be read. */
+function storedSightings(): DetectionHistoryEntry[] | null {
   try {
     const saved = JSON.parse(window.localStorage.getItem(STORE_NAME) ?? 'null') as {
       state?: { detectionHistory?: unknown };
@@ -132,28 +132,48 @@ function storedSightings(): DetectionHistoryEntry[] {
       ? list.filter((entry): entry is DetectionHistoryEntry => typeof entry?.id === 'string')
       : [];
   } catch {
-    return [];
+    return null;
   }
 }
 
 const seenAt = (entry: DetectionHistoryEntry) => (Number.isFinite(entry.timestamp) ? entry.timestamp : 0);
 
+// The sightings this tab saved that storage has not held yet: the last
+// write has not been read back, or storage refused it on a device out of
+// room. Each leaves the list once storage holds it.
+const unstored = new Set<string>();
+
+/** Notes this tab's new sightings, and lets go of each that storage holds now. */
+function noteStored(added: string[] = []): void {
+  added.forEach((id) => unstored.add(id));
+  const stored = storedSightings();
+  if (stored) stored.forEach((entry) => unstored.delete(entry.id));
+}
+
 /**
  * Every open tab writes the one stored list: the watching tab saves a
  * sighting each second an animal stays in view, and any tab marks sightings
- * seen. A tab's copy can be seconds old, so each write starts from it joined
- * by id with the list as stored: a sighting either side holds is kept, and it
- * is seen when either side has seen it. Neither tab's write takes back what
- * the other saved or marked. On a device out of room the copy holds this
- * visit's sightings that storage refused, and they are kept too.
+ * seen or deletes them. A tab's copy can be seconds old, so each write starts
+ * from the list as stored, joined by id with the tab's own copy: a sighting
+ * is seen when either side has seen it, and a sighting the stored list lacks
+ * is kept only while this tab saved it and storage has not held it (a device
+ * out of room holds this visit's sightings that storage refused). So no
+ * tab's write takes back what another saved, marked or deleted.
  */
 function withStored(own: DetectionHistoryEntry[]): DetectionHistoryEntry[] {
+  const stored = storedSightings();
+  if (!stored) return own;
+  const mine = new Map(own.map((entry) => [entry.id, entry]));
   const byId = new Map<string, DetectionHistoryEntry>();
-  for (const entry of own) byId.set(entry.id, entry);
-  for (const entry of storedSightings()) {
-    const mine = byId.get(entry.id);
-    byId.set(entry.id, mine ? { ...entry, acknowledged: entry.acknowledged === true || mine.acknowledged } : entry);
+  for (const entry of stored) {
+    const kept = mine.get(entry.id);
+    byId.set(entry.id, kept ? { ...entry, acknowledged: entry.acknowledged === true || kept.acknowledged } : entry);
   }
+  for (const entry of own) {
+    if (!byId.has(entry.id) && unstored.has(entry.id)) byId.set(entry.id, entry);
+  }
+  // A sighting this tab no longer holds is no longer waited on.
+  for (const id of Array.from(unstored)) if (!mine.has(id)) unstored.delete(id);
   return Array.from(byId.values()).sort((a, b) => seenAt(b) - seenAt(a));
 }
 
@@ -199,6 +219,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
           lastDetectionTime: Date.now(),
           totalDetections: get().totalDetections + 1,
         });
+        noteStored([entry.id]);
         alertsChanged();
       },
 
@@ -220,6 +241,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
           lastDetectionTime: Date.now(),
           totalDetections: get().totalDetections + detections.length,
         });
+        noteStored(entries.map((entry) => entry.id));
         alertsChanged();
       },
 

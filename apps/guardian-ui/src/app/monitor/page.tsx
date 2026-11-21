@@ -40,7 +40,7 @@ import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../
 import { forgetRaised } from '../../lib/watch-sound';
 import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
 import { announceWatch } from '../../lib/tab-channel';
-import { dropStart, takeStart, type StartRequest } from '../../lib/camera-handoff';
+import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
 import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
@@ -93,6 +93,9 @@ async function createThumbnail(frameData: string): Promise<string> {
 // =============================================================================
 // Component
 // =============================================================================
+
+/** The triggers whose saved sounds this page's watch plays. */
+const WATCH_TRIGGERS = ['motion_detected', 'audio_detected', 'inactivity_alert', 'object_found'] as const;
 
 export default function MonitorPage() {
   useEffect(() => {
@@ -480,14 +483,18 @@ export default function MonitorPage() {
       let lostFound = false;
       if (start.way === 'lost-found' && start.pet) {
         const pet = await getSubjectProfile(start.pet);
-        if (!live) return;
+        // Another tab that took over meanwhile dropped the start: nothing starts.
+        if (!live || !startHeld(start)) return;
         if (pet && pet.type !== 'person') {
           lostFound = true;
           useLostFoundStore.getState().setActiveSubject(pet);
           useLostFoundStore.getState().startWatching();
         }
       }
-      if (!live) return;
+      if (!live || !startHeld(start)) {
+        if (lostFound) useLostFoundStore.getState().stopWatching();
+        return;
+      }
       // Watch for runs the way the dashboard's key named.
       useOnboardingStore.getState().setLostFoundChosen(lostFound);
       pendingStart.current = null;
@@ -662,12 +669,16 @@ export default function MonitorPage() {
     };
   }, [isStreaming, wsConnected, globalSettings.processingMode, selectedScenario, scenario, sendMessage]);
 
+  // Leaving the page ends the watch with its sounds: Lost & Found's own and
+  // every saved sound the watch's alerts played, a loop included.
   useEffect(() => () => {
     captureRequestedRef.current = false;
     useMonitoringStore.getState().setStreaming(false);
     useMonitoringStore.getState().setStreamId(null);
     useLostFoundStore.getState().stopWatching();
-  }, []);
+    stopOwnLostFoundSounds(true);
+    getSoundManager().stopTriggers(WATCH_TRIGGERS);
+  }, [stopOwnLostFoundSounds]);
 
   const handleFrame = (data: { imageData: string; motionScore: number; audioLevel: number }) => {
     if (!isStreaming || !captureRequestedRef.current || !serverRequestedRef.current || !wsConnected ||

@@ -79,6 +79,16 @@ export function takeStart(page: StartPage): StartRequest | null {
   return held.request;
 }
 
+/**
+ * True while the start a page took is held for it: false once it was dropped
+ * (another tab took over, or the page was left) and once its feed took the
+ * camera. A page that looks something up before it starts the watch asks
+ * this first.
+ */
+export function startHeld(request: StartRequest): boolean {
+  return held !== null && held.taken && held.request === request;
+}
+
 /** The held camera, once, for the feed of the page that took the start. The feed owns it from here. */
 export function takeHeldCamera(): MediaStream | null {
   if (!held || !held.taken) return null;

@@ -1473,6 +1473,8 @@ export async function acknowledgeMatchFrames(ids: string[]): Promise<void> {
     await tx.done;
     alertsChanged();
   } catch (error) {
+    // A device out of room says so on the dashboard.
+    noteStorageFull(error);
     console.warn('[ClientDB] Failed to acknowledge match frames:', error);
     await abandonTransaction(tx);
   }
@@ -1527,6 +1529,8 @@ async function cleanupExcessMatchFrames(): Promise<void> {
         await tx.store.delete(frame.id);
       }
       await tx.done;
+      // The other tabs hear of the frames the limit removed.
+      if (toDelete.length > 0) alertsChanged();
     }
   } catch {
     // Ignore cleanup errors
@@ -1800,6 +1804,8 @@ export async function acknowledgeIntrusionFrames(ids: string[]): Promise<void> {
     await tx.done;
     alertsChanged();
   } catch (error) {
+    // A device out of room says so on the dashboard.
+    noteStorageFull(error);
     console.warn('[ClientDB] Failed to acknowledge intrusion frames:', error);
     await abandonTransaction(tx);
   }
@@ -1842,6 +1848,8 @@ async function cleanupExcessIntrusionFrames(): Promise<void> {
         await tx.store.delete(frame.id);
       }
       await tx.done;
+      // The other tabs hear of the frames the limit removed.
+      if (toDelete.length > 0) alertsChanged();
     }
   } catch {
     // Ignore cleanup errors

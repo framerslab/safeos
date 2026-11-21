@@ -18,6 +18,7 @@
  * @module lib/alert-groups
  */
 
+import { cardTime } from './alert-event';
 import type { WayId } from './app-routes';
 import type { IntrusionFrameDB, MatchFrameDB, SubjectProfileDB } from './client-db';
 import type { DetectionHistoryEntry } from '../stores/animal-alert-store';
@@ -28,7 +29,7 @@ export const RUN_GAP_MS = 30_000;
 /** What this device holds, as its four stores keep it. */
 export interface SavedRecords {
   /** Motion and sound's records. */
-  alerts: Array<{ id: string; message: string; acknowledged: boolean; createdAt?: string; timestamp?: string }>;
+  alerts: Array<{ id: string; message: string; acknowledged: boolean; createdAt?: string; timestamp?: string; repeats?: number }>;
   matchFrames: MatchFrameDB[];
   intrusionFrames: IntrusionFrameDB[];
   sightings: DetectionHistoryEntry[];
@@ -79,6 +80,16 @@ export function recordTime(record: { id: string; createdAt?: unknown; timestamp?
   } catch {
     return null;
   }
+}
+
+/**
+ * A Motion and sound record's time as History lists it: an event that
+ * alerted again at its newest alert (lib/alert-event's cardTime), else the
+ * record's own time.
+ */
+function motionTime(record: SavedRecords['alerts'][number]): number {
+  const shown = timeOf(cardTime(record));
+  return shown ?? recordTime(record) ?? Number.NaN;
 }
 
 // What a Motion and sound record says happened, read from its id's opening word.
@@ -163,7 +174,7 @@ export function groupAlerts(records: SavedRecords): DeviceAlert[] {
     alerts.push({
       id: record.id,
       way: 'monitor',
-      at: recordTime(record) ?? Number.NaN,
+      at: motionTime(record),
       recordIds: [record.id],
       seen: record.acknowledged === true,
       what: motionWhat(record.id, record.message),

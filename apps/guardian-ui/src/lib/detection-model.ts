@@ -59,6 +59,20 @@ const cachedModelFetch: typeof fetch = async (input, init) => {
   return response;
 };
 
+/**
+ * Whether the person agreed to download the model: in this visit, or in an
+ * earlier one, as local storage keeps it. Storage that refuses to keep the
+ * agreement leaves this visit's.
+ */
+export function modelAgreed(): boolean {
+  if (agreed) return true;
+  try {
+    return localStorage.getItem(CONSENT_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
 /** Called by detectors only after the page has obtained download agreement. */
 export function loadDetectionModel(): Promise<ObjectDetection> {
   if (model) return Promise.resolve(model);

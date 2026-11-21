@@ -28,7 +28,7 @@ import {
 import { useSecurityStore, createIntrusionFrame } from '../../stores/security-store';
 import { getPersonDetector, PersonDetectionResult, calculatePersonChange } from '../../lib/person-detection';
 import { startSecurityAlert, stopSecurityAlert } from '../../lib/tts-alerts';
-import { saveIntrusionFrame, type IntrusionFrameDB } from '../../lib/client-db';
+import { deleteIntrusionFrame, saveIntrusionFrame, type IntrusionFrameDB } from '../../lib/client-db';
 import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
 import { announceWatch } from '../../lib/tab-channel';
 import { dropStart, takeStart } from '../../lib/camera-handoff';
@@ -292,8 +292,14 @@ export default function SecurityPage() {
       notes: '',
       exported: false,
     };
-    await saveIntrusionFrame(frameDB);
+    // A check whose watch ended saves nothing; a frame whose save lands after
+    // the watch ended is taken back, so no alert of an ended watch stays.
     if (!live()) return;
+    await saveIntrusionFrame(frameDB);
+    if (!live()) {
+      await deleteIntrusionFrame(frameDB.id);
+      return;
+    }
 
     // Trigger intrusion in store
     triggerIntrusion(intrusionFrame);
