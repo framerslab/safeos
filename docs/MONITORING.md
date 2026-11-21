@@ -223,7 +223,8 @@ It shows the camera's picture of that check with a box round the part of the fra
 first saved photo. It has no level and takes no part in the list's escalation; its sound is
 Lost Item Found's, at each of its alerts. Its notification, when Lost & Found's notifications
 are on, has the title "Could this be {name}?" and the body "Colours and shape like {name}'s
-photos, {time}."; the pet's photo is never in it. The live picture boxes the region for 10
+photos, {time}."; with **Show the picture in alert notifications** on it carries the camera's
+picture with its box drawn in, and the pet's photo is never in it. The live picture boxes the region for 10
 seconds with "Colours like {name}'s". History lists the entry under Lost & Found. The entry's
 record in the alert cache has the kind `sighting`, the pet's id and name and the comparison's
 four scores as data; no score and no percentage is shown.
@@ -278,7 +279,9 @@ A picture is deleted:
   minute while it runs and when History opens; its card says "Its picture was deleted after
   {n} days.";
 - with its alert, when the alert leaves under the alert limits (see **Alert history**), in
-  the same write, and when a repeat gives its card a newer picture;
+  the same write, and when a repeat gives its card a newer picture; a picture still being
+  drawn when its alert leaves is saved with no alert to hold it, and the sweep of pictures no
+  alert holds deletes it when a watch starts, once it is 10 minutes old;
 - by **Delete picture**, by **Delete all pictures**, by **Clear All Local Data** and by
   signing out.
 
@@ -325,7 +328,7 @@ runs. Alerts saved afterwards are limited to 100 monitoring alerts and 500 alert
 all producers; at either limit acknowledged alerts leave first, oldest first, and
 unacknowledged ones only when no acknowledged ones remain. No alert is removed for its
 age; its picture is, at the age chosen under **Delete pictures after**, and the alert's words
-stay. An alert that leaves under a limit takes its picture with it in the same write. Marked records do not count, so a browser can show more than 500. Monitor's
+stay. An alert that leaves under a limit takes its kept picture with it in the same write. Marked records do not count, so a browser can show more than 500. Monitor's
 in-memory list applies the 100 rule; a change caused by the 500 limit shows at its next
 history read.
 
