@@ -17,6 +17,14 @@
 //   sound-card            a Sound alert's card
 //   opened                a Motion alert's picture, opened
 //   history               History's rows of the watch's alerts
+//
+// The clip's camera moves, so a Motion alert raised from the whole clip boxes
+// the whole frame, and a box over half of the frame has no close-up. For the
+// Motion states (card, opened, history, live-box) the camera is the clip
+// itself through the fake camera, held still outside one part: the page sees
+// a still frame of the clip with the clip playing inside its middle part, so
+// that part is what changes, and the box and its close-up show.
+
 //   watch-group           Alert pictures in the watch's settings
 //   settings-group        Alert pictures on Settings > Detection
 //   notice                the notice before a device's first watch
@@ -105,8 +113,67 @@ async function stripedPhoto(page) {
 
 const address = (route) => new URL(route, baseUrl).toString();
 
+/**
+ * Runs in the page before its own scripts: the camera the page gets is the
+ * fake camera's clip held still outside its middle part, where the clip plays
+ * on. The microphone is the fake microphone, as it is.
+ */
+function clipInOnePart() {
+  const original = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = async (constraints) => {
+    const real = await original(constraints);
+    const [camera] = real.getVideoTracks();
+    if (!camera) return real;
+    const video = document.createElement('video');
+    video.muted = true;
+    video.playsInline = true;
+    video.srcObject = new MediaStream([camera]);
+    await video.play();
+    await new Promise((resolve) => {
+      const wait = () => (video.videoWidth > 0 ? resolve() : requestAnimationFrame(wait));
+      wait();
+    });
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+    const still = document.createElement('canvas');
+    still.width = width;
+    still.height = height;
+    still.getContext('2d').drawImage(video, 0, 0);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.cssText = 'position:absolute;left:-10000px;top:0;width:1px;height:1px';
+    document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    const part = { x: Math.round(width * 0.28), y: Math.round(height * 0.05), w: Math.round(width * 0.45), h: Math.round(height * 0.9) };
+    const draw = () => {
+      ctx.drawImage(still, 0, 0);
+      ctx.drawImage(video, part.x, part.y, part.w, part.h, part.x, part.y, part.w, part.h);
+    };
+    draw();
+    const timer = setInterval(draw, 40);
+    const stream = canvas.captureStream(25);
+    for (const track of real.getAudioTracks()) stream.addTrack(track);
+    const [shown] = stream.getVideoTracks();
+    const stop = shown.stop.bind(shown);
+    shown.stop = () => {
+      clearInterval(timer);
+      stop();
+      camera.stop();
+    };
+    return stream;
+  };
+}
+
+/** Says the browser allows SafeOS's notifications, as a person's browser does once asked. */
+function notificationsAllowed() {
+  if (typeof Notification !== 'undefined') {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
+  }
+}
+
 /** A device that finished setup with `settings`; `answered` says whether it answered the notice. */
-async function seededContext(browser, { size, look, settings, answered = true }) {
+async function seededContext(browser, { size, look, settings, answered = true, before = [] }) {
   const context = await browser.newContext({
     viewport: size,
     deviceScaleFactor: SCALE,
@@ -131,6 +198,7 @@ async function seededContext(browser, { size, look, settings, answered = true })
       }, version: 0 }));
     }
   }, { settings, answered });
+  for (const script of before) await context.addInitScript(script);
   return context;
 }
 
@@ -173,8 +241,29 @@ async function capture(name, size, look, locator) {
   await locator.waitFor({ state: 'visible', timeout: 30_000 });
   await picturesLoaded(locator);
   await locator.scrollIntoViewIfNeeded();
+  // The page's fixed and sticky bars (the header, the phone's bottom bar) are hidden while the
+  // state is saved, so none stands over it; the state's own panel is left as it is.
+  await locator.evaluate((target) => {
+    for (const el of document.querySelectorAll('body *')) {
+      if (el === target || el.contains(target) || target.contains(el)) continue;
+      const position = getComputedStyle(el).position;
+      if (position === 'fixed' || position === 'sticky') {
+        el.setAttribute('data-capture-hidden', '');
+        el.style.setProperty('visibility', 'hidden', 'important');
+      }
+    }
+  });
   const file = `alert-${name}-${size.width}-${look}.png`;
-  await locator.screenshot({ path: path.join(outDir, file), animations: 'disabled' });
+  try {
+    await locator.screenshot({ path: path.join(outDir, file), animations: 'disabled' });
+  } finally {
+    await locator.page().evaluate(() => {
+      for (const el of document.querySelectorAll('[data-capture-hidden]')) {
+        el.style.removeProperty('visibility');
+        el.removeAttribute('data-capture-hidden');
+      }
+    });
+  }
   saved.push(file);
   console.log(`saved ${file}`);
 }
@@ -194,7 +283,7 @@ async function state(names, size, look, run) {
 
 /** Motion alerts: the live box, three cards, the opened picture, the watch's group, History, Settings. */
 async function motionStates(browser, size, look) {
-  const context = await seededContext(browser, { size, look, settings: MOTION_ONLY });
+  const context = await seededContext(browser, { size, look, settings: MOTION_ONLY, before: [clipInOnePart] });
   const page = await context.newPage();
   try {
     await state(['live-box', 'card', 'opened', 'watch-group'], size, look, async () => {
@@ -237,9 +326,21 @@ async function motionStates(browser, size, look) {
       await capture('settings-group', size, look, page.getByRole('group', { name: 'Alert pictures', exact: true }));
     });
 
+  } finally {
+    await context.close();
+  }
+}
+
+/** Show the picture in alert notifications, in a browser that allows SafeOS's notifications. */
+async function notificationState(browser, size, look) {
+  const context = await seededContext(browser, { size, look, settings: MOTION_ONLY, before: [notificationsAllowed] });
+  const page = await context.newPage();
+  try {
     await state(['notification-setting'], size, look, async () => {
       await page.goto(address('/settings/notifications/'), { waitUntil: 'networkidle', timeout: 60_000 });
-      await capture('notification-setting', size, look, page.locator('[data-notification-picture-row]'));
+      const row = page.locator('[data-notification-picture-row]');
+      await row.getByRole('switch').and(page.locator(':not([aria-disabled="true"])')).waitFor({ timeout: 10_000 });
+      await capture('notification-setting', size, look, row);
     });
   } finally {
     await context.close();
@@ -325,6 +426,7 @@ try {
   for (const look of LOOKS) {
     for (const size of SIZES) {
       await motionStates(clipBrowser, size, look);
+      await notificationState(clipBrowser, size, look);
       await soundState(clipBrowser, size, look);
       await noticeState(clipBrowser, size, look);
     }
