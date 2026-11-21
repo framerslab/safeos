@@ -9,6 +9,7 @@
  */
 
 import { openDB } from 'idb';
+import { groupAlerts } from '@/lib/alert-groups';
 import {
   getAllIntrusionFrames,
   getAllMatchFrames,
@@ -110,6 +111,30 @@ it('keeps a Lost and Found alert seen when the limit removes the only frame of i
   expect(frames).toHaveLength(500);
   expect(frames.map((frame) => frame.id)).not.toContain('run-0');
   expect(frames.find((frame) => frame.id === 'run-1')?.acknowledged).toBe(true);
+});
+
+// A frame under the alert threshold is saved too (`alerted: false`) and is no
+// part of an alert, so the seen mark never moves onto it.
+it('keeps a Lost and Found alert seen when the first frame the limit keeps of its run raised no alert', async () => {
+  await getAllMatchFrames();
+  await empty('match_frame');
+  await fill('match_frame', Array.from({ length: 500 }, (_, i) => ({
+    ...match(`mixed-${i}`, 1_000_000 + i * 1000, i === 0),
+    ...(i === 1 ? { confidence: 60, alerted: false } : { alerted: true }),
+  })));
+
+  await saveMatchFrame({ ...match('mixed-500', 1_000_000 + 500 * 1000, false), alerted: true });
+
+  const frames = await getAllMatchFrames();
+  expect(frames.map((frame) => frame.id)).not.toContain('mixed-0');
+  const alerts = groupAlerts({
+    alerts: [], intrusionFrames: [], sightings: [], matchFrames: frames, alertThreshold: 70,
+    subjects: [{
+      id: 'pet-1', name: 'Mittens', type: 'pet', description: '', fingerprint: null, referenceImages: [],
+      createdAt: '2026-01-01T00:00:00.000Z', lastActiveAt: null, matchCount: 0,
+    }],
+  });
+  expect(alerts.filter((alert) => alert.way === 'lost-found').map((alert) => alert.seen)).toEqual([true]);
 });
 
 it("keeps a People's alert seen when the limit removes the only frame of its run marked as seen", async () => {
