@@ -17,7 +17,7 @@ import SecurityPage from '@/app/security/page';
 import WildlifePage from '@/app/wildlife/page';
 import { dropStart, holdStart } from '@/lib/camera-handoff';
 import { cameraConstraints } from '@/lib/camera-constraints';
-import { saveSubjectProfile, type SubjectProfileDB } from '@/lib/client-db';
+import { getSubjectProfile, saveSubjectProfile, type SubjectProfileDB } from '@/lib/client-db';
 import { getPersonDetector } from '@/lib/person-detection';
 import { getAnimalDetector } from '@/lib/animal-detection';
 import { askOtherTabs, takeOverWatch } from '@/lib/tab-channel';
@@ -93,6 +93,20 @@ jest.mock('@/lib/tab-channel', () => ({
   askOtherTabs: jest.fn(),
   takeOverWatch: jest.fn(),
 }));
+// The pet's read, so a test can hold it while the page's keys are pressed.
+jest.mock('@/lib/client-db', () => {
+  const actual = jest.requireActual('@/lib/client-db');
+  return { ...actual, getSubjectProfile: jest.fn(actual.getSubjectProfile) };
+});
+const readPet = jest.requireActual<typeof import('@/lib/client-db')>('@/lib/client-db').getSubjectProfile;
+
+/** Holds the pet's read until `found` is called with what the read gives. */
+function holdPetRead(): (found: SubjectProfileDB | null) => void {
+  let found!: (value: SubjectProfileDB | null) => void;
+  const read = new Promise<SubjectProfileDB | null>((resolve) => { found = resolve; });
+  jest.mocked(getSubjectProfile).mockImplementation(() => read);
+  return found;
+}
 
 const QUESTION = 'Watch here instead? The other tab stops.';
 type Detector = { processFrame: jest.Mock; forceDetection: jest.Mock };
@@ -144,6 +158,7 @@ beforeEach(() => {
   }
   jest.mocked(askOtherTabs).mockReset().mockResolvedValue({ watching: false });
   jest.mocked(takeOverWatch).mockReset().mockResolvedValue(true);
+  jest.mocked(getSubjectProfile).mockReset().mockImplementation(readPet);
   useMonitoringStore.getState().reset();
   useSettingsStore.setState({ globalMute: true });
   useSettingsStore.getState().updateGlobalSettings({ processingMode: 'local', analysisInterval: 1 });
@@ -212,6 +227,51 @@ it('a takeover while the page reads the pet starts no watch and asks the browser
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
   expect(useLostFoundStore.getState().isWatching).toBe(false);
   expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+});
+
+it('a pet read that ends after Start Monitoring, before the feed takes the open camera, runs one Lost and Found watch on that camera', async () => {
+  await saveSubjectProfile(pet('pet-1'));
+  const found = holdPetRead();
+  holdStart({ way: 'lost-found', pet: 'pet-1' }, browser.stream);
+  render(<MonitorPage />);
+  await act(async () => {});
+
+  // The press's start runs before the read ends, and the feed takes the camera after both.
+  await act(async () => {
+    fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+    found(pet('pet-1'));
+  });
+
+  await watchRuns();
+  expect(useLostFoundStore.getState().activeSubject?.id).toBe('pet-1');
+  expect(useLostFoundStore.getState().isWatching).toBe(true);
+  expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+});
+
+it('a pet read that ends after Start Monitoring and Stop Monitoring starts no watch again', async () => {
+  await saveSubjectProfile(pet('pet-1'));
+  const found = holdPetRead();
+  holdStart({ way: 'lost-found', pet: 'pet-1' }, browser.stream);
+  render(<MonitorPage />);
+  await act(async () => {});
+
+  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  await watchRuns();
+  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+
+  await act(async () => { found(pet('pet-1')); });
+  for (let i = 0; i < 5; i++) {
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(200);
+    });
+  }
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(useLostFoundStore.getState().isWatching).toBe(false);
+  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
 });
 
 it('a Lost and Found start whose pet is gone watches with Motion and sound', async () => {

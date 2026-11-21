@@ -105,7 +105,7 @@ export default function NapModePage() {
 
     // The monitor starts the nap's watch on arrival, so the question before a
     // second watch is asked here, before it opens.
-    const { guard, dialog } = useStartGuard();
+    const { guard, dialog, drop } = useStartGuard();
 
     if (!mounted) {
         return <LoadingScreen />;
@@ -170,6 +170,8 @@ export default function NapModePage() {
     // starts over when the person comes back to it.
     const leaveCheck = () => {
         checkRunRef.current += 1;
+        // An answer from the other tabs, or Watch here's takeover, that ends after Back asks nothing.
+        drop();
         if (motionStartRef.current) {
             window.clearTimeout(motionStartRef.current);
             motionStartRef.current = null;

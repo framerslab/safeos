@@ -1379,6 +1379,11 @@ export async function readAllMatchFrames(): Promise<MatchFrameDB[]> {
   return frames.sort((a, b) => b.timestamp - a.timestamp);
 }
 
+/** The newest Lost and Found frames, at most `limit`. Unlike getAllMatchFrames, a read that fails throws. */
+export async function readNewestMatchFrames(limit: number): Promise<MatchFrameDB[]> {
+  return (await readAllMatchFrames()).slice(0, limit);
+}
+
 export async function getAllMatchFrames(limit?: number): Promise<MatchFrameDB[]> {
   try {
     const sorted = await readAllMatchFrames();
@@ -1721,6 +1726,11 @@ export async function readAllIntrusionFrames(): Promise<IntrusionFrameDB[]> {
   const db = await getDB();
   const frames = await db.getAll('intrusion_frame');
   return frames.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/** The newest People frames, at most `limit`. Unlike getAllIntrusionFrames, a read that fails throws. */
+export async function readNewestIntrusionFrames(limit: number): Promise<IntrusionFrameDB[]> {
+  return (await readAllIntrusionFrames()).slice(0, limit);
 }
 
 export async function getAllIntrusionFrames(limit?: number): Promise<IntrusionFrameDB[]> {

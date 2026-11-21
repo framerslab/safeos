@@ -140,6 +140,20 @@ function storedSightings(): DetectionHistoryEntry[] | null {
 
 const seenAt = (entry: DetectionHistoryEntry) => (Number.isFinite(entry.timestamp) ? entry.timestamp : 0);
 
+// When a tab last cleared History. A sighting a tab could not save before
+// then went with the rest, so no tab's later write brings it back.
+const CLEARED_KEY = 'safeos-animal-alerts-cleared';
+
+/** When a tab last cleared History, in ms; null when none has or storage cannot be read. */
+function clearedAt(): number | null {
+  try {
+    const at = Number(window.localStorage.getItem(CLEARED_KEY));
+    return Number.isFinite(at) && at > 0 ? at : null;
+  } catch {
+    return null;
+  }
+}
+
 // The sightings this tab saved that storage has not held yet: the last
 // write has not been read back, or storage refused it on a device out of
 // room. Each leaves the list once storage holds it.
@@ -171,11 +185,15 @@ function withStored(own: DetectionHistoryEntry[]): DetectionHistoryEntry[] {
     const kept = mine.get(entry.id);
     byId.set(entry.id, kept ? { ...entry, acknowledged: entry.acknowledged === true || kept.acknowledged } : entry);
   }
+  const cleared = clearedAt();
   for (const entry of own) {
-    if (!byId.has(entry.id) && unstored.has(entry.id)) byId.set(entry.id, entry);
+    if (byId.has(entry.id) || !unstored.has(entry.id)) continue;
+    // Seen before another tab cleared History, it went with the rest.
+    if (cleared !== null && seenAt(entry) <= cleared) continue;
+    byId.set(entry.id, entry);
   }
-  // A sighting this tab no longer holds is no longer waited on.
-  for (const id of Array.from(unstored)) if (!mine.has(id)) unstored.delete(id);
+  // A sighting this tab no longer holds, or one a clear took, is no longer waited on.
+  for (const id of Array.from(unstored)) if (!mine.has(id) || !byId.has(id)) unstored.delete(id);
   return Array.from(byId.values()).sort((a, b) => seenAt(b) - seenAt(a));
 }
 
@@ -303,6 +321,11 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
 
       clearHistory: () => {
         set({ detectionHistory: [], totalDetections: 0 });
+        try {
+          window.localStorage.setItem(CLEARED_KEY, String(Date.now()));
+        } catch {
+          // A device out of room keeps no time: the clear itself is saved.
+        }
         alertsChanged();
       },
 

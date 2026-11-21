@@ -15,16 +15,17 @@ import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useAnimalAlertStore } from '@/stores/animal-alert-store';
 import { cardTime } from '@/lib/alert-event';
 import { recordTime } from '@/lib/alert-groups';
-import { onAlertsChanged, useDeviceAlerts } from '@/lib/device-alerts';
+import { markSeen, onAlertsChanged, useDeviceAlerts } from '@/lib/device-alerts';
+import type { DeviceAlert } from '@/lib/alert-groups';
 import { useSettingsStore } from '@/stores/settings-store';
 import {
   acknowledgeIntrusionFrame,
   acknowledgeMatchFrame,
-  getAllIntrusionFrames,
-  getAllMatchFrames,
   getAllSubjectProfiles,
   markIntrusionFramesExported,
   markMatchFramesExported,
+  readNewestIntrusionFrames,
+  readNewestMatchFrames,
   updateIntrusionFrameNotes,
   updateMatchFrameNotes,
   type IntrusionFrameDB,
@@ -171,8 +172,10 @@ export default function HistoryPage() {
       for (;;) {
         const edits = localEdits.current;
         const [matches, intrusions, profiles] = await Promise.all([
-          getAllMatchFrames(250),
-          getAllIntrusionFrames(250),
+          // These reads throw when the browser will not read the saved frames,
+          // so a list that could not be read is never shown, or marked, as empty.
+          readNewestMatchFrames(250),
+          readNewestIntrusionFrames(250),
           getAllSubjectProfiles(),
         ]);
         if (edits !== localEdits.current) continue;
@@ -191,25 +194,27 @@ export default function HistoryPage() {
 
   useEffect(() => onAlertsChanged(() => { void loadLocalData(true); }), [loadLocalData]);
 
-  // Opening History marks every new alert as seen, once for each opening: an
-  // alert that arrives while it is open stays new, so a tab left on History
-  // never silences a running watch. The device's alerts are on Local
-  // Timeline, so History opens there when the device holds new alerts, and
-  // marks them once that list has been read; the server's Alerts stays one
-  // press away.
-  const { status: alertsStatus, newAlerts, markAllSeen } = useDeviceAlerts();
-  // null until the alerts are first read; then whether this opening has alerts to mark.
-  const toMark = useRef<boolean | null>(null);
+  // Opening History marks the alerts that were new when it opened as seen,
+  // once for each opening: an alert that arrives while it is open stays new,
+  // even while its list is still being read, so a tab left on History never
+  // silences a running watch. The device's alerts are on Local Timeline, so
+  // History opens there when the device holds new alerts, and marks them once
+  // that list has been read; a list that could not be read marks nothing. The
+  // server's Alerts stays one press away.
+  const { status: alertsStatus, newAlerts, readAgain } = useDeviceAlerts();
+  // null until the alerts are first read; then the alerts this opening marks, none once marked.
+  const toMark = useRef<DeviceAlert[] | null>(null);
   useEffect(() => {
     if (toMark.current !== null || alertsStatus !== 'ready') return;
-    toMark.current = newAlerts.length > 0;
-    if (toMark.current) setViewMode('local');
+    toMark.current = newAlerts;
+    if (newAlerts.length > 0) setViewMode('local');
   }, [alertsStatus, newAlerts]);
   useEffect(() => {
-    if (toMark.current !== true || viewMode !== 'local' || !localReady) return;
-    toMark.current = false;
-    void markAllSeen();
-  }, [alertsStatus, newAlerts, markAllSeen, viewMode, localReady]);
+    const opening = toMark.current;
+    if (!opening || opening.length === 0 || viewMode !== 'local' || !localReady) return;
+    toMark.current = [];
+    void markSeen(opening).then(() => readAgain());
+  }, [alertsStatus, newAlerts, readAgain, viewMode, localReady]);
 
   useEffect(() => {
     // Detect static deployments (GitHub Pages, Pages.dev, etc) and default to local timeline.

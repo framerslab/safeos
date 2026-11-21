@@ -30,7 +30,8 @@ import { askOtherTabs, releaseStart, takeOverWatch } from './tab-channel';
  * here is pressed, before the other tab is stopped: false keeps the other
  * tab watching and starts nothing (the page shows why). Watch here gives
  * focus back to `opener`, as Cancel does, so a start that fails leaves the
- * person on its key.
+ * person on its key. `drop()` ends a check the page has left (its Back): an
+ * answer or a takeover that ends after it shows nothing and starts nothing.
  */
 export function useStartGuard() {
   const [asked, setAsked] = useState<{ start: () => unknown; opener: HTMLElement | null; ready?: () => boolean } | null>(null);
@@ -44,9 +45,18 @@ export function useStartGuard() {
     };
   }, []);
 
+  // Each check is a run: drop() starts a new one, and an answer to an older
+  // run starts nothing.
+  const runs = useRef(0);
+  const drop = useCallback(() => {
+    runs.current += 1;
+    setAsked(null);
+  }, []);
+
   const guard = useCallback(async (start: () => unknown, opener: HTMLElement | null = null, ready?: () => boolean) => {
+    const run = runs.current;
     const answer = await askOtherTabs();
-    if (!shown.current) {
+    if (!shown.current || run !== runs.current) {
       if (!answer.watching) releaseStart();
       return;
     }
@@ -82,8 +92,9 @@ export function useStartGuard() {
           back();
           return;
         }
+        const run = runs.current;
         void takeOverWatch().then((stopped) => {
-          if (!shown.current) return;
+          if (!shown.current || run !== runs.current) return;
           // A tab that goes on answering is watching: the question stays.
           if (!stopped) {
             setAsked(ask);
@@ -101,5 +112,5 @@ export function useStartGuard() {
     />
   ) : null;
 
-  return { guard, dialog };
+  return { guard, dialog, drop };
 }

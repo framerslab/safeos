@@ -137,6 +137,28 @@ it('keeps a sighting storage refused on a device out of room when the next one i
   ]);
 });
 
+it('a sighting storage refused stays gone once another tab clears History, when the watching tab saves its next one', async () => {
+  const watching = openTab();
+  const other = openTab();
+  const write = localStorage.setItem.bind(localStorage);
+  const refused = jest.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+    if (key === 'safeos-animal-alerts') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    write(key, value);
+  });
+  try {
+    watching.getState().addDetections([sighting('bird', 1000)]);
+  } finally {
+    refused.mockRestore();
+  }
+  await other.persist.rehydrate();
+
+  other.getState().clearHistory();
+  watching.getState().addDetections([sighting('deer', 2000)]);
+
+  expect(stored()).toEqual([{ id: 'deer', acknowledged: false }]);
+  expect(watching.getState().detectionHistory.map((entry) => entry.id)).toEqual(['deer']);
+});
+
 it.each([
   ['clears its live sightings', (store: Store) => store.getState().clearCurrentDetections()],
   ['stops its watch', (store: Store) => store.getState().setMonitoring(false)],

@@ -335,3 +335,61 @@ it('lists an alert whose dates do not parse, with no error', async () => {
   expect(dated.compareDocumentPosition(undated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(undated.nextElementSibling).toBeNull();
 });
+
+describe('when its list is read late, or cannot be read', () => {
+  type ClientDb = typeof import('@/lib/client-db');
+  let release: () => void = () => undefined;
+  afterEach(() => {
+    release();
+    jest.dontMock('@/lib/client-db');
+  });
+
+  it('marks only the alerts it opened on when one arrives while its list is still being read', async () => {
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    jest.doMock('@/lib/client-db', () => {
+      const actual = jest.requireActual<ClientDb>('@/lib/client-db');
+      return {
+        ...actual,
+        readNewestIntrusionFrames: async (limit: number) => {
+          await held;
+          return actual.readNewestIntrusionFrames(limit);
+        },
+      };
+    });
+    const m = await app();
+    await m.firstRun();
+    await act(() => m.save.sighting('animal-1'));
+
+    m.openHistory();
+    await waitFor(() => expect(probeLines()).toHaveLength(1), SLOW);
+
+    // Another tab saves an alert while History still reads its list.
+    await act(() => putOwn('intrusion_frame', [peopleFrame('intrusion-late')]));
+    act(() => other.say({ type: 'alerts-changed' }));
+    await waitFor(() => expect(probeLines()).toHaveLength(2), SLOW);
+
+    await act(async () => { release(); });
+    await waitFor(() => expect(m.animals.getState().detectionHistory.map((e) => e.acknowledged)).toEqual([true]), SLOW);
+    await waitFor(() => expect(probeLines()).toEqual(['1 person in view at T']), SLOW);
+    const late = (await stored('intrusion_frame')).find((record) => record.id === 'intrusion-late');
+    expect(late?.acknowledged).toBe(false);
+  });
+
+  it('marks nothing when its list cannot be read', async () => {
+    jest.doMock('@/lib/client-db', () => ({
+      ...jest.requireActual<ClientDb>('@/lib/client-db'),
+      readNewestIntrusionFrames: async () => {
+        throw new Error('The browser will not read the saved frames.');
+      },
+    }));
+    const m = await app();
+    await m.firstRun();
+    await act(() => m.save.sighting('animal-1'));
+
+    m.openHistory();
+
+    await waitFor(() => expect(screen.getByText('Failed to load local timeline data')).toBeTruthy(), SLOW);
+    await waitFor(() => expect(probeLines()).toHaveLength(1), SLOW);
+    expect(m.animals.getState().detectionHistory.map((e) => e.acknowledged)).toEqual([false]);
+  });
+});

@@ -412,6 +412,42 @@ it('a nap start whose other-tab answer comes after Back starts nothing', async (
   expect(useSettingsStore.getState().activePresetId).not.toBe('infant_sleep');
 });
 
+it('a nap start whose answer, after Back, is that another tab watches asks nothing', async () => {
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  const start = await passChecks();
+  let answer!: (value: Awaited<ReturnType<typeof askOtherTabs>>) => void;
+  jest.mocked(askOtherTabs).mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+
+  fireEvent.click(start);
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  await act(async () => { answer({ watching: true, way: 'monitor' }); });
+
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(takeOverWatch).not.toHaveBeenCalled();
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+});
+
+it("Watch here's takeover that fails after Back asks nothing more and starts nothing", async () => {
+  jest.mocked(askOtherTabs).mockResolvedValue({ watching: true, way: 'monitor' });
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  const start = await passChecks();
+  let stopped!: (done: boolean) => void;
+  jest.mocked(takeOverWatch).mockReturnValueOnce(new Promise((resolve) => { stopped = resolve; }));
+
+  fireEvent.click(start);
+  fireEvent.click(within(await screen.findByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Watch here' }));
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  await act(async () => { stopped(false); });
+
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+});
+
 it('Watch here shows a quiet-hours warning that has come to apply, and leaves the other tab watching', async () => {
   jest.useFakeTimers({ advanceTimers: true });
   jest.mocked(askOtherTabs).mockResolvedValue({ watching: true, way: 'monitor' });
