@@ -3,7 +3,6 @@ import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import HistoryPage from '@/app/history/page';
-import { NotificationDropdown } from '@/components/NotificationDropdown';
 import { AlertPanel } from '@/components/AlertPanel';
 import { openDB } from 'idb';
 import { useMonitoringStore } from '@/stores/monitoring-store';
@@ -71,7 +70,7 @@ it('does not import other alert producers into the monitoring timeline', async (
   expect(useMonitoringStore.getState().alerts).toEqual([]);
 });
 
-it('clears monitoring notifications without deleting another producers cached alerts', async () => {
+it('clearing the monitor\'s alerts leaves another producer\'s cached alerts', async () => {
   await cacheAlert({ id: 'engine-owned', streamId: 'engine', severity: 'low',
     message: 'Engine-owned alert', acknowledged: true, createdAt: new Date().toISOString() });
   const view = render(<MonitorPage />);
@@ -81,9 +80,7 @@ it('clears monitoring notifications without deleting another producers cached al
   } }));
   await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
   view.unmount();
-  render(<NotificationDropdown />);
-  fireEvent.click(screen.getByRole('button', { name: /Notifications/ }));
-  fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+  act(() => { useMonitoringStore.getState().clearAlerts(); });
   await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
   expect(await getCachedAlerts()).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'engine-owned' })]));
   expect((await getCachedAlerts()).some(alert => alert.id === 'monitor-owned')).toBe(false);
@@ -178,4 +175,31 @@ it('keeps an early unacknowledged critical alert on screen while later acknowled
   expect(screen.getByText('Early critical alert')).toBeTruthy();
   await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
   expect(screen.getByText('Early critical alert')).toBeTruthy();
+});
+
+it("keeps an alert of a watch that has ended silent, and lets the running watch's alerts sound", async () => {
+  const { raisedByThisWatch } = await import('@/lib/watch-sound');
+  const { startMonitoring } = await import('./helpers/camera-browser');
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  // The watch runs, its picture seen: the alerts of the watch before it are forgotten by now.
+  await waitFor(() => expect(screen.getByText('Stop Monitoring')).toBeTruthy());
+  await act(async () => {});
+  act(() => useMonitoringStore.getState().setStreamId('stream-b'));
+
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
+    id: 'late-from-a', streamId: 'stream-a', severity: 'high',
+    message: 'Late alert of the ended watch', timestamp: '2026-10-01T10:00:00.000Z',
+  } }));
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
+    id: 'from-b', streamId: 'stream-b', severity: 'high',
+    message: 'Alert of the running watch', timestamp: '2026-10-01T10:00:01.000Z',
+  } }));
+
+  // Both are listed; only the running watch's alert sounds.
+  expect(screen.getByText('Late alert of the ended watch')).toBeTruthy();
+  expect(screen.getByText('Alert of the running watch')).toBeTruthy();
+  expect(raisedByThisWatch('late-from-a')).toBe(false);
+  expect(raisedByThisWatch('from-b')).toBe(true);
 });

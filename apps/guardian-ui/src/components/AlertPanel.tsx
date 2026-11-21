@@ -13,6 +13,7 @@ import { useMonitoringStore, type Alert } from '../stores/monitoring-store';
 import { isStaticMode, getApiUrl } from '../lib/env';
 import { useSettingsStore } from '../stores/settings-store';
 import { getSoundManager, type SoundType } from '../lib/sound-manager';
+import { raisedByThisWatch } from '../lib/watch-sound';
 import { cardTime } from '../lib/alert-event';
 import {
   IconInfo,
@@ -131,7 +132,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
 
     const tick = () => {
       const now = Date.now();
-      const unacknowledged = alerts.filter((a) => !a.acknowledged);
+      // Only the alerts of the running watch sound or grow louder. One left
+      // unseen from an earlier watch stays in the list, silent.
+      const unacknowledged = alerts.filter((a) => !a.acknowledged && raisedByThisWatch(a.id));
 
       const nextLevels = new Map<string, number>();
 

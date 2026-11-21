@@ -1,5 +1,5 @@
 /**
- * Lost & Found metadata
+ * Lost and Found metadata
  *
  * The page is a client component, so its title, description, canonical
  * address and social card are set here.
@@ -8,13 +8,15 @@
  */
 
 import type { Metadata } from 'next';
-import { pageMetadata } from '@/lib/page-metadata';
+import { WAYS } from '@/lib/app-routes';
+import { appPageMetadata } from '@/lib/page-metadata';
 
-export const metadata: Metadata = pageMetadata({
-  title: 'Lost & Found',
-  description:
-    'Upload photos of your lost pet, and SafeOS Guardian checks your own camera for anything with the same colouring while the monitor stays open.',
-  path: '/lost-found/',
+const way = WAYS.find((w) => w.id === 'lost-found')!;
+
+export const metadata: Metadata = appPageMetadata({
+  name: way.name,
+  description: way.line,
+  path: way.href,
 });
 
 export default function LostFoundLayout({ children }: { children: React.ReactNode }) {

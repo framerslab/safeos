@@ -25,14 +25,18 @@ type Modules = {
   AlertPanel: typeof import('@/components/AlertPanel').AlertPanel;
   getSoundManager: typeof import('@/lib/sound-manager').getSoundManager;
   useSettingsStore: typeof import('@/stores/settings-store').useSettingsStore;
+  watchRaised: typeof import('@/lib/watch-sound').watchRaised;
 };
 
-// A fresh sound module, with no audio context yet, for each case.
+// A fresh sound module, with no audio context yet, for each case. The alerts
+// of the running watch are named through the same watch-sound module the
+// panel reads.
 async function load(): Promise<Modules> {
   const { AlertPanel } = await import('@/components/AlertPanel');
   const { getSoundManager } = await import('@/lib/sound-manager');
   const { useSettingsStore } = await import('@/stores/settings-store');
-  return { AlertPanel, getSoundManager, useSettingsStore };
+  const { watchRaised } = await import('@/lib/watch-sound');
+  return { AlertPanel, getSoundManager, useSettingsStore, watchRaised };
 }
 
 // An unacknowledged alert old enough to be at the top escalation level.
@@ -80,9 +84,11 @@ afterEach(() => {
 });
 
 it('two alerts that reach the top level in the same tick start one emergency loop, and acknowledging both leaves no sound and nothing scheduled', async () => {
-  const { AlertPanel, getSoundManager } = await load();
+  const { AlertPanel, getSoundManager, watchRaised } = await load();
+  const initial = [oldAlert('first'), oldAlert('second')];
+  for (const alert of initial) watchRaised(alert.id);
 
-  render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('first'), oldAlert('second')]} />);
+  render(<Panel AlertPanel={AlertPanel} initial={initial} />);
   await act(async () => { await settle(); });
 
   const loops = getSoundManager().getActiveSounds().filter((sound) => sound.loop);
@@ -116,9 +122,11 @@ it("an emergency alert present before any gesture sounds after the person's next
     return Promise.resolve();
   };
   jest.spyOn(console, 'warn').mockImplementation(() => {});
-  const { AlertPanel } = await load();
+  const { AlertPanel, watchRaised } = await load();
+  const initial = [oldAlert('waiting')];
+  for (const alert of initial) watchRaised(alert.id);
 
-  render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('waiting')]} />);
+  render(<Panel AlertPanel={AlertPanel} initial={initial} />);
   await act(async () => { await settle(); });
   expect(made.contexts).toHaveLength(1);
   const context = made.contexts[0];
@@ -143,14 +151,16 @@ it("an emergency alert present before any gesture sounds after the person's next
 });
 
 it('the loop plays on as the same sound through an acknowledgement that leaves a top-level alert, an arrival, a volume change and a mute change; it stops with the last acknowledgement, and when the panel unmounts', async () => {
-  const { AlertPanel, getSoundManager, useSettingsStore } = await load();
+  const { AlertPanel, getSoundManager, useSettingsStore, watchRaised } = await load();
   const manager = getSoundManager();
   const play = jest.spyOn(manager, 'play');
   const stop = jest.spyOn(manager, 'stop');
   const arrivals: Arrivals = {};
   const loopIds = () => manager.getActiveSounds().filter((sound) => sound.loop).map((sound) => sound.id);
+  const initial = [oldAlert('first'), oldAlert('second')];
+  for (const alert of initial) watchRaised(alert.id);
 
-  render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('first'), oldAlert('second')]} arrivals={arrivals} />);
+  render(<Panel AlertPanel={AlertPanel} initial={initial} arrivals={arrivals} />);
   await act(async () => { await settle(); });
   expect(loopIds()).toHaveLength(1);
   const [loopId] = loopIds();
@@ -177,7 +187,9 @@ it('the loop plays on as the same sound through an acknowledgement that leaves a
   sameLoopPlays();
 
   // Another alert arrives at the top level.
-  await act(async () => { arrivals.add?.(oldAlert('third')); });
+  const third = oldAlert('third');
+  watchRaised(third.id);
+  await act(async () => { arrivals.add?.(third); });
   await afterATick();
   expect(screen.getAllByRole('button', { name: 'Acknowledge' })).toHaveLength(2);
   sameLoopPlays();
@@ -207,7 +219,9 @@ it('the loop plays on as the same sound through an acknowledgement that leaves a
 
   // A panel that unmounts with a top-level alert present stops its loop.
   cleanup();
-  const second = render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('fourth')]} />);
+  const fourth = [oldAlert('fourth')];
+  for (const alert of fourth) watchRaised(alert.id);
+  const second = render(<Panel AlertPanel={AlertPanel} initial={fourth} />);
   await act(async () => { await settle(); });
   expect(loopIds()).toHaveLength(1);
   const secondGain = soundGains()[1];
@@ -222,7 +236,7 @@ it('the loop plays on as the same sound through an acknowledgement that leaves a
 });
 
 it('a change of the sound configured for the top level replaces the loop that plays: one stop, one start, and only the new sound is active', async () => {
-  const { AlertPanel, getSoundManager, useSettingsStore } = await load();
+  const { AlertPanel, getSoundManager, useSettingsStore, watchRaised } = await load();
   const manager = getSoundManager();
   const levels = useSettingsStore.getState().alertEscalationLevels;
   const top = Math.max(...levels.map((level) => level.level));
@@ -231,8 +245,10 @@ it('a change of the sound configured for the top level replaces the loop that pl
   const play = jest.spyOn(manager, 'play');
   const stop = jest.spyOn(manager, 'stop');
   const loops = () => manager.getActiveSounds().filter((sound) => sound.loop);
+  const initial = [oldAlert('first')];
+  for (const alert of initial) watchRaised(alert.id);
 
-  render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('first')]} />);
+  render(<Panel AlertPanel={AlertPanel} initial={initial} />);
   await act(async () => { await settle(); });
   expect(loops().map((sound) => sound.type)).toEqual(['notification']);
   const [old] = loops();
@@ -262,15 +278,17 @@ it('a change of the sound configured for the top level replaces the loop that pl
 });
 
 it('a panel that unmounts ends its loop at once, also for a configured sound with a fade, so a panel mounted next plays the only loop', async () => {
-  const { AlertPanel, getSoundManager, useSettingsStore } = await load();
+  const { AlertPanel, getSoundManager, useSettingsStore, watchRaised } = await load();
   const manager = getSoundManager();
   const levels = useSettingsStore.getState().alertEscalationLevels;
   const top = Math.max(...levels.map((level) => level.level));
   // A notification fades out over 200 ms when it is stopped with its own fade.
   useSettingsStore.getState().updateAlertEscalationLevel(top, { soundType: 'notification' });
   const loops = () => manager.getActiveSounds().filter((sound) => sound.loop);
+  const initial = [oldAlert('first')];
+  for (const alert of initial) watchRaised(alert.id);
 
-  const first = render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('first')]} />);
+  const first = render(<Panel AlertPanel={AlertPanel} initial={initial} />);
   await act(async () => { await settle(); });
   expect(loops().map((sound) => sound.type)).toEqual(['notification']);
   const context = made.contexts[0];
@@ -283,7 +301,9 @@ it('a panel that unmounts ends its loop at once, also for a configured sound wit
   expect(firstGain.disconnected).toBe(true);
 
   // A panel mounted straight after plays the only loop.
-  render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('second')]} />);
+  const next = [oldAlert('second')];
+  for (const alert of next) watchRaised(alert.id);
+  render(<Panel AlertPanel={AlertPanel} initial={next} />);
   await act(async () => { await settle(); });
   expect(loops()).toHaveLength(1);
   await act(async () => { await runClock(context, 1000); });
@@ -291,11 +311,13 @@ it('a panel that unmounts ends its loop at once, also for a configured sound wit
 });
 
 it('a loop whose audio context closes starts again on a new context at the next tick', async () => {
-  const { AlertPanel, getSoundManager } = await load();
+  const { AlertPanel, getSoundManager, watchRaised } = await load();
   const manager = getSoundManager();
   const loopIds = () => manager.getActiveSounds().filter((sound) => sound.loop).map((sound) => sound.id);
+  const initial = [oldAlert('first')];
+  for (const alert of initial) watchRaised(alert.id);
 
-  render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('first')]} />);
+  render(<Panel AlertPanel={AlertPanel} initial={initial} />);
   await act(async () => { await settle(); });
   expect(made.contexts).toHaveLength(1);
   const context = made.contexts[0];
@@ -316,4 +338,19 @@ it('a loop whose audio context closes starts again on a new context at the next 
   const tones = started().filter((oscillator) => oscillator.context === fresh);
   expect(tones.length).toBeGreaterThan(0);
   expect(new Set(tones.map((oscillator) => oscillator.type))).toEqual(new Set(['square']));
+});
+
+it('an alert left unseen from an earlier watch does not sound', async () => {
+  const { AlertPanel } = await load();
+
+  // The alert was not raised by the running watch, so it is not named.
+  render(<Panel AlertPanel={AlertPanel} initial={[oldAlert('earlier')]} />);
+  await act(async () => { await settle(); });
+  // No sound made an audio context; the clock then runs on one of the case's own.
+  const context = made.contexts[0] ?? new FakeAudioContext();
+  await act(async () => { await runClock(context, 1000); });
+
+  expect(started().length).toBe(0);
+  expect(screen.getByText('Alert earlier')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Acknowledge' })).toBeTruthy();
 });

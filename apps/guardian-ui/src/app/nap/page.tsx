@@ -7,7 +7,8 @@
  * alerts will play at. Start Nap Mode applies the infant_sleep preset, leaves
  * the planned nap as a one-use hand-off and opens Motion and sound (the
  * monitor), which does the watching, sounds the alerts and reminds when the
- * time is up. This page runs no detector of its own once its check is done.
+ * time is up. While another tab watches, Start Nap Mode asks first. This page
+ * runs no detector of its own once its check is done.
  *
  * @module app/nap/page
  */
@@ -18,11 +19,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSettingsStore } from '../../stores/settings-store';
-import { useSoundManager } from '../../lib/sound-manager';
+import { getSoundManager, useSoundManager } from '../../lib/sound-manager';
 import { NAP_MODE_DISCLAIMER } from '../../lib/disclaimers';
 import { getPixelDetectionEngine, resetPixelDetectionEngine } from '../../lib/pixel-detection';
 import { handNapToWatch, napAlertVolume, napSilence } from '../../lib/nap-session';
 import { useCameraStore } from '../../stores/camera-store';
+import { useStartGuard } from '../../lib/start-guard';
 
 // =============================================================================
 // Types
@@ -101,6 +103,10 @@ export default function NapModePage() {
         return () => window.clearInterval(id);
     }, [step]);
 
+    // The monitor starts the nap's watch on arrival, so the question before a
+    // second watch is asked here, before it opens.
+    const { guard, dialog, drop } = useStartGuard();
+
     if (!mounted) {
         return <LoadingScreen />;
     }
@@ -164,6 +170,8 @@ export default function NapModePage() {
     // starts over when the person comes back to it.
     const leaveCheck = () => {
         checkRunRef.current += 1;
+        // An answer from the other tabs, or Watch here's takeover, that ends after Back asks nothing.
+        drop();
         if (motionStartRef.current) {
             window.clearTimeout(motionStartRef.current);
             motionStartRef.current = null;
@@ -285,7 +293,7 @@ export default function NapModePage() {
         // apply since the page last drew shows, and the nap waits for the next press.
         if (napSilence(useSettingsStore.getState(), napDuration) !== silence) {
             setClockNow(Date.now());
-            return;
+            return false;
         }
         // Stop any test sounds before activating nap mode
         if (testSoundId) {
@@ -310,6 +318,34 @@ export default function NapModePage() {
         activateSleepMode('infant_sleep');
         handNapToWatch(napDuration);
         router.push('/monitor/');
+    };
+
+    // Start Nap Mode asks first while another tab watches. A quiet-hours
+    // warning that has come to apply shows before anything is asked. The press
+    // turns the sound on before the other tabs answer: a browser that keeps a
+    // page's sound off until a tap turns it on only inside the tap.
+    // The start belongs to the check run it was pressed in: Back while the
+    // other tabs answer, or before Watch here's takeover ends, starts nothing.
+    // Watch here checks quiet hours again before it stops the other tab, so a
+    // warning that has come to apply shows while that tab goes on watching.
+    const pressStartNap = (event: React.MouseEvent<HTMLButtonElement>) => {
+        if (napSilence(useSettingsStore.getState(), napDuration) !== silence) {
+            setClockNow(Date.now());
+            return;
+        }
+        getSoundManager().unlockAudio();
+        const run = checkRunRef.current;
+        const sameRun = () => !closedRef.current && run === checkRunRef.current;
+        const quietUnchanged = () => {
+            if (napSilence(useSettingsStore.getState(), napDuration) === silence) return true;
+            setClockNow(Date.now());
+            return false;
+        };
+        void guard(
+            () => (sameRun() ? activateNapMode() : false),
+            event.currentTarget,
+            () => sameRun() && quietUnchanged(),
+        );
     };
 
     // ==========================================================================
@@ -587,7 +623,7 @@ export default function NapModePage() {
                                 Back
                             </button>
                             <button
-                                onClick={activateNapMode}
+                                onClick={pressStartNap}
                                 disabled={!allTestsPassed}
                                 className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all ${allTestsPassed
                                     ? 'bg-indigo-600 hover:bg-indigo-500 text-white'
@@ -600,6 +636,7 @@ export default function NapModePage() {
                     </>
                 )}
             </div>
+            {dialog}
         </div>
     );
 }

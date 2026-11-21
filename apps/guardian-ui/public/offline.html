@@ -2,193 +2,136 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Offline - SafeOS Guardian</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <meta name="color-scheme" content="dark light">
+  <title>This page is not on this device | SafeOS</title>
+  <script>
+    // The look a person chose on this device; without one, the device's own.
+    (function () {
+      try {
+        var saved = JSON.parse(localStorage.getItem('guardian-theme') || 'null');
+        var mode = saved && saved.state && saved.state.themeMode;
+        if (mode === 'light' || mode === 'dark') document.documentElement.className = mode;
+      } catch (e) {}
+    })();
+  </script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    :root {
+      --page: #0b131b; --panel: #101a24; --ink: #f4f5f6; --line: #9ca3af; --accent: #4ade80;
+      color-scheme: dark;
     }
-    
+    @media (prefers-color-scheme: light) {
+      :root:not(.dark) {
+        --page: #f8f9fa; --panel: #f1f3f4; --ink: #0f1215; --line: #495057; --accent: #14532d;
+        color-scheme: light;
+      }
+    }
+    :root.light {
+      --page: #f8f9fa; --panel: #f1f3f4; --ink: #0f1215; --line: #495057; --accent: #14532d;
+      color-scheme: light;
+    }
+    * { box-sizing: border-box; }
+    html { font-size: 100%; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      margin: 0;
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #f8fafc;
-      padding: 20px;
+      min-height: 100svh;
+      background: var(--page);
+      color: var(--ink);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 1.125rem;
+      line-height: 1.75rem;
+      font-weight: 400;
+      overflow-wrap: anywhere;
     }
-    
-    .container {
-      text-align: center;
-      max-width: 400px;
+    main {
+      padding: 32px max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
     }
-    
-    .icon {
-      width: 80px;
-      height: 80px;
-      background: linear-gradient(135deg, #10b981, #06b6d4);
-      border-radius: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 24px;
-      font-size: 40px;
-    }
-    
     h1 {
-      font-size: 28px;
-      margin-bottom: 12px;
+      margin: 0 0 16px;
+      font-family: 'Space Grotesk', Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 1.875rem;
+      line-height: 2.875rem;
       font-weight: 700;
+      text-wrap: balance;
     }
-    
-    p {
-      color: #94a3b8;
-      line-height: 1.6;
-      margin-bottom: 24px;
-    }
-    
-    .status {
+    p { margin: 0 0 24px; max-width: 40rem; }
+    .ways { display: flex; flex-direction: column; gap: 8px; }
+    button, a { touch-action: manipulation; }
+    button {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      padding: 12px 24px;
-      background: rgba(239, 68, 68, 0.2);
-      border: 1px solid rgba(239, 68, 68, 0.3);
-      border-radius: 12px;
-      margin-bottom: 32px;
-    }
-    
-    .status-dot {
-      width: 10px;
-      height: 10px;
-      background: #ef4444;
-      border-radius: 50%;
-      animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.5; }
-    }
-    
-    .retry-btn {
-      display: inline-block;
-      padding: 12px 32px;
-      background: linear-gradient(135deg, #10b981, #06b6d4);
-      color: white;
-      font-weight: 600;
-      border: none;
-      border-radius: 12px;
+      justify-content: center;
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: 1rem;
+      line-height: 1.5rem;
+      font-weight: 700;
       cursor: pointer;
-      text-decoration: none;
-      transition: opacity 0.2s;
     }
-    
-    .retry-btn:hover {
-      opacity: 0.9;
-    }
-    
-    .info {
-      margin-top: 40px;
-      padding: 20px;
-      background: rgba(30, 41, 59, 0.5);
-      border-radius: 12px;
-      text-align: left;
-    }
-    
-    .info h3 {
-      font-size: 14px;
-      color: #94a3b8;
-      margin-bottom: 12px;
-    }
-    
-    .info ul {
-      list-style: none;
-      font-size: 14px;
-    }
-    
-    .info li {
-      padding: 8px 0;
-      color: #64748b;
+    button:hover { background: var(--panel); border-color: var(--ink); }
+    button:active { transform: translateY(1px); }
+    a {
       display: flex;
       align-items: center;
-      gap: 8px;
+      min-height: 44px;
+      color: var(--ink);
+      font-weight: 700;
+      text-decoration-line: underline;
+      text-decoration-color: var(--accent);
+      text-decoration-thickness: 2px;
+      text-underline-offset: 4px;
     }
-    
-    .info li::before {
-      content: "✓";
-      color: #10b981;
+    a:hover { text-decoration-thickness: 3px; }
+    a:active { transform: translateY(1px); }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+    @media (prefers-reduced-motion: reduce) {
+      button:active, a:active { transform: none; }
+    }
+    @media (min-width: 48em) {
+      main { max-width: 40rem; margin: 0 auto; padding: 64px 0; }
+      h1 { font-size: 2.5rem; line-height: 3.75rem; }
+      button { width: auto; }
+      .ways { align-items: flex-start; }
+    }
+    @media (min-width: 64em) {
+      main {
+        display: grid;
+        grid-template-columns: 7fr 5fr;
+        column-gap: 24px;
+        max-width: 75rem;
+        padding: 72px 32px;
+      }
+      h1 { font-size: 3rem; line-height: 4.5rem; }
+    }
+    @media (min-width: 90em) {
+      main { max-width: 82.5rem; padding: 80px 64px; }
+      body { font-size: 1.25rem; line-height: 1.875rem; }
+      h1 { font-size: 3.25rem; line-height: 4.875rem; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="icon">🛡️</div>
-    
-    <h1>You're Offline</h1>
-    
-    <p>
-      SafeOS Guardian requires an internet connection to communicate with the monitoring server. 
-      Your local data is still safely stored.
-    </p>
-    
-    <div class="status">
-      <span class="status-dot"></span>
-      <span>No Connection</span>
+  <main>
+    <div>
+      <h1>This page is not on this device</h1>
+      <p>This device is offline, and this page is not saved on it. The dashboard opens without a connection.</p>
     </div>
-    
-    <button class="retry-btn" onclick="window.location.reload()">
-      Try Again
-    </button>
-    
-    <div class="info">
-      <h3>While offline, you can still:</h3>
-      <ul>
-        <li>View cached alerts and history</li>
-        <li>Access your saved preferences</li>
-        <li>Review previous analysis results</li>
-      </ul>
+    <div class="ways">
+      <button type="button" onclick="window.location.reload()">Try again</button>
+      <a href="/dashboard/">Open dashboard</a>
     </div>
-  </div>
-  
+  </main>
   <script>
-    // Check for connection restoration
-    window.addEventListener('online', () => {
-      window.location.reload();
-    });
+    // Back online: load the address a person asked for.
+    window.addEventListener('online', function () { window.location.reload(); });
   </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

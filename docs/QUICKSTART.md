@@ -79,11 +79,11 @@ Setup asks what this device watches. To change it later, run setup again from th
 
 | Choice | What it does |
 |--------|--------------|
-| **Pet Monitoring** | Motion and sound alerts while your pet is in another room |
+| **Pet Monitoring** | Motion and sound alerts while your pet is in another room or in the yard |
 | **Baby Monitoring** | Motion and sound alerts during a nap you stay nearby for. SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS |
 | **Elderly Care** | Motion and sound alerts, and an optional alert when nothing has moved for a time you set |
-| **Security Mode** | Motion and sound alerts while the room is empty. The Security page counts the people in view |
-| **Lost & Found** | Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. It saves the pet use, and the last step's **Open Lost and Found** opens the Lost & Found page: add the photos there and press **Start Monitoring** (while a watch is on, that page shows **Go to Monitor** in its place), then press **Start Monitoring** on Monitor to start the camera and the comparison |
+| **Security Mode** | Motion and sound alerts while the place is empty. The People page counts the people in view |
+| **Lost & Found** | Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. It saves the pet use, and the last step's **Open Lost and Found** opens the Lost & Found page: add the photos there and press **Start Monitoring**, then press **Start Monitoring** on the Motion and sound page to start the camera and the comparison |
 
 #### Step 3: Choose a Camera and Allow Access
 
@@ -167,9 +167,11 @@ SafeOS keeps a local incident log in your browser:
   - Monitoring alerts (a card whose event alerted again is listed at its newest alert)
   - Lost & Found match frames
   - Security intrusion frames
-- Add notes, filter/search, and export a local bundle:
-  - **Download Bundle (.json)** (or **.json.gz** in supported browsers)
-  - Optional “incremental export” (only unexported frames)
+  - Wildlife sightings
+- History opens on Local Timeline when this device holds new alerts, and marks them as seen there.
+- Add notes, filter/search (the Type filter has Wildlife), and export a local bundle:
+  - **Download Bundle (.json)** (or **.json.gz** in supported browsers), with Wildlife's sightings under `wildlife.sightings`
+  - Optional “incremental export” (only unexported frames and sightings)
 
 ### Notification Channels
 

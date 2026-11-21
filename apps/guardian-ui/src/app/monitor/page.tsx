@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * Monitor Page
+ * Motion and sound page
  *
- * Live monitoring interface with Lost & Found detection.
+ * The watch for motion and sound, which also runs Lost and Found's check.
  *
  * @module app/monitor/page
  */
@@ -18,6 +18,7 @@ import { useSearchParams } from 'next/navigation';
 import { CameraPicker } from '../../components/CameraPicker';
 import { useCameraStore } from '../../stores/camera-store';
 import { CameraFeed } from '../../components/CameraFeed';
+import { KeyRow } from '../../components/app/KeyRow';
 import { AlertPanel } from '../../components/AlertPanel';
 import { SubjectPreviewOverlay, SubjectPreview } from '../../components/SubjectPreview';
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
@@ -31,11 +32,16 @@ import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from 
 import { useWatchSettings } from '../../stores/watch-settings';
 import { useLostFoundStore, createMatchFrame, getMatcherSettings } from '../../stores/lost-found-store';
 import { getSubjectMatcher, type MatchResult } from '../../lib/subject-matcher';
-import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } from '../../lib/client-db';
+import { getSubjectProfile, saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } from '../../lib/client-db';
 import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
 import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
+import { forgetRaised } from '../../lib/watch-sound';
+import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
+import { announceWatch } from '../../lib/tab-channel';
+import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
+import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -87,6 +93,9 @@ async function createThumbnail(frameData: string): Promise<string> {
 // =============================================================================
 // Component
 // =============================================================================
+
+/** The triggers whose saved sounds this page's watch plays. */
+const WATCH_TRIGGERS = ['motion_detected', 'audio_detected', 'inactivity_alert', 'object_found'] as const;
 
 export default function MonitorPage() {
   useEffect(() => {
@@ -264,6 +273,10 @@ export default function MonitorPage() {
       updateConsecutiveMatches(matcher.getState().consecutiveMatches);
       addRecentMatch(result);
 
+      // Whether this check raises the alert. Read once, so the saved frame
+      // says what the person heard, whatever the threshold is set to later.
+      const alerted = matcher.shouldAlert();
+
       // Check if should record
       if (matcher.shouldRecord() && result.frameData) {
         // Create match frame and save to IndexedDB (async thumbnail creation)
@@ -289,15 +302,16 @@ export default function MonitorPage() {
             acknowledged: false,
             notes: '',
             exported: false,
+            alerted,
           };
 
           saveMatchFrame(matchFrame, generation, current);
         });
-        addMatchFrameToStore(createMatchFrame(activeSubject.id, result));
+        addMatchFrameToStore(createMatchFrame(activeSubject.id, result, alerted));
       }
 
       // Check if should alert
-      if (matcher.shouldAlert()) {
+      if (alerted) {
         recordLostFoundAlert();
 
         // Play sound if enabled: the person's own sounds saved for Lost Item
@@ -392,18 +406,23 @@ export default function MonitorPage() {
           // Server acknowledgements do not own the local camera request.
           setStreamId(captureRequestedRef.current ? `local-${Date.now()}` : null);
           break;
-        case 'alert':
+        case 'alert': {
+          // Only the running watch's own alerts sound: a late alert of a watch that has ended is
+          // listed, new and silent.
+          const streamId = message.payload?.streamId || '';
+          const raised = captureRequestedRef.current && streamId !== '' && streamId === useMonitoringStore.getState().streamId;
           addAlert({
             id: message.payload?.id || newAlertId('server'),
-            streamId: message.payload?.streamId || '',
+            streamId,
             alertType: message.payload?.alertType,
             thumbnailUrl: message.payload?.thumbnailUrl,
             severity: message.payload?.severity || 'medium',
             message: message.payload?.message || 'Alert detected',
             timestamp: message.payload?.timestamp || new Date().toISOString(),
             acknowledged: false,
-          });
+          }, { raised });
           break;
+        }
         case 'pong':
           // Heartbeat received
           break;
@@ -444,6 +463,97 @@ export default function MonitorPage() {
     serverRequestedRef.current = false;
   };
 
+  const stopStreamRef = useRef(stopStream);
+  stopStreamRef.current = stopStream;
+
+  // While another tab watches, a start key here asks first.
+  const { guard, dialog } = useStartGuard();
+  // The press turns the sound on before the other tabs answer: a browser that
+  // keeps a page's sound off until a tap turns it on only inside the tap.
+  const pressStart = (start: () => unknown) => (event: React.MouseEvent<HTMLButtonElement>) => {
+    getSoundManager().unlockAudio();
+    void guard(start, event.currentTarget);
+  };
+
+  // A start the dashboard's key asked for: the camera is open already, so the
+  // watch starts with no second press. For Lost and Found the pet is chosen
+  // first; a pet that is gone leaves a Motion and sound watch.
+  const pendingStart = useRef<StartRequest | null>(null);
+  useEffect(() => {
+    pendingStart.current = pendingStart.current ?? takeStart('monitor');
+    const start = pendingStart.current;
+    if (!start) return;
+    let live = true;
+    void (async () => {
+      let lostFound = false;
+      if (start.way === 'lost-found' && start.pet) {
+        const pet = await getSubjectProfile(start.pet);
+        // Another tab that took over meanwhile dropped the start: nothing starts.
+        if (!live || !startHeld(start)) return;
+        if (pet && pet.type !== 'person') {
+          lostFound = true;
+          useLostFoundStore.getState().setActiveSubject(pet);
+          useLostFoundStore.getState().startWatching();
+        }
+      }
+      if (!live || !startHeld(start)) {
+        if (lostFound) useLostFoundStore.getState().stopWatching();
+        return;
+      }
+      // Watch for runs the way the dashboard's key named.
+      useOnboardingStore.getState().setLostFoundChosen(lostFound);
+      pendingStart.current = null;
+      startStream();
+    })();
+    return () => {
+      live = false;
+    };
+    // Runs when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // A camera held for this page and never taken is closed when the page is left.
+  useEffect(() => dropStart, []);
+  // The pet the watch compares with, as Watch for has it from the render that
+  // starts the watch, so the other tabs and the dashboard hear of a Lost and
+  // Found watch from its press.
+  const watchedPet = watchFor.comparing && watchFor.pet ? watchFor.pet.id : undefined;
+
+  // The other tabs hear of this watch from the press, before the camera is
+  // asked for, so a press in another tab meanwhile asks first. This effect's
+  // end is the watch's one end, whatever ended it: Stop Monitoring, Cancel
+  // Starting, a camera that failed, another tab, or leaving the page.
+  useEffect(() => {
+    if (!captureRequested) return;
+    const endAnnounce = announceWatch(watchedPet ? 'lost-found' : 'monitor', () => stopStreamRef.current());
+    return () => {
+      endAnnounce();
+      dropStart();
+    };
+    // A change of pet is the same watch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [captureRequested]);
+
+  // A watch's times run from the moment this capture request first showed a
+  // picture until it is stopped. A camera the browser holds back for a moment
+  // and gives back is the same watch.
+  const watching = captureRequested && videoSeen;
+  useEffect(() => {
+    if (!watching) return;
+    forgetRaised();
+    watchStarted();
+    const endTimes = keepWatchTimes();
+    return () => {
+      endTimes();
+      watchEnded();
+      forgetRaised();
+    };
+  }, [watching]);
+
+  useEffect(() => {
+    if (watching) rememberWay(watchedPet ? 'lost-found' : 'monitor', watchedPet);
+  }, [watching, watchedPet]);
+
   // The nap Start Nap Mode handed to this watch, kept in this history entry:
   // it belongs to this watch, survives a reload and ends with it.
   const [nap, setNap] = useState<Nap | null>(null);
@@ -471,6 +581,8 @@ export default function MonitorPage() {
   // while it is the setting in use; a setting the person chose during the nap
   // stays.
   const endNap = () => {
+    // A Resume nap still waiting for the other tabs' answer starts nothing.
+    napRef.current = null;
     setNap(null);
     setNapWaitsForTap(false);
     keepNap(null);
@@ -487,14 +599,17 @@ export default function MonitorPage() {
 
   // A watch opened from Nap Mode takes the one-use hand-off, keeps the nap in
   // this history entry and starts: the person's click on Start Nap Mode, in
-  // this same page, has turned the sound on. A reload or Back finds the kept
+  // this same page, has turned the sound on. While another tab watches it asks
+  // first, as a start key does; the nap stands whatever the answer, so after
+  // Cancel, End nap and Start Monitoring show. A reload or Back finds the kept
   // nap and waits for a tap: a browser keeps a new page's sound off until one,
   // so the nap's alarm and reminder could not sound. Resume nap is that tap.
-  // The ref keeps this mount's reading, so React's Strict Mode, which runs the
-  // effect again after the unmount cleanup below has cleared
-  // captureRequestedRef, requests the capture again.
+  // The refs keep this mount's reading and its one question: React's Strict
+  // Mode runs the effect twice, and the start comes with the answer, after
+  // the unmount cleanup below has cleared captureRequestedRef.
   const [napWaitsForTap, setNapWaitsForTap] = useState(false);
   const napArrivalRef = useRef<{ nap: Nap; restored: boolean } | null | undefined>(undefined);
+  const napAskedRef = useRef(false);
   useEffect(() => {
     if (napArrivalRef.current === undefined) {
       const minutes = takeNapHandoff();
@@ -514,12 +629,17 @@ export default function MonitorPage() {
       setNapWaitsForTap(true);
       return;
     }
-    captureRequestedRef.current = true;
-    setCaptureRequested(true);
-    setVideoSeen(false);
+    if (napAskedRef.current) return;
+    napAskedRef.current = true;
+    void guard(startStream);
+    // Runs when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => { if (captureRequested) setNapWaitsForTap(false); }, [captureRequested]);
-  const resumeNap = () => {
+  // Resume nap resumes the nap it was pressed for: End nap while the other
+  // tabs answer leaves that press with nothing to start.
+  const resumeNap = (pressed: Nap | null) => () => {
+    if (!pressed || napRef.current !== pressed) return false;
     setNapWaitsForTap(false);
     startStream();
   };
@@ -559,11 +679,16 @@ export default function MonitorPage() {
     };
   }, [isStreaming, wsConnected, globalSettings.processingMode, selectedScenario, scenario, sendMessage]);
 
+  // Leaving the page ends the watch with its sounds: Lost & Found's own and
+  // every saved sound the watch's alerts played, a loop included.
   useEffect(() => () => {
     captureRequestedRef.current = false;
     useMonitoringStore.getState().setStreaming(false);
     useMonitoringStore.getState().setStreamId(null);
-  }, []);
+    useLostFoundStore.getState().stopWatching();
+    stopOwnLostFoundSounds(true);
+    getSoundManager().stopTriggers(WATCH_TRIGGERS);
+  }, [stopOwnLostFoundSounds]);
 
   const handleFrame = (data: { imageData: string; motionScore: number; audioLevel: number }) => {
     if (!isStreaming || !captureRequestedRef.current || !serverRequestedRef.current || !wsConnected ||
@@ -1096,9 +1221,9 @@ export default function MonitorPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
       {/* Header */}
-      <header className="border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-40">
+      <header className="border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm relative z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="way-head">
             <div className="flex items-center gap-3">
               <Link
                 href="/"
@@ -1107,9 +1232,10 @@ export default function MonitorPage() {
               >
                 <IconShield size={28} />
               </Link>
+              <h1 className="text-xl font-bold text-white">Motion and sound</h1>
             </div>
 
-            <div className="flex items-center gap-4">
+            <KeyRow>
               {/* Volume Mute Toggle */}
               <button
                 onClick={toggleGlobalMute}
@@ -1133,7 +1259,7 @@ export default function MonitorPage() {
               </button>
 
               {/* Security Mode Selector */}
-              <div ref={modeDropdownRef} className="relative">
+              <div ref={modeDropdownRef} className="way-head__menu">
                 <button
                   onClick={() => setShowModeDropdown(!showModeDropdown)}
                   className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${isSleepPreset(activePresetId)
@@ -1188,6 +1314,14 @@ export default function MonitorPage() {
                             </button>
                           );
                         })}
+                        {/* A watch while you rest, with its reminder: Nap Mode's own page. */}
+                        <Link
+                          href="/nap/"
+                          onClick={() => setShowModeDropdown(false)}
+                          className="flex items-center w-full min-h-[44px] text-left px-3 py-2 rounded-lg transition-colors text-gray-300 hover:bg-gray-700"
+                        >
+                          <span className="font-medium text-sm">Nap Mode</span>
+                        </Link>
                       </div>
 
                       {/* General Presets */}
@@ -1239,7 +1373,7 @@ export default function MonitorPage() {
 
               {!captureRequested && (
                 <button
-                  onClick={startStream}
+                  onClick={pressStart(startStream)}
                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
                 >
                   Start Monitoring
@@ -1254,7 +1388,7 @@ export default function MonitorPage() {
                   {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
                 </button>
               )}
-            </div>
+            </KeyRow>
           </div>
         </div>
       </header>
@@ -1269,7 +1403,7 @@ export default function MonitorPage() {
               This nap stopped watching when the page reloaded, and the browser keeps its sound off until you tap. Resume nap turns the sound on and starts the camera again.
             </p>
             <button
-              onClick={resumeNap}
+              onClick={pressStart(resumeNap(nap))}
               className="min-h-[44px] px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
             >
               Resume nap
@@ -1728,6 +1862,8 @@ export default function MonitorPage() {
           images={mediaOverlayData.images}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

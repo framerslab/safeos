@@ -380,7 +380,7 @@ prints an error and carries on.
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
 | `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
-| `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the dashboard for the pull request's own build |
+| `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the app's pages for the pull request's own build |
 | `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera (see below) |
 
 `measure.yml` (Measure) is apart from these: it runs on each push to
@@ -398,9 +398,10 @@ land at once the site and the `latest` images go straight to the newest.
 ### Pictures
 
 `pictures.yml` builds the static site, serves it inside the job, opens each
-route in Chromium with Playwright at 390 and 1280 pixels wide, in the light and
-the dark look, and uploads the full-page PNG files as the run's `pictures`
-artifact (`<route>-<width>-<look>.png`).
+route in Chromium with Playwright at 390, 820, 1280 and 1920 pixels wide (one
+width for each layout), in the light and the dark look, and uploads the
+full-page PNG files as the run's `pictures` artifact
+(`<route>-<width>-<look>.png`).
 
 Pull-request picture runs also capture the base commit with the same routes,
 widths and looks. The `pictures` artifact contains the proposed change and
@@ -421,9 +422,23 @@ beside Back for a scenario already chosen. The headless browser has no prompt,
 so the refused and none-found answers are given to the page's camera request by
 the script; the third walk uses the browser's own answer. A finding fails the run.
 
+When `/dashboard/` is captured, both versions also capture the dashboard after
+setup (`dashboard-setup-<width>-<look>.png`), and the pull request's own build
+checks that each of the four ways to watch opens its page. For the pull
+request's own build the script also walks the app's pages
+(`apps/guardian-ui/scripts/app-checks.mjs`): the header, the phone bar and the
+footer at every width from 320 px, each page with scripts off and with its
+script held, the dashboard in each state (before setup, the camera blocked or
+in use, notifications blocked or not asked, a second tab, alerts new, the
+stores held, a private window) at every width with its first screen counted,
+sizes and contrast against the readable look's figures, the old addresses and
+the offline page. The camera in these walks is a stand-in that draws a
+changing picture, and the browser's answers for the camera and notifications
+are given by the script. A finding fails the run.
+
 - On a pull request: add the label `pictures`. It runs on the labelling and on
   every later push to that pull request, for the routes in `DEFAULT_ROUTES`
-  (home, monitoring, setup, dashboard, settings, notifications, models, nap,
+  (home, monitoring, setup, dashboard, history, settings, notifications, models, nap,
   admin, privacy, FAQ and help).
 - By hand: Actions, Pictures, Run workflow. Give a branch, tag or commit and the
   routes separated by spaces (for example `/ /about/ /faq/`).
@@ -473,6 +488,12 @@ pictures" makes it:
    `scripts/home-card.html`, a page the site does not serve) and
    `home/provenance.json`: the run, the commit, the clip's sha256 and each
    file's viewport, width, height and bytes.
+
+A crop is kept only at the size it asks for: one that runs past the edge of
+the screen is saved cut short, and the job fails on it. The landscape crop is
+16:10 from the top of the 1280 px monitor's grid; where the grid starts too
+far down the 1000 px screen for it, the script first moves the page up until
+the crop ends inside the screen.
 
 The files are uploaded as the run's `home-pictures` artifact. To ship them,
 download it and copy it over `apps/guardian-ui/public/`:

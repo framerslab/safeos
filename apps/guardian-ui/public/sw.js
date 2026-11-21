@@ -13,6 +13,39 @@ const manifest = self.__SAFEOS_PRECACHE;
 const UNBUILT = !manifest;
 const CACHE_NAME = `safeos-shell-${manifest?.version || 'unbuilt'}`;
 
+// A page is stored under its path with a closing slash and no query, so
+// /monitor, /monitor/ and /monitor/?source=shortcut are one stored page.
+function storedPage(url) {
+  const last = url.pathname.split('/').pop();
+  if (last.includes('.')) return url.origin + url.pathname;
+  return url.origin + (url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`);
+}
+
+// "Clear All Local Data" removes the installed copy while this worker stays
+// active, and a worker installs again only for a new build. So a load that
+// reaches the network and finds the copy empty stores the build's files again.
+// A file that meets a passing error (a 503, a dropped connection) fails the
+// whole store, so it is tried again after 2, 8 and 30 seconds while the
+// device has a connection; a store that succeeds is not tried again.
+const REFILL_WAITS_MS = [2_000, 8_000, 30_000];
+let refilling = null;
+function refillIfEmpty(cache) {
+  if (!refilling) {
+    refilling = (async () => {
+      for (let attempt = 0; ; attempt += 1) {
+        try {
+          if ((await cache.keys()).length === 0) await cache.addAll(manifest.urls);
+          return;
+        } catch (error) {
+          if (attempt >= REFILL_WAITS_MS.length || self.navigator?.onLine === false) throw error;
+          await new Promise((resolve) => setTimeout(resolve, REFILL_WAITS_MS[attempt]));
+        }
+      }
+    })().catch(() => {}).finally(() => { refilling = null; });
+  }
+  return refilling;
+}
+
 self.addEventListener('install', (event) => {
   if (UNBUILT) {
     self.skipWaiting();
@@ -50,11 +83,16 @@ self.addEventListener('fetch', (event) => {
     // while leaving its scripts behind, and never mix model and page caches.
     // The router asks for route data as index.txt?_rsc=<id>; a static host
     // ignores the query, so the installed file is the same response.
+    // A page is looked up by its path, with the closing slash added and the
+    // query left out.
     const cached = await cache.match(request) ||
+      (request.mode === 'navigate' ? await cache.match(storedPage(url)) : undefined) ||
       (url.pathname.endsWith('.txt') ? await cache.match(url.origin + url.pathname) : undefined);
     if (cached) return cached;
     try {
-      return await fetch(request);
+      const answer = await fetch(request);
+      if (request.mode === 'navigate') event.waitUntil(refillIfEmpty(cache));
+      return answer;
     } catch {
       if (request.mode === 'navigate') {
         const fallback = await cache.match('/offline.html');
