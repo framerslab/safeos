@@ -83,6 +83,23 @@ async function databaseNow(page: Page): Promise<DatabaseReading | null> {
 
 const monitoringAlerts = (reading: DatabaseReading | null) => (reading?.alerts ?? []).filter((row) => row.monitoring === true);
 
+/**
+ * The page hears each change another tab makes to local storage `ms` late,
+ * as a browser may tell a tab of it after the news on the pictures' channel.
+ */
+async function lateStorageEvents(page: Page, ms: number): Promise<void> {
+  await page.addInitScript((wait: number) => {
+    const listen = window.addEventListener.bind(window);
+    window.addEventListener = function (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
+      if (type !== 'storage') return listen(type, listener, options);
+      const late = (event: Event) => {
+        setTimeout(() => (typeof listener === 'function' ? listener.call(window, event) : listener.handleEvent(event)), wait);
+      };
+      return listen(type, late, options);
+    } as typeof window.addEventListener;
+  }, ms);
+}
+
 /** How many watch alerts the database holds, or -1 while it cannot be read: a failed read is never an empty store. */
 async function savedAlertCount(page: Page): Promise<number> {
   const reading = await databaseNow(page);
@@ -3429,16 +3446,7 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
   test('an age chosen in another tab is the one this tab sweeps by when it hears of it', async ({ page, context }) => {
     test.setTimeout(120_000);
     // This tab reads a choice another tab saved 3 seconds after the browser says it changed.
-    await page.addInitScript(() => {
-      const listen = window.addEventListener.bind(window);
-      window.addEventListener = function (type: string, listener: EventListenerOrEventListenerObject, options?: boolean | AddEventListenerOptions) {
-        if (type !== 'storage') return listen(type, listener, options);
-        const late = (event: Event) => {
-          setTimeout(() => (typeof listener === 'function' ? listener.call(window, event) : listener.handleEvent(event)), 3_000);
-        };
-        return listen(type, late, options);
-      } as typeof window.addEventListener;
-    });
+    await lateStorageEvents(page, 3_000);
     await seedDevice(context, { pictures: { noticeAnswered: true, deleteAfterDays: 1 } });
     await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
     await expect(countLine(group(page))).toBeVisible();
@@ -3451,6 +3459,27 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await afterSelect(group(other)).selectOption({ label: 'Until I delete them' });
     await page.waitForTimeout(6_000);
     expect(keptRows(await readDatabase(page)).map((row) => row.id), 'the other tab chose Until I delete them').toEqual([id]);
+    await other.close();
+  });
+
+  test('keeping turned off in another tab keeps no picture here, before this tab reads the choice', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    // This tab reads a choice another tab saved 30 seconds after the browser says it changed.
+    await lateStorageEvents(page, 30_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+    const other = await context.newPage();
+    await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await keepSwitch(group(other)).click();
+    await expect(keepSwitch(group(other))).toHaveAttribute('aria-checked', 'false');
+    // The next alert comes well before this tab reads the choice from the browser.
+    await page.evaluate(() => { window.__camera!.moving.width = 1 / 3; });
+    await expect(cards(page)).toHaveCount(2, { timeout: 20_000 });
+    await expect(cards(page).first().getByText(NOT_KEPT_LINE, { exact: true })).toBeVisible();
+    await page.waitForTimeout(3_000);
+    expect(await keptCount(page), 'the new alert’s picture is not kept').toBe(1);
     await other.close();
   });
 });
