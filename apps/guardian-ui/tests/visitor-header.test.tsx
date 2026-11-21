@@ -327,3 +327,45 @@ describe('the start links once setup is done on this device', () => {
     expect(Array.from(container.querySelectorAll('a')).map((link) => link.textContent)).toEqual(['Start setup']);
   });
 });
+
+describe('a row that runs short', () => {
+  // jsdom lays nothing out, so the row's widths are given here: the row is
+  // 1000 px wide, and its contents need 1100 px with every link, 1050 px
+  // without GitHub and 990 px without GitHub and Privacy. Before the window
+  // narrows, everything fits in 900 px.
+  function giveWidths(narrow: () => boolean) {
+    const scroll = jest.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(function (this: Element) {
+      if (!narrow()) return 900;
+      const short = this.closest('.site-header')?.getAttribute('data-short');
+      return short === 'privacy' ? 990 : short === 'github' ? 1050 : 1100;
+    });
+    const client = jest.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    return () => {
+      scroll.mockRestore();
+      client.mockRestore();
+    };
+  }
+
+  it.each([
+    ['Privacy', '.site-header__link--wide'],
+    ['GitHub', '.site-header__github'],
+  ])('moves focus from %s to the start key when the row gives that link up', (_name, selector) => {
+    let narrow = false;
+    const restore = giveWidths(() => narrow);
+    try {
+      const { container } = render(<VisitorHeader />);
+      const link = container.querySelector(selector) as HTMLElement;
+      link.focus();
+      expect(document.activeElement).toBe(link);
+
+      narrow = true;
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(container.querySelector('.site-header')?.getAttribute('data-short')).toBe('privacy');
+      expect(document.activeElement).toBe(container.querySelector('.site-header__start'));
+    } finally {
+      restore();
+    }
+  });
+});

@@ -175,11 +175,14 @@ describe('the script that asks GitHub before the build', () => {
     expect(asked[0].headers.authorization).toBeUndefined();
   });
 
-  it('prints the two values when no workflow is there to take them', async () => {
+  it('prints only the two values on its output when no workflow is there to take them, and its sentence on the error stream', async () => {
+    // So `export $(node scripts/read-github-stars.mjs)` or `>> .env.local`
+    // takes the two values and nothing else.
     answer = json(200, { stargazers_count: 1 });
     const result = await run({ GITHUB_ENV: '' });
     expect(result.status).toBe(0);
-    expect(result.out).toMatch(/^NEXT_PUBLIC_GITHUB_STARS=1\nNEXT_PUBLIC_GITHUB_STARS_DATE=\d{4}-\d{2}-\d{2}\n1 star on framerslab\/safeos, counted \d{4}-\d{2}-\d{2}\.\n$/);
+    expect(result.out).toMatch(/^NEXT_PUBLIC_GITHUB_STARS=1\nNEXT_PUBLIC_GITHUB_STARS_DATE=\d{4}-\d{2}-\d{2}\n$/);
+    expect(result.err).toMatch(/^1 star on framerslab\/safeos, counted \d{4}-\d{2}-\d{2}\.\n$/);
     expect(result.handed).toBe('');
   });
 
