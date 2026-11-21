@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The About page tells who builds SafeOS once, in one part under Frame's own mark, with the two other things Frame makes; its link rows open in the same tab. The square letter F (`public/logos/frame.svg`) is deleted: setup's welcome card, the blog's byline and a post's structured data show Frame's own mark.
 - From 390 px every row of the footer stays on one line, "SafeOS on GitHub" with its star and count among them: on a phone the right-hand column, which holds Uses, About and From Frame, is as wide as its longest row at least, and from 1024 px the Uses and About groups are. Larger text keeps the two equal columns of a phone and drops to one.
 - The header's start key is wide enough for "Open dashboard", so it keeps one width when its label changes once setup is done, and GitHub and the look switch beside it stay where they are.
+- A press of the look switch changes every key in the same frame as the page. A key's fill eases over 100 ms under the pointer, and a solid key's fill and label always belong to one look.
 - The Pages deploy's build job runs with a token that can only read the repository.
 - Without an https address for the unsubscribe link the server sends no mail; `/api/notifications/test-email` answers `400` with the setting to add, and `409` for an address that unsubscribed.
 - A mail to several recipients goes out as one mail per recipient, each with its own link.

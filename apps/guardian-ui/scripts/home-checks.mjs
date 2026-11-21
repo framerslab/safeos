@@ -833,6 +833,39 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   // Look switch
   // ---------------------------------------------------------------------------
 
+  // Presses the look switch and reads every frame from the press on: in the
+  // first frame the page shows the new look, each solid key shown already has
+  // the new look's fill and label.
+  const pressLookSwitch = async (page, look, width) => {
+    const other = look === 'light' ? 'dark' : 'light';
+    await page.evaluate((want) => {
+      window.__lookFrames = null;
+      const keys = () => [...document.querySelectorAll('.key--solid')].filter((key) => key.getClientRects().length > 0);
+      const read = () => {
+        if (getComputedStyle(document.body).backgroundColor === want) {
+          window.__lookFrames = keys().map((key) => ({
+            name: key.textContent.trim(),
+            fill: getComputedStyle(key).backgroundColor,
+            label: getComputedStyle(key).color,
+          }));
+          return;
+        }
+        requestAnimationFrame(read);
+      };
+      requestAnimationFrame(read);
+    }, PAGE_COLOURS[other]);
+    await page.getByRole('button', { name: `Switch to the ${other} look`, exact: true }).click();
+    await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
+    await page.waitForFunction(() => window.__lookFrames !== null, null, { timeout: 5_000 })
+      .catch(() => fail(`look switch, ${width}: the page never showed the new look in a frame`));
+    const firstFrame = (await page.evaluate(() => window.__lookFrames)) || [];
+    expect(firstFrame.length > 0, `look switch, ${width}: no solid key is shown`);
+    for (const solid of firstFrame) {
+      expect(solid.fill === SOLID_KEY[other].fill && solid.label === SOLID_KEY[other].label,
+        `look switch, ${width}: in the first frame of the ${other} look, "${solid.name}" is ${solid.label} on ${solid.fill}, not ${SOLID_KEY[other].label} on ${SOLID_KEY[other].fill}`);
+    }
+  };
+
   for (const look of LOOKS) {
     const other = look === 'light' ? 'dark' : 'light';
     await open({ name: 'look switch, look switch', width: 390, look }, async (page) => {
@@ -846,35 +879,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       }));
       const before = await state();
       expect(before.background === PAGE_COLOURS[look], `look switch: with the device set to ${look} the page is ${before.background}`);
-      // Every frame from the press on is read: in the first frame the page
-      // shows the new look, each solid key already has its fill and label.
-      await page.evaluate((want) => {
-        window.__lookFrames = null;
-        const keys = () => [...document.querySelectorAll('.key--solid')].filter((key) => key.offsetParent !== null);
-        const read = () => {
-          if (getComputedStyle(document.body).backgroundColor === want) {
-            window.__lookFrames = keys().map((key) => ({
-              name: key.textContent.trim(),
-              fill: getComputedStyle(key).backgroundColor,
-              label: getComputedStyle(key).color,
-            }));
-            return;
-          }
-          requestAnimationFrame(read);
-        };
-        requestAnimationFrame(read);
-      }, PAGE_COLOURS[other]);
-      const key = page.getByRole('button', { name: `Switch to the ${other} look`, exact: true });
-      await key.click();
-      await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
-      await page.waitForFunction(() => window.__lookFrames !== null, null, { timeout: 5_000 })
-        .catch(() => fail('look switch: the page never showed the new look in a frame'));
-      const firstFrame = (await page.evaluate(() => window.__lookFrames)) || [];
-      expect(firstFrame.length > 0, 'look switch: no solid key is shown on the first screen');
-      for (const solid of firstFrame) {
-        expect(solid.fill === SOLID_KEY[other].fill && solid.label === SOLID_KEY[other].label,
-          `look switch: in the first frame of the ${other} look, "${solid.name}" is ${solid.label} on ${solid.fill}, not ${SOLID_KEY[other].label} on ${SOLID_KEY[other].fill}`);
-      }
+      await pressLookSwitch(page, look, 390);
       const after = await state();
       expect(after.background === PAGE_COLOURS[other], `look switch: after a press the page is ${after.background}, not ${PAGE_COLOURS[other]}`);
       expect(after.said === `${other === 'dark' ? 'Dark' : 'Light'} look on`, `look switch: the press announced "${after.said}"`);
@@ -895,6 +900,14 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       await page.getByRole('button', { name: `Switch to the ${other} look`, exact: true }).waitFor({ timeout: 5_000 });
       await page.keyboard.press('Enter');
       await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
+    });
+
+    // At 1280 pixels the header's start key is shown beside the first
+    // screen's: both turn in the frame the page turns.
+    await open({ name: 'look switch, 1280', width: 1280, look }, async (page) => {
+      await visit(page);
+      await pressLookSwitch(page, look, 1280);
+      await page.screenshot({ path: path.join(outDir, `home-after-look-switch-1280-${look}.png`) });
     });
 
     // A browser that refuses storage: the look changes for the visit and no error shows.
