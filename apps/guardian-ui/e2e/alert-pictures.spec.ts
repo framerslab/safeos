@@ -22,10 +22,12 @@ import { coverBox } from '../src/lib/alert-pictures/rules';
 import {
   BLOCK_READABILITY,
   CUSTOM_PRESET,
+  EDGE,
   LEFT_THIRD,
   MOTION_ONLY,
   canvasCamera,
   clipSettings,
+  controlEdges,
   cooldownPeriod,
   doubleText,
   faultPictureStore,
@@ -353,20 +355,27 @@ for (const look of ['dark', 'light'] as const) {
 }
 
 for (const look of ['dark', 'light'] as const) {
-  test.describe(`The Sound card on the sample clip, 1280 px, ${look}`, () => {
+  for (const width of [390, 1280]) {
+    test.describe(`The Sound card on the sample clip, ${width} px, ${look}`, () => {
+      test.use({ colorScheme: look, viewport: { width, height: 900 } });
+      test.beforeEach(() => requireSampleClip());
+
+      test(`a Sound alert's card shows the picture with no box and says what the camera saw when the sound came, ${width} px, ${look}`, async ({ page, context }) => {
+        test.setTimeout(180_000);
+        await watchWith(page, context, { settings: clipSettings({ motion: false, sound: true }) });
+        const card = cards(page).first();
+        const time = await timeOf(card, 'Sound');
+        await expect(card.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
+        await expect(card.getByText('What the camera saw when the sound came.', { exact: true })).toBeVisible();
+        await expect(card.locator('.alert-picture__box')).toHaveCount(0);
+        await expect(card.getByRole('img', { name: /^Close-up/ })).toHaveCount(0);
+      });
+    });
+  }
+
+  test.describe(`Two cards on the sample clip, 1280 px, ${look}`, () => {
     test.use({ colorScheme: look, viewport: { width: 1280, height: 900 } });
     test.beforeEach(() => requireSampleClip());
-
-    test(`a Sound alert's card shows the picture with no box and says what the camera saw when the sound came, ${look}`, async ({ page, context }) => {
-      test.setTimeout(180_000);
-      await watchWith(page, context, { settings: clipSettings({ motion: false, sound: true }) });
-      const card = cards(page).first();
-      const time = await timeOf(card, 'Sound');
-      await expect(card.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
-      await expect(card.getByText('What the camera saw when the sound came.', { exact: true })).toBeVisible();
-      await expect(card.locator('.alert-picture__box')).toHaveCount(0);
-      await expect(card.getByRole('img', { name: /^Close-up/ })).toHaveCount(0);
-    });
 
     test(`two cards stand whole and the list scrolls with the page, ${look}`, async ({ page, context }) => {
       test.setTimeout(180_000);
@@ -581,40 +590,42 @@ test.describe('The card for an alert of another kind or one saved before picture
   });
 });
 
-for (const width of [390, 1280]) {
-  test.describe(`Three events on a canvas camera, ${width} px`, () => {
-    test.use({ viewport: { width, height: 900 } });
+for (const look of ['dark', 'light'] as const) {
+  for (const width of [390, 1280]) {
+    test.describe(`Three events on a canvas camera, ${width} px, ${look}`, () => {
+      test.use({ colorScheme: look, viewport: { width, height: 900 } });
 
-    test(`the newest card shows its pictures large and older cards a thumbnail, ${width} px`, async ({ page, context }) => {
-      test.setTimeout(150_000);
-      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
-      await raiseEvents(page, 3);
-      const [newest, ...older] = await cards(page).all();
-      for (const card of [newest, ...older]) await expect(card.locator('.alert-picture img').first()).toBeVisible();
-      await expect(newest.locator('.alert-picture')).toHaveAttribute('data-form', 'large');
-      const frame = (await newest.locator('.alert-picture__frame').boundingBox())!;
-      const block = (await newest.locator('.alert-picture').boundingBox())!;
-      if (width === 390) {
-        expect(frame.width, 'the picture takes the card').toBeGreaterThanOrEqual(block.width - 24);
-      } else {
-        const cut = (await newest.locator('.alert-picture__tile').first().boundingBox())!;
-        expect(Math.abs(frame.y - cut.y), 'the two pictures stand in one row').toBeLessThanOrEqual(2);
-        expect(cut.x).toBeGreaterThanOrEqual(frame.x + frame.width);
-      }
-      for (const card of older) {
-        await expect(card.locator('.alert-picture')).toHaveAttribute('data-form', 'small');
-        const tile = (await card.locator('.alert-picture__tile').first().boundingBox())!;
-        expect(Math.round(tile.width)).toBe(112);
-        expect(Math.round(tile.height)).toBe(84);
-        await expect(card.getByText(kindLine('Motion'))).toBeVisible();
-      }
-      if (width === 1280) {
-        const top = (await cards(page).first().boundingBox())!.y;
-        const last = (await cards(page).last().boundingBox())!;
-        expect(last.y + last.height - top, 'the three cards together').toBeLessThanOrEqual(720);
-      }
+      test(`the newest card shows its pictures large and older cards a thumbnail, ${width} px, ${look}`, async ({ page, context }) => {
+        test.setTimeout(150_000);
+        await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+        await raiseEvents(page, 3);
+        const [newest, ...older] = await cards(page).all();
+        for (const card of [newest, ...older]) await expect(card.locator('.alert-picture img').first()).toBeVisible();
+        await expect(newest.locator('.alert-picture')).toHaveAttribute('data-form', 'large');
+        const frame = (await newest.locator('.alert-picture__frame').boundingBox())!;
+        const block = (await newest.locator('.alert-picture').boundingBox())!;
+        if (width === 390) {
+          expect(frame.width, 'the picture takes the card').toBeGreaterThanOrEqual(block.width - 24);
+        } else {
+          const cut = (await newest.locator('.alert-picture__tile').first().boundingBox())!;
+          expect(Math.abs(frame.y - cut.y), 'the two pictures stand in one row').toBeLessThanOrEqual(2);
+          expect(cut.x).toBeGreaterThanOrEqual(frame.x + frame.width);
+        }
+        for (const card of older) {
+          await expect(card.locator('.alert-picture')).toHaveAttribute('data-form', 'small');
+          const tile = (await card.locator('.alert-picture__tile').first().boundingBox())!;
+          expect(Math.round(tile.width)).toBe(112);
+          expect(Math.round(tile.height)).toBe(84);
+          await expect(card.getByText(kindLine('Motion'))).toBeVisible();
+        }
+        if (width === 1280) {
+          const top = (await cards(page).first().boundingBox())!.y;
+          const last = (await cards(page).last().boundingBox())!;
+          expect(last.y + last.height - top, 'the three cards together').toBeLessThanOrEqual(720);
+        }
+      });
     });
-  });
+  }
 }
 
 for (const look of ['dark', 'light'] as const) {
@@ -841,6 +852,88 @@ for (const width of [390, 1280]) {
   });
 }
 
+/** Setup's choice of what an alert keeps, in its camera step. */
+const setupChoice = (page: Page) => page.getByRole('group', { name: 'Each alert keeps a picture', exact: true });
+
+/** A first visit: setup not finished and no alert pictures settings saved. Setup is walked to its camera step. */
+async function setupToCameraStep(page: Page, context: BrowserContext): Promise<void> {
+  await context.grantPermissions(['camera', 'microphone']);
+  await context.addInitScript(() => {
+    localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
+    localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+  });
+  await canvasCamera(page, LEFT_THIRD);
+  await page.goto('/setup/', { waitUntil: 'networkidle' });
+  await page.getByRole('button', { name: /Begin Setup/ }).click();
+  await page.getByRole('checkbox').check();
+  await page.getByRole('button', { name: /Accept & Continue/ }).click();
+  await page.getByRole('button', { name: /Pet Monitoring/ }).click();
+  await expect(page.getByRole('heading', { name: 'Device Access' })).toBeVisible();
+}
+
+for (const look of ['dark', 'light'] as const) {
+  test.describe(`Setup's camera step, 390 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 390, height: 844 } });
+
+    test(`a device that saw the choice in setup's camera step starts its first watch with no notice, ${look}`, async ({ page, context }) => {
+      test.setTimeout(150_000);
+      await setupToCameraStep(page, context);
+
+      // The camera step holds the notice's choice and its four lines, as set at first.
+      const choice = setupChoice(page);
+      await expect(choice).toBeVisible();
+      await expect(choice.locator('.alert-pictures-drawing')).toBeVisible();
+      await expect(keepSwitch(choice)).toHaveAttribute('aria-checked', 'true');
+      await expect(afterSelect(choice).locator('option:checked')).toHaveText('3 days');
+      expect(await afterSelect(choice).locator('option').allTextContents()).toEqual(AFTER_CHOICES);
+      for (const line of [FIRST_LINE, STAY_LINE, ASK_LINE, STREET_LINE]) {
+        await expect(choice.getByText(line, { exact: true })).toBeVisible();
+      }
+      await expect(choice.getByRole('link', { name: ICO_LINK })).toHaveAttribute('href', 'https://ico.org.uk/for-the-public/home-cctv-systems/');
+      expect(await readable(choice, BLOCK_READABILITY), 'the choice’s words').toEqual([]);
+      expect(await controlEdges(choice, EDGE[look]), 'the choice’s control edges').toEqual([]);
+      for (const control of [keepSwitch(choice), afterSelect(choice)]) {
+        expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      }
+      expect(await scrollsSideways(page), 'nothing scrolls sideways').toBe(false);
+      // Nothing is answered while the step shows.
+      expect((await storedPictures(page)).noticeAnswered ?? false).toBe(false);
+
+      await afterSelect(choice).selectOption({ label: '7 days' });
+      await page.getByRole('button', { name: 'Grant Permissions', exact: true }).click();
+      await page.getByRole('button', { name: /^Continue$/ }).click();
+      await page.getByRole('checkbox').uncheck();
+      await page.getByRole('button', { name: /Skip & Continue/ }).click();
+      await page.getByRole('button', { name: /Launch Dashboard/ }).click();
+      await expect(page).toHaveURL(/\/dashboard\/?$/);
+      expect(await storedPictures(page)).toMatchObject({ noticeAnswered: true, keep: true, deleteAfterDays: 7 });
+
+      // The first watch starts at once, with the choice made in setup.
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startKey(page).click();
+      await live(page).waitFor({ state: 'visible', timeout: 30_000 });
+      await expect(notice(page)).toHaveCount(0);
+      const found = await openWatchGroup(page);
+      await expect(afterSelect(found).locator('option:checked')).toHaveText('7 days');
+      await expect(keepSwitch(found)).toHaveAttribute('aria-checked', 'true');
+    });
+
+    test(`setup left at its camera step leaves the notice for the first watch, ${look}`, async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await setupToCameraStep(page, context);
+      await expect(setupChoice(page)).toBeVisible();
+      // Back from the camera step: the choice was shown, and nothing is answered until the step is passed.
+      await page.getByRole('button', { name: 'Back', exact: true }).click();
+      await expect(setupChoice(page)).toHaveCount(0);
+      expect((await storedPictures(page)).noticeAnswered ?? false).toBe(false);
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startKey(page).click();
+      await expect(notice(page)).toBeVisible();
+      await expect(live(page)).toHaveCount(0);
+    });
+  });
+}
+
 test.describe('Keeping pictures, 390 px', () => {
   test.use({ viewport: { width: 390, height: 900 } });
 
@@ -992,39 +1085,41 @@ test.describe('Keeping pictures, 390 px', () => {
   });
 });
 
-test.describe('The kept files, 1280 px', () => {
-  test.use({ viewport: { width: 1280, height: 900 } });
+for (const look of ['dark', 'light'] as const) {
+  test.describe(`The kept files, 390 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 390, height: 900 } });
 
-  test('the frame and the close-up are kept at their sizes as JPEG files', async ({ page, context }) => {
-    test.setTimeout(180_000);
-    // A 1280 by 720 camera whose left third changes: the kept frame is the frame at 640 px on its
-    // long edge, and the close-up, cut from the full frame, is brought down to 480 px on its own.
-    await watchWith(page, context, {
-      settings: MOTION_ONLY,
-      camera: { width: 1280, height: 720, background: 128, moving: { x: 0, y: 0, width: 1 / 3, height: 1 }, levels: [0, 85, 170, 255] },
+    test(`the frame and the close-up are kept at their sizes as JPEG files, 390 px, ${look}`, async ({ page, context }) => {
+      test.setTimeout(180_000);
+      // A 1280 by 720 camera whose left third changes: the kept frame is the frame at 640 px on its
+      // long edge, and the close-up, cut from the full frame, is brought down to 480 px on its own.
+      await watchWith(page, context, {
+        settings: MOTION_ONLY,
+        camera: { width: 1280, height: 720, background: 128, moving: { x: 0, y: 0, width: 1 / 3, height: 1 }, levels: [0, 85, 170, 255] },
+      });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
+      const reading = await readDatabase(page);
+      const [alert] = monitoringAlerts(reading);
+      const row = keptRows(reading).find((picture) => picture.id === alert.pictureId)!;
+      expect(row, 'the alert names its kept picture').toBeTruthy();
+      expect(row.frame.type).toBe('image/jpeg');
+      expect([row.frameWidth, row.frameHeight]).toEqual([640, 360]);
+      expect([row.sourceWidth, row.sourceHeight]).toEqual([1280, 720]);
+      // The box is the six changed columns of the check's grid, 480 by 720 of the camera's frame;
+      // widened by an eighth and kept inside the frame it is 540 by 720, kept at 360 by 480.
+      expect(row.box).toEqual({ x: 0, y: 0, width: 240, height: 360 });
+      expect(row.closeUp.type).toBe('image/jpeg');
+      expect([row.closeUpWidth, row.closeUpHeight]).toEqual([360, 480]);
+      expect(await naturalSize(card.getByRole('img', { name: pictureName(time, true), exact: true }))).toEqual({ width: 640, height: 360 });
+      expect(await naturalSize(card.getByRole('img', { name: closeUpName(time), exact: true }))).toEqual({ width: 360, height: 480 });
+      // No picture stands as a data URL in an alert's record or in local storage.
+      expect(JSON.stringify(reading.alerts)).not.toContain('data:image');
+      expect(await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))).not.toContain('data:image');
     });
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBeGreaterThanOrEqual(1);
-    const reading = await readDatabase(page);
-    const [alert] = monitoringAlerts(reading);
-    const row = keptRows(reading).find((picture) => picture.id === alert.pictureId)!;
-    expect(row, 'the alert names its kept picture').toBeTruthy();
-    expect(row.frame.type).toBe('image/jpeg');
-    expect([row.frameWidth, row.frameHeight]).toEqual([640, 360]);
-    expect([row.sourceWidth, row.sourceHeight]).toEqual([1280, 720]);
-    // The box is the six changed columns of the check's grid, 480 by 720 of the camera's frame;
-    // widened by an eighth and kept inside the frame it is 540 by 720, kept at 360 by 480.
-    expect(row.box).toEqual({ x: 0, y: 0, width: 240, height: 360 });
-    expect(row.closeUp.type).toBe('image/jpeg');
-    expect([row.closeUpWidth, row.closeUpHeight]).toEqual([360, 480]);
-    expect(await naturalSize(card.getByRole('img', { name: pictureName(time, true), exact: true }))).toEqual({ width: 640, height: 360 });
-    expect(await naturalSize(card.getByRole('img', { name: closeUpName(time), exact: true }))).toEqual({ width: 360, height: 480 });
-    // No picture stands as a data URL in an alert's record or in local storage.
-    expect(JSON.stringify(reading.alerts)).not.toContain('data:image');
-    expect(await page.evaluate(() => JSON.stringify(Object.entries(localStorage)))).not.toContain('data:image');
   });
-});
+}
 
 for (const width of [390, 1280]) {
   test.describe(`The group "Alert pictures", ${width} px`, () => {
@@ -1460,10 +1555,20 @@ test.describe('The group and the notice: order, sizes and faults', () => {
           const dialog = notice(page);
           await expect(dialog).toBeVisible();
           expect(await readable(dialog, BLOCK_READABILITY), 'the notice’s words').toEqual([]);
+          // The select's and the outlined keys' edges: the look's edge colour, at 3:1 or more on their ground.
+          expect(await controlEdges(dialog, EDGE[look]), 'the notice’s control edges').toEqual([]);
           await dialog.getByRole('button', { name: 'Go back', exact: true }).click();
           const found = await openWatchGroup(page);
           await expect(countLine(found)).toHaveText('2 pictures kept on this device');
           expect(await readable(found, BLOCK_READABILITY), 'the group’s words').toEqual([]);
+          expect(await controlEdges(found, EDGE[look]), 'the group’s control edges').toEqual([]);
+
+          // The same group on Settings, Detection.
+          await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
+          const settings = group(page);
+          await expect(countLine(settings)).toHaveText('2 pictures kept on this device');
+          expect(await readable(settings, BLOCK_READABILITY), 'the Settings group’s words').toEqual([]);
+          expect(await controlEdges(settings, EDGE[look]), 'the Settings group’s control edges').toEqual([]);
         });
       }
     });

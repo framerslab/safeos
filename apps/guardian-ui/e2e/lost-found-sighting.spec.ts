@@ -26,6 +26,7 @@ import {
   pixelsAt,
   readDatabase,
   recordNotifications,
+  wordsOn,
   type DatabaseReading,
   type NotificationStandIn,
 } from './helpers/alert-pictures';
@@ -137,6 +138,7 @@ const QUESTION = 'Could this be Stripes?';
 const LIKE_LINE = 'Colours and shape like Stripes’s photos.';
 const COMPARE_LINE = 'Compare the two pictures. It can be another animal that looks alike.';
 const PET_PHOTO = 'Stripes’s saved photo';
+const CLOSE_UP = 'Close-up';
 const FORBIDDEN = /match|detected|found|recogni[sz]e|identif|confidence|%/i;
 
 const cards = (page: Page) => page.locator('[data-alert-card]');
@@ -207,6 +209,19 @@ for (const look of ['dark', 'light'] as const) {
         }
         expect(Math.abs(first.y - second.y), 'the two tiles stand side by side').toBeLessThanOrEqual(2);
         expect(second.x).toBeGreaterThanOrEqual(first.x + first.width);
+        // A quiet label under each tile tells the two apart: "Close-up" and the pet's saved photo.
+        const pair = card.locator('.alert-picture__pair');
+        for (const [tile, words] of [[first, CLOSE_UP], [second, PET_PHOTO]] as const) {
+          const label = pair.getByText(words, { exact: true });
+          await expect(label).toBeVisible();
+          const box = (await label.boundingBox())!;
+          expect(box.y, `${words} stands under its tile`).toBeGreaterThanOrEqual(tile.y + tile.height - 1);
+          expect(box.x, `${words} starts under its tile`).toBeGreaterThanOrEqual(tile.x - 1);
+          expect(box.x + box.width, `${words} ends under its tile`).toBeLessThanOrEqual(tile.x + tile.width + 1);
+          const shown = await wordsOn(card.locator('.alert-picture').first(), label);
+          expect(shown.size, `${words} at 16 px or more`).toBeGreaterThanOrEqual(16);
+          expect(shown.ratio, `${words} at 7:1 or more`).toBeGreaterThanOrEqual(7);
+        }
 
         // The question at 600, the time, the two lines, Open picture and Acknowledge.
         const question = card.getByText(QUESTION, { exact: true });
@@ -263,6 +278,10 @@ test.describe('A sighting at 320 px and 200 per cent text', () => {
     expect(Math.abs(first.y - second.y), 'the two tiles stand side by side').toBeLessThanOrEqual(2);
     expect(second.x).toBeGreaterThanOrEqual(first.x + first.width);
     expect(second.x + second.width, 'the pet’s photo ends inside the picture block').toBeLessThanOrEqual(block.x + block.width + 0.5);
+    for (const words of [CLOSE_UP, PET_PHOTO]) {
+      const label = (await card.locator('.alert-picture__pair').getByText(words, { exact: true }).boundingBox())!;
+      expect(label.x + label.width, `${words} ends inside the picture block`).toBeLessThanOrEqual(block.x + block.width + 0.5);
+    }
     for (const tile of [first, second]) {
       expect(Math.abs(tile.width / tile.height - 4 / 3), 'each tile keeps its 4:3 shape').toBeLessThanOrEqual(0.05);
     }
@@ -271,23 +290,6 @@ test.describe('A sighting at 320 px and 200 per cent text', () => {
 
 test.describe('A sighting on the watch, 390 px', () => {
   test.use({ viewport: { width: 390, height: 1000 } });
-
-  test('the live picture boxes the sighting’s region for 10 seconds with Colours like Stripes’s', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await setUp(context);
-    await stripedCamera(page);
-    await watchForStripes(page);
-    await expect(sightings(page).first()).toBeVisible({ timeout: 90_000 });
-    const seen = Date.now();
-    const plate = page.locator('.alert-live__plate');
-    await expect(plate).toHaveText('Colours like Stripes’s', { timeout: 2_000 });
-    await expect(page.locator('.alert-live__box')).toHaveCount(1);
-    await expect(page.locator('.alert-live')).toHaveAttribute('aria-hidden', 'true');
-    await page.waitForTimeout(Math.max(0, 6_000 - (Date.now() - seen)));
-    await expect(plate).toHaveCount(1);
-    await expect(plate).toHaveCount(0, { timeout: 6_000 });
-    await expect(page.locator('.alert-live__box')).toHaveCount(0);
-  });
 
   test('keeping off keeps no sighting picture', async ({ page, context }) => {
     test.setTimeout(240_000);
@@ -451,80 +453,6 @@ test.describe('A sighting on the watch, 1280 px', () => {
     expect(across.some((rgb) => near(rgb, '#4ade80', 60)), `the region’s box is drawn in (${JSON.stringify(across)})`).toBe(true);
   });
 
-  test('History lists the sighting with its picture, and an older frame with the same words', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await setUp(context);
-    await stripedCamera(page);
-    await watchForStripes(page);
-    const card = sightings(page).first();
-    const time = await timeOf(card);
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-
-    // The watch's Lost and Found panel, shown while it compares, links to History.
-    const link = page.getByRole('link', { name: 'Open in History', exact: true });
-    await expect(link).toBeVisible();
-    await expect(link).toHaveAttribute('href', /^\/history\/?$/);
-    await expect(page.getByText('View Match History')).toHaveCount(0);
-
-    // A frame an earlier version saved for this pet, with its own thumbnail and score.
-    await page.evaluate(() => new Promise<void>((resolve, reject) => {
-      const canvas = document.createElement('canvas');
-      canvas.width = 64;
-      canvas.height = 48;
-      const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = 'rgb(90, 120, 150)';
-      ctx.fillRect(0, 0, 64, 48);
-      const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
-      const opening = indexedDB.open('safeos-guardian');
-      opening.onerror = () => reject(opening.error);
-      opening.onsuccess = () => {
-        const db = opening.result;
-        const tx = db.transaction(['match_frame', 'subject_profile'], 'readwrite');
-        const pets = tx.objectStore('subject_profile').getAll();
-        pets.onsuccess = () => {
-          const pet = pets.result.find((profile) => profile.name === 'Stripes');
-          tx.objectStore('match_frame').put({
-            id: 'match-earlier-1', subjectId: pet.id, frameData: thumbnail, thumbnailData: thumbnail, confidence: 82,
-            timestamp: Date.now() - 3_600_000, details: { colorMatch: 80, dominantMatch: 70, edgeMatch: 60, sizeMatch: 50 },
-            region: { x: 10, y: 10, width: 40, height: 40 }, acknowledged: false, notes: '', exported: false,
-          });
-        };
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => { db.close(); reject(tx.error); };
-      };
-    }));
-
-    await link.click();
-    await page.waitForURL(/\/history\/?$/, { timeout: 30_000 });
-    const rows = page.locator('[data-history-row]');
-    const sighting = rows.filter({ hasText: time }).first();
-    await expect(sighting.getByText(QUESTION, { exact: true })).toBeVisible({ timeout: 30_000 });
-    await expect(sighting.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
-    await expect(sighting.getByRole('button', { name: /^Open picture: / })).toBeVisible();
-    await expect(sighting.getByText(new RegExp(` at ${timePattern(time)}$`))).toBeVisible();
-    await expect(sighting.getByText(/^(Info|Low|Medium|High|Critical)$/)).toHaveCount(0);
-
-    // The earlier frame: its own thumbnail beside the same question, with no score.
-    const earlier = page.locator('[data-history-row][data-earlier-frame]').first();
-    await expect(earlier.getByText(QUESTION, { exact: true })).toBeVisible();
-    await expect(earlier.getByRole('img')).toHaveCount(1);
-    expect(await wordsOf(earlier)).not.toMatch(/82|%|match/i);
-
-    for (const row of [sighting, earlier]) expect(await wordsOf(row)).not.toMatch(FORBIDDEN);
-    // Both list under Lost & Found, and neither under Alerts.
-    const type = page.locator('select').filter({ has: page.locator('option[value="lost_found"]') });
-    await type.selectOption('lost_found');
-    await expect(sighting).toBeVisible();
-    await expect(earlier).toBeVisible();
-    await type.selectOption('alerts');
-    await expect(rows.filter({ hasText: QUESTION })).toHaveCount(0);
-    await type.selectOption('all');
-    await sighting.getByRole('button', { name: /^Open picture: / }).click();
-    const dialog = page.getByRole('dialog', { name: QUESTION, exact: true });
-    await expect(dialog.getByRole('img', { name: PET_PHOTO, exact: true })).toBeVisible();
-    expect(await wordsOf(dialog)).not.toMatch(FORBIDDEN);
-  });
-
   test('the sighting’s notification carries its words and no pet photo', async ({ page, context }) => {
     test.setTimeout(240_000);
     await setUp(context, { notifications: {} });
@@ -571,3 +499,108 @@ test.describe('A sighting on the watch, 1280 px', () => {
     expect(across.filter((rgb) => near(rgb, '#4ade80', 60)).length, `the region’s box is drawn in (${JSON.stringify(across)})`).toBeGreaterThanOrEqual(2);
   });
 });
+
+for (const look of ['dark', 'light'] as const) {
+  test.describe(`A sighting on the live picture, 390 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 390, height: 1000 } });
+
+    test(`the live picture boxes the sighting’s region for 10 seconds with Colours like Stripes’s, 390 px, ${look}`, async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context);
+      await stripedCamera(page);
+      await watchForStripes(page);
+      await expect(sightings(page).first()).toBeVisible({ timeout: 90_000 });
+      const seen = Date.now();
+      const plate = page.locator('.alert-live__plate');
+      await expect(plate).toHaveText('Colours like Stripes’s', { timeout: 2_000 });
+      await expect(page.locator('.alert-live__box')).toHaveCount(1);
+      await expect(page.locator('.alert-live')).toHaveAttribute('aria-hidden', 'true');
+      await page.waitForTimeout(Math.max(0, 6_000 - (Date.now() - seen)));
+      await expect(plate).toHaveCount(1);
+      await expect(plate).toHaveCount(0, { timeout: 6_000 });
+      await expect(page.locator('.alert-live__box')).toHaveCount(0);
+    });
+  });
+}
+
+for (const look of ['dark', 'light'] as const) {
+  for (const width of [390, 1280]) {
+    test.describe(`A sighting in History, ${width} px, ${look}`, () => {
+      test.use({ colorScheme: look, viewport: { width, height: 1000 } });
+
+      test(`History lists the sighting with its picture, and an older frame with the same words, ${width} px, ${look}`, async ({ page, context }) => {
+        test.setTimeout(240_000);
+        await setUp(context);
+        await stripedCamera(page);
+        await watchForStripes(page);
+        const card = sightings(page).first();
+        const time = await timeOf(card);
+        await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+
+        // The watch's Lost and Found panel, shown while it compares, links to History.
+        const link = page.getByRole('link', { name: 'Open in History', exact: true });
+        await expect(link).toBeVisible();
+        await expect(link).toHaveAttribute('href', /^\/history\/?$/);
+        await expect(page.getByText('View Match History')).toHaveCount(0);
+
+        // A frame an earlier version saved for this pet, with its own thumbnail and score.
+        await page.evaluate(() => new Promise<void>((resolve, reject) => {
+          const canvas = document.createElement('canvas');
+          canvas.width = 64;
+          canvas.height = 48;
+          const ctx = canvas.getContext('2d')!;
+          ctx.fillStyle = 'rgb(90, 120, 150)';
+          ctx.fillRect(0, 0, 64, 48);
+          const thumbnail = canvas.toDataURL('image/jpeg', 0.7);
+          const opening = indexedDB.open('safeos-guardian');
+          opening.onerror = () => reject(opening.error);
+          opening.onsuccess = () => {
+            const db = opening.result;
+            const tx = db.transaction(['match_frame', 'subject_profile'], 'readwrite');
+            const pets = tx.objectStore('subject_profile').getAll();
+            pets.onsuccess = () => {
+              const pet = pets.result.find((profile) => profile.name === 'Stripes');
+              tx.objectStore('match_frame').put({
+                id: 'match-earlier-1', subjectId: pet.id, frameData: thumbnail, thumbnailData: thumbnail, confidence: 82,
+                timestamp: Date.now() - 3_600_000, details: { colorMatch: 80, dominantMatch: 70, edgeMatch: 60, sizeMatch: 50 },
+                region: { x: 10, y: 10, width: 40, height: 40 }, acknowledged: false, notes: '', exported: false,
+              });
+            };
+            tx.oncomplete = () => { db.close(); resolve(); };
+            tx.onerror = () => { db.close(); reject(tx.error); };
+          };
+        }));
+
+        await link.click();
+        await page.waitForURL(/\/history\/?$/, { timeout: 30_000 });
+        const rows = page.locator('[data-history-row]');
+        const sighting = rows.filter({ hasText: time }).first();
+        await expect(sighting.getByText(QUESTION, { exact: true })).toBeVisible({ timeout: 30_000 });
+        await expect(sighting.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
+        await expect(sighting.getByRole('button', { name: /^Open picture: / })).toBeVisible();
+        await expect(sighting.getByText(new RegExp(` at ${timePattern(time)}$`))).toBeVisible();
+        await expect(sighting.getByText(/^(Info|Low|Medium|High|Critical)$/)).toHaveCount(0);
+
+        // The earlier frame: its own thumbnail beside the same question, with no score.
+        const earlier = page.locator('[data-history-row][data-earlier-frame]').first();
+        await expect(earlier.getByText(QUESTION, { exact: true })).toBeVisible();
+        await expect(earlier.getByRole('img')).toHaveCount(1);
+        expect(await wordsOf(earlier)).not.toMatch(/82|%|match/i);
+
+        for (const row of [sighting, earlier]) expect(await wordsOf(row)).not.toMatch(FORBIDDEN);
+        // Both list under Lost & Found, and neither under Alerts.
+        const type = page.locator('select').filter({ has: page.locator('option[value="lost_found"]') });
+        await type.selectOption('lost_found');
+        await expect(sighting).toBeVisible();
+        await expect(earlier).toBeVisible();
+        await type.selectOption('alerts');
+        await expect(rows.filter({ hasText: QUESTION })).toHaveCount(0);
+        await type.selectOption('all');
+        await sighting.getByRole('button', { name: /^Open picture: / }).click();
+        const dialog = page.getByRole('dialog', { name: QUESTION, exact: true });
+        await expect(dialog.getByRole('img', { name: PET_PHOTO, exact: true })).toBeVisible();
+        expect(await wordsOf(dialog)).not.toMatch(FORBIDDEN);
+      });
+    });
+  }
+}

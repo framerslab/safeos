@@ -642,6 +642,89 @@ export function readable(root: Locator, rules: Readability): Promise<Readability
 /** The block's rules for today's look: lead 18 px at 12:1, other words 16 px at 7:1, nothing under 15 px. */
 export const BLOCK_READABILITY: Readability = { lead: 18, other: 16, floor: 15, leadRatio: 12, otherRatio: 7 };
 
+/** The edge of today's selects and outlined keys in each look. */
+export const EDGE = { dark: '#9ca3af', light: '#4b5563' } as const;
+
+export interface EdgeFault {
+  control: string;
+  edge: string;
+  ratio: number;
+  why: string;
+}
+
+/**
+ * Reads the edge of each control under `root` that shows one (a select, a
+ * switch's track, an outlined key, a row's arrow key): its computed colour
+ * and its contrast against the ground painted round it. Answers each edge
+ * under 3:1, and each select whose edge is not `edge` (the look's edge
+ * colour as `#rrggbb`).
+ */
+export function controlEdges(root: Locator, edge: string): Promise<EdgeFault[]> {
+  return root.evaluate((element: Element, want: string) => {
+    type RGBA = [number, number, number, number];
+    const parse = (value: string): RGBA | null => {
+      const m = /rgba?\(([^)]+)\)/.exec(value);
+      if (!m) return null;
+      const parts = m[1].split(/[,\s/]+/).filter(Boolean).map(Number);
+      return [parts[0], parts[1], parts[2], parts.length > 3 ? parts[3] : 1];
+    };
+    const over = (top: RGBA, under: RGBA): RGBA => {
+      const a = top[3] + under[3] * (1 - top[3]);
+      if (a === 0) return [0, 0, 0, 0];
+      const mix = (i: number) => (top[i] * top[3] + under[i] * under[3] * (1 - top[3])) / a;
+      return [mix(0), mix(1), mix(2), a];
+    };
+    const luminance = ([R, G, B]: RGBA) => {
+      const c = [R, G, B].map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const ratio = (a: RGBA, b: RGBA) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+    const ground = (el: Element | null): RGBA | null => {
+      const layers: RGBA[] = [];
+      for (let node: Element | null = el; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.backgroundImage && style.backgroundImage !== 'none') return null;
+        const bg = parse(style.backgroundColor);
+        if (bg && bg[3] > 0) {
+          layers.push(bg);
+          if (bg[3] >= 1) break;
+        }
+      }
+      let painted: RGBA = [255, 255, 255, 1];
+      for (const layer of layers.reverse()) painted = over(layer, painted);
+      return painted;
+    };
+    const hex = (c: RGBA) => `#${c.slice(0, 3).map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
+    const faults: Array<{ control: string; edge: string; ratio: number; why: string }> = [];
+    const controls = element.querySelectorAll(
+      'select, .alert-pictures-switch__track, .alert-pictures-key:not(.alert-pictures-key--solid), .alert-pictures-keys__arrow',
+    );
+    for (const el of Array.from(controls)) {
+      const style = getComputedStyle(el);
+      const box = el.getBoundingClientRect();
+      if (box.width <= 1 || box.height <= 1 || style.visibility === 'hidden' || style.display === 'none') continue;
+      if (style.borderTopStyle === 'none' || !(parseFloat(style.borderTopWidth) >= 1)) continue;
+      const name = el.getAttribute('aria-label') || (el.textContent || '').trim().slice(0, 40) || `${el.tagName.toLowerCase()}.${el.className}`;
+      const line = parse(style.borderTopColor);
+      const under = ground(el.parentElement);
+      if (!line || !under) {
+        faults.push({ control: name, edge: style.borderTopColor, ratio: 0, why: 'no solid ground round the edge' });
+        continue;
+      }
+      const shown = ratio(over(line, under), under);
+      if (shown < 3) faults.push({ control: name, edge: hex(line), ratio: shown, why: 'under 3:1' });
+      if (el.tagName === 'SELECT' && hex(line) !== want) faults.push({ control: name, edge: hex(line), ratio: shown, why: `not the look's edge ${want}` });
+    }
+    return faults;
+  }, edge);
+}
+
 /** Text at 200 per cent: every size in rem doubles. */
 export async function doubleText(page: Page): Promise<void> {
   await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });

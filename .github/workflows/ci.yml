@@ -253,12 +253,20 @@ jobs:
 
       # `npm run e2e` runs every project in playwright.config.ts. The walk
       # needs desktop Chromium, so under Firefox it skips instead of failing.
+      # Settings, Notifications needs no camera: its check of the
+      # notification's picture runs in Firefox itself, which shows a
+      # notification's words alone.
       # Its own output folder keeps the walk's pictures above for the upload.
-      - name: The walk skips under Firefox
+      - name: The walk under Firefox
         if: always()
         run: |
           npx playwright install --with-deps firefox
-          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts e2e/alert-pictures.spec.ts --project=firefox --retries=0 --reporter=list --output="$RUNNER_TEMP/walk-firefox"
+          curl -sf http://127.0.0.1:4173/ >/dev/null || (python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts e2e/alert-pictures.spec.ts e2e/notification-picture-firefox.spec.ts --project=firefox --retries=0 --reporter=list --output="$RUNNER_TEMP/walk-firefox"
 
       - name: Upload the walk's report and pictures
         if: always()
