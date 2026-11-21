@@ -3213,7 +3213,7 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     // The notification's copy is drawn after the person turned the picture off in another tab.
     await page.addInitScript(() => {
       const toDataURL = HTMLCanvasElement.prototype.toDataURL;
-      HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, quality?: unknown) {
+      HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, quality?: number) {
         // The notification's copy alone is a JPEG at 0.8; the camera's frames for a server are at 0.7.
         if (type === 'image/jpeg' && quality === 0.8) {
           const key = 'safeos-alert-pictures';
