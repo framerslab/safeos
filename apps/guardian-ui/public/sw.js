@@ -57,9 +57,10 @@ self.addEventListener('install', (event) => {
     // Installation succeeds only when HTML, scripts, styles and lazy chunks exist.
     await cache.addAll(manifest.urls);
     // The new build takes over once it is stored whole, so a returning visitor
-    // gets it on their next page load, not after closing every tab. A page
-    // already open keeps the scripts it loaded; one that then asks for a file
-    // the new build replaced reloads once onto it (the app's error page).
+    // gets it on the load after the one that found it, not after closing every
+    // tab. A page already open keeps the scripts it loaded; one that then asks
+    // for a file the new build replaced reloads once onto it (the app's error
+    // page, once for each build).
     await self.skipWaiting();
   })());
 });
