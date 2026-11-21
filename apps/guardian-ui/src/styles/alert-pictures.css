@@ -180,6 +180,16 @@ html.light {
   margin-left: auto;
 }
 
+/* Level 1, Open picture and Acknowledge keep one row in the alert column's
+   width, as the counts and the one key did. */
+.alert-card__foot {
+  column-gap: 8px;
+}
+
+.alert-card__keys .alert-pictures-keys__row {
+  gap: 8px;
+}
+
 .alert-card__ago {
   color: var(--ap-ink);
 }
@@ -1051,10 +1061,6 @@ html.light {
 
 /* The narrowest phones: the card's two keys keep one row. */
 @media (max-width: 359px) {
-  .alert-card__keys .alert-pictures-keys__row {
-    gap: 8px;
-  }
-
   .alert-card__keys .alert-pictures-key,
   .alert-card__keys .alert-card__acknowledge {
     padding: 8px;
