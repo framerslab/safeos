@@ -277,8 +277,8 @@ nothing is saved.
 A picture is deleted:
 
 - at the age chosen under **Delete pictures after**, by a sweep when a watch starts, every
-  minute while it runs and when History opens; its card says "Its picture was deleted after
-  {n} days.";
+  minute while it runs, when History opens and when the age is changed, in every open tab by
+  the age just chosen; its card says "Its picture was deleted after {n} days.";
 - with its alert, when the alert leaves under the alert limits (see **Alert history**), in
   the same write, and when a repeat gives its card a newer picture; a picture still being
   drawn when its alert leaves is saved with no alert to hold it, and the sweep of pictures no
@@ -290,6 +290,7 @@ When the device runs out of room, the oldest pictures make way for the newest, a
 list says so once; when every older picture would have to go, the new one is not kept and the
 list says the device is out of room. A window that keeps no data says once that it keeps no
 pictures. A tab whose database waits for a reload shows its alerts' pictures from memory.
+Another tab that shows an alert before its picture is saved shows the picture once it is.
 
 **Settings > Notifications** has **Show the picture in alert notifications**, off by default.
 With it on, in a browser that shows a picture in a notification, a Motion or Picture change
@@ -298,7 +299,9 @@ alert's notification carries the picture with its box drawn in; a picture not dr
 never carries a picture. The notifications say "Motion alert", "Sound alert" or "Picture
 change alert", with the level and the time. While the browser shows a notification's words
 alone, while notifications are not allowed (the row offers **Allow notifications**) and while
-they are blocked, the switch is inactive and says why.
+they are blocked, the switch is inactive and says why. The row reads the browser's answer
+again when the page comes back into view, so notifications allowed in the site settings make
+the switch usable with no reload.
 
 ## Processing and connection
 
