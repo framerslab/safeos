@@ -3258,6 +3258,45 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     expect(keptRows(await readDatabase(page)).length).toBeGreaterThanOrEqual(1);
   });
 
+  test('a box whose picture comes after Stop stands on no later watch', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // The alert's picture comes back 2 seconds after it is drawn: after Stop and the next Start.
+    await faultPictureStore(page, { holdDrawMs: 2_000 });
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    await expect(cards(page).first()).toBeVisible({ timeout: 60_000 });
+    await holdStill(page);
+    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+    await startWatching(page);
+    // The camera holds still, so the new watch raises no alert of its own and shows no box.
+    await page.waitForTimeout(4_000);
+    await expect(page.locator('.alert-live__box'), 'the earlier watch’s box').toHaveCount(0);
+  });
+
+  test('the delete question fits a short screen at 200 per cent text', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 320, height: 260 });
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await holdStill(page);
+    await doubleText(page);
+    await openKey(card).click();
+    const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
+    await deleteKey(dialog).click();
+    const question = page.getByRole('alertdialog', { name: DELETE_QUESTION, exact: true });
+    await expect(question).toBeVisible();
+    const box = (await question.boundingBox())!;
+    expect(box.y, 'the question starts on the screen').toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height, 'the question ends on the screen').toBeLessThanOrEqual(260);
+    // Its keys are reached by scrolling inside it.
+    const keep = question.getByRole('button', { name: 'Keep it', exact: true });
+    await keep.scrollIntoViewIfNeeded();
+    const where = (await keep.boundingBox())!;
+    expect(where.y + where.height).toBeLessThanOrEqual(260);
+    await keep.click();
+    await expect(question).toHaveCount(0);
+  });
+
   test('Stop pressed while the notification’s picture is drawn keeps the event’s own tag', async ({ page, context }) => {
     test.setTimeout(120_000);
     // The picture's JPEG comes back 250 ms after it is drawn; Stop Monitoring is pressed 50 ms in.
