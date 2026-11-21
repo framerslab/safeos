@@ -189,7 +189,7 @@ export default function BlogPage() {
                 href="https://github.com/framerslab/safeos"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+                className="key key--outline"
               >
                 SafeOS on GitHub
               </a>
@@ -209,13 +209,13 @@ export default function BlogPage() {
         <div className="mt-12 flex justify-center gap-4">
           <Link
             href="/about"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+            className="link-row"
           >
             About SafeOS
           </Link>
           <Link
             href="/faq"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+            className="link-row"
           >
             FAQ
           </Link>

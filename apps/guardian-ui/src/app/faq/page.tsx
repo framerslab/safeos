@@ -331,7 +331,7 @@ export default function FAQPage() {
                 href="https://github.com/framerslab/safeos/issues"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+                className="key key--outline"
               >
                 Open GitHub Issue
               </a>
@@ -343,13 +343,13 @@ export default function FAQPage() {
         <div className="mt-12 flex justify-center gap-4">
           <Link
             href="/about"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+            className="link-row"
           >
             About SafeOS
           </Link>
           <Link
             href="/blog"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+            className="link-row"
           >
             Read Our Blog
           </Link>

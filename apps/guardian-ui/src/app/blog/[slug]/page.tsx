@@ -460,13 +460,13 @@ export default function BlogArticlePage({
         <nav className="mt-12 flex justify-center gap-4">
           <Link
             href="/blog"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+            className="link-row"
           >
             All Posts
           </Link>
           <Link
             href="/about"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+            className="link-row"
           >
             About SafeOS
           </Link>
