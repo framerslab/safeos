@@ -329,6 +329,11 @@ export interface CanvasCamera {
   levels: number[];
   /** A sawtooth tone at full gain on the microphone, in place of silence. */
   tone?: boolean;
+  /**
+   * Draws this many pictures once and shows them in turn, in place of drawing each frame anew:
+   * a large camera then costs the page's other work nothing.
+   */
+  cycle?: number;
 }
 
 declare global {
@@ -353,7 +358,9 @@ export async function canvasCamera(page: Page, camera: CanvasCamera): Promise<vo
       document.body.appendChild(canvas);
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('no 2d context for the test camera');
-      const draw = () => {
+      const made: ImageData[] = [];
+      let shown = 0;
+      const paint = () => {
         const cam = window.__camera!;
         const W = canvas.width;
         const H = canvas.height;
@@ -374,7 +381,16 @@ export async function canvasCamera(page: Page, camera: CanvasCamera): Promise<vo
             d[i + 3] = 255;
           }
         }
-        ctx.putImageData(image, 0, 0);
+        return image;
+      };
+      const draw = () => {
+        const cycle = window.__camera!.cycle ?? 0;
+        if (cycle > 0) {
+          if (made.length < cycle) made.push(paint());
+          ctx.putImageData(made[shown++ % made.length], 0, 0);
+          return;
+        }
+        ctx.putImageData(paint(), 0, 0);
       };
       draw();
       setInterval(draw, 40);

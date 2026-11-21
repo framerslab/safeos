@@ -3198,7 +3198,8 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     // One pixel in 50, anywhere, flashes white each frame: about 4 per cent of the picture changes
     // between two checks, spread over every cell and under the detector's 10 per cent in each, and
     // Motion at 98 alerts over 2 per cent. The camera is 1280 by 720, so each cell reads 300 samples.
-    const sparse = { ...LEFT_THIRD, width: 1280, height: 720, moving: { x: 0, y: 0, width: 1, height: 1 }, levels: [...Array(49).fill(128), 255] };
+    // Eight such pictures are drawn once and shown in turn, so the large camera slows no other walk.
+    const sparse = { ...LEFT_THIRD, width: 1280, height: 720, moving: { x: 0, y: 0, width: 1, height: 1 }, levels: [...Array(49).fill(128), 255], cycle: 8 };
     await watchWith(page, context, {
       settings: { ...MOTION_ONLY, globalSettings: { ...CUSTOM_PRESET, motionSensitivity: 98 } },
       camera: sparse,
