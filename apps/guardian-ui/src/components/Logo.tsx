@@ -249,7 +249,8 @@ export function Logo({ size = 'md', showFrame = true, showSuperCloud, className 
         </span>
       </div>
       {shouldShowFrame && (
-        <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-[var(--color-steel-800)]">
+        // No name stands beside the mark here, so its box carries one.
+        <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-[var(--color-steel-800)]" role="img" aria-label="Frame">
           <FrameLogo size={size === 'sm' ? 16 : 18} />
         </div>
       )}

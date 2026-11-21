@@ -179,6 +179,14 @@ export function VisitorHeader() {
       setCollapsed(rowOverflows);
       setCompact(compactRow);
       setShort(shortRow);
+      // A link the short row gives up cannot keep focus: focus moves to the
+      // start key in the row. The footer holds both links at every width.
+      if (shortRow) {
+        const focused = document.activeElement;
+        const givenUp = focused instanceof HTMLElement && nav.contains(focused)
+          && (!!focused.closest('.site-header__github') || (shortRow === 'privacy' && !!focused.closest('.site-header__link--wide')));
+        if (givenUp) nav.querySelector<HTMLElement>('.site-header__start')?.focus();
+      }
       // From the tablet width a row that holds the links shows no Menu and
       // no Menu key: an open one closes, so it does not come back when the
       // window narrows, and focus inside it or on its key moves to the start

@@ -175,6 +175,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The count, read as the pictures job reads it, so the home page's
+      # pictures show the GitHub link as the deployed site does.
+      - name: Read the repository's star count
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f scripts/read-github-stars.mjs ]; then
+            node scripts/read-github-stars.mjs
+          fi
+
       - name: Build static site
         run: npm run build
         env:

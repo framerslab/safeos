@@ -65,7 +65,9 @@ export function starsHanded(env = process.env) {
   if (!/^[1-9]\d{0,8}$/.test(count) || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
   const n = Number(count);
   const [year, month, date] = day.split('-').map(Number);
-  if (month < 1 || month > 12 || date < 1 || date > 31) return null;
+  // A day the calendar does not have (2026-02-30) is no day, as the app reads it.
+  const probe = new Date(Date.UTC(year, month - 1, date));
+  if (probe.getUTCFullYear() !== year || probe.getUTCMonth() !== month - 1 || probe.getUTCDate() !== date) return null;
   const tenth = (unit) => { const tenths = Math.floor(n / (unit / 10)); return `${Math.floor(tenths / 10)}${tenths % 10 ? `.${tenths % 10}` : ''}`; };
   const short = n < 1_000 ? String(n) : n < 100_000 ? `${tenth(1_000)}k` : n < 1_000_000 ? `${Math.floor(n / 1_000)}k` : `${tenth(1_000_000)}M`;
   const word = n === 1 ? 'star' : 'stars';

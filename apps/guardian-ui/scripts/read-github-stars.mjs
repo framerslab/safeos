@@ -13,7 +13,9 @@
  *   NEXT_PUBLIC_GITHUB_STARS=<count>
  *   NEXT_PUBLIC_GITHUB_STARS_DATE=<YYYY-MM-DD>
  *
- * Outside a workflow the two lines are printed instead.
+ * Outside a workflow the two lines are printed instead, and they are all of
+ * its standard output: the sentence with the count goes to standard error,
+ * so `export $(node scripts/read-github-stars.mjs)` sets both values.
  *
  * A star count never holds a build. When GitHub does not answer within ten
  * seconds, answers with an error, or answers with anything but a whole number
@@ -79,6 +81,7 @@ async function main() {
   }
   const day = new Date().toISOString().slice(0, 10);
   const lines = `NEXT_PUBLIC_GITHUB_STARS=${count}\nNEXT_PUBLIC_GITHUB_STARS_DATE=${day}\n`;
+  const sentence = `${count} ${count === 1 ? 'star' : 'stars'} on ${REPOSITORY}, counted ${day}.`;
   if (process.env.GITHUB_ENV) {
     try {
       appendFileSync(process.env.GITHUB_ENV, lines);
@@ -86,10 +89,12 @@ async function main() {
       warn('the two values could not be handed to the build');
       return;
     }
+    console.log(sentence);
   } else {
+    // The output is the two lines to set and nothing else.
     process.stdout.write(lines);
+    console.error(sentence);
   }
-  console.log(`${count} ${count === 1 ? 'star' : 'stars'} on ${REPOSITORY}, counted ${day}.`);
 }
 
 // Whatever goes wrong, the build goes on without a count.
