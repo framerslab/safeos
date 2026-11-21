@@ -33,7 +33,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconDatabase,
     title: 'Local-First Storage',
-    description: 'Your settings are stored in your browser\'s localStorage, and saved frames and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends camera frames to that server only.',
+    description: 'Your settings are stored in your browser\'s localStorage, and saved frames, alert pictures and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends camera frames to that server only. Alert pictures are not sent to that server.',
   },
   {
     icon: IconEye,
@@ -150,12 +150,29 @@ export default function PrivacyPage() {
                 leaves only the newest 100 monitoring alerts. New alerts are limited to 100 monitoring alerts
                 and 500 alerts overall in this browser. Acknowledged alerts are removed first, oldest first;
                 if all remaining alerts are unacknowledged, the oldest leave first. Alerts are never removed
-                because of their age. Records on a configured server are not deleted by clearing browser
-                data or signing out. Clear All Local Data also removes recorded sounds and the offline cache.
-                Signing out, in any tab, clears the alerts, frames, recordings and personal settings saved in
-                this browser, for every tab; the server connection is kept. Another tab that is still open
+                because of their age; their pictures are, after the time you choose. Records on a configured
+                server are not deleted by clearing browser data or signing out. Clear All Local Data also
+                removes recorded sounds, alert pictures and the offline cache. Signing out, in any tab, clears
+                the alerts and their pictures, frames, recordings and personal settings saved in this
+                browser, for every tab; the server connection is kept. Another tab that is still open
                 may go on showing its alerts until it is reloaded, and it stops receiving alerts from a
                 configured server until then.
+              </p>
+              <p>
+                <strong className="text-white">Alert pictures:</strong> For each Motion and Picture change
+                alert on the monitor page, SafeOS keeps the camera&apos;s picture of the moment, a box round
+                what changed and a close-up of that box. A Sound alert keeps the picture with no box, and a
+                Lost &amp; Found alert keeps the camera&apos;s picture with a box round the part like your
+                pet&apos;s photos. They are kept in this browser&apos;s IndexedDB on this device; Frame, which
+                runs safeos.sh, never receives them. They are deleted after the time you choose under Keep
+                alert pictures (3 days unless you choose 1, 7 or 30 days, or until you delete them); the
+                alert&apos;s words stay in History. A picture is also deleted with its alert when the alert
+                leaves under the limits above. You can delete one picture or all of them; Clear All Local
+                Data and signing out delete them too. SafeOS sends alert pictures to no server, a server you
+                connect yourself included. Anyone who can open SafeOS in this browser can see the alerts and
+                their pictures. If the camera sees a street, a shared path or a neighbour&apos;s home, the
+                law where you live may treat its pictures as more than a private matter, and Keep alert
+                pictures says what to do.
               </p>
               <p>
                 <strong className="text-white">Updates in other tabs:</strong> When SafeOS is updated in
@@ -199,7 +216,9 @@ export default function PrivacyPage() {
                 <strong className="text-white">Service Worker:</strong> We use a service worker 
                 for offline functionality. It caches app files locally. After you agree to the detection model download, its manifest and weights are saved separately in browser Cache Storage.
                 Browser notifications (when enabled) are handled by your browser; true background push
-                notifications require additional setup and are not enabled by default.
+                notifications require additional setup and are not enabled by default. If you turn on Show
+                the picture in alert notifications, the picture shows in the notification, and on some
+                phones on the lock screen, to anyone who can see this device.
               </p>
             </div>
           </div>
@@ -268,7 +287,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: November 13, 2026
+          Last updated: November 20, 2026
         </div>
       </div>
     </main>

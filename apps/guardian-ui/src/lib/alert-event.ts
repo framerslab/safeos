@@ -128,6 +128,8 @@ export interface AlertTiming {
   cooldownPeriodSeconds: number;
   /** How long readings must stay over the line to start an event, and under it to end one. */
   sustainedMs: number;
+  /** How long readings must stay under the line to end an event, where that differs from `sustainedMs`. */
+  endSustainedMs?: number;
 }
 
 /**
@@ -156,27 +158,29 @@ export function readDetector(
   severity: AlertSeverity | null,
   timing: AlertTiming,
 ): ReadingOutcome {
+  const endAfterMs = timing.endSustainedMs ?? timing.sustainedMs;
   if (severity === null) {
     event.aboveSince = null;
     if (event.active) {
       if (event.belowSince === null) event.belowSince = now;
-      if (now - event.belowSince >= timing.sustainedMs) endDetectorEvent(event);
+      if (now - event.belowSince >= endAfterMs) endDetectorEvent(event);
     }
     return { kind: 'quiet' };
   }
 
-  if (event.active && event.belowSince !== null && now - event.belowSince >= timing.sustainedMs) {
+  if (event.active && event.belowSince !== null && now - event.belowSince >= endAfterMs) {
     // The quiet window passed between the last quiet sample and this reading:
     // the old event ended, and this reading starts a new one.
     endDetectorEvent(event);
   }
   event.belowSince = null;
-  if (!event.active) {
+  // Require sustained readings to avoid single-frame spikes and lighting flicker; with no
+  // sustained window asked for (a sighting's check), the first reading over the line starts it.
+  if (!event.active && timing.sustainedMs > 0) {
     if (event.aboveSince === null) {
       event.aboveSince = now;
       return { kind: 'quiet' };
     }
-    // Require sustained readings to avoid single-frame spikes and lighting flicker.
     if (now - event.aboveSince < timing.sustainedMs) return { kind: 'quiet' };
   }
 

@@ -2,7 +2,8 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { recordSound, fakeCaches } from './helpers/browser-data';
-import { saveIntrusionFrame, getAllIntrusionFrames } from '@/lib/client-db';
+import { saveIntrusionFrame, getAllIntrusionFrames, saveAlertPicture, getAlertPicture } from '@/lib/client-db';
+import { pictureStampNow } from '@/lib/local-data-generation';
 import { getAllCustomSounds } from '@/lib/custom-sounds-db';
 import { useAuthStore } from '@/stores/auth-store';
 import { AuthButton } from '@/components/AuthButton';
@@ -14,6 +15,10 @@ it('keeps the next account out of the signed-out account’s frames and recordin
   useAuthStore.setState({ isInitialized: true, isAuthenticated: true, isGuest: false, sessionToken: 'local-first' });
   await recordSound();
   await saveIntrusionFrame({ id: 'first-intrusion', frameData: 'data:image/png;base64,AA==', thumbnailData: '', timestamp: Date.now(), personCount: 2, allowedCount: 0, detections: [], acknowledged: false, notes: 'First account only', exported: false });
+  // An alert picture's row with no Blob in it: the test's stand-in for structuredClone cannot copy a Blob.
+  expect(await saveAlertPicture({ id: 'picture-first', state: 'gone', kind: 'motion', takenAt: Date.now(), gone: 'person' }, pictureStampNow()))
+    .toEqual({ result: 'saved', deleted: [] });
+  expect(await getAlertPicture('picture-first')).not.toBeNull();
   const account = render(<AuthButton />);
   fireEvent.click(screen.getByRole('button', { name: /account menu/i }));
   fireEvent.click(screen.getByRole('menuitem', { name: 'Log Out' }));
@@ -23,6 +28,7 @@ it('keeps the next account out of the signed-out account’s frames and recordin
   render(<HistoryPage />);
   await waitFor(async () => expect(await getAllIntrusionFrames()).toEqual([]));
   expect(await getAllCustomSounds()).toEqual([]);
+  expect(await getAlertPicture('picture-first')).toBeNull();
   expect(screen.queryByText('First account only')).toBeNull();
   delete process.env.NEXT_PUBLIC_STATIC_MODE;
 });

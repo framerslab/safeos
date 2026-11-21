@@ -58,7 +58,7 @@ comparison work offline. A long name with no spaces breaks inside the line that
 names the pet, at every width from 320 px.
 
 While the watch compares, the Lost & Found panel under the alerts shows the pet's
-matches and links to its match history. A photo added there with **Add Photos**
+recent readings and **Open in History**, which opens History. A photo added there with **Add Photos**
 counts at once on the pet and in **Choose a pet**, and stays with the pet when it
 is chosen again, also when another pet is chosen before the photo is saved.
 Another pet chosen while the watch compares starts with none of the first pet's
@@ -68,8 +68,8 @@ When another tab of this browser clears all local data (**Clear All Local Data**
 or a sign-out), the open watch drops the pets it had read and ends the
 comparison: it says "Stopped comparing at {time}.", shows "No pet saved", and
 goes on watching for motion and sound. A read of the saved pets on its way at
-that moment shows none of them, and a photo being added or a match being saved
-then is not written back. The watch hears of the clear from the account marker
+that moment shows none of them, and a photo being added then is not written
+back. The watch hears of the clear from the account marker
 in local storage, which a browser may show to another tab a moment late.
 
 Setup does not need the camera. Until access is granted, its **Device Access**
@@ -144,8 +144,10 @@ that has a named setting.
 A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
 **Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
 sound is on. With Lost & Found's custom media on, the full-screen media takes the
-built-in sound's place: the saved sounds play and the built-in alert sound does not. A saved sound that still plays is not started again by the next
-matching frame, and it stops when the watch stops, when Lost & Found stops
+built-in sound's place: the saved sounds play and the built-in alert sound does not. The
+sounds come with each of a sighting's alerts (see **A Lost and Found sighting** below), never
+with every check. A saved sound that still plays is not started again by the sighting's next
+alert, and it stops when the watch stops, when Lost & Found stops
 watching or its pet changes, and when the page closes. A start on its way when
 the watch stops plays nothing, a sound set to repeat starts no further pass once
 it has stopped, and a loop that a motion or sound alert plays too keeps playing
@@ -201,6 +203,107 @@ does not start a new event. It also ends when monitoring stops or starts, and wh
 its detector is turned off. A new event after that gets a new card and waits the
 short window and its severity's cooldown.
 
+## A Lost and Found sighting
+
+While the watch compares, each check (twice a second) scores what the camera sees against the
+pet's photos. A check at or over the alert line is a sighting. A run of sightings is one alert
+entry: its first sighting raises the alert, and while sightings go on the same entry alerts
+again each time the **Cooldown Period** has passed, with "Repeated N times". A run ends after
+30 seconds with no sighting, and when the watch stops or its pet changes; the next sighting
+after that makes a new entry. Nothing is saved for a check: earlier versions saved the frames
+of checks in `match_frame`, and the frames they saved stay in the Lost & Found gallery and in
+History until their own delete controls or Clear All Local Data. The panel's recent readings,
+the newest 20 checks that scored with their frames, stay in this tab's memory alone and go
+when the page closes. History lists such a frame with its own
+thumbnail and "Could this be {name}?", with no score.
+
+The entry asks "Could this be {name}?" with the time, and says "Colours and shape like
+{name}'s photos." and "Compare the two pictures. It can be another animal that looks alike.".
+It shows the camera's picture of that check with a box round the part of the frame that scored
+(the comparison's region) and, side by side under it, the close-up of that box and the pet's
+first saved photo. It has no level and takes no part in the list's escalation; its sound is
+Lost Item Found's, at each of its alerts. Its notification, when Lost & Found's notifications
+are on, has the title "Could this be {name}?" and the body "Colours and shape like {name}'s
+photos, {time}."; with **Show the picture in alert notifications** on it carries the camera's
+picture with its box drawn in, and the pet's photo is never in it. The live picture boxes the region for 10
+seconds with "Colours like {name}'s". History lists the entry under Lost & Found. The entry's
+record in the alert cache has the kind `sighting`, the pet's id and name and the comparison's
+four scores as data; no score and no percentage is shown.
+
+## Alert pictures
+
+Each Motion and Picture change alert keeps the camera's picture of the moment: the frame of
+the check that raised the alert, at the camera frame's own shape, 640 px on its long edge and
+never enlarged, as a JPEG at quality 0.7. One box marks what set the alert off: for Motion,
+the cells of the 16 by 12 grid that changed between the check's two frames, inside the zone
+that set it off where zones are set; for Picture change, the spots whose pixels changed. A
+close-up of that box comes with it: the box widened by an eighth of its width and height on
+each side, cut from the camera's full frame, at most 480 px on its long edge, as a JPEG at
+quality 0.8. There is no close-up where the box covers more than half of the frame, and a
+Picture change alert whose box covers more than half of the frame keeps the picture with no
+box. A Sound alert keeps the picture with no box and no close-up. A Lost and Found sighting
+keeps the camera's picture with the comparison's region as its box. A picture whose mean
+brightness is under 26 of 255 says it is too dark to show much.
+
+The newest card in the alert list shows the picture large with its box and the close-up beside
+"Close-up"; every other card shows one 112 by 84 px thumbnail. A repeat replaces the card's
+pictures with the newest alert's. For 10 seconds from a Motion or Picture change alert, the
+live camera picture shows the box with "Motion here at {time}" or "Picture change here at
+{time}"; a newer alert's box takes its place. **Open picture** on a card, or a press on its
+picture, opens the picture large: **Show the box** hides and shows the box, **Save picture**
+saves the picture as it shows to the device as `safeos-{kind}-{date}-{time}.jpg` (with the box
+drawn in while it shows), and **Delete picture** asks first, then deletes the picture, its box
+and its close-up; the alert's words stay. A dark picture offers **Brighten the picture**, which
+brightens the view alone. **History → Local Timeline** lists each watch alert with its
+thumbnail, its kind, level, date and time, and **Open picture**.
+
+The pictures are kept in the `alert_picture` store of the `safeos-guardian` database
+(version 8) as JPEG Blobs, one set an alert, named by the alert's `pictureId`. No picture,
+box or close-up goes to a server, the socket, the sync service, a log line or an error
+report, and no data URL of a picture is stored.
+
+Before a device's first watch, any key that starts the watch opens the notice "Each alert
+keeps a picture": what an alert keeps, that the pictures stay on this device and anyone who
+can open SafeOS in this browser can see them, when to ask first, and what the law may say of a
+camera that sees a street or a neighbour's home. It carries the **Keep alert pictures** switch
+and **Delete pictures after** (1, 3, 7 or 30 days, or "Until I delete them"; 3 days unless
+chosen). **Start watching** keeps the choice and starts the watch; **Go back** starts nothing
+and the notice opens again at the next start. No picture is kept before it is answered. The
+same switch, choice and lines stand in the group **Alert pictures** in the watch's settings
+and on **Settings > Detection**, with the count of pictures kept and **Delete all pictures**,
+which asks first. With keeping off, each alert's picture shows on the watch until a reload and
+nothing is saved. Turning the switch in one tab holds in every open tab from the next alert,
+and a new age at once.
+
+A picture is deleted:
+
+- at the age chosen under **Delete pictures after**, by a sweep when a watch starts, every
+  minute while it runs, when History opens and when the age is changed, in every open tab by
+  the age just chosen; its card says "Its picture was deleted after {n} days.";
+- with its alert, when the alert leaves under the alert limits (see **Alert history**), in
+  the same write, and when a repeat gives its card a newer picture; a picture still being
+  drawn when its alert leaves is saved with no alert to hold it, and the sweep of pictures no
+  alert holds deletes it when a watch starts, once it is 10 minutes old;
+- by **Delete picture**, by **Delete all pictures**, by **Clear All Local Data** and by
+  signing out.
+
+When the device runs out of room, the oldest pictures make way for the newest, and the alert
+list says so once; when every older picture would have to go, the new one is not kept and the
+list says the device is out of room. A window that keeps no data says once that it keeps no
+pictures. A tab whose database waits for a reload shows its alerts' pictures from memory.
+Another tab that shows an alert before its picture is saved shows the picture once it is.
+
+**Settings > Notifications** has **Show the picture in alert notifications**, off by default.
+With it on, in a browser that shows a picture in a notification, a Motion or Picture change
+alert's notification carries the picture with its box drawn in; a picture not drawn within
+300 ms of the alert leaves the notification's words to go alone. A Sound alert's notification
+never carries a picture. The notifications say "Motion alert", "Sound alert" or "Picture
+change alert", with the level and the time. While the browser shows a notification's words
+alone, while notifications are not allowed (the row offers **Allow notifications**) and while
+they are blocked, the switch is inactive and says why. The row reads the browser's answer
+again when the page comes back into view, so notifications allowed in the site settings make
+the switch usable with no reload.
+
 ## Processing and connection
 
 The Monitor preset's **Local** processing mode keeps camera frames on the device,
@@ -229,7 +332,8 @@ leaves only the newest 100 monitoring alerts. The upgrade marks what is there wh
 runs. Alerts saved afterwards are limited to 100 monitoring alerts and 500 alerts from
 all producers; at either limit acknowledged alerts leave first, oldest first, and
 unacknowledged ones only when no acknowledged ones remain. No alert is removed for its
-age. Marked records do not count, so a browser can show more than 500. Monitor's
+age; its picture is, at the age chosen under **Delete pictures after**, and the alert's words
+stay. An alert that leaves under a limit takes its kept picture with it in the same write. Marked records do not count, so a browser can show more than 500. Monitor's
 in-memory list applies the 100 rule; a change caused by the 500 limit shows at its next
 history read.
 
@@ -239,8 +343,10 @@ and every write enforces both limits in its own transaction. An acknowledgement 
 later write keeps a saved alert's creation time, producer, media and mark; only a new
 alert's time is limited to the present. Alert ids made in the browser carry a random
 part. The upgrade to database version 7 rewrites each alert once and deletes none, and
-it keeps an unusable date beside a usable one. If it cannot finish, the database stays
-unchanged, the page says so, and a reload tries again. Versions 5 and 6 were never
+it keeps an unusable date beside a usable one. The upgrade to version 8 adds the
+`alert_picture` store and keeps every alert and frame; an alert saved before it has no
+picture, and its card says "No picture was kept for this alert.". If an upgrade cannot finish,
+the database stays unchanged, the page says so, and a reload tries again. Versions 5 and 6 were never
 released and upgrade the same way.
 
 If a history read fails, the alerts on screen stay and the next read retries. A failed

@@ -61,7 +61,7 @@ test('a saved sound still being read when the watch stops does not sound after S
   await watchStripes(page);
   await expect.poll(async () => (await ownSoundCounts(page)).passes, { timeout: 60_000 }).toBeGreaterThan(0);
 
-  // The saved sounds' store is slow to answer: the next match's start waits on its read.
+  // The saved sounds' store is slow to answer: the next sighting's start waits on its read.
   await holdSavedSounds(page);
   await page.waitForTimeout(3_000);
   await stop(page);
@@ -98,9 +98,9 @@ test('a loop that a motion or sound alert plays too keeps playing when the Lost 
   // One looping sound for the drifting stripes' motion and the beep's sound alerts, and for Lost Item Found.
   await saveOwnSound(page, { loop: true, triggers: ['motion_detected', 'audio_detected', 'object_found'] });
   await watchStripes(page);
-  await expect(page.locator('p').filter({ hasText: /^(Motion|Audio) detected: \d+%/ }).first(), 'a motion or sound alert plays the loop')
+  await expect(page.locator('[data-alert-card]').filter({ hasText: /(Motion|Sound) at / }).first(), 'a motion or sound alert plays the loop')
     .toBeVisible({ timeout: 60_000 });
-  // Lost & Found's matches alert on each matching frame and find the loop playing.
+  // Lost & Found's sighting alerts and finds the loop playing.
   await page.waitForTimeout(5_000);
   const before = await ownSoundCounts(page);
   expect(before.passes, 'the loop plays').toBeGreaterThan(0);
@@ -119,7 +119,7 @@ test('a loop that a motion or sound alert plays too stops when the watch stops',
   await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
   await saveOwnSound(page, { loop: true, triggers: ['motion_detected', 'audio_detected', 'object_found'] });
   await watchStripes(page);
-  await expect(page.locator('p').filter({ hasText: /^(Motion|Audio) detected: \d+%/ }).first(), 'a motion or sound alert plays the loop')
+  await expect(page.locator('[data-alert-card]').filter({ hasText: /(Motion|Sound) at / }).first(), 'a motion or sound alert plays the loop')
     .toBeVisible({ timeout: 60_000 });
   await page.waitForTimeout(5_000);
   const before = await ownSoundCounts(page);
@@ -139,9 +139,9 @@ test('a loop that a motion or sound alert plays too, left playing when Watch for
   await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
   await saveOwnSound(page, { loop: true, triggers: ['motion_detected', 'audio_detected', 'object_found'] });
   await watchStripes(page);
-  await expect(page.locator('p').filter({ hasText: /^(Motion|Audio) detected: \d+%/ }).first(), 'a motion or sound alert plays the loop')
+  await expect(page.locator('[data-alert-card]').filter({ hasText: /(Motion|Sound) at / }).first(), 'a motion or sound alert plays the loop')
     .toBeVisible({ timeout: 60_000 });
-  // Lost & Found's matches alert on each matching frame and find the loop playing.
+  // Lost & Found's sighting alerts and finds the loop playing.
   await page.waitForTimeout(5_000);
   const before = await ownSoundCounts(page);
   expect(before.passes, 'the loop plays').toBeGreaterThan(0);

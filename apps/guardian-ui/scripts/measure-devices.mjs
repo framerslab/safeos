@@ -142,6 +142,11 @@ function seed(settings) {
   localStorage.setItem('safeos-settings', JSON.stringify({ state: settings, version: 0 }));
   localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
   localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+  // The notice about alert pictures is answered and pictures are kept, as a
+  // person's watch runs after its first start.
+  localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+    keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+  }, version: 0 }));
 }
 
 /**
@@ -195,10 +200,11 @@ function instrument() {
     if (button && (button.textContent || '').includes('Start Monitoring')) m.startPressedAt = performance.now();
   }, true);
 
-  // An alert card's message line starts with its kind; the screen-reader
-  // summary starts "New ..." and does not match. The observer stops once it
-  // has seen a motion card and a sound card, so it adds no work after that.
-  const KINDS = [['motion', /^Motion detected: /], ['sound', /^Audio detected: /]];
+  // An alert card's lead line names its kind and time ("Motion at 9:42:40 PM");
+  // the screen-reader summary starts "New ..." and does not match. The observer
+  // stops once it has seen a motion card and a sound card, so it adds no work
+  // after that.
+  const KINDS = [['motion', /^Motion at /], ['sound', /^Sound at /]];
   const observer = new MutationObserver((records) => {
     if (m.startPressedAt === null) return;
     for (const record of records) {

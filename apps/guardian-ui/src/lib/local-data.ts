@@ -1,5 +1,5 @@
 /** Local data shared by the privacy controls and account sign-out. */
-import { ACCOUNT_CLEAR_MARKER_KEY, invalidatePendingLocalData, LOCAL_CLEAR_MARKER_KEY } from './local-data-generation';
+import { ACCOUNT_CLEAR_MARKER_KEY, invalidatePendingLocalData, LOCAL_CLEAR_MARKER_KEY, PICTURES_CLEAR_MARKER_KEY } from './local-data-generation';
 import { clearClientData, getDatabaseNotice } from './client-db';
 import { localAlertEngine } from './local-alert-engine';
 import { clearCustomSounds } from './custom-sounds-db';
@@ -12,6 +12,8 @@ import { useSettingsStore } from '../stores/settings-store';
 import { useScheduleStore } from './schedule-manager';
 import { useThemeStore } from './theme-manager';
 import { useOnboardingStore } from '../stores/onboarding-store';
+import { useAlertPicturesStore } from '../stores/alert-pictures-store';
+import { forgetAllPictures } from './alert-pictures/keeper';
 
 /** Browser keys written without the safeos prefix. */
 const GUARDIAN_KEYS = ['guardian-schedules', 'guardian-theme', 'guardian-onboarding-complete'];
@@ -39,6 +41,9 @@ export async function clearLocalData(options: { preserveBackendConfig?: boolean 
   useAnimalAlertStore.setState({ settings: DEFAULT_ANIMAL_SETTINGS });
   useSettingsStore.getState().resetToDefaults();
   useOnboardingStore.getState().reset();
+  // The alert pictures' choices go back to their first state, and this tab lets go of every picture it shows.
+  useAlertPicturesStore.getState().reset();
+  forgetAllPictures();
 
   await Promise.all([clearClientData(), clearCustomSounds()]);
   if ('caches' in window) {
@@ -48,8 +53,8 @@ export async function clearLocalData(options: { preserveBackendConfig?: boolean 
   for (const storage of [localStorage, sessionStorage]) {
     const keys = Array.from({ length: storage.length }, (_, index) => storage.key(index));
     for (const key of keys) {
-      // The two clear markers survive every clear, so other tabs can tell that one happened.
-      if (!key || key === LOCAL_CLEAR_MARKER_KEY || key === ACCOUNT_CLEAR_MARKER_KEY || (options.preserveBackendConfig && key === 'safeos_backend_config')) continue;
+      // The clear markers survive every clear, so other tabs can tell that one happened.
+      if (!key || key === LOCAL_CLEAR_MARKER_KEY || key === ACCOUNT_CLEAR_MARKER_KEY || key === PICTURES_CLEAR_MARKER_KEY || (options.preserveBackendConfig && key === 'safeos_backend_config')) continue;
       if (key.startsWith('safeos') || GUARDIAN_KEYS.includes(key)) storage.removeItem(key);
     }
   }

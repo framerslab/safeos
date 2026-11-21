@@ -45,3 +45,24 @@ export function learnClearGeneration(generation: string): void {
 export function pendingClearStamp(marker: string): ClearStamp {
   return { marker, generation: knownClear !== null && knownClear.marker === marker ? knownClear.generation : null };
 }
+
+/**
+ * The pictures marker: in local storage, shared by every tab, and written by Delete all pictures
+ * inside its transaction. A picture save that waits in any tab reads it, so a set taken before the
+ * deletion is never written after it.
+ */
+export const PICTURES_CLEAR_MARKER_KEY = 'safeos_alert_pictures_cleared';
+export function readPicturesClearMarker(): string {
+  try { return localStorage.getItem(PICTURES_CLEAR_MARKER_KEY) ?? ''; } catch { return ''; }
+}
+/** Throws when local storage refuses the write; the caller then aborts its deletion. */
+export function writePicturesClearMarker(): void {
+  localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, newClearValue());
+}
+
+/** What a picture save carries from its alert: the clear boundary and the pictures marker then. */
+export type PictureStamp = { clearMarker: string; clearGeneration: string | null; picturesMarker: string };
+export function pictureStampNow(): PictureStamp {
+  const clearMarker = readLocalClearMarker();
+  return { clearMarker, clearGeneration: pendingClearStamp(clearMarker).generation, picturesMarker: readPicturesClearMarker() };
+}

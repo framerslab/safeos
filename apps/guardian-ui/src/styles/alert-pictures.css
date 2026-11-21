@@ -1,0 +1,1552 @@
+/* =============================================================================
+   Alert pictures: an alert card and its picture block
+   (src/components/AlertPanel.tsx, src/components/alert-pictures/).
+
+   The watch page's own look. The tokens below are the dark look's; html.light
+   sets the light look's. Words are in rem, so the browser's text size scales
+   them; edges, pictures and glyphs are in px. The box on a photograph is one
+   pair in both looks: a green line inside a dark line, so it stands on any
+   picture.
+   ============================================================================= */
+
+:root {
+  --ap-ground: #1f2937;
+  --ap-ink: #ffffff;
+  --ap-quiet: #d1d5db;
+  --ap-edge: #9ca3af;
+  --ap-track: #374151;
+  --ap-divider: #4b5563;
+  --ap-problem: #fb923c;
+  --ap-ring: #34d399;
+  --ap-accent: #34d399;
+  --ap-acknowledge-ground: #3b5b3f;
+  --ap-acknowledge-ink: #ffffff;
+  --ap-box-line: #4ade80;
+  --ap-box-edge: #0b131b;
+  --ap-solid-ground: #4ade80;
+  --ap-solid-ink: #0b131b;
+  --ap-veil: rgba(11, 19, 27, 0.72);
+}
+
+html.light {
+  --ap-solid-ground: #14532d;
+  --ap-solid-ink: #ffffff;
+  --ap-veil: rgba(17, 24, 39, 0.56);
+  --ap-ground: #ffffff;
+  --ap-ink: #111827;
+  --ap-quiet: #374151;
+  --ap-edge: #4b5563;
+  --ap-track: #e5e7eb;
+  --ap-divider: #9ca3af;
+  --ap-problem: #991b1b;
+  --ap-ring: #047857;
+  --ap-accent: #047857;
+  --ap-acknowledge-ground: #e4f0d7;
+  --ap-acknowledge-ink: #111827;
+}
+
+/* -----------------------------------------------------------------------------
+   The card
+   ----------------------------------------------------------------------------- */
+
+.alert-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* Cards stand on the panel's ground with a divider between them. */
+.alert-card-list > * + * {
+  border-top: 1px solid var(--ap-divider);
+}
+
+/* A card in the small form: its thumbnail at the card's left, the level, the
+   time since and the kind and time beside it, then the card's last row. */
+.alert-card[data-form='small'] {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  gap: 4px 0;
+}
+
+.alert-card[data-form='small'] > .alert-card__head {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.alert-card[data-form='small'] > .alert-picture[data-status='shown'],
+.alert-card[data-form='small'] > .alert-picture[data-status='loading'] {
+  display: contents;
+}
+
+.alert-card[data-form='small'] > .alert-picture:not([data-status='shown']):not([data-status='loading']) {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  padding: 0;
+  border: 0;
+}
+
+.alert-card[data-form='small'] .alert-picture__tile,
+.alert-card[data-form='small'] .alert-picture__wait {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+  margin-right: 12px;
+}
+
+.alert-card[data-form='small'] .alert-picture[data-status='shown'] .alert-picture__words,
+.alert-card[data-form='small'] .alert-picture[data-status='loading'] .alert-picture__words {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.alert-card[data-form='small'] > .alert-card__foot {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  margin-top: 4px;
+}
+
+/* The bar at the card's left edge: the alert's escalation level. */
+.alert-card__bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #10b981;
+}
+
+.alert-card__bar[data-level='2'] { background: #eab308; }
+.alert-card__bar[data-level='3'] { background: #f97316; }
+.alert-card__bar[data-level='4'] { background: #ef4444; }
+
+/* The fourth level pulses until the card is acknowledged; under reduced
+   motion the bar holds its colour. */
+@media (prefers-reduced-motion: no-preference) {
+  .alert-card__bar[data-level='4'] {
+    animation: alert-card-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .alert-card__bar {
+    animation: none !important;
+  }
+}
+
+@keyframes alert-card-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.alert-card__head,
+.alert-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.alert-card__level {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--ap-ink);
+}
+
+.alert-card__icon {
+  flex: none;
+  display: inline-flex;
+}
+
+/* The card's keys beside its counts; on their own row where the two do not fit on one. */
+.alert-card__counts {
+  flex: 1 1 auto;
+}
+
+.alert-card__keys {
+  flex: 0 1 auto;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+/* Level 1, Open picture and Acknowledge keep one row in the alert column's
+   width, as the counts and the one key did. */
+.alert-card__foot {
+  column-gap: 8px;
+}
+
+.alert-card__keys .alert-pictures-keys__row {
+  gap: 8px;
+}
+
+/* The row's 4 px of room for the focus ring stands in the card's own padding,
+   so the keys line up with the card's right edge and the foot stays 44 px tall. */
+.alert-card__keys {
+  margin: -4px -4px -4px auto;
+}
+
+.alert-card__keys .alert-pictures-key,
+.alert-card__keys .alert-card__acknowledge {
+  padding-inline: 14px;
+}
+
+.alert-card__ago {
+  color: var(--ap-ink);
+}
+
+.alert-card__picture {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.alert-card__thumbnail {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: var(--ap-track);
+}
+
+.alert-card__message {
+  margin: 0;
+  min-width: 0;
+  color: var(--ap-ink);
+  overflow-wrap: anywhere;
+}
+
+.alert-card__counts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  color: var(--ap-ink);
+}
+
+.alert-card__acknowledge {
+  flex: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ap-acknowledge-ground);
+  color: var(--ap-acknowledge-ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alert-card__acknowledge:focus-visible {
+  outline: 2px solid var(--ap-ring);
+  outline-offset: 2px;
+}
+
+.alert-card__more {
+  margin: 0;
+  padding: 12px 16px;
+  background: var(--ap-ground);
+  color: var(--ap-quiet);
+  font-size: 1rem;
+  text-align: center;
+}
+
+/* -----------------------------------------------------------------------------
+   The picture block
+   ----------------------------------------------------------------------------- */
+
+.alert-picture {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.alert-picture p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-picture__lead {
+  font-size: 1.125rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ap-ink);
+}
+
+.alert-picture__quiet {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ap-quiet);
+}
+
+.alert-picture__words {
+  display: flex;
+  flex: 1 1 6rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* The picture of the moment, at the frame's own shape; a frame taller than
+   4:3 stands whole inside a 4:3 tile on the track colour. The 1 px edge is
+   drawn over the picture, so the picture and its box keep their own size. */
+.alert-picture__frame,
+.alert-picture__tile,
+.alert-picture__wait {
+  position: relative;
+  background: var(--ap-track);
+}
+
+.alert-picture__frame::after,
+.alert-picture__tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--ap-edge);
+  pointer-events: none;
+}
+
+.alert-picture__frame,
+.alert-picture__tile--whole {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alert-picture__fit {
+  position: relative;
+  flex: none;
+  width: 100%;
+}
+
+.alert-picture__frame[data-tall],
+.alert-picture__tile--whole[data-tall] {
+  aspect-ratio: 4 / 3;
+}
+
+[data-tall] > .alert-picture__fit {
+  width: auto;
+  height: 100%;
+}
+
+.alert-picture__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* The box round what set the alert off: a 2 px green line inside a 1 px dark
+   line, square corners, the same in both looks. */
+.alert-picture__box {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--ap-box-line);
+  outline: 1px solid var(--ap-box-edge);
+  pointer-events: none;
+}
+
+/* A thumbnail's tile: the close-up, whole, on the track colour where its
+   shape differs from the tile's. */
+.alert-picture__tile {
+  flex: none;
+  width: 112px;
+  height: 84px;
+}
+
+.alert-picture__tile > .alert-picture__image {
+  position: absolute;
+  inset: 0;
+}
+
+/* The tile that stands in a picture's place until it is drawn. */
+.alert-picture__wait {
+  aspect-ratio: 4 / 3;
+}
+
+.alert-picture__wait--tile {
+  flex: none;
+  width: 112px;
+  height: 84px;
+  aspect-ratio: auto;
+}
+
+/* The close-up beside its words; the words go under it where they do not fit. */
+.alert-picture__side {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.alert-picture__notes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* An alert with no picture: the glyph of an empty frame beside the line that says why. */
+.alert-picture__why {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.alert-picture__why svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.alert-picture__problem {
+  color: var(--ap-problem);
+}
+
+/* A tablet: the picture in the block's left half, the close-up and the words in its right half. */
+@media (min-width: 768px) {
+  .alert-picture[data-form='large'][data-status='shown'],
+  .alert-picture[data-form='large'][data-status='loading'] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 12px;
+    align-items: start;
+  }
+
+  .alert-picture[data-form='large'] > .alert-picture__notes {
+    grid-column: 1 / -1;
+  }
+}
+
+/* A desktop: the list is the page's right column. One row of two pictures,
+   the picture of the moment at three fifths of the card and the close-up at
+   two fifths at the same height, with their words under them. */
+@media (min-width: 1024px) {
+  .alert-picture[data-form='large'][data-status='shown'],
+  .alert-picture[data-form='large'][data-status='loading'] {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    column-gap: 8px;
+    align-items: stretch;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] > .alert-picture__side {
+    display: contents;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__tile {
+    width: auto;
+    height: auto;
+    min-height: 0;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__words {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    column-gap: 8px;
+    row-gap: 2px;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__lead,
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__zone {
+    grid-column: 1;
+  }
+
+  .alert-picture[data-form='large'][data-pictures='two'] .alert-picture__label {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+/* The wide page: the lead lines a size up. */
+@media (min-width: 1440px) {
+  .alert-picture__lead {
+    font-size: 1.25rem;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   The picture's lines on a card: not kept, could not be saved
+   ----------------------------------------------------------------------------- */
+
+.alert-picture__link-row {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.alert-picture__link,
+.alert-pictures-link {
+  color: var(--ap-ink);
+  font-size: 1rem;
+  text-decoration: underline;
+  text-decoration-color: var(--ap-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.alert-picture__link:focus-visible,
+.alert-pictures-link:focus-visible {
+  outline: 2px solid var(--ap-ring);
+  outline-offset: 2px;
+}
+
+/* -----------------------------------------------------------------------------
+   The alert list's one line about a device that cannot keep pictures
+   ----------------------------------------------------------------------------- */
+
+.alert-list-line__words {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ap-divider);
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.alert-list-line__words svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+/* -----------------------------------------------------------------------------
+   Keep alert pictures: the group, the notice and the delete question
+   ----------------------------------------------------------------------------- */
+
+.alert-pictures-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.alert-pictures-group,
+.alert-pictures-notice,
+.alert-pictures-question {
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.alert-pictures-group p,
+.alert-pictures-notice p,
+.alert-pictures-question p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-pictures-line {
+  font-size: 1.125rem;
+  line-height: 1.5;
+  color: var(--ap-ink);
+}
+
+.alert-pictures-line--strong {
+  font-weight: 600;
+}
+
+.alert-pictures-quiet {
+  font-size: 1rem;
+  color: var(--ap-quiet);
+}
+
+.alert-pictures-problem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--ap-ink);
+}
+
+.alert-pictures-problem svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.alert-pictures-drawing {
+  flex: none;
+  display: block;
+}
+
+/* The switch's row and the select's row: the label, then the control, on one row. */
+.alert-pictures-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+
+.alert-pictures-row__label {
+  flex: 1 1 0;
+  min-width: 0;
+  font-size: 1.125rem;
+  color: var(--ap-ink);
+  overflow-wrap: anywhere;
+}
+
+.alert-pictures-switch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.alert-pictures-switch__track {
+  position: relative;
+  display: block;
+  width: 52px;
+  height: 28px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 14px;
+  background: transparent;
+}
+
+.alert-pictures-switch__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ap-edge);
+}
+
+.alert-pictures-switch[aria-checked='true'] .alert-pictures-switch__track {
+  border-color: var(--ap-accent);
+  background: var(--ap-accent);
+}
+
+.alert-pictures-switch[aria-checked='true'] .alert-pictures-switch__knob {
+  left: 27px;
+  background: var(--ap-ground);
+}
+
+.alert-pictures-select {
+  flex: none;
+  max-width: 60%;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font: inherit;
+  font-size: 1rem;
+}
+
+.alert-pictures-switch:focus-visible,
+.alert-pictures-select:focus-visible,
+.alert-pictures-key:focus-visible,
+.alert-pictures-keys__arrow:focus-visible {
+  outline: 2px solid var(--ap-ring);
+  outline-offset: 2px;
+}
+
+.alert-pictures-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 44px;
+}
+
+/* An outlined key, and the solid key that starts the watch. */
+.alert-pictures-key {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.alert-pictures-key--wide {
+  width: 100%;
+  white-space: normal;
+}
+
+.alert-pictures-key--solid {
+  min-height: 52px;
+  border-color: var(--ap-solid-ground);
+  background: var(--ap-solid-ground);
+  color: var(--ap-solid-ink);
+}
+
+/* A row of keys stays one row; where they do not fit it scrolls inside itself. */
+.alert-pictures-keys {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.alert-pictures-keys__row {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 4px;
+}
+
+/* The keys stand at the row's end while they fit. A margin, not the row's alignment, puts them
+   there: keys that do not fit then run off the row's end, where the row scrolls to them. */
+.alert-pictures-keys__row > :first-child {
+  margin-left: auto;
+}
+
+.alert-pictures-keys__row[data-more-after] {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+
+.alert-pictures-keys__row[data-more-before] {
+  -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to left, #000 calc(100% - 32px), transparent);
+}
+
+.alert-pictures-keys__row[data-more-before][data-more-after] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent);
+}
+
+.alert-pictures-keys__arrow {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  cursor: pointer;
+}
+
+.alert-pictures-keys__arrow:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* The group: its first line beside the drawing, the controls, then the other lines. */
+.alert-pictures-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+}
+
+.alert-pictures-group__heading {
+  margin: 0;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 600;
+  color: var(--ap-ink);
+}
+
+.alert-pictures-group__first {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 16px;
+}
+
+.alert-pictures-group__first > p {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.alert-pictures-group__controls,
+.alert-pictures-group__choices,
+.alert-pictures-group__choice,
+.alert-pictures-group__count,
+.alert-pictures-group__lines {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.alert-pictures-group__controls {
+  gap: 16px;
+}
+
+.alert-pictures-group__choices {
+  gap: 12px;
+}
+
+.alert-pictures-group__choice,
+.alert-pictures-group__count {
+  gap: 4px;
+}
+
+.alert-pictures-group__count .alert-pictures-key {
+  margin-top: 8px;
+}
+
+.alert-pictures-group__lines {
+  gap: 12px;
+}
+
+/* The bar that stands in the count's place until the store is read. */
+.alert-pictures-group__count-wait {
+  display: block;
+  width: 14rem;
+  max-width: 100%;
+  height: 1.6875rem;
+  border-radius: 4px;
+  background: var(--ap-track);
+}
+
+.alert-pictures-section {
+  display: block;
+}
+
+/* A tablet: the switch and the select on one row. */
+@media (min-width: 768px) {
+  .alert-pictures-group__choices {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 24px;
+    align-items: start;
+  }
+}
+
+/* A desktop: the lines, held to 640 px, with the controls in a column beside them. */
+@media (min-width: 1024px) {
+  .alert-pictures-group {
+    grid-template-columns: minmax(0, 640px) minmax(0, 1fr);
+    grid-template-areas:
+      'heading heading'
+      'first controls'
+      'lines controls';
+    grid-template-rows: auto auto 1fr;
+    column-gap: 32px;
+  }
+
+  .alert-pictures-group__heading { grid-area: heading; }
+  .alert-pictures-group__first { grid-area: first; }
+  .alert-pictures-group__controls { grid-area: controls; }
+  .alert-pictures-group__lines { grid-area: lines; }
+
+  .alert-pictures-group__choices {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* The wide page: the lines in the left seven columns at 20 px, the controls in the right five. */
+@media (min-width: 1440px) {
+  .alert-pictures-group {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  }
+
+  .alert-pictures-line {
+    font-size: 1.25rem;
+  }
+}
+
+/* The notice and the delete question stand over the page. */
+.alert-pictures-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ap-veil);
+}
+
+/* A phone: the notice is a panel over the whole screen that scrolls inside itself, its keys at its foot. */
+.alert-pictures-notice {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  outline: none;
+}
+
+.alert-pictures-notice__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 20px 16px 16px;
+  overflow-y: auto;
+}
+
+.alert-pictures-notice__title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--ap-ink);
+}
+
+.alert-pictures-notice__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--ap-divider);
+  border-bottom: 1px solid var(--ap-divider);
+}
+
+.alert-pictures-notice__foot {
+  flex: none;
+  padding: 8px 12px;
+  border-top: 1px solid var(--ap-divider);
+}
+
+.alert-pictures-question {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(100% - 32px, 480px);
+  /* A short screen with large text scrolls the question inside itself. */
+  max-height: calc(100% - 32px);
+  overflow-y: auto;
+  padding: 20px 16px 12px;
+  border: 1px solid var(--ap-edge);
+  border-radius: 6px;
+}
+
+@media (min-width: 768px) {
+  .alert-pictures-notice {
+    width: 560px;
+    height: auto;
+    max-height: calc(100% - 48px);
+    border: 1px solid var(--ap-edge);
+    border-radius: 6px;
+  }
+
+  .alert-pictures-notice__body {
+    padding: 24px 24px 16px;
+  }
+
+  .alert-pictures-notice__foot {
+    padding: 12px 20px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .alert-pictures-notice {
+    width: 640px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .alert-pictures-notice {
+    width: 720px;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   The box on the live picture and its plate
+   ----------------------------------------------------------------------------- */
+
+.alert-live {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.alert-live__box,
+.alert-live__plate {
+  position: absolute;
+  /* In place for 10 seconds, then gone: no slide, no fade, no pulse, under any motion setting. */
+  transition: none;
+  animation: none;
+}
+
+.alert-live__box {
+  box-sizing: border-box;
+  border: 2px solid var(--ap-box-line);
+  outline: 1px solid var(--ap-box-edge);
+}
+
+/* A page-colour plate that carries its own words on any picture. */
+.alert-live__plate {
+  box-sizing: border-box;
+  padding: 4px 8px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.25;
+  font-weight: 400;
+}
+
+.alert-live__plate p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* -----------------------------------------------------------------------------
+   Open picture, and the picture opened large
+   ----------------------------------------------------------------------------- */
+
+/* A picture that opens on a pointer press, the same action as its Open picture key. */
+.alert-picture [data-press] {
+  cursor: pointer;
+}
+
+.alert-picture:focus {
+  outline: none;
+}
+
+.alert-picture:focus-visible {
+  outline: 2px solid var(--ap-ring);
+  outline-offset: 2px;
+}
+
+.alert-picture__open {
+  min-width: 120px;
+}
+
+/* A key or a switch that waits for its picture: a dashed edge and quiet words. */
+.alert-pictures-key[aria-disabled='true'] {
+  border-style: dashed;
+  color: var(--ap-quiet);
+  cursor: default;
+}
+
+.alert-pictures-switch[aria-disabled='true'] {
+  cursor: default;
+}
+
+.alert-pictures-switch[aria-disabled='true'] .alert-pictures-switch__track {
+  border-style: dashed;
+}
+
+/* The narrowest phones: the card's two keys keep one row. */
+@media (max-width: 359px) {
+  .alert-card__keys .alert-pictures-key,
+  .alert-card__keys .alert-card__acknowledge {
+    padding: 8px;
+  }
+}
+
+/* A phone: the panel is the screen and scrolls down inside itself. The title
+   and Close on one row, the picture across the column, its words, the
+   close-up, the switches, then Save picture and, 24 px under it, Delete picture. */
+.alert-picture-dialog {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+  width: 100%;
+  height: 100%;
+  max-height: 100%;
+  padding: 16px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+  outline: none;
+}
+
+.alert-picture-dialog p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-picture-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--ap-divider);
+}
+
+.alert-picture-dialog__title {
+  flex: 1 1 0;
+  min-width: 0;
+  margin: 0;
+  padding-top: 6px;
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--ap-ink);
+  overflow-wrap: anywhere;
+}
+
+.alert-picture-dialog__under,
+.alert-picture-dialog__side,
+.alert-picture-dialog__close {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.alert-picture-dialog__under,
+.alert-picture-dialog__close {
+  gap: 4px;
+}
+
+.alert-picture-dialog__side {
+  gap: 12px;
+}
+
+.alert-picture-dialog__picture {
+  position: relative;
+  min-width: 0;
+}
+
+/* The tile that stands in the picture's place until it is read. */
+.alert-picture-dialog__wait {
+  aspect-ratio: 4 / 3;
+  background: var(--ap-track);
+}
+
+/* "Brightened view", at the picture's top left on a page-colour plate. */
+.alert-picture-dialog__plate {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  max-width: calc(100% - 16px);
+  padding: 2px 8px;
+  background: var(--ap-ground);
+  color: var(--ap-quiet);
+  font-size: 1rem;
+}
+
+/* The close-up at its own size, up to the column's width. */
+.alert-picture-dialog__close-up {
+  display: block;
+  align-self: flex-start;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--ap-edge);
+}
+
+/* Save picture, and 24 px under it the key that deletes. */
+.alert-picture-dialog__keys {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 4px;
+}
+
+.alert-picture-dialog__keys > .alert-pictures-key {
+  width: 100%;
+  white-space: normal;
+}
+
+/* The delete question stands over the opened picture. */
+.alert-picture-dialog__over {
+  z-index: 1001;
+}
+
+/* A tablet: a 640 px panel in the middle of a dimmed page, the keys at the row's right. */
+@media (min-width: 768px) {
+  .alert-picture-dialog {
+    width: 640px;
+    height: auto;
+    max-height: calc(100% - 48px);
+    padding: 24px;
+    border: 1px solid var(--ap-edge);
+    border-radius: 6px;
+  }
+
+  .alert-picture-dialog__keys {
+    align-items: flex-end;
+  }
+
+  .alert-picture-dialog__keys > .alert-pictures-key {
+    width: auto;
+    min-width: 200px;
+  }
+}
+
+/* A desktop: a 960 px panel, the picture in its left two thirds; at its right
+   the title and Close, the words, the close-up, the switches and the keys in one column. */
+@media (min-width: 1024px) {
+  .alert-picture-dialog {
+    width: 960px;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+    grid-template-rows: auto auto 1fr;
+    column-gap: 24px;
+  }
+
+  .alert-picture-dialog__picture {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+  }
+
+  .alert-picture-dialog__head {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .alert-picture-dialog__under {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .alert-picture-dialog__side {
+    grid-column: 2;
+    grid-row: 3;
+  }
+
+  .alert-picture-dialog__keys {
+    align-items: stretch;
+  }
+
+  .alert-picture-dialog__keys > .alert-pictures-key {
+    width: 100%;
+  }
+}
+
+/* A wide screen: a 1120 px panel, the picture 720 px wide. */
+@media (min-width: 1440px) {
+  .alert-picture-dialog {
+    width: 1120px;
+    grid-template-columns: 720px minmax(0, 1fr);
+  }
+
+  .alert-picture-dialog__close-up {
+    max-width: min(100%, 360px);
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   History's rows for the watch's alerts
+   ----------------------------------------------------------------------------- */
+
+/* A phone: the thumbnail and the words on one row, Open picture under them at
+   the row's end, then the row's own keys. */
+.alert-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--ap-divider);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.alert-picture[data-form='row'] {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.alert-picture[data-form='row'] .alert-picture__words {
+  flex: 1 1 0;
+}
+
+.alert-picture__kind {
+  font-weight: 600;
+}
+
+.alert-picture__level {
+  font-weight: 400;
+}
+
+/* The tile that says a picture could not be read. */
+.alert-picture__tile--problem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alert-history-row__open {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.alert-history-row__open:empty {
+  display: none;
+}
+
+.alert-history-row__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+.alert-history-row__state {
+  min-width: 0;
+  color: var(--ap-quiet);
+  overflow-wrap: anywhere;
+}
+
+.alert-history-row__keys {
+  flex: 0 1 auto;
+  max-width: 100%;
+  margin-left: auto;
+}
+
+.alert-history-row__details {
+  display: grid;
+  gap: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ap-divider);
+  color: var(--ap-quiet);
+}
+
+.alert-history-row__details p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A tablet: a larger thumbnail, and Open picture at the row's end beside the words. */
+@media (min-width: 768px) {
+  .alert-history-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 16px;
+  }
+
+  .alert-history-row__open {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+  }
+
+  .alert-history-row__foot,
+  .alert-history-row__details {
+    grid-column: 1 / -1;
+  }
+
+  .alert-picture[data-form='row'] .alert-picture__tile,
+  .alert-picture[data-form='row'] .alert-picture__wait--tile {
+    width: 144px;
+    height: 108px;
+  }
+}
+
+/* A desktop: the words in one column held to 640 px. */
+@media (min-width: 1024px) {
+  .alert-picture[data-form='row'] .alert-picture__tile,
+  .alert-picture[data-form='row'] .alert-picture__wait--tile {
+    width: 160px;
+    height: 120px;
+  }
+
+  .alert-picture[data-form='row'] .alert-picture__words {
+    max-width: 640px;
+  }
+}
+
+/* A wide screen: the rows keep to the left 8 columns of the 1320 px grid. */
+@media (min-width: 1440px) {
+  .alert-history-row {
+    max-width: 880px;
+  }
+
+  .alert-picture[data-form='row'] .alert-picture__tile,
+  .alert-picture[data-form='row'] .alert-picture__wait--tile {
+    width: 200px;
+    height: 150px;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Settings, Notifications: Show the picture in alert notifications. Its class
+   names hold no "notification": the site's light look paints any class that
+   holds that word dark, for its notification popup (design-system.css).
+   ----------------------------------------------------------------------------- */
+
+/* A phone: the label and its switch on one row, the lines under them across the column. */
+.alert-pictures-note-picture {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--ap-divider);
+  border-radius: 6px;
+  background: var(--ap-ground);
+  color: var(--ap-ink);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+.alert-pictures-note-picture p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.alert-pictures-note-picture__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.alert-pictures-note-picture__row > .alert-pictures-row__label {
+  padding-top: 8px;
+}
+
+.alert-pictures-note-picture__row:has([aria-disabled='true']) {
+  cursor: default;
+}
+
+.alert-pictures-note-picture__row:has([aria-disabled='true']) > .alert-pictures-row__label {
+  color: var(--ap-quiet);
+}
+
+.alert-pictures-note-picture__ask {
+  display: flex;
+}
+
+/* A tablet: the label and its lines at the left, held to 520 px; the switch at the row's end. */
+@media (min-width: 768px) {
+  .alert-pictures-note-picture__row > .alert-pictures-row__label,
+  .alert-pictures-note-picture__line {
+    max-width: 520px;
+  }
+}
+
+/* A desktop: the label and its lines in the left seven twelfths, held to 640 px. */
+@media (min-width: 1024px) {
+  .alert-pictures-note-picture__row > .alert-pictures-row__label,
+  .alert-pictures-note-picture__line {
+    max-width: min(640px, 58.333%);
+  }
+}
+
+@media (min-width: 1440px) {
+  .alert-pictures-note-picture .alert-pictures-line {
+    font-size: 1.25rem;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   A Lost and Found sighting
+   ----------------------------------------------------------------------------- */
+
+/* The card's head carries how long ago, at its right, and no level. */
+.alert-card__ago {
+  margin-left: auto;
+}
+
+/* One column at every width: the camera's picture across the block, then the
+   close-up and the pet's saved photo side by side, then the question, the
+   time and the two lines. */
+.alert-picture[data-kind='sighting'][data-form='large'][data-status] {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.alert-picture[data-kind='sighting'][data-form='large'] > .alert-picture__notes {
+  grid-column: auto;
+}
+
+.alert-picture__pair {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Each tile 112 by 84 px; where the block is narrower than the two (320 px
+   with large text) both shrink alike and keep their 4:3 shape. */
+.alert-picture__pair > .alert-picture__tile {
+  flex: 0 1 112px;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 4 / 3;
+}
+
+.alert-picture__pair:empty {
+  display: none;
+}
+
+.alert-picture__time {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ap-ink);
+}
+
+/* The opened sighting: the question with its time under it, and the pet's
+   saved photo after the close-up. */
+.alert-picture-dialog__titles {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.alert-picture-dialog__time {
+  margin: 2px 0 0;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ap-ink);
+}
+
+.alert-picture-dialog__pet .alert-picture-dialog__close-up {
+  max-width: min(100%, 360px);
+}

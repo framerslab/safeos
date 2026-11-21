@@ -28,6 +28,7 @@ import {
   IconShield,
 } from '@/components/icons';
 import { HelpTooltip } from '@/components/HelpTooltip';
+import { NotificationPictureRow } from '@/components/alert-pictures/NotificationPictureRow';
 
 // =============================================================================
 // Types
@@ -446,6 +447,7 @@ export default function NotificationsSettingsPage() {
             checked={settings.browserPush}
             onChange={(v) => update('browserPush', v)}
           />
+          <NotificationPictureRow />
         </Section>
 
         {/* ----- Email (Resend) ------------------------------------------- */}

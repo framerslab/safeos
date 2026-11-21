@@ -70,6 +70,8 @@ const realQuietHours = useSettingsStore.getState().isQuietHoursActive;
 beforeEach(() => {
   jest.useFakeTimers();
   localStorage.clear();
+  // The device has answered the notice about alert pictures, so a watch starts at its key.
+  localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: { keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false }, version: 0 }));
   sessionStorage.clear();
   window.history.replaceState(null, '', '/monitor/');
   useMonitoringStore.getState().reset();
