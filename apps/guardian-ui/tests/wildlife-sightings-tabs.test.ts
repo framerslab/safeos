@@ -159,6 +159,46 @@ it('a sighting storage refused stays gone once another tab clears History, when 
   expect(watching.getState().detectionHistory.map((entry) => entry.id)).toEqual(['deer']);
 });
 
+it('a sighting storage refused stays gone after another tab clears History on a device that takes only the list', async () => {
+  const watching = openTab();
+  const other = openTab();
+  const write = localStorage.setItem.bind(localStorage);
+  let refuse = (key: string) => key === 'safeos-animal-alerts';
+  const refusing = jest.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+    if (refuse(key)) throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    write(key, value);
+  });
+  try {
+    watching.getState().addDetections([sighting('bird', 1000)]);
+    await other.persist.rehydrate();
+    // Room for the list's own write and for no other key.
+    refuse = (key) => key !== 'safeos-animal-alerts';
+    other.getState().clearHistory();
+  } finally {
+    refusing.mockRestore();
+  }
+  watching.getState().addDetections([sighting('deer', 2000)]);
+
+  expect(stored()).toEqual([{ id: 'deer', acknowledged: false }]);
+});
+
+it("keeps another tab's clear time when the watching tab saves its next sighting", async () => {
+  const watching = openTab();
+  const other = openTab();
+  watching.getState().addDetections([sighting('bird', 1000)]);
+  await other.persist.rehydrate();
+
+  other.getState().clearHistory();
+  const clearedAt = () => (JSON.parse(localStorage.getItem('safeos-animal-alerts') ?? 'null') as {
+    state?: { historyClearedAt?: number };
+  } | null)?.state?.historyClearedAt;
+  const cleared = clearedAt();
+  expect(cleared).toBeGreaterThan(0);
+  watching.getState().addDetections([sighting('deer', 2000)]);
+
+  expect(clearedAt()).toBe(cleared);
+});
+
 it.each([
   ['clears its live sightings', (store: Store) => store.getState().clearCurrentDetections()],
   ['stops its watch', (store: Store) => store.getState().setMonitoring(false)],

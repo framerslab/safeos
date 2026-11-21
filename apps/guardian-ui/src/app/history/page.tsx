@@ -17,6 +17,7 @@ import { cardTime } from '@/lib/alert-event';
 import { recordTime } from '@/lib/alert-groups';
 import { markSeen, onAlertsChanged, useDeviceAlerts } from '@/lib/device-alerts';
 import type { DeviceAlert } from '@/lib/alert-groups';
+import { onTabMessage } from '@/lib/tab-channel';
 import { useSettingsStore } from '@/stores/settings-store';
 import {
   acknowledgeIntrusionFrame,
@@ -204,6 +205,14 @@ export default function HistoryPage() {
   const { status: alertsStatus, newAlerts, readAgain } = useDeviceAlerts();
   // null until the alerts are first read; then the alerts this opening marks, none once marked.
   const toMark = useRef<DeviceAlert[] | null>(null);
+  // Alerts read before History opened are the opening's. Alerts first read
+  // after it, once another tab has changed them, may hold one that came
+  // later, and no clock tells which: that opening marks nothing.
+  const readyAtOpening = useRef(alertsStatus === 'ready');
+  const changedSinceOpening = useRef(false);
+  useEffect(() => onTabMessage((message) => {
+    if (message.type === 'alerts-changed') changedSinceOpening.current = true;
+  }), []);
   useEffect(() => {
     if (toMark.current !== null || alertsStatus !== 'ready') return;
     toMark.current = newAlerts;
@@ -213,6 +222,7 @@ export default function HistoryPage() {
     const opening = toMark.current;
     if (!opening || opening.length === 0 || viewMode !== 'local' || !localReady) return;
     toMark.current = [];
+    if (!readyAtOpening.current && changedSinceOpening.current) return;
     void markSeen(opening).then(() => readAgain());
   }, [alertsStatus, newAlerts, readAgain, viewMode, localReady]);
 

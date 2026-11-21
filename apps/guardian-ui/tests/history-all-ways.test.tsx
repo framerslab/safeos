@@ -375,6 +375,44 @@ describe('when its list is read late, or cannot be read', () => {
     expect(late?.acknowledged).toBe(false);
   });
 
+  it('marks nothing when its alerts are first read after another tab changed them', async () => {
+    let holdNext = false;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    jest.doMock('@/lib/client-db', () => {
+      const actual = jest.requireActual<ClientDb>('@/lib/client-db');
+      return {
+        ...actual,
+        // The device's alerts are read through this: once armed, the next read waits.
+        readAllIntrusionFrames: async () => {
+          if (holdNext) {
+            holdNext = false;
+            await held;
+          }
+          return actual.readAllIntrusionFrames();
+        },
+      };
+    });
+    const m = await app();
+    await m.firstRun();
+    await act(() => m.save.sighting('animal-1'));
+
+    // History opens while the device's alerts are still being read.
+    holdNext = true;
+    m.openHistory();
+    expect(screen.getByTestId('status').textContent).toBe('reading');
+
+    // Another tab saves an alert before that read ends; the read its word starts holds both.
+    await act(() => putOwn('intrusion_frame', [peopleFrame('intrusion-late')]));
+    act(() => other.say({ type: 'alerts-changed' }));
+    await waitFor(() => expect(probeLines()).toHaveLength(2), SLOW);
+    await waitFor(() => expect(entryOf('Security Intrusion')).toBeTruthy(), SLOW);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 300)); });
+
+    const late = (await stored('intrusion_frame')).find((record) => record.id === 'intrusion-late');
+    expect(late?.acknowledged).toBe(false);
+    expect(probeLines()).toHaveLength(2);
+  });
+
   it('marks nothing when its list cannot be read', async () => {
     jest.doMock('@/lib/client-db', () => ({
       ...jest.requireActual<ClientDb>('@/lib/client-db'),

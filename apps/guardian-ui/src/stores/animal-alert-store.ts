@@ -84,6 +84,8 @@ export interface AnimalAlertState {
   // History
   detectionHistory: DetectionHistoryEntry[];
   totalDetections: number;
+  /** When a tab last cleared History, in ms; 0 when none has. Saved with the list, in the same write. */
+  historyClearedAt: number;
   
   // Filters for UI
   sizeFilter: SizeCategory[];
@@ -140,15 +142,20 @@ function storedSightings(): DetectionHistoryEntry[] | null {
 
 const seenAt = (entry: DetectionHistoryEntry) => (Number.isFinite(entry.timestamp) ? entry.timestamp : 0);
 
-// When a tab last cleared History. A sighting a tab could not save before
-// then went with the rest, so no tab's later write brings it back.
-const CLEARED_KEY = 'safeos-animal-alerts-cleared';
-
-/** When a tab last cleared History, in ms; null when none has or storage cannot be read. */
-function clearedAt(): number | null {
+/**
+ * When a tab last cleared History, as the stored list records it; null when
+ * none has or storage cannot be read. A sighting a tab could not save before
+ * then went with the rest, so no tab's later write brings it back. The time is
+ * saved with the cleared list, in the same write, so storage never holds the
+ * one without the other.
+ */
+function storedClearedAt(): number | null {
   try {
-    const at = Number(window.localStorage.getItem(CLEARED_KEY));
-    return Number.isFinite(at) && at > 0 ? at : null;
+    const saved = JSON.parse(window.localStorage.getItem(STORE_NAME) ?? 'null') as {
+      state?: { historyClearedAt?: unknown };
+    } | null;
+    const at = saved?.state?.historyClearedAt;
+    return typeof at === 'number' && Number.isFinite(at) && at > 0 ? at : null;
   } catch {
     return null;
   }
@@ -185,7 +192,7 @@ function withStored(own: DetectionHistoryEntry[]): DetectionHistoryEntry[] {
     const kept = mine.get(entry.id);
     byId.set(entry.id, kept ? { ...entry, acknowledged: entry.acknowledged === true || kept.acknowledged } : entry);
   }
-  const cleared = clearedAt();
+  const cleared = storedClearedAt();
   for (const entry of own) {
     if (byId.has(entry.id) || !unstored.has(entry.id)) continue;
     // Seen before another tab cleared History, it went with the rest.
@@ -220,6 +227,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
       currentDetections: [],
       detectionHistory: [],
       totalDetections: 0,
+      historyClearedAt: 0,
       sizeFilter: ['small', 'medium', 'large'],
       dangerFilter: ['none', 'low', 'medium', 'high', 'extreme'],
 
@@ -320,12 +328,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
       },
 
       clearHistory: () => {
-        set({ detectionHistory: [], totalDetections: 0 });
-        try {
-          window.localStorage.setItem(CLEARED_KEY, String(Date.now()));
-        } catch {
-          // A device out of room keeps no time: the clear itself is saved.
-        }
+        set({ detectionHistory: [], totalDetections: 0, historyClearedAt: Date.now() });
         alertsChanged();
       },
 
@@ -379,6 +382,8 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
         settings: state.settings,
         detectionHistory: historyToWrite(state.detectionHistory),
         totalDetections: state.totalDetections,
+        // The newest clear any tab saved: a tab that has not heard of another's clear keeps it.
+        historyClearedAt: Math.max(state.historyClearedAt || 0, storedClearedAt() ?? 0),
         sizeFilter: state.sizeFilter,
         dangerFilter: state.dangerFilter,
       }),
