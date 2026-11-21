@@ -2126,9 +2126,11 @@ test.describe('The opened picture on the watch, 390 px', () => {
     const [saved] = await Promise.all([page.waitForEvent('download'), saveKey(dialog).click()]);
     expect((await readFile((await saved.path())!)).toString('base64')).toBe(await keptFrame(page, row.id));
 
+    // Show the box is off since the save, so the picture's name has no box sentence.
     await brightenSwitch(dialog).click();
     await expect(plate).toHaveCount(0);
-    await expect.poll(() => picture.getAttribute('src')).toBe(keptSrc);
+    const clean = dialog.getByRole('img', { name: pictureName(time, false), exact: true });
+    await expect.poll(() => clean.getAttribute('src')).toBe(keptSrc);
   });
 });
 
