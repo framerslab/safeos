@@ -38,9 +38,17 @@ the build is handed it. `node scripts/read-github-stars.mjs` reads the count
 once and prints two lines, `NEXT_PUBLIC_GITHUB_STARS` and
 `NEXT_PUBLIC_GITHUB_STARS_DATE`, as its whole standard output; its sentence
 about the count goes to standard error. Set both in the environment of
-`npm run build`, for example with
-`export $(node scripts/read-github-stars.mjs)`. Without them the link shows
-its word alone. No page asks
+`npm run build`, and export them only when the script printed them: when
+GitHub does not answer it prints nothing, and a bare `export` lists the whole
+environment, credentials included.
+
+```bash
+stars="$(node scripts/read-github-stars.mjs)"
+if [ -n "$stars" ]; then export $stars; fi
+npm run build
+```
+
+Without them the link shows its word alone. No page asks
 GitHub for the count. See Continuous Integration in the
 [development guide](./DEVELOPMENT.md#continuous-integration).
 

@@ -368,4 +368,33 @@ describe('a row that runs short', () => {
       restore();
     }
   });
+
+  it('moves focus from the start key to the Menu key when the row collapses', () => {
+    let narrow = false;
+    // Even without GitHub and Privacy the row needs 1020 px of its 1000; collapsed, 800 px.
+    const scroll = jest.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(function (this: Element) {
+      if (!narrow) return 900;
+      const nav = this.closest('.site-header');
+      if (nav?.getAttribute('data-collapsed') === 'true') return 800;
+      const short = nav?.getAttribute('data-short');
+      return short === 'privacy' ? 1020 : short === 'github' ? 1050 : 1100;
+    });
+    const client = jest.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    try {
+      const { container } = render(<VisitorHeader />);
+      const start = container.querySelector('.site-header__start') as HTMLElement;
+      start.focus();
+      expect(document.activeElement).toBe(start);
+
+      narrow = true;
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(container.querySelector('.site-header')?.getAttribute('data-collapsed')).toBe('true');
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Menu' }));
+    } finally {
+      scroll.mockRestore();
+      client.mockRestore();
+    }
+  });
 });

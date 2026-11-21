@@ -187,6 +187,17 @@ export function VisitorHeader() {
           && (!!focused.closest('.site-header__github') || (shortRow === 'privacy' && !!focused.closest('.site-header__link--wide')));
         if (givenUp) nav.querySelector<HTMLElement>('.site-header__start')?.focus();
       }
+      // A row that collapses hides its links, GitHub and the start key: focus
+      // on one of them moves to the Menu key, which shows with the collapsed row.
+      if (rowOverflows && menuKeyRef.current) {
+        const focused = document.activeElement;
+        const hidden = focused instanceof HTMLElement && nav.contains(focused)
+          && !!focused.closest('.site-header__links, .site-header__github, .site-header__start');
+        if (hidden) {
+          nav.setAttribute('data-collapsed', 'true');
+          menuKeyRef.current.focus();
+        }
+      }
       // From the tablet width a row that holds the links shows no Menu and
       // no Menu key: an open one closes, so it does not come back when the
       // window narrows, and focus inside it or on its key moves to the start

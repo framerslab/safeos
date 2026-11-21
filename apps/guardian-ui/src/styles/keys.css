@@ -255,3 +255,60 @@
 :root .key--icon[aria-disabled='true']:active {
   transform: none;
 }
+
+/* =============================================================================
+   A row of keys: one line, never wrapped (src/components/KeyRow.tsx)
+   ============================================================================= */
+
+/* Keys side by side share one row, each at its own width. A row wider than
+   its place scrolls inside itself, with a faded edge on the side that holds
+   more and its two arrow keys, and never wraps. The padding keeps a focused
+   key's ring inside the part that scrolls. */
+.key-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.key-row__keys {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+/* A row wider than its place starts at its first key, which a centred row
+   would push out of reach. */
+@supports (justify-content: safe center) {
+  .key-row__keys {
+    justify-content: safe center;
+  }
+}
+
+.key-row__keys::-webkit-scrollbar {
+  display: none;
+}
+
+.key-row__keys > * {
+  flex: none;
+}
+
+.key-row[data-more='end'] .key-row__keys {
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+}
+
+.key-row[data-more='start'] .key-row__keys {
+  mask-image: linear-gradient(to left, black calc(100% - 24px), transparent);
+}
+
+.key-row[data-more='both'] .key-row__keys {
+  mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+}

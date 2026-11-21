@@ -51,7 +51,7 @@ const TONES = {
   },
 };
 
-const PUBLIC_PAGES = ['/', '/about/', '/faq/', '/tutorials/', '/blog/', '/blog/how-safeos-guardian-works/', '/privacy/', '/terms/', '/help/', '/404.html'];
+const PUBLIC_PAGES = ['/', '/about/', '/faq/', '/tutorials/', '/blog/', '/blog/how-safeos-guardian-works/', '/privacy/', '/terms/', '/help/', '/help/integrations/telegram/', '/404.html'];
 const APP_PAGES = ['/dashboard/', '/monitor/', '/history/', '/settings/', '/setup/', '/security/', '/wildlife/', '/lost-found/'];
 // The pages whose keys are read one by one.
 const KEY_PAGES = ['/', '/about/', '/faq/', '/tutorials/', '/blog/', '/privacy/', '/terms/', '/404.html'];
@@ -368,7 +368,9 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
         expect(github.described === stars.description, `${at}: the GitHub link is described as "${github.described}"`);
         expect(github.glyphs === 1 && github.star?.hidden === 'true', `${at}: the GitHub link holds ${github.glyphs} glyphs`);
         expect(github.width >= 88, `${at}: the GitHub link is ${github.width} px wide`);
-        if (!github.star || !github.number || !github.word) return;
+        const missing = [['word', github.word], ['star', github.star], ['count', github.number]].filter(([, part]) => !part).map(([name]) => name);
+        expect(missing.length === 0, `${at}: the GitHub link shows no ${missing.join(', no ')}`);
+        if (missing.length > 0) return;
         expect(Math.abs(github.star.width - 16) < 0.5 && Math.abs(github.star.height - 16) < 0.5, `${at}: the star is ${github.star.width} by ${github.star.height} px`);
         expect(github.star.stroke === github.colour && github.star.fill === 'none', `${at}: the star is drawn ${github.star.stroke} with the fill ${github.star.fill}, not outlined in the link's tone`);
         expect(github.number.words === stars.short, `${at}: the count reads "${github.number.words}", not ${stars.short}`);
@@ -504,19 +506,29 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
   // ---------------------------------------------------------------------------
 
   // Every request a page makes while it loads and for ten seconds after, the
-  // service worker's among them.
+  // service worker's and its sockets' among them. The page itself must load:
+  // an error page asks nothing and would pass. The deliberate visit to
+  // /404.html may be answered 404 by a server that serves it for every
+  // missing address; here it is a file of its own.
   const asked = async (route, width, setupDone) => {
     const others = new Set();
+    let status = 0;
     await open({ name: `requests of ${route}`, width, height: width < 768 ? 844 : 800, setupDone }, async (page, context) => {
       context.on('request', (request) => {
         const url = new URL(request.url());
         if (/^(data|blob|about):$/.test(url.protocol)) return;
         if (url.origin !== origin) others.add(url.origin);
       });
-      await page.goto(address(route), { waitUntil: 'load', timeout: 60_000 });
+      // A socket's handshake is no request of the context's: ws is read as http, wss as https.
+      page.on('websocket', (socket) => {
+        const url = new URL(socket.url());
+        if (new URL(socket.url().replace(/^ws(s?):/, 'http$1:')).origin !== origin) others.add(url.origin);
+      });
+      const response = await page.goto(address(route), { waitUntil: 'load', timeout: 60_000 });
+      status = response ? response.status() : 0;
       await page.waitForTimeout(10_000);
     });
-    return [...others];
+    return { others: [...others], status };
   };
   const visits = [];
   for (const width of [390, 1280]) {
@@ -528,7 +540,9 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
   }
   for (let i = 0; i < visits.length; i += 6) {
     await Promise.all(visits.slice(i, i + 6).map(async ({ route, width, setupDone }) => {
-      const others = await asked(route, width, setupDone);
+      const { others, status } = await asked(route, width, setupDone);
+      const loads = route === '/404.html' ? status === 200 || status === 404 : status === 200;
+      expect(loads, `requests: ${route} at ${width} px${setupDone ? ', set up' : ', first visit'} was answered ${status}, so its requests were not read`);
       expect(others.length === 0, `requests: ${route} at ${width} px${setupDone ? ', set up' : ', first visit'} asks ${others.join(', ')}`);
     }));
   }
@@ -562,9 +576,23 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
               };
             });
             // An icon key is a glyph with no word: it needs a name. Read on
-            // the header, the footer and every key of this set.
+            // the header, the footer and every key of this set. The name is
+            // worked out as a browser does: aria-labelledby counts only
+            // through elements that exist and hold words, then aria-label,
+            // then the key's own words, its title or a picture's text.
+            const nameOf = (button) => {
+              const by = (button.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
+                .map((id) => document.getElementById(id)?.textContent.trim() || '').join(' ').trim();
+              if (by) return by;
+              const label = (button.getAttribute('aria-label') || '').trim();
+              if (label) return label;
+              const own = button.textContent.trim();
+              if (own) return own;
+              const pictured = [...button.querySelectorAll('img[alt], svg title')].map((part) => (part.getAttribute('alt') || part.textContent || '').trim()).join(' ').trim();
+              return pictured || (button.getAttribute('title') || '').trim();
+            };
             const unnamed = [...document.querySelectorAll('nav[aria-label="Site"] button, footer.site-footer button, .key--icon, .look-switch')].filter(visible)
-              .filter((button) => !button.textContent.trim() && !button.getAttribute('aria-label') && !button.getAttribute('aria-labelledby')).length;
+              .filter((button) => !nameOf(button)).length;
             return { keys, older: document.querySelectorAll('.btn').length, unnamed };
           });
           expect(seen.keys.length > 0, `${at}: the page shows no key`);

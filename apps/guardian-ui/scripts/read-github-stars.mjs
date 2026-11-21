@@ -14,8 +14,12 @@
  *   NEXT_PUBLIC_GITHUB_STARS_DATE=<YYYY-MM-DD>
  *
  * Outside a workflow the two lines are printed instead, and they are all of
- * its standard output: the sentence with the count goes to standard error,
- * so `export $(node scripts/read-github-stars.mjs)` sets both values.
+ * its standard output: the sentence with the count goes to standard error.
+ * Export them only when they were printed, since a bare `export` lists the
+ * whole environment:
+ *
+ *   stars="$(node scripts/read-github-stars.mjs)"
+ *   if [ -n "$stars" ]; then export $stars; fi
  *
  * A star count never holds a build. When GitHub does not answer within ten
  * seconds, answers with an error, or answers with anything but a whole number
