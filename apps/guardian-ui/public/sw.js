@@ -37,7 +37,7 @@ function refillIfEmpty(cache) {
           if ((await cache.keys()).length === 0) {
             await cache.addAll(manifest.urls);
             // This build is the one running: a later build keeps it for its pages.
-            await cache.put(TAKEN_OVER, new Response(String(Date.now())));
+            await markTakenOver(cache);
           }
           return;
         } catch (error) {
@@ -73,6 +73,19 @@ self.addEventListener('install', (event) => {
 // build can tell which earlier build ran last.
 const TAKEN_OVER = '/__safeos-taken-over';
 
+/**
+ * Records that this build's worker took over now. A record that fails is no
+ * reason to stop the takeover: a later build then keeps the build stored
+ * before this one, and a page from this one reloads once onto the newest.
+ */
+async function markTakenOver(cache) {
+  try {
+    await cache.put(TAKEN_OVER, new Response(String(Date.now())));
+  } catch (error) {
+    console.warn('[SW] Could not record when this build took over:', error);
+  }
+}
+
 /** When a stored build's worker took over; 0 for a build stored before the time was kept. */
 async function takenOver(name) {
   try {
@@ -96,7 +109,7 @@ self.addEventListener('activate', (event) => {
       kept = older[times.indexOf(Math.max(...times))];
     }
     await Promise.all(older.filter(name => name !== kept).map(name => caches.delete(name)));
-    if (!UNBUILT) await (await caches.open(CACHE_NAME)).put(TAKEN_OVER, new Response(String(Date.now())));
+    if (!UNBUILT) await markTakenOver(await caches.open(CACHE_NAME));
     await self.clients.claim();
   })());
 });
