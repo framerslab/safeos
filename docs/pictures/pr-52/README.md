@@ -16,6 +16,15 @@ a post: `faq-1280-light.png`, `blog-1280-light.png` and
 `blog-how-safeos-guardian-works-1280-light.png`. That run read the same count
 on the same day, and every walk passed.
 
+Eight files of `after/` are from a later run,
+[run 44879584728](https://github.com/framerslab/safeos/actions/runs/44879584728)
+on commit 9097c4d, which keeps every footer row on one line from 390 pixels
+and gives the header's start key one width for both its labels:
+`site-footer-390-<look>.png`, `site-header-1280-<look>.png`,
+`header-820-light.png`, `header-1024-light.png`, `header-1280-light.png` and
+`home-setup-done-1280-light.png`. That run read the same count on the same
+day, and every walk passed.
+
 `before/`: the `pictures-before` artifact, the base commit 7ffbaed, built and
 captured by the same script. The base has no star count.
 
@@ -41,5 +50,7 @@ In `after/` alone, from the walk of the pull request's own build
 |---|---|
 | `keys-sheet-<look>.png` | The four kinds of key laid out on a public page with the site's own stylesheet. One row a kind: the solid key, the outlined key, a link told by its place, a link row, a word key, an icon key. From left to right: at rest, under the pointer, focused from the keyboard, pressed, and inactive (for the link told by its place, the page being read). Each tile is a picture of the live key in that form |
 | `header-820-light.png`, `header-1024-light.png` | The row at a tablet (four links, no GitHub) and at 1024 pixels (Privacy as the fifth link, GitHub with its count) |
+| `header-1280-light.png` | The row at 1280 pixels on a first visit: the start key reads "Start setup" |
+| `home-setup-done-1280-light.png` | The home page at 1280 pixels once setup is done on this device: the start key reads "Open dashboard" at the same width, so GitHub and the look switch stand where they stood |
 | `header-github-hover-1280-<look>.png` | The pointer over the GitHub link |
 | `header-faq-hover-1280-<look>.png` | On the FAQ, the pointer over Guides: 1 pixel in the ink beside the 2 pixels in green under the page being read |
