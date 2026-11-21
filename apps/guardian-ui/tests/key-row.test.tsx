@@ -25,14 +25,20 @@ function giveWidths(size: { need: number; room: number; left?: number }) {
 }
 
 let scrollBy: jest.Mock;
+const setupMatchMedia = window.matchMedia;
+/** The test setup's matchMedia, answering `matches` for each query as given. */
+function answerMedia(matches: (query: string) => boolean) {
+  window.matchMedia = ((query: string) => ({ ...setupMatchMedia(query), matches: matches(query) })) as typeof window.matchMedia;
+}
 beforeEach(() => {
   scrollBy = jest.fn();
   Object.defineProperty(Element.prototype, 'scrollBy', { configurable: true, writable: true, value: scrollBy });
-  Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: () => ({ matches: false }) });
+  answerMedia(() => false);
 });
 afterEach(() => {
   cleanup();
   delete (Element.prototype as { scrollBy?: unknown }).scrollBy;
+  window.matchMedia = setupMatchMedia;
 });
 
 function twoKeys() {
@@ -89,7 +95,7 @@ it('scrolls a row wider than its place with its arrow keys, the one at its end i
 });
 
 it('moves the row at once for a person who asked for reduced motion', () => {
-  Object.defineProperty(window, 'matchMedia', { configurable: true, writable: true, value: (query: string) => ({ matches: query.includes('reduce') }) });
+  answerMedia((query) => query.includes('reduce'));
   const restore = giveWidths({ need: 420, room: 300 });
   try {
     twoKeys();
