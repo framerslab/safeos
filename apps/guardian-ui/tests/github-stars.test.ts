@@ -141,26 +141,18 @@ describe('the script that asks GitHub before the build', () => {
   /** Runs the script as a workflow step would, against the test's server. */
   function run(env: Record<string, string> = {}) {
     const { port } = server.address() as AddressInfo;
-    return new Promise<{ status: number | string | null; out: string; err: string; handed: string }>((resolve) => {
-      execFile(
-        process.execPath,
-        [SCRIPT],
-        {
-          cwd: dir,
-          encoding: 'utf8',
-          timeout: 20_000,
-          env: {
-            PATH: process.env.PATH || '',
-            SAFEOS_STARS_URL: `http://127.0.0.1:${port}/repos/framerslab/safeos`,
-            GITHUB_ENV: path.join(dir, 'env'),
-            ...env,
-          },
-        },
-        (error, out, err) => {
-          const status = error ? ((error as NodeJS.ErrnoException).code ?? 1) : 0;
-          resolve({ status, out, err, handed: fs.readFileSync(path.join(dir, 'env'), 'utf8') });
-        },
-      );
+    // Only what a workflow step would hand it: nothing of this process's own.
+    const stepEnv = {
+      PATH: process.env.PATH || '',
+      SAFEOS_STARS_URL: `http://127.0.0.1:${port}/repos/framerslab/safeos`,
+      GITHUB_ENV: path.join(dir, 'env'),
+      ...env,
+    } as unknown as NodeJS.ProcessEnv;
+    return new Promise<{ status: number | string; out: string; err: string; handed: string }>((resolve) => {
+      execFile(process.execPath, [SCRIPT], { cwd: dir, encoding: 'utf8', timeout: 20_000, env: stepEnv }, (error: (Error & { code?: number | string | null }) | null, out: string, err: string) => {
+        const status = error ? (error.code ?? 1) : 0;
+        resolve({ status, out, err, handed: fs.readFileSync(path.join(dir, 'env'), 'utf8') });
+      });
     });
   }
 
