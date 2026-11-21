@@ -11,6 +11,9 @@
 /* Import design system */
 @import '../styles/design-system.css';
 
+/* Import the keys: the four kinds of control every page uses */
+@import '../styles/keys.css';
+
 /* Import touch optimization styles */
 @import '../styles/touch.css';
 

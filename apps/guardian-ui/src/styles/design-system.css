@@ -71,6 +71,9 @@
   --weight-regular: 400;
   --weight-bold: 700;
 
+  /* The corner of every key's box (styles/keys.css). */
+  --key-radius: 0.375rem;           /* 6px */
+
   /* Status Colors */
   --color-status-online: #22c55e;
   --color-status-offline: #ef4444;

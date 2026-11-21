@@ -45,7 +45,7 @@ function finishSetup() {
 }
 
 describe('the Menu', () => {
-  it('opens a panel that lists the start link, the four links and GitHub, and shows "Close" named "Close menu"', () => {
+  it('opens a panel that lists the start link, the row\'s five links, About SafeOS, Blog and GitHub, and shows "Close" named "Close menu"', () => {
     const { container } = render(<VisitorHeader />);
     const key = screen.getByRole('button', { name: 'Menu' });
     const menu = container.querySelector('#site-menu') as HTMLElement;
@@ -65,8 +65,11 @@ describe('the Menu', () => {
       'Start setup /setup',
       'How it works /#how-it-works',
       'Uses /#uses',
-      'Privacy /privacy',
+      'Guides /tutorials',
       'FAQ /faq',
+      'Privacy /privacy',
+      'About SafeOS /about',
+      'Blog /blog',
       'GitHub https://github.com/framerslab/safeos',
     ]);
   });

@@ -1,12 +1,14 @@
 /**
  * SafeOS Guardian Logo Components
  *
- * Custom SVG logos for SafeOS and Frame.
+ * SafeOS's own mark, drawn here, and Frame's mark, which is Frame's own file
+ * (components/visitor/MakerMark) and is never drawn in code.
  *
  * @module components/Logo
  */
 
 import React from 'react';
+import { MakerMark } from './visitor/MakerMark';
 
 interface LogoProps {
   size?: number;
@@ -117,9 +119,19 @@ export function SafeOSWordmark({ className = '' }: { className?: string }) {
 }
 
 /**
- * Frame Logo - Cloud with Neural Network
+ * Frame's mark: the file frame.dev serves, in the form made for the look that
+ * is on. The name stands beside it in text, so the mark has no text
+ * equivalent of its own.
  */
 export function FrameLogo({ size = 40, className = '' }: LogoProps) {
+  return <MakerMark maker="frame" size={size} className={className} />;
+}
+
+/**
+ * The cloud the old dashboard shows beside its own line. It is not Frame's
+ * mark and stands for it nowhere.
+ */
+export function SuperCloudLogo({ size = 40, className = '' }: LogoProps) {
   return (
     <svg
       width={size}
@@ -128,7 +140,7 @@ export function FrameLogo({ size = 40, className = '' }: LogoProps) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       className={className}
-      aria-label="Frame"
+      aria-hidden="true"
     >
       {/* Cloud */}
       <path
@@ -165,13 +177,13 @@ export function FrameLogo({ size = 40, className = '' }: LogoProps) {
 }
 
 /**
- * Frame Wordmark
+ * Frame's mark with its name beside it, in the ink at 16 px.
  */
 export function FrameWordmark({ className = '' }: { className?: string }) {
   return (
     <div className={`flex items-center gap-2 ${className}`}>
-      <FrameLogo size={24} className="text-[#3B82F6]" />
-      <span className="font-mono text-xs text-[var(--color-steel-500)] uppercase tracking-wider">
+      <FrameLogo size={24} />
+      <span className="text-base text-[var(--color-steel-50)]" style={{ fontFamily: 'var(--font-sans)' }} translate="no">
         Frame
       </span>
     </div>
@@ -180,7 +192,6 @@ export function FrameWordmark({ className = '' }: { className?: string }) {
 
 // Legacy alias for backwards compatibility
 export const SuperCloudWordmark = FrameWordmark;
-export const SuperCloudLogo = FrameLogo;
 
 /**
  * Combined Logo - SafeOS + Frame Attribution
@@ -191,7 +202,7 @@ export function SafeOSFullLogo({ className = '' }: { className?: string }) {
       <SafeOSWordmark />
       <div className="flex items-center gap-1.5 opacity-60">
         <span className="text-[10px] text-[var(--color-steel-500)]">powered by</span>
-        <FrameLogo size={16} className="text-[#3B82F6]" />
+        <FrameLogo size={16} />
         <span className="font-mono text-[10px] text-[var(--color-steel-500)]">Frame</span>
       </div>
     </div>
@@ -239,7 +250,7 @@ export function Logo({ size = 'md', showFrame = true, showSuperCloud, className 
       </div>
       {shouldShowFrame && (
         <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-[var(--color-steel-800)]">
-          <FrameLogo size={size === 'sm' ? 16 : 18} className="text-[#3B82F6]" />
+          <FrameLogo size={size === 'sm' ? 16 : 18} />
         </div>
       )}
     </div>

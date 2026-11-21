@@ -9,7 +9,7 @@
 import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/page-metadata';
 import Link from 'next/link';
-import Image from 'next/image';
+import { MakerMark } from '@/components/visitor/MakerMark';
 import {
   IconChevronLeft,
   IconChevronRight,
@@ -94,7 +94,7 @@ function BlogCard({ post }: { post: BlogPost }) {
             {post.date}
           </span>
           <span className="flex items-center gap-1">
-            <Image src="/logos/frame.svg" alt="" width={14} height={14} />
+            <MakerMark maker="frame" size={14} />
             {post.author}
           </span>
           <span>{post.readTime}</span>
@@ -197,7 +197,7 @@ export default function BlogPage() {
                 href="https://frame.dev"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors font-medium"
+                className="key key--solid"
               >
                 Visit Frame.dev
               </a>

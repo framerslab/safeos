@@ -2,7 +2,8 @@
  * Visitor header
  *
  * The header of the home page and the other public pages: the mark and the
- * wordmark, four destinations, the look switch and the start key, in one row
+ * wordmark, four links with Privacy as the fifth from 1024 px, GitHub with
+ * its star count from 1024 px, the look switch and the start key, in one row
  * at every width from 320 px. On a phone, and whenever the links do not fit
  * the row (a narrow window or larger text), the links and the start key are
  * rows of the Menu. Before script runs every link works and Menu is a link to
@@ -21,14 +22,34 @@ import { useSetupDone } from '@/lib/use-setup-done';
 import { SiteMark } from './SiteMark';
 import { LookSwitch } from './LookSwitch';
 import { StartLink } from './StartLink';
+import { GitHubLink, GITHUB_URL } from './GitHubLink';
 
-export const GITHUB_URL = 'https://github.com/framerslab/safeos';
+export { GITHUB_URL };
 
-const LINKS: { href: string; label: string; page?: string }[] = [
+interface HeaderLink {
+  href: string;
+  label: string;
+  /** The page on which the link is marked as the page being read. */
+  page?: string;
+  /** In the row from 1024 px only; under that the footer and the Menu hold it. */
+  wide?: boolean;
+}
+
+// The row's links, in the order a first visit needs them.
+const LINKS: HeaderLink[] = [
   { href: '/#how-it-works', label: 'How it works' },
   { href: '/#uses', label: 'Uses' },
-  { href: '/privacy/', label: 'Privacy', page: '/privacy' },
+  { href: '/tutorials/', label: 'Guides', page: '/tutorials' },
   { href: '/faq/', label: 'FAQ', page: '/faq' },
+  { href: '/privacy/', label: 'Privacy', page: '/privacy', wide: true },
+];
+
+// The Menu's rows after the start key: the row's links, then the two pages
+// the row has no room for. GitHub with its count is the last row.
+const MENU_LINKS: HeaderLink[] = [
+  ...LINKS,
+  { href: '/about/', label: 'About SafeOS', page: '/about' },
+  { href: '/blog/', label: 'Blog', page: '/blog' },
 ];
 
 // What takes focus when pressed and can be reached with Tab. The main content
@@ -46,6 +67,8 @@ export function VisitorHeader() {
   const [collapsed, setCollapsed] = useState(false);
   // 'small': the wordmark keeps its own size; 'true': the wordmark leaves the row.
   const [compact, setCompact] = useState<'small' | 'true' | null>(null);
+  // 'github': GitHub has left a row that ran short; 'privacy': Privacy has too.
+  const [short, setShort] = useState<'github' | 'privacy' | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
@@ -120,10 +143,25 @@ export function VisitorHeader() {
     const measure = () => {
       const wasCollapsed = nav.getAttribute('data-collapsed');
       const wasCompact = nav.getAttribute('data-compact');
+      const wasShort = nav.getAttribute('data-short');
       const overflows = () => bar.scrollWidth > bar.clientWidth + 0.5;
       nav.removeAttribute('data-collapsed');
       nav.removeAttribute('data-compact');
+      nav.removeAttribute('data-short');
+      // A row that runs short gives up GitHub first, then Privacy: the footer
+      // holds both at every width. Only a row that is short without them
+      // moves its links and the start key into the Menu.
+      let shortRow: 'github' | 'privacy' | null = null;
+      for (const leaves of ['github', 'privacy'] as const) {
+        if (!overflows()) break;
+        nav.setAttribute('data-short', leaves);
+        shortRow = leaves;
+      }
       const rowOverflows = overflows();
+      if (rowOverflows) {
+        nav.removeAttribute('data-short');
+        shortRow = null;
+      }
       let compactRow: 'small' | 'true' | null = null;
       if (rowOverflows) {
         nav.setAttribute('data-collapsed', 'true');
@@ -136,8 +174,11 @@ export function VisitorHeader() {
       else nav.removeAttribute('data-collapsed');
       if (wasCompact !== null) nav.setAttribute('data-compact', wasCompact);
       else nav.removeAttribute('data-compact');
+      if (wasShort !== null) nav.setAttribute('data-short', wasShort);
+      else nav.removeAttribute('data-short');
       setCollapsed(rowOverflows);
       setCompact(compactRow);
+      setShort(shortRow);
       // From the tablet width a row that holds the links shows no Menu and
       // no Menu key: an open one closes, so it does not come back when the
       // window narrows, and focus inside it or on its key moves to the start
@@ -175,6 +216,7 @@ export function VisitorHeader() {
       data-script={scriptArrived ? 'true' : undefined}
       data-collapsed={collapsed ? 'true' : undefined}
       data-compact={compact ?? undefined}
+      data-short={short ?? undefined}
       data-scrolled={scrolled ? 'true' : undefined}
     >
       <div ref={barRef} className="site-header__bar">
@@ -197,7 +239,7 @@ export function VisitorHeader() {
             <Link
               key={link.href}
               href={link.href}
-              className="site-header__link"
+              className={link.wide ? 'site-header__link site-header__link--wide' : 'site-header__link'}
               aria-current={link.page && pathname === link.page ? 'page' : undefined}
             >
               {link.label}
@@ -206,16 +248,14 @@ export function VisitorHeader() {
         </div>
 
         <div className="site-header__actions">
-          <a href={GITHUB_URL} className="site-header__link site-header__github" aria-label="SafeOS on GitHub">
-            <span translate="no">GitHub</span>
-          </a>
+          <GitHubLink className="site-header__link site-header__github" place="row" />
           <LookSwitch />
           <StartLink className="key key--solid site-header__start" />
           {scriptArrived ? (
             <button
               ref={menuKeyRef}
               type="button"
-              className="site-header__menu-key"
+              className="key key--word site-header__menu-key"
               aria-label={menuInUse ? 'Close menu' : 'Menu'}
               aria-expanded={menuInUse}
               aria-controls="site-menu"
@@ -227,7 +267,7 @@ export function VisitorHeader() {
               </span>
             </button>
           ) : (
-            <a href="#site-links" className="site-header__menu-key">
+            <a href="#site-links" className="key key--word site-header__menu-key">
               Menu
             </a>
           )}
@@ -235,8 +275,8 @@ export function VisitorHeader() {
       </div>
 
       <div id="site-menu" className="site-menu" hidden={!menuInUse}>
-        <StartLink className="site-menu__row site-menu__row--start" onClick={closeMenu} />
-        {LINKS.map((link) => (
+        <StartLink className="key key--solid site-menu__start" onClick={closeMenu} />
+        {MENU_LINKS.map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -247,9 +287,7 @@ export function VisitorHeader() {
             {link.label}
           </Link>
         ))}
-        <a href={GITHUB_URL} className="site-menu__row" aria-label="SafeOS on GitHub" onClick={closeMenu}>
-          <span translate="no">GitHub</span>
-        </a>
+        <GitHubLink className="site-menu__row" place="menu" onClick={closeMenu} />
       </div>
     </nav>
   );

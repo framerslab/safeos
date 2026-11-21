@@ -87,6 +87,9 @@ const PUBLIC_FILES = [
   component('home', 'HomeStart.tsx'), // home
   component('visitor', 'VisitorHeader.tsx'), // home and the other public pages
   component('visitor', 'VisitorFooter.tsx'), // home and the other public pages
+  component('visitor', 'GitHubLink.tsx'), // visitor header and footer: the link to the code and its star count
+  component('visitor', 'MakerMark.tsx'), // visitor footer, About, blog: the makers' marks
+  app('src', 'lib', 'github-stars.ts'), // visitor header and footer: the star count's words
   component('visitor', 'LookSwitch.tsx'), // visitor header
   component('visitor', 'StartLink.tsx'), // visitor header and footer, home
   component('layout', 'SiteShell.tsx'), // root layout: every page
