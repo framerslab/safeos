@@ -142,7 +142,8 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   const [showBox, setShowBox] = useState(true);
   const [brighten, setBrighten] = useState(false);
   const [bright, setBright] = useState<{ frame: string; closeUp: string | null } | null>(null);
-  const [asking, setAsking] = useState(false);
+  // The delete question is asked of one picture: the one shown when Delete picture was pressed.
+  const [asking, setAsking] = useState<string | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
   const [saveFailed, setSaveFailed] = useState(false);
   const busy = useRef(false);
@@ -233,10 +234,11 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   };
 
   const remove = async () => {
-    setAsking(false);
-    if (!alert.pictureId || busy.current) return;
+    const target = asking;
+    setAsking(null);
+    if (!target || target !== alert.pictureId || busy.current) return;
     busy.current = true;
-    const answer = await deletePicture(alert.pictureId, { kind, takenAt: at });
+    const answer = await deletePicture(target, { kind, takenAt: at });
     busy.current = false;
     if (answer === 'failed') {
       setDeleteFailed(true);
@@ -247,9 +249,17 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   };
 
   const keep = () => {
-    setAsking(false);
+    setAsking(null);
     deleteRef.current?.focus();
   };
+
+  // A repeat that gives the panel a newer picture closes a question asked of the earlier one.
+  useEffect(() => {
+    if (asking !== null && asking !== alert.pictureId) {
+      setAsking(null);
+      deleteRef.current?.focus();
+    }
+  }, [asking, alert.pictureId]);
 
   const boxed = shown && Boolean(set?.box);
   const goneLine = view.status === 'gone-person' ? DELETED_BY_PERSON
@@ -379,7 +389,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
                     type="button"
                     className="alert-pictures-key"
                     aria-disabled={loading ? true : undefined}
-                    onClick={() => { if (!loading) setAsking(true); }}
+                    onClick={() => { if (!loading && alert.pictureId) setAsking(alert.pictureId); }}
                   >
                     {DELETE_PICTURE}
                   </button>
@@ -390,7 +400,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
         </div>,
         document.body,
       )}
-      {asking && !gone && <DeleteQuestion onDelete={() => void remove()} onKeep={keep} />}
+      {asking !== null && !gone && <DeleteQuestion onDelete={() => void remove()} onKeep={keep} />}
     </>
   );
 }
