@@ -48,7 +48,7 @@ it('announces each repeat of a card, also a repeat with the same reading and sev
   await act(async () => { await settle(); });
   const first = announced();
   // A Motion alert is read by its kind, level and time, as this device writes a time; its numbers stay in its record.
-  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(new Date(card.createdAt));
+  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(new Date(card.createdAt ?? 0));
   const opening = `New alert: Motion, High, at ${time}`;
   expect(first?.slice(0, opening.length)).toBe(opening);
   expect(first).not.toContain('Motion detected');
