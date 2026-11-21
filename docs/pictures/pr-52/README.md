@@ -54,3 +54,17 @@ In `after/` alone, from the walk of the pull request's own build
 | `home-setup-done-1280-light.png` | The home page at 1280 pixels once setup is done on this device: the start key reads "Open dashboard" at the same width, so GitHub and the look switch stand where they stood |
 | `header-github-hover-1280-<look>.png` | The pointer over the GitHub link |
 | `header-faq-hover-1280-<look>.png` | On the FAQ, the pointer over Guides: 1 pixel in the ink beside the 2 pixels in green under the page being read |
+
+Four files of `after/` are from a later run,
+[run 44883841178](https://github.com/framerslab/safeos/actions/runs/44883841178)
+on commit bf4c19b, which changes every key's fill in the frame the look
+changes: `home-after-look-switch-390-<look>.png` and
+`home-after-look-switch-1280-<look>.png`. Each is taken just after a press of
+the look switch, in the look named by the file, from the other look. That run
+read the same count on the same day, and every walk passed.
+
+`look-switch-at-af597dc/`: the same two 390 pixel pictures from
+[run 44882130430](https://github.com/framerslab/safeos/actions/runs/44882130430)
+on commit af597dc, this pull request before that change. The start key's fill
+is caught part way from the old look's green to the new one's while its label
+is already the new look's colour; the walk failed on it.
