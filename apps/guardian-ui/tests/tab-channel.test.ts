@@ -201,6 +201,63 @@ it('takes over from a tab that was closed without a word', async () => {
   expect(taken.value).toBe(true);
 });
 
+it('of two tabs that press a start key together, one starts and the other is told a watch starts', async () => {
+  const [a, b] = [openTab(), openTab()];
+
+  const answers = [settled(a.askOtherTabs()), settled(b.askOtherTabs())];
+  await run(300);
+
+  expect(answers.every((answer) => answer.done)).toBe(true);
+  expect(answers.map((answer) => answer.value?.watching).sort()).toEqual([false, true]);
+});
+
+it('a tab told none watches holds its start until its watch begins, and lets it go when the start ends', async () => {
+  const [a, b] = [openTab(), openTab()];
+  const mine = settled(a.askOtherTabs());
+  await run(300);
+  expect(mine.value).toEqual({ watching: false });
+
+  // The start is on its way to the camera: a press in another tab is told.
+  const meanwhile = settled(b.askOtherTabs());
+  await run(300);
+  expect(meanwhile.value).toEqual({ watching: true });
+
+  a.releaseStart();
+  await run(0);
+  expect(heardOf('watch-ended')).toHaveLength(1);
+  const after = settled(b.askOtherTabs());
+  await run(300);
+  expect(after.value).toEqual({ watching: false });
+});
+
+it('with no BroadcastChannel the tabs speak through local storage: a second start is told, and a takeover stops the first', async () => {
+  Object.defineProperty(globalThis, 'BroadcastChannel', { configurable: true, writable: true, value: undefined });
+  // Local storage tells every other tab of a write, later than the write.
+  const write = localStorage.setItem.bind(localStorage);
+  const relay = jest.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+    write(key, value);
+    void Promise.resolve().then(() => window.dispatchEvent(new StorageEvent('storage', { key, newValue: value })));
+  });
+  try {
+    const [a, b] = [openTab(), openTab()];
+    let endWatch: () => void = () => undefined;
+    const stop = jest.fn(() => endWatch());
+    endWatch = b.announceWatch('monitor', stop);
+
+    await expect(a.askOtherTabs()).resolves.toEqual({ watching: true, way: 'monitor' });
+
+    const taken = settled(a.takeOverWatch());
+    await run(0);
+    for (let i = 0; i < 20; i++) await Promise.resolve();
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(taken.value).toBe(true);
+    await expect(a.askOtherTabs()).resolves.toEqual({ watching: false });
+  } finally {
+    relay.mockRestore();
+    localStorage.clear();
+  }
+});
+
 it('works in a browser with no channel', async () => {
   Object.defineProperty(globalThis, 'BroadcastChannel', { configurable: true, writable: true, value: undefined });
   const tab = openTab();

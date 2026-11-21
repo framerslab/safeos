@@ -10,7 +10,8 @@ import MonitorPage from '@/app/monitor/page';
 import LostFoundPage from '@/app/lost-found/page';
 import SecurityPage from '@/app/security/page';
 import WildlifePage from '@/app/wildlife/page';
-import { saveIntrusionFrame } from '@/lib/client-db';
+import { deleteIntrusionFrame, saveIntrusionFrame, type IntrusionFrameDB } from '@/lib/client-db';
+import { getSoundManager } from '@/lib/sound-manager';
 import { getPersonDetector, type PersonDetectionResult } from '@/lib/person-detection';
 import { getAnimalDetector, type AnimalDetection, type AnimalDetectionResult } from '@/lib/animal-detection';
 import { getTTSManager, startSecurityAlert, stopSecurityAlert } from '@/lib/tts-alerts';
@@ -86,6 +87,7 @@ jest.mock('@/lib/animal-detection', () => {
 jest.mock('@/lib/client-db', () => ({
   ...jest.requireActual('@/lib/client-db'),
   saveIntrusionFrame: jest.fn(),
+  deleteIntrusionFrame: jest.fn(),
 }));
 jest.mock('@/lib/tts-alerts', () => {
   const manager = { initialize: async () => {}, setCustomMessages() {}, speak: jest.fn(), stop: jest.fn() };
@@ -157,6 +159,7 @@ beforeEach(() => {
     detector.forceDetection.mockReset().mockResolvedValue(null);
   }
   jest.mocked(saveIntrusionFrame).mockReset().mockResolvedValue(undefined);
+  jest.mocked(deleteIntrusionFrame).mockReset().mockResolvedValue(undefined);
   useMonitoringStore.getState().reset();
   useSettingsStore.setState({ globalMute: true });
   useSettingsStore.getState().updateGlobalSettings({ processingMode: 'local' });
@@ -230,6 +233,32 @@ it("leaving Motion and sound's page ends a Lost and Found check with its watch",
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
 });
 
+it("leaving Motion and sound's page stops the saved sounds its alerts played, a loop included", async () => {
+  const manager = getSoundManager();
+  const active = (manager as unknown as { activeSounds: Map<string, unknown> }).activeSounds;
+  const stop = jest.spyOn(manager, 'stop').mockImplementation((id: string) => {
+    active.delete(id);
+  });
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  await act(async () => {});
+  expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  // A saved sound set to loop that a motion alert played, and one that a
+  // Lost and Found alert and a motion alert both played.
+  const loop = (id: string, owners: string[]) => ({ id, type: 'alert', priority: 1, startTime: 0, loop: true, owners: new Set(owners) });
+  active.set('motion-loop', loop('motion-loop', ['motion_detected']));
+  active.set('shared-loop', loop('shared-loop', ['object_found', 'motion_detected']));
+  try {
+    view.unmount();
+    expect(stop).toHaveBeenCalledWith('motion-loop', 0);
+    expect(stop).toHaveBeenCalledWith('shared-loop', 0);
+    expect(active.size).toBe(0);
+  } finally {
+    active.clear();
+  }
+});
+
 it('names each page as the dashboard names its way', async () => {
   const pages: Array<[React.ComponentType, string]> = [
     [MonitorPage, 'Motion and sound'],
@@ -293,6 +322,24 @@ it('a check that lands after People is disarmed counts for nothing', async () =>
   await act(async () => { check.answer(intruders()); });
   await act(async () => {});
   expectPeopleUntouched();
+});
+
+it('a frame whose save lands after People is disarmed is taken back', async () => {
+  const save = held<void>();
+  jest.mocked(saveIntrusionFrame).mockReturnValueOnce(save.promise);
+  const { check } = await peopleChecking();
+  await act(async () => { check.answer(intruders()); });
+  await act(async () => {});
+  expect(saveIntrusionFrame).toHaveBeenCalledTimes(1);
+  const saved = jest.mocked(saveIntrusionFrame).mock.calls[0][0] as IntrusionFrameDB;
+
+  act(() => useSecurityStore.getState().disarm());
+  await act(async () => { save.answer(undefined); });
+  await act(async () => {});
+
+  expect(deleteIntrusionFrame).toHaveBeenCalledWith(saved.id);
+  expect(startSecurityAlert).not.toHaveBeenCalled();
+  expect(useSecurityStore.getState().intrusionFrames).toEqual([]);
 });
 
 it('a sighting that lands after Wildlife stops counts for nothing', async () => {

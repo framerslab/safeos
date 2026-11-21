@@ -90,3 +90,49 @@ it("keeps them too when History's own key marks one sighting seen", async () => 
     { id: 'bird', acknowledged: true },
   ]);
 });
+
+it('a sighting deleted in another tab stays deleted when the watching tab saves its next one', async () => {
+  const watching = openTab();
+  const other = openTab();
+  watching.getState().addDetections([sighting('bird', 1000)]);
+  await other.persist.rehydrate();
+
+  other.getState().deleteDetection('bird');
+  watching.getState().addDetections([sighting('deer', 2000)]);
+
+  expect(stored()).toEqual([{ id: 'deer', acknowledged: false }]);
+  expect(watching.getState().detectionHistory.map((entry) => entry.id)).toEqual(['deer']);
+});
+
+it('History cleared in another tab stays cleared when the watching tab saves its next sighting', async () => {
+  const watching = openTab();
+  const other = openTab();
+  watching.getState().addDetection(sighting('bird', 1000));
+  watching.getState().addDetection(sighting('fox', 1500));
+  await other.persist.rehydrate();
+
+  other.getState().clearHistory();
+  watching.getState().addDetection(sighting('deer', 2000));
+
+  expect(stored()).toEqual([{ id: 'deer', acknowledged: false }]);
+});
+
+it('keeps a sighting storage refused on a device out of room when the next one is saved', () => {
+  const watching = openTab();
+  const write = localStorage.setItem.bind(localStorage);
+  const refused = jest.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+    if (key === 'safeos-animal-alerts') throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+    write(key, value);
+  });
+  try {
+    watching.getState().addDetections([sighting('bird', 1000)]);
+  } finally {
+    refused.mockRestore();
+  }
+  watching.getState().addDetections([sighting('deer', 2000)]);
+
+  expect(stored()).toEqual([
+    { id: 'deer', acknowledged: false },
+    { id: 'bird', acknowledged: false },
+  ]);
+});

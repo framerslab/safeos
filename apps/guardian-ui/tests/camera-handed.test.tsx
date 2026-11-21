@@ -193,6 +193,25 @@ it('a Lost and Found start chooses the pet and runs its check', async () => {
   expect(browser.getUserMedia).not.toHaveBeenCalled();
 });
 
+it('a takeover while the page reads the pet starts no watch and asks the browser for no camera', async () => {
+  await saveSubjectProfile(pet('pet-1'));
+  const release = jest.fn();
+  holdStart({ way: 'lost-found', pet: 'pet-1' }, browser.stream, release);
+  render(<MonitorPage />);
+  // Another tab takes over while the pet is read: the claim's stop drops the held start.
+  dropStart();
+  expect(release).toHaveBeenCalledTimes(1);
+  for (let i = 0; i < 5; i++) {
+    await act(async () => {
+      await jest.advanceTimersByTimeAsync(200);
+    });
+  }
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(useLostFoundStore.getState().isWatching).toBe(false);
+  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+});
+
 it('a Lost and Found start whose pet is gone watches with Motion and sound', async () => {
   holdStart({ way: 'lost-found', pet: 'pet-gone' }, browser.stream);
   render(<MonitorPage />);

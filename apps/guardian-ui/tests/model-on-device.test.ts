@@ -9,8 +9,21 @@
  * leaves some files and not others.
  */
 
+import { act, renderHook } from '@testing-library/react';
+import { useDetectionModel } from '@/lib/detection-model';
 import { MODEL_URL } from '@/lib/detection-model-facts';
 import { modelOnDevice } from '@/lib/model-on-device';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+
+// The model's library loads nothing here: the load fails, as with no WebGL.
+jest.mock('@tensorflow/tfjs', () => ({
+  setBackend: async () => {
+    throw new Error('No WebGL in this browser.');
+  },
+  ready: async () => {},
+  io: {},
+}));
+jest.mock('@tensorflow-models/coco-ssd', () => ({ load: async () => ({}) }));
 
 const CONSENT_KEY = 'safeos-detection-model-consent';
 const MODEL_CACHE = 'safeos-detection-model-v1';
@@ -84,4 +97,25 @@ it('opens no cache it does not find', async () => {
   await expect(modelOnDevice()).resolves.toBe(false);
   expect(caches.has).toHaveBeenCalledWith(MODEL_CACHE);
   expect(caches.open).not.toHaveBeenCalled();
+});
+
+// Last in this file: the agreement holds for the rest of the visit.
+it("counts this visit's agreement when storage refuses to keep it", async () => {
+  localStorage.removeItem(CONSENT_KEY);
+  useOnboardingStore.setState({ isComplete: true });
+  const refused = jest.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    throw new DOMException('The quota has been exceeded.', 'QuotaExceededError');
+  });
+  try {
+    const { result } = renderHook(() => useDetectionModel());
+    await act(async () => {
+      result.current.download();
+    });
+    expect(localStorage.getItem(CONSENT_KEY)).toBeNull();
+
+    standInCaches(stored());
+    await expect(modelOnDevice()).resolves.toBe(true);
+  } finally {
+    refused.mockRestore();
+  }
 });

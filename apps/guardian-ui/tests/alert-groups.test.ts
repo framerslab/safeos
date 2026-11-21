@@ -73,6 +73,19 @@ it('counts each Motion and sound record as one alert and names it by its kind', 
   }
 });
 
+it('lists a Motion and sound alert whose event repeated at its newest alert, as History does', () => {
+  const minute = 60_000;
+  const nine = Date.UTC(2026, 0, 5, 9, 0);
+  const alerts = groupAlerts(records({
+    alerts: [{ ...motion('motion-1-a', nine), timestamp: iso(nine + 40 * minute), repeats: 4 }],
+    sightings: [sighting('bird-1', nine + 10 * minute)],
+  }));
+
+  expect(alerts.map((alert) => alert.id)).toEqual(['motion-1-a', 'bird-1']);
+  expect(alerts[0].at).toBe(nine + 40 * minute);
+  expect(alerts[1].at).toBe(nine + 10 * minute);
+});
+
 it('joins frames of one way into one alert while no gap is longer than 30 seconds', () => {
   const alerts = groupAlerts(records({
     intrusionFrames: [person('p1', 0, 2), person('p2', 5000), person('p3', 10_000), person('p4', 50_000)],
