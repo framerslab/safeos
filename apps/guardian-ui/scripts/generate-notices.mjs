@@ -7,9 +7,12 @@
 // development dependency (dev or devOptional) is listed with its version, its
 // licence and the first copyright line of its licence file. Then comes the
 // line for the COCO dataset the detection model was trained on, then each
-// licence's full text once: Apache-2.0 from scripts/licenses/Apache-2.0.txt,
-// every other licence from the licence file of the first package listed with
-// it. The file is made at build time and is not committed.
+// package's licence text whole, from its own licence file, under the names of
+// the packages it belongs to: a text two packages share word for word stands
+// once. A package with no licence file of its own takes the Apache-2.0 text in
+// scripts/licenses/Apache-2.0.txt where it names Apache-2.0, else the first
+// text of a package that names the same licence. The file is made at build
+// time and is not committed.
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,7 +76,8 @@ function copyrightLine(text) {
 }
 
 const listed = [];
-const texts = new Map([['Apache-2.0', apache.trimEnd()]]);
+// The first whole text seen for each licence name, for a package that carries no licence file.
+const byName = new Map([['Apache-2.0', apache.trimEnd()]]);
 
 for (const [key, entry] of Object.entries(lock.packages ?? {})) {
   if (!key || entry.dev || entry.devOptional || entry.link) continue;
@@ -81,12 +85,22 @@ for (const [key, entry] of Object.entries(lock.packages ?? {})) {
   const dir = path.join(appRoot, key);
   const licence = await licenceName(entry, dir);
   const text = await licenceText(dir);
-  if (text && !texts.has(licence)) texts.set(licence, text.trimEnd());
-  listed.push({ name, version: entry.version ?? 'no version', licence, copyright: copyrightLine(text) });
+  if (text && !byName.has(licence)) byName.set(licence, text.trimEnd());
+  listed.push({ name, version: entry.version ?? 'no version', licence, text, copyright: copyrightLine(text) });
 }
 
 listed.sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version));
-const used = new Set(listed.map((p) => p.licence));
+
+// Each package's whole text, once for the packages that share it word for word.
+const same = (text) => text.replace(/\r\n?/g, '\n').split('\n').map((line) => line.trimEnd()).join('\n').trim();
+const blocks = new Map();
+for (const p of listed) {
+  const text = p.text ?? byName.get(p.licence) ?? null;
+  if (!text) continue;
+  const key = same(text);
+  if (!blocks.has(key)) blocks.set(key, { text: key, packages: [] });
+  blocks.get(key).packages.push(`${p.name} ${p.version}`);
+}
 
 const out = [
   'Third-party notices for SafeOS Guardian (safeos.sh)',
@@ -101,9 +115,8 @@ for (const p of listed) {
   if (p.copyright) out.push(`    ${p.copyright}`);
 }
 out.push('', COCO_LINE, '', 'Licence texts', '');
-for (const [licence, text] of texts) {
-  if (!used.has(licence)) continue;
-  out.push(`----- ${licence} -----`, '', text, '');
+for (const block of blocks.values()) {
+  out.push(`----- ${block.packages.join(', ')} -----`, '', block.text, '');
 }
 
 await mkdir(path.dirname(outFile), { recursive: true });
