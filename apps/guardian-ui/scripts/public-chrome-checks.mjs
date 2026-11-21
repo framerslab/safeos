@@ -40,7 +40,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 
 // The look's colours as a browser reports them (src/styles/design-system.css
 // and the visitor pages' quiet tone in the light look).
-const TONES = {
+export const TONES = {
   dark: {
     page: 'rgb(11, 19, 27)', panel: 'rgb(16, 26, 36)', ink: 'rgb(244, 245, 246)', quiet: 'rgb(196, 201, 209)', line: 'rgb(156, 163, 175)',
     accent: 'rgb(74, 222, 128)', accentHover: 'rgb(134, 239, 172)', onAccent: 'rgb(11, 19, 27)',
