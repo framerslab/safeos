@@ -1530,9 +1530,12 @@ async function cleanupExcessMatchFrames(): Promise<void> {
       
       const toDelete = sortedByTime.slice(0, count - MAX_MATCH_FRAMES);
       // An alert whose only seen frames go stays seen: its first kept frame is marked.
+      // An alert is made of the frames that raised it, so a frame saved under the alert
+      // threshold (`alerted: false`) neither joins a run nor takes the mark.
       const removed = new Set(toDelete.map((frame) => frame.id));
       const bySubject = new Map<string, MatchFrameDB[]>();
       for (const frame of frames) {
+        if (frame.alerted === false) continue;
         const group = bySubject.get(frame.subjectId);
         if (group) group.push(frame);
         else bySubject.set(frame.subjectId, [frame]);

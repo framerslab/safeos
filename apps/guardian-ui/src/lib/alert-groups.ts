@@ -170,8 +170,9 @@ function groupBy<T>(records: T[], key: (record: T) => string): Map<string, T[]> 
  * The frames to mark as seen so that each alert keeps its seen state when the
  * frames in `removed` go (the frame limit removes the oldest seen frames): a
  * run that is seen and keeps frames, none of them marked, has its first kept
- * frame marked. `frames` is one group, one pet's or People's, cut into runs
- * as groupAlerts cuts them.
+ * frame marked. `frames` is one group, as groupAlerts counts it (one pet's
+ * frames that raised an alert, or People's), cut into runs as groupAlerts
+ * cuts them.
  */
 export function seenAfterRemoval<T extends { id: string; acknowledged: boolean }>(frames: T[], removed: ReadonlySet<string>): T[] {
   const marks: T[] = [];

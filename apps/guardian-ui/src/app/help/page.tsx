@@ -291,7 +291,7 @@ export default function HelpPage() {
                       <div>
                         <h3 className="text-white font-medium mb-1">Allow Camera Access</h3>
                         <p className="text-sm text-slate-400">
-                          Setup asks the browser for the camera and the microphone together. A camera with no microphone still watches for movement.
+                          Setup asks the browser for the camera and the microphone together. With no microphone, the camera watches for movement and not for sound.
                         </p>
                       </div>
                     </div>
