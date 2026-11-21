@@ -212,20 +212,6 @@ jobs:
       - name: Install Chromium for Playwright
         run: npx playwright install --with-deps chromium
 
-      - name: Install ffmpeg
-        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
-
-      # Chromium's fake camera reads a .y4m file and its fake microphone a
-      # .wav file. Both are made here from the committed clip and never
-      # committed, as pictures.yml makes them.
-      - name: Make the fake camera's files from the sample clip
-        run: |
-          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -an -pix_fmt yuv420p "$RUNNER_TEMP/sample-clip.y4m"
-          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -vn -ac 1 -ar 48000 -c:a pcm_s16le "$RUNNER_TEMP/sample-clip.wav"
-          ls -l "$RUNNER_TEMP"/sample-clip.*
-          echo "SAMPLE_CLIP_Y4M=$RUNNER_TEMP/sample-clip.y4m" >> "$GITHUB_ENV"
-          echo "SAMPLE_CLIP_WAV=$RUNNER_TEMP/sample-clip.wav" >> "$GITHUB_ENV"
-
       - name: Serve the site and walk the monitor
         run: |
           python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &
@@ -235,8 +221,28 @@ jobs:
           done
           PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts --project=chromium --retries=0 --reporter=list
 
-      - name: Walk the alert pictures
+      # The repeat walk above needs no clip, so it runs before the clip's
+      # files are made; the picture walk runs only once they are.
+      - name: Install ffmpeg
+        id: ffmpeg
         if: always()
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+
+      # Chromium's fake camera reads a .y4m file and its fake microphone a
+      # .wav file. Both are made here from the committed clip and never
+      # committed, as pictures.yml makes them.
+      - name: Make the fake camera's files from the sample clip
+        id: clip
+        if: always() && steps.ffmpeg.outcome == 'success'
+        run: |
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -an -pix_fmt yuv420p "$RUNNER_TEMP/sample-clip.y4m"
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -vn -ac 1 -ar 48000 -c:a pcm_s16le "$RUNNER_TEMP/sample-clip.wav"
+          ls -l "$RUNNER_TEMP"/sample-clip.*
+          echo "SAMPLE_CLIP_Y4M=$RUNNER_TEMP/sample-clip.y4m" >> "$GITHUB_ENV"
+          echo "SAMPLE_CLIP_WAV=$RUNNER_TEMP/sample-clip.wav" >> "$GITHUB_ENV"
+
+      - name: Walk the alert pictures
+        if: always() && steps.clip.outcome == 'success'
         run: |
           curl -sf http://127.0.0.1:4173/ >/dev/null || (python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &)
           for i in $(seq 1 30); do
