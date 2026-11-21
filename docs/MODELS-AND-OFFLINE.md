@@ -38,7 +38,10 @@ has stored its whole build: it activates and takes the open tabs, so a returning
 visitor gets the new build on the page load after the one that found it, not
 after closing every tab. It keeps the build that ran before it, whose scripts and
 styles a page loaded from that build may still ask for, and deletes every build
-before that one. The load that finds a new build
+before that one. A page whose own script or style file is gone before React
+starts (a deploy replaced it while the page loaded, or the browser kept the page
+from before a deploy) reloads once onto the newest build: a script that runs first
+in the page's head does it, by the same once-for-each-build rule. The load that finds a new build
 shows the page the earlier worker stored, since a page is never swapped under a
 running watch. A page already open keeps the scripts it loaded; one that then asks
 for a file the new build replaced reloads once onto the new build (the app's error
