@@ -253,6 +253,30 @@ function readKey(name) {
 const NAMED_CONTROLS = 'nav[aria-label="Site"] button, footer.site-footer button, .key--icon, .look-switch';
 
 /**
+ * The key of an aria snapshot's line, as YAML reads it. Playwright writes the
+ * key bare, or in single quotes with each quote inside doubled when the name
+ * needs it (a colon and a space, for one): `- 'button "Close: Menu"':` gives
+ * `button "Close: Menu"`. A bare key ends at a colon with a space or the end
+ * after it, which a bare key cannot hold.
+ */
+export function snapshotKey(line) {
+  const rest = line.replace(/^\s*- /, '');
+  if (rest.startsWith("'")) {
+    let key = '';
+    for (let i = 1; i < rest.length; i += 1) {
+      if (rest[i] !== "'") key += rest[i];
+      else if (rest[i + 1] === "'") {
+        key += "'";
+        i += 1;
+      } else break;
+    }
+    return key;
+  }
+  const end = rest.search(/:(\s|$)/);
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+/**
  * How many of a page's shown controls have no accessible name, as Playwright's
  * accessibility tree works it out (accname 1.2: aria-labelledby through
  * elements that exist, hidden parts left out unless the label itself is
@@ -266,8 +290,8 @@ export async function unnamedControls(page, selector = NAMED_CONTROLS) {
   for (let i = 0; i < count; i += 1) {
     const control = controls.nth(i);
     if (!(await control.isVisible())) continue;
-    const first = (await control.ariaSnapshot()).split('\n')[0];
-    if (!/^- [\w-]+ ["/]/.test(first)) unnamed += 1;
+    const key = snapshotKey((await control.ariaSnapshot()).split('\n')[0]);
+    if (!/^[\w-]+ ["/]/.test(key)) unnamed += 1;
   }
   return unnamed;
 }
@@ -575,19 +599,21 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
   // The name check gets the hard cases right
   // ---------------------------------------------------------------------------
 
-  // A key named by its label, and three with no name: a glyph hidden from the
-  // accessibility tree, the same glyph reached through aria-labelledby, and a
-  // label whose id does not exist.
+  // Two keys named by their labels, one of them a name the snapshot quotes,
+  // and three with no name: a glyph hidden from the accessibility tree, the
+  // same glyph reached through aria-labelledby, and a label whose id does not
+  // exist.
   await open({ name: 'the name check', width: 1280 }, async (page) => {
     await page.setContent(`<main>
       <button class="key--icon" aria-label="Close">×</button>
+      <button class="key--icon" aria-label="Close: Menu">×</button>
       <button class="key--icon"><span aria-hidden="true">×</span></button>
       <span id="glyph-label"><span aria-hidden="true">×</span></span>
       <button class="key--icon" aria-labelledby="glyph-label"></button>
       <button class="key--icon" aria-labelledby="no-such-id"></button>
     </main>`);
     const unnamed = await unnamedControls(page);
-    expect(unnamed === 3, `the name check: ${unnamed} of the four keys read as unnamed, where three have no name`);
+    expect(unnamed === 3, `the name check: ${unnamed} of the five keys read as unnamed, where three have no name`);
   });
 
   // ---------------------------------------------------------------------------
