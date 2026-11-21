@@ -34,9 +34,11 @@ Offline starts require two completed preparations:
    model cache is separate from app caches and survives app updates.
 
 A worker serves one build consistently. A newer worker takes over as soon as it
-has stored its whole build: it activates, deletes the old app cache and takes the
-open tabs, so a returning visitor gets the new build on the page load after the
-one that found it, not after closing every tab. The load that finds a new build
+has stored its whole build: it activates and takes the open tabs, so a returning
+visitor gets the new build on the page load after the one that found it, not
+after closing every tab. It keeps the build that ran before it, whose scripts and
+styles a page loaded from that build may still ask for, and deletes every build
+before that one. The load that finds a new build
 shows the page the earlier worker stored, since a page is never swapped under a
 running watch. A page already open keeps the scripts it loaded; one that then asks
 for a file the new build replaced reloads once onto the new build (the app's error

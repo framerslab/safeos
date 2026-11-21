@@ -201,8 +201,29 @@ it('takes over once it has stored its build, so a returning visitor gets it on t
   await worker.lifecycle('install');
   expect(worker.self.skipWaiting).toHaveBeenCalledTimes(1);
   await worker.lifecycle('activate');
-  expect(await cache.keys()).toEqual(['safeos-shell-build-b']);
   expect(await (await worker.request('/', 'navigate'))!.text()).toBe('page /');
+});
+
+it('keeps the build that ran last for pages still loading from it, and lets every build before it go', async () => {
+  const { cache } = prepareBrowser();
+  const earlier = await cache.open('safeos-shell-earlier-build');
+  await earlier.put('http://localhost/_next/static/chunks/main-earlier.js', new Response('earlier script'));
+  // The server holds only the newest build's files.
+  globalThis.fetch = jest.fn(async (input: RequestInfo | URL) =>
+    addressOf(input).startsWith('/_next/static/chunks/main-earlier') ? new Response('', { status: 404 }) : new Response(`file ${addressOf(input)}`));
+  const b = loadWorker(cache, { version: 'build-b', urls: ['/', '/offline.html'] });
+  await b.lifecycle('install');
+  await b.lifecycle('activate');
+  // A page loaded from the earlier build still gets its own script after build B took over.
+  expect(await cache.keys()).toEqual(['safeos-shell-earlier-build', 'safeos-shell-build-b']);
+  expect(await (await b.request('/_next/static/chunks/main-earlier.js'))!.text()).toBe('earlier script');
+
+  // Build C takes over: build B ran last and stays; the earlier build goes.
+  const c = loadWorker(cache, { version: 'build-c', urls: ['/', '/offline.html'] });
+  await c.lifecycle('install');
+  await c.lifecycle('activate');
+  expect(await cache.keys()).toEqual(['safeos-shell-build-b', 'safeos-shell-build-c']);
+  expect((await c.request('/_next/static/chunks/main-earlier.js'))!.status).toBe(404);
 });
 
 it('does not take over while its build could not be stored whole', async () => {

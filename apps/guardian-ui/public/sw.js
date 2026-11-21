@@ -34,7 +34,11 @@ function refillIfEmpty(cache) {
     refilling = (async () => {
       for (let attempt = 0; ; attempt += 1) {
         try {
-          if ((await cache.keys()).length === 0) await cache.addAll(manifest.urls);
+          if ((await cache.keys()).length === 0) {
+            await cache.addAll(manifest.urls);
+            // This build is the one running: a later build keeps it for its pages.
+            await cache.put(TAKEN_OVER, new Response(String(Date.now())));
+          }
           return;
         } catch (error) {
           if (attempt >= REFILL_WAITS_MS.length || self.navigator?.onLine === false) throw error;
@@ -65,12 +69,34 @@ self.addEventListener('install', (event) => {
   })());
 });
 
+// When a build's worker took over, kept in that build's own cache, so the next
+// build can tell which earlier build ran last.
+const TAKEN_OVER = '/__safeos-taken-over';
+
+/** When a stored build's worker took over; 0 for a build stored before the time was kept. */
+async function takenOver(name) {
+  try {
+    const answer = await (await caches.open(name)).match(TAKEN_OVER);
+    return answer ? Number(await answer.text()) || 0 : 0;
+  } catch {
+    return 0;
+  }
+}
+
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
-    await Promise.all(names
-      .filter(name => (name.startsWith('safeos-shell-') || /^safeos-v\d+$/.test(name)) && name !== CACHE_NAME)
-      .map(name => caches.delete(name)));
+    const older = names.filter(name => (name.startsWith('safeos-shell-') || /^safeos-v\d+$/.test(name)) && name !== CACHE_NAME);
+    // The build that ran last stays, since a page loaded from it may still ask
+    // for its own scripts; every build before it goes. A worker with no build
+    // list keeps none.
+    let kept = null;
+    if (!UNBUILT && older.length) {
+      const times = await Promise.all(older.map(takenOver));
+      kept = older[times.indexOf(Math.max(...times))];
+    }
+    await Promise.all(older.filter(name => name !== kept).map(name => caches.delete(name)));
+    if (!UNBUILT) await (await caches.open(CACHE_NAME)).put(TAKEN_OVER, new Response(String(Date.now())));
     await self.clients.claim();
   })());
 });
@@ -92,7 +118,11 @@ self.addEventListener('fetch', (event) => {
     // query left out.
     const cached = await cache.match(request) ||
       (request.mode === 'navigate' ? await cache.match(storedPage(url)) : undefined) ||
-      (url.pathname.endsWith('.txt') ? await cache.match(url.origin + url.pathname) : undefined);
+      (url.pathname.endsWith('.txt') ? await cache.match(url.origin + url.pathname) : undefined) ||
+      // A page loaded from the build before this one may still ask for its own
+      // scripts and styles, which this build replaced: that build's files stay
+      // until the next build takes over.
+      (request.mode !== 'navigate' && url.pathname.startsWith('/_next/') ? await caches.match(request) : undefined);
     if (cached) return cached;
     try {
       const answer = await fetch(request);
