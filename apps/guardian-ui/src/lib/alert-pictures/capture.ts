@@ -205,10 +205,24 @@ export function drawBox(ctx: CanvasRenderingContext2D, box: Box, line: number, e
  * for or the set has none; else a copy of it with the box drawn in. Never
  * the brightened view.
  */
+/** A kept picture this device cannot read back: its Blob does not decode. */
+export class PictureUnreadable extends Error {
+  constructor() {
+    super('The picture could not be read');
+    this.name = 'PictureUnreadable';
+  }
+}
+
 export async function savedFile(set: PictureSet, withBox: boolean): Promise<Blob> {
   if (!withBox || !set.box) return set.frame;
-  const copy = await drawn(set.frame);
+  let copy: Awaited<ReturnType<typeof drawn>>;
+  try {
+    copy = await drawn(set.frame);
+  } catch {
+    throw new PictureUnreadable();
+  }
   drawBox(copy.ctx, set.box, 2, 1);
+  // A copy that cannot be made into a JPEG is a failed save, not an unreadable picture.
   return jpeg(copy.canvas, SAVED_FILE_QUALITY);
 }
 

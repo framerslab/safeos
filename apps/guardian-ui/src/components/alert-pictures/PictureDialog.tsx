@@ -21,7 +21,7 @@ import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom';
 
 import { useMonitoringStore, type Alert } from '../../stores/monitoring-store';
-import { brightenedUrl, savedFile } from '../../lib/alert-pictures/capture';
+import { PictureUnreadable, brightenedUrl, savedFile } from '../../lib/alert-pictures/capture';
 import { deletePicture, usePicture, usePictureStoreState } from '../../lib/alert-pictures/keeper';
 import { closePicture, dropOpenedPicture, openedNow, subscribeOpened } from '../../lib/alert-pictures/opened';
 import { kindOfAlert, pictureFileName, type AlertKind } from '../../lib/alert-pictures/rules';
@@ -154,6 +154,9 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   const shown = set !== null && !unreadable;
   const gone = !loading && !shown && !unreadable;
 
+  // A read failure belongs to the picture it was read for: a newer picture (a repeat) is read afresh.
+  useEffect(() => { setSaveFailed(false); }, [set]);
+
   // Focus starts on Close, and comes back to it when the picture leaves while the panel is open.
   useEffect(() => { closeRef.current?.focus(); }, []);
   useEffect(() => {
@@ -220,8 +223,10 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch {
-      setSaveFailed(true);
+    } catch (error) {
+      // A picture that cannot be read says so; a file that could not be made leaves the picture
+      // shown, and Save picture can be pressed again.
+      if (error instanceof PictureUnreadable) setSaveFailed(true);
     } finally {
       busy.current = false;
     }
