@@ -94,6 +94,35 @@ it('scrolls a row wider than its place with its arrow keys, the one at its end i
   }
 });
 
+it('drops its arrow keys once the keys fit its whole place again', () => {
+  // The row is 358 px wide; its keys' part is 350 px, or 262 px beside the two arrow keys.
+  const size = { need: 420 };
+  const spies = [
+    jest.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(function (this: Element) {
+      return this.classList.contains('key-row__keys') ? size.need : 0;
+    }),
+    jest.spyOn(Element.prototype, 'clientWidth', 'get').mockImplementation(function (this: Element) {
+      if (this.classList.contains('key-row')) return 358;
+      return this.closest('.key-row')?.querySelector('.key-row__arrow') ? 262 : 350;
+    }),
+  ];
+  try {
+    const { container } = twoKeys();
+    expect(screen.getByRole('button', { name: 'Scroll right' })).toBeTruthy();
+
+    // The page's face has come: the keys need 286 px, more than the 262 px beside the arrows and less than the row.
+    size.need = 286;
+    act(() => {
+      window.dispatchEvent(new Event('resize'));
+    });
+    expect(screen.queryByRole('button', { name: 'Scroll right' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Scroll left' })).toBeNull();
+    expect(container.querySelector('.key-row')?.getAttribute('data-more')).toBeNull();
+  } finally {
+    spies.forEach((spy) => spy.mockRestore());
+  }
+});
+
 it('moves the row at once for a person who asked for reduced motion', () => {
   answerMedia((query) => query.includes('reduce'));
   const restore = giveWidths({ need: 420, room: 300 });

@@ -26,25 +26,36 @@ function Chevron({ to }: { to: 'left' | 'right' }) {
 }
 
 export function KeyRow({ children, className }: { children: ReactNode; className?: string }) {
+  const rowRef = useRef<HTMLDivElement>(null);
   const keysRef = useRef<HTMLDivElement>(null);
   const [more, setMore] = useState<More>('none');
 
-  // Which sides hold keys out of view.
+  // Which sides hold keys out of view. The keys are measured against the
+  // row's whole place, not the part the arrow keys leave them, so arrow keys
+  // shown once (larger text, or before the page's face has come) go again
+  // once the keys fit.
   const read = useCallback(() => {
+    const row = rowRef.current;
     const keys = keysRef.current;
-    if (!keys) return;
+    if (!row || !keys) return;
+    if (keys.scrollWidth <= row.clientWidth + 0.5) {
+      setMore('none');
+      return;
+    }
     const before = keys.scrollLeft > 1;
     const after = keys.scrollLeft + keys.clientWidth < keys.scrollWidth - 1;
-    setMore(before && after ? 'both' : before ? 'start' : after ? 'end' : 'none');
+    setMore(before && after ? 'both' : before ? 'start' : 'end');
   }, []);
 
   useEffect(() => {
+    const row = rowRef.current;
     const keys = keysRef.current;
-    if (!keys) return;
+    if (!row || !keys) return;
     read();
     keys.addEventListener('scroll', read, { passive: true });
     window.addEventListener('resize', read);
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(read) : null;
+    observer?.observe(row);
     observer?.observe(keys);
     document.fonts?.ready?.then(read).catch(() => undefined);
     return () => {
@@ -65,7 +76,7 @@ export function KeyRow({ children, className }: { children: ReactNode; className
   const atStart = more === 'none' || more === 'end';
   const atEnd = more === 'none' || more === 'start';
   return (
-    <div className={className ? `key-row ${className}` : 'key-row'} data-more={scrolls ? more : undefined}>
+    <div ref={rowRef} className={className ? `key-row ${className}` : 'key-row'} data-more={scrolls ? more : undefined}>
       {scrolls && (
         <button
           type="button"
