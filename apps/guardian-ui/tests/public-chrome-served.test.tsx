@@ -9,7 +9,9 @@
  * the GitHub link carries its count in the HTML and is named by its own
  * content; the footer shows the makers by their own files and says the count
  * in a sentence with its day; About tells who builds SafeOS once. Nothing
- * here asks another host anything: the count is in the page.
+ * here asks another host anything: the count is in the page. The FAQ, the
+ * blog and a post are rendered too: every key at their foot is one of the
+ * set, and none is a filled box drawn by hand.
  */
 
 import crypto from 'crypto';
@@ -20,6 +22,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { VisitorHeader } from '@/components/visitor/VisitorHeader';
 import { VisitorFooter } from '@/components/visitor/VisitorFooter';
 import AboutPage from '@/app/about/page';
+import FAQPage from '@/app/faq/page';
+import BlogPage from '@/app/blog/page';
+import BlogArticlePage, { generateStaticParams } from '@/app/blog/[slug]/page';
 import { bare, served, words } from './helpers/served-html';
 
 let mockPath = '/';
@@ -330,5 +335,60 @@ describe.each([
     expect(link?.querySelector('svg, img')).toBeNull();
     expect(words(page.querySelector('.site-footer__last'))).toBe(`© ${new Date().getFullYear()} Frame. SafeOS code is MIT-licensed.`);
     expect(words(page.body)).not.toMatch(/stars? on GitHub|counted/i);
+  });
+});
+
+describe('the keys of the FAQ, the blog and a post', () => {
+  beforeEach(() => handed(undefined, undefined));
+
+  const faq = () => served(renderToStaticMarkup(<FAQPage />));
+  const blog = () => served(renderToStaticMarkup(<BlogPage />));
+  const post = () => served(renderToStaticMarkup(<BlogArticlePage params={{ slug: generateStaticParams()[0].slug }} />));
+
+  /** The links and buttons of a page's own content; its top bar holds no key. */
+  const controls = (page: Document) => Array.from(page.querySelectorAll('a, button')).filter((control) => !control.closest('header'));
+
+  /** Each named control with the classes it carries. */
+  const kinds = (page: Document, names: string[]) =>
+    names.map(
+      (name) =>
+        `${name}: ${controls(page)
+          .filter((control) => words(control) === name)
+          .map((control) => control.className)
+          .join(' | ')}`,
+    );
+
+  it('ends the FAQ on the solid key with the outlined key beside it, then two link rows', () => {
+    expect(kinds(faq(), ['Email team@frame.dev', 'Open GitHub Issue', 'About SafeOS', 'Read Our Blog'])).toEqual([
+      'Email team@frame.dev: key key--solid',
+      'Open GitHub Issue: key key--outline',
+      'About SafeOS: link-row',
+      'Read Our Blog: link-row',
+    ]);
+  });
+
+  it('ends the blog on the outlined key beside the solid key, then two link rows', () => {
+    expect(kinds(blog(), ['SafeOS on GitHub', 'Visit Frame.dev', 'About SafeOS', 'FAQ'])).toEqual([
+      'SafeOS on GitHub: key key--outline',
+      'Visit Frame.dev: key key--solid',
+      'About SafeOS: link-row',
+      'FAQ: link-row',
+    ]);
+  });
+
+  it('ends a post on two link rows', () => {
+    expect(kinds(post(), ['All Posts', 'About SafeOS'])).toEqual(['All Posts: link-row', 'About SafeOS: link-row']);
+  });
+
+  it.each([
+    ['the FAQ', faq],
+    ['the blog', blog],
+    ['a post', post],
+  ])('draws no key by hand on %s: a link or button with a fill and padding of its own is a key', (_name, page) => {
+    const drawn = controls(page()).filter((control) => {
+      const classes = control.className.split(/\s+/);
+      return classes.some((name) => /^bg-[a-z]+-\d+$/.test(name)) && classes.some((name) => /^px-\d/.test(name)) && !classes.includes('key');
+    });
+    expect(drawn.map((control) => `${words(control)}: ${control.className}`)).toEqual([]);
   });
 });
