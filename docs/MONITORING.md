@@ -210,10 +210,11 @@ pet's photos. A check at or over the alert line is a sighting. A run of sighting
 entry: its first sighting raises the alert, and while sightings go on the same entry alerts
 again each time the **Cooldown Period** has passed, with "Repeated N times". A run ends after
 30 seconds with no sighting, and when the watch stops or its pet changes; the next sighting
-after that makes a new entry. Nothing is kept for a check under the alert line, and the watch
-saves no frame of its own for each check: earlier versions saved those frames in
-`match_frame`, and the frames they saved stay in the Lost & Found gallery and in History until
-their own delete controls or Clear All Local Data. History lists such a frame with its own
+after that makes a new entry. Nothing is saved for a check: earlier versions saved the frames
+of checks in `match_frame`, and the frames they saved stay in the Lost & Found gallery and in
+History until their own delete controls or Clear All Local Data. The panel's recent readings,
+the newest 20 checks that scored with their frames, stay in this tab's memory alone and go
+when the page closes. History lists such a frame with its own
 thumbnail and "Could this be {name}?", with no score.
 
 The entry asks "Could this be {name}?" with the time, and says "Colours and shape like
