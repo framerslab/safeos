@@ -118,6 +118,42 @@ export const UNREADABLE_DELETE = 'This picture could not be read on this device.
 export const PICTURE_DELETE_FAILED = 'The picture could not be deleted. Press Delete picture to try again.';
 
 // =============================================================================
+// A Lost and Found sighting
+// =============================================================================
+
+/** "Miso’s": the pet's name as its owner's. */
+export const possessive = (name: string): string => `${name}’s`;
+
+/** "Could this be Miso?" */
+export const sightingQuestion = (name: string): string => `Could this be ${name}?`;
+
+/** The two lines under a sighting's question. */
+export const sightingLines = (name: string): [string, string] => [
+  `Colours and shape like ${possessive(name)} photos.`,
+  'Compare the two pictures. It can be another animal that looks alike.',
+];
+
+/** The live picture's plate for a sighting: "Colours like Miso’s". */
+export const sightingPlate = (name: string): string => `Colours like ${possessive(name)}`;
+
+/** The pet's saved photo's text equivalent: "Miso’s saved photo". */
+export const savedPhotoName = (name: string): string => `${possessive(name)} saved photo`;
+
+/** "Colours and shape like Miso’s photos, 9:42:40 PM." */
+export const sightingNotificationBody = (name: string, at: number | Date): string =>
+  `Colours and shape like ${possessive(name)} photos, ${timeWords(at)}.`;
+
+/** The polite status for a sighting: "Could this be Miso? Colours and shape like Miso’s photos, at 9:42:40 PM." */
+export const announceSighting = (name: string, at: number | Date): string =>
+  `${sightingQuestion(name)} Colours and shape like ${possessive(name)} photos, at ${timeWords(at)}.`;
+
+/** A sighting's Open picture key: "Open picture: Could this be Miso? 9:42:40 PM"; in History, with the day. */
+export const openSightingName = (name: string, at: number | Date, withDate = false): string =>
+  `${OPEN_PICTURE}: ${sightingQuestion(name)} ${withDate ? `${dateWords(at)}, ` : ''}${timeWords(at)}`;
+
+export const OPEN_IN_HISTORY = 'Open in History';
+
+// =============================================================================
 // The notification's words, and its picture's switch on Settings, Notifications
 // =============================================================================
 

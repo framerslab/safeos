@@ -14,7 +14,8 @@ import { isStaticMode } from '@/lib/env';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { cardTime } from '@/lib/alert-event';
 import { kindOfAlert } from '@/lib/alert-pictures/rules';
-import { kindWords, levelWords } from '@/lib/alert-pictures/words';
+import { kindWords, levelWords, pictureName, sightingQuestion } from '@/lib/alert-pictures/words';
+import { petNameOf } from '@/lib/alert-pictures/pet-photo';
 import { sweepPicturesByAge } from '@/lib/alert-pictures/keeper';
 import { OpenPictureKey, PictureBlock } from '@/components/alert-pictures/PictureBlock';
 import { PictureDialogHost } from '@/components/alert-pictures/PictureDialog';
@@ -272,8 +273,10 @@ export default function HistoryPage() {
       const time = cardTime(alert);
       const ts = time ? new Date(time).getTime() : Date.now();
 
-      // A Motion, Sound or Picture change alert is listed by its kind and level, with its picture.
+      // A Motion, Sound or Picture change alert is listed by its kind and level, with its picture;
+      // a Lost and Found sighting by its question, with no level.
       const kind = kindOfAlert(alert);
+      const sighting = kind === 'sighting';
 
       events.push({
         id: alert.id,
@@ -281,19 +284,20 @@ export default function HistoryPage() {
         timestamp: ts,
         acknowledged: alert.acknowledged,
         severity: (alert.severity as LocalTimelineSeverity) || 'info',
-        title: kind ? kindWords(kind) : 'Monitoring Alert',
-        description: kind ? [levelWords(alert.severity), alert.zone].filter(Boolean).join(' ') : alert.message,
+        title: sighting ? sightingQuestion(petNameOf(alert)) : kind ? kindWords(kind) : 'Monitoring Alert',
+        description: sighting ? '' : kind ? [levelWords(alert.severity), alert.zone].filter(Boolean).join(' ') : alert.message,
         thumbnailData: alert.thumbnailUrl?.startsWith('data:') ? alert.thumbnailUrl : undefined,
         meta: {
           streamId: alert.streamId,
           alertType: alert.alertType,
+          ...(sighting ? { sighting: true, subjectId: alert.subjectId } : {}),
         },
       });
     }
 
+    // Frames an earlier version saved for each check: their own thumbnail beside the sighting's
+    // question. The score each was saved with stays as data and is not shown.
     for (const frame of matchFrames) {
-      const confidence = frame.confidence ?? 0;
-      const severity: LocalTimelineSeverity = confidence >= 90 ? 'high' : confidence >= 75 ? 'medium' : 'low';
       const subjectName = subjectNameById.get(frame.subjectId);
 
       events.push({
@@ -301,13 +305,12 @@ export default function HistoryPage() {
         type: 'lost_found',
         timestamp: frame.timestamp,
         acknowledged: frame.acknowledged,
-        severity,
-        title: `Lost & Found Match${subjectName ? `: ${subjectName}` : ''}`,
-        description: `${confidence}% confidence`,
+        severity: 'info',
+        title: sightingQuestion(petNameOf({ subjectName })),
+        description: '',
         thumbnailData: frame.thumbnailData,
         meta: {
           subjectId: frame.subjectId,
-          confidence,
           exported: frame.exported,
           notes: frame.notes,
         },
@@ -341,9 +344,9 @@ export default function HistoryPage() {
     const filteredByType = localFilter === 'all'
       ? events
       : events.filter((e) => (localFilter === 'alerts'
-        ? e.type === 'alert'
+        ? e.type === 'alert' && !e.meta?.sighting
         : localFilter === 'lost_found'
-          ? e.type === 'lost_found'
+          ? e.type === 'lost_found' || Boolean(e.meta?.sighting)
           : e.type === 'intrusion'));
 
     const filteredByAck = localUnackOnly
@@ -813,18 +816,23 @@ export default function HistoryPage() {
                     );
                   }
 
+                  // A frame an earlier version saved for a Lost & Found check: its thumbnail and the
+                  // sighting's question, with no level and no score.
+                  const earlierFrame = event.type === 'lost_found';
+
                   return (
                     <div
                       key={`${event.type}-${event.id}`}
                       role="listitem"
                       className={`p-4 rounded-xl border ${colors.border} ${colors.bg}`}
+                      {...(earlierFrame ? { 'data-history-row': '', 'data-earlier-frame': '' } : {})}
                     >
                       <div className="flex items-start gap-4">
                         {event.thumbnailData && (
                           <div className="w-20 h-20 rounded-lg bg-slate-900/50 border border-slate-700 overflow-hidden flex-shrink-0">
                             <img
                               src={event.thumbnailData}
-                              alt={`${event.title} thumbnail`}
+                              alt={earlierFrame ? pictureName(false, event.timestamp) : `${event.title} thumbnail`}
                               className="w-full h-full object-cover"
                               loading="lazy"
                             />
@@ -834,9 +842,11 @@ export default function HistoryPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${colors.text} ${colors.bg}`}>
-                                {event.severity.toUpperCase()}
-                              </span>
+                              {!earlierFrame && (
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${colors.text} ${colors.bg}`}>
+                                  {event.severity.toUpperCase()}
+                                </span>
+                              )}
                               <span className="text-sm font-medium text-white truncate">
                                 {event.title}
                               </span>
@@ -846,9 +856,11 @@ export default function HistoryPage() {
                             </span>
                           </div>
 
-                          <p className="text-sm text-slate-200 mt-1">
-                            {event.description}
-                          </p>
+                          {event.description && (
+                            <p className="text-sm text-slate-200 mt-1">
+                              {event.description}
+                            </p>
+                          )}
 
                           <div className="mt-2 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 text-xs text-slate-500 truncate">
@@ -901,14 +913,9 @@ export default function HistoryPage() {
                                   </>
                                 )}
                                 {event.type === 'lost_found' && (
-                                  <>
-                                    <div>
-                                      <span className="text-slate-500">Subject:</span> {String(event.meta?.subjectId ?? 'n/a')}
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-500">Confidence:</span> {String(event.meta?.confidence ?? 'n/a')}%
-                                    </div>
-                                  </>
+                                  <div>
+                                    <span className="text-slate-500">Subject:</span> {String(event.meta?.subjectId ?? 'n/a')}
+                                  </div>
                                 )}
                                 {event.type === 'intrusion' && (
                                   <>

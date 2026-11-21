@@ -42,8 +42,14 @@ import {
   kindWords,
   levelWords,
   openPictureName,
+  openSightingName,
   pictureName,
+  savedPhotoName,
+  sightingLines,
+  sightingQuestion,
+  timeWords,
 } from '../../lib/alert-pictures/words';
+import { petNameOf, usePetPhoto } from '../../lib/alert-pictures/pet-photo';
 import { KEEP_SWITCH_HASH, OPEN_GROUP_EVENT } from './AlertPicturesGroup';
 import { EmptyFrameGlyph, ProblemGlyph } from './Glyphs';
 import { PICTURE_BLOCK_MARK, openPicture } from '../../lib/alert-pictures/opened';
@@ -144,6 +150,40 @@ function Words({ kind, at, zone, children }: { kind: AlertKind; at: number; zone
   );
 }
 
+/**
+ * A sighting's words: the question at 600, the time on its own line and,
+ * where `lines` is set, the two lines that say what the comparison read and
+ * that it can be another animal.
+ */
+function SightingWords({ alert, at, lines = false, children }: { alert: Alert; at: number; lines?: boolean; children?: React.ReactNode }) {
+  const name = petNameOf(alert);
+  return (
+    <div className="alert-picture__words">
+      <p className="alert-picture__lead" data-lead="">{sightingQuestion(name)}</p>
+      <p className="alert-picture__time">{timeWords(at)}</p>
+      {lines && sightingLines(name).map((line) => <p key={line} className="alert-picture__quiet">{line}</p>)}
+      {children}
+    </div>
+  );
+}
+
+/** A card's words: the kind and the time, or a sighting's question and time. */
+function BlockWords({ alert, kind, at, lines = false, children }: { alert: Alert; kind: AlertKind; at: number; lines?: boolean; children?: React.ReactNode }) {
+  if (kind === 'sighting') return <SightingWords alert={alert} at={at} lines={lines}>{children}</SightingWords>;
+  return <Words kind={kind} at={at} zone={alert.zone}>{children}</Words>;
+}
+
+/** The pet's saved photo in a tile beside a sighting's close-up; nothing where the pet has none. */
+export function PetTile({ alert }: { alert: Alert }) {
+  const photo = usePetPhoto(alert.subjectId);
+  if (!photo) return null;
+  return (
+    <div className="alert-picture__tile alert-picture__tile--pet">
+      <img className="alert-picture__image" src={photo} alt={savedPhotoName(petNameOf(alert))} draggable={false} />
+    </div>
+  );
+}
+
 /** The Open picture key of an alert, as the page shows it now: a press on the picture hands focus back to it. */
 function openKeyOf(alertId: string): HTMLElement | null {
   return Array.from(document.querySelectorAll<HTMLElement>(`[${OPEN_KEY_MARK}]`))
@@ -165,7 +205,9 @@ export function OpenPictureKey({ alert, withDate = false }: { alert: Alert; with
     <button
       type="button"
       className="alert-pictures-key alert-picture__open"
-      aria-label={openPictureName(kind, alertMoment(alert), withDate)}
+      aria-label={kind === 'sighting'
+        ? openSightingName(petNameOf(alert), alertMoment(alert), withDate)
+        : openPictureName(kind, alertMoment(alert), withDate)}
       {...{ [OPEN_KEY_MARK]: alert.id }}
       onClick={(event) => openPicture(alert, event.currentTarget)}
     >
@@ -178,10 +220,15 @@ export function OpenPictureKey({ alert, withDate = false }: { alert: Alert; with
 function RowWords({ kind, at, alert, children }: { kind: AlertKind; at: number; alert: Alert; children?: React.ReactNode }) {
   return (
     <div className="alert-picture__words">
-      <p className="alert-picture__lead" data-lead="">
-        <span className="alert-picture__kind">{kindWords(kind)}</span>{' '}
-        <span className="alert-picture__level">{levelWords(alert.severity)}</span>
-      </p>
+      {kind === 'sighting' ? (
+        // A sighting is asked about, with no level.
+        <p className="alert-picture__lead" data-lead="">{sightingQuestion(petNameOf(alert))}</p>
+      ) : (
+        <p className="alert-picture__lead" data-lead="">
+          <span className="alert-picture__kind">{kindWords(kind)}</span>{' '}
+          <span className="alert-picture__level">{levelWords(alert.severity)}</span>
+        </p>
+      )}
       <p className="alert-picture__quiet">{dateAtTime(at)}</p>
       {alert.zone && <p className="alert-picture__quiet alert-picture__zone">{inZone(alert.zone)}</p>}
       {children}
@@ -258,13 +305,13 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
 
   if (empty) {
     return (
-      <div className="alert-picture" data-form={form} data-status={view.status} {...mark}>
-        <Words kind={kind} at={at} zone={alert.zone}>
+      <div className="alert-picture" data-form={form} data-kind={kind} data-status={view.status} {...mark}>
+        <BlockWords alert={alert} kind={kind} at={at}>
           <p className="alert-picture__quiet alert-picture__why">
             {empty.problem ? <ProblemGlyph /> : <EmptyFrameGlyph />}
             <span>{empty.line}</span>
           </p>
-        </Words>
+        </BlockWords>
       </div>
     );
   }
@@ -272,9 +319,14 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
   if (view.status !== 'shown' || view.kept === 'saving') {
     // The card and its sound come at once; a tile stands in the picture's place until it is drawn and saved.
     return (
-      <div className="alert-picture" data-form={form} data-status="loading" {...mark}>
+      <div className="alert-picture" data-form={form} data-kind={kind} data-status="loading" {...mark}>
         <div className={form === 'large' ? 'alert-picture__wait' : 'alert-picture__wait alert-picture__wait--tile'} aria-hidden="true" />
-        <Words kind={kind} at={at} zone={alert.zone} />
+        {kind === 'sighting' && form === 'large' && (
+          <div className="alert-picture__pair">
+            <PetTile alert={alert} />
+          </div>
+        )}
+        <BlockWords alert={alert} kind={kind} at={at} lines={form === 'large'} />
       </div>
     );
   }
@@ -288,19 +340,35 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
 
   if (form === 'small') {
     return (
-      <div className="alert-picture" data-form="small" data-status="shown" {...mark}>
+      <div className="alert-picture" data-form="small" data-kind={kind} data-status="shown" {...mark}>
         {closeUpUrl ? (
           <CloseUp set={set} url={closeUpUrl} at={at} onPress={press} />
         ) : (
           <Moment set={set} url={frameUrl} at={at} className="alert-picture__tile alert-picture__tile--whole" onPress={press} />
         )}
-        <Words kind={kind} at={at} zone={alert.zone} />
+        <BlockWords alert={alert} kind={kind} at={at} />
+      </div>
+    );
+  }
+
+  if (kind === 'sighting') {
+    // The camera's picture across the block, then the close-up and the pet's saved photo side
+    // by side, then the question, the time and the two lines.
+    return (
+      <div className="alert-picture" data-form="large" data-kind="sighting" data-status="shown" {...mark}>
+        <Moment set={set} url={frameUrl} at={at} className="alert-picture__frame" onPress={press} />
+        <div className="alert-picture__pair">
+          {closeUpUrl && <CloseUp set={set} url={closeUpUrl} at={at} onPress={press} />}
+          <PetTile alert={alert} />
+        </div>
+        <SightingWords alert={alert} at={at} lines />
+        <Notes kind={kind} set={set} failed={failed} notKept={notKept} />
       </div>
     );
   }
 
   return (
-    <div className="alert-picture" data-form="large" data-status="shown" data-pictures={closeUpUrl ? 'two' : 'one'} {...mark}>
+    <div className="alert-picture" data-form="large" data-kind={kind} data-status="shown" data-pictures={closeUpUrl ? 'two' : 'one'} {...mark}>
       <Moment set={set} url={frameUrl} at={at} className="alert-picture__frame" onPress={press} />
       <div className="alert-picture__side">
         {closeUpUrl && <CloseUp set={set} url={closeUpUrl} at={at} onPress={press} />}
@@ -309,6 +377,15 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
           {kind === 'sound' && <p className="alert-picture__quiet">{SOUND_LINE}</p>}
         </Words>
       </div>
+      <Notes kind={kind} set={set} failed={failed} notKept={notKept} />
+    </div>
+  );
+}
+
+/** The lines under a large block: a picture not saved or not kept, a Picture change's cause, a dark picture. */
+function Notes({ kind, set, failed, notKept }: { kind: AlertKind; set: PictureSet; failed: boolean; notKept: boolean }) {
+  return (
+    <>
       {(kind === 'picture-change' || set.dark || failed || notKept) && (
         <div className="alert-picture__notes">
           {failed && (
@@ -335,7 +412,7 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
           {set.dark && <p className="alert-picture__quiet">{DARK_LINE}</p>}
         </div>
       )}
-    </div>
+    </>
   );
 }
 

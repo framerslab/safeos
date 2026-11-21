@@ -8,8 +8,6 @@
  * @module app/monitor/page
  */
 
-import { getLocalDataGeneration, isCurrentLocalData, readAccountClearMarker } from '@/lib/local-data-generation';
-import { showBrowserNotification } from '@/lib/browser-notification';
 import { newAlertId } from '@/lib/alert-id';
 import { newDetectorEvent, endDetectorEvent, freshCardFor, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
@@ -29,17 +27,17 @@ import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from '../../stores/settings-store';
 import { useWatchSettings } from '../../stores/watch-settings';
-import { useLostFoundStore, createMatchFrame, getMatcherSettings } from '../../stores/lost-found-store';
+import { useLostFoundStore, getMatcherSettings } from '../../stores/lost-found-store';
 import { getSubjectMatcher, type MatchResult } from '../../lib/subject-matcher';
-import { saveMatchFrame, saveUpgradedSubjectFingerprint, type MatchFrameDB } from '../../lib/client-db';
+import { saveUpgradedSubjectFingerprint, updateSubjectMatchCount } from '../../lib/client-db';
 import { generateFingerprint, isCurrentFingerprint, upgradeFingerprint } from '../../lib/visual-fingerprint';
 import { useWebSocket, type WSMessage } from '../../lib/websocket';
 import { getSoundManager } from '../../lib/sound-manager';
 import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { detectRegionalMotion } from '../../lib/motion-detection';
-import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, boxFromCells, boxFromHotspots, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
-import { notificationBody, notificationTitle, plateLine } from '../../lib/alert-pictures/words';
+import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, boxFromCells, boxFromHotspots, boxFromRegion, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { OPEN_IN_HISTORY, notificationBody, notificationTitle, plateLine, sightingNotificationBody, sightingPlate, sightingQuestion } from '../../lib/alert-pictures/words';
 import { useAlertPicturesStore } from '../../stores/alert-pictures-store';
 import type { LiveAlertBox } from '../../components/alert-pictures/LiveBox';
 import { capturePictureSet, newPictureId, notificationCopy, showsNotificationPictures, type PictureSet } from '../../lib/alert-pictures/capture';
@@ -53,55 +51,27 @@ import { useBackendStatus } from '@/contexts/BackendStatusContext';
 // =============================================================================
 
 /** The kind of picture each detector's alert keeps. */
-const KIND_OF_SOURCE: Record<'motion' | 'audio' | 'pixel', AlertKind> = {
+/** What raises an alert on the watch: its three detectors, and Lost and Found's comparison. */
+type AlertSource = 'motion' | 'audio' | 'pixel' | 'sighting';
+
+const KIND_OF_SOURCE: Record<AlertSource, AlertKind> = {
   motion: 'motion',
   audio: 'sound',
   pixel: 'picture-change',
+  sighting: 'sighting',
 };
+
+/** A sighting's run ends after this long with no check at or over the alert line. */
+const SIGHTING_RUN_ENDS_MS = 30_000;
 
 /** True for a zone that covers the whole frame, which names no part of it. */
 const isWholeFrame = (zone: { x: number; y: number; width: number; height: number }) =>
   zone.x === 0 && zone.y === 0 && zone.width === 100 && zone.height === 100;
 
-const THUMBNAIL_WIDTH = 160;
-const THUMBNAIL_HEIGHT = 120;
-const THUMBNAIL_QUALITY = 0.3;
-
 // =============================================================================
 // Helper Functions
 // =============================================================================
 
-/**
- * Create a compressed thumbnail from frame data
- * @param frameData - Base64 image data URL
- * @returns Promise resolving to compressed thumbnail data URL
- */
-async function createThumbnail(frameData: string): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = THUMBNAIL_WIDTH;
-      canvas.height = THUMBNAIL_HEIGHT;
-
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        // Draw scaled-down image
-        ctx.drawImage(img, 0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
-        // Export as compressed JPEG
-        resolve(canvas.toDataURL('image/jpeg', THUMBNAIL_QUALITY));
-      } else {
-        // Fallback to original if canvas fails
-        resolve(frameData);
-      }
-    };
-    img.onerror = () => {
-      // Fallback to original on error
-      resolve(frameData);
-    };
-    img.src = frameData;
-  });
-}
 
 // =============================================================================
 // Component
@@ -138,7 +108,6 @@ export default function MonitorPage() {
     settings: lostFoundSettings,
     updateCurrentConfidence,
     updateConsecutiveMatches,
-    addMatchFrame: addMatchFrameToStore,
     addRecentMatch,
     recordAlert: recordLostFoundAlert,
     updateSubject,
@@ -270,12 +239,29 @@ export default function MonitorPage() {
     own.ids = [];
   }, []);
 
+  // A sighting's run: a check at or over the alert line starts it, it alerts
+  // again after the Cooldown Period while such checks go on, and it ends after
+  // 30 seconds with none. One entry a run.
+  const sightingEventRef = useRef<DetectorEvent>(newDetectorEvent());
+  // Raises a sighting's alert; set further down, where the card, the picture, the live box and
+  // the notification are made.
+  const raiseSightingRef = useRef<((result: MatchResult, now: number, repeat: boolean) => void) | null>(null);
+
   // Process frames for Lost & Found matching
   const processLostFoundFrame = useCallback((video: HTMLVideoElement) => {
     if (!isLostFoundWatching || !activeSubject) return;
 
     const matcher = matcherRef.current;
     const result = matcher.processFrame(video);
+    const now = Date.now();
+
+    // A check at or over the alert line counts for the run; any other check counts against it.
+    const outcome = readDetector(sightingEventRef.current, now, result && matcher.shouldAlert() ? 'medium' : null, {
+      severitySeconds: 0,
+      cooldownPeriodSeconds: timingSettings.cooldownPeriod,
+      sustainedMs: 0,
+      endSustainedMs: SIGHTING_RUN_ENDS_MS,
+    });
 
     if (result) {
       // Update UI
@@ -283,83 +269,8 @@ export default function MonitorPage() {
       updateConsecutiveMatches(matcher.getState().consecutiveMatches);
       addRecentMatch(result);
 
-      // Check if should record
-      if (matcher.shouldRecord() && result.frameData) {
-        // Create match frame and save to IndexedDB (async thumbnail creation)
-        // A match is the pet's it was read for: once all local data is cleared,
-        // in this tab or another, it is not saved. The pet counts under the
-        // account marker the watch read its pets under, so a match made after
-        // another tab's clear landed and before this tab heard of it is void too.
-        const generation = getLocalDataGeneration();
-        const clearedUnder = petsMarker();
-        const current = () => readAccountClearMarker() === clearedUnder;
-        const frameData = result.frameData;
-        createThumbnail(frameData).then((thumbnailData) => {
-          if (!isCurrentLocalData(generation) || !current()) return;
-          const matchFrame: MatchFrameDB = {
-            id: result.id,
-            subjectId: activeSubject.id,
-            frameData: frameData,
-            thumbnailData: thumbnailData,
-            confidence: result.confidence,
-            timestamp: result.timestamp,
-            details: result.details,
-            region: result.region || null,
-            acknowledged: false,
-            notes: '',
-            exported: false,
-          };
-
-          saveMatchFrame(matchFrame, generation, current);
-        });
-        addMatchFrameToStore(createMatchFrame(activeSubject.id, result));
-      }
-
-      // Check if should alert
-      if (matcher.shouldAlert()) {
-        recordLostFoundAlert();
-
-        // Play sound if enabled: the person's own sounds saved for Lost Item
-        // Found, and the built-in alert unless custom media is on (the
-        // CustomMediaPlayer handles that).
-        if (lostFoundSettings.alertSound) {
-          // The comparison alerts on each matching frame; a sound of the
-          // person's own that still plays is not started again over itself.
-          const manager = getSoundManager();
-          const own = ownLostFoundSoundRef.current;
-          if (!own.starting && !own.ids.some((id) => manager.isActive(id))) {
-            own.starting = true;
-            own.ids = [];
-            const round = own.round;
-            void manager.playForTrigger('object_found', {
-              cancelled: () => round !== own.round,
-              onStart: (id) => {
-                if (round === own.round) own.ids.push(id);
-                else manager.release(id, 'object_found');
-              },
-            }).finally(() => { own.starting = false; });
-          }
-          if (!lostFoundSettings.customMediaEnabled) manager.play('alert');
-        }
-
-        // Show notification if enabled
-        if (lostFoundSettings.alertNotification && 'Notification' in window && Notification.permission === 'granted') {
-          void showBrowserNotification('Potential Match Detected!', {
-            body: `${activeSubject.name} - ${result.confidence}% confidence`,
-            icon: activeSubject.referenceImages[0],
-          });
-        }
-
-        // Show full-screen media overlay if custom media is enabled
-        if (lostFoundSettings.customMediaEnabled && activeSubject.referenceImages.length > 0) {
-          setMediaOverlayData({
-            subjectName: activeSubject.name,
-            confidence: result.confidence,
-            images: activeSubject.referenceImages,
-          });
-          setShowMediaOverlay(true);
-        }
-      }
+      // The run's alert: its entry, picture, sound and notification come here, never with every check.
+      if (outcome.kind === 'alert') raiseSightingRef.current?.(result, now, outcome.repeat);
     } else {
       // Reset confidence when no match
       updateCurrentConfidence(0);
@@ -367,14 +278,16 @@ export default function MonitorPage() {
   }, [
     isLostFoundWatching,
     activeSubject,
-    lostFoundSettings,
+    timingSettings.cooldownPeriod,
     updateCurrentConfidence,
     updateConsecutiveMatches,
     addRecentMatch,
-    addMatchFrameToStore,
-    recordLostFoundAlert,
-    petsMarker,
   ]);
+
+  // A run ends with the comparison: when the Lost & Found watch stops or its pet changes.
+  useEffect(() => {
+    endDetectorEvent(sightingEventRef.current);
+  }, [isLostFoundWatching, activeSubject?.id]);
 
   // The person's own Lost & Found sounds stop when the Lost & Found watch ends,
   // its pet changes or the page closes (and with the camera, in stopStream).
@@ -850,12 +763,13 @@ export default function MonitorPage() {
    */
   const showDetectorAlert = useCallback((
     event: DetectorEvent,
-    source: 'motion' | 'audio' | 'pixel',
+    source: AlertSource,
     now: number,
     repeat: boolean,
-    severity: AlertSeverity,
+    severity: AlertSeverity | 'info',
     message: string,
     picture?: { pictureId?: string; zone?: string },
+    sighting?: { subjectId: string; subjectName: string; details: MatchResult['details'] },
   ) => {
     const card = event.alertId
       ? useMonitoringStore.getState().alerts.find((a) => a.id === event.alertId)
@@ -889,6 +803,8 @@ export default function MonitorPage() {
       kind: KIND_OF_SOURCE[source],
       pictureId: picture?.pictureId,
       zone: picture?.zone,
+      // A sighting's pet and its four scores are kept as data; its card shows none of the scores.
+      ...(sighting ?? {}),
     }, updatesCard ? { fresh: freshCardFor(event, () => newAlertId(source, now), now) } : undefined);
   }, [addAlert, streamId]);
 
@@ -919,14 +835,19 @@ export default function MonitorPage() {
   // leaves the box that stands.
   const [liveBox, setLiveBox] = useState<LiveAlertBox | null>(null);
   const liveBoxRef = useRef<{ at: number; timer: number | null }>({ at: 0, timer: null });
-  const showLiveBox = useCallback((kind: AlertKind, at: number, taken: { pictureId: string; picture: Promise<PictureSet> } | undefined) => {
+  const showLiveBox = useCallback((
+    kind: AlertKind,
+    at: number,
+    taken: { pictureId: string; picture: Promise<PictureSet> } | undefined,
+    lines: [string] | [string, string] = [plateLine(kind, at)],
+  ) => {
     if (!taken) return;
     void taken.picture.then((set) => {
       const left = LIVE_BOX_MS - (Date.now() - at);
       if (!set.sourceBox || left <= 0 || at < liveBoxRef.current.at) return;
       if (liveBoxRef.current.timer !== null) window.clearTimeout(liveBoxRef.current.timer);
       liveBoxRef.current.at = at;
-      setLiveBox({ key: taken.pictureId, box: set.sourceBox, frameWidth: set.sourceWidth, frameHeight: set.sourceHeight, lines: [plateLine(kind, at)] });
+      setLiveBox({ key: taken.pictureId, box: set.sourceBox, frameWidth: set.sourceWidth, frameHeight: set.sourceHeight, lines });
       liveBoxRef.current.timer = window.setTimeout(() => {
         liveBoxRef.current.timer = null;
         setLiveBox((now) => (now?.key === taken.pictureId ? null : now));
@@ -943,6 +864,71 @@ export default function MonitorPage() {
   useEffect(() => {
     if (!captureRequested) clearLiveBox();
   }, [captureRequested, clearLiveBox]);
+
+  // A sighting's alert, in the check that raised it. The picture is cut from the comparison's own
+  // frame of that check, before any JPEG is made of it, with the region as its box; a region
+  // that is missing, empty or outside the frame leaves the picture alone. The entry, the live
+  // box, the pet's sound, the notification and the overlay come with each of the run's alerts,
+  // never with every check, and nothing is kept for a check under the alert line.
+  raiseSightingRef.current = (result: MatchResult, now: number, repeat: boolean) => {
+    const subject = activeSubject;
+    if (!subject) return;
+    const event = sightingEventRef.current;
+    const canvas = matcherRef.current.frameCanvas();
+    const [width, height] = canvas ? [canvas.width, canvas.height] : [0, 0];
+    const taken = canvas
+      ? takePicture('sighting', now, canvas, width, height, alertBox('sighting', boxFromRegion(result.region, width, height), width, height))
+      : undefined;
+
+    showDetectorAlert(
+      event, 'sighting', now, repeat, 'info', sightingQuestion(subject.name),
+      { pictureId: taken?.pictureId },
+      { subjectId: subject.id, subjectName: subject.name, details: result.details },
+    );
+    showLiveBox('sighting', now, taken, [sightingPlate(subject.name)]);
+    recordLostFoundAlert();
+    // The pet's count of sightings goes up once a run.
+    if (!repeat) void updateSubjectMatchCount(subject.id, 1);
+
+    // The person's own sounds saved for Lost Item Found, and the built-in alert unless custom
+    // media is on (the CustomMediaPlayer plays that). A sound of the person's own that plays
+    // on from the run's last alert is not started again over itself.
+    if (lostFoundSettings.alertSound) {
+      const manager = getSoundManager();
+      const own = ownLostFoundSoundRef.current;
+      if (!own.starting && !own.ids.some((id) => manager.isActive(id))) {
+        own.starting = true;
+        own.ids = [];
+        const round = own.round;
+        void manager.playForTrigger('object_found', {
+          cancelled: () => round !== own.round,
+          onStart: (id) => {
+            if (round === own.round) own.ids.push(id);
+            else manager.release(id, 'object_found');
+          },
+        }).finally(() => { own.starting = false; });
+      }
+      if (!lostFoundSettings.customMediaEnabled) manager.play('alert');
+    }
+
+    // The question and the time; the camera's picture by the person's choice, never the pet's photo.
+    if (lostFoundSettings.alertNotification) {
+      void maybeNotify({
+        kind: 'sighting', title: sightingQuestion(subject.name), body: sightingNotificationBody(subject.name, now),
+        severity: 'info', at: now, event, picture: taken?.picture,
+      });
+    }
+
+    // The full-screen media overlay, where custom media is on.
+    if (lostFoundSettings.customMediaEnabled && subject.referenceImages.length > 0) {
+      setMediaOverlayData({
+        subjectName: subject.name,
+        confidence: result.confidence,
+        images: subject.referenceImages,
+      });
+      setShowMediaOverlay(true);
+    }
+  };
 
   const handleMotion = useCallback((score: number) => {
     setMotionScore(score);
@@ -1733,10 +1719,10 @@ export default function MonitorPage() {
                 <SubjectPreview mode="full" showClose={false} onPhotosSaved={watchFor.photosSaved} savedUnder={petsMarker} />
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <Link
-                    href="/lost-found/gallery"
+                    href="/history/"
                     className="block w-full text-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
                   >
-                    View Match History
+                    {OPEN_IN_HISTORY}
                   </Link>
                 </div>
               </div>

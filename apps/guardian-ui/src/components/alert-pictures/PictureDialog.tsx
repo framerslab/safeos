@@ -46,9 +46,15 @@ import {
   SOUND_LINE,
   UNREADABLE_DELETE,
   closeUpName,
+  dateAtTime,
   deletedAfter,
+  isSameDay,
   openedTitle,
+  savedPhotoName,
+  sightingQuestion,
+  timeWords,
 } from '../../lib/alert-pictures/words';
+import { petNameOf, usePetPhoto } from '../../lib/alert-pictures/pet-photo';
 import { EmptyFrameGlyph, ProblemGlyph } from './Glyphs';
 import { KeyRow } from './KeyRow';
 import { Moment, alertMoment } from './PictureBlock';
@@ -264,7 +270,15 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
             onKeyDown={onKeyDown}
           >
             <div className="alert-picture-dialog__head">
-              <h2 id={titleId} className="alert-picture-dialog__title" data-lead="">{openedTitle(kind, at)}</h2>
+              {kind === 'sighting' ? (
+                // A sighting is titled by its question, with its time under it.
+                <div className="alert-picture-dialog__titles">
+                  <h2 id={titleId} className="alert-picture-dialog__title" data-lead="">{sightingQuestion(petNameOf(alert))}</h2>
+                  <p className="alert-picture-dialog__time">{isSameDay(at) ? timeWords(at) : dateAtTime(at)}</p>
+                </div>
+              ) : (
+                <h2 id={titleId} className="alert-picture-dialog__title" data-lead="">{openedTitle(kind, at)}</h2>
+              )}
               <button ref={closeRef} type="button" className="alert-pictures-key" onClick={onClose}>{CLOSE}</button>
             </div>
 
@@ -331,6 +345,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
                         />
                       </div>
                     )}
+                    {kind === 'sighting' && <PetPhoto alert={alert} />}
                   </>
                 )}
                 {((shown && boxed) || (loading && kind !== 'sound')) && (
@@ -372,6 +387,19 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
       )}
       {asking && !gone && <DeleteQuestion onDelete={() => void remove()} onKeep={keep} />}
     </>
+  );
+}
+
+/** A sighting's pet, as its owner saved it: the photo under its label, after the close-up. */
+function PetPhoto({ alert }: { alert: Alert }) {
+  const photo = usePetPhoto(alert.subjectId);
+  if (!photo) return null;
+  const name = savedPhotoName(petNameOf(alert));
+  return (
+    <div className="alert-picture-dialog__close alert-picture-dialog__pet">
+      <p className="alert-picture__quiet">{name}</p>
+      <img className="alert-picture-dialog__close-up" src={photo} alt={name} draggable={false} />
+    </div>
   );
 }
 

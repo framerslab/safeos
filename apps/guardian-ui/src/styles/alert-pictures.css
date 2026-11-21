@@ -1466,3 +1466,59 @@ html.light {
     font-size: 1.25rem;
   }
 }
+
+/* -----------------------------------------------------------------------------
+   A Lost and Found sighting
+   ----------------------------------------------------------------------------- */
+
+/* The card's head carries how long ago, at its right, and no level. */
+.alert-card__ago {
+  margin-left: auto;
+}
+
+/* One column at every width: the camera's picture across the block, then the
+   close-up and the pet's saved photo side by side, then the question, the
+   time and the two lines. */
+.alert-picture[data-kind='sighting'][data-form='large'][data-status] {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.alert-picture[data-kind='sighting'][data-form='large'] > .alert-picture__notes {
+  grid-column: auto;
+}
+
+.alert-picture__pair {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.alert-picture__pair:empty {
+  display: none;
+}
+
+.alert-picture__time {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ap-ink);
+}
+
+/* The opened sighting: the question with its time under it, and the pet's
+   saved photo after the close-up. */
+.alert-picture-dialog__titles {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.alert-picture-dialog__time {
+  margin: 2px 0 0;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--ap-ink);
+}
+
+.alert-picture-dialog__pet .alert-picture-dialog__close-up {
+  max-width: min(100%, 360px);
+}

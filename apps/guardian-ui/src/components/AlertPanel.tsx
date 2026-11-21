@@ -15,7 +15,8 @@ import { useSettingsStore } from '../stores/settings-store';
 import { getSoundManager, type SoundType } from '../lib/sound-manager';
 import { cardTime } from '../lib/alert-event';
 import { kindOfAlert } from '../lib/alert-pictures/rules';
-import { announceAlert, levelWords } from '../lib/alert-pictures/words';
+import { announceAlert, announceSighting, levelWords } from '../lib/alert-pictures/words';
+import { petNameOf } from '../lib/alert-pictures/pet-photo';
 import { OpenPictureKey, PictureBlock, alertMoment } from './alert-pictures/PictureBlock';
 import { PictureDialogHost } from './alert-pictures/PictureDialog';
 import { ListLine } from './alert-pictures/ListLine';
@@ -126,7 +127,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
 
     const tick = () => {
       const now = Date.now();
-      const unacknowledged = alerts.filter((a) => !a.acknowledged);
+      // A Lost and Found sighting sounds the pet's own alert at each of its alerts and takes no
+      // part in the list's escalation.
+      const unacknowledged = alerts.filter((a) => !a.acknowledged && kindOfAlert(a) !== 'sighting');
 
       const nextLevels = new Map<string, number>();
 
@@ -265,9 +268,11 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
       >
         {latestAlert && (
           <span>
-            {latestKind
-              ? announceAlert(latestKind, latestAlert.severity, alertMoment(latestAlert))
-              : `New ${latestAlert.severity} alert: ${latestAlert.message}.`}
+            {latestKind === 'sighting'
+              ? announceSighting(petNameOf(latestAlert), alertMoment(latestAlert))
+              : latestKind
+                ? announceAlert(latestKind, latestAlert.severity, alertMoment(latestAlert))
+                : `New ${latestAlert.severity} alert: ${latestAlert.message}.`}
             {/* A repeat often keeps the reading and severity; its count changes the words, so it is read. */}
             {(latestAlert.repeats ?? 0) > 0 &&
               ` Repeated ${latestAlert.repeats} ${latestAlert.repeats === 1 ? 'time' : 'times'}.`}
@@ -361,11 +366,13 @@ function CardHead({ alert }: { alert: Alert }) {
   const timeAgo = getTimeAgo(cardTime(alert) || new Date().toISOString());
   return (
     <div className="alert-card__head">
-      <span className="alert-card__level">
-        {/* The level's word carries the meaning; its icon is not read. */}
-        <span className="alert-card__icon" aria-hidden="true"><IconComponent size={18} /></span>
-        <span>{levelWords(alert.severity)}</span>
-      </span>
+      {kindOfAlert(alert) !== 'sighting' && (
+        <span className="alert-card__level">
+          {/* The level's word carries the meaning; its icon is not read. */}
+          <span className="alert-card__icon" aria-hidden="true"><IconComponent size={18} /></span>
+          <span>{levelWords(alert.severity)}</span>
+        </span>
+      )}
       <span className="alert-card__ago">{timeAgo}</span>
     </div>
   );
@@ -376,14 +383,19 @@ function AlertCard({ alert, form, escalationLevel, onAcknowledge }: AlertCardPro
   // A Motion, Sound or Picture change alert shows its picture block in place of its message line.
   const kind = kindOfAlert(alert);
 
+  // A Lost and Found sighting asks about the pet and has no level and no escalation.
+  const sighting = kind === 'sighting';
+
   return (
-    <div className="alert-card" data-alert-card="" data-form={kind ? form : undefined} data-severity={alert.severity}>
+    <div className="alert-card" data-alert-card="" data-form={kind ? form : undefined} data-kind={kind ?? undefined} data-severity={alert.severity}>
       {/* Escalation indicator: the fourth level pulses until the card is acknowledged */}
-      <div
-        className="alert-card__bar"
-        data-escalation-bar=""
-        data-level={Math.min(4, Math.max(1, escalationLevel))}
-      />
+      {!sighting && (
+        <div
+          className="alert-card__bar"
+          data-escalation-bar=""
+          data-level={Math.min(4, Math.max(1, escalationLevel))}
+        />
+      )}
 
       <CardHead alert={alert} />
 
@@ -400,7 +412,7 @@ function AlertCard({ alert, form, escalationLevel, onAcknowledge }: AlertCardPro
 
       <div className="alert-card__foot">
         <span className="alert-card__counts">
-          <span>Level {escalationLevel}</span>
+          {!sighting && <span>Level {escalationLevel}</span>}
           {repeats > 0 && <span>Repeated {repeats} {repeats === 1 ? 'time' : 'times'}</span>}
         </span>
         {/* The card's keys keep one row; where they do not fit, the row scrolls inside itself. */}
