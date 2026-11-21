@@ -248,6 +248,30 @@ function readKey(name) {
   };
 }
 
+// The controls whose names are read: the header's and the footer's buttons,
+// every icon key and the look switch.
+const NAMED_CONTROLS = 'nav[aria-label="Site"] button, footer.site-footer button, .key--icon, .look-switch';
+
+/**
+ * How many of a page's shown controls have no accessible name, as Playwright's
+ * accessibility tree works it out (accname 1.2: aria-labelledby through
+ * elements that exist, hidden parts left out unless the label itself is
+ * hidden). A named control's snapshot opens with its role and its name in
+ * quotes; an unnamed one gives its role alone.
+ */
+export async function unnamedControls(page, selector = NAMED_CONTROLS) {
+  const controls = page.locator(selector);
+  let unnamed = 0;
+  const count = await controls.count();
+  for (let i = 0; i < count; i += 1) {
+    const control = controls.nth(i);
+    if (!(await control.isVisible())) continue;
+    const first = (await control.ariaSnapshot()).split('\n')[0];
+    if (!/^- [\w-]+ ["/]/.test(first)) unnamed += 1;
+  }
+  return unnamed;
+}
+
 export async function checkPublicChrome(browser, baseUrl, outDir) {
   const problems = [];
   const fail = (message) => problems.push(message);
@@ -548,6 +572,25 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
   }
 
   // ---------------------------------------------------------------------------
+  // The name check gets the hard cases right
+  // ---------------------------------------------------------------------------
+
+  // A key named by its label, and three with no name: a glyph hidden from the
+  // accessibility tree, the same glyph reached through aria-labelledby, and a
+  // label whose id does not exist.
+  await open({ name: 'the name check', width: 1280 }, async (page) => {
+    await page.setContent(`<main>
+      <button class="key--icon" aria-label="Close">×</button>
+      <button class="key--icon"><span aria-hidden="true">×</span></button>
+      <span id="glyph-label"><span aria-hidden="true">×</span></span>
+      <button class="key--icon" aria-labelledby="glyph-label"></button>
+      <button class="key--icon" aria-labelledby="no-such-id"></button>
+    </main>`);
+    const unnamed = await unnamedControls(page);
+    expect(unnamed === 3, `the name check: ${unnamed} of the four keys read as unnamed, where three have no name`);
+  });
+
+  // ---------------------------------------------------------------------------
   // The keys of every public page
   // ---------------------------------------------------------------------------
 
@@ -575,39 +618,14 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
                 first: !!key.closest('.home-first'),
               };
             });
-            // An icon key is a glyph with no word: it needs a name. Read on
-            // the header, the footer and every key of this set. The name is
-            // worked out as a browser does: aria-labelledby counts only
-            // through elements that exist and hold words, then aria-label,
-            // then the key's own words, its title or a picture's text.
-            // Words inside the key that a reader is given: text, a picture's
-            // alt and an svg's title, leaving out every part that is
-            // aria-hidden or not shown.
-            const shownText = (node) => {
-              if (node.nodeType === Node.TEXT_NODE) return node.textContent;
-              if (node.nodeType !== Node.ELEMENT_NODE) return '';
-              const style = getComputedStyle(node);
-              if (node.getAttribute('aria-hidden') === 'true' || node.hidden || style.display === 'none' || style.visibility === 'hidden') return '';
-              if (node.localName === 'img') return node.getAttribute('alt') || '';
-              if (node.localName === 'svg') return node.querySelector(':scope > title')?.textContent || '';
-              return [...node.childNodes].map(shownText).join(' ');
-            };
-            const nameOf = (button) => {
-              const by = (button.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean)
-                .map((id) => document.getElementById(id)?.textContent.trim() || '').join(' ').trim();
-              if (by) return by;
-              const label = (button.getAttribute('aria-label') || '').trim();
-              if (label) return label;
-              const own = [...button.childNodes].map(shownText).join(' ').replace(/\s+/g, ' ').trim();
-              return own || (button.getAttribute('title') || '').trim();
-            };
-            const unnamed = [...document.querySelectorAll('nav[aria-label="Site"] button, footer.site-footer button, .key--icon, .look-switch')].filter(visible)
-              .filter((button) => !nameOf(button)).length;
-            return { keys, older: document.querySelectorAll('.btn').length, unnamed };
+            return { keys, older: document.querySelectorAll('.btn').length };
           });
           expect(seen.keys.length > 0, `${at}: the page shows no key`);
           expect(seen.older === 0, `${at}: ${seen.older} elements carry the older set's class`);
-          expect(seen.unnamed === 0, `${at}: ${seen.unnamed} icon keys have no name`);
+          // An icon key is a glyph with no word: it needs a name. Read on
+          // the header, the footer and every key of this set.
+          const unnamed = await unnamedControls(page);
+          expect(unnamed === 0, `${at}: ${unnamed} icon keys have no name`);
           for (const key of seen.keys) {
             expect(key.radius === '6px 6px 6px 6px', `${at}: "${key.words}" has the corners ${key.radius}`);
             expect(key.height >= 43.5, `${at}: "${key.words}" is ${key.height} px tall`);
