@@ -2946,7 +2946,9 @@ test.describe('A watch alert’s notification, 1280 px', () => {
 
   test('with the switch on, a Motion alert’s notification carries the picture with its box drawn in', async ({ page, context }) => {
     test.setTimeout(150_000);
-    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: MIDDLE_BAND, pictures: { noticeAnswered: true, inNotifications: true } });
+    // The camera's pictures are drawn once and shown in turn, so this page's own drawing leaves the
+    // alert's picture its 300 ms on a busy runner.
+    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: { ...MIDDLE_BAND, cycle: 8 }, pictures: { noticeAnswered: true, inNotifications: true } });
     const time = await timeOf(cards(page).first(), 'Motion');
     await holdStill(page);
     await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
@@ -3274,17 +3276,18 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
 
   test('the delete question fits a short screen at 200 per cent text', async ({ page, context }) => {
     test.setTimeout(120_000);
-    await page.setViewportSize({ width: 320, height: 260 });
     await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
     const card = cards(page).first();
     const time = await timeOf(card, 'Motion');
     await holdStill(page);
-    await doubleText(page);
     await openKey(card).click();
     const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
     await deleteKey(dialog).click();
     const question = page.getByRole('alertdialog', { name: DELETE_QUESTION, exact: true });
     await expect(question).toBeVisible();
+    // The screen turns short (a phone on its side) and the text doubles with the question open.
+    await page.setViewportSize({ width: 320, height: 260 });
+    await doubleText(page);
     const box = (await question.boundingBox())!;
     expect(box.y, 'the question starts on the screen').toBeGreaterThanOrEqual(0);
     expect(box.y + box.height, 'the question ends on the screen').toBeLessThanOrEqual(260);

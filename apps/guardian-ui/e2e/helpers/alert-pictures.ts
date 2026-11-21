@@ -383,9 +383,17 @@ export async function canvasCamera(page: Page, camera: CanvasCamera): Promise<vo
         }
         return image;
       };
+      let still: ImageData | null = null;
       const draw = () => {
-        const cycle = window.__camera!.cycle ?? 0;
+        const cam = window.__camera!;
+        const cycle = cam.cycle ?? 0;
         if (cycle > 0) {
+          // A camera told to hold still (no moving part) shows one picture, drawn once.
+          if (cam.moving.width <= 0 || cam.moving.height <= 0) {
+            still ??= paint();
+            ctx.putImageData(still, 0, 0);
+            return;
+          }
           if (made.length < cycle) made.push(paint());
           ctx.putImageData(made[shown++ % made.length], 0, 0);
           return;
