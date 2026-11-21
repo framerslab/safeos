@@ -16,6 +16,7 @@ import { KeyboardShortcutsProvider } from '@/components/KeyboardShortcutsProvide
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { HOME_DESCRIPTION, HOME_FULL_TITLE, socialImage } from '@/lib/page-metadata';
 import { LOOK_PAGE_COLOURS } from '@/lib/look-colours';
+import { STALE_BUILD_RECOVERY } from '@/lib/stale-build-script';
 import './globals.css';
 
 // =============================================================================
@@ -156,6 +157,9 @@ export default function RootLayout({
           type="image/svg+xml"
           media="(prefers-color-scheme: light)"
         />
+
+        {/* First in the page: a page whose own script files are gone reloads once onto the newest build */}
+        <script dangerouslySetInnerHTML={{ __html: STALE_BUILD_RECOVERY }} />
 
         {/* Theme initialization script - prevents flash of wrong theme */}
         <script

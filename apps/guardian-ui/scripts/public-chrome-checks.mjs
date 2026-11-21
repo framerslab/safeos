@@ -596,6 +596,30 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
   }
 
   // ---------------------------------------------------------------------------
+  // A page whose own script is gone before React starts
+  // ---------------------------------------------------------------------------
+
+  // The first load is answered 404 for the app's main script, as a deploy that
+  // replaced it would answer; the page reloads once, and React starts.
+  await open({ name: 'a missing app script before React starts', width: 1280 }, async (page) => {
+    let refused = 0;
+    await page.route('**/_next/static/chunks/main-app-*.js', async (route) => {
+      if (refused === 0) {
+        refused += 1;
+        await route.fulfill({ status: 404, body: '' });
+      } else {
+        await route.continue();
+      }
+    });
+    // Document loads alone: a history update the app makes once React starts is no load.
+    let loads = 0;
+    page.on('request', (request) => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) loads += 1; });
+    await page.goto(address('/faq/'), { waitUntil: 'commit', timeout: 60_000 });
+    const started = await page.waitForSelector('nav[aria-label="Site"][data-script="true"]', { timeout: 30_000 }).then(() => true, () => false);
+    expect(refused === 1 && loads === 2 && started, `a missing app script: ${refused} answered 404, ${loads} loads, React ${started ? 'started' : 'never started'}`);
+  });
+
+  // ---------------------------------------------------------------------------
   // The name check gets the hard cases right
   // ---------------------------------------------------------------------------
 

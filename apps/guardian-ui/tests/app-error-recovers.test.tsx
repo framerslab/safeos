@@ -58,6 +58,36 @@ it('reloads once for a missing script file, and not again within five minutes', 
   expect(reload).toHaveBeenCalledTimes(2);
 });
 
+it('reloads once more for a newer build within five minutes, and once for each build', () => {
+  const storage = memoryStorage();
+  const reload = jest.fn();
+  const start = 1_000_000;
+  // Deploy B replaced the files of the page from build A; the reload lands on B.
+  expect(reloadForNewBuild(chunkError(), { now: start, storage, reload, build: 'webpack-a.js' })).toBe(true);
+  expect(reloadForNewBuild(chunkError(), { now: start + 30_000, storage, reload, build: 'webpack-a.js' })).toBe(false);
+  // Deploy C, two minutes later, replaced build B's files too: B reloads once.
+  expect(reloadForNewBuild(chunkError(), { now: start + 120_000, storage, reload, build: 'webpack-b.js' })).toBe(true);
+  expect(reloadForNewBuild(chunkError(), { now: start + 150_000, storage, reload, build: 'webpack-b.js' })).toBe(false);
+  expect(reload).toHaveBeenCalledTimes(2);
+});
+
+it('reads the build from the page\'s script runtime, and keeps a time an earlier version saved', () => {
+  const script = document.createElement('script');
+  script.setAttribute('src', '/_next/static/chunks/webpack-0123abcd.js');
+  document.head.appendChild(script);
+  try {
+    const storage = memoryStorage();
+    const reload = jest.fn();
+    // An earlier version saved the time alone, with no build: a reload for any build counts as another build's.
+    storage.setItem('safeos-stale-build-reload', String(1_000_000));
+    expect(reloadForNewBuild(chunkError(), { now: 1_060_000, storage, reload })).toBe(true);
+    expect(JSON.parse(storage.getItem('safeos-stale-build-reload') ?? '{}')).toEqual({ at: 1_060_000, build: '/_next/static/chunks/webpack-0123abcd.js' });
+    expect(reloadForNewBuild(chunkError(), { now: 1_090_000, storage, reload })).toBe(false);
+  } finally {
+    script.remove();
+  }
+});
+
 it('never reloads for an error that is not a missing file, or where it cannot remember the reload', () => {
   const reload = jest.fn();
   const blocked = memoryStorage();
