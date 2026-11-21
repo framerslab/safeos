@@ -135,6 +135,20 @@ it('stores the build again when a load with a connection finds the installed cop
   expect(await (await worker.request('/history/', 'navigate'))!.text()).toBe('page /history/');
 });
 
+it('stores the build again when its cache was cleared between installation and taking over', async () => {
+  const { cache } = prepareBrowser();
+  globalThis.fetch = jest.fn(async (input: RequestInfo | URL) => new Response(`page ${addressOf(input)}`));
+  const worker = loadWorker(cache, { version: 'build-a', urls: ['/dashboard/', '/history/', '/offline.html'] });
+  await worker.lifecycle('install');
+  // Clear All Local Data deletes the build's cache before the worker takes over.
+  await cache.delete('safeos-shell-build-a');
+  await worker.lifecycle('activate');
+  expect(await worker.request('/dashboard/', 'navigate')).not.toBeNull();
+  await worker.settled();
+  globalThis.fetch = jest.fn().mockRejectedValue(new Error('Offline'));
+  expect(await (await worker.request('/history/', 'navigate'))!.text()).toBe('page /history/');
+});
+
 it('tries the store again when one of its files met a passing error, and opens the page offline after', async () => {
   const { cache } = prepareBrowser();
   globalThis.fetch = jest.fn(async (input: RequestInfo | URL) => new Response(`page ${addressOf(input)}`));

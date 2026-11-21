@@ -19,6 +19,12 @@ export const STALE_BUILD_RECOVERY = `(function () {
   window.addEventListener('error', function (event) {
     var target = event.target;
     if (!target || (target.tagName !== 'SCRIPT' && target.tagName !== 'LINK')) return;
+    if (target.tagName === 'LINK') {
+      // A stylesheet, or a preload of a script or a style; a font or a picture that fails reloads nothing.
+      var rel = (target.getAttribute('rel') || '').toLowerCase();
+      var kind = (target.getAttribute('as') || '').toLowerCase();
+      if (rel !== 'stylesheet' && rel !== 'modulepreload' && !(rel === 'preload' && (kind === 'script' || kind === 'style'))) return;
+    }
     var address = target.getAttribute('src') || target.getAttribute('href') || '';
     if (address.indexOf('/_next/static/') === -1) return;
     try {

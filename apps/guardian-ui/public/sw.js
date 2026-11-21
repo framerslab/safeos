@@ -34,7 +34,10 @@ function refillIfEmpty(cache) {
     refilling = (async () => {
       for (let attempt = 0; ; attempt += 1) {
         try {
-          if ((await cache.keys()).length === 0) {
+          // The record of when the build took over is no part of the build: a cache
+          // holding it alone (cleared after installation) is filled again.
+          const held = (await cache.keys()).filter((request) => new URL(request.url).pathname !== TAKEN_OVER);
+          if (held.length === 0) {
             await cache.addAll(manifest.urls);
             // This build is the one running: a later build keeps it for its pages.
             await markTakenOver(cache);

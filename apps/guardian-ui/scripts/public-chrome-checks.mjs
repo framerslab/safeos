@@ -611,8 +611,9 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
         await route.continue();
       }
     });
+    // Document loads alone: a history update the app makes once React starts is no load.
     let loads = 0;
-    page.on('framenavigated', (frame) => { if (frame === page.mainFrame()) loads += 1; });
+    page.on('request', (request) => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) loads += 1; });
     await page.goto(address('/faq/'), { waitUntil: 'commit', timeout: 60_000 });
     const started = await page.waitForSelector('nav[aria-label="Site"][data-script="true"]', { timeout: 30_000 }).then(() => true, () => false);
     expect(refused === 1 && loads === 2 && started, `a missing app script: ${refused} answered 404, ${loads} loads, React ${started ? 'started' : 'never started'}`);
