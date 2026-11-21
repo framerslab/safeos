@@ -836,7 +836,9 @@ export default function MonitorPage() {
   // starts its own 10 seconds; an alert with no box (a Sound alert, a change with no region)
   // leaves the box that stands.
   const [liveBox, setLiveBox] = useState<LiveAlertBox | null>(null);
-  const liveBoxRef = useRef<{ at: number; timer: number | null }>({ at: 0, timer: null });
+  // `watch` moves on each time the box is cleared (the watch stopped): a picture that comes after
+  // that belongs to an earlier watch and draws no box.
+  const liveBoxRef = useRef<{ at: number; timer: number | null; watch: number }>({ at: 0, timer: null, watch: 0 });
   const showLiveBox = useCallback((
     kind: AlertKind,
     at: number,
@@ -844,7 +846,9 @@ export default function MonitorPage() {
     lines: [string] | [string, string] = [plateLine(kind, at)],
   ) => {
     if (!taken) return;
+    const watch = liveBoxRef.current.watch;
     void taken.picture.then((set) => {
+      if (watch !== liveBoxRef.current.watch) return;
       const left = LIVE_BOX_MS - (Date.now() - at);
       if (!set.sourceBox || left <= 0 || at < liveBoxRef.current.at) return;
       if (liveBoxRef.current.timer !== null) window.clearTimeout(liveBoxRef.current.timer);
@@ -858,7 +862,7 @@ export default function MonitorPage() {
   }, []);
   const clearLiveBox = useCallback(() => {
     if (liveBoxRef.current.timer !== null) window.clearTimeout(liveBoxRef.current.timer);
-    liveBoxRef.current = { at: 0, timer: null };
+    liveBoxRef.current = { at: 0, timer: null, watch: liveBoxRef.current.watch + 1 };
     setLiveBox(null);
   }, []);
   useEffect(() => clearLiveBox, [clearLiveBox]);
