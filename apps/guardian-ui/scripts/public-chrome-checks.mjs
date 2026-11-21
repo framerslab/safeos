@@ -9,6 +9,8 @@
 //   links at a tablet, Privacy as the fifth from 1024 pixels, GitHub with its
 //   count between the links and the look switch; a hovered link beside the
 //   page being read;
+// - the start key at 820 and 1280 pixels: one width for "Start setup" and
+//   "Open dashboard", so nothing beside it moves once setup is done;
 // - a row that runs short, text growing step by step at 1100 pixels: GitHub
 //   leaves first, then Privacy, then the links move into the Menu, and the
 //   row never runs off the screen;
@@ -22,7 +24,8 @@
 //   and inactive, in both looks. Each form is pictured, its label, edge, ring
 //   and glyph are measured from the picture's pixels, and the pictures are
 //   set side by side as keys-sheet-<look>.png;
-// - the footer's makers and its GitHub link at 390, 820 and 1280 pixels, and
+// - the footer's makers and its GitHub link at 390, 820 and 1280 pixels,
+//   every row of it on one line, and
 //   About's part at 390, 820 and 1280 pixels.
 // It returns its findings as sentences; any finding fails the run.
 import path from 'node:path';
@@ -398,6 +401,34 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
       expect(faq?.current === 'page' && faq?.colour === tone.ink && faq?.underline === `underline 2px ${tone.accent}`, `row on /faq/, ${look}: "FAQ" is ${faq?.colour} with ${faq?.underline}, aria-current ${faq?.current}`);
       await page.locator('nav[aria-label="Site"]').screenshot({ path: path.join(outDir, `header-faq-hover-1280-${look}.png`) });
     });
+  }
+
+  // The start key holds one width for its two labels, so nothing beside it
+  // moves once setup is done on this device: the same width and the same
+  // left edge for "Start setup" and "Open dashboard", at least 160 px.
+  for (const width of [820, 1280]) {
+    const seen = {};
+    for (const setupDone of [false, true]) {
+      const words = setupDone ? 'Open dashboard' : 'Start setup';
+      await open({ name: `start key, ${setupDone ? 'set up' : 'first visit'}`, width, setupDone }, async (page) => {
+        await visit(page);
+        await page.locator('nav[aria-label="Site"] .site-header__start').filter({ hasText: words }).waitFor({ timeout: 10_000 });
+        seen[words] = await page.evaluate(() => {
+          const nav = document.querySelector('nav[aria-label="Site"]');
+          const key = nav.querySelector('.site-header__start').getBoundingClientRect();
+          const look = nav.querySelector('.look-switch, .look-switch-place').getBoundingClientRect();
+          return { left: key.left, width: key.width, look: look.left };
+        });
+      });
+    }
+    const first = seen['Start setup'];
+    const done = seen['Open dashboard'];
+    if (!first || !done) continue;
+    const at = `start key at ${width} px`;
+    expect(first.width >= 160 && done.width >= 160, `${at}: "Start setup" is ${first.width} px wide and "Open dashboard" ${done.width} px, under 160`);
+    expect(Math.abs(first.width - done.width) < 0.5 && Math.abs(first.left - done.left) < 0.5,
+      `${at}: "Start setup" is ${first.width} px wide from ${first.left} px and "Open dashboard" ${done.width} px wide from ${done.left} px`);
+    expect(Math.abs(first.look - done.look) < 0.5, `${at}: the look switch moves from ${first.look} px to ${done.look} px once setup is done`);
   }
 
   // A row that runs short: with the window at 1100 px the text grows in
@@ -839,6 +870,11 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
         lines: piece && firstLine !== null && piece.getBoundingClientRect().top - firstLine > 12 ? 2 : 1,
         over: github.scrollWidth > github.clientWidth + 1,
       },
+      // Every link of the footer, to tell whether each stands on one line.
+      links: [...document.querySelectorAll('.site-footer__groups a')].map((link) => ({
+        words: link.textContent.replace(/\s+/g, ' ').trim(),
+        height: link.getBoundingClientRect().height,
+      })),
       sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   };
@@ -883,13 +919,18 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
           expect(footer.github.piece?.number === stars.short && footer.github.piece?.star === 16, `${at}: the GitHub link shows ${footer.github.piece?.number} beside a ${footer.github.piece?.star} px star`);
           // The word GitHub, the star and the count never part.
           expect((footer.github.piece?.height ?? 99) < 30, `${at}: the word GitHub and its count stand on more than one line`);
-          // From the tablet width the link and its count are one line.
-          if (width >= 768) expect(footer.github.lines === 1 && footer.github.height < 40, `${at}: the GitHub link with its count takes ${footer.github.lines} lines`);
-          else console.log(`${at}: the GitHub link with its count takes ${footer.github.lines} ${footer.github.lines === 1 ? 'line' : 'lines'}`);
+          // From 390 px the link and its count are one line.
+          expect(footer.github.lines === 1, `${at}: the GitHub link with its count takes ${footer.github.lines} lines`);
         } else {
           expect(footer.github.words === 'SafeOS on GitHub' && footer.github.piece === null, `${at}: with no count the GitHub link reads "${footer.github.words}"`);
         }
         expect(!footer.github.over, `${at}: the GitHub link runs out of its column`);
+        // Every row of the footer is one line from 390 px: a row is 44 px
+        // tall on a phone and 32 px from the tablet width, and two lines of
+        // 24 px make 48.
+        const oneLine = width < 768 ? 46 : 40;
+        const wrapped = footer.links.filter((link) => link.height >= oneLine);
+        expect(footer.links.length > 0 && wrapped.length === 0, `${at}: rows on more than one line: ${wrapped.map((link) => `"${link.words}" ${link.height} px`).join(', ')}`);
         await page.locator('footer.site-footer').screenshot({ path: path.join(outDir, `footer-makers-${width}-${look}.png`), style: NO_BARS });
       });
     }
