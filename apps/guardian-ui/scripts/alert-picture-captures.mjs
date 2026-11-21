@@ -270,6 +270,30 @@ async function capture(name, size, look, locator) {
   console.log(`saved ${file}`);
 }
 
+/**
+ * Saves a panel that scrolls inside itself whole: the window is made as tall
+ * as the panel's content for the picture, then set back.
+ */
+async function captureWhole(name, size, look, locator) {
+  await locator.waitFor({ state: 'visible', timeout: 30_000 });
+  await picturesLoaded(locator);
+  const hidden = await locator.evaluate((panel) => {
+    let most = 0;
+    for (const el of [panel, ...panel.querySelectorAll('*')]) {
+      if (!/(auto|scroll)/.test(getComputedStyle(el).overflowY)) continue;
+      most = Math.max(most, el.scrollHeight - el.clientHeight);
+    }
+    return Math.ceil(most);
+  });
+  const page = locator.page();
+  if (hidden > 0) await page.setViewportSize({ width: size.width, height: size.height + hidden });
+  try {
+    await capture(name, size, look, locator);
+  } finally {
+    if (hidden > 0) await page.setViewportSize({ width: size.width, height: size.height });
+  }
+}
+
 /** Runs one state; a state that cannot be reached is named and the run goes on to the next. */
 async function state(names, size, look, run) {
   try {
@@ -308,13 +332,16 @@ async function motionStates(browser, size, look) {
 
       await cards(page).first().getByRole('button', { name: /^Open picture: / }).click();
       const dialog = page.locator('[role="dialog"].alert-picture-dialog');
-      await capture('opened', size, look, dialog);
+      // On a phone the dialog scrolls inside itself: it is saved whole, its keys included.
+      await captureWhole('opened', size, look, dialog);
       await page.keyboard.press('Escape');
       await dialog.waitFor({ state: 'detached', timeout: 10_000 });
 
       const head = page.getByRole('button', { name: /^Alert pictures/ });
       if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
-      await capture('watch-group', size, look, page.getByRole('group', { name: 'Alert pictures', exact: true }));
+      await page.getByRole('group', { name: 'Alert pictures', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+      // The watch's section, its heading row included.
+      await capture('watch-group', size, look, head.locator('xpath=..'));
     });
 
     await state(['history'], size, look, async () => {
