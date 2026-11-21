@@ -711,29 +711,31 @@ export default function MonitorPage() {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const { title, body, severity, event } = note;
 
+    // The event's identity is read at the alert: the event can end (Stop, a quiet spell) while
+    // the picture is drawn. High and critical notifications stay up until dismissed; so do the
+    // notifications of an event that has alerted at high or critical, since each replaces the
+    // one before it. One tag an event, whatever its severity: a repeat, or a rise in severity,
+    // replaces the event's notification in place of standing beside it, and a new event's
+    // notification stands beside an earlier one that is kept up.
+    const requireInteraction = event ? keepsNotificationUp(event) : severity === 'high' || severity === 'critical';
+    const tag = event?.notifyTag ? `safeos-${title}-${event.notifyTag}` : `safeos-${title}`;
+    const wantsPicture = () => useAlertPicturesStore.getState().inNotifications && showsNotificationPictures();
+
     let image: string | undefined;
-    if (
-      note.picture && note.kind !== 'sound' &&
-      useAlertPicturesStore.getState().inNotifications && showsNotificationPictures()
-    ) {
+    if (note.picture && note.kind !== 'sound' && wantsPicture()) {
       const left = Math.max(0, NOTIFICATION_WAIT_MS - (Date.now() - note.at));
       image = await Promise.race([
         note.picture.then(notificationCopy).catch(() => undefined),
         new Promise<undefined>((resolve) => { window.setTimeout(() => resolve(undefined), left); }),
       ]);
+      // The person may have turned the picture off while it was drawn: the words go alone.
+      if (!wantsPicture()) image = undefined;
     }
 
-    // High and critical notifications stay up until dismissed; so do the
-    // notifications of an event that has alerted at high or critical, since
-    // each replaces the one before it.
-    const requireInteraction = event ? keepsNotificationUp(event) : severity === 'high' || severity === 'critical';
     await getNotificationManager().show(title, {
       image,
       body,
-      // One tag an event, whatever its severity: a repeat, or a rise in severity,
-      // replaces the event's notification in place of standing beside it, and a
-      // new event's notification stands beside an earlier one that is kept up.
-      tag: event?.notifyTag ? `safeos-${title}-${event.notifyTag}` : `safeos-${title}`,
+      tag,
       // A repeat replaces the earlier notification with the same tag; renotify
       // makes it alert again. Without it the replacement is silent:
       // https://developer.mozilla.org/en-US/docs/Web/API/Notification/Notification
