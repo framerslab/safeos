@@ -9,6 +9,13 @@ on commit c0ddd4c, where every walk passed.
 the repository's star count before the build and handed it over: 58, counted
 21 November 2026.
 
+Three files of `after/` are from a later run,
+[run 44866334979](https://github.com/framerslab/safeos/actions/runs/44866334979)
+on commit ac0df7f, which changed the keys at the foot of the FAQ, the blog and
+a post: `faq-1280-light.png`, `blog-1280-light.png` and
+`blog-how-safeos-guardian-works-1280-light.png`. That run read the same count
+on the same day, and every walk passed.
+
 `before/`: the `pictures-before` artifact, the base commit 7ffbaed, built and
 captured by the same script. The base has no star count.
 
@@ -22,9 +29,9 @@ In both folders:
 | `about-builders-<width>-<look>.png` | About's part on who builds SafeOS. Before, it is the part "Built by Frame.dev"; the page also told it a second time, under "Who Builds It" |
 | `404-html-<width>-<look>.png` | The Not found page with its two keys |
 | `setup-1280-dark.png` | Setup's welcome card, with Frame's name under the heading |
-| `faq-1280-light.png` | The FAQ from top to bottom; its key is at the foot of the page's own content |
-| `blog-1280-light.png` | The blog from top to bottom: the mark in each byline and the key at the foot |
-| `blog-how-safeos-guardian-works-1280-light.png` | A post from top to bottom: the mark in its byline and beside the team's name at its foot |
+| `faq-1280-light.png` | The FAQ from top to bottom; its keys are at the foot of the page's own content: the solid key with the outlined key beside it, then two link rows |
+| `blog-1280-light.png` | The blog from top to bottom: the mark in each byline, and at the foot the outlined key beside the solid key, then two link rows |
+| `blog-how-safeos-guardian-works-1280-light.png` | A post from top to bottom: the mark in its byline and beside the team's name at its foot, then two link rows |
 
 In `after/` alone, from the walk of the pull request's own build
 (`apps/guardian-ui/scripts/home-checks.mjs` and
