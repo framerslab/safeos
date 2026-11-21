@@ -1513,6 +1513,16 @@ html.light {
   min-width: 0;
 }
 
+/* Each tile 112 by 84 px; where the block is narrower than the two (320 px
+   with large text) both shrink alike and keep their 4:3 shape. */
+.alert-picture__pair > .alert-picture__tile {
+  flex: 0 1 112px;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  aspect-ratio: 4 / 3;
+}
+
 .alert-picture__pair:empty {
   display: none;
 }
