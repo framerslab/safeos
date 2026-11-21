@@ -22,7 +22,6 @@ import { useCallback, useSyncExternalStore } from 'react';
 import {
   countKeptAlertPictures,
   getAlertPicture,
-  getCachedAlerts,
   goneAlertPicture,
   goneAllAlertPictures,
   goneExpiredAlertPictures,
@@ -358,15 +357,9 @@ export async function sweepPicturesByAge(now: number = Date.now()): Promise<void
 
 /** Deletes the stored rows that no saved alert and no alert this tab shows holds, once they are ten minutes old. */
 async function sweepUnheld(): Promise<void> {
-  let saved: Array<{ pictureId?: string }>;
-  try {
-    saved = await getCachedAlerts();
-  } catch {
-    // Without the saved alerts nothing can be told apart: nothing is deleted.
-    return;
-  }
+  // The saved alerts' pictures are read by the sweep itself, in its own transaction: a read that
+  // fails deletes nothing. These are the pictures this tab holds that may not be saved yet.
   const held = new Set<string>();
-  for (const alert of saved) if (alert.pictureId) held.add(alert.pictureId);
   for (const alert of useMonitoringStore.getState().alerts) if (alert.pictureId) held.add(alert.pictureId);
   for (const id of entries.keys()) held.add(id);
   await sweepUnheldAlertPictures(held, Date.now() - UNHELD_MS);

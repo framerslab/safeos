@@ -1185,16 +1185,28 @@ export async function countKeptAlertPictures(): Promise<number> {
   return db.countFromIndex('alert_picture', 'by-state-taken', KEPT_RANGE());
 }
 
-/** Deletes the rows no alert holds, taken before `olderThan`: a set whose card left before it was saved. */
+/**
+ * Deletes the rows no alert holds, taken before `olderThan`: a set whose card left before it was
+ * saved. The saved alerts are read in the same transaction, so a read that fails deletes nothing,
+ * and every saved alert's picture is held, whoever saved it; `held` adds the pictures this tab
+ * shows that are not saved.
+ */
 export async function sweepUnheldAlertPictures(held: ReadonlySet<string>, olderThan: number): Promise<void> {
   let tx: Abandonable | undefined;
   try {
     const db = await getDB();
-    const write = db.transaction(['alert_picture'], 'readwrite');
+    const write = db.transaction(['alert_cache', 'alert_picture'], 'readwrite');
     tx = write;
+    const holding = new Set(held);
+    let saved = await write.objectStore('alert_cache').openCursor();
+    while (saved) {
+      const pictureId = (saved.value as { pictureId?: unknown }).pictureId;
+      if (typeof pictureId === 'string') holding.add(pictureId);
+      saved = await saved.continue();
+    }
     let cursor = await write.objectStore('alert_picture').openCursor();
     while (cursor) {
-      if (!held.has(cursor.value.id) && cursor.value.takenAt < olderThan) await cursor.delete();
+      if (!holding.has(cursor.value.id) && cursor.value.takenAt < olderThan) await cursor.delete();
       cursor = await cursor.continue();
     }
     await tx.done;
