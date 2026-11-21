@@ -68,3 +68,10 @@ read the same count on the same day, and every walk passed.
 on commit af597dc, this pull request before that change. The start key's fill
 is caught part way from the old look's green to the new one's while its label
 is already the new look's colour; the walk failed on it.
+
+Four files of `after/` are from a later run,
+[run 44905656881](https://github.com/framerslab/safeos/actions/runs/44905656881)
+on commit d17bf37, which sets the Not found page's two keys side by side in
+one row at every width: `404-html-390-<look>.png` and
+`404-html-1280-<look>.png`. That run read the same count on the same day, and
+every walk passed.
