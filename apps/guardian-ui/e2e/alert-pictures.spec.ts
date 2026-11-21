@@ -3235,6 +3235,28 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     expect(note.image ?? null, 'no picture once the person turned it off').toBeNull();
   });
 
+  test('a repeat that changes the opened picture while its delete question is open closes the question', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    await watchWith(page, context, { settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) }, camera: LEFT_THIRD });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await openKey(card).click();
+    await expect(page.getByRole('dialog', { name: `Motion at ${time}`, exact: true })).toBeVisible();
+    // The panel takes the newest alert's title with a repeat, so it is found by its own mark.
+    const dialog = page.locator('[role="dialog"].alert-picture-dialog');
+    const picture = dialog.getByRole('img', { name: /^What the camera saw at / });
+    const first = await picture.getAttribute('src');
+    await deleteKey(dialog).click();
+    const question = page.getByRole('alertdialog', { name: DELETE_QUESTION, exact: true });
+    await expect(question).toBeVisible();
+    // The event goes on and repeats: the opened picture becomes the newest alert's.
+    await expect.poll(() => picture.getAttribute('src'), { timeout: 60_000 }).not.toBe(first);
+    // The question was asked of the picture that has gone from view: it closes, and nothing is deleted.
+    await expect(question).toHaveCount(0);
+    await expect(deleteKey(dialog)).toBeFocused();
+    expect(keptRows(await readDatabase(page)).length).toBeGreaterThanOrEqual(1);
+  });
+
   test('Stop pressed while the notification’s picture is drawn keeps the event’s own tag', async ({ page, context }) => {
     test.setTimeout(120_000);
     // The picture's JPEG comes back 250 ms after it is drawn; Stop Monitoring is pressed 50 ms in.
