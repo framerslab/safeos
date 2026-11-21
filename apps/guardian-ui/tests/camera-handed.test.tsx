@@ -35,6 +35,7 @@ import { DEFAULT_SECURITY_SETTINGS, useSecurityStore } from '@/stores/security-s
 import { DEFAULT_ANIMAL_SETTINGS, useAnimalAlertStore } from '@/stores/animal-alert-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useCameraStore } from '@/stores/camera-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 
 require('fake-indexeddb/auto');
@@ -168,6 +169,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  useCameraStore.setState({ deviceId: '' });
   jest.useRealTimers();
   jest.restoreAllMocks();
   window.history.replaceState(null, '');
@@ -340,4 +342,128 @@ it('Resume nap asks first while another tab watches, and starts once that tab ha
   await act(async () => {});
   expect(takeOverWatch).toHaveBeenCalledTimes(1);
   await watchRuns();
+});
+
+/** An answer from the other tabs that comes when the test gives it. */
+function heldAnswer() {
+  let give!: (answer: { watching: boolean; way?: 'monitor' }) => void;
+  jest.mocked(askOtherTabs).mockReturnValueOnce(new Promise((resolve) => { give = resolve; }));
+  return (answer: { watching: boolean; way?: 'monitor' } = { watching: false }) => act(async () => { give(answer); });
+}
+
+it('a Lost and Found start whose pet was changed while the other tabs answered starts nothing', async () => {
+  const answer = heldAnswer();
+  useLostFoundStore.setState({ activeSubject: pet('pet-1'), isWatching: false });
+  render(<LostFoundPage />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Start Monitoring' }));
+  act(() => useLostFoundStore.setState({ activeSubject: { ...pet('pet-2'), name: 'Rex' } }));
+
+  await answer();
+
+  expect(useLostFoundStore.getState().isWatching).toBe(false);
+  expect(mockPush).not.toHaveBeenCalled();
+});
+
+it('a Lost and Found start goes on when the same pet is still chosen', async () => {
+  const answer = heldAnswer();
+  useLostFoundStore.setState({ activeSubject: pet('pet-1'), isWatching: false });
+  render(<LostFoundPage />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Start Monitoring' }));
+
+  await answer();
+
+  expect(useLostFoundStore.getState().isWatching).toBe(true);
+  expect(mockPush).toHaveBeenCalledWith('/monitor');
+});
+
+it('End nap pressed while Resume nap waits for the other tabs starts no camera', async () => {
+  const answer = heldAnswer();
+  window.history.replaceState({ safeosNap: { startedAt: Date.now(), minutes: 30 } }, '');
+  render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Resume nap' }));
+  fireEvent.click(screen.getByRole('button', { name: 'End nap' }));
+
+  await answer();
+  await act(async () => {});
+
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+  expect(useMonitoringStore.getState().isStreaming).toBe(false);
+  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+});
+
+it('a takeover while People waits for its model arms nothing when the model is ready', async () => {
+  mockModel.status = 'loading';
+  holdStart({ way: 'security' }, browser.stream);
+  const view = render(<SecurityPage />);
+  await act(async () => {});
+  // Another tab takes over: the claim's stop drops the held start.
+  dropStart();
+
+  mockModel.status = 'ready';
+  view.rerender(<SecurityPage />);
+  await act(async () => {});
+  await act(async () => {});
+
+  expect(useSecurityStore.getState().armingState).toBe('disarmed');
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+});
+
+it('Wildlife started from the dashboard ends its watch and closes the camera when its animal check cannot start', async () => {
+  const detector = getAnimalDetector() as unknown as { initialize: () => Promise<void> };
+  const working = detector.initialize;
+  detector.initialize = () => Promise.reject(new Error('No graphics backend'));
+  try {
+    const release = jest.fn();
+    holdStart({ way: 'wildlife' }, browser.stream, release);
+    render(<WildlifePage />);
+    await act(async () => {});
+    await act(async () => {});
+
+    expect(useAnimalAlertStore.getState().isMonitoring).toBe(false);
+    expect(screen.queryByText('Monitoring Active')).toBeNull();
+    expect(browser.video.stop).toHaveBeenCalled();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Wildlife could not start its animal check/)).toBeTruthy();
+  } finally {
+    detector.initialize = working;
+  }
+});
+
+it('Wildlife ends its watch when the camera is lost, and its start key starts it again', async () => {
+  holdStart({ way: 'wildlife' }, browser.stream);
+  render(<WildlifePage />);
+  await act(async () => {});
+  await act(async () => {});
+  expect(screen.getByText('LIVE')).toBeTruthy();
+
+  act(() => browser.video.end());
+  await act(async () => {});
+
+  expect(useAnimalAlertStore.getState().isMonitoring).toBe(false);
+  expect(screen.queryByText('Monitoring Active')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+});
+
+it('a held camera that is not the camera now chosen is closed, and the chosen one is asked for', async () => {
+  Object.assign(browser.video, { getSettings: () => ({ deviceId: 'built-in' }) });
+  useCameraStore.setState({ deviceId: 'usb' });
+  holdStart({ way: 'monitor' }, browser.stream);
+  render(<MonitorPage />);
+  await act(async () => {});
+  await act(async () => {});
+
+  expect(browser.video.stop).toHaveBeenCalled();
+  expect(browser.getUserMedia).toHaveBeenCalledWith(cameraConstraints('usb', true));
+});
+
+it('a held camera that is the camera chosen is used with no second request', async () => {
+  Object.assign(browser.video, { getSettings: () => ({ deviceId: 'usb' }) });
+  useCameraStore.setState({ deviceId: 'usb' });
+  holdStart({ way: 'monitor' }, browser.stream);
+  render(<MonitorPage />);
+  await act(async () => {});
+
+  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
 });

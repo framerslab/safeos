@@ -31,10 +31,12 @@ it('serves the label and the four ways in one order, each a working link', () =>
     return `${words(link?.querySelector('.way__name'))} | ${words(link?.querySelector('.way__line'))} | ${bare(link?.getAttribute('href'))}`;
   });
   expect(rows).toEqual([
-    'Motion and sound | Alerts on movement or sound. | /monitor',
-    "Lost and Found | Watches for your pet's colours. | /lost-found",
-    'People | Alerts when someone is in view. | /security',
-    'Wildlife | Alerts when an animal is in view. | /wildlife',
+    // Before the device is read, each row goes through setup with its way
+    // named; setup sends a device already set up on to that way.
+    'Motion and sound | Alerts on movement or sound. | /setup?next=monitor',
+    "Lost and Found | Watches for your pet's colours. | /setup?next=lost-found",
+    'People | Alerts when someone is in view. | /setup?next=security',
+    'Wildlife | Alerts when an animal is in view. | /setup?next=wildlife',
   ]);
 });
 

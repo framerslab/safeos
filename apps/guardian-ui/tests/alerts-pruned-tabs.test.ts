@@ -88,3 +88,39 @@ it("a tab that hears of a People's frame saved past the limit does not keep the 
   expect(ids).not.toContain('person-0');
   expect(ids).toHaveLength(100);
 });
+
+/** Empties a store, so a case starts from its own frames. */
+async function empty(store: 'match_frame' | 'intrusion_frame') {
+  const database = await openDB('safeos-guardian');
+  await database.clear(store);
+  database.close();
+}
+
+// One alert is a run of frames less than 30 seconds apart. Marking it seen
+// marks the frames it holds then; frames saved after join the run unmarked.
+// Removing the run's marked frames must not make the alert new again.
+it('keeps a Lost and Found alert seen when the limit removes the only frame of its run marked as seen', async () => {
+  await getAllMatchFrames();
+  await empty('match_frame');
+  await fill('match_frame', Array.from({ length: 500 }, (_, i) => match(`run-${i}`, 1_000_000 + i * 1000, i === 0)));
+
+  await saveMatchFrame(match('run-500', 1_000_000 + 500 * 1000, false));
+
+  const frames = await getAllMatchFrames();
+  expect(frames).toHaveLength(500);
+  expect(frames.map((frame) => frame.id)).not.toContain('run-0');
+  expect(frames.find((frame) => frame.id === 'run-1')?.acknowledged).toBe(true);
+});
+
+it("keeps a People's alert seen when the limit removes the only frame of its run marked as seen", async () => {
+  await getAllIntrusionFrames();
+  await empty('intrusion_frame');
+  await fill('intrusion_frame', Array.from({ length: 100 }, (_, i) => person(`people-${i}`, 1_000_000 + i * 1000, i === 0)));
+
+  await saveIntrusionFrame(person('people-100', 1_000_000 + 100 * 1000, false));
+
+  const frames = await getAllIntrusionFrames();
+  expect(frames).toHaveLength(100);
+  expect(frames.map((frame) => frame.id)).not.toContain('people-0');
+  expect(frames.find((frame) => frame.id === 'people-1')?.acknowledged).toBe(true);
+});

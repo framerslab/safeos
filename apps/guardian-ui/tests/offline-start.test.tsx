@@ -79,6 +79,8 @@ function loadWorker(cache: ReturnType<typeof prepareBrowser>['cache'], manifest?
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../public/sw.js'), 'utf8'), {
     self, caches: cache, fetch: (input: RequestInfo | URL) => globalThis.fetch(input),
     URL, Response, Request, console, location: { origin: 'http://localhost' },
+    // The worker's waits between attempts pass at once here.
+    setTimeout: (callback: () => void) => globalThis.setTimeout(callback, 0),
   });
   async function lifecycle(name: 'install' | 'activate') {
     let pending: Promise<unknown> = Promise.resolve();
@@ -131,6 +133,41 @@ it('stores the build again when a load with a connection finds the installed cop
   await worker.settled();
   globalThis.fetch = jest.fn().mockRejectedValue(new Error('Offline'));
   expect(await (await worker.request('/history/', 'navigate'))!.text()).toBe('page /history/');
+});
+
+it('tries the store again when one of its files met a passing error, and opens the page offline after', async () => {
+  const { cache } = prepareBrowser();
+  globalThis.fetch = jest.fn(async (input: RequestInfo | URL) => new Response(`page ${addressOf(input)}`));
+  const worker = loadWorker(cache, { version: 'build-a', urls: ['/dashboard/', '/history/', '/offline.html'] });
+  await worker.lifecycle('install');
+  await cache.delete('safeos-shell-build-a');
+  // The first time the store asks for /history/, the host answers 503.
+  let failed = false;
+  globalThis.fetch = jest.fn(async (input: RequestInfo | URL) => {
+    if (addressOf(input) === '/history/' && !failed) {
+      failed = true;
+      return new Response('busy', { status: 503 });
+    }
+    return new Response(`page ${addressOf(input)}`);
+  });
+  expect(await (await worker.request('/dashboard/', 'navigate'))!.text()).toBe('page /dashboard/');
+  await worker.settled();
+  expect(failed).toBe(true);
+  globalThis.fetch = jest.fn().mockRejectedValue(new Error('Offline'));
+  expect(await (await worker.request('/history/', 'navigate'))!.text()).toBe('page /history/');
+});
+
+it('stores the build once when the first try succeeds', async () => {
+  const { cache } = prepareBrowser();
+  globalThis.fetch = jest.fn(async (input: RequestInfo | URL) => new Response(`page ${addressOf(input)}`));
+  const worker = loadWorker(cache, { version: 'build-a', urls: ['/dashboard/', '/offline.html'] });
+  await worker.lifecycle('install');
+  await cache.delete('safeos-shell-build-a');
+  (globalThis.fetch as jest.Mock).mockClear();
+  await worker.request('/dashboard/', 'navigate');
+  await worker.settled();
+  // The page itself, then each of the build's two files once.
+  expect(globalThis.fetch).toHaveBeenCalledTimes(3);
 });
 
 it('asks the network for nothing more while the installed copy is whole', async () => {

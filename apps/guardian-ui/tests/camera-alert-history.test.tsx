@@ -176,3 +176,27 @@ it('keeps an early unacknowledged critical alert on screen while later acknowled
   await act(async () => { await useMonitoringStore.getState().hydrateAlerts(); });
   expect(screen.getByText('Early critical alert')).toBeTruthy();
 });
+
+it("keeps an alert of a watch that has ended silent, and lets the running watch's alerts sound", async () => {
+  const { raisedByThisWatch } = await import('@/lib/watch-sound');
+  const { startMonitoring } = await import('./helpers/camera-browser');
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  act(() => useMonitoringStore.getState().setStreamId('stream-b'));
+
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
+    id: 'late-from-a', streamId: 'stream-a', severity: 'high',
+    message: 'Late alert of the ended watch', timestamp: '2026-10-01T10:00:00.000Z',
+  } }));
+  act(() => BrowserSocket.instances.at(-1)!.receive({ type: 'alert', payload: {
+    id: 'from-b', streamId: 'stream-b', severity: 'high',
+    message: 'Alert of the running watch', timestamp: '2026-10-01T10:00:01.000Z',
+  } }));
+
+  // Both are listed; only the running watch's alert sounds.
+  expect(screen.getByText('Late alert of the ended watch')).toBeTruthy();
+  expect(screen.getByText('Alert of the running watch')).toBeTruthy();
+  expect(raisedByThisWatch('late-from-a')).toBe(false);
+  expect(raisedByThisWatch('from-b')).toBe(true);
+});

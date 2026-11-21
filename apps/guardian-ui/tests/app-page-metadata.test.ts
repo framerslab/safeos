@@ -81,11 +81,20 @@ it('lets a crawler fetch every page that carries the tag, so the tag is read', (
   expect(list[0].disallow).toEqual(['/api/', '/admin/', '/export/', '/webhooks/', '/private/']);
 });
 
-it('keeps the app\'s pages out of the sitemap and the home page and Help in it', () => {
-  const urls = sitemap().map((entry) => entry.url);
-  expect(urls.filter((url) => SECTIONS.test(url))).toEqual([]);
-  // Nap Mode and the old addresses that forward are not listed either.
-  expect(urls.filter((url) => /\/(nap|tutorial|analytics|profiles|donate)\//.test(url))).toEqual([]);
-  expect(urls).toContain('https://safeos.sh/');
-  expect(urls).toContain('https://safeos.sh/help/');
+it.each([undefined, 'https://example.org'])('keeps the app\'s pages out of the sitemap and the home page and Help in it (site address %s)', (site) => {
+  const kept = process.env.NEXT_PUBLIC_SITE_URL;
+  if (site === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+  else process.env.NEXT_PUBLIC_SITE_URL = site;
+  try {
+    const origin = site ?? 'https://safeos.sh';
+    const urls = sitemap().map((entry) => entry.url);
+    expect(urls.filter((url) => SECTIONS.test(url))).toEqual([]);
+    // Nap Mode and the old addresses that forward are not listed either.
+    expect(urls.filter((url) => /\/(nap|tutorial|analytics|profiles|donate)\//.test(url))).toEqual([]);
+    expect(urls).toContain(`${origin}/`);
+    expect(urls).toContain(`${origin}/help/`);
+  } finally {
+    if (kept === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = kept;
+  }
 });

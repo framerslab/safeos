@@ -84,8 +84,8 @@ async function app() {
     },
   };
 
-  /** History as the app mounts it, with a probe of the same alerts beside it; Local Timeline pressed. */
-  const openHistory = () => {
+  /** History as the app mounts it, with a probe of the same alerts beside it; Local Timeline pressed unless `press` is false. */
+  const openHistory = ({ press = true }: { press?: boolean } = {}) => {
     render(
       <Providers>
         <alerts.DeviceAlertsProvider>
@@ -94,7 +94,7 @@ async function app() {
         </alerts.DeviceAlertsProvider>
       </Providers>,
     );
-    fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
+    if (press) fireEvent.click(screen.getByRole('button', { name: /Local Timeline/i }));
   };
 
   /** This code has run once on the device: what it held then is written. */
@@ -184,6 +184,76 @@ it('lists a Wildlife sighting with its picture and its time', async () => {
   expect(within(entry).getByText('Wildlife')).toBeTruthy();
   expect(entry.querySelector('img')?.getAttribute('src')).toBe(PICTURE);
   expect(timeOf(entry)).not.toBe('');
+});
+
+it('opens on Local Timeline when the device holds new alerts, and marks them seen there', async () => {
+  const m = await app();
+  await m.firstRun();
+  await act(() => m.save.sighting('animal-1'));
+
+  // A host with its own server opens History on the server's Alerts.
+  m.openHistory({ press: false });
+
+  const entry = await waitFor(() => entryOf('Looks like a bird'), SLOW);
+  expect(within(entry).getByText('Wildlife')).toBeTruthy();
+  await waitFor(() => expect(m.animals.getState().detectionHistory.map((e) => e.acknowledged)).toEqual([true]), SLOW);
+  // The server's Alerts stays one press away.
+  expect(screen.getAllByRole('button').some((key) => key.textContent?.trim() === 'Alerts')).toBe(true);
+});
+
+it("lists only Wildlife's sightings under the Type filter's Wildlife", async () => {
+  const m = await app();
+  await act(async () => {
+    await m.save.sighting('animal-1');
+    await m.save.person('intrusion-1');
+  });
+  m.openHistory();
+  await waitFor(() => entryOf('Looks like a bird'), SLOW);
+  const type = screen.getAllByRole('combobox')[0];
+  expect(within(type).getByRole('option', { name: 'Wildlife' })).toBeTruthy();
+
+  fireEvent.change(type, { target: { value: 'wildlife' } });
+
+  expect(entryOf('Looks like a bird')).toBeTruthy();
+  expect(screen.queryByText('Security Intrusion')).toBeNull();
+});
+
+/** Presses Download Bundle and reads the file it hands the browser. */
+async function downloaded(): Promise<any> {
+  let bundle: Blob | undefined;
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: jest.fn((blob: Blob) => { bundle = blob; return 'blob:bundle'; }) });
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: jest.fn() });
+  jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Download Bundle (.json)' }));
+  await waitFor(() => expect(bundle).toBeDefined(), SLOW);
+  const text = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.readAsText(bundle!);
+  });
+  // The bundle's marks are saved before the next press.
+  await act(async () => {});
+  return JSON.parse(text);
+}
+
+it("puts Wildlife's sightings in the downloaded bundle, with the bundle's picture and incremental choices", async () => {
+  const m = await app();
+  await act(() => m.save.sighting('animal-1'));
+  m.openHistory();
+  await waitFor(() => entryOf('Looks like a bird'), SLOW);
+
+  const first = await downloaded();
+  expect(first.wildlife.sightings.map((s: { id: string }) => s.id)).toEqual(['animal-1']);
+  expect(first.wildlife.sightings[0].frameData).toBeUndefined();
+
+  // Marked as exported by the first download: an incremental bundle leaves it out.
+  const second = await downloaded();
+  expect(second.wildlife.sightings).toEqual([]);
+
+  fireEvent.click(screen.getByRole('checkbox', { name: /Only unexported frames/ }));
+  fireEvent.click(screen.getByRole('checkbox', { name: /Include full frames/ }));
+  const third = await downloaded();
+  expect(third.wildlife.sightings.map((s: { id: string; frameData?: string }) => [s.id, s.frameData])).toEqual([['animal-1', PICTURE]]);
 });
 
 it('marks every new alert as seen when it opens', async () => {

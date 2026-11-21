@@ -19,6 +19,7 @@
 import React from 'react';
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import { Dashboard } from '@/components/dashboard/Dashboard';
+import { WaysToWatch } from '@/components/dashboard/WaysToWatch';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import type { DeviceAlert } from '@/lib/alert-groups';
 import { getAllSubjectProfiles, type SubjectProfileDB } from '@/lib/client-db';
@@ -261,6 +262,29 @@ it('reads the saved pets once and gives them to the line and the rows', async ()
   const row = rows().find((link) => words(link.querySelector('.way__name')) === 'Lost and Found') as HTMLElement;
   expect(within(row).getByRole('img', { name: 'Photo of Mittens' })).toBeTruthy();
   expect(savedSubjects).toHaveBeenCalledTimes(1);
+});
+
+it('reads the saved pets again when the person comes back to the tab, so a pet another tab deleted is not offered', async () => {
+  savedSubjects.mockResolvedValueOnce([mittens]).mockResolvedValue([]);
+  rememberWay('lost-found', 'pet-1');
+  await shown();
+  expect(words(line())).toBe('Start watching uses Lost and Found, for Mittens.');
+
+  await act(async () => {
+    window.dispatchEvent(new Event('focus'));
+  });
+
+  expect(words(line())).toBe('Start watching uses Motion and sound.');
+});
+
+it('sends a row opened before setup is read through setup, with the way named', () => {
+  render(<WaysToWatch setUp={null} subjects={null} />);
+  expect(rows().map((row) => bare(row.getAttribute('href')))).toEqual([
+    '/setup?next=monitor',
+    '/setup?next=lost-found',
+    '/setup?next=security',
+    '/setup?next=wildlife',
+  ]);
 });
 
 it('a pet list that cannot be read counts as none', async () => {

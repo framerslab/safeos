@@ -82,3 +82,38 @@ it('holds no key to the tip walk in any section', () => {
     expect([section, links.filter((href) => href === '/tutorial')]).toEqual([section, []]);
   }
 });
+
+it('forgets the entry when the address moves to another fragment, so a later Troubleshooting opens at its top', () => {
+  window.history.replaceState(null, '', '/help/#camera');
+  render(<HelpPage />);
+  scrolled.length = 0;
+
+  act(() => {
+    window.history.replaceState(null, '', '/help/#main-content');
+    window.dispatchEvent(new Event('hashchange'));
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'FAQ' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Troubleshooting' }));
+
+  const camera = screen.getByRole('heading', { name: 'Camera not working' }).closest('#camera');
+  expect(scrolled).not.toContain(camera);
+});
+
+it('Getting Started leads to setup, which asks for the camera and the microphone together, and then to Start watching', () => {
+  render(<HelpPage />);
+  const steps = screen.getByRole('heading', { name: 'Getting Started with SafeOS' }).parentElement as HTMLElement;
+  const links = Array.from(steps.querySelectorAll('a')).map((link) => bare(link.getAttribute('href')));
+  expect(links).toContain('/setup');
+  expect(steps.textContent).toMatch(/camera and the microphone/);
+  expect(steps.textContent).not.toMatch(/optionally microphone/);
+  expect(steps.textContent).toMatch(/Start watching/);
+  expect(steps.textContent).not.toMatch(/Click "Start Monitoring"/);
+});
+
+it("puts the browser's own setting for this site first in the camera and notifications entries", () => {
+  window.history.replaceState(null, '', '/help/#camera');
+  render(<HelpPage />);
+  const firstStep = (id: string) => document.querySelector(`#${id} li`)?.textContent ?? '';
+  expect(firstStep('camera')).toMatch(/site settings.*Camera.*Allow/);
+  expect(firstStep('notifications')).toMatch(/site settings.*Notifications.*Allow/);
+});

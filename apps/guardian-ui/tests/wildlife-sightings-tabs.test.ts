@@ -136,3 +136,31 @@ it('keeps a sighting storage refused on a device out of room when the next one i
     { id: 'bird', acknowledged: false },
   ]);
 });
+
+it.each([
+  ['clears its live sightings', (store: Store) => store.getState().clearCurrentDetections()],
+  ['stops its watch', (store: Store) => store.getState().setMonitoring(false)],
+  ['resets', (store: Store) => store.getState().reset()],
+])('keeps a sighting marked seen in another tab when the watching tab %s', async (_action, act) => {
+  const watching = openTab();
+  const other = openTab();
+  watching.getState().addDetections([sighting('bird', 1000)]);
+  await other.persist.rehydrate();
+
+  other.getState().acknowledgeDetections(['bird']);
+  act(watching);
+
+  expect(stored()).toEqual([{ id: 'bird', acknowledged: true }]);
+});
+
+it('keeps a sighting deleted in another tab deleted when the watching tab clears its live sightings', async () => {
+  const watching = openTab();
+  const other = openTab();
+  watching.getState().addDetections([sighting('bird', 1000)]);
+  await other.persist.rehydrate();
+
+  other.getState().deleteDetection('bird');
+  watching.getState().clearCurrentDetections();
+
+  expect(stored()).toEqual([]);
+});

@@ -70,10 +70,10 @@ it('serves the heading, the four ways and the part below before script runs', ()
 
   expect(page.querySelectorAll('section.ways')).toHaveLength(1);
   expect(Array.from(page.querySelectorAll('section.ways a'), (link) => bare(link.getAttribute('href')))).toEqual([
-    '/monitor',
-    '/lost-found',
-    '/security',
-    '/wildlife',
+    '/setup?next=monitor',
+    '/setup?next=lost-found',
+    '/setup?next=security',
+    '/setup?next=wildlife',
   ]);
 
   expect(Array.from(page.querySelectorAll('h2'), (heading) => words(heading)).filter((name) => name === 'Since you last looked')).toHaveLength(1);

@@ -338,9 +338,16 @@ it("asks before a nap's watch starts while another tab watches", async () => {
   const asked = screen.getByRole('dialog', { name: QUESTION });
   expect(browser.getUserMedia).not.toHaveBeenCalled();
   expect(stopKey()).toBeNull();
+  // The watch starts only once the other tab has stopped.
+  let stopped!: (done: boolean) => void;
+  jest.mocked(takeOverWatch).mockReturnValueOnce(new Promise((resolve) => { stopped = resolve; }));
   fireEvent.click(within(asked).getByRole('button', { name: 'Watch here' }));
   await act(async () => {});
   expect(takeOverWatch).toHaveBeenCalledTimes(1);
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+  expect(stopKey()).toBeNull();
+  await act(async () => { stopped(true); });
+  await act(async () => {});
   expect(stopKey()).not.toBeNull();
   cleanup();
 
