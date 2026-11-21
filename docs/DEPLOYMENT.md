@@ -33,6 +33,31 @@ npm run build
 
 This creates a static `out/` folder ready for deployment.
 
+The public header's GitHub link shows the repository's star count only when
+the build is handed it. `node scripts/read-github-stars.mjs` reads the count
+once and prints two lines, `NEXT_PUBLIC_GITHUB_STARS` and
+`NEXT_PUBLIC_GITHUB_STARS_DATE`, as its whole standard output; its sentence
+about the count goes to standard error. Set both in the environment of
+`npm run build`, and export them only when the script printed them: when
+GitHub does not answer it prints nothing, and a bare `export` lists the whole
+environment, credentials included. Unset both first, so a count an earlier
+run exported is not built in when this read fails, and clear `GITHUB_ENV` for
+the call, so the script prints the two lines even inside a workflow step.
+
+```bash
+unset NEXT_PUBLIC_GITHUB_STARS NEXT_PUBLIC_GITHUB_STARS_DATE
+stars="$(GITHUB_ENV= node scripts/read-github-stars.mjs)"
+if [ -n "$stars" ]; then export $stars; fi
+npm run build
+```
+
+The Pages and Pictures workflows run the script in a step of its own, which
+appends the two values to `GITHUB_ENV` for the build step after it.
+
+Without them the link shows its word alone. No page asks
+GitHub for the count. See Continuous Integration in the
+[development guide](./DEVELOPMENT.md#continuous-integration).
+
 ### GitHub Pages
 
 1. Create a new repository or use an existing one

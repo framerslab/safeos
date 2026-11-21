@@ -9,6 +9,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { SETUP_DONE, measureText, plain, readStrokes } from './home-checks.mjs';
+import { TONES, starsHanded } from './public-chrome-checks.mjs';
 
 export const LOOKS = ['light', 'dark'];
 export const ROW_WIDTHS = [320, 360, 390, 430, 480, 768];
@@ -873,7 +874,10 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(groups === 'Use it, Uses, Learn, About, Legal, From Frame', `the footer's groups are ${groups}`);
       const words = seen.links.map((link) => link.words);
       check(words.includes('Privacy') && words.includes('Terms'), `the footer's links are ${words.join(', ')}`);
-      check(/^© \d{4} Frame\. SafeOS code is MIT-licensed\.$/.test(plain(seen.last)), `the footer's last line reads "${plain(seen.last)}"`);
+      // The last line ends with the star count's sentence when the build was handed a count.
+      const handed = starsHanded();
+      const lastLine = new RegExp(`^© \\d{4} Frame\\. SafeOS code is MIT-licensed\\.${handed ? ` ${handed.sentence.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}` : ''}$`);
+      check(lastLine.test(plain(seen.last)), `the footer's last line reads "${plain(seen.last)}"`);
       const start = run.state === 'new' ? 'Start setup' : 'Open dashboard';
       const use = await page.waitForFunction((want) => {
         const link = document.querySelector('.app-shell__footer nav[aria-label="Site links"] a');
@@ -959,7 +963,7 @@ export async function checkApp(browser, baseUrl, outDir) {
             };
           });
           const destinations = seen.links.map((link) => link.words).join(', ');
-          check(destinations === 'How it works, Uses, Privacy, FAQ', `on ${route} the navigation "Site" holds ${destinations}`);
+          check(destinations === 'How it works, Uses, Guides, FAQ, Privacy', `on ${route} the navigation "Site" holds ${destinations}`);
           if (width >= 1280) check(seen.links.every((link) => link.shown), `on ${route} not every destination shows in the row`);
           if (width < 768) check(seen.menu, `on ${route} no Menu key shows`);
           check(seen.start === 'Open dashboard', `on ${route} the start key reads "${seen.start}"`);
@@ -3181,8 +3185,10 @@ export async function checkApp(browser, baseUrl, outDir) {
     }, { state: 'stored' });
   }
 
-  // The first screen holds 8 controls, 7 text styles, these 8 boxes, and
-  // 7 colours in the light look and 6 in the dark.
+  // The first screen holds 8 controls, 7 text styles, these 8 boxes, and the
+  // look's own colours alone: the page, the panel, the ink, the quiet tone,
+  // the line, the accent and transparent, and in the light look the solid
+  // key's white label (the keys' set gives it one there).
   const FIRST_BOXES = [
     /^span\.drawn-frame$/, /^button\.key\..*key--solid/, /^span\.way__square$/, /^li\.way$/, /^li\.way$/, /^li\.way$/,
     /^nav\.phone-bar\..*look-part/, /^a\.phone-bar__place.*::before$/,
@@ -3210,8 +3216,10 @@ export async function checkApp(browser, baseUrl, outDir) {
         `the first screen holds ${seen.controls.length} controls, not 8: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
       check(seen.styles.length === 7, `the first screen holds ${seen.styles.length} text styles, not 7: ${seen.styles.join(' | ')}`);
       check(seen.boxes.length === 8 && matchesAll(seen.boxes, FIRST_BOXES), `the first screen draws ${seen.boxes.length} boxes, not the 8 named: ${seen.boxes.join(', ')}`);
-      const colours = look === 'light' ? 7 : 6;
-      check(seen.colours.length === colours, `the first screen holds ${seen.colours.length} colours, not ${colours}: ${seen.colours.join(', ')}`);
+      const tone = TONES[look];
+      const colours = [tone.page, tone.panel, tone.ink, tone.quiet, tone.line, tone.accent, 'rgba(0, 0, 0, 0)', ...(look === 'light' ? [tone.onAccent] : [])];
+      check(seen.colours.length === colours.length && colours.every((colour) => seen.colours.includes(colour)),
+        `the first screen holds ${seen.colours.length} colours, not the look's ${colours.length}: ${seen.colours.join(', ')}`);
     });
   }
 

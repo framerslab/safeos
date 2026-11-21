@@ -10,13 +10,13 @@ import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/page-metadata';
 import Link from 'next/link';
 import Image from 'next/image';
+import { MakerMark } from '@/components/visitor/MakerMark';
 import {
   IconChevronLeft,
   IconShield,
   IconHeart,
   IconGlobe,
   IconDatabase,
-  IconExternalLink,
   IconCamera,
   IconCpu,
   IconBell,
@@ -230,33 +230,10 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Who builds it */}
-        <section className="mb-16">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="text-emerald-400">03</span>
-            Who Builds It
-          </h3>
-          <div className="p-6 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-emerald-500/30 rounded-xl">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                <IconHeart size={24} className="text-emerald-400" />
-              </div>
-              <div>
-                <h4 className="font-semibold text-white">Why SafeOS exists</h4>
-                <p className="text-sm text-slate-400">Built and paid for by Frame</p>
-              </div>
-            </div>
-            <p className="text-slate-300 leading-relaxed">
-              Frame builds SafeOS and pays for its development, so an old phone or laptop can watch a
-              room for free.
-            </p>
-          </div>
-        </section>
-
         {/* Tech Stack */}
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="text-emerald-400">04</span>
+            <span className="text-emerald-400">03</span>
             Tech Stack
           </h3>
           <p className="text-slate-400 mb-6">
@@ -316,7 +293,7 @@ export default function AboutPage() {
         {/* Architecture */}
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="text-emerald-400">05</span>
+            <span className="text-emerald-400">04</span>
             How It Works
           </h3>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-xl">
@@ -361,7 +338,7 @@ export default function AboutPage() {
         {/* Lawful use */}
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="text-emerald-400">06</span>
+            <span className="text-emerald-400">05</span>
             Use It Lawfully
           </h3>
           <div className="p-6 bg-red-500/10 border border-red-500/30 rounded-xl">
@@ -385,56 +362,10 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Built by Frame.dev */}
-        <section className="mb-16">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="text-emerald-400">07</span>
-            Built by Frame.dev
-          </h3>
-          <div className="p-6 bg-gradient-to-br from-blue-500/10 to-purple-500/10 border border-blue-500/30 rounded-xl">
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 relative flex-shrink-0">
-                <Image
-                  src="/logos/frame.svg"
-                  alt="Frame.dev"
-                  width={64}
-                  height={64}
-                  className="object-contain"
-                />
-              </div>
-              <div>
-                <h4 className="font-semibold text-white text-lg">Frame.dev</h4>
-                <p className="text-sm text-slate-400">Makers of SafeOS and AgentOS</p>
-              </div>
-            </div>
-            <p className="text-slate-300 leading-relaxed mb-4">
-              SafeOS Guardian is made by the team at{' '}
-              <a
-                href="https://frame.dev"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-400 hover:text-blue-300 font-medium"
-              >
-                Frame.dev
-              </a>
-              , which also makes AgentOS.
-            </p>
-            <a
-              href="https://frame.dev"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500/20 border border-blue-500/30 rounded-lg text-blue-400 hover:bg-blue-500/30 transition-colors"
-            >
-              Visit Frame.dev
-              <IconExternalLink size={16} />
-            </a>
-          </div>
-        </section>
-
         {/* Contact */}
         <section className="mb-16">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <span className="text-emerald-400">08</span>
+            <span className="text-emerald-400">06</span>
             Contact
           </h3>
           <div className="p-6 bg-slate-900 border border-slate-700 rounded-xl">
@@ -477,6 +408,62 @@ export default function AboutPage() {
           </div>
         </section>
 
+        {/* Who builds SafeOS: told once, under the makers' own marks */}
+        <section className="who-builds" aria-labelledby="who-builds-title">
+          <div className="tick-rule" aria-hidden="true" />
+          <div className="who-builds__main">
+            <h2 id="who-builds-title" className="who-builds__title">
+              Who builds <span translate="no">SafeOS</span>
+            </h2>
+            <div className="who-builds__entry">
+              <MakerMark maker="frame" size={40} />
+              <div>
+                <h3 className="who-builds__name" translate="no">
+                  Frame
+                </h3>
+                <p className="who-builds__line">
+                  Frame builds SafeOS and pays for its development, so an old phone or laptop can watch a room, a
+                  porch or a yard for free.
+                </p>
+                <a href="https://frame.dev" className="link-row" translate="no">
+                  frame.dev
+                </a>
+              </div>
+            </div>
+          </div>
+          <div className="who-builds__others">
+            <p className="who-builds__also">
+              Also from <span translate="no">Frame</span>
+            </p>
+            <div className="who-builds__entry">
+              <MakerMark maker="agentos" size={40} />
+              <div>
+                <h3 className="who-builds__name" translate="no">
+                  AgentOS
+                </h3>
+                <p className="who-builds__line">An open-source framework for building software agents in TypeScript.</p>
+                <a href="https://agentos.sh" className="link-row" translate="no">
+                  agentos.sh
+                </a>
+              </div>
+            </div>
+            <div className="who-builds__entry">
+              <MakerMark maker="paracosm" size={40} />
+              <div>
+                <h3 className="who-builds__name" translate="no">
+                  Paracosm
+                </h3>
+                <p className="who-builds__line">
+                  An open-source simulator that plays out what-if questions with software agents.
+                </p>
+                <a href="https://paracosm.agentos.sh" className="link-row" translate="no">
+                  paracosm.agentos.sh
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Free on this site */}
         <section className="text-center">
           <div className="inline-block p-6 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border border-emerald-500/30 rounded-2xl">
@@ -490,12 +477,9 @@ export default function AboutPage() {
         </section>
 
         {/* Links */}
-        <div className="mt-12 flex justify-center gap-4">
-          <Link
-            href="/tutorials"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
-          >
-            View Tutorials
+        <div className="mt-12 flex justify-center">
+          <Link href="/tutorials/" className="link-row">
+            Guides
           </Link>
         </div>
       </main>

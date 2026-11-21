@@ -42,6 +42,11 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-24.04
+    # The build reads the repository and nothing more; publishing is the
+    # deploy job's. The run's token, which the star count read is given, can
+    # therefore only read.
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -59,6 +64,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The star count beside the GitHub link is read once, here, and handed
+      # to the build as NEXT_PUBLIC_GITHUB_STARS and
+      # NEXT_PUBLIC_GITHUB_STARS_DATE; no page asks GitHub for it. The script
+      # needs no token and works without one. It is given the run's own
+      # read-only token because a request without one is counted against the
+      # runner's shared address and can be refused. A read that fails leaves
+      # a warning and no count, and the build goes on: the link then shows
+      # its word alone.
+      - name: Read the repository's star count
+        run: node scripts/read-github-stars.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Build static site
         run: npm run build

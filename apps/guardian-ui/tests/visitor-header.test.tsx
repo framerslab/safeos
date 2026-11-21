@@ -45,7 +45,7 @@ function finishSetup() {
 }
 
 describe('the Menu', () => {
-  it('opens a panel that lists the start link, the four links and GitHub, and shows "Close" named "Close menu"', () => {
+  it('opens a panel that lists the start link, the row\'s five links, About SafeOS, Blog and GitHub, and shows "Close" named "Close menu"', () => {
     const { container } = render(<VisitorHeader />);
     const key = screen.getByRole('button', { name: 'Menu' });
     const menu = container.querySelector('#site-menu') as HTMLElement;
@@ -65,8 +65,11 @@ describe('the Menu', () => {
       'Start setup /setup',
       'How it works /#how-it-works',
       'Uses /#uses',
-      'Privacy /privacy',
+      'Guides /tutorials',
       'FAQ /faq',
+      'Privacy /privacy',
+      'About SafeOS /about',
+      'Blog /blog',
       'GitHub https://github.com/framerslab/safeos',
     ]);
   });
@@ -322,5 +325,76 @@ describe('the start links once setup is done on this device', () => {
       useOnboardingStore.setState({ isComplete: true, selectedScenario: 'pet', acceptedDisclaimers: undefined as never });
     });
     expect(Array.from(container.querySelectorAll('a')).map((link) => link.textContent)).toEqual(['Start setup']);
+  });
+});
+
+describe('a row that runs short', () => {
+  // jsdom lays nothing out, so the row's widths are given here: the row is
+  // 1000 px wide, and its contents need 1100 px with every link, 1050 px
+  // without GitHub and 990 px without GitHub and Privacy. Before the window
+  // narrows, everything fits in 900 px.
+  function giveWidths(narrow: () => boolean) {
+    const scroll = jest.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(function (this: Element) {
+      if (!narrow()) return 900;
+      const short = this.closest('.site-header')?.getAttribute('data-short');
+      return short === 'privacy' ? 990 : short === 'github' ? 1050 : 1100;
+    });
+    const client = jest.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    return () => {
+      scroll.mockRestore();
+      client.mockRestore();
+    };
+  }
+
+  it.each([
+    ['Privacy', '.site-header__link--wide'],
+    ['GitHub', '.site-header__github'],
+  ])('moves focus from %s to the start key when the row gives that link up', (_name, selector) => {
+    let narrow = false;
+    const restore = giveWidths(() => narrow);
+    try {
+      const { container } = render(<VisitorHeader />);
+      const link = container.querySelector(selector) as HTMLElement;
+      link.focus();
+      expect(document.activeElement).toBe(link);
+
+      narrow = true;
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(container.querySelector('.site-header')?.getAttribute('data-short')).toBe('privacy');
+      expect(document.activeElement).toBe(container.querySelector('.site-header__start'));
+    } finally {
+      restore();
+    }
+  });
+
+  it('moves focus from the start key to the Menu key when the row collapses', () => {
+    let narrow = false;
+    // Even without GitHub and Privacy the row needs 1020 px of its 1000; collapsed, 800 px.
+    const scroll = jest.spyOn(Element.prototype, 'scrollWidth', 'get').mockImplementation(function (this: Element) {
+      if (!narrow) return 900;
+      const nav = this.closest('.site-header');
+      if (nav?.getAttribute('data-collapsed') === 'true') return 800;
+      const short = nav?.getAttribute('data-short');
+      return short === 'privacy' ? 1020 : short === 'github' ? 1050 : 1100;
+    });
+    const client = jest.spyOn(Element.prototype, 'clientWidth', 'get').mockReturnValue(1000);
+    try {
+      const { container } = render(<VisitorHeader />);
+      const start = container.querySelector('.site-header__start') as HTMLElement;
+      start.focus();
+      expect(document.activeElement).toBe(start);
+
+      narrow = true;
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(container.querySelector('.site-header')?.getAttribute('data-collapsed')).toBe('true');
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Menu' }));
+    } finally {
+      scroll.mockRestore();
+      client.mockRestore();
+    }
   });
 });
