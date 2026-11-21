@@ -17,14 +17,6 @@
 //   sound-card            a Sound alert's card
 //   opened                a Motion alert's picture, opened
 //   history               History's rows of the watch's alerts
-//
-// The clip's camera moves, so a Motion alert raised from the whole clip boxes
-// the whole frame, and a box over half of the frame has no close-up. For the
-// Motion states (card, opened, history, live-box) the camera is the clip
-// itself through the fake camera, held still outside one part: the page sees
-// a still frame of the clip with the clip playing inside its middle part, so
-// that part is what changes, and the box and its close-up show.
-
 //   watch-group           Alert pictures in the watch's settings
 //   settings-group        Alert pictures on Settings > Detection
 //   notice                the notice before a device's first watch
@@ -32,6 +24,13 @@
 //   live-box              the box on the live picture after an alert
 //   sighting              a Lost and Found sighting, from a striped clip this
 //                         script writes, with the pet "Stripes" enrolled
+//
+// The clip's camera moves, so a Motion alert raised from the whole clip boxes
+// the whole frame, and a box over half of the frame has no close-up. For the
+// Motion states (card, opened, history, live-box) the camera is the clip
+// itself through the fake camera, held still outside one part: the page sees
+// a still frame of the clip with the clip playing inside its middle part, so
+// that part is what changes, and the box and its close-up show.
 //
 // A state it cannot reach fails the run and is named. It prints the commit
 // and the run it was given (CAPTURE_COMMIT, CAPTURE_RUN).
@@ -62,6 +61,9 @@ const withDetectors = ({ motion, sound }) => ({
   globalSettings: { ...CAPTURE_SETTINGS.globalSettings, motionDetectionEnabled: motion, audioDetectionEnabled: sound, pixelDetectionEnabled: false },
 });
 const MOTION_ONLY = withDetectors({ motion: true, sound: false });
+// The clip held still outside one part changes less of the frame than the whole clip does, so
+// its watch runs at a Motion sensitivity of 95: a change over 5 per cent of the picture alerts.
+const PART_MOTION = { ...MOTION_ONLY, globalSettings: { ...MOTION_ONLY.globalSettings, motionSensitivity: 95 } };
 const SOUND_ONLY = withDetectors({ motion: false, sound: true });
 const SIGHTINGS_ONLY = withDetectors({ motion: false, sound: false });
 
@@ -283,7 +285,7 @@ async function state(names, size, look, run) {
 
 /** Motion alerts: the live box, three cards, the opened picture, the watch's group, History, Settings. */
 async function motionStates(browser, size, look) {
-  const context = await seededContext(browser, { size, look, settings: MOTION_ONLY, before: [clipInOnePart] });
+  const context = await seededContext(browser, { size, look, settings: PART_MOTION, before: [clipInOnePart] });
   const page = await context.newPage();
   try {
     await state(['live-box', 'card', 'opened', 'watch-group'], size, look, async () => {
