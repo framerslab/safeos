@@ -79,9 +79,9 @@ export function NotificationPictureRow() {
     .join(' ');
 
   return (
-    <div className="alert-pictures-notification" data-notification-picture-row="">
+    <div className="alert-pictures-note-picture" data-notification-picture-row="">
       {/* The whole row is the switch's target. */}
-      <div className="alert-pictures-notification__row" onClick={toggle}>
+      <div className="alert-pictures-note-picture__row" onClick={toggle}>
         <span id={label} className="alert-pictures-row__label" data-lead="">{NOTIFICATION_PICTURE_SWITCH}</span>
         <button
           type="button"
@@ -97,12 +97,12 @@ export function NotificationPictureRow() {
           </span>
         </button>
       </div>
-      <p id={line} className="alert-pictures-line alert-pictures-notification__line" data-lead="">{LOCK_SCREEN_LINE}</p>
-      <p className="alert-pictures-quiet alert-pictures-notification__line">{THIS_DEVICE_LINE}</p>
-      {reason === 'words-alone' && <p id={why} className="alert-pictures-quiet alert-pictures-notification__line">{WORDS_ALONE_LINE}</p>}
-      {reason === 'blocked' && <p id={why} className="alert-pictures-quiet alert-pictures-notification__line">{BLOCKED_LINE}</p>}
+      <p id={line} className="alert-pictures-line alert-pictures-note-picture__line" data-lead="">{LOCK_SCREEN_LINE}</p>
+      <p className="alert-pictures-quiet alert-pictures-note-picture__line">{THIS_DEVICE_LINE}</p>
+      {reason === 'words-alone' && <p id={why} className="alert-pictures-quiet alert-pictures-note-picture__line">{WORDS_ALONE_LINE}</p>}
+      {reason === 'blocked' && <p id={why} className="alert-pictures-quiet alert-pictures-note-picture__line">{BLOCKED_LINE}</p>}
       {reason === 'ask' && (
-        <div className="alert-pictures-notification__ask">
+        <div className="alert-pictures-note-picture__ask">
           <button id={allow} type="button" className="alert-pictures-key" onClick={() => void ask()}>{ALLOW_NOTIFICATIONS}</button>
         </div>
       )}
