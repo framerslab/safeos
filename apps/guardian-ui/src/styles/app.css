@@ -1,0 +1,1638 @@
+/**
+ * App pages: the app's shell, its header, the phone bar and the parts built
+ * in the readable look.
+ *
+ * Every colour is a token of design-system.css: the page (steel-950), the
+ * panel (steel-900), the raised ground (steel-850), the ink (steel-50), the
+ * quiet tone (steel-200), the line (steel-300), one green (--look-accent) and
+ * one alert colour (--look-alert). Sizes are the --type-* tokens. The stops
+ * are 768 px (48em), 1024 px (64em) and 1440 px (90em), written in em so a
+ * larger text size setting moves the page to its narrower layout.
+ */
+
+/* =============================================================================
+   Tokens
+   ============================================================================= */
+
+:root {
+  --phone-bar-height: 4rem; /* 64px */
+  --app-heading-line: 2.875rem; /* 46px */
+  --app-entry-line: 1.875rem; /* 30px */
+}
+
+@media (min-width: 48em) {
+  :root {
+    --app-heading-line: 3.75rem; /* 60px */
+  }
+}
+
+@media (min-width: 64em) {
+  :root {
+    --app-heading-line: 4.5rem; /* 72px */
+  }
+}
+
+@media (min-width: 90em) {
+  :root {
+    --app-heading-line: 4.875rem; /* 78px */
+    --app-entry-line: 2.125rem; /* 34px */
+  }
+}
+
+/* =============================================================================
+   A part built in the look
+   ============================================================================= */
+
+.look-part {
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  /* A word longer than its column (much larger text on a narrow screen)
+     breaks instead of pushing the page sideways. */
+  overflow-wrap: anywhere;
+  --visitor-panel-ink: #ffffff;
+}
+
+/* The quiet tone in the light look. Inter at 400 and 16 px draws its strokes
+   at about 0.6 of its colour's contrast, so the light look's own quiet tone
+   (10.9:1 on the page) read 6.0 to 6.9:1 on the strokes; #212529 (14.7:1 on
+   the page, 13.9:1 on the panel) reads over 7:1. The ink on the panel keeps
+   the light look's ink. */
+html.light .look-part {
+  --color-steel-200: #212529;
+  --visitor-panel-ink: #0f1215;
+}
+
+/* The focus ring: 2 px in the look's green, 2 px outside the control, on
+   keyboard focus only. A browser that does not know :focus-visible drops
+   both rules and keeps its own ring. */
+.look-part :focus:not(:focus-visible) {
+  outline: none;
+}
+
+.look-part :focus-visible {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.look-part .look-switch:focus-visible {
+  border-radius: 50%;
+}
+
+.look-part :is(a, button, summary) {
+  touch-action: manipulation;
+}
+
+/* A pressed link or key keeps its words at full strength. The site's touch
+   rules dim every pressed link and key (html.light a:active is the strongest
+   of them), which would take the quiet tone on the raised ground under 7:1;
+   this rule outranks them. */
+:root .look-part :is(a, button):active {
+  opacity: 1;
+}
+
+/* =============================================================================
+   The shell
+   ============================================================================= */
+
+/* An app page follows the browser's text size setting, and an anchor or a
+   focused control never lands under the fixed header. */
+html:has(.app-shell) {
+  font-size: 100%;
+  scroll-padding-top: calc(var(--site-header-height) + 16px + env(safe-area-inset-top, 0px));
+}
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
+}
+
+.app-shell > .app-content {
+  flex: 1 0 auto;
+  padding-top: calc(var(--site-header-height) + env(safe-area-inset-top, 0px));
+  overflow-y: visible;
+}
+
+/* On a phone nothing the page scrolls to, and no part of the footer, sits
+   under the bar at the foot of the screen. */
+@media not all and (min-width: 48em) {
+  html:has(.phone-bar) {
+    scroll-padding-bottom: calc(var(--phone-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-shell--bar .app-shell__footer .site-footer {
+    padding-bottom: calc(var(--phone-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* A part a page fixes to the foot of the screen stands above the bar:
+     Motion and sound's Quick Settings key and the panel it opens. */
+  html:has(.phone-bar) .quick-settings {
+    bottom: calc(var(--phone-bar-height) + 16px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* The open panel stays below the header on a short screen, so its close
+     key takes a press: its height is the screen less the header, the bar's
+     offset and an 8 px gap, and its settings scroll inside it. */
+  html:has(.phone-bar) .quick-settings [role='dialog'] {
+    display: flex;
+    flex-direction: column;
+    max-height: min(70vh, calc(100dvh - var(--site-header-height) - env(safe-area-inset-top, 0px) - var(--phone-bar-height) - 24px - env(safe-area-inset-bottom, 0px)));
+  }
+
+  html:has(.phone-bar) .quick-settings [role='dialog'] > .overflow-y-auto {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
+  }
+}
+
+/* =============================================================================
+   Before script
+   ============================================================================= */
+
+/* With scripts off no look is chosen by script, so a part built in the look
+   takes the light tokens from the device's setting through CSS alone, as the
+   home page does. The values are html.light's (design-system.css) with the
+   visitor pages' quiet tone. A page this stylesheet does not build keeps the
+   values it was written for. */
+@media (prefers-color-scheme: light) {
+  html:not(.dark):not(.light):has(.app-shell--look) {
+    color-scheme: light;
+  }
+
+  html:not(.dark):not(.light):has(.app-shell--look) body,
+  html:not(.dark):not(.light) .look-part {
+    --color-steel-950: #f8f9fa;
+    --color-steel-900: #f1f3f4;
+    --color-steel-850: #e8ebee;
+    --color-steel-800: #dee2e6;
+    --color-steel-700: #ced4da;
+    --color-steel-600: #adb5bd;
+    --color-steel-500: #868e96;
+    --color-steel-400: #5a6270;
+    --color-steel-300: #495057;
+    --color-steel-200: #212529;
+    --color-steel-100: #212529;
+    --color-steel-50: #0f1215;
+    --look-accent: #14532d;
+    --look-accent-hover: #052e16;
+    --look-on-accent: #ffffff;
+    --look-alert: #991b1b;
+    --visitor-panel-ink: #0f1215;
+    background: var(--color-steel-950);
+    color: var(--color-steel-50);
+  }
+}
+
+/* =============================================================================
+   The app's header: one row at every width
+   ============================================================================= */
+
+.app-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* No line in the first screen; once the page has moved under the bar, a 1 px
+   line in the line colour along its lower edge. */
+.app-header[data-scrolled='true'] {
+  box-shadow: 0 1px 0 var(--color-steel-300);
+}
+
+.app-header__bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 16px;
+  min-height: var(--site-header-height);
+  margin-inline: auto;
+  position: relative;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+
+.app-header__bar > * {
+  flex-shrink: 0;
+}
+
+@media (min-width: 48em) {
+  .app-header__bar {
+    padding-left: max(32px, env(safe-area-inset-left, 0px));
+    padding-right: max(32px, env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (min-width: 64em) {
+  .app-header__bar {
+    max-width: 1200px;
+  }
+}
+
+@media (min-width: 90em) {
+  .app-header__bar {
+    max-width: 1320px;
+    padding-left: max(64px, env(safe-area-inset-left, 0px));
+    padding-right: max(64px, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* The brand: on a phone the mark and the wordmark stand plain, since the
+   bar at the foot carries Dashboard; from the tablet width they are a link
+   to the dashboard. */
+.app-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+}
+
+.app-header__brand--link {
+  display: none;
+}
+
+.app-header__brand--link:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-header__brand--link:active {
+    transform: none;
+  }
+}
+
+@media (min-width: 48em) {
+  .app-header__brand--link {
+    display: inline-flex;
+  }
+
+  .app-header__brand--plain {
+    display: none;
+  }
+}
+
+/* The row: the four destinations, then More while it is needed and the look
+   switch at the right. The navigation never shrinks: a row that runs short
+   runs past the bar, so the header's script moves to the next fold. */
+.app-header__nav {
+  display: none;
+}
+
+@media (min-width: 48em) {
+  .app-header__nav {
+    display: flex;
+    flex: 1 0 auto;
+    align-items: center;
+    gap: 16px;
+  }
+}
+
+/* The links stand one text size apart: 16 px at the usual size, and as far
+   again as the text grows, so under larger text they keep their distance
+   and a row that runs short folds instead of crowding its words. */
+.app-header__links {
+  display: flex;
+  gap: 1rem; /* 16px */
+}
+
+@media (min-width: 64em) {
+  .app-header__links {
+    gap: 1.5rem; /* 24px */
+  }
+}
+
+/* Wide: the four links sit on the page's middle line. */
+@media (min-width: 90em) {
+  .app-header__links {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* A link: the quiet tone at rest; the ink with a 1 px ink underline under
+   the pointer; the ink and 1 px lower while pressed; the page being read in
+   the ink with a 2 px accent underline, the same under the pointer. */
+.app-header__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  white-space: nowrap;
+}
+
+.app-header__link:hover {
+  color: var(--color-steel-50);
+  text-decoration-line: underline;
+  text-decoration-color: var(--color-steel-50);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 6px;
+}
+
+.app-header__link:active {
+  color: var(--color-steel-50);
+  transform: translateY(1px);
+}
+
+.app-header__link[aria-current] {
+  color: var(--color-steel-50);
+  text-decoration-line: underline;
+  text-decoration-color: var(--look-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
+}
+
+/* The fold, set by the header's script when the row runs short: the
+   wordmark leaves first, then Help moves into More, then Settings; at the
+   last fold the row scrolls inside itself with its right edge faded. */
+.app-header[data-fold='1'] .app-header__brand--link .wordmark,
+.app-header[data-fold='2'] .app-header__brand--link .wordmark,
+.app-header[data-fold='3'] .app-header__brand--link .wordmark,
+.app-header[data-fold='4'] .app-header__brand--link .wordmark {
+  display: none;
+}
+
+.app-header[data-fold='2'] .app-header__link[data-section='/help'],
+.app-header[data-fold='3'] .app-header__link[data-section='/help'],
+.app-header[data-fold='4'] .app-header__link[data-section='/help'] {
+  display: none;
+}
+
+.app-header[data-fold='3'] .app-header__link[data-section='/settings'],
+.app-header[data-fold='4'] .app-header__link[data-section='/settings'] {
+  display: none;
+}
+
+.app-header[data-fold='4'] .app-header__bar {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+}
+
+/* More: the word in the ink at weight 700, on one line, no edge, the panel
+   colour under the pointer, 1 px lower while pressed. */
+.app-header__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 12px;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+}
+
+.app-header__more:hover {
+  background: var(--color-steel-900);
+}
+
+/* Written under .look-part so it outranks the touch rule that shrinks every
+   pressed button. */
+.look-part .app-header__more:active {
+  transform: translateY(1px);
+}
+
+/* The open More: a panel under the bar that scrolls inside itself. It is
+   the header's own child, so the bar's scrolling and its mask never clip it. */
+.app-more {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: calc(100vh - var(--site-header-height));
+  max-height: calc(100dvh - var(--site-header-height) - env(safe-area-inset-top, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 8px max(16px, env(safe-area-inset-right, 0px)) 16px max(16px, env(safe-area-inset-left, 0px));
+  background: var(--color-steel-900);
+  box-shadow: 0 1px 0 var(--color-steel-300);
+  animation: app-more-in 150ms ease-out;
+}
+
+.app-more[hidden] {
+  display: none;
+}
+
+@keyframes app-more-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-more {
+    animation: none;
+  }
+}
+
+@media (min-width: 48em) {
+  .app-more {
+    padding-left: max(32px, env(safe-area-inset-left, 0px));
+    padding-right: max(32px, env(safe-area-inset-right, 0px));
+  }
+}
+
+.app-more__row {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 12px 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+}
+
+.app-more__row + .app-more__row {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.app-more__row:hover {
+  background: var(--color-steel-850);
+}
+
+.app-more__row:active {
+  transform: translateY(1px);
+}
+
+/* =============================================================================
+   The count of new alerts on History
+   ============================================================================= */
+
+.new-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 6px;
+  color: var(--color-steel-50);
+  font-weight: var(--weight-bold);
+}
+
+.problem-mark {
+  fill: var(--look-alert);
+  flex: none;
+}
+
+/* The number stands on History's own baseline, at any text size: the glyph
+   has no baseline of its own, and the count takes the number's. */
+.new-count > .num {
+  align-self: baseline;
+}
+
+/* =============================================================================
+   The phone bar
+   ============================================================================= */
+
+.phone-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* The top line is drawn inside the bar, where the faded edge does not cut
+     it away. */
+  box-shadow: inset 0 1px 0 var(--color-steel-300);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (min-width: 48em) {
+  .phone-bar {
+    display: none;
+  }
+}
+
+/* Three equal places, each a glyph over its word. A place keeps its words
+   whole: with much larger text the places grow and the bar scrolls inside
+   itself. */
+.phone-bar__place {
+  flex: 1 0 33.333%;
+  min-width: max-content;
+  min-height: var(--phone-bar-height);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  position: relative;
+  padding: 0 8px;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  white-space: nowrap;
+}
+
+.phone-bar__glyph {
+  display: flex;
+  color: var(--color-steel-50);
+}
+
+@media (hover: hover) {
+  .phone-bar__place:hover {
+    color: var(--color-steel-50);
+  }
+}
+
+.phone-bar__place:active {
+  background: var(--color-steel-850);
+}
+
+/* The bar scrolls inside itself, so whatever is drawn outside its box is cut
+   away: a focused place draws its 2 px ring inside its own edge. */
+.phone-bar__place:focus-visible {
+  outline-offset: -4px;
+}
+
+/* The place of the page being read: a 32 px accent line along its top. */
+.phone-bar__place[aria-current]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: calc(50% - 16px);
+  width: 32px;
+  height: 2px;
+  background: var(--look-accent);
+}
+
+/* When the places are wider than the bar it scrolls inside itself, with the
+   right edge faded as the header's row is at its last fold, until its end is
+   reached. The bar's script sets data-overflow while places lie past that
+   edge, so the fade shows in every browser. */
+.phone-bar[data-overflow] {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+}
+
+/* =============================================================================
+   The head of a way's page
+   ============================================================================= */
+
+/* From 64em the page's name and its keys share one row. */
+.way-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 4rem;
+}
+
+.way-head__keys {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.way-head__menu {
+  position: relative;
+}
+
+/* A key's menu keeps its words' own wrapping inside a row of keys. */
+.way-head__menu > .absolute {
+  white-space: normal;
+}
+
+/* On a phone and a tablet the name has its line and the keys have theirs
+   under it, so the head never makes the page wider than the screen and no
+   key's words wrap: what a page fixes to the screen is laid out to the page's
+   width. The keys keep one line and scroll inside their row, with the right
+   edge faded as the phone bar's is until the end is reached; the row's
+   padding keeps a focused key's ring whole. A key's menu opens under the head
+   at its right edge, no wider than the head, so it stays on the screen with
+   text at any size and the row's scroll does not clip it. */
+@media not all and (min-width: 64em) {
+  .way-head {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    height: auto;
+    padding: 0.5rem 0;
+  }
+
+  .way-head__menu {
+    position: static;
+  }
+
+  .way-head__menu > .absolute {
+    top: 100%;
+    max-width: 100%;
+  }
+
+  .key-row {
+    margin: -0.25rem;
+    padding: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-padding-inline-end: 1.5rem;
+  }
+
+  .key-row > * {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  /* A mask cuts away whatever is drawn outside the row's box, an open menu
+     with it, so the edge is not faded while a key's menu is open. */
+  .key-row[data-overflow]:not(:has(.way-head__menu > [aria-expanded='true'])) {
+    -webkit-mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+  }
+}
+
+/* =============================================================================
+   Settings' first rows on a phone
+   ============================================================================= */
+
+/* The room above the first row keeps its focus ring whole: the page's own
+   column clips what is drawn above its top, and the top bar ends there. */
+.settings-phone-rows {
+  padding: 0.5rem max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px));
+}
+
+@media (min-width: 48em) {
+  .settings-phone-rows {
+    display: none;
+  }
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  text-align: left;
+}
+
+.settings-row:hover {
+  background: var(--color-steel-900);
+}
+
+/* Written under .look-part so it outranks the touch rule that shrinks every
+   pressed button. */
+.look-part .settings-row:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .look-part .settings-row:active {
+    transform: none;
+  }
+}
+
+.settings-row__glyph {
+  flex: none;
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+}
+
+.settings-row__glyph svg {
+  width: 22px;
+  height: 22px;
+}
+
+.settings-row .key__arrow {
+  flex: none;
+  margin-left: auto;
+}
+
+/* =============================================================================
+   The outlined key
+   ============================================================================= */
+
+.key--outline {
+  border: 1px solid var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-50);
+}
+
+.key--outline:hover {
+  border-color: var(--color-steel-50);
+  background: var(--color-steel-900);
+}
+
+.app-dialog .key--outline:hover {
+  background: var(--color-steel-850);
+}
+
+/* Pressed, 1 px lower. Written to outrank the site's touch rule, which
+   shrinks every pressed button. */
+:root .key--outline:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root .key--outline:active {
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   The question before a second watch
+   ============================================================================= */
+
+.app-dialog__veil {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: color-mix(in srgb, var(--color-steel-950) 80%, transparent);
+}
+
+.app-dialog {
+  width: 100%;
+  max-width: 28rem;
+  /* At 200% text or in a short window the panel scrolls inside the veil. */
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  border: 1px solid var(--color-steel-300);
+  background: var(--color-steel-900);
+  color: var(--visitor-panel-ink);
+}
+
+.app-dialog__question {
+  margin: 0 0 24px;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+/* The keys keep one row and scroll inside it; the row's padding keeps a
+   focused key's ring whole, and its margin keeps the keys where they stand. */
+.app-dialog__keys {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12px;
+  margin: -0.25rem;
+  padding: 0.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-dialog__keys > .key {
+  flex: 1 0 auto;
+  color: var(--visitor-panel-ink);
+}
+
+/* =============================================================================
+   The dashboard: the watching state
+   ============================================================================= */
+
+/* The camera frame drawn while nothing is watching: the panel colour inside
+   the four ticks and a flat level line; while the device is read, an accent
+   bar grows along its foot in the line's place. */
+.drawn-frame {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 64px;
+  aspect-ratio: 4 / 3;
+  background: var(--color-steel-900);
+}
+
+.drawn-frame .level-line {
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 28%;
+  width: 76%;
+  height: 12px;
+}
+
+.level-line {
+  display: block;
+  fill: none;
+  stroke: var(--color-steel-300);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.drawn-frame[data-loading='true'] .level-line {
+  display: none;
+}
+
+.drawn-frame[data-loading='true']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--look-accent);
+  transform-origin: left center;
+  animation: capture-loading 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawn-frame[data-loading='true']::after {
+    display: none;
+  }
+}
+
+.dash-state {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0 0;
+}
+
+.dash-state__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--app-heading-line);
+}
+
+@media (min-width: 48em) {
+  .dash-state__head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 24px;
+  }
+
+  .dash-state__head .drawn-frame {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+  }
+}
+
+.dash-heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-headline-size);
+  line-height: var(--app-heading-line);
+  color: var(--color-steel-50);
+  text-wrap: balance;
+}
+
+/* Until this device is read the heading's place shows the loading words, and
+   the heading is kept for assistive technology alone. With scripts off the
+   heading shows, since nothing will be read. */
+.dash-loading {
+  display: none;
+  margin: 0;
+}
+
+html[data-app-started='true'] .dash-state[data-read='no'] .dash-loading {
+  display: block;
+}
+
+html[data-app-started='true'] .dash-state[data-read='no'] .dash-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.dash-state[data-read='no'] .dash-line {
+  visibility: hidden;
+}
+
+.dash-state[data-read='no'] :is(.dash-problems, .dash-fixes) {
+  display: none;
+}
+
+.dash-new,
+.dash-line,
+.dash-statement,
+.dash-loading,
+.dash-problem {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.dash-new {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dash-line {
+  margin-top: 8px;
+}
+
+.dash-problem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dash-new .problem-mark,
+.dash-problem .problem-mark {
+  flex: none;
+}
+
+.dash-statement {
+  margin-top: 12px;
+  text-wrap: pretty;
+}
+
+@media (min-width: 48em) {
+  .dash-line,
+  .dash-problem,
+  .dash-statement,
+  .dash-new {
+    max-width: 40rem;
+  }
+}
+
+/* The fixes that are owed: link rows, and the one row that asks the browser
+   about notifications, drawn as a link row. */
+.dash-fixes {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.link-row--button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.look-part .link-row:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .look-part .link-row:active {
+    transform: none;
+  }
+}
+
+/* The key's place is held before the read, so nothing moves when the key
+   appears. While the camera starts the key loses its fill: a dashed edge in
+   the line colour, its words in the quiet tone. */
+.dash-key-place {
+  min-height: 52px;
+  margin-top: 16px;
+}
+
+.dash-key {
+  width: 100%;
+}
+
+@media (min-width: 48em) {
+  .dash-key {
+    width: 100%;
+    max-width: 25rem;
+  }
+}
+
+@media (min-width: 90em) {
+  .dash-key-place {
+    min-height: 56px;
+  }
+
+  .dash-key {
+    max-width: none;
+  }
+}
+
+/* Pressed, 1 px lower. Written to outrank the site's touch rule, which
+   shrinks every pressed button. */
+:root .dash-key:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root .dash-key:active {
+    transform: none;
+  }
+}
+
+.key--waiting {
+  border: 1px dashed var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-200);
+  cursor: default;
+}
+
+.key--waiting:hover,
+:root .key--waiting:active {
+  background: transparent;
+  transform: none;
+}
+
+/* The line for a page whose script did not start: in the served HTML, so it
+   shows with scripts off; its own script hides it at once and shows it again
+   if the app has not marked itself started within five seconds. */
+.needs-script {
+  margin: 12px 0 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.needs-script[hidden],
+html[data-app-started='true'] .needs-script {
+  display: none;
+}
+
+/* =============================================================================
+   The dashboard: the ways to watch
+   ============================================================================= */
+
+/* A part's label, shared with Since you last looked: an H2 in the body style,
+   in the ink. */
+.dash-label {
+  margin: 0 0 8px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+}
+
+.ways {
+  margin-top: 24px;
+}
+
+.ways__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A divider between rows, none under the last. */
+.way + .way {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+/* A row: the page's ground at rest, the raised ground under the pointer and
+   while pressed. */
+.way__link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 74px;
+  padding: 8px 0;
+  color: var(--color-steel-50);
+  transition: background-color 120ms ease-out;
+}
+
+.way__link:hover,
+.way__link:active {
+  background: var(--color-steel-850);
+}
+
+/* The site's own rule for reduced motion gives every transition 0.01 ms and
+   marks it important, so the row marks its own to have none at all. */
+@media (prefers-reduced-motion: reduce) {
+  .way__link {
+    transition: none !important;
+  }
+}
+
+/* The ring stands round the whole row, inside its column. */
+.look-part .way__link:focus-visible {
+  outline-offset: -2px;
+}
+
+/* The glyph, or the pet's photo in its place at its size, so the name and
+   the line stand where they stand on the other rows. */
+.way__glyph {
+  flex: none;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  color: var(--color-steel-50);
+}
+
+.way__photo {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+}
+
+.way__words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.way__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: var(--type-entry-size);
+  line-height: var(--app-entry-line);
+}
+
+.way__line {
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+/* The square on the way Start watching uses, directly before its name. */
+.way__square {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  background: var(--look-accent);
+}
+
+.way__link .key__arrow {
+  flex: none;
+  color: var(--color-steel-50);
+}
+
+/* Tablet: a two-by-two grid with dividers between the cells. */
+@media (min-width: 48em) {
+  .ways__list {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .way + .way {
+    border-top: 0;
+  }
+
+  .way:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--color-steel-300);
+  }
+
+  .way:nth-child(odd) {
+    padding-right: 16px;
+    border-right: 1px solid var(--color-steel-300);
+  }
+
+  .way:nth-child(even) {
+    padding-left: 16px;
+  }
+}
+
+/* Desktop: the stacked list again, beside the watching state. */
+@media (min-width: 64em) {
+  .ways__list {
+    display: block;
+  }
+
+  .way + .way {
+    border-top: 1px solid var(--color-steel-300);
+  }
+
+  .way:nth-child(-n + 2) {
+    border-bottom: 0;
+  }
+
+  .way:nth-child(odd) {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .way:nth-child(even) {
+    padding-left: 0;
+  }
+
+  .way__link {
+    min-height: 80px;
+  }
+}
+
+/* Wide: the name's size and line follow their tokens. */
+@media (min-width: 90em) {
+  .way__link {
+    min-height: 88px;
+  }
+}
+
+/* =============================================================================
+   The dashboard: since you last looked
+   ============================================================================= */
+
+/* Below the first screen a tick rule opens the part. In the wide layout the
+   part stands in the first screen, beside the watching state and the ways,
+   so it has no rule there. */
+.since {
+  margin-top: calc(var(--phone-bar-height) + 16px);
+  container-type: inline-size;
+}
+
+.since__rule {
+  margin-bottom: 16px;
+}
+
+/* On a phone the rule stands below the first screen, under the space the
+   phone bar covers; from the tablet width there is no bar. */
+@media (min-width: 48em) {
+  .since {
+    margin-top: 32px;
+  }
+}
+
+@media (min-width: 90em) {
+  .since {
+    margin-top: 0;
+  }
+
+  .since__rule {
+    display: none;
+  }
+}
+
+.since__drawing {
+  margin: 8px 0 12px;
+}
+
+.since__drawing .drawn-frame {
+  width: 64px;
+  aspect-ratio: 4 / 3;
+}
+
+.since__drawing .level-line {
+  width: 100%;
+  max-width: 20rem;
+  height: 12px;
+}
+
+.since__empty {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+}
+
+.since__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.since__item + .since__item {
+  border-top: 1px solid var(--color-steel-300);
+}
+
+/* A row: its picture or its way's glyph, then what happened over the way's
+   name; the page's ground at rest, the raised ground under the pointer and
+   while pressed. */
+.since__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 8px 0;
+  color: var(--color-steel-50);
+  transition: background-color 120ms ease-out;
+}
+
+.since__row:hover,
+.since__row:active {
+  background: var(--color-steel-850);
+}
+
+/* The ring stands round the whole row, inside its column. */
+.look-part .since__row:focus-visible {
+  outline-offset: -2px;
+}
+
+.since__picture {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 48px;
+  background: var(--color-steel-900);
+  color: var(--color-steel-50);
+}
+
+.since__picture img {
+  width: 64px;
+  height: 48px;
+  object-fit: cover;
+}
+
+.since__words {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.since__what {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+}
+
+.since__way {
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+/* A row that came in while the dashboard was open slides in from the top of
+   the list. */
+.since__item--arrived {
+  animation: since-in 150ms ease-out;
+}
+
+@keyframes since-in {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .since__item--arrived {
+    animation: none;
+  }
+
+  .since__row {
+    transition: none;
+  }
+}
+
+/* Mark all as seen and the way to History: stacked on a phone and in the
+   wide column, side by side on a tablet and a desktop, and stacked whole
+   when the two do not fit one row. This pair never scrolls sideways and has
+   no More. Each keeps its words on one line while there is room for them. */
+.since__ways-on {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (min-width: 48em) {
+  .since__ways-on {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 24px;
+  }
+}
+
+/* The wide column stacks them again. */
+@media (min-width: 90em) {
+  .since__ways-on {
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+  }
+}
+
+.since .key--outline {
+  min-height: 44px;
+}
+
+/* One row of pictures, where the part is as wide as the desktop's 12
+   columns. With text at 200 per cent 60rem is wider than the page, so the
+   entries keep the stacked rows. */
+@container (min-width: 60rem) {
+  .since__list {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    column-gap: 16px;
+  }
+
+  .since__item + .since__item {
+    border-top: 0;
+  }
+
+  .since__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .since__picture {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+  }
+
+  .since__picture img {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+/* =============================================================================
+   The dashboard's layout
+   ============================================================================= */
+
+/* The widths are the home page's (.home-wrap in visitor.css), so the app and
+   the home page share one grid. On a phone the watching state's own 16 px
+   top padding is the gap under the top bar. */
+.dash {
+  width: 100%;
+  margin-inline: auto;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
+}
+
+/* Tablet: one column of 704 px at most. */
+@media (min-width: 48em) {
+  .dash {
+    max-width: 48rem;
+    padding: 16px max(32px, env(safe-area-inset-right, 0px)) 48px max(32px, env(safe-area-inset-left, 0px));
+  }
+}
+
+/* Desktop: the header row's 1200 px with its two 32 px gutters, in 12
+   columns: the watching state in the left 7, the ways in the right 5, and
+   Since you last looked across all 12 under them. */
+@media (min-width: 64em) {
+  .dash {
+    max-width: 79rem;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  .dash > .dash-state {
+    grid-column: 1 / span 7;
+  }
+
+  .dash > .ways {
+    grid-column: 8 / span 5;
+    margin-top: 0;
+  }
+
+  .dash > .since {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Wide: the header row's 1320 px with its two 64 px gutters. The three parts
+   stand side by side in one row: 5, 4 and 3 columns. */
+@media (min-width: 90em) {
+  .dash {
+    max-width: 90.5rem;
+    column-gap: 32px;
+    padding-left: max(64px, env(safe-area-inset-left, 0px));
+    padding-right: max(64px, env(safe-area-inset-right, 0px));
+  }
+
+  .dash > .dash-state {
+    grid-column: 1 / span 5;
+  }
+
+  .dash > .ways {
+    grid-column: 6 / span 4;
+  }
+
+  .dash > .since {
+    grid-column: 10 / span 3;
+  }
+}
+
+/* =============================================================================
+   An old address that forwards
+   ============================================================================= */
+
+/* The page at an old address: its one line, then its link. With script the
+   page replaces itself at once; without script these are what is read. On a
+   phone one column with 16 px gutters. */
+.forward {
+  width: 100%;
+  margin-inline: auto;
+  padding: 32px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px));
+}
+
+.forward__line {
+  margin: 0 0 8px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  text-wrap: pretty;
+}
+
+/* While pressed the link sits 1 px lower. The rule is on the link itself:
+   /donate/ keeps the visitor frame, with no look-part round it. */
+.forward__link:active {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .forward__link:active {
+    transform: none;
+  }
+}
+
+/* Tablet: the line and the link stacked in a block 640 px wide, centred. */
+@media (min-width: 48em) {
+  .forward {
+    max-width: 40rem;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* Desktop: one row in the 12 columns, the line in the left 7 and the link in
+   the right 5, their first lines level. At 1280 px the row is 1200 px wide,
+   so a column is 78 px and the eighth starts 714 px from the row's left. */
+@media (min-width: 64em) {
+  .forward {
+    max-width: 79rem;
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: baseline;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
+
+  .forward__line {
+    grid-column: 1 / span 7;
+    margin: 0;
+  }
+
+  .forward__link {
+    grid-column: 8 / span 5;
+  }
+}
+
+/* Wide: the dashboard's wide columns, the line in the left 5 and the link in
+   the middle 4. At 1440 px the row is 1312 px wide, so a column is 80 px and
+   the sixth starts 560 px from the row's left. */
+@media (min-width: 90em) {
+  .forward {
+    max-width: 90.5rem;
+    column-gap: 32px;
+    padding-left: 64px;
+    padding-right: 64px;
+  }
+
+  .forward__line {
+    grid-column: 1 / span 5;
+  }
+
+  .forward__link {
+    grid-column: 6 / span 4;
+  }
+}

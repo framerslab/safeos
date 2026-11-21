@@ -8,11 +8,13 @@
  * before the start when quiet hours will silence them, now or during the nap.
  * Start Nap Mode stops the check's camera, applies the infant_sleep preset,
  * leaves the planned minutes for the monitor as a one-use hand-off in this tab
- * and opens the monitor.
+ * and opens the monitor. While another tab watches, it asks first, and the nap
+ * starts only once the person chose to watch here and that tab has stopped.
  */
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import NapPage from '@/app/nap/page';
+import { askOtherTabs, takeOverWatch } from '@/lib/tab-channel';
 import { useCameraStore } from '@/stores/camera-store';
 import { useSettingsStore } from '@/stores/settings-store';
 
@@ -26,8 +28,16 @@ jest.mock('@/lib/pixel-detection', () => ({
 }));
 const mockSound = {
   stopAll: jest.fn(), play: jest.fn(() => 'check-sound'), stop: jest.fn(), test: jest.fn(() => 'test-sound'), updateVolume: jest.fn(),
+  unlockAudio: jest.fn(),
 };
-jest.mock('@/lib/sound-manager', () => ({ useSoundManager: () => mockSound }));
+jest.mock('@/lib/sound-manager', () => ({ useSoundManager: () => mockSound, getSoundManager: () => mockSound }));
+jest.mock('@/lib/tab-channel', () => ({
+  ...jest.requireActual('@/lib/tab-channel'),
+  askOtherTabs: jest.fn(),
+  takeOverWatch: jest.fn(),
+}));
+
+const QUESTION = 'Watch here instead? The other tab stops.';
 
 const realQuietHours = useSettingsStore.getState().isQuietHoursActive;
 let getUserMedia: jest.Mock;
@@ -37,6 +47,8 @@ beforeEach(() => {
   mockPush.mockClear();
   sessionStorage.clear();
   Object.values(mockSound).forEach((fn) => fn.mockClear());
+  jest.mocked(askOtherTabs).mockReset().mockResolvedValue({ watching: false });
+  jest.mocked(takeOverWatch).mockReset().mockResolvedValue(true);
   mockChangedFrames = Infinity;
   useCameraStore.setState({ deviceId: '' });
   useSettingsStore.getState().resetToDefaults();
@@ -86,7 +98,7 @@ it('opens the watch with the infant_sleep preset, hands it the planned nap and s
   await screen.findByRole('checkbox');
   fireEvent.click(await passChecks());
 
-  expect(mockPush).toHaveBeenCalledWith('/monitor/');
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/monitor/'));
   expect(handoff()).toMatchObject({ minutes: 30 });
   expect(useSettingsStore.getState().activePresetId).toBe('infant_sleep');
   expect(stop).toHaveBeenCalled();
@@ -99,7 +111,7 @@ it('offers a planned nap duration and hands the watch the one chosen', async () 
   fireEvent.change(screen.getByRole('slider'), { target: { value: '45' } });
   fireEvent.click(await passChecks());
 
-  expect(mockPush).toHaveBeenCalledWith('/monitor/');
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/monitor/'));
   expect(handoff()).toMatchObject({ minutes: 45 });
 });
 
@@ -332,6 +344,131 @@ it('checks quiet hours again on Start, and shows a warning that has come to appl
   fireEvent.click(start);
   await act(async () => {});
 
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(screen.getByText(/Quiet hours start during this nap/)).toBeTruthy();
+  jest.useRealTimers();
+});
+
+it('asks first while another tab watches, and starts the nap only once that tab has stopped', async () => {
+  jest.mocked(askOtherTabs).mockResolvedValue({ watching: true, way: 'monitor' });
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  const start = await passChecks();
+
+  fireEvent.click(start);
+  const asked = await screen.findByRole('dialog', { name: QUESTION });
+  // The press turns the sound on before the other tabs answer.
+  expect(mockSound.unlockAudio).toHaveBeenCalled();
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+
+  // Cancel starts nothing and gives focus back to the key.
+  fireEvent.click(within(asked).getByRole('button', { name: 'Cancel' }));
+  await act(async () => {});
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(document.activeElement).toBe(start);
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+  expect(takeOverWatch).not.toHaveBeenCalled();
+
+  // Watch here while the other tab goes on watching: nothing starts, and the question shows again.
+  jest.mocked(takeOverWatch).mockResolvedValueOnce(false);
+  fireEvent.click(start);
+  fireEvent.click(within(await screen.findByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Watch here' }));
+  expect(await screen.findByRole('dialog', { name: QUESTION })).toBeTruthy();
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+  fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Cancel' }));
+  await act(async () => {});
+
+  // Watch here stops the other tab; the nap starts only once it has stopped.
+  let stopped!: (done: boolean) => void;
+  jest.mocked(takeOverWatch).mockReturnValueOnce(new Promise((resolve) => { stopped = resolve; }));
+  fireEvent.click(start);
+  fireEvent.click(within(await screen.findByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Watch here' }));
+  await act(async () => {});
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+  await act(async () => { stopped(true); });
+  await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/monitor/'));
+  expect(takeOverWatch).toHaveBeenCalledTimes(2);
+  expect(handoff()).toMatchObject({ minutes: 30 });
+  expect(useSettingsStore.getState().activePresetId).toBe('infant_sleep');
+});
+
+it('a nap start whose other-tab answer comes after Back starts nothing', async () => {
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  const start = await passChecks();
+  let answer!: (value: { watching: boolean }) => void;
+  jest.mocked(askOtherTabs).mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+
+  fireEvent.click(start);
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  await act(async () => { answer({ watching: false }); });
+
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+  expect(useSettingsStore.getState().activePresetId).not.toBe('infant_sleep');
+});
+
+it('a nap start whose answer, after Back, is that another tab watches asks nothing', async () => {
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  const start = await passChecks();
+  let answer!: (value: Awaited<ReturnType<typeof askOtherTabs>>) => void;
+  jest.mocked(askOtherTabs).mockReturnValueOnce(new Promise((resolve) => { answer = resolve; }));
+
+  fireEvent.click(start);
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  await act(async () => { answer({ watching: true, way: 'monitor' }); });
+
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(takeOverWatch).not.toHaveBeenCalled();
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+});
+
+it("Watch here's takeover that fails after Back asks nothing more and starts nothing", async () => {
+  jest.mocked(askOtherTabs).mockResolvedValue({ watching: true, way: 'monitor' });
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  const start = await passChecks();
+  let stopped!: (done: boolean) => void;
+  jest.mocked(takeOverWatch).mockReturnValueOnce(new Promise((resolve) => { stopped = resolve; }));
+
+  fireEvent.click(start);
+  fireEvent.click(within(await screen.findByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Watch here' }));
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+  await act(async () => { stopped(false); });
+
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(mockPush).not.toHaveBeenCalled();
+  expect(handoff()).toBeNull();
+});
+
+it('Watch here shows a quiet-hours warning that has come to apply, and leaves the other tab watching', async () => {
+  jest.useFakeTimers({ advanceTimers: true });
+  jest.mocked(askOtherTabs).mockResolvedValue({ watching: true, way: 'monitor' });
+  useSettingsStore.setState({
+    quietHoursSettings: {
+      ...useSettingsStore.getState().quietHoursSettings,
+      enabled: true, mode: 'silent', startTime: clock(32), endTime: clock(90), days: [0, 1, 2, 3, 4, 5, 6],
+    },
+  });
+  render(<NapPage />);
+  await screen.findByRole('checkbox');
+  const start = await passChecks();
+  fireEvent.click(start);
+  const asked = await screen.findByRole('dialog', { name: QUESTION });
+
+  // Three minutes on, quiet hours begin inside the 30-minute nap.
+  jest.setSystemTime(Date.now() + 3 * 60_000);
+  fireEvent.click(within(asked).getByRole('button', { name: 'Watch here' }));
+  await act(async () => {});
+
+  expect(takeOverWatch).not.toHaveBeenCalled();
   expect(mockPush).not.toHaveBeenCalled();
   expect(screen.getByText(/Quiet hours start during this nap/)).toBeTruthy();
   jest.useRealTimers();

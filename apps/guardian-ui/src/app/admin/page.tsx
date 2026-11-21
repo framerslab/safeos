@@ -197,7 +197,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {reviewError && <p role="alert" className="p-4 text-red-400">{reviewError}</p>}
       {/* Header */}
-      <header className="border-b border-slate-700/50 bg-slate-800/50 backdrop-blur-sm sticky top-0 z-10">
+      <header className="border-b border-slate-700/50 bg-slate-800/50 backdrop-blur-sm relative z-10">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">

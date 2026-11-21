@@ -3,7 +3,7 @@
 <div align="center">
   <img alt="SafeOS Guardian Logo" src="apps/guardian-ui/public/logo.svg" width="160" height="160">
 
-  <p><strong>Motion and sound alerts for pets, babies, and elderly care, in your browser, with person and animal detection in Security and Wildlife.</strong></p>
+  <p><strong>Motion and sound alerts for pets, babies, and elderly care, in your browser, with person and animal detection in People and Wildlife.</strong></p>
 
   <p>
     <a href="https://safeos.sh">safeos.sh</a> ·
@@ -28,11 +28,11 @@ SafeOS Guardian is a **supplemental experimental tool**. It adds an alert and do
 
 ## What it is
 
-SafeOS Guardian is a Progressive Web App that turns any device with a camera and microphone into a monitoring station. It compares video frames and sound levels in the browser, runs the [TensorFlow.js](https://www.tensorflow.org/js) COCO-SSD model on-device in its Security and Wildlife modes, and raises severity-tiered alerts. In the browser-only setup no frames leave the device, the app loads no analytics or tracking script, and no account is needed.
+SafeOS Guardian is a Progressive Web App that turns any device with a camera and microphone into a monitoring station. It compares video frames and sound levels in the browser, runs the [TensorFlow.js](https://www.tensorflow.org/js) COCO-SSD model on-device in its People and Wildlife modes, and raises severity-tiered alerts. In the browser-only setup no frames leave the device, the app loads no analytics or tracking script, and no account is needed.
 
 Choose a camera on Setup or Monitor; the choice is remembered in this browser. Monitor requests capture only when you start it, releases capture when you stop, and reports camera failures. Local processing sends no camera frames to a connected server. Monitor alerts persist in IndexedDB and reload in History. See [Camera monitoring](docs/MONITORING.md).
 
-After the service worker finishes installing, the exported pages and their scripts are available offline, including pages not yet opened. Complete setup and choose **Download detection model** on Security, Wildlife, or Settings → Models to save COCO-SSD for offline use. Initial installation and model download need a connection; clearing or evicting browser storage removes those copies.
+After the service worker finishes installing, the exported pages and their scripts are available offline, including pages not yet opened. Complete setup and choose **Download detection model** on People, Wildlife, or Settings → Models to save COCO-SSD for offline use. Initial installation and model download need a connection; clearing or evicting browser storage removes those copies.
 
 ## Quickstart
 
@@ -76,7 +76,7 @@ npm ci
 npm run dev                        # http://localhost:3000
 ```
 
-COCO-SSD downloads on first use of Security or Wildlife mode.
+COCO-SSD downloads on first use of People or Wildlife mode.
 
 ## Part of the Frame ecosystem
 
@@ -96,7 +96,7 @@ If you want to dig deeper:
 | **Pet monitoring** | Motion, loud sound, and prolonged stillness. |
 | **Baby & toddler** | Sustained motion, small movements, loud sound, and inactivity. |
 | **Elder care** | Prolonged inactivity, motion, and loud sound. |
-| **Lost & Found** | Watch your own camera for an animal with a lost pet's colouring, from 1–5 reference photos (color + edge fingerprints). Chosen on Monitor under **Watch for**, or in setup. It does not identify a pet. |
+| **Lost and Found** | Watch your own camera for an animal with a lost pet's colouring, from 1–5 reference photos (color + edge fingerprints). Chosen on Monitor under **Watch for**, or in setup. It does not identify a pet. |
 | **Wildlife & outdoor** | Backyard trail-cam, livestock, and animal detection with COCO-SSD. |
 | **Authority / emergency** | At-risk areas or shelters; severity-routed alerts via the optional server. |
 | **Small-business security** | Perimeter watch, after-hours intrusion, customer-traffic counts. Escalating push + audio. |
@@ -116,10 +116,10 @@ The solid path runs in the browser; offline starts require completed app install
 2. **Model fetch.** After setup and explicit agreement, TensorFlow.js downloads COCO-SSD `lite_mobilenet_v2` from Google's [`tfjs-models`](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) storage (18.6 MB including the manifest). One shared loader saves the manifest and every weight shard in Cache Storage and reuses them offline. Failed attempts can be retried without reloading the page.
 3. **Backend.** SafeOS sets TF.js to the [WebGL](https://www.khronos.org/webgl/) backend (`tf.setBackend('webgl')`).
 4. **Per-frame screening.** A `setInterval` loop at 200 ms samples the `<video>` element into a hidden `<canvas>`, runs pixel-diff motion detection and an FFT pass over the Web Audio `AnalyserNode`, and tracks pixel-change counts. Cheap enough to run continuously without a GPU context. Code: [`apps/guardian-ui/src/components/CameraFeed.tsx`](apps/guardian-ui/src/components/CameraFeed.tsx).
-5. **Gated inference.** In Security mode, when motion crosses the threshold the frame is handed to TF.js; COCO-SSD's `model.detect()` returns bounding boxes, class labels, and confidence, at most once every 500 ms. The monitor page runs no model. Gate: [`apps/guardian-ui/src/lib/person-detection.ts`](apps/guardian-ui/src/lib/person-detection.ts).
-6. **Model settings.** Settings → Models downloads the same COCO-SSD model used by Security and Wildlife. It offers no separate scene classifier download.
+5. **Gated inference.** In People mode, when motion crosses the threshold the frame is handed to TF.js; COCO-SSD's `model.detect()` returns bounding boxes, class labels, and confidence, at most once every 500 ms. The monitor page runs no model. Gate: [`apps/guardian-ui/src/lib/person-detection.ts`](apps/guardian-ui/src/lib/person-detection.ts).
+6. **Model settings.** Settings → Models downloads the same COCO-SSD model used by People and Wildlife. It offers no separate scene classifier download.
 7. **Audio parallel path.** The Web Audio API's [`AnalyserNode`](https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode) samples FFT bins from the microphone every ~100 ms; a loudness threshold raises the sound alert, and a crying pattern shows in the camera overlay without raising an alert of its own. No model needed.
-8. **Lost & Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), an 8×8 grid of edge strengths taken from differences between neighbouring pixels, and a size estimate. Several photos of one subject merge into one fingerprint: histogram buckets whose colours are closer than one bucket is wide are put together, and each photo counts the same in the histogram and in the averaged colour, size and edges, whatever its size, also when photos are added to a saved subject. A subject saved by an earlier version is rebuilt from its saved photos the first time it is watched or a photo is added to it. The matcher samples the live feed at 1–2 FPS and scores each frame on average colour, then region by region on a weighted mix (histogram 40%, dominant colours 35%, edges 15%, size 10%); a region's edges are read on the same 8×8 grid as the photos and on the same fixed scale, where a cell whose pixels step 60 levels in each colour to their neighbours reads 100 (black to white is 765), so the same pixels read the same on both sides and the camera's noise on a blank wall reads as weak edges. With motion priority on, from the second frame only regions that cover a moving part of the frame are scored. With adaptive lighting on, the scene's settled brightness and texture are kept for each cell of an 8×8 grid, and a change of light is judged among the background cells: a cell more than 10 levels from where it settled that did not move with the light is foreground and stays out of the judging and the settled brightness. When seven in eight of the background cells turn brighter together, or darker together, or half of them do and keep their texture (a lamp lights the room while the window stays), the frame is first moved back by the median of their differences, up to 64 levels, and both steps score the corrected frame. A subject in view is scored as the camera gives it, and the settled brightness follows the background slowly, so a scene whose light holds is scored as the camera gives it; another camera, or the camera started again, sets it afresh. Color Sensitivity at 50 leaves scores as they are; lower settings raise them, and higher settings lower near matches while an exact match stays at 100. It matches colours, so another animal or an object of similar colour matches too. Under 1 KB per photo. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
+8. **Lost and Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), an 8×8 grid of edge strengths taken from differences between neighbouring pixels, and a size estimate. Several photos of one subject merge into one fingerprint: histogram buckets whose colours are closer than one bucket is wide are put together, and each photo counts the same in the histogram and in the averaged colour, size and edges, whatever its size, also when photos are added to a saved subject. A subject saved by an earlier version is rebuilt from its saved photos the first time it is watched or a photo is added to it. The matcher samples the live feed at 1–2 FPS and scores each frame on average colour, then region by region on a weighted mix (histogram 40%, dominant colours 35%, edges 15%, size 10%); a region's edges are read on the same 8×8 grid as the photos and on the same fixed scale, where a cell whose pixels step 60 levels in each colour to their neighbours reads 100 (black to white is 765), so the same pixels read the same on both sides and the camera's noise on a blank wall reads as weak edges. With motion priority on, from the second frame only regions that cover a moving part of the frame are scored. With adaptive lighting on, the scene's settled brightness and texture are kept for each cell of an 8×8 grid, and a change of light is judged among the background cells: a cell more than 10 levels from where it settled that did not move with the light is foreground and stays out of the judging and the settled brightness. When seven in eight of the background cells turn brighter together, or darker together, or half of them do and keep their texture (a lamp lights the room while the window stays), the frame is first moved back by the median of their differences, up to 64 levels, and both steps score the corrected frame. A subject in view is scored as the camera gives it, and the settled brightness follows the background slowly, so a scene whose light holds is scored as the camera gives it; another camera, or the camera started again, sets it afresh. Color Sensitivity at 50 leaves scores as they are; lower settings raise them, and higher settings lower near matches while an exact match stays at 100. It matches colours, so another animal or an object of similar colour matches too. Under 1 KB per photo. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
 9. **Alert engine.** Matches feed a severity router (info / low / medium / high / critical). Each severity has its own escalation: volume-ramping local audio, browser push, optional fan-out to email / SMS / Telegram via the API server.
 10. **Storage stays local.** Settings persist in local storage; fingerprints and saved frames persist in [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API). Monitor-page alerts are saved in IndexedDB and restored in History after a reload. The motion check keeps only the last three frames in memory.
 
@@ -131,7 +131,7 @@ Every model runs client-side. Sizes are the download sizes measured on 11 Nov 20
 
 | Job | Model | Framework | Size | Source |
 |---|---|---|---|---|
-| Object detection (Security and Wildlife modes) | COCO-SSD (`lite_mobilenet_v2`) | [TensorFlow.js Models](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) | 18.6 MB | tfjs-models |
+| Object detection (People and Wildlife modes) | COCO-SSD (`lite_mobilenet_v2`) | [TensorFlow.js Models](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) | 18.6 MB | tfjs-models |
 | Audio analysis | FFT bins via [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) | native | 0 KB | MDN |
 | Visual fingerprinting | Color histograms + edge grid | hand-rolled | < 1 KB / photo | [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts) |
 

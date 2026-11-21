@@ -78,7 +78,7 @@ const NONE_FOUND = 'No camera was found on this device.';
 const SAVED_GONE = 'The selected camera is unavailable. Choose another camera.';
 const NO_SUPPORT = 'This browser cannot use a camera on this page.';
 const OTHER = 'Unable to access the camera or microphone. Check the device and try again.';
-const LATER = 'You can allow the camera later, on the Monitor page.';
+const LATER = 'You can allow the camera later, on the Motion and sound page.';
 
 /** A first visit with `camera` chosen in the menu ('' is "Default camera"). */
 function firstVisit(camera = '') {
@@ -180,7 +180,7 @@ it.each([
   expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
 
   fireEvent.click(screen.getByRole('button', { name: /Enable & Continue/ }));
-  fireEvent.click(await screen.findByRole('button', { name: /Launch Dashboard/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Open dashboard' }));
   expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
   expect(canSkipOnboarding(useOnboardingStore.getState())).toBe(true);
   expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);

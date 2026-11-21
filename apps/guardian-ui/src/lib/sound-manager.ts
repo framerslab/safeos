@@ -926,6 +926,18 @@ class SoundManager {
     if (!sound.owners || sound.owners.size === 0) this.stop(id, 0);
   }
 
+  /**
+   * Stops at once every saved sound that an alert of one of these triggers
+   * played, a loop included, whatever other trigger holds it too: a watch
+   * that ends takes its alerts' sounds with it.
+   */
+  stopTriggers(triggers: readonly string[]): void {
+    this.activeSounds.forEach((sound, id) => {
+      const owners = sound.owners;
+      if (owners && triggers.some((trigger) => owners.has(trigger))) this.stop(id, 0);
+    });
+  }
+
   // ==========================================================================
   // Private Methods
   // ==========================================================================

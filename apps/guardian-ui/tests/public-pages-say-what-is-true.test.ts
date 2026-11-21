@@ -4,9 +4,11 @@
  * Reads the source of every page a visitor can open before using the app (the
  * home page, About, FAQ, Help and its guides, Tutorials, Tutorial, the blog,
  * the old support address, Privacy, Terms, Security, Lost & Found and its
- * match gallery, Setup), every component those pages and the root layout
- * render (listed below with the page that renders it; every file of the home
- * page's and the visitor header's and footer's folders), the root layout's
+ * match gallery, Setup, the dashboard and Nap Mode), every component those
+ * pages and the root layout render (listed below with the page that renders
+ * it; every file of the folders of the components built in the readable
+ * look: the home page's, the visitor header's and footer's, and the app
+ * header's and phone bar's), the root layout's
  * metadata, the helper that owns every page's title and cards, the sitemap,
  * the web app manifest, the social card, the README's diagram, the README's
  * product sections and the changelog's Unreleased section. Code comments are
@@ -65,6 +67,8 @@ const PUBLIC_ROUTES = [
   'help',
   'tutorials',
   'tutorial',
+  'analytics',
+  'profiles',
   'blog',
   'donate',
   'privacy',
@@ -72,6 +76,8 @@ const PUBLIC_ROUTES = [
   'security',
   'lost-found',
   'setup',
+  'dashboard',
+  'nap',
 ];
 const PUBLIC_ROUTE_DIRS = PUBLIC_ROUTES.map((r) => app('src', 'app', r));
 
@@ -94,7 +100,7 @@ const PUBLIC_FILES = [
   component('visitor', 'StartLink.tsx'), // visitor header and footer, home
   component('layout', 'SiteShell.tsx'), // root layout: every page
   app('src', 'lib', 'page-metadata.ts'), // every public page's title and cards
-  component('NotAMedicalDevice.tsx'), // home, FAQ, Help, Tutorials, Tutorial, blog post, Terms
+  component('NotAMedicalDevice.tsx'), // home, FAQ, Help, Tutorials, blog post, Terms
   component('ModelDownloadProgress.tsx'), // Security
   component('CameraFeed.tsx'), // Security
   component('SecurityPanel.tsx'), // Security
@@ -105,13 +111,9 @@ const PUBLIC_FILES = [
   component('CameraPicker.tsx'), // Setup
   component('Logo.tsx'), // header, Setup, not-found
   component('StatusBanner.tsx'), // root layout: every page
-  component('NotificationPermission.tsx'), // root layout: every page but home
-  component('PWAInstallPrompt.tsx'), // root layout: every page but home
   component('KeyboardShortcutsModal.tsx'), // root layout: every page
-  component('NotificationDropdown.tsx'), // app header
-  component('layout', 'Nav.tsx'), // app screens
-  component('layout', 'Footer.tsx'), // app screens
-  component('layout', 'MobileBottomNav.tsx'), // every page but home and Setup
+  component('app', 'AppHeader.tsx'), // app pages
+  component('app', 'PhoneBar.tsx'), // app pages but Setup
   app('public', 'manifest.json'),
   app('public', 'og-image.svg'),
   app('public', 'diagrams', 'how-it-works.svg'),
@@ -120,14 +122,14 @@ const PUBLIC_FILES = [
 const README = path.join(REPO_ROOT, 'README.md');
 const CHANGELOG = path.join(REPO_ROOT, 'CHANGELOG.md');
 
-// Every file of the home page's components and of the visitor header and
-// footer is read, so a component added there is read too.
-const HOME_COMPONENT_DIRS = [component('home'), component('visitor')];
+// Every file of the components built in the readable look is read, so one
+// added there is read too.
+const LOOK_COMPONENT_DIRS = [component('home'), component('visitor'), component('app'), component('settings'), component('dashboard')];
 
 const SCANNED = Array.from(new Set([
   ...PUBLIC_FILES,
   ...PUBLIC_ROUTE_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
-  ...HOME_COMPONENT_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
+  ...LOOK_COMPONENT_DIRS.flatMap((d) => listFiles(d, ['.tsx', '.ts'])),
 ]));
 
 // The sample clip's record and its caption and description files, which say
@@ -441,16 +443,16 @@ const METADATA_ROUTES: { route: string; index: boolean }[] = [
   { route: 'help/integrations/telegram', index: true },
   { route: 'help/integrations/twilio', index: true },
   { route: 'tutorials', index: true },
-  { route: 'tutorial', index: true },
+  { route: 'tutorial', index: false },
   { route: 'blog', index: true },
   { route: 'blog/[slug]', index: true },
   { route: 'privacy', index: true },
   { route: 'terms', index: true },
-  { route: 'security', index: true },
-  { route: 'lost-found', index: true },
+  { route: 'security', index: false },
+  { route: 'lost-found', index: false },
   { route: 'lost-found/gallery', index: true },
-  { route: 'wildlife', index: true },
-  { route: 'setup', index: true },
+  { route: 'wildlife', index: false },
+  { route: 'setup', index: false },
   { route: 'donate', index: false },
 ];
 
@@ -468,11 +470,12 @@ function metadataProblems(): string[] {
       continue;
     }
     // pageMetadata() sets the title, description, canonical address, Open
-    // Graph and X card from one set of values.
-    if (!/pageMetadata\(/.test(source)) {
-      problems.push(`/${route}: its social card is not its own (no pageMetadata call)`);
+    // Graph and X card from one set of values. appPageMetadata() sets the
+    // same fields and always asks search engines not to index the page.
+    if (!/\b(?:pageMetadata|appPageMetadata)\(/.test(source)) {
+      problems.push(`/${route}: its social card is not its own (no pageMetadata or appPageMetadata call)`);
     }
-    if (!index && !/noIndex:\s*true/.test(source)) problems.push(`/${route}: not marked noindex`);
+    if (!index && !/noIndex:\s*true|\bappPageMetadata\(/.test(source)) problems.push(`/${route}: not marked noindex`);
   }
   return problems;
 }
@@ -486,8 +489,9 @@ describe('the public pages say what the software does', () => {
     const missing = [...PUBLIC_FILES, ...CLIP_FILES, README, CHANGELOG].filter((f) => !fs.existsSync(f)).map(rel);
     expect(missing).toEqual([]);
     expect(SCANNED.length).toBeGreaterThan(PUBLIC_FILES.length);
-    // The home page's and the visitor shell's own files are among them.
-    for (const dir of HOME_COMPONENT_DIRS) expect(SCANNED.some((f) => f.startsWith(dir + path.sep))).toBe(true);
+    // The home page's, the visitor shell's, the app frame's, Settings' own
+    // rows' and the dashboard's files are among them.
+    for (const dir of LOOK_COMPONENT_DIRS) expect([rel(dir), SCANNED.some((f) => f.startsWith(dir + path.sep))]).toEqual([rel(dir), true]);
   });
 
   it('the sample clip\'s record, captions and descriptions use no money word and make no health claim', () => {

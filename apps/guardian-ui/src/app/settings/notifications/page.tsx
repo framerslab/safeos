@@ -923,7 +923,7 @@ export default function NotificationsSettingsPage() {
         </Section>
 
         {/* ----- Save ---------------------------------------------------- */}
-        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between sticky bottom-4">
+        <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <p className="text-xs text-slate-400">
             Changes are saved on this device immediately, and synced to your profile when online.
           </p>

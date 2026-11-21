@@ -2,9 +2,9 @@
 //
 //   node scripts/capture-pictures.mjs <base-url> <out-dir> <route> [<route> ...]
 //
-// Each route is captured at 390 and 1280 pixels wide, in the light and the
-// dark look (the browser's prefers-color-scheme, which the app follows when no
-// theme is saved), as a full-page PNG named <route>-<width>-<look>.png.
+// Each route is captured at 390, 820, 1280 and 1920 pixels wide, in the light
+// and the dark look (the browser's prefers-color-scheme, which the app follows
+// when no theme is saved), as a full-page PNG named <route>-<width>-<look>.png.
 // The pictures workflow (.github/workflows/pictures.yml) runs it in CI.
 //
 // When the home page is captured for the pull request's own build
@@ -30,13 +30,10 @@
 // dashboard's link to the Security page is checked with the dashboard, below.
 //
 // When /dashboard/ is captured, both versions also capture the dashboard as a
-// person who has finished setup sees it (dashboard-setup-<width>-<look>.png)
-// and its header menu open at 390 pixels (dashboard-menu-390-<look>.png). The
-// pull request's own build then checks that the dashboard's Lost & Found,
-// Security and Wildlife cards are visible at 390 and 1280 pixels and each
-// opens its page, whose own heading shows; and that from 320 to 768 pixels
-// the header row stays one row with none of those three in it, while the open
-// menu lists all three under its four page links.
+// person who has finished setup sees it (dashboard-setup-<width>-<look>.png).
+// The pull request's own build then checks that each of the four ways to
+// watch is visible at each width and opens its page, whose own heading
+// carries the row's name.
 //
 // When /monitor/ is captured, both versions also capture the watch's first
 // screen on a device whose setup chose Lost & Found, with no pet saved and
@@ -67,11 +64,25 @@ if (!baseUrl || !outDir || routes.length === 0) {
   process.exit(2);
 }
 
+// One width for each layout: phone, tablet, desktop and wide.
 const WIDTHS = [
   { width: 390, height: 844, isMobile: true },
+  { width: 820, height: 800, isMobile: false },
   { width: 1280, height: 800, isMobile: false },
+  { width: 1920, height: 1080, isMobile: false },
 ];
 const LOOKS = ['light', 'dark'];
+
+// A window opened here keeps nothing on disk, and a headless browser reads
+// notifications as blocked; the dashboard says each of the two to a person.
+// A picture stands for a person's own window, so the page is told that its
+// storage is kept and that notifications are allowed.
+const OWN_WINDOW = () => {
+  try { sessionStorage.setItem('safeos-window-storage', 'kept'); } catch (e) { /* storage refused */ }
+  try {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
+  } catch (e) { /* this browser has no notifications */ }
+};
 
 function slug(route) {
   const s = route.replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9]+/g, '-');
@@ -92,6 +103,7 @@ try {
           colorScheme: look,
           deviceScaleFactor: 1,
         });
+        await context.addInitScript(OWN_WINDOW);
         if (route === '/export/') {
           // Render the signed-in server export screen in both base and head builds.
           await context.addInitScript(() => {
@@ -198,6 +210,12 @@ try {
     // request's own build.
     const { checkHomePage } = await import('./home-checks.mjs');
     failures += await checkHomePage(browser, baseUrl, outDir);
+  }
+  // The app's own pages, for the pull request's own build. The base build
+  // has no such file, so it is loaded only here.
+  if (process.env.PICTURE_VERSION === 'after') {
+    const { checkApp } = await import('./app-checks.mjs');
+    failures += await checkApp(browser, baseUrl, outDir);
   }
   if (routes.includes('/dashboard/')) {
     failures += await captureDashboardAfterSetup(browser, baseUrl, outDir);
@@ -405,7 +423,7 @@ try {
           // The whole page, so the message shows wherever it sits. The site's fixed bars are left out,
           // since the Settings message sits at the top right, where the top bar covers it.
           await page.evaluate(() => window.scrollTo(0, 0));
-          await page.screenshot({ path: file, fullPage: true, style: 'nav.fixed { display: none !important; }' });
+          await page.screenshot({ path: file, fullPage: true, style: 'nav.fixed, nav[aria-label="App"], nav.phone-bar { display: none !important; }' });
           console.log(`captured ${file}`);
         } catch (err) {
           failures += 1;
@@ -841,12 +859,13 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 }
 
 // -----------------------------------------------------------------------------
-// The dashboard after setup, and the modes it and the header menu link
+// The dashboard after setup, and the ways to watch it links
 // -----------------------------------------------------------------------------
 
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
 async function finishedSetupContext(browser, options) {
   const context = await browser.newContext(options);
+  await context.addInitScript(OWN_WINDOW);
   await context.addInitScript(() => {
     localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
       isComplete: true, selectedScenario: 'pet',
@@ -857,16 +876,24 @@ async function finishedSetupContext(browser, options) {
   return context;
 }
 
+// The dashboard a finished setup opens. It is the redesigned screen, whose
+// first heading says the watching state, or the earlier screen with its Quick
+// Actions panel, so the base commit's build is pictured with the same script.
 async function openDashboard(page, baseUrl) {
   await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+  const state = page.getByRole('heading', { level: 1, name: /^(Not watching|Watching in another tab)$/ });
   const quickActions = page.locator('.panel')
     .filter({ has: page.getByRole('heading', { name: 'Quick Actions', exact: true }) });
-  await quickActions.waitFor({ timeout: 20_000 });
-  return quickActions;
+  // When neither shows, the error names why each wait ended.
+  await Promise.any([state.waitFor({ timeout: 20_000 }), quickActions.waitFor({ timeout: 20_000 })]).catch((err) => {
+    const reasons = (err.errors || [err]).map((reason) => reason.message.split('\n')[0]);
+    throw new Error(`the dashboard showed neither its watching state nor Quick Actions: ${reasons.join('; ')}`);
+  });
+  return { redesigned: (await state.count()) > 0, quickActions };
 }
 
-// Both versions: the dashboard at 390 and 1280 pixels in both looks, and its
-// header menu open at 390 pixels, so the pull request has before and after.
+// Both versions: the dashboard after setup at each of the four widths in both
+// looks, so the pull request has before and after.
 async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
   let failed = 0;
   for (const size of WIDTHS) {
@@ -881,14 +908,6 @@ async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
         const file = path.join(outDir, `dashboard-setup-${size.width}-${look}.png`);
         await page.screenshot({ path: file, fullPage: true });
         console.log(`captured ${file}`);
-        if (size.isMobile) {
-          await page.evaluate(() => window.scrollTo(0, 0));
-          await page.locator('nav[aria-label="Main"] button.nav-mobile-toggle').click();
-          await page.locator('.nav-mobile-menu').waitFor({ timeout: 5_000 });
-          const menuFile = path.join(outDir, `dashboard-menu-${size.width}-${look}.png`);
-          await page.screenshot({ path: menuFile });
-          console.log(`captured ${menuFile}`);
-        }
       } catch (err) {
         failed += 1;
         console.error(`failed dashboard after setup at ${size.width} ${look}: ${err.message}`);
@@ -900,20 +919,17 @@ async function captureDashboardAfterSetup(browser, baseUrl, outDir) {
   return failed;
 }
 
-// Pull request build only: Lost & Found, Security and Wildlife are reachable
-// from the dashboard and from the header menu, and the header row stays one row.
+// Pull request build only: the dashboard's four ways to watch are visible at
+// each width and each opens its page, whose own heading carries the row's name.
 async function checkModeLinks(browser, baseUrl, outDir) {
-  const MODES = [
-    { name: 'Lost & Found', path: '/lost-found', heading: 'Lost & Found' },
-    { name: 'Security', path: '/security', heading: 'Security Mode' },
-    { name: 'Wildlife', path: '/wildlife', heading: 'Wildlife Detection' },
+  const WAYS = [
+    { name: 'Motion and sound', path: '/monitor' },
+    { name: 'Lost and Found', path: '/lost-found' },
+    { name: 'People', path: '/security' },
+    { name: 'Wildlife', path: '/wildlife' },
   ];
-  const MENU_WIDTHS = [320, 360, 390, 430, 480, 768];
-  const PAGE_LINKS = ['/dashboard', '/monitor', '/history', '/settings', ...MODES.map((mode) => mode.path)];
   const problems = [];
   const bare = (href) => (href || '').replace(/\/$/, '');
-
-  // Each card is visible in Quick Actions and opens its page, whose own heading shows.
   for (const size of WIDTHS) {
     const context = await finishedSetupContext(browser, {
       viewport: { width: size.width, height: size.height },
@@ -921,85 +937,28 @@ async function checkModeLinks(browser, baseUrl, outDir) {
     });
     const page = await context.newPage();
     try {
-      for (const mode of MODES) {
+      for (const way of WAYS) {
         try {
-          const quickActions = await openDashboard(page, baseUrl);
-          const card = quickActions.getByRole('link', { name: new RegExp(`^${mode.name}`) });
-          if (!(await card.count())) {
-            problems.push(`dashboard at ${size.width} px: no ${mode.name} card in Quick Actions`);
-            continue;
-          }
-          if (!(await card.isVisible())) {
-            problems.push(`dashboard at ${size.width} px: the ${mode.name} card is not visible`);
+          await openDashboard(page, baseUrl);
+          const row = page.getByRole('link', { name: new RegExp(`^${way.name}:`) });
+          if (!(await row.isVisible())) {
+            problems.push(`dashboard at ${size.width} px: the ${way.name} row is not visible`);
             continue;
           }
           await Promise.all([
-            page.waitForURL((url) => bare(url.pathname) === mode.path, { timeout: 15_000 }),
-            card.click(),
+            page.waitForURL((url) => bare(url.pathname) === way.path, { timeout: 15_000 }),
+            row.click(),
           ]);
-          await page.getByRole('heading', { level: 1, name: mode.heading, exact: true }).waitFor({ timeout: 20_000 });
-          console.log(`checked the ${mode.name} card at ${size.width} px: it opens ${new URL(page.url()).pathname}, heading "${mode.heading}"`);
+          await page.getByRole('heading', { level: 1, name: way.name, exact: true }).waitFor({ timeout: 20_000 });
+          console.log(`checked the ${way.name} row at ${size.width} px: it opens ${new URL(page.url()).pathname}`);
         } catch (err) {
-          problems.push(`dashboard at ${size.width} px, ${mode.name} card: ${err.message}`);
+          problems.push(`dashboard at ${size.width} px, ${way.name} row: ${err.message.split('\n')[0]}`);
         }
       }
     } finally {
       await context.close();
     }
   }
-
-  // The header row is one row with none of the three in it; the open menu
-  // lists them under its four page links.
-  for (const width of MENU_WIDTHS) {
-    const context = await finishedSetupContext(browser, {
-      viewport: { width, height: 800 },
-      isMobile: width < 768, hasTouch: width < 768, colorScheme: 'light',
-    });
-    const page = await context.newPage();
-    try {
-      await openDashboard(page, baseUrl);
-      const header = page.locator('nav[aria-label="Main"]');
-      const rowProblems = () => header.evaluate((nav, paths) => {
-        const out = [];
-        const row = nav.firstElementChild;
-        const rowBox = row.getBoundingClientRect();
-        if (rowBox.height > 64.5) out.push(`row is ${Math.round(rowBox.height)} px tall`);
-        for (const el of row.querySelectorAll('a, button')) {
-          const box = el.getBoundingClientRect();
-          if (box.width === 0 || box.height === 0 || getComputedStyle(el).visibility === 'hidden') continue;
-          const name = el.getAttribute('aria-label') || el.textContent.trim() || el.tagName;
-          if (box.top < rowBox.top - 0.5 || box.bottom > rowBox.bottom + 0.5) out.push(`${name} is outside the row`);
-          if (paths.includes((el.getAttribute('href') || '').replace(/\/$/, ''))) out.push(`${name} is in the row`);
-        }
-        return out;
-      }, MODES.map((mode) => mode.path));
-      for (const p of await rowProblems()) problems.push(`header at ${width} px: ${p}`);
-      await header.locator('button.nav-mobile-toggle').click();
-      const menu = page.locator('.nav-mobile-menu');
-      await menu.waitFor({ timeout: 5_000 });
-      for (const p of await rowProblems()) problems.push(`header at ${width} px with the menu open: ${p}`);
-      for (const mode of MODES) {
-        const link = menu.getByRole('link', { name: mode.name, exact: true });
-        if (!(await link.count())) {
-          problems.push(`menu at ${width} px: no ${mode.name} link`);
-        } else if (bare(await link.getAttribute('href')) !== mode.path) {
-          problems.push(`menu at ${width} px: ${mode.name} links ${await link.getAttribute('href')}`);
-        }
-      }
-      const pages = (await menu.getByRole('link').evaluateAll((links) => links.map((a) => a.getAttribute('href') || '')))
-        .map(bare).filter((href) => href.startsWith('/')).slice(0, PAGE_LINKS.length);
-      if (pages.join(' ') !== PAGE_LINKS.join(' ')) {
-        problems.push(`menu at ${width} px: its first page links are ${pages.join(' ')}, not ${PAGE_LINKS.join(' ')}`);
-      }
-      await page.screenshot({ path: path.join(outDir, `dashboard-menu-check-${width}-light.png`) });
-      console.log(`checked the header row and menu on the dashboard at ${width} px`);
-    } catch (err) {
-      problems.push(`header and menu at ${width} px: ${err.message}`);
-    } finally {
-      await context.close();
-    }
-  }
-
   for (const p of problems) console.error(`failed mode-link check: ${p}`);
   return problems.length;
 }
@@ -1051,8 +1010,8 @@ async function settleForPicture(page) {
   await page.waitForTimeout(400);
 }
 
-// Both versions: the camera step after a refused request, at 390 and 1280
-// pixels in both looks, so the pull request has before and after.
+// Both versions: the camera step after a refused request, at each of the four
+// widths in both looks, so the pull request has before and after.
 async function captureCameraStepRefused(browser, baseUrl, outDir) {
   let failed = 0;
   for (const size of WIDTHS) {
@@ -1094,7 +1053,7 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
     noSupport: 'This browser cannot use a camera on this page.',
     other: 'Unable to access the camera or microphone. Check the device and try again.',
   };
-  const CAMERA_LATER = 'You can allow the camera later, on the Monitor page.';
+  const CAMERA_LATER = 'You can allow the camera later, on the Motion and sound page.';
   const CAMERA_SKIP = 'Continue without the camera';
   const problems = [];
   const PHONE = { width: 390, height: 844, isMobile: true };
@@ -1222,17 +1181,19 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
       await step.getByRole('heading', { name: /Setup Complete/ }).waitFor({ timeout: 10_000 });
       await Promise.all([
         page.waitForURL((url) => /^\/dashboard\/?$/.test(url.pathname), { timeout: 20_000 }),
-        step.getByRole('button', { name: /Launch Dashboard/ }).click(),
+        step.getByRole('button', { name: 'Open dashboard', exact: true }).click(),
       ]);
-      const quickActions = page.locator('.panel')
-        .filter({ has: page.getByRole('heading', { name: 'Quick Actions', exact: true }) });
-      await quickActions.waitFor({ timeout: 20_000 });
+      const state = page.getByRole('heading', { level: 1, name: /^(Not watching|Watching in another tab)$/ });
+      if (!(await state.waitFor({ timeout: 20_000 }).then(() => true, () => false))) {
+        fail(`after setup the dashboard is not shown; the address is ${new URL(page.url()).pathname}`);
+        return;
+      }
 
       // A reload of the dashboard stays on the dashboard.
       await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
-      await quickActions.waitFor({ timeout: 20_000 }).catch(() => {});
+      await state.waitFor({ timeout: 20_000 }).catch(() => {});
       const address = new URL(page.url()).pathname;
-      if (!/^\/dashboard\/?$/.test(address) || !(await shown(quickActions))) {
+      if (!/^\/dashboard\/?$/.test(address) || !(await shown(state))) {
         fail(`after a reload the dashboard is not shown; the address is ${address}`);
       }
       const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-onboarding') || '{}').state || {});

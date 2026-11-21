@@ -36,12 +36,12 @@ const WALK_LIMIT_MS = 180_000;
 
 // Straight and curly apostrophes are one character to a reader; so are a
 // space and a non-breaking space.
-const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+export const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
 
 // A person who has finished setup on this device. Seeded on the first page of
 // the visit only: later pages read what the earlier ones left, so a page that
 // cleared the saved setup is seen.
-const SETUP_DONE = () => {
+export const SETUP_DONE = () => {
   if (sessionStorage.getItem('home-checks-seeded')) return;
   sessionStorage.setItem('home-checks-seeded', '1');
   localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
@@ -54,7 +54,7 @@ const SETUP_DONE = () => {
 // Reads what the readability rule measures: every visible piece of text with
 // its size, face and contrast against the colour behind it, and every element
 // that scrolls sideways.
-function measureText(root) {
+export function measureText(root) {
   const parse = (value) => {
     const n = (value.match(/[\d.]+/g) || ['0', '0', '0', '0']).map(Number);
     return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
@@ -117,7 +117,7 @@ function measureText(root) {
 // core. The strokes' figure keeps the anti-aliased half of each stroke, so a
 // thin face reads under its computed colour; it is the figure the minimum is
 // held to. Returns null when the picture holds too little ink to read.
-function readStrokes(base64) {
+export function readStrokes(base64) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onerror = () => reject(new Error('the picture of the words did not load'));
@@ -765,25 +765,6 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect((await github.getAttribute('href')) === 'https://github.com/framerslab/safeos' && !(await github.getAttribute('target')),
       'header: the GitHub link does not open the repository in the same tab');
   });
-
-  // The other public pages carry the app's bottom navigation on a phone; the
-  // footer's last line still reads above it at the end of the page.
-  for (const address of ['/faq/', '/privacy/']) {
-    await open({ name: 'footer, bottom navigation', width: 390 }, async (page) => {
-      await visit(page, new URL(address, baseUrl).toString());
-      await page.locator('nav[aria-label="Mobile navigation"]').waitFor({ timeout: 15_000 });
-      // The page scrolls smoothly; the walk goes straight to its end.
-      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
-      await page.waitForTimeout(500);
-      const seen = await page.evaluate(() => ({
-        end: Math.abs(window.scrollY + window.innerHeight - document.documentElement.scrollHeight) <= 1,
-        last: document.querySelector('.site-footer__last').getBoundingClientRect().bottom,
-        nav: document.querySelector('nav[aria-label="Mobile navigation"]').getBoundingClientRect().top,
-      }));
-      expect(seen.end, `footer on ${address} at 390 px: the walk did not reach the end of the page`);
-      expect(seen.last <= seen.nav, `footer on ${address} at 390 px: its last line ends at ${Math.round(seen.last)} px, under the bottom navigation from ${Math.round(seen.nav)} px`);
-    });
-  }
 
   // After setup the start key reads "Open dashboard" in the header, the first
   // screen, the closing block, the Menu and the footer.

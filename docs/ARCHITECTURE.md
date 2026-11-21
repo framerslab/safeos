@@ -129,17 +129,19 @@ src/
 ```
 apps/guardian-ui/src/
 ├── app/                       # Next.js pages
-│   ├── page.tsx               # Dashboard
-│   ├── monitor/               # Live monitoring
-│   ├── setup/                 # Onboarding wizard
+│   ├── page.tsx               # Home page
+│   ├── dashboard/             # Dashboard: watching state, ways to watch, new alerts
+│   ├── monitor/               # Motion and sound
+│   ├── setup/                 # Setup
 │   ├── settings/              # User settings
 │   ├── history/               # Alert history
-│   └── profiles/              # Profile management
+│   └── profiles/              # Forward to Detection settings
 │
 ├── components/
 │   ├── CameraFeed.tsx         # WebRTC camera capture
 │   ├── AlertPanel.tsx         # Alert display & acknowledgment
-│   ├── Dashboard.tsx          # Main dashboard layout
+│   ├── app/                   # App header, phone bar, new-alert count
+│   ├── dashboard/             # The dashboard's parts
 │   ├── DetectionZoneEditor.tsx # Zone configuration
 │   ├── LostFoundSetup.tsx     # Lost pet/person setup
 │   ├── SettingsPanel.tsx      # Settings UI
@@ -155,7 +157,7 @@ apps/guardian-ui/src/
 └── stores/                    # Zustand state stores
     ├── monitoring-store.ts    # Monitoring state
     ├── lost-found-store.ts    # Lost & Found state
-    └── onboarding-store.ts    # Onboarding wizard state
+    └── onboarding-store.ts    # Setup state
 ```
 
 ---

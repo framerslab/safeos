@@ -565,14 +565,6 @@ html.light .visitor-shell {
   line-height: var(--type-word-line);
 }
 
-/* The app's bottom navigation shows on the other public pages below 768 px;
-   the footer's last line ends above it. */
-@media (max-width: 767.98px) {
-  .visitor-shell--bottom-nav .site-footer {
-    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-  }
-}
-
 .site-footer__inner {
   container-type: inline-size;
   display: grid;

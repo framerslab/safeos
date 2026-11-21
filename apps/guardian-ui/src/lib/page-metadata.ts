@@ -109,3 +109,44 @@ export function pageMetadata({
     ...(noIndex ? { robots: { index: false, follow: true } } : {}),
   };
 }
+
+export interface AppPageMetadataInput {
+  /** The page's own name; " | SafeOS" is added after it. */
+  name: string;
+  description: string;
+  /** The page's address with a trailing slash, for example `/history/`. */
+  path: string;
+}
+
+/**
+ * Metadata for one of the app's own pages. What such a page shows depends on
+ * the device that opens it, so it asks search engines not to index it. Its
+ * title is set whole: the root layout's pattern is for the pages a visitor
+ * reads.
+ */
+export function appPageMetadata({ name, description, path: pagePath }: AppPageMetadataInput): Metadata {
+  const title = `${name} | SafeOS`;
+  const image = socialImage();
+  return {
+    title: { absolute: title },
+    description,
+    alternates: { canonical: pagePath },
+    openGraph: {
+      type: 'website',
+      locale: 'en_US',
+      siteName: SITE_NAME,
+      url: pagePath,
+      title,
+      description,
+      images: [image],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description,
+      images: [{ url: image.url, alt: image.alt }],
+      creator: '@framerslab',
+    },
+    robots: { index: false, follow: true },
+  };
+}

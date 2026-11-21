@@ -38,10 +38,15 @@ export function installCameraBrowser() {
   Object.defineProperty(global, 'WebSocket', { configurable: true, value: BrowserSocket });
   const video = new BrowserTrack('video');
   const audio = new BrowserTrack('audio');
+  const tracks: BrowserTrack[] = [video, audio];
   const stream = {
-    getTracks: () => [video, audio],
-    getVideoTracks: () => [video],
-    getAudioTracks: () => [audio],
+    getTracks: () => [...tracks],
+    getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+    getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+    removeTrack: (track: BrowserTrack) => {
+      const at = tracks.indexOf(track);
+      if (at >= 0) tracks.splice(at, 1);
+    },
   } as unknown as MediaStream;
   const getUserMedia = jest.fn().mockResolvedValue(stream);
   const mediaDevices = Object.assign(new EventTarget(), {
