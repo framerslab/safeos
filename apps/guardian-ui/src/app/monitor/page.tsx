@@ -979,7 +979,11 @@ export default function MonitorPage() {
     const frame = frames?.current;
     const taken = frame && takePicture('motion', now, frame, frame.width, frame.height, alertBox(
       'motion',
-      frames?.previous ? boxFromCells(detectRegionalMotion(frames.previous, frame), frame.width, frame.height, zone) : null,
+      // A cell counts at the line that raised the alert, up to the detector's own 10 per cent, so a
+      // change spread thin over the picture keeps its box.
+      frames?.previous
+        ? boxFromCells(detectRegionalMotion(frames.previous, frame, Math.max(0.001, Math.min(0.1, best.threshold / 100))), frame.width, frame.height, zone)
+        : null,
       frame.width,
       frame.height,
     ));
