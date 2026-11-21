@@ -164,8 +164,8 @@ Zones are local-first and work offline.
 SafeOS keeps a local incident log in your browser:
 
 - Go to **History → Local Timeline** to see:
-  - Monitoring alerts (a card whose event alerted again is listed at its newest alert)
-  - Lost & Found match frames
+  - Monitoring alerts with their pictures (a card whose event alerted again is listed at its newest alert)
+  - Lost and Found sightings with their pictures, and frames an earlier version saved
   - Security intrusion frames
 - Add notes, filter/search, and export a local bundle:
   - **Download Bundle (.json)** (or **.json.gz** in supported browsers)
