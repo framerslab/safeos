@@ -3195,11 +3195,12 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
 
   test('a diffuse change over the line at a high sensitivity boxes the cells that changed', async ({ page, context }) => {
     test.setTimeout(120_000);
-    // One pixel in 40, anywhere, flashes white each frame: about 5 per cent of the picture changes
-    // between two checks, spread over every cell, and Motion at 97 alerts over 3 per cent.
-    const sparse = { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 1, height: 1 }, levels: [...Array(39).fill(128), 255] };
+    // One pixel in 50, anywhere, flashes white each frame: about 4 per cent of the picture changes
+    // between two checks, spread over every cell and under the detector's 10 per cent in each, and
+    // Motion at 98 alerts over 2 per cent. The camera is 1280 by 720, so each cell reads 300 samples.
+    const sparse = { ...LEFT_THIRD, width: 1280, height: 720, moving: { x: 0, y: 0, width: 1, height: 1 }, levels: [...Array(49).fill(128), 255] };
     await watchWith(page, context, {
-      settings: { ...MOTION_ONLY, globalSettings: { ...CUSTOM_PRESET, motionSensitivity: 97 } },
+      settings: { ...MOTION_ONLY, globalSettings: { ...CUSTOM_PRESET, motionSensitivity: 98 } },
       camera: sparse,
     });
     const card = cards(page).first();
