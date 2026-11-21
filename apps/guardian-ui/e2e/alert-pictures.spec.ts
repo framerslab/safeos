@@ -3122,6 +3122,8 @@ test.describe('The privacy page and the notices', () => {
       expect(notices, `the notices list ${name} at ${versionOf(name)}`).toContain(`${name} ${versionOf(name)}`);
     }
     expect(notices).toContain('Apache License');
+    // Each package's own licence text stands whole: lodash's names Underscore's author after its first line.
+    expect(notices, 'lodash’s licence text whole').toContain('Based on Underscore.js, copyright Jeremy Ashkenas');
     expect(notices).toContain('The COCO-SSD model was trained on the COCO dataset; COCO\'s annotations are © COCO Consortium, licensed CC BY 4.0 (https://cocodataset.org/#termsofuse).');
     // A package used to build or test the site alone is not listed.
     expect(notices).not.toMatch(/^@playwright\/test /m);
@@ -3132,5 +3134,129 @@ test.describe('The privacy page and the notices', () => {
       await expect(link, `${address} links the notices`).toBeVisible();
       expect(await link.getAttribute('href')).toMatch(/\/third-party-notices\.txt$/);
     }
+  });
+});
+
+// =============================================================================
+// Edges of the save, the sweeps and the notification
+// =============================================================================
+
+test.describe('Edges of the save, the sweeps and the notification, 1280 px', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('a saved alert the history read cannot sort leaves every kept picture when a watch starts', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+    await canvasCamera(page, LEFT_THIRD);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    // Written after the page read its alerts: an alert of another tab, with a picture kept 20 minutes
+    // ago, and a record of the alert engine whose date is a number, which the history read cannot sort.
+    const at = Date.now() - 20 * 60_000;
+    await seedPictureRows(page, [
+      { alert: savedAlert('shared-odd-date', at, { producer: 'shared', monitoring: false, createdAt: at }) },
+      { alert: savedAlert(`motion-${at}-other`, at, { kind: 'motion', pictureId: `picture-${at}-other` }), picture: keptPicture(`picture-${at}-other`, at) },
+    ], { here: true });
+    await startWatching(page);
+    await page.waitForTimeout(4_000);
+    const kept = keptRows(await readDatabase(page)).map((row) => row.id);
+    expect(kept, 'the other tab’s alert keeps its picture').toContain(`picture-${at}-other`);
+  });
+
+  test('a saved file that cannot be drawn leaves the picture shown and Save picture to press again', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // The first saved file's JPEG (the picture with its box drawn in) cannot be made; the next can.
+    await page.addInitScript(() => {
+      const toBlob = HTMLCanvasElement.prototype.toBlob;
+      let failed = false;
+      HTMLCanvasElement.prototype.toBlob = function (this: HTMLCanvasElement, callback: BlobCallback, type?: string, quality?: number) {
+        if (!failed && type === 'image/jpeg' && quality === 0.92) {
+          failed = true;
+          setTimeout(() => callback(null), 0);
+          return;
+        }
+        return toBlob.call(this, callback, type, quality);
+      } as typeof toBlob;
+    });
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await holdStill(page);
+    await openKey(card).click();
+    const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
+    await expect(dialog.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+    await saveKey(dialog).click();
+    await page.waitForTimeout(1_000);
+    // Nothing says the picture cannot be read: it shows, and Save picture stays.
+    await expect(dialog.getByText(UNREADABLE_LINE, { exact: false })).toHaveCount(0);
+    await expect(dialog.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+    const [saved] = await Promise.all([page.waitForEvent('download'), saveKey(dialog).click()]);
+    expect(saved.suggestedFilename()).toMatch(/^safeos-motion-\d{4}-\d{2}-\d{2}-\d{6}\.jpg$/);
+  });
+
+  test('a diffuse change over the line at a high sensitivity boxes the cells that changed', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // One pixel in 40, anywhere, flashes white each frame: about 5 per cent of the picture changes
+    // between two checks, spread over every cell, and Motion at 97 alerts over 3 per cent.
+    const sparse = { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 1, height: 1 }, levels: [...Array(39).fill(128), 255] };
+    await watchWith(page, context, {
+      settings: { ...MOTION_ONLY, globalSettings: { ...CUSTOM_PRESET, motionSensitivity: 97 } },
+      camera: sparse,
+    });
+    const card = cards(page).first();
+    await timeOf(card, 'Motion');
+    await expect(card.locator('.alert-picture__frame .alert-picture__box'), 'the alert’s picture has its box').toHaveCount(1);
+  });
+
+  test('turning the picture off while the notification’s picture is drawn sends the words alone', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // The notification's copy is drawn after the person turned the picture off in another tab.
+    await page.addInitScript(() => {
+      const toDataURL = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, quality?: unknown) {
+        // The notification's copy alone is a JPEG at 0.8; the camera's frames for a server are at 0.7.
+        if (type === 'image/jpeg' && quality === 0.8) {
+          const key = 'safeos-alert-pictures';
+          const stored = JSON.parse(localStorage.getItem(key) ?? '{"state":{},"version":0}');
+          stored.state.inNotifications = false;
+          const value = JSON.stringify(stored);
+          localStorage.setItem(key, value);
+          window.dispatchEvent(new StorageEvent('storage', { key, newValue: value, storageArea: localStorage }));
+        }
+        return toDataURL.call(this, type, quality);
+      } as typeof toDataURL;
+    });
+    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, inNotifications: true } });
+    await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Motion alert');
+    expect(note.image ?? null, 'no picture once the person turned it off').toBeNull();
+  });
+
+  test('Stop pressed while the notification’s picture is drawn keeps the event’s own tag', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // The picture's JPEG comes back 250 ms after it is drawn; Stop Monitoring is pressed 50 ms in.
+    await faultPictureStore(page, { holdDrawMs: 250 });
+    await page.addInitScript(() => {
+      const toBlob = HTMLCanvasElement.prototype.toBlob;
+      let pressed = false;
+      HTMLCanvasElement.prototype.toBlob = function (this: HTMLCanvasElement, callback: BlobCallback, type?: string, quality?: number) {
+        if (!pressed && type === 'image/jpeg') {
+          pressed = true;
+          setTimeout(() => {
+            const stop = Array.from(document.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === 'Stop Monitoring');
+            stop?.click();
+          }, 50);
+        }
+        return toBlob.call(this, callback, type, quality);
+      } as typeof toBlob;
+    });
+    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, inNotifications: true } });
+    await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 30_000 });
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Motion alert');
+    expect(note.tag, 'the notification keeps the tag of the event that raised it').toMatch(/^safeos-Motion alert-.+/);
   });
 });

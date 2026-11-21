@@ -216,8 +216,9 @@ export interface PictureRow {
  * opens it at /history/). The pictures' Blobs are small JPEGs drawn in the
  * page. The page is left on /history/; reload or go on from there.
  */
-export async function seedPictureRows(page: Page, rows: PictureRow[]): Promise<void> {
-  await page.goto('/history/', { waitUntil: 'networkidle' });
+export async function seedPictureRows(page: Page, rows: PictureRow[], options: { here?: boolean } = {}): Promise<void> {
+  // From History unless `here`: the rows are then written under the open page, which read its alerts before.
+  if (!options.here) await page.goto('/history/', { waitUntil: 'networkidle' });
   await page.waitForFunction(async () => (await indexedDB.databases()).some((d) => d.name === 'safeos-guardian'), undefined, { timeout: 15_000 });
   await page.evaluate((list: PictureRow[]) => new Promise<void>((resolve, reject) => {
     const jpeg = (width: number, height: number, grey: number) => new Promise<Blob>((done, fail) => {
