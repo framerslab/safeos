@@ -348,8 +348,10 @@ html.light .visitor-shell {
   display: none;
 }
 
+/* Wide enough for "Open dashboard", so the key keeps one width when its
+   label changes once setup is done and nothing beside it moves. */
 .site-header__start {
-  min-width: 10rem;
+  min-width: 10.5rem;
 }
 
 /* The look switch is an icon key (keys.css). Its place is held before its
@@ -572,6 +574,7 @@ html.light .visitor-shell {
 }
 
 .site-footer__inner {
+  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 32px;
@@ -612,6 +615,17 @@ html.light .visitor-shell {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, max(8.5rem, calc(50% - 8px))), 1fr));
   gap: 32px 16px;
+}
+
+/* Where the footer holds a column of 136 px beside the longest row (from
+   390 px at the usual text size), the right-hand column, which holds Uses,
+   About and From Frame, is never narrower than its longest row, so every row
+   stays on one line. The width is measured in the root's text size, so larger
+   text keeps the two equal columns above and drops to one. */
+@container (min-width: 22rem) {
+  .site-footer__groups {
+    grid-template-columns: minmax(8.5rem, 1fr) minmax(max-content, 1fr);
+  }
 }
 
 .site-footer__title {
@@ -655,7 +669,8 @@ html.light .visitor-shell {
 }
 
 /* The GitHub link with its count: where the column cannot hold it on one
-   line, the word GitHub goes to the second line with its star and count. */
+   line (under 390 px), the word GitHub goes to the second line with its star
+   and count. */
 .site-footer__link--github {
   flex-wrap: wrap;
   column-gap: 0.25em;
