@@ -71,6 +71,9 @@
   --weight-regular: 400;
   --weight-bold: 700;
 
+  /* The corner of every key's box (styles/keys.css). */
+  --key-radius: 0.375rem;           /* 6px */
+
   /* Status Colors */
   --color-status-online: #22c55e;
   --color-status-offline: #ef4444;
@@ -1312,6 +1315,18 @@ html.light .prose blockquote,
 html.light [class*="prose"] blockquote {
   color: #4b5563 !important;
   border-left-color: #10b981 !important;
+}
+
+/* =============================================================================
+   A change of look: one frame
+   ============================================================================= */
+
+/* Set for the moment the look switch changes the look, so no fill eases
+   from the old look's colour while its words are already in the new one. */
+html.look-changing *,
+html.look-changing *::before,
+html.look-changing *::after {
+  transition: none !important;
 }
 
 /* =============================================================================

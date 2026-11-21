@@ -3,8 +3,12 @@
  *
  * The foot of every public page: the brand block, six small groups of links
  * (Privacy and Terms among them) and one last line with the copyright and the
- * code's licence. Every link opens in the same tab, so Back returns to the
- * page. It shows no status line: nothing checks one.
+ * code's licence. The last group shows who builds SafeOS and what else they
+ * make, each by its own mark and its name. When the repository's star count
+ * was read as the site was built, the GitHub link is followed by a star and
+ * the count, and the last line says the count and the day it was counted.
+ * Every link opens in the same tab, so Back returns to the page. It shows no
+ * status line: nothing checks one.
  *
  * @module components/visitor/VisitorFooter
  */
@@ -13,6 +17,9 @@ import Link from 'next/link';
 import { SiteMark } from './SiteMark';
 import { StartLink } from './StartLink';
 import { Num } from './Num';
+import { GitHubLink, GITHUB_URL } from './GitHubLink';
+import { MakerMark, type Maker } from './MakerMark';
+import { starCount, starsSentence } from '@/lib/github-stars';
 
 interface FooterLink {
   href: string;
@@ -21,6 +28,8 @@ interface FooterLink {
   outside?: boolean;
   /** A name that stays as it is in a translated page. */
   name?: boolean;
+  /** The maker whose own mark stands before the name. */
+  maker?: Maker;
 }
 
 interface FooterGroup {
@@ -54,7 +63,7 @@ export const FOOTER_GROUPS: FooterGroup[] = [
     title: 'About',
     links: [
       { href: '/about/', label: 'About SafeOS' },
-      { href: 'https://github.com/framerslab/safeos', label: 'SafeOS on GitHub', outside: true },
+      { href: GITHUB_URL, label: 'SafeOS on GitHub', outside: true },
       { href: 'https://wilds.ai/discord', label: 'Discord', outside: true, name: true },
       { href: 'mailto:team@frame.dev', label: 'team@frame.dev', outside: true, name: true },
     ],
@@ -71,9 +80,9 @@ export const FOOTER_GROUPS: FooterGroup[] = [
   {
     title: 'From Frame',
     links: [
-      { href: 'https://frame.dev', label: 'Frame', outside: true, name: true },
-      { href: 'https://agentos.sh', label: 'AgentOS', outside: true, name: true },
-      { href: 'https://paracosm.agentos.sh', label: 'Paracosm', outside: true, name: true },
+      { href: 'https://frame.dev', label: 'Frame', outside: true, name: true, maker: 'frame' },
+      { href: 'https://agentos.sh', label: 'AgentOS', outside: true, name: true, maker: 'agentos' },
+      { href: 'https://paracosm.agentos.sh', label: 'Paracosm', outside: true, name: true, maker: 'paracosm' },
     ],
   },
 ];
@@ -81,7 +90,37 @@ export const FOOTER_GROUPS: FooterGroup[] = [
 /** The year the site was built; the build sets it, and a test run falls back to today's. */
 const BUILD_YEAR = process.env.NEXT_PUBLIC_BUILD_YEAR || String(new Date().getFullYear());
 
+/** A sentence with each of its numbers in tabular figures. */
+function withNumbers(sentence: string) {
+  return sentence.split(/(\d[\d,]*)/).map((part, index) => (index % 2 ? <Num key={index}>{part}</Num> : part));
+}
+
+function FooterAnchor({ link }: { link: FooterLink }) {
+  if (link.href === GITHUB_URL) return <GitHubLink className="site-footer__link site-footer__link--github" place="footer" full />;
+  if (link.maker) {
+    return (
+      <a href={link.href} className="site-footer__link site-footer__link--maker" translate="no">
+        <MakerMark maker={link.maker} size={24} />
+        <span>{link.label}</span>
+      </a>
+    );
+  }
+  if (link.outside) {
+    return (
+      <a href={link.href} className="site-footer__link" translate={link.name ? 'no' : undefined}>
+        {link.label}
+      </a>
+    );
+  }
+  return (
+    <Link href={link.href} className="site-footer__link">
+      {link.label}
+    </Link>
+  );
+}
+
 export function VisitorFooter() {
+  const stars = starCount();
   return (
     <footer className="site-footer">
       <div className="site-footer__inner">
@@ -109,15 +148,7 @@ export function VisitorFooter() {
               <ul className="site-footer__list">
                 {group.links.map((link) => (
                   <li key={link.href}>
-                    {link.outside ? (
-                      <a href={link.href} className="site-footer__link" translate={link.name ? 'no' : undefined}>
-                        {link.label}
-                      </a>
-                    ) : (
-                      <Link href={link.href} className="site-footer__link">
-                        {link.label}
-                      </Link>
-                    )}
+                    <FooterAnchor link={link} />
                   </li>
                 ))}
               </ul>
@@ -127,6 +158,7 @@ export function VisitorFooter() {
 
         <p className="site-footer__last">
           © <Num>{BUILD_YEAR}</Num> <span translate="no">Frame</span>. <span translate="no">SafeOS</span> code is MIT-licensed.
+          {stars && <> {withNumbers(starsSentence(stars))}</>}
         </p>
       </div>
     </footer>

@@ -101,6 +101,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # The star count beside the GitHub link, read once and handed to the
+      # build and to the capture, which checks the pages against it. The base
+      # commit of a pull request may be older than the script. A read that
+      # fails leaves a warning and no count: the pictures then show the link
+      # with its word alone.
+      - name: Read the repository's star count
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f scripts/read-github-stars.mjs ]; then
+            node scripts/read-github-stars.mjs
+          fi
+
       - name: Build static site
         run: npm run build
         env:
@@ -160,6 +173,16 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The count, read as the pictures job reads it, so the home page's
+      # pictures show the GitHub link as the deployed site does.
+      - name: Read the repository's star count
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f scripts/read-github-stars.mjs ]; then
+            node scripts/read-github-stars.mjs
+          fi
 
       - name: Build static site
         run: npm run build

@@ -144,9 +144,20 @@ export function useTheme() {
     if (!useThemeStore.persist.hasHydrated()) return;
 
     const root = document.documentElement;
+    // The look changes in one frame. A key's fill eases under the pointer;
+    // without this its fill would ease from the old look while its label
+    // has already changed, and for that moment the label is hard to read.
+    const changing = !root.classList.contains(resolvedTheme);
+    if (changing) root.classList.add('look-changing');
     root.classList.remove('light', 'dark');
     root.classList.add(resolvedTheme);
     root.style.colorScheme = resolvedTheme;
+    if (changing) {
+      // Reading a size makes the browser apply the new look to the whole
+      // page now, while nothing eases; the ease returns for the next hover.
+      void document.body?.offsetWidth;
+      root.classList.remove('look-changing');
+    }
     // The browser's own bar takes the page colour of the look that is on,
     // also after a press of the look switch.
     document.querySelectorAll('meta[name="theme-color"]').forEach((meta) => {

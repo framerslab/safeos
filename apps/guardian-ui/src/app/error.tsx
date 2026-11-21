@@ -45,13 +45,13 @@ export default function ErrorPage({ error }: { error: Error & { digest?: string 
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="inline-flex items-center justify-center min-h-[44px] px-5 bg-emerald-700 text-white text-lg rounded-lg hover:bg-emerald-800 transition-colors"
+                className="key key--solid"
               >
                 Reload
               </button>
               <Link
                 href="/"
-                className="inline-flex items-center justify-center min-h-[44px] px-5 text-lg text-[var(--color-steel-100)] underline underline-offset-4"
+                className="link-row"
               >
                 Go to the home page
               </Link>

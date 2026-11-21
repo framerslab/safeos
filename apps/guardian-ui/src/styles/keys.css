@@ -1,0 +1,310 @@
+/**
+ * Keys: every control a person presses, in four kinds.
+ *
+ * A solid key starts something, one a view. An outlined key does anything
+ * else. A text link goes somewhere: a link told by its place (a header's or a
+ * footer's), a link row in a page's body, or a word key such as Menu. An icon
+ * key is a glyph every person reads without a word, with a name that says
+ * what a press does.
+ *
+ * Each kind has one box, one corner (--key-radius, 6 px) and the same states
+ * on every page: at rest, under the pointer, focused, pressed and inactive.
+ * This is the one file that sets a key's box. Every colour is a token of
+ * design-system.css, and the sizes are its --type-* tokens. No key has a
+ * fixed height or width but the icon key, so a key grows with its label.
+ */
+
+/* =============================================================================
+   The box every key shares
+   ============================================================================= */
+
+/* 44 px tall at least, its label on one line. The edge is part of every
+   key's box, drawn or not, so a key keeps its size when it turns from solid
+   to inactive. */
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 9px 15px;
+  border: 1px solid transparent;
+  border-radius: var(--key-radius);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+  /* A press is a press at once: no wait for a second tap. */
+  touch-action: manipulation;
+  transition: background-color 100ms ease-out;
+}
+
+/* =============================================================================
+   The solid key: the one key of a view that starts something
+   ============================================================================= */
+
+.key--solid {
+  background: var(--look-accent);
+  color: var(--look-on-accent);
+}
+
+.key--solid:hover,
+.key--solid:active {
+  background: var(--look-accent-hover);
+}
+
+/* The start key of a first screen and of a closing block: 52 px tall, 56 px
+   from the wide layout. Its label stays on one line while the column holds
+   it; when space is short the arrow gives way first. */
+.key--start {
+  width: 100%;
+  min-height: 52px;
+  padding: 13px 7px;
+  font-size: var(--type-key-size);
+  line-height: var(--type-key-line);
+  white-space: normal;
+  overflow-wrap: normal;
+  text-align: center;
+}
+
+.key--start > span {
+  flex: 0 1 auto;
+}
+
+.key__arrow {
+  flex: 0 1000 20px;
+  min-width: 0;
+  width: 20px;
+  height: 20px;
+}
+
+@media (min-width: 48em) {
+  .key--start {
+    width: auto;
+    min-width: 14.5rem;
+    padding: 13px 23px;
+  }
+}
+
+@media (min-width: 90em) {
+  .key--start {
+    min-height: 56px;
+  }
+}
+
+/* =============================================================================
+   The outlined key: every other key that does something
+   ============================================================================= */
+
+.key--outline {
+  border: 1px solid var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-50);
+  font-weight: var(--weight-regular);
+}
+
+.key--outline:hover {
+  border-color: var(--color-steel-50);
+  background: var(--color-steel-900);
+}
+
+/* =============================================================================
+   The word key: a button that is a word (Menu, Close, More)
+   ============================================================================= */
+
+.key--word {
+  min-width: 64px;
+  padding: 9px 11px;
+  background: transparent;
+  color: var(--color-steel-50);
+}
+
+.key--word:hover {
+  background: var(--color-steel-900);
+}
+
+/* =============================================================================
+   The icon key: a 22 px glyph in a 44 px box, always with a name
+   ============================================================================= */
+
+/* The look switch carries its own class and takes the same box. */
+.key--icon,
+.look-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--key-radius);
+  background: transparent;
+  color: var(--color-steel-50);
+  touch-action: manipulation;
+  transition: background-color 100ms ease-out;
+}
+
+.key--icon:hover,
+.look-switch:hover {
+  background: var(--color-steel-900);
+}
+
+.key--icon svg,
+.look-switch svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* =============================================================================
+   The link row: a link in a page's body, on its own row
+   ============================================================================= */
+
+/* Ink words at the bold weight with a 2 px underline in the look's green.
+   The green is never the colour of a word. */
+.link-row {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-bold);
+  text-decoration-line: underline;
+  text-decoration-color: var(--look-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.link-row:hover {
+  text-decoration-thickness: 3px;
+}
+
+/* =============================================================================
+   Focused: the ring keeps the key's own corner
+   ============================================================================= */
+
+/* A 2 px ring in the look's green, 2 px outside the key, on keyboard focus,
+   on every page a key stands on. */
+:root :is(.key, .key--icon, .look-switch, .link-row):focus-visible {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+}
+
+/* The visitor pages square a focused element's corners to 2 px. A key keeps
+   its 6 px, so the ring's corners are the key's, 2 px further out. */
+:root :is(.key, .key--icon, .look-switch):focus-visible {
+  border-radius: var(--key-radius);
+}
+
+/* =============================================================================
+   Pressed: 1 px lower, at full strength
+   ============================================================================= */
+
+/* One pressed state for the four kinds, the links told by their place among
+   them (the header's, the Menu's and the footer's, which carry their own
+   classes). Written to outrank the site's touch rules, which shrink every
+   pressed button and dim every pressed link. */
+:root :is(.key, .key--icon, .look-switch, .link-row, .site-header__brand, .site-header__link, .site-menu__row, .site-footer__link):active {
+  opacity: 1;
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root :is(.key, .key--icon, .look-switch, .link-row, .site-header__brand, .site-header__link, .site-menu__row, .site-footer__link):active {
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   Inactive: a dashed edge and words that say why
+   ============================================================================= */
+
+/* A key that cannot be pressed now has no fill, a dashed edge in the line
+   colour and its label in the quiet tone at the regular weight; the label
+   says why. Never dimness alone. It keeps its place in the focus order, and
+   a press does nothing. */
+.key--waiting,
+.key[aria-disabled='true'] {
+  border: 1px dashed var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-200);
+  font-weight: var(--weight-regular);
+  cursor: default;
+}
+
+.key--waiting:hover,
+.key[aria-disabled='true']:hover,
+:root .key--waiting:active,
+:root .key[aria-disabled='true']:active {
+  background: transparent;
+  transform: none;
+}
+
+/* An inactive icon key keeps its box and draws its glyph in the line colour. */
+.key--icon[aria-disabled='true'],
+.key--icon[aria-disabled='true']:hover {
+  background: transparent;
+  color: var(--color-steel-300);
+  cursor: default;
+}
+
+:root .key--icon[aria-disabled='true']:active {
+  transform: none;
+}
+
+/* =============================================================================
+   A row of keys: one line, never wrapped (src/components/KeyRow.tsx)
+   ============================================================================= */
+
+/* Keys side by side share one row, each at its own width. A row wider than
+   its place scrolls inside itself, with a faded edge on the side that holds
+   more and its two arrow keys, and never wraps. The padding keeps a focused
+   key's ring inside the part that scrolls. */
+.key-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+}
+
+.key-row__keys {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 4px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+/* The keys' part is as wide as its keys while they fit, and the row centres
+   it; once the keys scroll, the part starts at its first key, in every
+   browser, so the first key stays in reach. */
+
+.key-row__keys::-webkit-scrollbar {
+  display: none;
+}
+
+.key-row__keys > * {
+  flex: none;
+}
+
+.key-row[data-more='end'] .key-row__keys {
+  mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);
+}
+
+.key-row[data-more='start'] .key-row__keys {
+  mask-image: linear-gradient(to left, black calc(100% - 24px), transparent);
+}
+
+.key-row[data-more='both'] .key-row__keys {
+  mask-image: linear-gradient(to right, transparent, black 24px, black calc(100% - 24px), transparent);
+}

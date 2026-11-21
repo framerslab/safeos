@@ -162,9 +162,14 @@ html.light .visitor-shell {
   font-size: var(--type-word-size);
   line-height: var(--type-word-line);
   font-weight: var(--weight-bold);
+  border-radius: var(--key-radius);
   clip-path: inset(50%);
   opacity: 0;
   pointer-events: none;
+}
+
+.visitor-shell .skip-link:focus-visible {
+  border-radius: var(--key-radius);
 }
 
 .skip-link:focus,
@@ -172,112 +177,6 @@ html.light .visitor-shell {
   clip-path: none;
   opacity: 1;
   pointer-events: auto;
-}
-
-/* =============================================================================
-   Keys and links
-   ============================================================================= */
-
-.key {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 10px 16px;
-  border: 0;
-  border-radius: 4px;
-  font-family: var(--font-sans);
-  font-size: var(--type-word-size);
-  line-height: var(--type-word-line);
-  font-weight: var(--weight-bold);
-  white-space: nowrap;
-  transition: background-color 100ms ease-out;
-}
-
-/* The one key that starts something. */
-.key--solid {
-  background: var(--look-accent);
-  color: var(--look-on-accent);
-}
-
-.key--solid:hover,
-.key--solid:active {
-  background: var(--look-accent-hover);
-}
-
-.key--solid:active {
-  transform: translateY(1px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .key--solid:active {
-    transform: none;
-  }
-}
-
-.visitor-shell .key--solid:focus-visible {
-  border-radius: 4px;
-}
-
-/* The start key of the first screen and the closing block. Its label stays
-   on one line while the column holds it; when space is short the arrow gives
-   way first. */
-.key--start {
-  width: 100%;
-  min-height: 52px;
-  padding: 14px 8px;
-  font-size: var(--type-key-size);
-  line-height: var(--type-key-line);
-  white-space: normal;
-  overflow-wrap: normal;
-  text-align: center;
-}
-
-.key--start > span {
-  flex: 0 1 auto;
-}
-
-.key__arrow {
-  flex: 0 1000 20px;
-  min-width: 0;
-  width: 20px;
-  height: 20px;
-}
-
-@media (min-width: 48em) {
-  .key--start {
-    width: auto;
-    min-width: 14.5rem;
-    padding: 14px 24px;
-  }
-}
-
-@media (min-width: 90em) {
-  .key--start {
-    min-height: 56px;
-  }
-}
-
-/* A link in the page's body: ink words at weight 700 on their own row, with a
-   2 px underline in the look's green. */
-.link-row {
-  display: flex;
-  align-items: center;
-  min-height: 44px;
-  color: var(--color-steel-50);
-  font-family: var(--font-sans);
-  font-size: var(--type-body-size);
-  line-height: var(--type-body-line);
-  font-weight: var(--weight-bold);
-  text-decoration-line: underline;
-  text-decoration-color: var(--look-accent);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-}
-
-.link-row:hover {
-  text-decoration-thickness: 3px;
 }
 
 /* =============================================================================
@@ -394,20 +293,47 @@ html.light .visitor-shell {
   white-space: nowrap;
 }
 
-.site-header__link:hover {
+/* Under the pointer and while pressed: the ink, with a 1 px ink underline.
+   The page being read keeps its 2 px underline in the look's green, so the
+   two differ in thickness as well as in colour. */
+.site-header__link:hover,
+.site-header__link:active {
   color: var(--color-steel-50);
   text-decoration-line: underline;
   text-decoration-color: var(--color-steel-50);
-  text-decoration-thickness: 2px;
+  text-decoration-thickness: 1px;
   text-underline-offset: 6px;
 }
 
-.site-header__link[aria-current] {
+.site-header__link[aria-current],
+.site-header__link[aria-current]:hover {
   color: var(--color-steel-50);
   text-decoration-line: underline;
   text-decoration-color: var(--look-accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 6px;
+}
+
+/* Privacy joins the row from 1024 px. */
+.site-header__link--wide {
+  display: none;
+}
+
+/* The word GitHub with the repository's star count: the word, a 16 px
+   outlined star and the number, 6 px apart, in the link's own tone. One piece
+   that never breaks. */
+.star-count {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.star-count__star {
+  flex: none;
+  width: 16px;
+  height: 16px;
 }
 
 .site-header__actions {
@@ -422,66 +348,21 @@ html.light .visitor-shell {
   display: none;
 }
 
+/* Wide enough for "Open dashboard", so the key keeps one width when its
+   label changes once setup is done and nothing beside it moves. */
 .site-header__start {
-  min-width: 10rem;
+  min-width: 10.5rem;
 }
 
-/* The look switch: a sun or a moon in the ink inside a round 44 px target
-   with no edge. Its place is held before its script arrives. */
-.look-switch,
+/* The look switch is an icon key (keys.css). Its place is held before its
+   script arrives, so nothing moves when it appears. */
 .look-switch-place {
   flex: none;
   width: 44px;
   height: 44px;
 }
 
-.look-switch {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-steel-50);
-}
-
-.look-switch:hover {
-  background: var(--color-steel-900);
-}
-
-.visitor-shell .look-switch:focus-visible {
-  border-radius: 50%;
-}
-
-.look-switch svg {
-  width: 22px;
-  height: 22px;
-}
-
-/* The Menu key: the word in the ink at weight 700, no edge, one width in both
-   states. */
-.site-header__menu-key {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 64px;
-  min-height: 44px;
-  padding: 0 12px;
-  border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--color-steel-50);
-  font-family: var(--font-sans);
-  font-size: var(--type-word-size);
-  line-height: var(--type-word-line);
-  font-weight: var(--weight-bold);
-}
-
-.site-header__menu-key:hover {
-  background: var(--color-steel-900);
-}
-
+/* The Menu key is a word key (keys.css): one width in both states. */
 .menu-key__words {
   display: grid;
   justify-items: center;
@@ -558,27 +439,26 @@ html.light .visitor-shell {
   border-top: 1px solid var(--color-steel-300);
 }
 
-.site-menu__row--start {
-  justify-content: center;
+/* The Menu's first row is the solid key (keys.css), 48 px tall across the
+   panel. */
+.site-menu__start {
+  display: flex;
   min-height: 48px;
   margin-bottom: 8px;
-  padding: 12px 16px;
-  border-radius: 4px;
-  background: var(--look-accent);
-  color: var(--look-on-accent);
-  font-weight: var(--weight-bold);
 }
 
-.site-menu__row--start:hover {
-  background: var(--look-accent-hover);
-}
-
-.site-menu__row--start + .site-menu__row {
-  border-top: 0;
-}
-
-.site-menu__row:not(.site-menu__row--start):hover {
+.site-menu__row:hover,
+.site-menu__row:active {
   text-decoration-line: underline;
+  text-decoration-color: var(--color-steel-50);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 6px;
+}
+
+.site-menu__row[aria-current],
+.site-menu__row[aria-current]:hover {
+  text-decoration-line: underline;
+  text-decoration-color: var(--look-accent);
   text-decoration-thickness: 2px;
   text-underline-offset: 6px;
 }
@@ -635,13 +515,21 @@ html.light .visitor-shell {
     max-width: 1264px;
   }
 
-  .site-header:not([data-collapsed='true']) .site-header__github {
+  .site-header__link--wide {
+    display: inline-flex;
+  }
+
+  .site-header[data-short='privacy'] .site-header__link--wide {
+    display: none;
+  }
+
+  .site-header:not([data-collapsed='true']):not([data-short]) .site-header__github {
     display: inline-flex;
     margin-right: 8px;
   }
 }
 
-/* Wide: the four links sit on the page's middle line. */
+/* Wide: the links sit on the page's middle line. */
 @media (min-width: 90em) {
   .site-header__bar {
     max-width: 1448px;
@@ -678,6 +566,7 @@ html.light .visitor-shell {
 }
 
 .site-footer__inner {
+  container-type: inline-size;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 32px;
@@ -720,6 +609,17 @@ html.light .visitor-shell {
   gap: 32px 16px;
 }
 
+/* Where the footer holds a column of 136 px beside the longest row (from
+   390 px at the usual text size), the right-hand column, which holds Uses,
+   About and From Frame, is never narrower than its longest row, so every row
+   stays on one line. The width is measured in the root's text size, so larger
+   text keeps the two equal columns above and drops to one. */
+@container (min-width: 22rem) {
+  .site-footer__groups {
+    grid-template-columns: minmax(8.5rem, 1fr) minmax(max-content, 1fr);
+  }
+}
+
 .site-footer__title {
   margin: 0 0 4px;
   color: var(--color-steel-50);
@@ -745,12 +645,27 @@ html.light .visitor-shell {
 }
 
 .site-footer__link:hover,
+.site-footer__link:active,
 .site-footer__link:focus-visible {
   color: var(--color-steel-50);
   text-decoration-line: underline;
   text-decoration-color: var(--color-steel-50);
-  text-decoration-thickness: 2px;
+  text-decoration-thickness: 1px;
   text-underline-offset: 4px;
+}
+
+/* A maker's row: the maker's own mark at 24 px, then 8 px, then its name. The
+   mark does not change under the pointer. */
+.site-footer__link--maker {
+  gap: 8px;
+}
+
+/* The GitHub link with its count: where the column cannot hold it on one
+   line (under 390 px), the word GitHub goes to the second line with its star
+   and count. */
+.site-footer__link--github {
+  flex-wrap: wrap;
+  column-gap: 0.25em;
 }
 
 .site-footer__last {
@@ -781,8 +696,11 @@ html.light .visitor-shell {
     max-width: 1264px;
   }
 
+  /* One row of six groups. The two with the longest rows, Uses and About,
+     are never narrower than their longest row, so every row of the footer
+     stays on one line; the other four share what is left. */
   .site-footer__groups {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(max-content, 1fr) minmax(0, 1fr) minmax(max-content, 1fr) repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -807,6 +725,169 @@ html.light .visitor-shell {
   .site-footer__rule,
   .site-footer__last {
     grid-column: 1 / -1;
+  }
+}
+
+/* =============================================================================
+   A maker's mark
+   ============================================================================= */
+
+/* The file the maker's own site serves, in a place held at its size, so
+   nothing moves when the file arrives and a file that does not arrive leaves
+   the place empty beside the name. Where a maker publishes a form for each
+   look, the one made for the look that is on is shown. */
+.maker-mark {
+  display: inline-flex;
+  flex: none;
+}
+
+.maker-mark__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.maker-mark__image--light,
+html.light .maker-mark__image--dark {
+  display: none;
+}
+
+html.light .maker-mark__image--light {
+  display: block;
+}
+
+/* With scripts off no look is chosen by script: a page that follows the
+   device takes the light form on a light device. */
+@media (prefers-color-scheme: light) {
+  html:not(.dark):not(.light):has(.device-look) .maker-mark__image--dark {
+    display: none;
+  }
+
+  html:not(.dark):not(.light):has(.device-look) .maker-mark__image--light {
+    display: block;
+  }
+}
+
+/* =============================================================================
+   About: who builds SafeOS
+   ============================================================================= */
+
+/* One column on a phone: the heading, Frame's mark over its name, the
+   sentence and the link row; then the two other things Frame makes, one
+   under the other with a line between them. */
+.who-builds {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px 32px;
+  margin-bottom: 64px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  text-align: left;
+}
+
+.who-builds > .tick-rule {
+  grid-column: 1 / -1;
+}
+
+.who-builds__title {
+  margin: 0 0 24px;
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-part-size);
+  line-height: var(--type-part-line);
+  font-weight: var(--weight-bold);
+  text-wrap: balance;
+}
+
+.who-builds__entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px 16px;
+  align-items: start;
+}
+
+.who-builds__name {
+  margin: 0;
+  color: var(--color-steel-50);
+  font-family: var(--font-display);
+  font-size: var(--type-entry-size);
+  line-height: var(--type-entry-line);
+  font-weight: var(--weight-bold);
+}
+
+.who-builds__line {
+  max-width: 40rem;
+  margin: 8px 0 4px;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.who-builds__entry .link-row {
+  display: inline-flex;
+  min-width: 88px;
+}
+
+.who-builds__others {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px 32px;
+  align-content: start;
+}
+
+.who-builds__also {
+  margin: 0;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+.who-builds__others > .who-builds__entry + .who-builds__entry {
+  padding-top: 24px;
+  border-top: 1px solid var(--color-steel-300);
+}
+
+/* Tablet: each mark at the left of its name and sentence; the two other
+   entries side by side. */
+@media (min-width: 48em) {
+  .who-builds__entry {
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+
+  .who-builds__others {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .who-builds__also {
+    grid-column: 1 / -1;
+  }
+
+  .who-builds__others > .who-builds__entry + .who-builds__entry {
+    padding-top: 0;
+    border-top: 0;
+  }
+}
+
+/* Desktop: the heading and Frame's entry in the left 7 of 12 columns, the
+   two other entries in the right 5, one under the other, their tops level. */
+@media (min-width: 64em) {
+  .who-builds {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+  }
+
+  .who-builds__main {
+    grid-column: 1 / span 7;
+  }
+
+  .who-builds__others {
+    grid-column: 8 / span 5;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .who-builds__others > .who-builds__entry + .who-builds__entry {
+    padding-top: 24px;
+    border-top: 1px solid var(--color-steel-300);
   }
 }
 
