@@ -1392,7 +1392,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         }, FRAME_PARTS);
         const scratch = await context.newPage();
         let covered = false;
-        let measured = 0;
+        let inked = 0;
         for (const [index, item] of marked.entries()) {
           if (item.part === '.app-shell__footer' && !covered) {
             // The fixed header and bar would cover footer words scrolled under them.
@@ -1402,11 +1402,11 @@ export async function checkApp(browser, baseUrl, outDir) {
           const picture = await page.locator(`[data-measure="${index}"]`).screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
           const read = await scratch.evaluate(readStrokes, picture.toString('base64'));
           if (!read) continue;
-          measured += 1;
+          inked += 1;
           check(read.strokes >= 7, `"${item.words}" in ${item.part} measures ${read.strokes.toFixed(2)}:1 on its strokes (core ${read.core.toFixed(2)}:1), under 7`);
         }
         await scratch.close();
-        check(measured > 10, `only ${measured} of ${marked.length} quiet words of the frame were measured from the pixels; ${marked.length - measured} had too little ink to measure`);
+        check(inked > 10, `only ${inked} of ${marked.length} quiet words of the frame were measured from the pixels; ${marked.length - inked} had too little ink to measure`);
       });
     }
   }
