@@ -272,7 +272,8 @@ and the notice opens again at the next start. No picture is kept before it is an
 same switch, choice and lines stand in the group **Alert pictures** in the watch's settings
 and on **Settings > Detection**, with the count of pictures kept and **Delete all pictures**,
 which asks first. With keeping off, each alert's picture shows on the watch until a reload and
-nothing is saved.
+nothing is saved. Turning the switch in one tab holds in every open tab from the next alert,
+and a new age at once.
 
 A picture is deleted:
 

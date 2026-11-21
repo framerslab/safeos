@@ -16,7 +16,7 @@
 import { useEffect, useId, useState } from 'react';
 
 import { showsNotificationPictures } from '../../lib/alert-pictures/capture';
-import { postPictureNews } from '../../lib/alert-pictures/channel';
+import { postPictureNews, settingsNews } from '../../lib/alert-pictures/channel';
 import {
   ALLOW_NOTIFICATIONS,
   BLOCKED_LINE,
@@ -87,7 +87,7 @@ export function NotificationPictureRow() {
   const toggle = () => {
     if (!ready || inactive) return;
     setInNotifications(!stored);
-    postPictureNews({ type: 'settings', deleteAfterDays: useAlertPicturesStore.getState().deleteAfterDays });
+    postPictureNews(settingsNews(useAlertPicturesStore.getState()));
   };
 
   const ask = async () => {

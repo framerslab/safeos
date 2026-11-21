@@ -17,7 +17,7 @@ import { createPortal } from 'react-dom';
 import { MAX_MONITORING_ALERTS } from '../../lib/client-db';
 import { DELETE_AFTER_CHOICES } from '../../lib/alert-pictures/rules';
 import { checkPictureStore, deleteAllPictures, sweepPicturesByAge, useKeptCount, useListLine } from '../../lib/alert-pictures/keeper';
-import { postPictureNews } from '../../lib/alert-pictures/channel';
+import { postPictureNews, settingsNews } from '../../lib/alert-pictures/channel';
 import {
   ASK_LINE,
   DELETE_AFTER,
@@ -187,11 +187,11 @@ export function AlertPicturesGroup({ place }: AlertPicturesGroupProps) {
 
   const changeKeep = (next: boolean) => {
     setKeep(next);
-    postPictureNews({ type: 'settings', deleteAfterDays: useAlertPicturesStore.getState().deleteAfterDays });
+    postPictureNews(settingsNews(useAlertPicturesStore.getState()));
   };
   const changeDays = (next: DeleteAfterDays) => {
     setDays(next);
-    postPictureNews({ type: 'settings', deleteAfterDays: next });
+    postPictureNews(settingsNews(useAlertPicturesStore.getState()));
     // A shorter age applies now, not at the next watch.
     void sweepPicturesByAge();
   };

@@ -12,9 +12,14 @@ import type { DeleteAfterDays } from '../../stores/alert-pictures-store';
 export type PictureNews =
   | { type: 'gone'; ids: string[]; reason: 'person' | 'age' | 'with-alert' }
   | { type: 'saved'; id: string }
-  // The age chosen travels with the news: a tab can hear it before the browser hands it the saved choice.
+  // The choices travel with the news: a tab can hear it before the browser hands it the saved choices.
   // A tab of an earlier release sends none.
-  | { type: 'settings'; deleteAfterDays?: DeleteAfterDays };
+  | { type: 'settings'; keep?: boolean; deleteAfterDays?: DeleteAfterDays };
+
+/** The news of a change of the choices, as this tab's store holds them now. */
+export function settingsNews(choices: { keep: boolean; deleteAfterDays: DeleteAfterDays }): PictureNews {
+  return { type: 'settings', keep: choices.keep, deleteAfterDays: choices.deleteAfterDays };
+}
 
 const CHANNEL = 'safeos-alert-pictures';
 

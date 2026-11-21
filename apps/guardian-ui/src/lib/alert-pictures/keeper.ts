@@ -256,7 +256,7 @@ export function holdPicture(promise: Promise<PictureSet>, id: string): void {
   forgetUnnamed(Date.now());
 
   const choice = useAlertPicturesStore.getState();
-  const keeps = choice.noticeAnswered && choice.keep && storeState === 'usable';
+  const keeps = choice.noticeAnswered && (heardKeep ?? choice.keep) && storeState === 'usable';
   // The clear markers as they stand at the alert: a save is written only while none has moved.
   const stamp = keeps ? pictureStampNow() : null;
   tell();
@@ -452,7 +452,8 @@ function hear(news: PictureNews): void {
     }
     tell();
   } else if (news.type === 'settings') {
-    // By the age the other tab chose, which this tab may read from the browser only later.
+    // The other tab's choices hold here from now, though this tab may read them from the browser only later.
+    if (news.keep !== undefined) heardKeep = news.keep;
     void sweepPicturesByAge(Date.now(), news.deleteAfterDays);
   } else if (news.type === 'saved') {
     // A card that read this picture before it was saved found none: it reads it again.
@@ -462,11 +463,18 @@ function hear(news: PictureNews): void {
   void readCount();
 }
 
+/**
+ * Keep alert pictures as another tab just chose it, until this tab's store
+ * reads the saved choices again (or this tab changes them); null till then.
+ */
+let heardKeep: boolean | null = null;
+
 let listening = false;
 function listenToOtherTabs(): void {
   if (listening || typeof window === 'undefined') return;
   listening = true;
   onPictureNews(hear);
+  useAlertPicturesStore.subscribe(() => { heardKeep = null; });
 }
 
 // =============================================================================

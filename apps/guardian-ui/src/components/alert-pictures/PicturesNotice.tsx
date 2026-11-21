@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import { postPictureNews } from '../../lib/alert-pictures/channel';
+import { postPictureNews, settingsNews } from '../../lib/alert-pictures/channel';
 import { ASK_LINE, GO_BACK, KEEPS_LINE, KEEP_OFF_LINE, NOTICE_TITLE, START_WATCHING, STAY_LINE } from '../../lib/alert-pictures/words';
 import { useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 import { DeleteAfterRow, KeepSwitchRow, StreetLine } from './AlertPicturesGroup';
@@ -136,7 +136,7 @@ export function useNoticeGate(): {
       onStart={(choice) => {
         // The answer holds in memory where the browser cannot keep it, until the page is reloaded.
         useAlertPicturesStore.getState().answerNotice(choice);
-        postPictureNews({ type: 'settings', deleteAfterDays: choice.deleteAfterDays });
+        postPictureNews(settingsNews(useAlertPicturesStore.getState()));
         close(pending.start);
       }}
       onBack={() => close(pending.onBack)}
