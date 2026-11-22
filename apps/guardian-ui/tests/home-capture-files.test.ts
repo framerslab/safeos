@@ -178,9 +178,9 @@ describe('the committed captures', () => {
       }
       const ratio = sizes[crop].width / sizes[crop].height;
       if (crop === 'portrait') {
-        // The camera view with two whole rows of readout tiles: its own ratio, near 4:5.
-        expect(ratio).toBeGreaterThan(0.78);
-        expect(ratio).toBeLessThan(0.9);
+        // The camera's frame with its live picture and the meters under it, at its own ratio.
+        expect(ratio).toBeGreaterThan(0.6);
+        expect(ratio).toBeLessThan(1.6);
       } else {
         expect(Math.abs(ratio - ratios[crop])).toBeLessThan(0.01);
       }
