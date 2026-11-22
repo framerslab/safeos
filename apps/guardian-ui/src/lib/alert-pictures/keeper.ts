@@ -88,6 +88,8 @@ let storeState: StoreState = 'usable';
 /** The count of kept pictures; null until the store is read. */
 let keptCount: number | null = null;
 let countReads = 0;
+/** How many times this tab has let go of every picture. A read or a drawing begun before shows nothing. */
+let forgets = 0;
 
 function tell(): void {
   for (const listener of [...listeners]) listener();
@@ -195,14 +197,15 @@ function viewOfRow(entry: Entry, row: AlertPictureDB | null): void {
 }
 
 function read(entry: Entry): void {
+  const since = forgets;
   void getAlertPicture(entry.id).then(
     (row) => {
-      if (entries.get(entry.id) !== entry || entry.memory) return;
+      if (since !== forgets || entries.get(entry.id) !== entry || entry.memory) return;
       viewOfRow(entry, row);
       tell();
     },
     () => {
-      if (entries.get(entry.id) !== entry || entry.memory) return;
+      if (since !== forgets || entries.get(entry.id) !== entry || entry.memory) return;
       settle(entry, UNREADABLE);
       tell();
     },
@@ -260,11 +263,12 @@ export function holdPicture(promise: Promise<PictureSet>, id: string): void {
   const keeps = choice.noticeAnswered && (heardKeep ?? choice.keep) && storeState === 'usable';
   // The clear markers as they stand at the alert: a save is written only while none has moved.
   const stamp = keeps ? pictureStampNow() : null;
+  const since = forgets;
   tell();
 
   promise.then(
     (set) => {
-      if (entries.get(id) !== entry) return;
+      if (since !== forgets || entries.get(id) !== entry) return;
       if (!stamp) {
         show(entry, set, 'memory');
         tell();
@@ -273,7 +277,7 @@ export function holdPicture(promise: Promise<PictureSet>, id: string): void {
       show(entry, set, 'saving');
       tell();
       void saveAlertPicture(rowOf(set), stamp).then((answer) => {
-        if (entries.get(id) !== entry) return;
+        if (since !== forgets || entries.get(id) !== entry) return;
         if (answer.result === 'saved') {
           keptAs(entry, 'saved');
           if (answer.deleted.length > 0) {
@@ -296,7 +300,7 @@ export function holdPicture(promise: Promise<PictureSet>, id: string): void {
       });
     },
     () => {
-      if (entries.get(id) !== entry) return;
+      if (since !== forgets || entries.get(id) !== entry) return;
       entry.memory = false;
       settle(entry, NONE);
       tell();
@@ -406,10 +410,11 @@ export function stopPictureWatch(): void {
 
 /**
  * Forgets every picture this tab holds, revokes its URLs and closes the open picture: Clear All
- * Local Data and sign-out, in this tab or another. The count is read again by `recountPictures`
- * once the clear is done.
+ * Local Data and sign-out, in this tab or another. A read or a drawing begun before shows nothing,
+ * and the count is read again by `recountPictures` once the clear is done.
  */
 export function forgetAllPictures(): void {
+  forgets += 1;
   for (const entry of [...entries.values()]) {
     if (entry.release) clearTimeout(entry.release);
     revoke(entry.view);

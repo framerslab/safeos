@@ -306,8 +306,9 @@ A picture is deleted:
 A picture being saved when **Delete all pictures** comes, in any tab, is not saved. When
 the deletion fails, nothing is deleted and that picture is saved. A picture another tab deletes
 before it is saved (a tab that could not read it) stays deleted. **Clear All Local Data** and
-signing out, in any tab, close the open picture in every tab and leave no picture on screen; the
-count of pictures kept is read once the clear is done.
+signing out, in any tab, close the open picture in every tab and leave no picture on screen, and
+a picture read or drawn from before the clear shows nothing; the count of pictures kept is read
+once the clear is done.
 
 When the device runs out of room, the oldest pictures make way for the newest, and the alert
 list says so once; when every older picture would have to go, the new one is not kept, the
