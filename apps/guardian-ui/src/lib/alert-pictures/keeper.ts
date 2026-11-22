@@ -469,6 +469,8 @@ function hear(news: PictureNews): void {
     }
     tell();
   } else if (news.type === 'settings') {
+    // Choices made before the ones this tab holds, heard late, change nothing here and delete nothing.
+    if (news.at !== undefined && news.at < useAlertPicturesStore.getState().chosenAt) return;
     // The other tab's choices hold here from now, though this tab may read them from the browser only later.
     if (news.keep !== undefined) heardKeep = news.keep;
     void sweepPicturesByAge(Date.now(), news.deleteAfterDays);

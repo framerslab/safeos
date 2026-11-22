@@ -42,7 +42,7 @@ import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/ca
 import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { detectRegionalMotion } from '../../lib/motion-detection';
-import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, boxFromCells, boxFromHotspots, boxFromRegion, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, askNote, staleNote, boxFromCells, boxFromHotspots, boxFromRegion, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
 import { OPEN_IN_HISTORY, notificationBody, notificationTitle, plateLine, sightingNotificationBody, sightingPlate, sightingQuestion } from '../../lib/alert-pictures/words';
 import { useAlertPicturesStore } from '../../stores/alert-pictures-store';
 import type { LiveAlertBox } from '../../components/alert-pictures/LiveBox';
@@ -813,6 +813,9 @@ export default function MonitorPage() {
     return 'low';
   };
 
+  // The newest alert that asked for a notification, by tag.
+  const notesAsked = useRef(new Map<string, number>());
+
   /**
    * Asks the browser for an alert's notification: its title and body carry
    * every word. Where the person turned on Show the picture in alert
@@ -821,7 +824,8 @@ export default function MonitorPage() {
    * picture with its box drawn in; it waits for that picture at most 300 ms
    * from the alert and then goes with its words alone. A Sound alert's
    * notification never carries a picture, and a picture that cannot be drawn
-   * leaves the words.
+   * leaves the words. A notification ready after a newer alert of its event
+   * asked for its own does not go: the newer one stands, a higher level's too.
    */
   const maybeNotify = async (note: {
     kind: AlertKind;
@@ -844,6 +848,7 @@ export default function MonitorPage() {
     const requireInteraction = event ? keepsNotificationUp(event) : severity === 'high' || severity === 'critical';
     const tag = event?.notifyTag ? `safeos-${title}-${event.notifyTag}` : `safeos-${title}`;
     const wantsPicture = () => useAlertPicturesStore.getState().inNotifications && showsNotificationPictures();
+    askNote(notesAsked.current, tag, note.at);
 
     let image: string | undefined;
     if (note.picture && note.kind !== 'sound' && wantsPicture()) {
@@ -854,6 +859,8 @@ export default function MonitorPage() {
       ]);
       // The person may have turned the picture off while it was drawn: the words go alone.
       if (!wantsPicture()) image = undefined;
+      // A newer alert of the event asked for its notification while this one waited: that one stands.
+      if (staleNote(notesAsked.current, tag, note.at)) return;
     }
 
     await getNotificationManager().show(title, {

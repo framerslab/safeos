@@ -26,6 +26,11 @@ interface AlertPicturesChoices {
   noticeAnswered: boolean;
   /** An alert's notification shows its picture. */
   inNotifications: boolean;
+  /**
+   * When Keep alert pictures or Delete pictures after was last chosen, in any tab: news of a
+   * choice made before it is older than the choice this tab holds.
+   */
+  chosenAt: number;
 }
 
 interface AlertPicturesState extends AlertPicturesChoices {
@@ -42,6 +47,7 @@ const DEFAULTS: AlertPicturesChoices = {
   deleteAfterDays: 3,
   noticeAnswered: false,
   inNotifications: false,
+  chosenAt: 0,
 };
 
 /**
@@ -76,16 +82,16 @@ export const useAlertPicturesStore = create<AlertPicturesState>()(
   persist(
     (set) => ({
       ...DEFAULTS,
-      setKeep: (keep) => set({ keep }),
-      setDeleteAfterDays: (deleteAfterDays) => set({ deleteAfterDays }),
-      answerNotice: ({ keep, deleteAfterDays }) => set({ keep, deleteAfterDays, noticeAnswered: true }),
+      setKeep: (keep) => set({ keep, chosenAt: Date.now() }),
+      setDeleteAfterDays: (deleteAfterDays) => set({ deleteAfterDays, chosenAt: Date.now() }),
+      answerNotice: ({ keep, deleteAfterDays }) => set({ keep, deleteAfterDays, noticeAnswered: true, chosenAt: Date.now() }),
       setInNotifications: (inNotifications) => set({ inNotifications }),
       reset: () => set({ ...DEFAULTS }),
     }),
     {
       name: ALERT_PICTURES_KEY,
       storage: createJSONStorage(() => quietStorage),
-      partialize: ({ keep, deleteAfterDays, noticeAnswered, inNotifications }) => ({ keep, deleteAfterDays, noticeAnswered, inNotifications }),
+      partialize: ({ keep, deleteAfterDays, noticeAnswered, inNotifications, chosenAt }) => ({ keep, deleteAfterDays, noticeAnswered, inNotifications, chosenAt }),
     },
   ),
 );

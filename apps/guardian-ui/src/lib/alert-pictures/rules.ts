@@ -48,6 +48,18 @@ export const LIVE_BOX_MS = 10_000;
 export const MIN_LIVE_BOX_PX = 24;
 /** How long a notification waits for its picture before it goes as words. */
 export const NOTIFICATION_WAIT_MS = 300;
+
+/**
+ * The newest alert that asked for a notification, by the notification's tag (one tag an event).
+ * A notification goes only while no newer alert of its event has asked for its own: one that
+ * waited longer for its picture never replaces a newer one, a higher level's included.
+ */
+export function askNote(asked: Map<string, number>, tag: string, at: number): void {
+  asked.set(tag, Math.max(asked.get(tag) ?? at, at));
+}
+export function staleNote(asked: ReadonlyMap<string, number>, tag: string, at: number): boolean {
+  return (asked.get(tag) ?? at) > at;
+}
 /** A notification's drawn copy: this long on its long edge, a JPEG at this quality. */
 export const NOTIFICATION_LONG_EDGE = 640;
 export const NOTIFICATION_QUALITY = 0.8;

@@ -66,18 +66,43 @@ export function writePicturesClearMarker(): { written: string; before: string } 
   return { written, before };
 }
 /**
- * Puts back the marker a deletion replaced when that deletion did not commit, so a save that
- * waits in any tab is written as if the deletion never came. A marker another deletion wrote
- * since stays.
+ * A deletion that did not commit leaves a marker that names the last deletion that did and every
+ * marker written since by deletions that did not, so a save stamped under any of them is written
+ * as if those deletions never came. A marker another deletion wrote since stays.
  */
+const ABORTED = 'aborted:';
+function readAborted(marker: string): { committed: string; aborted: string[] } | null {
+  if (!marker.startsWith(ABORTED)) return null;
+  try {
+    const read = JSON.parse(marker.slice(ABORTED.length)) as { committed?: unknown; aborted?: unknown };
+    if (typeof read.committed !== 'string' || !Array.isArray(read.aborted)) return null;
+    return { committed: read.committed, aborted: read.aborted.filter((one): one is string => typeof one === 'string') };
+  } catch {
+    return null;
+  }
+}
 export function restorePicturesClearMarker({ written, before }: { written: string; before: string }): void {
   try {
     if (localStorage.getItem(PICTURES_CLEAR_MARKER_KEY) !== written) return;
-    if (before === '') localStorage.removeItem(PICTURES_CLEAR_MARKER_KEY);
-    else localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, before);
+    const earlier = readAborted(before);
+    const committed = earlier ? earlier.committed : before;
+    const aborted = [...(earlier ? earlier.aborted : []), written];
+    localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, `${ABORTED}${JSON.stringify({ committed, aborted })}`);
   } catch {
     // The new marker stays: a save that waits is then not written, as after a deletion.
   }
+}
+/**
+ * Whether a save stamped under the pictures marker `stamped` may be written now that it reads
+ * `now`: no deletion has committed since the stamp. A marker written by a deletion that then did
+ * not commit counts as the last committed one.
+ */
+export function picturesMarkerHolds(stamped: string, now: string): boolean {
+  if (stamped === now) return true;
+  const after = readAborted(now);
+  if (!after) return false;
+  const before = readAborted(stamped);
+  return (before ? before.committed : stamped) === after.committed || after.aborted.includes(stamped);
 }
 
 /** What a picture save carries from its alert: the clear boundary and the pictures marker then. */

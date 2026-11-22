@@ -289,7 +289,8 @@ same switch, choice and lines stand in the group **Alert pictures** in the watch
 and on **Settings > Detection**, with the count of pictures kept and **Delete all pictures**,
 which asks first. With keeping off, each alert's picture shows on the watch until a reload and
 nothing is saved. Turning the switch in one tab holds in every open tab from the next alert,
-and a new age at once.
+and a new age at once; a tab that hears of a choice after a later one was made changes nothing
+for it.
 
 A picture is deleted:
 
@@ -297,14 +298,16 @@ A picture is deleted:
   minute while it runs, when History opens and when the age is changed, in every open tab by
   the age just chosen; its card says "Its picture was deleted after {n} days.";
 - with its alert, when the alert leaves under the alert limits (see **Alert history**), in
-  the same write, and when a repeat gives its card a newer picture; a picture still being
+  the same write, and when a repeat gives its card a newer picture or, with no frame to take,
+  none; a picture still being
   drawn when its alert leaves is saved with no alert to hold it, and the sweep of pictures no
   alert holds deletes it when a watch starts, once it is 10 minutes old;
 - by **Delete picture**, by **Delete all pictures**, by **Clear All Local Data** and by
   signing out.
 
 A picture being saved when **Delete all pictures** comes, in any tab, is not saved. When
-the deletion fails, nothing is deleted and that picture is saved. A picture another tab deletes
+the deletion fails, nothing is deleted and that picture is saved, as is a picture taken while the
+failing deletion was finishing. A picture another tab deletes
 before it is saved (a tab that could not read it) stays deleted. **Clear All Local Data** and
 signing out, in any tab, close the open picture in every tab and leave no picture on screen, and
 a picture read or drawn from before the clear shows nothing; the count of pictures kept is read
@@ -320,7 +323,8 @@ Another tab that shows an alert before its picture is saved shows the picture on
 **Settings > Notifications** has **Show the picture in alert notifications**, off by default.
 With it on, in a browser that shows a picture in a notification, a Motion or Picture change
 alert's notification carries the picture with its box drawn in; a picture not drawn within
-300 ms of the alert leaves the notification's words to go alone. A Sound alert's notification
+300 ms of the alert leaves the notification's words to go alone, and a notification ready after a
+newer alert of its event asked for its own does not replace that one. A Sound alert's notification
 never carries a picture. The notifications say "Motion alert", "Sound alert" or "Picture
 change alert", with the level and the time. While the browser shows a notification's words
 alone, while notifications are not allowed (the row offers **Allow notifications**) and while

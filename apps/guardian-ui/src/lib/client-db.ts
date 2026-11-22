@@ -9,7 +9,7 @@
 
 import {
   getLocalDataGeneration, isCurrentLocalData, learnClearGeneration, newClearValue, readLocalClearMarker,
-  readPicturesClearMarker, restorePicturesClearMarker, writeAccountClearMarker, writeLocalClearMarker, writePicturesClearMarker,
+  picturesMarkerHolds, readPicturesClearMarker, restorePicturesClearMarker, writeAccountClearMarker, writeLocalClearMarker, writePicturesClearMarker,
   type ClearStamp, type PictureStamp,
 } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
@@ -846,6 +846,9 @@ async function writeAlert(
       const counted = previous?.repeats;
       merged.repeats = (typeof counted === 'number' ? counted : 0) + repeats;
       if (found) found.repeats = merged.repeats;
+      // A repeat names its own picture and zone, or none: the card's earlier ones go with it.
+      merged.pictureId = alert.pictureId;
+      merged.zone = alert.zone;
     }
     let createdAt: string;
     let originalCreatedAt = previous?.originalCreatedAt;
@@ -1064,7 +1067,7 @@ export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureSta
       const current = stamp.clearGeneration !== null
         ? generation === stamp.clearGeneration
         : readLocalClearMarker() === stamp.clearMarker;
-      if (!current || readPicturesClearMarker() !== stamp.picturesMarker) {
+      if (!current || !picturesMarkerHolds(stamp.picturesMarker, readPicturesClearMarker())) {
         await write.done;
         return { result: 'dropped' };
       }
