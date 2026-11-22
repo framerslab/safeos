@@ -38,16 +38,19 @@ export function CameraPicker({ refreshKey = false, className }: { refreshKey?: b
     return () => { active = false; media?.removeEventListener('devicechange', refresh); };
   }, [refreshKey]);
 
+  // A page that passes its own class styles the label, the menu and the hint
+  // itself; the picker's own colours are for the page that does not.
+  const own = className === undefined;
   const unlisted = deviceId && !devices.some(device => device.deviceId === deviceId);
   const missing = unlisted && availabilityKnown;
   return (
     <div className={className ?? 'p-4 space-y-2'}>
-      <label htmlFor={id} className="block text-sm font-medium text-[var(--color-steel-300)]">Camera</label>
+      <label htmlFor={id} className={own ? 'block text-sm font-medium text-[var(--color-steel-300)]' : undefined}>Camera</label>
       <select
         id={id}
         value={deviceId}
         onChange={(event) => setDeviceId(event.target.value)}
-        className="w-full min-h-11 rounded-lg border border-[var(--color-steel-600)] bg-[var(--color-steel-900)] px-3 py-2 text-sm text-[var(--color-steel-100)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500"
+        className={own ? 'w-full min-h-11 rounded-lg border border-[var(--color-steel-600)] bg-[var(--color-steel-900)] px-3 py-2 text-sm text-[var(--color-steel-100)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-500' : undefined}
         aria-describedby={`${id}-help`}
       >
         <option value="">Default camera</option>
@@ -56,7 +59,7 @@ export function CameraPicker({ refreshKey = false, className }: { refreshKey?: b
           <option key={device.deviceId} value={device.deviceId}>{device.label || `Camera ${index + 1}`}</option>
         ))}
       </select>
-      <p id={`${id}-help`} className="text-sm text-[var(--color-steel-400)]">
+      <p id={`${id}-help`} className={own ? 'text-sm text-[var(--color-steel-400)]' : undefined}>
         {error ? 'Camera list unavailable. Check browser permissions.' : missing
           ? 'Reconnect the saved camera or choose another camera.'
           : namesHidden ? NAMES_HIDDEN_HINT : 'Choice is saved on this device.'}
