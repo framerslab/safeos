@@ -2040,14 +2040,18 @@ test.describe('The live box: one at a time, never for a sound, clear of the pict
 
   test('a second alert inside the 10 seconds replaces the box', async ({ page, context }) => {
     test.setTimeout(120_000);
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
-    const first = await timeOf(cards(page).first(), 'Motion');
+    // The motion goes on: with the Cooldown Period and each level's cooldown at 4 seconds, the
+    // event's next alert comes 4 seconds after its first.
+    const quick = { info: 4, low: 4, medium: 4, high: 4, critical: 0 };
+    await watchWith(page, context, { settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(4), severityCooldowns: quick }, camera: LEFT_THIRD });
+    const card = cards(page).first();
+    const first = await timeOf(card, 'Motion');
     await expect(livePlate(page)).toHaveText(`Motion here at ${first}`);
     const seen = Date.now();
-    await raiseEvents(page, 2, 2);
-    const second = await timeOf(cards(page).first(), 'Motion');
-    expect(second).not.toBe(first);
+    await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 8_000 });
     expect(Date.now() - seen, 'the second alert came inside the first box’s 10 seconds').toBeLessThan(9_000);
+    const second = await timeOf(card, 'Motion');
+    expect(second).not.toBe(first);
     await expect(livePlate(page)).toHaveText(`Motion here at ${second}`);
     await expect(liveBox(page)).toHaveCount(1);
     await expect(livePlate(page)).toHaveCount(1);
