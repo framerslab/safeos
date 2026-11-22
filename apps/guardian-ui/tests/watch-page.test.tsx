@@ -302,15 +302,24 @@ it('shows the names over empty tracks with no state word until the first reading
 it('steps each meter once a second under reduced motion', async () => {
   reducedMotion(true);
   seedMotionOnly();
+  // The camera's readings come from its pictures: the top rows of each one
+  // change from the picture before, a tenth of the picture and then three tenths.
+  let changing = 4;
+  browser.readFrame.mockImplementation(() => {
+    const data = new Uint8ClampedArray(40 * 40 * 4).fill(128);
+    data.fill(Math.floor(Date.now() / 200) % 2 ? 0 : 255, 0, 40 * 4 * changing);
+    return new ImageData(data, 40, 40);
+  });
   render(<MonitorPage />);
   await act(async () => {});
   await startMonitoring();
-  act(() => useMonitoringStore.getState().setMotionScore(10));
-  act(() => { jest.advanceTimersByTime(1000); });
+  act(() => { jest.advanceTimersByTime(400); });
+  act(() => { jest.advanceTimersByTime(600); });
   expect(meter('Motion').getAttribute('aria-valuenow')).toBe('10');
-  act(() => useMonitoringStore.getState().setMotionScore(30));
+  changing = 12;
+  act(() => { jest.advanceTimersByTime(400); });
   expect(meter('Motion').getAttribute('aria-valuenow')).toBe('10');
-  act(() => { jest.advanceTimersByTime(1000); });
+  act(() => { jest.advanceTimersByTime(600); });
   expect(meter('Motion').getAttribute('aria-valuenow')).toBe('30');
   reducedMotion(false);
 });
