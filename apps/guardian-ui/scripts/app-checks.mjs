@@ -3091,6 +3091,78 @@ export async function checkApp(browser, baseUrl, outDir) {
     }, { script: FAKE_CAMERA });
   }
 
+  // The watch's meters: inside the ticks, one row each on a phone, side by
+  // side from a tablet, each name and state word on one line at a desktop;
+  // the words 16 px or more, names at 12:1 and state words at 7:1 on their
+  // ground; no sideways scroll at 320 px.
+  const meterReading = (page) => page.evaluate(() => {
+    const rgb = (value) => (value.match(/[\d.]+/g) || []).slice(0, 4).map(Number);
+    const lum = ([r, g, b]) => {
+      const part = (c) => { const v = c / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+      return 0.2126 * part(r) + 0.7152 * part(g) + 0.0722 * part(b);
+    };
+    const ground = (element) => {
+      for (let part = element; part; part = part.parentElement) {
+        const colour = rgb(getComputedStyle(part).backgroundColor);
+        if (colour.length === 3 || (colour.length === 4 && colour[3] > 0.5)) return colour;
+      }
+      return rgb(getComputedStyle(document.body).backgroundColor);
+    };
+    const ratio = (element) => {
+      const a = lum(rgb(getComputedStyle(element).color));
+      const b = lum(ground(element));
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    };
+    const frame = document.querySelector('.watch-frame')?.getBoundingClientRect();
+    const strip = document.querySelector('.watch-meters')?.getBoundingClientRect();
+    const meters = [...document.querySelectorAll('.watch-meter:not(.watch-meter--pet)')].map((meter) => {
+      const name = meter.querySelector('.watch-meter__name');
+      const state = meter.querySelector('.watch-meter__state');
+      const track = meter.querySelector('[role="meter"]');
+      const box = (part) => part?.getBoundingClientRect();
+      const middle = (part) => { const b = box(part); return b ? b.top + b.height / 2 : null; };
+      return {
+        name: name?.textContent.trim() ?? '',
+        top: box(meter).top,
+        sameLine: name && state ? Math.abs(middle(name) - middle(state)) <= 1 : false,
+        trackUnder: name && track ? box(track).top >= box(name).bottom - 0.5 : false,
+        sizes: [name, state].filter(Boolean).map((part) => parseFloat(getComputedStyle(part).fontSize)),
+        nameRatio: name ? ratio(name) : 0,
+        stateRatio: state ? ratio(state) : 0,
+      };
+    });
+    return {
+      inside: !!frame && !!strip && strip.left >= frame.left - 0.5 && strip.right <= frame.right + 0.5 && strip.bottom <= frame.bottom + 0.5 && strip.top >= frame.top - 0.5,
+      meters,
+      sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  for (const look of LOOKS) {
+    for (const width of [320, 390, 820, 1280, 1920]) {
+      await open({ name: 'watch, the meters', width, look }, async (page, context, check) => {
+        await visit(page, '/monitor/');
+        await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+        await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+        await page.locator('.watch-meter__state').first().waitFor({ timeout: 10_000 }).catch(() => {});
+        const read = await meterReading(page);
+        check(read.meters.length > 0, `at ${width} px the live picture shows no meter`);
+        check(read.inside, `at ${width} px the meters' strip is not inside the frame`);
+        if (width === 320) check(read.sideways === 0, `at 320 px /monitor/ scrolls ${read.sideways} px sideways while watching`);
+        for (const meter of read.meters) {
+          if (width === 390 || width === 1280) check(meter.sameLine, `at ${width} px the meter ${meter.name} has its name and state word on two lines`);
+          if (width === 390) check(meter.trackUnder, `at 390 px the meter ${meter.name} has its bar beside its name, not under it`);
+          check(meter.sizes.every((size) => size >= 15.5), `at ${width} px the meter ${meter.name} has words of ${meter.sizes.join(', ')} px`);
+          check(meter.nameRatio >= 12, `at ${width} px the name ${meter.name} stands at ${meter.nameRatio.toFixed(2)}:1, under 12:1`);
+          check(meter.stateRatio >= 7, `at ${width} px the state word of ${meter.name} stands at ${meter.stateRatio.toFixed(2)}:1, under 7:1`);
+        }
+        if (width === 820 && read.meters.length > 1) {
+          const tops = read.meters.map((meter) => Math.round(meter.top));
+          check(new Set(tops).size === 1, `at 820 px the meters do not stand side by side (tops ${tops.join(', ')})`);
+        }
+      }, { script: FAKE_CAMERA });
+    }
+  }
+
   const watchRuns = (page) => page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
   const noCameraOn = (page, ms) => page.waitForFunction(() => window.__camera.live
     .filter((s) => s.getVideoTracks().some((t) => t.readyState === 'live')).length === 0, null, { timeout: ms }).then(() => true, () => false);

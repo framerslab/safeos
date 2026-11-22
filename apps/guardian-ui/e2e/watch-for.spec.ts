@@ -996,6 +996,47 @@ test('a person an earlier version saved, opened and closed on the Lost & Found p
   await expect(shown(page.getByText('1 photo', { exact: true }))).toBeVisible();
 });
 
+test('the pet\u2019s meter names the pet and what it compares while Lost and Found compares, and leaves with Motion and sound', async ({ page, context }) => {
+  await setUpDevice(context, { lostFoundChosen: true });
+  await openWatchWithPets(page, [{ id: 'pet-miso', name: 'Miso', photos: 1, createdAt: '2026-11-02T10:00:00.000Z' }]);
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
+
+  const petMeter = page.locator('.watch-meter--pet');
+  await expect(petMeter.getByText('Comparing with Miso\u2019s photos', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(petMeter.locator('[translate="no"]', { hasText: 'Miso' })).toBeVisible();
+  // No bar and no number for the pet.
+  await expect(petMeter.getByRole('meter')).toHaveCount(0);
+  await expect(petMeter.getByText(/\d/)).toHaveCount(0);
+
+  await motionAndSound(page).click();
+  await expect(page.getByText('Comparing with Miso\u2019s photos', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('meter', { name: 'Motion level' })).toBeVisible();
+});
+
+test('a long pet name with no space wraps inside its meter at 320 px', async ({ page, context }) => {
+  const name = 'Mrwhiskersthethird';
+  await setUpDevice(context, { lostFoundChosen: true });
+  await page.setViewportSize({ width: 320, height: 800 });
+  await openWatchWithPets(page, [{ id: 'pet-whiskers', name, photos: 1, createdAt: '2026-11-02T10:00:00.000Z' }]);
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
+
+  const words = page.locator('.watch-meter--pet').getByText(`Comparing with ${name}\u2019s photos`, { exact: true });
+  await expect(words).toBeVisible({ timeout: 15_000 });
+  const fit = await words.evaluate((element) => ({
+    held: element.scrollWidth,
+    wide: element.clientWidth,
+    right: Math.round(element.getBoundingClientRect().right),
+    page: document.documentElement.clientWidth,
+    sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  }));
+  expect(fit.held, 'the meter holds the whole name inside its width').toBeLessThanOrEqual(fit.wide + 1);
+  expect(fit.right, 'the meter ends inside the page').toBeLessThanOrEqual(fit.page);
+  expect(fit.sideways, 'the page does not scroll sideways').toBe(0);
+  await page.screenshot({ path: test.info().outputPath('watch-pet-meter-long-name-320.png') });
+});
+
 test('a long pet name with no spaces wraps inside the comparison line at 320 px', async ({ page, context }) => {
   const name = 'Bartholomew'.repeat(6);
   await setUpDevice(context, { lostFoundChosen: true });
