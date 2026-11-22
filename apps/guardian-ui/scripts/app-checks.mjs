@@ -5,7 +5,7 @@
 // on a phone, the page before any script runs, the dashboard in each state,
 // the old addresses and the page a device shows offline. Every finding is
 // printed, and the count of findings is returned; any finding fails the run.
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { SETUP_DONE, measureText, plain, readStrokes } from './home-checks.mjs';
@@ -2012,15 +2012,35 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(cut.length === 0, `words are cut: ${cut.join(', ')}`);
   });
 
+  // Clear all data, pressed on Settings, Data on this device: the key, then
+  // the question asked in place, with no browser confirm box. `confirm`
+  // presses "Clear all data" and waits for the load that follows it; else
+  // "Cancel". Returns the question's words, or null when none showed within
+  // 10 seconds.
+  const clearOnDataPage = async (page, { confirm }) => {
+    await visit(page, '/settings/data/');
+    await page.getByRole('button', { name: 'Clear all data on this device', exact: true }).click({ timeout: 15_000 });
+    const question = page.locator('.set-confirm__question');
+    const words = await question.waitFor({ timeout: 10_000 }).then(() => question.innerText()).then(plain).catch(() => null);
+    if (confirm) {
+      await Promise.all([
+        page.waitForEvent('load', { timeout: 60_000 }),
+        page.getByRole('button', { name: 'Clear all data', exact: true }).click(),
+      ]);
+    } else {
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    }
+    return words;
+  };
+
   await open({ name: 'installed copy after clearing', width: 390, look: 'light' }, async (page, context, check) => {
+    page.on('dialog', (dialog) => {
+      check(false, `a browser ${dialog.type()} box opened: "${dialog.message()}"`);
+      dialog.dismiss().catch(() => {});
+    });
     await visit(page, '/settings/');
     if (!(await installed(page))) throw new Error('the installed copy is not whole after a visit to /settings/');
-    await page.getByRole('button', { name: 'Privacy', exact: true }).click();
-    page.once('dialog', (dialog) => dialog.accept());
-    await Promise.all([
-      page.waitForEvent('load', { timeout: 60_000 }),
-      page.getByRole('button', { name: 'Clear All Local Data', exact: true }).click(),
-    ]);
+    await clearOnDataPage(page, { confirm: true });
     // The load that follows the clear has a connection, so the worker
     // stores the build's files again.
     let whole = false;
@@ -2028,35 +2048,19 @@ export async function checkApp(browser, baseUrl, outDir) {
       whole = await installed(page).catch(() => false);
       if (!whole) await page.waitForTimeout(500);
     }
-    if (!whole) throw new Error('30 seconds after the reload that follows "Clear All Local Data" the installed copy is still empty');
+    if (!whole) throw new Error('30 seconds after the reload that follows "Clear all data" the installed copy is still empty');
     await context.setOffline(true);
     await visit(page, '/dashboard/');
     const seen = await shown(page);
     check(itsPage(seen), `/dashboard/ opened offline after the clear shows ${whatShows(seen)}`);
   });
 
-  // Offline, the question before "Clear All Local Data" says that SafeOS
-  // will not open again until the device is back online, since the installed
-  // copy goes with the rest and only a load with a connection stores it
-  // again. Dismissed, it clears nothing.
-  const ASK_ONLINE = 'This will delete all local data. Are you sure?';
+  // Offline, the question before "Clear all data" says that SafeOS will not
+  // open again until the device is back online, since the installed copy goes
+  // with the rest and only a load with a connection stores it again.
+  // Cancelled, it clears nothing.
+  const ASK_ONLINE = 'Clear all data on this device? Alerts, pictures, pets, sounds and settings leave this device.';
   const ASK_OFFLINE = `${ASK_ONLINE} SafeOS will not open again until you are back online.`;
-  // Presses Privacy, then "Clear All Local Data", and dismisses the question:
-  // its words, or null when none came within 10 seconds.
-  const clearQuestion = async (page) => {
-    await page.getByRole('button', { name: 'Privacy', exact: true }).click();
-    const question = new Promise((resolve) => {
-      const none = setTimeout(() => resolve(null), 10_000);
-      page.once('dialog', async (dialog) => {
-        clearTimeout(none);
-        const message = dialog.message();
-        await dialog.dismiss();
-        resolve(message);
-      });
-    });
-    await page.getByRole('button', { name: 'Clear All Local Data', exact: true }).click();
-    return question;
-  };
   // What a clear would change: the setup record's finished setup and use.
   const setupRecord = (page) => page.evaluate(() => {
     try {
@@ -2072,9 +2076,13 @@ export async function checkApp(browser, baseUrl, outDir) {
     if (!(await installed(page))) throw new Error('the installed copy is not whole after a visit to /settings/');
     const kept = await setupRecord(page);
     if (kept === null) throw new Error('the setup record is not saved on /settings/ before the presses');
+    page.on('dialog', (dialog) => {
+      check(false, `a browser ${dialog.type()} box opened: "${dialog.message()}"`);
+      dialog.dismiss().catch(() => {});
+    });
     await context.setOffline(true);
-    const offline = await clearQuestion(page);
-    check(offline === ASK_OFFLINE, `offline, "Clear All Local Data" asks ${offline === null ? 'nothing' : `"${offline}"`}, not "${ASK_OFFLINE}"`);
+    const offline = await clearOnDataPage(page, { confirm: false });
+    check(offline === ASK_OFFLINE, `offline, "Clear all data on this device" asks ${offline === null ? 'nothing' : `"${offline}"`}, not "${ASK_OFFLINE}"`);
     await visit(page, '/dashboard/');
     const seen = await shown(page);
     check(seen.h1 !== OFFLINE_H1, `/dashboard/ opened offline after the dismissed question shows ${whatShows(seen)}`);
@@ -2082,9 +2090,8 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(after === kept, `after the dismissed question the setup record reads ${after}, not ${kept}`);
 
     await context.setOffline(false);
-    await visit(page, '/settings/');
-    const online = await clearQuestion(page);
-    check(online === ASK_ONLINE, `online, "Clear All Local Data" asks ${online === null ? 'nothing' : `"${online}"`}, not "${ASK_ONLINE}"`);
+    const online = await clearOnDataPage(page, { confirm: false });
+    check(online === ASK_ONLINE, `online, "Clear all data on this device" asks ${online === null ? 'nothing' : `"${online}"`}, not "${ASK_ONLINE}"`);
   });
 
   // A camera for the walks: a small picture that keeps changing, with a quiet
@@ -4914,12 +4921,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   await open({ name: 'cleared device offline', width: 390, look: 'light' }, async (page, context, check) => {
     await visit(page, '/settings/');
     if (!(await installed(page))) throw new Error('the installed copy is not whole after a visit to /settings/');
-    await page.getByRole('button', { name: 'Privacy', exact: true }).click();
-    page.once('dialog', (dialog) => { dialog.accept().catch(() => {}); });
-    await Promise.all([
-      page.waitForEvent('load', { timeout: 30_000 }).catch(() => {}),
-      page.getByRole('button', { name: 'Clear All Local Data', exact: true }).click(),
-    ]);
+    await clearOnDataPage(page, { confirm: true });
     let whole = false;
     const until = Date.now() + 30_000;
     while (!whole && Date.now() < until) {
@@ -5190,6 +5192,306 @@ export async function checkApp(browser, baseUrl, outDir) {
       }
     });
   }
+
+  // ---------------------------------------------------------------------------
+  // Settings
+  // ---------------------------------------------------------------------------
+  // The list of settings pages and the pages built on its rows. Every value
+  // saves the moment it moves and says Saved; no settings page asks through a
+  // browser confirm box, so a dialog of any kind fails the walk.
+
+  const openSettings = (options, run, more) => open(options, async (page, context, check) => {
+    page.on('dialog', (dialog) => {
+      check(false, `a browser ${dialog.type()} box opened: "${dialog.message()}"`);
+      dialog.dismiss().catch(() => {});
+    });
+    await run(page, context, check);
+  }, more);
+  const SAVED = /^\s*Saved\s*$/;
+
+  // Alert volume on Alert sounds: the keys move it, Saved shows for two
+  // seconds, a reload keeps it, and its key plays the Alert tone.
+  for (const [width, look] of [[390, 'dark'], [1280, 'light']]) {
+    await openSettings({ name: 'alert volume, saved and played', width, look }, async (page, context, check) => {
+      await visit(page, '/settings/sounds/');
+      const slider = page.getByRole('slider', { name: 'Alert volume' });
+      await slider.waitFor({ timeout: 15_000 });
+      await slider.focus();
+      await page.keyboard.press('End');
+      for (let step = 0; step < 9; step += 1) await page.keyboard.press('ArrowLeft');
+      const moved = await slider.inputValue();
+      check(moved === '91', `End then nine ArrowLeft leave the slider at ${moved}, not 91`);
+      check((await slider.getAttribute('aria-valuetext')) === '91 of 100', `the slider's words read "${await slider.getAttribute('aria-valuetext')}"`);
+      const saved = page.locator('.set-saved').filter({ hasText: SAVED });
+      check(await saved.isVisible(), '"Saved" does not show at the row after a change');
+      await page.waitForTimeout(3_000);
+      check(!(await saved.isVisible()), '"Saved" still shows 3 seconds after the change');
+      await page.reload({ waitUntil: 'networkidle' });
+      await slider.waitFor({ timeout: 15_000 });
+      const kept = await slider.inputValue();
+      check(kept === '91', `after a reload the slider reads ${kept}, not 91`);
+      const play = page.getByRole('button', { name: 'Play Alert volume' });
+      await play.click();
+      const stop = page.getByRole('button', { name: 'Stop Alert volume' });
+      check(await stop.isVisible().catch(() => false) || await play.isVisible(), 'the key neither reads Stop nor comes back to Play');
+      await play.waitFor({ timeout: 5_000 }).catch(() => check(false, 'the key still reads Stop 5 seconds after the tone began'));
+      check(await page.getByText('Unanswered alerts get louder from here.').isVisible(), 'the line "Unanswered alerts get louder from here." is not shown');
+    });
+  }
+
+  // The list of settings pages: every row in its group with its value, read
+  // once the page has mounted (no row is left on its loading bar).
+  const LIST_NAMES = ['Detection', 'Alert sounds', 'Quiet hours', 'Unanswered alerts', 'Notifications', 'Test alerts',
+    'Detection zones', 'Detection model', 'Look and text', 'Data on this device'];
+  const listRows = async (page) => {
+    await page.waitForFunction(() => document.querySelector('nav[aria-label="Settings pages"]')
+      && !document.querySelector('nav[aria-label="Settings pages"] .set-row__loading'), null, { timeout: 15_000 });
+    return page.evaluate(() => [...document.querySelectorAll('nav[aria-label="Settings pages"] a')].map((a) => {
+      const text = (id) => (id ? (document.getElementById(id)?.textContent || '').replace(/\s+/g, ' ').trim() : '');
+      const box = a.getBoundingClientRect();
+      return { name: text(a.getAttribute('aria-labelledby')), value: text(a.getAttribute('aria-describedby')),
+        href: a.getAttribute('href'), height: Math.round(box.height), current: a.getAttribute('aria-current') };
+    }));
+  };
+  const AXE = await readFile(new URL('../node_modules/axe-core/axe.min.js', import.meta.url), 'utf8').catch(() => null);
+  // axe's violations inside the settings pages' own parts.
+  const axeOn = async (page) => {
+    if (!AXE) return ['axe-core could not be read from node_modules'];
+    if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ content: AXE });
+    return page.evaluate(async () => {
+      const include = ['.settings', '.settings-phone-rows'].filter((selector) => document.querySelector(selector)).map((selector) => [selector]);
+      const result = await window.axe.run({ include }, { resultTypes: ['violations'] });
+      return result.violations.map((v) => `${v.id} (${v.nodes.map((n) => n.target.join(' ')).slice(0, 3).join('; ')})`);
+    });
+  };
+  const DEFAULT_VALUES = ['Standard, motion 80, sound 80', 'Volume 100', 'Off', 'Wait 30 s, louder after 30 s'];
+
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await openSettings({ name: 'settings list, values', width, look }, async (page, context, check) => {
+        await visit(page, '/settings/');
+        const rows = await listRows(page);
+        const names = rows.map((row) => row.name);
+        check(names.join('|') === LIST_NAMES.join('|'), `the list's rows read ${names.join(', ')}`);
+        DEFAULT_VALUES.forEach((value, i) => check(rows[i]?.value === value, `${LIST_NAMES[i]} reads "${rows[i]?.value}", not "${value}"`));
+        check(rows[6]?.value === 'Whole picture', `Detection zones reads "${rows[6]?.value}"`);
+        check(rows[9]?.value === 'Alerts, pictures, pets, sounds and settings', `Data on this device reads "${rows[9]?.value}"`);
+        const heads = await page.locator('.set-group__heading').allInnerTexts();
+        check(heads.map(plain).join('|') === 'Alerts|Camera picture|This device', `the group headings read ${heads.join(', ')}`);
+        const tall = width < 768 ? 96 : 80;
+        const short = rows.filter((row) => row.height < tall);
+        check(short.length === 0, `rows under ${tall} px: ${short.map((row) => `${row.name} ${row.height} px`).join(', ')}`);
+        check(await page.getByRole('button', { name: 'Save Changes' }).count() === 0, 'a Save Changes key is shown');
+        check(await page.getByText('Your own server').count() === 0, '"Your own server" shows with no server address saved');
+        check(await page.getByText('Kept on this device. A change saves the moment you make it.').isVisible(), 'the line under the heading is not shown');
+        if (width >= 1024) {
+          const column = await page.locator('.settings-page').evaluate((node) => {
+            const box = node.getBoundingClientRect();
+            return { width: Math.round(box.width), left: Math.round(box.left), right: Math.round(document.documentElement.clientWidth - box.right) };
+          });
+          check(column.width <= 640 && Math.abs(column.left - column.right) <= 2, `the list's column is ${column.width} px wide, ${column.left} px from the left and ${column.right} px from the right`);
+        }
+        const sideways = await sidewaysScroll(page);
+        check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
+        const violations = await axeOn(page);
+        check(violations.length === 0, `axe finds ${violations.join(', ')}`);
+      });
+    }
+  }
+
+  // The first screen at 390 by 844 in the dark look.
+  const LIST_FIRST_CONTROLS = [/^Switch to the light look$/, /^Help$/, /^Detection/, /^Alert sounds/, /^Quiet hours/, /^Unanswered alerts/, /^Notifications/,
+    (name) => name === 'Dashboard', (name) => name === 'History', (name) => name === 'Settings'];
+  await openSettings({ name: 'settings list, first screen counted', width: 390, height: 844, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    await listRows(page);
+    await page.evaluate(() => document.fonts.ready);
+    const seen = await firstScreen(page);
+    const left = [...seen.controls];
+    const matched = LIST_FIRST_CONTROLS.every((want) => {
+      const at = left.findIndex((item) => (typeof want === 'function' ? want(item) : want.test(item)));
+      if (at === -1) return false;
+      left.splice(at, 1);
+      return true;
+    });
+    check(seen.controls.length === 10 && matched && left.length === 0,
+      `the first screen holds ${seen.controls.length} controls, not the 10 named: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
+    check(seen.styles.length === 6, `the first screen holds ${seen.styles.length} text styles, not 6: ${seen.styles.join(' | ')}`);
+    check(seen.boxes.length === 5, `the first screen draws ${seen.boxes.length} rules and boxes, not 5: ${seen.boxes.join(', ')}`);
+    check(seen.colours.length === 5, `the first screen holds ${seen.colours.length} colours, not 5: ${seen.colours.join(', ')}`);
+  });
+
+  // Lost and Found chosen in setup with a saved pet: the Detection row names
+  // the pet and shows its photo.
+  const chooseLostFound = (page) => page.evaluate(() => {
+    const kept = JSON.parse(localStorage.getItem('safeos-onboarding') || '{"state":{},"version":0}');
+    kept.state = { ...kept.state, lostFoundChosen: true };
+    localStorage.setItem('safeos-onboarding', JSON.stringify(kept));
+  });
+  const LONG_PET = 'Mrwhiskersthethird';
+  for (const [name, width, look, pet] of [['settings list, Lost and Found', 390, 'light', 'Mittens'], ['settings list, a long pet name at 320 px', 320, 'dark', LONG_PET]]) {
+    await openSettings({ name, width, look }, async (page, context, check) => {
+      await visit(page, '/settings/');
+      await listRows(page);
+      await seedAlerts(page, { pets: [{ id: 'pet-1', name: pet, at: 1000 }] });
+      await chooseLostFound(page);
+      await page.reload({ waitUntil: 'networkidle' });
+      const rows = await listRows(page);
+      const want = `Lost and Found for ${pet}, motion 80, sound 80`;
+      check(rows[0]?.value === want, `Detection reads "${rows[0]?.value}", not "${want}"`);
+      const photo = await page.locator('nav[aria-label="Settings pages"] a').first().locator('img.set-pic-pet').evaluate((img) => {
+        const box = img.getBoundingClientRect();
+        return { width: Math.round(box.width), height: Math.round(box.height), loaded: img.complete && img.naturalWidth > 0 };
+      }).catch(() => null);
+      check(photo && photo.width === 32 && photo.height === 32 && photo.loaded, `the pet's photo on the Detection row is ${photo ? `${photo.width} by ${photo.height} px${photo.loaded ? '' : ', not loaded'}` : 'not shown'}`);
+      const sideways = await sidewaysScroll(page);
+      check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
+      const spill = await page.evaluate(() => [...document.querySelectorAll('nav[aria-label="Settings pages"] a')]
+        .filter((a) => a.scrollWidth > a.clientWidth + 0.5).map((a) => a.textContent.trim().slice(0, 30)));
+      check(spill.length === 0, `rows wider than the column: ${spill.join(', ')}`);
+    });
+  }
+
+  // Quiet hours from 10:00 PM to 7:00 AM, read at 23:00 and at 12:00 by the page's clock.
+  await openSettings({ name: 'settings list, quiet now', width: 390, look: 'dark', timezoneId: 'UTC' }, async (page, context, check) => {
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 10, 22, 23, 0, 0)));
+    await visit(page, '/settings/');
+    await page.evaluate(() => {
+      localStorage.setItem('safeos-settings', JSON.stringify({ state: { quietHoursSettings: {
+        enabled: true, startTime: '22:00', endTime: '07:00', days: [0, 1, 2, 3, 4, 5, 6], mode: 'reduced', reducedVolume: 30,
+      } }, version: 0 }));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    const late = await listRows(page);
+    const at = (hhmm) => page.evaluate((t) => {
+      const [h, m] = t.split(':').map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(d);
+    }, hhmm);
+    const quietNow = `Quiet now, until ${await at('07:00')}`;
+    check(late[2]?.value === quietNow, `at 23:00 Quiet hours reads "${late[2]?.value}", not "${quietNow}"`);
+    check(await page.locator('.set-pic-band__quiet').count() === 2, 'the band across the day does not shade two parts for hours across midnight');
+    await page.clock.setFixedTime(new Date(Date.UTC(2026, 10, 22, 12, 0, 0)));
+    await page.reload({ waitUntil: 'networkidle' });
+    const noon = await listRows(page);
+    const set = `${await at('22:00')} to ${await at('07:00')}, every day`;
+    check(noon[2]?.value === set, `at 12:00 Quiet hours reads "${noon[2]?.value}", not "${set}"`);
+  });
+
+  // A server address saved: the group Your own server with its four rows.
+  await openSettings({ name: 'settings list, a server', width: 1280, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    await page.evaluate(() => localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://watch.example.org', wsUrl: 'wss://watch.example.org/ws' })));
+    await page.reload({ waitUntil: 'networkidle' });
+    const rows = await listRows(page);
+    const names = rows.slice(10).map((row) => row.name);
+    check(names.join('|') === 'Server address|Your name on your server|Webhooks|Admin', `the server's rows read ${names.join(', ') || 'nothing'}`);
+    check(rows[10]?.value === 'https://watch.example.org', `Server address reads "${rows[10]?.value}"`);
+    await page.evaluate(() => localStorage.removeItem('safeos_backend_config'));
+    await page.reload({ waitUntil: 'networkidle' });
+    const after = await listRows(page);
+    check(after.length === 10, `with the address taken away the list holds ${after.length} rows`);
+  });
+
+  // A browser that refuses storage: the line at the top, and every row opens its page.
+  await openSettings({ name: 'settings list, storage refused', width: 390, look: 'light' }, async (page, context, check) => {
+    await context.addInitScript(() => {
+      Storage.prototype.setItem = function () { throw new DOMException('refused', 'SecurityError'); };
+    });
+    await visit(page, '/settings/');
+    const line = page.getByText('This browser is not keeping settings. Changes last until you close this tab.');
+    check(await line.waitFor({ timeout: 10_000 }).then(() => true, () => false), 'the line that says the browser is not keeping settings is not shown');
+    const rows = await listRows(page);
+    check(rows.length === 10, `the list holds ${rows.length} rows`);
+    await page.locator('nav[aria-label="Settings pages"] a').nth(9).click();
+    await page.waitForURL(/\/settings\/data\/?$/, { timeout: 15_000 }).catch(() => check(false, `the Data on this device row opened ${page.url()}`));
+  });
+
+  // Tab from the top: the look row, the Help row, then each row in order,
+  // each ringed and clear of the phone bar; nothing scrolls sideways at 320
+  // px, and at 200 per cent text every row is whole.
+  for (const width of [320, 390]) {
+    for (const look of LOOKS) {
+      await openSettings({ name: 'settings list, focus', width, look }, async (page, context, check) => {
+        await visit(page, '/settings/');
+        await listRows(page);
+        const order = [];
+        for (let i = 0; i < 40 && order.length < 12; i += 1) {
+          await page.keyboard.press('Tab');
+          const at = await page.evaluate(() => {
+            const el = document.activeElement;
+            if (!el || !el.closest('.settings, .settings-phone-rows')) return null;
+            const box = el.getBoundingClientRect();
+            const bar = document.querySelector('nav.phone-bar');
+            const barTop = bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : window.innerHeight;
+            const style = getComputedStyle(el);
+            const name = el.getAttribute('aria-labelledby') ? document.getElementById(el.getAttribute('aria-labelledby'))?.textContent : el.textContent;
+            return { name: (name || '').replace(/\s+/g, ' ').trim(), ringed: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2,
+              clear: box.bottom <= barTop + 0.5 && box.top >= 0 };
+          });
+          if (at && !order.some((seen) => seen.name === at.name)) order.push(at);
+        }
+        const names = order.map((at) => at.name);
+        const want = [/^Switch to the (light|dark) look$/, /^Help$/, ...LIST_NAMES.map((name) => new RegExp(`^${name}$`))];
+        check(want.every((re, i) => re.test(names[i] || '')), `Tab reaches ${names.join(', ')}`);
+        const bare = order.filter((at) => !at.ringed);
+        check(bare.length === 0, `focused with no ring: ${bare.map((at) => at.name).join(', ')}`);
+        const hidden = order.filter((at) => !at.clear);
+        check(hidden.length === 0, `focused under the phone bar or off screen: ${hidden.map((at) => at.name).join(', ')}`);
+        if (width === 320) {
+          const sideways = await sidewaysScroll(page);
+          check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
+        }
+        await largerText(page);
+        const cut = await page.evaluate(() => [...document.querySelectorAll('nav[aria-label="Settings pages"] a, nav[aria-label="Settings pages"] a *')]
+          .filter((el) => el.scrollWidth > el.clientWidth + 0.5 && el.clientWidth > 0 && getComputedStyle(el).overflow !== 'visible')
+          .map((el) => (el.textContent || '').trim().slice(0, 30)));
+        check(cut.length === 0, `at 200 per cent text rows are cut: ${cut.join(', ')}`);
+        const sidewaysLarge = await sidewaysScroll(page);
+        check(sidewaysLarge <= 0, `at 200 per cent text the page scrolls ${sidewaysLarge} px sideways (${await widest(page)})`);
+      });
+    }
+  }
+
+  // Reloaded offline from the installed copy, the list opens with every value.
+  await openSettings({ name: 'settings list, offline', width: 390, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/settings/');
+    if (!(await installed(page))) throw new Error('the installed copy is not whole after a visit to /settings/');
+    await context.setOffline(true);
+    await page.reload({ waitUntil: 'load', timeout: 60_000 });
+    const rows = await listRows(page);
+    check(rows.length === 10 && rows.every((row) => row.value), `offline the list reads ${rows.map((row) => `${row.name}: ${row.value || 'no value'}`).join(', ')}`);
+  });
+
+  // Every control the settings pages hold: found by its role and name,
+  // changed, read back from its store, and Saved where it says so. Each
+  // control the hub held that has left is absent.
+  const INVENTORY = JSON.parse(await readFile(new URL('./settings-inventory.json', import.meta.url), 'utf8'));
+  await openSettings({ name: 'settings, every control', width: 1280, look: 'light' }, async (page, context, check) => {
+    for (const row of INVENTORY.controls) {
+      const served = await page.goto(address(row.page), { waitUntil: 'networkidle', timeout: 60_000 }).then((r) => r && r.ok()).catch(() => false);
+      if (!served) continue;
+      const control = page.getByRole(row.role, { name: row.name, exact: true });
+      const found = await control.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+      check(found, `${row.page} holds no ${row.role} named "${row.name}"`);
+      if (!found) continue;
+      await control.focus();
+      await page.keyboard.press(row.change);
+      const value = await page.evaluate(({ store, path }) => {
+        const kept = JSON.parse(localStorage.getItem(store) || 'null');
+        return path.split('.').reduce((at, key) => (at == null ? at : at[key]), kept);
+      }, row);
+      check(JSON.stringify(value) === JSON.stringify(row.after), `${row.name} on ${row.page}: ${row.store} holds ${JSON.stringify(value)} after ${row.change}, not ${JSON.stringify(row.after)}`);
+      if (row.saved) check(await page.locator('.set-saved').filter({ hasText: SAVED }).count() > 0, `${row.name} on ${row.page} does not say Saved`);
+    }
+    for (const gone of INVENTORY.absent) {
+      await visit(page, gone.page);
+      await page.waitForTimeout(500);
+      const count = await page.getByRole(gone.role, { name: gone.name, exact: true }).count();
+      check(count === 0, `${gone.page} still holds a ${gone.role} named "${gone.name}"`);
+    }
+  });
 
   for (const problem of problems) console.error(`failed app check: ${problem}`);
   return problems.length;
