@@ -2,7 +2,7 @@
  * Alerts keep coming while the activity goes on, on one card per event.
  *
  * Opens the monitor with a camera whose picture changes on every frame,
- * presses "Start Monitoring" and keeps the change going. The first alert
+ * presses "Start watching" and keeps the change going. The first alert
  * comes after the sustained-detection window; while the change goes on, the
  * next alert of that kind is due once the longer of its severity's cooldown
  * and the Cooldown Period has passed since the last one, and not before. It
@@ -272,8 +272,8 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
 }
 
 async function startMonitoring(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-  await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
 const walkOf = (page: Page) => page.evaluate(() => window.__walk!);
@@ -641,8 +641,8 @@ test.describe('Alerts repeat while the activity goes on', () => {
     });
     const first = await firstAlert(page, 'motion');
     await runUntil(page, first + 2_000);
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
-    await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Start watching', exact: true })).toBeVisible({ timeout: 10_000 });
     await startMonitoring(page);
     const restartedAt = await pageNow(page);
     await runUntil(page, restartedAt + 8_000);

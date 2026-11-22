@@ -77,6 +77,6 @@ test('another pet chosen while the watch compares starts with none of the first 
   await page.screenshot({ path: test.info().outputPath('watch-for-pet-changed-1280.png') });
 
   // The camera did not restart, and the comparison goes on with Plain.
-  await expect(page.getByText('LIVE', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible();
   await expect(page.getByText('Watching...', { exact: true })).toBeVisible();
 });

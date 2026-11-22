@@ -2203,8 +2203,8 @@ export async function checkApp(browser, baseUrl, outDir) {
   // Lost and Found with the saved pet chosen and its start key in view.
   const twoTabs = async (page, context) => {
     await visit(page, '/monitor/');
-    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
     const second = await context.newPage();
     await visit(second, '/lost-found/');
     await firstHeading(second);
@@ -2233,13 +2233,13 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(await gone(theQuestion(second)), 'Cancel left the dialog open');
     const back = await focusedOn(second);
     check(back === 'Start Monitoring', `after Cancel focus is on "${back}", not the start key`);
-    check(await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).count() === 1, 'after Cancel the first tab no longer reads Stop Monitoring');
+    check(await page.getByRole('button', { name: 'Stop watching', exact: true }).count() === 1, 'after Cancel the first tab no longer reads Stop watching');
 
     await startKey.click();
     await theQuestion(second).waitFor({ timeout: 5_000 });
     await theQuestion(second).getByRole('button', { name: 'Watch here', exact: true }).click();
-    const ended = await page.getByRole('button', { name: 'Start Monitoring', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
-    check(ended, 'after Watch here the first tab does not read Start Monitoring');
+    const ended = await page.getByRole('button', { name: 'Start watching', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    check(ended, 'after Watch here the first tab does not read Start watching');
     const on = await camerasOn(page);
     check(on === 0, `after Watch here the first tab holds ${on} live cameras`);
     // The start then runs in the second tab: Lost and Found's key opens Monitor with the pet.
@@ -2996,7 +2996,102 @@ export async function checkApp(browser, baseUrl, outDir) {
   // A history step back or forward, which the app's router answers in the page.
   const back = async (page) => { await page.goBack({ waitUntil: 'commit', timeout: 15_000 }).catch(() => {}); };
   const forward = async (page) => { await page.goForward({ waitUntil: 'commit', timeout: 15_000 }).catch(() => {}); };
-  const watchRuns = (page) => page.getByRole('button', { name: 'Stop Monitoring', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+  // The watch's frame: the panel at 16:9 inside four ticks, Start watching
+  // inside it, the camera menu under it; a start shows "Starting the camera…"
+  // and Cancel, then the live picture and Stop watching; a refused camera is
+  // named inside the frame with Try again.
+  const frameReading = (page) => page.evaluate(() => {
+    const frame = document.querySelector('.watch-frame');
+    if (!frame) return null;
+    const box = frame.getBoundingClientRect();
+    const ticks = [...frame.querySelectorAll('.corner-ticks > i')].filter((tick) => {
+      const style = getComputedStyle(tick);
+      return parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth) >= 2 && tick.getBoundingClientRect().width > 0;
+    }).length;
+    const key = (name) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === name);
+    const start = key('Start watching');
+    const stop = key('Stop watching');
+    const picker = document.querySelector('.watch-grid__controls select');
+    const inside = (part) => {
+      if (!part) return false;
+      const own = part.getBoundingClientRect();
+      return own.left >= box.left - 0.5 && own.right <= box.right + 0.5 && own.top >= box.top - 0.5 && own.bottom <= box.bottom + 0.5;
+    };
+    return {
+      ratio: box.width / box.height,
+      width: box.width,
+      height: box.height,
+      ticks,
+      startHeight: start ? start.getBoundingClientRect().height : null,
+      startInside: inside(start),
+      stopHeight: stop ? stop.getBoundingClientRect().height : null,
+      pickerUnder: !!picker && picker.getBoundingClientRect().top >= box.bottom - 0.5,
+      video: inside(frame.querySelector('video')),
+    };
+  });
+  for (const look of LOOKS) {
+    for (const width of [390, 1280]) {
+      await open({ name: 'watch, the frame', width, look }, async (page, context, check) => {
+        await visit(page, '/monitor/');
+        const rest = await frameReading(page);
+        check(rest, `at ${width} px /monitor/ has no camera frame`);
+        if (!rest) return;
+        check(Math.abs(rest.width - rest.height * 16 / 9) <= 1, `at ${width} px the frame is ${rest.width.toFixed(1)} by ${rest.height.toFixed(1)} px, not 16:9`);
+        check(rest.ticks === 4, `at ${width} px the frame draws ${rest.ticks} corner ticks, not 4`);
+        check(rest.startHeight !== null && rest.startHeight >= 51.5, `at ${width} px Start watching is ${rest.startHeight} px tall, not 52`);
+        check(rest.startInside, `at ${width} px Start watching is not inside the frame`);
+        check(rest.pickerUnder, `at ${width} px the camera menu is not under the frame`);
+
+        await seedAlerts(page, { motion: [{ id: `motion-${Date.now()}-kept`, at: Date.now(), message: 'Seeded alert that stays after the watch stops' }] });
+        await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+        await page.evaluate(() => { window.__camera.waitMs = 2000; });
+        await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+        const starting = await page.getByRole('button', { name: 'Starting the camera…', exact: true }).waitFor({ timeout: 1_500 }).then(() => true, () => false);
+        check(starting, `at ${width} px a press does not show "Starting the camera…"`);
+        const cancel = await page.getByRole('button', { name: 'Cancel', exact: true }).count();
+        check(cancel === 1, `at ${width} px while the camera starts there are ${cancel} keys named Cancel, not 1`);
+        await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+        const live = await frameReading(page);
+        check(live?.video, `at ${width} px the live picture is not inside the frame`);
+        check(live?.stopHeight !== null && live?.stopHeight >= 51.5, `at ${width} px Stop watching is ${live?.stopHeight} px tall, not 52`);
+        await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+        const back = await page.getByRole('button', { name: 'Start watching', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+        check(back, `at ${width} px Stop watching does not give Start watching back`);
+        const kept = await page.getByText('Seeded alert that stays after the watch stops').count();
+        check(kept > 0, `at ${width} px the saved alert leaves the list when the watch stops`);
+
+        await context.addInitScript(CAMERA_ANSWER, 'denied');
+        await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+        await page.evaluate(() => { window.__camera.answer = 'NotAllowedError'; });
+        await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+        const blocked = page.locator('.watch-frame').getByText(
+          'The browser blocked the camera for this site. To allow it, open the site settings from the address bar, set Camera to Allow, then press Try again.',
+          { exact: true },
+        );
+        check(await blocked.waitFor({ timeout: 10_000 }).then(() => true, () => false), `at ${width} px a refused camera is not named inside the frame`);
+        const tryAgain = await page.locator('.watch-frame').getByRole('button', { name: 'Try again', exact: true }).count();
+        check(tryAgain === 1, `at ${width} px a refused camera shows ${tryAgain} keys named Try again inside the frame`);
+      }, { script: FAKE_CAMERA });
+    }
+
+    await open({ name: 'watch, another tab', width: 1280, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+      const second = await context.newPage();
+      await visit(second, '/monitor/');
+      const says = await second.locator('.watch-frame').getByText('Watching in another tab', { exact: true }).waitFor({ timeout: 5_000 }).then(() => true, () => false);
+      check(says, 'a second /monitor/ does not show "Watching in another tab" over its frame');
+      await second.getByRole('button', { name: 'Start watching', exact: true }).click();
+      const asked = await theQuestion(second).waitFor({ timeout: 5_000 }).then(() => true, () => false);
+      check(asked, `Start watching, while another tab watches, showed no dialog named "${QUESTION}"`);
+      if (!asked) return;
+      const first = await focusedOn(second);
+      check(first === 'Cancel', `focus starts on "${first}", not on the key that keeps the other tab`);
+    }, { script: FAKE_CAMERA });
+  }
+
+  const watchRuns = (page) => page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
   const noCameraOn = (page, ms) => page.waitForFunction(() => window.__camera.live
     .filter((s) => s.getVideoTracks().some((t) => t.readyState === 'live')).length === 0, null, { timeout: ms }).then(() => true, () => false);
   // A pet saved on this device: removed, or put again with a change.
@@ -3750,7 +3845,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(asked === 1, `while the camera starts it was asked for ${asked} times, not once`);
     await reaches(page, '/monitor', 20_000);
     check(pathOf(page) === '/monitor', `the press opened ${pathOf(page)}, not /monitor`);
-    check(await watchRuns(page), '/monitor/ does not show Stop Monitoring with no press of its own');
+    check(await watchRuns(page), '/monitor/ does not show Stop watching with no press of its own');
     const once = await cameraRequests(page);
     check(once === 1, `the watch asked for the camera ${once} times in all, not once`);
     const query = new URL(page.url()).search;
@@ -3761,13 +3856,13 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(await noCameraOn(page, 2_000), `two seconds after Back ${await camerasOn(page)} cameras are on`);
     await forward(page);
     await reaches(page, '/monitor', 15_000);
-    const rests = await page.getByRole('button', { name: 'Start Monitoring', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
-    check(rests, 'after Forward /monitor/ does not show Start Monitoring');
+    const rests = await page.getByRole('button', { name: 'Start watching', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+    check(rests, 'after Forward /monitor/ does not show Start watching');
     const still = await cameraRequests(page);
     check(still === 1, `after Forward the camera was asked for ${still} times in all, not once`);
     await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
-    const reloaded = await page.getByRole('button', { name: 'Start Monitoring', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
-    check(reloaded, 'a reload of /monitor/ does not show Start Monitoring');
+    const reloaded = await page.getByRole('button', { name: 'Start watching', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+    check(reloaded, 'a reload of /monitor/ does not show Start watching');
     const fresh = await page.evaluate(() => window.__camera.requests);
     check(fresh === 0, `a reload of /monitor/ asked for the camera ${fresh} times`);
   }, { script: FAKE_CAMERA });
@@ -3795,7 +3890,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       const asked = await cameraRequests(page);
       check(asked === 1, `a second press asked for the camera again (${asked} requests)`);
       await reaches(page, '/monitor', 20_000);
-      check(await watchRuns(page), '/monitor/ does not show Stop Monitoring');
+      check(await watchRuns(page), '/monitor/ does not show Stop watching');
     }, { script: FAKE_CAMERA });
   }
 
@@ -3813,7 +3908,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     await page.keyboard.press('Enter');
     await reaches(page, '/monitor', 20_000);
     check(pathOf(page) === '/monitor', `Enter opened ${pathOf(page)}, not /monitor`);
-    check(await watchRuns(page), 'after Enter /monitor/ does not show Stop Monitoring');
+    check(await watchRuns(page), 'after Enter /monitor/ does not show Stop watching');
   }, { script: FAKE_CAMERA });
 
   for (const look of LOOKS) {
@@ -3842,7 +3937,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     await startKey(page).click();
     await reaches(page, '/monitor', 20_000);
     check(pathOf(page) === '/monitor', `the press opened ${pathOf(page)}, not /monitor`);
-    check(await watchRuns(page), '/monitor/ does not show Stop Monitoring');
+    check(await watchRuns(page), '/monitor/ does not show Stop watching');
     // Watch for names the way the watch runs with.
     const lostAndFound = page.getByRole('radiogroup', { name: 'Watch for' }).getByRole('radio', { name: 'Lost and Found', exact: true });
     const chosen = (await lostAndFound.count()) === 1 && (await lostAndFound.isChecked());
@@ -3874,8 +3969,8 @@ export async function checkApp(browser, baseUrl, outDir) {
 
   await open({ name: 'the last watch', width: 390, look: 'light' }, async (page, context, check) => {
     await visit(page, '/monitor/');
-    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
     const noted = await page.evaluate(() => Date.now());
     await pressTo(page, dashboardLink(page, 390), '/dashboard');
     await stateShown(page);
@@ -3918,15 +4013,15 @@ export async function checkApp(browser, baseUrl, outDir) {
       await startKey(page).click();
       await reaches(page, '/monitor', 20_000);
       check(pathOf(page) === '/monitor', `offline the press opened ${pathOf(page)}, not /monitor`);
-      check(await watchRuns(page), 'offline /monitor/ does not show Stop Monitoring');
+      check(await watchRuns(page), 'offline /monitor/ does not show Stop watching');
     }, { script: FAKE_CAMERA });
   }
 
   // A watch in another tab: the heading says so, and the key asks first.
   const watchingElsewhere = async (page, context) => {
     await visit(page, '/monitor/');
-    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).waitFor({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
     const second = await context.newPage();
     await visit(second, '/dashboard/');
     await stateShown(second);
@@ -3952,18 +4047,18 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(await gone(theQuestion(second)), 'Cancel left the dialog open');
       const returned = await focusedOn(second);
       check(returned === 'Start watching', `after Cancel focus is on "${returned}", not Start watching`);
-      check((await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).count()) === 1, 'after Cancel the first tab no longer reads Stop Monitoring');
+      check((await page.getByRole('button', { name: 'Stop watching', exact: true }).count()) === 1, 'after Cancel the first tab no longer reads Stop watching');
       const kept = await camerasOn(page);
       check(kept === 1, `after Cancel the first tab holds ${kept} live cameras, not 1`);
       await startKey(second).click();
       await theQuestion(second).waitFor({ timeout: 5_000 });
       await theQuestion(second).getByRole('button', { name: 'Watch here', exact: true }).click();
-      const ended = await page.getByRole('button', { name: 'Start Monitoring', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
-      check(ended, 'after Watch here the first tab does not read Start Monitoring');
+      const ended = await page.getByRole('button', { name: 'Start watching', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+      check(ended, 'after Watch here the first tab does not read Start watching');
       check(await noCameraOn(page, 5_000), `after Watch here the first tab holds ${await camerasOn(page)} live cameras`);
       await reaches(second, '/monitor', 20_000);
       check(pathOf(second) === '/monitor', `Watch here opened ${pathOf(second)}, not /monitor`);
-      check(await watchRuns(second), 'after Watch here /monitor/ does not show Stop Monitoring');
+      check(await watchRuns(second), 'after Watch here /monitor/ does not show Stop watching');
       const asks = await cameraRequests(second);
       check(asks === 1, `after Watch here the dashboard's tab asked for the camera ${asks} times, not once`);
       const both = (await camerasOn(page)) + (await camerasOn(second));
@@ -4638,7 +4733,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     await stateShown(page);
     await dashRead(page);
     await pressTo(page, startKey(page), '/monitor');
-    check(await watchRuns(page), '/monitor/ does not show Stop Monitoring');
+    check(await watchRuns(page), '/monitor/ does not show Stop watching');
     const saved = await settingsOf(page);
     const motion = saved.globalSettings ? saved.globalSettings.motionSensitivity : undefined;
     check(saved.activePresetId === 'infant_sleep' && motion === 98, `the watch runs with ${saved.activePresetId} at ${motion}, not infant_sleep at 98`);

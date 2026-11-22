@@ -137,7 +137,7 @@ describe('the capture job', () => {
       '--use-file-for-fake-video-capture=',
       '--use-file-for-fake-audio-capture=',
       "permissions: ['camera', 'microphone']",
-      "name: 'Start Monitoring'",
+      "name: 'Start watching'",
       'Motion detected: \\d+% \\(threshold: 20%',
     ]) {
       expect(script).toContain(part);

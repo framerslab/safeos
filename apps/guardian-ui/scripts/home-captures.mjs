@@ -13,7 +13,7 @@
 // For each look it seeds a finished setup and the Custom preset (the default
 // preset, Maximum Alert, with pixel detection turned off, so the motion and
 // sound lines are the default 20 and the pixel-alert path stays off), opens
-// /monitor/, presses the monitor's own "Start Monitoring" key and waits until
+// /monitor/, presses the monitor's own "Start watching" key and waits until
 // the alert list holds a motion alert. It then saves:
 //
 //   home/capture-phone-<look>.png      the 390 px monitor's camera view, 16:9
@@ -108,10 +108,10 @@ async function watchUntilMotionAlert(page, name) {
     throw new Error(`${name}: the monitor is not on the Custom preset with pixel detection off`);
   }
   console.log(`${name}: seeded the Custom preset with pixel detection off (motion and sound lines ${100 - saved.globalSettings.motionSensitivity} and ${100 - saved.globalSettings.audioSensitivity})`);
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-  console.log(`${name}: pressed "Start Monitoring"`);
-  await page.getByText('LIVE', { exact: true }).waitFor({ timeout: 30_000 }).catch(async (err) => {
-    const shown = await page.locator('text=Camera Error').first().locator('xpath=..').textContent().catch(() => null);
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+  console.log(`${name}: pressed "Start watching"`);
+  await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 30_000 }).catch(async (err) => {
+    const shown = await page.locator('.watch-frame [role="status"]').first().textContent({ timeout: 2_000 }).catch(() => null);
     throw new Error(shown ? `the camera did not start: ${shown.replace(/\s+/g, ' ').trim()}` : err.message);
   });
   const started = Date.now();

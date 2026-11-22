@@ -140,7 +140,7 @@ function pet(id: string): SubjectProfileDB {
 
 /** Lets the page's start, its database read and its feed run to the watch. */
 async function watchRuns() {
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy());
 }
 
 let browser: ReturnType<typeof installCameraBrowser>;
@@ -194,7 +194,7 @@ it("Motion and sound's page takes the open camera and starts with no press and n
   holdStart({ way: 'monitor' }, browser.stream);
   render(<MonitorPage />);
   await act(async () => {});
-  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
   expect(useMonitoringStore.getState().isStreaming).toBe(true);
 });
@@ -226,10 +226,10 @@ it('a takeover while the page reads the pet starts no watch and asks the browser
   expect(browser.getUserMedia).not.toHaveBeenCalled();
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
   expect(useLostFoundStore.getState().isWatching).toBe(false);
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
 });
 
-it('a pet read that ends after Start Monitoring, before the feed takes the open camera, runs one Lost and Found watch on that camera', async () => {
+it('a pet read that ends after Start watching, before the feed takes the open camera, runs one Lost and Found watch on that camera', async () => {
   await saveSubjectProfile(pet('pet-1'));
   const found = holdPetRead();
   holdStart({ way: 'lost-found', pet: 'pet-1' }, browser.stream);
@@ -238,7 +238,7 @@ it('a pet read that ends after Start Monitoring, before the feed takes the open 
 
   // The press's start runs before the read ends, and the feed takes the camera after both.
   await act(async () => {
-    fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
     found(pet('pet-1'));
   });
 
@@ -249,18 +249,18 @@ it('a pet read that ends after Start Monitoring, before the feed takes the open 
   expect(browser.getUserMedia).not.toHaveBeenCalled();
 });
 
-it('a pet read that ends after Start Monitoring and Stop Monitoring starts no watch again', async () => {
+it('a pet read that ends after Start watching and Stop watching starts no watch again', async () => {
   await saveSubjectProfile(pet('pet-1'));
   const found = holdPetRead();
   holdStart({ way: 'lost-found', pet: 'pet-1' }, browser.stream);
   render(<MonitorPage />);
   await act(async () => {});
 
-  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
   await watchRuns();
-  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop watching' }));
   await act(async () => {});
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
 
   await act(async () => { found(pet('pet-1')); });
   for (let i = 0; i < 5; i++) {
@@ -270,7 +270,7 @@ it('a pet read that ends after Start Monitoring and Stop Monitoring starts no wa
   }
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
   expect(useLostFoundStore.getState().isWatching).toBe(false);
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
 });
 
@@ -286,7 +286,7 @@ it('a Lost and Found start whose pet is gone watches with Motion and sound', asy
 it('a reload starts nothing', async () => {
   render(<MonitorPage />);
   await act(async () => {});
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
 });
 
@@ -359,8 +359,8 @@ it("each way's own start key asks first while another tab watches", async () => 
 
   render(<MonitorPage />);
   await act(async () => {});
-  await asks(screen.getByRole('button', { name: 'Start Monitoring' }));
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  await asks(screen.getByRole('button', { name: 'Start watching' }));
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
   cleanup();
 
@@ -396,7 +396,7 @@ it('Resume nap asks first while another tab watches, and starts once that tab ha
   await act(async () => {});
   const asked = screen.getByRole('dialog', { name: QUESTION });
   expect(browser.getUserMedia).not.toHaveBeenCalled();
-  expect(screen.queryByRole('button', { name: 'Stop Monitoring' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Stop watching' })).toBeNull();
 
   fireEvent.click(within(asked).getByRole('button', { name: 'Watch here' }));
   await act(async () => {});
@@ -449,7 +449,7 @@ it('End nap pressed while Resume nap waits for the other tabs starts no camera',
 
   expect(browser.getUserMedia).not.toHaveBeenCalled();
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
 });
 
 it('a takeover while People waits for its model arms nothing when the model is ready', async () => {
@@ -524,6 +524,6 @@ it('a held camera that is the camera chosen is used with no second request', asy
   render(<MonitorPage />);
   await act(async () => {});
 
-  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
 });

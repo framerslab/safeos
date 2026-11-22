@@ -74,7 +74,7 @@ test('a saved sound that loops stops when the watch stops', async ({ page, conte
   await watchStripes(page);
   await expect.poll(passes, { timeout: 60_000 }).toBeGreaterThan(1);
 
-  await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
   await page.waitForTimeout(1_000);
   const afterStop = await passes();
   // The sound lasts 0.3 seconds: a loop that went on would start about ten passes here.

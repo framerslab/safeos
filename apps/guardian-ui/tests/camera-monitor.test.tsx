@@ -43,14 +43,15 @@ it('stops camera, microphone and frame analysis when monitoring stops', async ()
   render(<MonitorPage />);
   await act(async () => {});
   await startMonitoring();
-  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop watching' }));
   expect(browser.video.stop).toHaveBeenCalled();
   expect(browser.audio.stop).toHaveBeenCalled();
   expect(browser.closeAudio).toHaveBeenCalled();
   const reads = browser.readFrame.mock.calls.length;
   act(() => { jest.advanceTimersByTime(2000); });
   expect(browser.readFrame).toHaveBeenCalledTimes(reads);
-  expect(screen.queryByText('LIVE')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Stop watching' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
 });
 
 it.each(['NotAllowedError', 'NotFoundError'])('does not claim monitoring when camera acquisition fails with %s', async (name) => {
@@ -59,8 +60,9 @@ it.each(['NotAllowedError', 'NotFoundError'])('does not claim monitoring when ca
   await act(async () => {});
   await startMonitoring();
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
-  expect(screen.queryByRole('button', { name: 'Stop Monitoring' })).toBeNull();
-  expect(screen.getByText('Camera unavailable')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Stop watching' })).toBeNull();
+  // The frame names the failure with its fix.
+  expect(screen.getByText(/then press Try again\.$/)).toBeTruthy();
 });
 
 it('ends monitoring when its camera is unplugged', async () => {
@@ -69,8 +71,8 @@ it('ends monitoring when its camera is unplugged', async () => {
   await startMonitoring();
   act(() => browser.video.end());
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
-  expect(screen.queryByText('LIVE')).toBeNull();
-  expect(screen.getByText(/camera.*(lost|ended|disconnected)/i)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Stop watching' })).toBeNull();
+  expect(screen.getByText(/^The camera stopped at .+\. Press Start watching to start again\.$/)).toBeTruthy();
 });
 
 it('keeps monitoring requested while the camera is muted and resumes on unmute', async () => {
@@ -80,11 +82,10 @@ it('keeps monitoring requested while the camera is muted and resumes on unmute',
   expect(useMonitoringStore.getState().isStreaming).toBe(true);
   act(() => browser.video.mute());
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
-  expect(screen.queryByText('LIVE')).toBeNull();
-  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
   act(() => browser.video.unmute());
   expect(useMonitoringStore.getState().isStreaming).toBe(true);
-  expect(screen.getByText('LIVE')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
 });
 
 it('uses the selected camera and remembers it when the monitor reopens', async () => {
@@ -97,7 +98,7 @@ it('uses the selected camera and remembers it when the monitor reopens', async (
   expect(browser.getUserMedia).toHaveBeenLastCalledWith(expect.objectContaining({
     video: expect.objectContaining({ deviceId: { exact: 'usb' } }),
   }));
-  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop watching' }));
   view.unmount();
   render(<MonitorPage />);
   await act(async () => {});

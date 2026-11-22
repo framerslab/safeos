@@ -8,12 +8,13 @@
  * "Settings for this watch", and the alert list's header and empty states.
  */
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
-import { installCameraBrowser } from './helpers/camera-browser';
+import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
+import { clockTime } from '@/lib/clock-time';
 
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 const mockBackendConfig = { wsUrl: 'wss://monitor.example.test' };
@@ -63,4 +64,102 @@ it('carries no modes menu and no link to the home page in its head', async () =>
   await act(async () => {});
   expect(screen.queryByRole('button', { name: 'Select Security Mode' })).toBeNull();
   expect(screen.queryByRole('link', { name: 'SafeOS home' })).toBeNull();
+});
+
+// =============================================================================
+// The camera's frame
+// =============================================================================
+
+const FAILURE_WORDS: Record<string, string> = {
+  blocked:
+    'The browser blocked the camera for this site. To allow it, open the site settings from the address bar, set Camera to Allow, then press Try again.',
+  'in-use': 'The camera did not start. Another app or tab may be using it. Close it, then press Try again.',
+  missing: 'No camera was found on this device. Connect a camera, then press Try again.',
+  gone: 'The selected camera is unavailable. Choose another camera.',
+};
+
+it('holds the camera drawing, Start watching and what the browser will ask before the camera is asked', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  const start = screen.getByRole('button', { name: 'Start watching' });
+  expect(start.closest('.watch-frame')).not.toBeNull();
+  expect(screen.getByText('Your browser will ask you to allow the camera and microphone.')).toBeInTheDocument();
+  const picker = screen.getByRole('combobox', { name: 'Camera' });
+  expect(within(picker).getByRole('option', { name: 'Default camera' })).toBeInTheDocument();
+  expect(screen.queryByText('LIVE')).toBeNull();
+  expect(screen.queryByRole('heading', { name: 'Camera Feed' })).toBeNull();
+});
+
+it('turns Start watching inactive while the camera starts, with Cancel, then shows Stop watching', async () => {
+  let answer: (stream: unknown) => void = () => {};
+  browser.getUserMedia.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+  render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
+  await act(async () => {});
+  const waiting = screen.getByRole('button', { name: 'Starting the camera…' });
+  expect(waiting).toHaveAttribute('aria-disabled', 'true');
+  const asked = browser.getUserMedia.mock.calls.length;
+  fireEvent.click(waiting);
+  await act(async () => {});
+  expect(browser.getUserMedia).toHaveBeenCalledTimes(asked);
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  await act(async () => { answer(browser.stream); });
+  expect(await screen.findByRole('button', { name: 'Stop watching' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
+});
+
+it.each([
+  ['NotAllowedError', 'blocked'],
+  ['NotReadableError', 'in-use'],
+  ['NotFoundError', 'missing'],
+  ['OverconstrainedError', 'gone'],
+])('names a %s camera inside the frame with its fix', async (name, kind) => {
+  browser.getUserMedia.mockRejectedValue(new DOMException('', name));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  const words = screen.getByText(FAILURE_WORDS[kind]);
+  const frame = words.closest('.watch-frame') as HTMLElement;
+  expect(frame).not.toBeNull();
+  expect(frame.querySelector('.problem-mark')).not.toBeNull();
+  const tryAgain = within(frame).queryByRole('button', { name: 'Try again' });
+  if (kind === 'gone') expect(tryAgain).toBeNull();
+  else expect(tryAgain).not.toBeNull();
+});
+
+it('says this browser cannot use a camera where it has no camera request', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  Object.defineProperty(navigator, 'mediaDevices', { value: undefined, configurable: true });
+  await startMonitoring();
+  expect(
+    screen.getByText(
+      'This browser cannot use a camera on this page. Open SafeOS in a current version of Chrome, Edge, Firefox or Safari.',
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+});
+
+it('asks for the camera again on Try again', async () => {
+  browser.getUserMedia.mockRejectedValue(new DOMException('', 'NotAllowedError'));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  const asked = browser.getUserMedia.mock.calls.length;
+  expect(asked).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  await act(async () => {});
+  expect(browser.getUserMedia.mock.calls.length).toBeGreaterThan(asked);
+});
+
+it('says when a camera that was watching stopped, and gives Start watching back', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(screen.getByRole('button', { name: 'Stop watching' })).toBeInTheDocument();
+  act(() => browser.video.end());
+  expect(screen.getByText(`The camera stopped at ${clockTime(Date.now())}. Press Start watching to start again.`)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Stop watching' })).toBeNull();
 });

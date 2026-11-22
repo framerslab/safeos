@@ -94,8 +94,8 @@ async function walk(
     });
     const page = await context.newPage();
     await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
-    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-    await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
 
     const level = page.locator('div.uppercase:text-is("Audio") + div.text-xl');
     await expect(level).toBeVisible();

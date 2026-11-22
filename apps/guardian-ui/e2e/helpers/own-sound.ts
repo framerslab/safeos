@@ -96,8 +96,8 @@ export async function watchStripes(page: Page) {
 
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
   await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click({ timeout: 60_000 });
-  await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/consecutive match/).first()).toBeVisible({ timeout: 60_000 });
 }
 

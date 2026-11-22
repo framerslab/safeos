@@ -40,7 +40,7 @@ test('a set time of Night at 22:00 makes the watch run at Night at 22:00', async
   });
 
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
-  await expect(page.getByRole('button', { name: 'Start Monitoring', exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Start watching', exact: true })).toBeVisible({ timeout: 30_000 });
   expect(await savedSetting(page)).toBe('maximum');
 
   // 22:00 and a little past: the check runs once a minute.
@@ -126,7 +126,7 @@ test("the person's own setting during a set time stays after a reload", async ({
 
   await page.reload({ waitUntil: 'networkidle' });
   await page.clock.fastForward('01:10');
-  await expect(page.getByRole('button', { name: 'Start Monitoring', exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Start watching', exact: true })).toBeVisible({ timeout: 30_000 });
   expect(await savedSetting(page)).toBe('maximum');
 });
 
