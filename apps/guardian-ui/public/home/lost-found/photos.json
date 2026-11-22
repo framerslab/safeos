@@ -124,5 +124,21 @@
   "notChecked": [
     "That the photo and the recording show the same kitten rests on the uploader's own description of both."
   ],
-  "tried": []
+  "tried": [
+    {
+      "set": "A",
+      "run": "https://github.com/framerslab/safeos/actions/runs/44998727312",
+      "alerted": true,
+      "saved": 171,
+      "alertLine": 70,
+      "firstAlertSeconds": 0.2,
+      "best": {
+        "score": 90,
+        "colour": 86,
+        "mainColours": 89,
+        "edges": 94,
+        "size": 99
+      }
+    }
+  ]
 }
