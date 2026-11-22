@@ -452,9 +452,10 @@ in use, notifications blocked or not asked, a second tab, alerts new, the
 stores held, a private window) at every width with its first screen counted,
 sizes and contrast against the readable look's figures, the old addresses and
 the offline page, and Settings: the list of settings pages with each row's
-value, its first screen counted, Lost and Found's pet, quiet hours read by the
-page's clock, a server's rows, a browser that refuses storage, the focus order
-and larger text, the list offline with axe on the settings parts, every control
+value and axe on the settings parts, its first screen counted, Lost and Found's
+pet, quiet hours read by the page's clock, a server's rows, a browser that
+refuses storage, the focus order clear of the app's header and the phone bar,
+larger text, the list's values offline, every control
 of `apps/guardian-ui/scripts/settings-inventory.json` changed and read back from
 its store, and the clears pressed on Data on this device. A settings walk fails
 on any browser confirm box. The camera in these walks is a stand-in that draws a

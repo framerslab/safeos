@@ -5416,7 +5416,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   });
 
   // Tab from the top: the look row, the Help row, then each row in order,
-  // each ringed and clear of the phone bar; nothing scrolls sideways at 320
+  // each ringed and clear of the app's header and the phone bar; nothing scrolls sideways at 320
   // px, and at 200 per cent text every row is whole.
   for (const width of [320, 390]) {
     for (const look of LOOKS) {
@@ -5434,11 +5434,15 @@ export async function checkApp(browser, baseUrl, outDir) {
             const box = el.getBoundingClientRect();
             const bar = document.querySelector('nav.phone-bar');
             const barTop = bar && getComputedStyle(bar).display !== 'none' ? bar.getBoundingClientRect().top : window.innerHeight;
+            // A header fixed or stuck to the top of the screen covers what scrolls under it.
+            const header = document.querySelector('header.app-header');
+            const held = header && ['fixed', 'sticky'].includes(getComputedStyle(header).position);
+            const headerFoot = held ? Math.max(0, header.getBoundingClientRect().bottom) : 0;
             const style = getComputedStyle(el);
             const name = el.getAttribute('aria-labelledby') ? document.getElementById(el.getAttribute('aria-labelledby'))?.textContent : el.textContent;
             return { name: (name || '').replace(/\s+/g, ' ').trim(), ringed: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2,
-              clear: box.bottom <= barTop + 0.5 && box.top >= 0,
-              box: `${Math.round(box.top)} to ${Math.round(box.bottom)} px, the bar from ${Math.round(barTop)} px` };
+              clear: box.bottom <= barTop + 0.5 && box.top >= headerFoot - 0.5,
+              box: `${Math.round(box.top)} to ${Math.round(box.bottom)} px, the header to ${Math.round(headerFoot)} px, the bar from ${Math.round(barTop)} px` };
           });
           if (at && !order.some((seen) => seen.name === at.name)) order.push(at);
         }
@@ -5448,7 +5452,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         const bare = order.filter((at) => !at.ringed);
         check(bare.length === 0, `focused with no ring: ${bare.map((at) => at.name).join(', ')}`);
         const hidden = order.filter((at) => !at.clear);
-        check(hidden.length === 0, `focused under the phone bar or off screen: ${hidden.map((at) => `${at.name} (${at.box})`).join(', ')}`);
+        check(hidden.length === 0, `focused under the header, under the phone bar or off screen: ${hidden.map((at) => `${at.name} (${at.box})`).join(', ')}`);
         if (width === 320) {
           const sideways = await sidewaysScroll(page);
           check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
