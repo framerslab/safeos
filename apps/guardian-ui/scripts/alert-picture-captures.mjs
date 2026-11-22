@@ -15,6 +15,7 @@
 //
 //   card                  three Motion alerts: the newest card large, two small
 //   sound-card            a Sound alert's card
+//   card-failed           a picture the device could not save, moved to the small form by a newer alert
 //   opened                a Motion alert's picture, opened
 //   history               History's rows of the watch's alerts
 //   watch-group           Alert pictures in the watch's settings
@@ -403,6 +404,44 @@ async function soundState(browser, size, look) {
   }
 }
 
+/** While `window.__refusePictureSaves` is true, the browser refuses to save a picture: its save fails. */
+function refusePictureSaves() {
+  const put = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function (value, ...rest) {
+    if (window.__refusePictureSaves && this.name === 'alert_picture' && value && value.state === 'kept') {
+      throw new DOMException('the capture refuses this picture save', 'UnknownError');
+    }
+    return put.call(this, value, ...rest);
+  };
+}
+
+const SAVE_FAILED_LINE = 'This picture could not be saved on this device. It shows here until you reload.';
+
+/** A picture this device could not save, moved down the list by a newer alert: its line stays with it. */
+async function failedSaveState(browser, size, look) {
+  const context = await seededContext(browser, { size, look, settings: PART_MOTION, before: [clipInOnePart, refusePictureSaves] });
+  const page = await context.newPage();
+  try {
+    await state(['card-failed'], size, look, async () => {
+      await page.goto(address('/monitor/'), { waitUntil: 'networkidle', timeout: 60_000 });
+      for (let count = 1; count <= 3; count++) {
+        // The second alert's picture is not saved.
+        await page.evaluate((refuse) => { window.__refusePictureSaves = refuse; }, count === 2);
+        await startWatch(page);
+        await waitForCards(page, MOTION_CARD, count);
+        if (count === 2) await cards(page).first().getByText(SAVE_FAILED_LINE, { exact: true }).waitFor({ timeout: 30_000 });
+        await stopKey(page).click();
+      }
+      const moved = cards(page).nth(1);
+      await moved.locator('.alert-picture[data-form="small"]').waitFor({ timeout: 30_000 });
+      await moved.getByText(SAVE_FAILED_LINE, { exact: true }).waitFor({ timeout: 30_000 });
+      await capture('card-failed', size, look, page.locator('.alert-card-list'));
+    });
+  } finally {
+    await context.close();
+  }
+}
+
 /** The notice before a device's first watch. */
 async function noticeState(browser, size, look) {
   const context = await seededContext(browser, { size, look, settings: MOTION_ONLY, answered: false });
@@ -505,6 +544,7 @@ try {
       await motionStates(clipBrowser, size, look);
       await notificationState(clipBrowser, size, look);
       await soundState(clipBrowser, size, look);
+      await failedSaveState(clipBrowser, size, look);
       await noticeState(clipBrowser, size, look);
       await setupChoiceState(clipBrowser, size, look);
     }
