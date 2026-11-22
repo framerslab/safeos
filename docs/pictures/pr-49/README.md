@@ -6,8 +6,8 @@ Saved by `apps/guardian-ui/scripts/alert-picture-captures.mjs` in the Pictures
 workflow's job "Capture the home page pictures" (Chromium, at 390 by 844 and
 1440 by 900 pixels, a device scale factor of 2, light and dark) and copied byte
 for byte from the `alert-pictures` artifact of
-[Pictures run 45009536251](https://github.com/framerslab/safeos/actions/runs/45009536251),
-which built commit 2b76dd1. Each file is `alert-<state>-<width>-<look>.png`,
+[Pictures run 45079552958](https://github.com/framerslab/safeos/actions/runs/45079552958),
+which built commit c29fe22. Each file is `alert-<state>-<width>-<look>.png`,
 clipped to the state's own part of the page:
 
 - `card`: three Motion alerts on the watch; the newest card shows the camera's
@@ -15,6 +15,10 @@ clipped to the state's own part of the page:
   thumbnail.
 - `sound-card`: a Sound alert's card: the picture with no box and "What the
   camera saw when the sound came."
+- `card-failed`: three Motion alerts; the script makes the browser refuse the
+  second one's picture as it is saved. On its thumbnail card the problem glyph and "This
+  picture could not be saved on this device. It shows here until you reload."
+  stay after the newer alert moved it down.
 - `opened`: the newest Motion alert's picture after **Open picture**, saved
   whole: the picture, the close-up, **Show the box**, **Save picture** and
   **Delete picture**. On a phone the window is made as tall as the dialog's
