@@ -230,9 +230,12 @@ Lost Item Found's, at each of its alerts. Its notification, when Lost & Found's 
 are on, has the title "Could this be {name}?" and the body "Colours and shape like {name}'s
 photos, {time}."; with **Show the picture in alert notifications** on it carries the camera's
 picture with its box drawn in, and the pet's photo is never in it. The live picture boxes the region for 10
-seconds with "Colours like {name}'s". History lists the entry under Lost & Found. The entry's
-record in the alert cache has the kind `sighting`, the pet's id and name and the comparison's
-four scores as data; no score and no percentage is shown.
+seconds with "Colours like {name}'s". History lists the entry under Lost & Found. The
+dashboard's **Since you last looked** lists it as Lost and Found's, "Colours like {name}'s at
+{time}", with its kept close-up (the camera's picture when it has no close-up), and **Mark all
+as seen** marks it in the watch's list. The entry's record in the alert cache has the kind
+`sighting`, the pet's id and name and the comparison's four scores as data; no score and no
+percentage is shown.
 
 ## Alert pictures
 
@@ -296,8 +299,9 @@ A picture is deleted:
   signing out.
 
 When the device runs out of room, the oldest pictures make way for the newest, and the alert
-list says so once; when every older picture would have to go, the new one is not kept and the
-list says the device is out of room. A window that keeps no data says once that it keeps no
+list says so once; when every older picture would have to go, the new one is not kept, the
+list says the device is out of room, and so does the dashboard for the rest of the visit. A
+window that keeps no data says once that it keeps no
 pictures. A tab whose database waits for a reload shows its alerts' pictures from memory.
 Another tab that shows an alert before its picture is saved shows the picture once it is.
 

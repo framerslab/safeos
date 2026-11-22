@@ -1039,7 +1039,8 @@ function goneRow(row: AlertPictureDB, gone: 'age' | 'person', days?: number): Al
  * marker when this tab had read none), and not Delete all pictures (the pictures marker). Out of
  * room, the oldest kept sets make way one at a time, each try its own transaction that deletes
  * them and writes the new set together; when every older set would have to go, nothing is deleted
- * and the answer is `out-of-room`.
+ * and the answer is `out-of-room`, which is noted for the visit so the dashboard says the device is
+ * out of room (lib/storage-full). A save that made room by deleting older sets notes nothing.
  */
 export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureStamp): Promise<
   { result: 'saved'; deleted: string[] } | { result: 'dropped' | 'out-of-room' | 'failed' }
@@ -1050,6 +1051,8 @@ export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureSta
   } catch {
     return { result: 'failed' };
   }
+  // The browser's last refusal for lack of room.
+  let refused: unknown = null;
   for (let take = 0; ; take++) {
     let tx: Abandonable | undefined;
     try {
@@ -1079,6 +1082,7 @@ export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureSta
         }
         if (deleted.length < take) {
           await abandonTransaction(write);
+          noteStorageFull(refused);
           return { result: 'out-of-room' };
         }
       }
@@ -1086,9 +1090,12 @@ export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureSta
       await write.done;
       return { result: 'saved', deleted };
     } catch (error) {
-      const quota = isQuotaError(error) || isQuotaError(tx?.error);
+      const quota = isQuotaError(error) ? error : isQuotaError(tx?.error) ? tx?.error : null;
       await abandonTransaction(tx);
-      if (quota) continue;
+      if (quota) {
+        refused = quota;
+        continue;
+      }
       return { result: 'failed' };
     }
   }

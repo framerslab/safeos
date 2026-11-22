@@ -66,11 +66,14 @@ export async function readSavedRecords(): Promise<SavedRecords> {
 
 /** Marks every record of these alerts as seen, each in its own store, and resolves once the marks are saved. */
 export async function markSeen(alerts: DeviceAlert[]): Promise<void> {
-  const of = (way: WayId) => alerts.filter((alert) => alert.way === way).flatMap((alert) => alert.recordIds);
+  // A record of the watch's alert list (Motion and sound's, and a Lost and Found sighting the
+  // watch raised) is marked there; every other record in its way's own store.
+  const inList = alerts.filter((alert) => alert.way === 'monitor' || alert.inAlertList === true).flatMap((alert) => alert.recordIds);
+  const of = (way: WayId) => alerts.filter((alert) => alert.way === way && alert.inAlertList !== true).flatMap((alert) => alert.recordIds);
   const monitoring = useMonitoringStore.getState();
   // The store marks only an alert its list holds.
   await monitoring.hydrateAlerts();
-  for (const id of of('monitor')) monitoring.acknowledgeAlert(id);
+  for (const id of inList) monitoring.acknowledgeAlert(id);
   await Promise.all([acknowledgeMatchFrames(of('lost-found')), acknowledgeIntrusionFrames(of('security'))]);
   for (const id of of('security')) useSecurityStore.getState().acknowledgeFrame(id);
   if (of('wildlife').length > 0) useAnimalAlertStore.getState().acknowledgeDetections(of('wildlife'));
