@@ -827,6 +827,8 @@ export interface PictureFault {
   holdReadMs?: number;
   /** A picture's JPEG is handed back this long after it was drawn: its save starts that much later. */
   holdDrawMs?: number;
+  /** The app hears that a picture was deleted (the row that says it went) this long after the browser wrote it. */
+  holdDeleteMs?: number;
   /** Every write of a kept picture fails: for lack of room, or with a plain error (the store's probe too). */
   writes?: 'quota' | 'error';
   /** A kept picture's write fails for lack of room until its transaction has deleted this many rows. */
@@ -883,6 +885,7 @@ export async function faultPictureStore(page: Page, fault: PictureFault = {}): P
         if (kept && f.quotaUntilDeletes && (deletes.get(this.transaction) ?? 0) < f.quotaUntilDeletes) refuse('QuotaExceededError');
         if (!kept && value.id !== 'probe' && f.deletes === 'error') refuse('UnknownError');
         if (kept && f.holdSaveMs) heldSaves.set(this.transaction, f.holdSaveMs);
+        if (!kept && value.id !== 'probe' && f.holdDeleteMs) heldSaves.set(this.transaction, f.holdDeleteMs);
       }
       return put.call(this, value, ...rest);
     } as typeof put;

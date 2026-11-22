@@ -1442,6 +1442,52 @@ test.describe('Keeping pictures, 1280 px', () => {
     await other.close();
   });
 
+  test('a picture another tab deletes while its save waits stays deleted', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+    await canvasCamera(page, LEFT_THIRD);
+    await faultPictureStore(page);
+    // Another tab holds History open from before the watch: it reads each alert as the watch saves it.
+    const other = await context.newPage();
+    await faultPictureStore(other);
+    await other.goto('/history/', { waitUntil: 'networkidle' });
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await startWatching(page);
+    await timeOf(cards(page).first(), 'Motion');
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+
+    // The other tab's picture reads fail from now on, so it offers Delete picture without reading.
+    await setFault(other, { reads: 'error' });
+    // The next alert's picture is handed back 30 seconds after it is drawn: its save waits.
+    const HOLD_MS = 30_000;
+    await setFault(page, { holdDrawMs: HOLD_MS });
+    await raiseEvents(page, 2, 2);
+    const held = cards(page).first();
+    await expect(held.locator('.alert-picture__wait')).toBeVisible();
+    const heldSince = Date.now();
+    // The picture holds still: the event ends with no repeat, so the card keeps this alert's time.
+    await page.evaluate(() => { window.__camera!.moving.width = 0; });
+    const time = await timeOf(held, 'Motion');
+
+    // The other tab lists the alert while its picture waits, and the person deletes the picture there.
+    await expect.poll(() => savedAlertCount(page), { timeout: 12_000 }).toBe(2);
+    const row = historyRows(other).filter({ hasText: time }).filter({ hasText: 'Motion' });
+    await expect(row.getByText(UNREADABLE_LINE, { exact: true })).toBeVisible({ timeout: 15_000 });
+    await openKey(row).click();
+    const dialog = opened(other);
+    await deleteKey(dialog).click();
+    await confirmDelete(other).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(held.locator('.alert-picture__wait'), 'the save waits until after the delete').toBeVisible();
+
+    // The held save goes on now, and writes nothing over the delete.
+    await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - heldSince)) + 5_000);
+    const reading = await readDatabase(page);
+    expect(keptRows(reading), 'only the first alert’s picture is kept').toHaveLength(1);
+    await expect(held.getByText(DELETED_LINE, { exact: true })).toBeVisible();
+    await other.close();
+  });
+
   test('a connected server receives its frames and no kept picture, box or close-up', async ({ page, context }) => {
     test.setTimeout(150_000);
     const wsUrl = 'ws://127.0.0.1:4174/ws';
@@ -2584,6 +2630,26 @@ test.describe('The opened picture of a saved alert, 390 px', () => {
     await expect(card.getByRole('img')).toHaveCount(0);
   });
 
+  test('Clear All Local Data in another tab closes the open picture and leaves no picture on the page', async ({ page, context }) => {
+    test.setTimeout(90_000);
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedOne(page);
+    const { dialog } = await openSaved(page);
+    await expect(dialog.getByRole('img')).toHaveCount(2);
+
+    const second = await context.newPage();
+    await second.goto('/settings/', { waitUntil: 'networkidle' });
+    await second.getByRole('button', { name: 'Privacy' }).click();
+    second.once('dialog', (ask) => void ask.accept());
+    await second.getByRole('button', { name: 'Clear All Local Data' }).click();
+    await expect.poll(() => savedAlertCount(second), { timeout: 15_000 }).toBe(0);
+    await second.close();
+
+    // This tab lets go of every picture it showed, the open one too.
+    await expect(dialog).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByRole('img', { name: /^(What the camera saw at|Close-up of the boxed part at) / })).toHaveCount(0);
+  });
+
   test('the dialog works offline', async ({ page, context }) => {
     await seedDevice(context, { pictures: { noticeAnswered: true } });
     const { pictureId } = await seedOne(page);
@@ -2869,6 +2935,33 @@ test.describe('History’s rows of saved alerts, 390 px', () => {
       await expect(row.getByRole('img')).toHaveCount(1, { timeout: 20_000 });
       await expect(row.locator('.alert-picture__wait')).toHaveCount(0);
     }
+  });
+
+  test('a picture read that answers after Clear All Local Data in another tab shows nothing', async ({ page, context }) => {
+    test.setTimeout(90_000);
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedHistory(page, 2);
+    // This tab hears its picture reads' answers 15 seconds after the browser gave them.
+    const HOLD_MS = 15_000;
+    await faultPictureStore(page, { holdReadMs: HOLD_MS });
+    await page.goto('/history/', { waitUntil: 'domcontentloaded' });
+    await expect(historyRows(page)).toHaveCount(2);
+    await expect(historyRows(page).first().locator('.alert-picture__wait')).toBeVisible();
+    const readSince = Date.now();
+
+    // Another tab clears everything while the reads' answers wait.
+    const second = await context.newPage();
+    await second.goto('/settings/', { waitUntil: 'networkidle' });
+    await second.getByRole('button', { name: 'Privacy' }).click();
+    second.once('dialog', (ask) => void ask.accept());
+    await second.getByRole('button', { name: 'Clear All Local Data' }).click();
+    await expect.poll(() => savedAlertCount(second), { timeout: 15_000 }).toBe(0);
+    await second.close();
+    expect(Date.now() - readSince, 'the clear came while the answers waited').toBeLessThan(HOLD_MS);
+
+    // The answers come from before the clear: this tab shows none of their pictures.
+    await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - readSince)) + 3_000);
+    await expect(page.getByRole('img', { name: /^(What the camera saw at|Close-up of the boxed part at) / })).toHaveCount(0);
   });
 
   test('History offline', async ({ page, context }) => {
@@ -3654,6 +3747,36 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await expect(failed).toHaveCount(0);
     await expect(picture).toBeVisible();
     await expect(deleteKey(dialog)).toBeVisible();
+  });
+
+  test('a delete whose answer comes after a repeat leaves the newer picture open', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    await faultPictureStore(page);
+    await watchWith(page, context, { settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) }, camera: LEFT_THIRD });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await openKey(card).click();
+    await expect(page.getByRole('dialog', { name: `Motion at ${time}`, exact: true })).toBeVisible();
+    // The panel takes the newest alert's title with a repeat, so it is found by its own mark.
+    const dialog = page.locator('[role="dialog"].alert-picture-dialog');
+    const picture = dialog.getByRole('img', { name: /^What the camera saw at / });
+    const first = await picture.getAttribute('src');
+    // The page hears that the shown picture was deleted 20 seconds after the browser wrote it.
+    const HOLD_MS = 20_000;
+    await setFault(page, { holdDeleteMs: HOLD_MS });
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    const asked = Date.now();
+    await page.waitForTimeout(1_000);
+    await setFault(page, {});
+    // The event goes on and repeats: the opened picture becomes the newest alert's.
+    await expect.poll(() => picture.getAttribute('src'), { timeout: 60_000 }).not.toBe(first);
+    expect(Date.now() - asked, 'the repeat came while the delete was answered late').toBeLessThan(HOLD_MS);
+    // The answer comes for the earlier picture: the newer one stays open.
+    await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - asked)) + 3_000);
+    await expect(dialog).toBeVisible();
+    await expect(picture).toBeVisible();
+    expect(await picture.getAttribute('src')).not.toBe(first);
   });
 
   test('a tab that reads an alert before its picture is saved shows the picture once it is', async ({ page, context }) => {
