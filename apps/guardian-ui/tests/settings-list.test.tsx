@@ -14,7 +14,6 @@ import fs from 'fs';
 import path from 'path';
 import { act, render, screen, within } from '@testing-library/react';
 import './helpers/browser-data';
-import { bare } from './helpers/served-html';
 import { SettingsList } from '@/components/settings/SettingsList';
 import { readBrowserNotificationsOn, writeNotificationChoices } from '@/lib/notification-choices';
 import { petForWatch } from '@/lib/next-way';
@@ -25,6 +24,9 @@ import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useLostFoundStore } from '@/stores/lost-found-store';
 
 let mockApiUrl = '';
+/** An address without its trailing slash: next/link drops it outside a build. */
+const bare = (address: string | null | undefined) => (address || '').replace(/(?<=[^/])\/(?=$|[?#])/, '');
+
 jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ status: { api: 'disconnected' }, config: { apiUrl: mockApiUrl } }),
 }));
@@ -178,8 +180,8 @@ it('lists Your own server while a server address is saved', async () => {
     'Admin',
   ]);
   expect(links.map((l) => bare(l.getAttribute('href')))).toEqual([
-    '/settings/server/#address',
-    '/settings/server/#name',
+    '/settings/server#address',
+    '/settings/server#name',
     '/webhooks',
     '/admin',
   ]);

@@ -15,7 +15,9 @@
 import React from 'react';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
-import { bare } from './helpers/served-html';
+
+/** An address without its trailing slash: next/link drops it outside a build. */
+const bare = (address: string | null | undefined) => (address || '').replace(/(?<=[^/])\/(?=$|[?#])/, '');
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ back: () => undefined, push: () => undefined }),
