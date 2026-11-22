@@ -249,7 +249,20 @@ jobs:
             curl -sf http://127.0.0.1:4173/ >/dev/null && break
             sleep 1
           done
-          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alert-pictures.spec.ts --project=chromium --retries=0 --reporter=list --workers=2 --output="$RUNNER_TEMP/alert-pictures-results"
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alert-pictures.spec.ts --project=chromium --retries=0 --reporter=list --workers=2 --grep-invert "A watch alert.s notification" --output="$RUNNER_TEMP/alert-pictures-results"
+
+      # A notification waits 300 ms for its picture and then goes with its
+      # words alone. The walks that read the picture in it run alone, with no
+      # second worker drawing beside them on the runner.
+      - name: Walk the alert notifications alone
+        if: always() && steps.clip.outcome == 'success'
+        run: |
+          curl -sf http://127.0.0.1:4173/ >/dev/null || (python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alert-pictures.spec.ts --project=chromium --retries=0 --reporter=list --workers=1 --grep "A watch alert.s notification" --output="$RUNNER_TEMP/alert-notification-results"
 
       # `npm run e2e` runs every project in playwright.config.ts. The walk
       # needs desktop Chromium, so under Firefox it skips instead of failing.
@@ -276,6 +289,7 @@ jobs:
           path: |
             apps/guardian-ui/test-results
             ${{ runner.temp }}/alert-pictures-results
+            ${{ runner.temp }}/alert-notification-results
           if-no-files-found: ignore
           retention-days: 14
 
