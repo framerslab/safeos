@@ -129,8 +129,8 @@ it('takes every colour from a token', () => {
   // The check finds a colour written in place of a token.
   expect(colourFaults('.settings { color: #0b131b; background: white; border-color: rgb(0 0 0); }')).toEqual([
     '#0b131b',
-    'rgb(',
     'white',
+    'rgb(',
   ]);
 });
 
