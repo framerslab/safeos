@@ -1185,8 +1185,11 @@ export async function goneAllAlertPictures(): Promise<{ result: 'deleted'; ids: 
   }
 }
 
-/** Deletes the kept sets at or past `days` old, leaving rows that say after how long. Answers their ids. */
-export async function goneExpiredAlertPictures(days: number, now: number): Promise<string[]> {
+/**
+ * Deletes the kept sets at or past `days` old, leaving rows that say after how long. Answers their
+ * ids. `stillChosen` is asked inside the transaction, once the kept sets are read: false deletes nothing.
+ */
+export async function goneExpiredAlertPictures(days: number, now: number, stillChosen: () => boolean = () => true): Promise<string[]> {
   let tx: Abandonable | undefined;
   try {
     const db = await getDB();
@@ -1198,6 +1201,11 @@ export async function goneExpiredAlertPictures(days: number, now: number): Promi
     while (cursor) {
       kept.push({ id: cursor.value.id, takenAt: cursor.value.takenAt });
       cursor = await cursor.continue();
+    }
+    // The age may have changed while the sweep waited for the store: then it deletes nothing.
+    if (!stillChosen()) {
+      await abandonTransaction(tx);
+      return [];
     }
     const expired = expiredPictureIds(kept, now, days);
     for (const id of expired) {

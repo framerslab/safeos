@@ -58,7 +58,8 @@ comparison work offline. A long name with no spaces breaks inside the line that
 names the pet, at every width from 320 px.
 
 While the watch compares, the Lost & Found panel under the alerts shows the pet's
-recent readings and **Open in History**, which opens History. A photo added there with **Add Photos**
+recent readings and **Open in History**, which opens History on its Local Timeline, where the
+sighting is, also on a device that uses a server. A photo added there with **Add Photos**
 counts at once on the pet and in **Choose a pet**, and stays with the pet when it
 is chosen again, also when another pet is chosen before the photo is saved.
 Another pet chosen while the watch compares starts with none of the first pet's
@@ -254,17 +255,22 @@ brightness is under 26 of 255 says it is too dark to show much.
 
 The newest card in the alert list shows the picture large with its box and the close-up beside
 "Close-up"; every other card shows one 112 by 84 px thumbnail. A repeat replaces the card's
-pictures with the newest alert's. For 10 seconds from a Motion or Picture change alert, the
+pictures with the newest alert's; a picture that could not be saved keeps its line when a newer
+alert moves it to a thumbnail. For 10 seconds from a Motion or Picture change alert, the
 live camera picture shows the box with "Motion here at {time}" or "Picture change here at
-{time}"; a newer alert's box takes its place. **Open picture** on a card, or a press on its
+{time}"; a newer alert's box takes its place. The box leaves when another camera is chosen, and
+it is not drawn while the camera is paused. **Open picture** on a card, or a press on its
 picture, opens the picture large: **Show the box** hides and shows the box, **Save picture**
 saves the picture as it shows to the device as `safeos-{kind}-{date}-{time}.jpg` (with the box
 drawn in while it shows), and **Delete picture** asks first, then deletes the picture, its box
-and its close-up; the alert's words stay. A repeat while the picture is open puts the newest
+and its close-up; the alert's words stay. A delete confirmed while **Save picture** makes its
+file goes ahead once the file is made. A repeat while the picture is open puts the newest
 alert's picture in its place; a delete question, or a failed save or delete, that was about the
 earlier picture leaves with it, and a delete of the earlier picture leaves the newer one open. A
 dark picture offers **Brighten the picture**, which
-brightens the view alone. **History → Local Timeline** lists each watch alert with its
+brightens the view alone; a brightened view shows only with the picture it was made of. A
+control that leaves the open picture with a repeat (**Brighten the picture**, when the newer
+picture is not dark) leaves focus on **Close**. **History → Local Timeline** lists each watch alert with its
 thumbnail, its kind, level, date and time, and **Open picture**.
 
 The pictures are kept in the `alert_picture` store of the `safeos-guardian` database
@@ -283,14 +289,18 @@ sound's page before the watch, and there **Go back** also closes the camera the 
 for that start. No picture is kept before it is answered.
 Setup's camera step shows the same title, switch, choice and lines: going on past that step
 (**Continue**, or **Continue without the camera**) answers the notice with the choice as set
-there, so the first watch starts with no notice; **Back** answers nothing. Running setup again
+there, so the first watch starts with no notice, and deletes the pictures past the age chosen
+there; **Back** answers nothing. Running setup again
 keeps that choice with the step's other answers until its last step is finished. The
 same switch, choice and lines stand in the group **Alert pictures** in the watch's settings
 and on **Settings > Detection**, with the count of pictures kept and **Delete all pictures**,
-which asks first. With keeping off, each alert's picture shows on the watch until a reload and
+which asks first. While the pictures are deleted, focus stays on that key or wherever the
+person moves it; when the key leaves with the last picture, focus on it goes to **Delete
+pictures after**. With keeping off, each alert's picture shows on the watch until a reload and
 nothing is saved. Turning the switch in one tab holds in every open tab from the next alert,
-and a new age at once; a tab that hears of a choice after a later one was made changes nothing
-for it.
+and a new age at once; a tab that hears of a choice after a later one was made, or one made in
+the same millisecond as its own, changes nothing for it. A sweep by an age that waits for the
+store deletes nothing once a longer age, or "Until I delete them", has been chosen.
 
 A picture is deleted:
 
@@ -319,12 +329,16 @@ list says the device is out of room, and so does the dashboard for the rest of t
 window that keeps no data says once that it keeps no
 pictures. A tab whose database waits for a reload shows its alerts' pictures from memory.
 Another tab that shows an alert before its picture is saved shows the picture once it is.
+A picture a repeat replaced is let go from the tab's memory two minutes after no card shows it
+and no alert names it, also once the watch has stopped.
 
 **Settings > Notifications** has **Show the picture in alert notifications**, off by default.
 With it on, in a browser that shows a picture in a notification, a Motion or Picture change
 alert's notification carries the picture with its box drawn in; a picture not drawn within
-300 ms of the alert leaves the notification's words to go alone, and a notification ready after a
-newer alert of its event asked for its own does not replace that one. A Sound alert's notification
+300 ms of the alert leaves the notification's words to go alone. An event's notifications go to
+the browser one after another, in the order they are ready: one ready after a newer alert of its
+event asked for its own does not go, and a slower answer from the browser never puts an earlier
+one over a later one. A Sound alert's notification
 never carries a picture. The notifications say "Motion alert", "Sound alert" or "Picture
 change alert", with the level and the time. While the browser shows a notification's words
 alone, while notifications are not allowed (the row offers **Allow notifications**) and while

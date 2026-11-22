@@ -35,6 +35,7 @@ import { WAYS, wayFromParam, type Way } from '../../lib/app-routes';
 import { SETUP_STEPS, USE_SETTING, type SetupStep, type SetupUse } from '../../lib/setup-steps';
 import { SetupPicturesChoice } from '../../components/alert-pictures/PicturesNotice';
 import { postPictureNews, settingsNews } from '../../lib/alert-pictures/channel';
+import { sweepPicturesByAge } from '../../lib/alert-pictures/keeper';
 import { useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 
 // =============================================================================
@@ -72,10 +73,12 @@ const NO_ANSWERS: StagedAnswers = { disclaimers: false, scenario: null, camera: 
  * Keeps the camera step's choice of what an alert keeps as the answer to the
  * notice before the first watch, and tells the site's other tabs. An answer
  * the browser cannot keep holds until the page is reloaded, as the notice's does.
+ * The pictures past the chosen age are deleted now, as Settings does.
  */
 function keepPicturesChoice(choice: PicturesChoice) {
   useAlertPicturesStore.getState().answerNotice(choice);
   postPictureNews(settingsNews(useAlertPicturesStore.getState()));
+  void sweepPicturesByAge();
 }
 
 const STEPS: Step[] = SETUP_STEPS;

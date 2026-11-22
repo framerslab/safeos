@@ -253,7 +253,9 @@ export default function HistoryPage() {
       hostname.endsWith('.pages.dev');
 
     setIsStaticDeployment(isStatic);
-    if (isStatic) {
+    // A link to the Local Timeline (LOCAL_TIMELINE_HREF) opens History there.
+    const linkedLocal = new URLSearchParams(window.location.search).get('view') === 'local';
+    if (isStatic || linkedLocal) {
       setViewMode('local');
     }
   }, []);

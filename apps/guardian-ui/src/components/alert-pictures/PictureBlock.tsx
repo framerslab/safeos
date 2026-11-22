@@ -363,6 +363,7 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
   const notKept = view.kept === 'memory' && store === 'usable';
 
   if (form === 'small') {
+    // A picture this device could not save keeps its line when a newer alert moves it to the small form.
     return (
       <div className="alert-picture" data-form="small" data-kind={kind} data-status="shown" {...mark}>
         {closeUpUrl ? (
@@ -370,7 +371,14 @@ export function PictureBlock({ alert, form }: PictureBlockProps) {
         ) : (
           <Moment set={set} url={frameUrl} at={at} className="alert-picture__tile alert-picture__tile--whole" onPress={press} />
         )}
-        <BlockWords alert={alert} kind={kind} at={at} />
+        <BlockWords alert={alert} kind={kind} at={at}>
+          {failed && (
+            <p className="alert-picture__quiet alert-picture__why">
+              <ProblemGlyph />
+              <span>{SAVE_FAILED}</span>
+            </p>
+          )}
+        </BlockWords>
       </div>
     );
   }

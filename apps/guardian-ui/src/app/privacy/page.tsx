@@ -160,8 +160,10 @@ export default function PrivacyPage() {
               </p>
               <p>
                 <strong className="text-white">Alert pictures:</strong> For each Motion and Picture change
-                alert on the monitor page, SafeOS keeps the camera&apos;s picture of the moment, a box round
-                what changed and a close-up of that box. A Sound alert keeps the picture with no box, and a
+                alert on the monitor page, SafeOS keeps the camera&apos;s picture of the moment and, where it
+                can mark what changed, a box round it and a close-up of that box. A box over more than half
+                of the picture has no close-up, and a Picture change over more than half of the picture has
+                no box. A Sound alert keeps the picture with no box, and a
                 Lost &amp; Found alert keeps the camera&apos;s picture with a box round the part like your
                 pet&apos;s photos. They are kept in this browser&apos;s IndexedDB on this device; Frame, which
                 runs safeos.sh, never receives them. They are deleted after the time you choose under Keep
@@ -287,7 +289,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: November 20, 2026
+          Last updated: November 22, 2026
         </div>
       </div>
     </main>

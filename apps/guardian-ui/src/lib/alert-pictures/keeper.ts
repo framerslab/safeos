@@ -228,6 +228,17 @@ function forgetUnnamed(now: number): void {
   }
 }
 
+/** Lets go of a picture in memory that no card shows once no alert of the watch has named it for `UNNAMED_MS`. */
+function forgetWhenUnnamed(entry: Entry): void {
+  entry.release = setTimeout(() => {
+    entry.release = null;
+    if (entries.get(entry.id) !== entry || entry.holders > 0 || !entry.memory) return;
+    const named = useMonitoringStore.getState().alerts.some((alert) => alert.pictureId === entry.id);
+    if (named) forgetWhenUnnamed(entry);
+    else drop(entry);
+  }, UNNAMED_MS);
+}
+
 /** A picture that went: its view says why, in this tab. */
 function gone(ids: readonly string[], reason: 'person' | 'age' | 'with-alert', days?: number): void {
   for (const id of ids) {
@@ -356,7 +367,12 @@ export async function deleteAllPictures(): Promise<'deleted' | 'failed'> {
 export async function sweepPicturesByAge(now: number = Date.now(), chosen?: DeleteAfterDays): Promise<void> {
   const days = chosen === undefined ? useAlertPicturesStore.getState().deleteAfterDays : chosen;
   if (days === null) return;
-  const ids = await goneExpiredAlertPictures(days, now);
+  // A sweep that waits for the store deletes by its age only while no longer age, and not "Until I
+  // delete them", has been chosen since: the check is made inside the sweep's own transaction.
+  const ids = await goneExpiredAlertPictures(days, now, () => {
+    const age = newestAge();
+    return age !== null && age <= days;
+  });
   if (ids.length === 0) return;
   gone(ids, 'age', days);
   postPictureNews({ type: 'gone', ids, reason: 'age' });
@@ -469,10 +485,12 @@ function hear(news: PictureNews): void {
     }
     tell();
   } else if (news.type === 'settings') {
-    // Choices made before the ones this tab holds, heard late, change nothing here and delete nothing.
-    if (news.at !== undefined && news.at < useAlertPicturesStore.getState().chosenAt) return;
+    // Choices made before the ones this tab holds, heard late, change nothing here and delete
+    // nothing; so do choices made in the same millisecond, where this tab's own stands.
+    if (news.at !== undefined && news.at <= useAlertPicturesStore.getState().chosenAt) return;
     // The other tab's choices hold here from now, though this tab may read them from the browser only later.
     if (news.keep !== undefined) heardKeep = news.keep;
+    if (news.deleteAfterDays !== undefined) heardAge = { at: news.at ?? Date.now(), days: news.deleteAfterDays };
     void sweepPicturesByAge(Date.now(), news.deleteAfterDays);
   } else if (news.type === 'saved') {
     // A card that read this picture before it was saved found none: it reads it again.
@@ -487,6 +505,15 @@ function hear(news: PictureNews): void {
  * reads the saved choices again (or this tab changes them); null till then.
  */
 let heardKeep: boolean | null = null;
+
+/** Delete pictures after as another tab chose it, with when; null till one is heard. */
+let heardAge: { at: number; days: DeleteAfterDays } | null = null;
+
+/** The newest Delete pictures after this tab knows of: its own choice, or one another tab made later. */
+function newestAge(): DeleteAfterDays {
+  const choice = useAlertPicturesStore.getState();
+  return heardAge && heardAge.at > choice.chosenAt ? heardAge.days : choice.deleteAfterDays;
+}
 
 let listening = false;
 function listenToOtherTabs(): void {
@@ -525,7 +552,14 @@ function hold(id: string, listener: () => void): () => void {
   return () => {
     listeners.delete(listener);
     held.holders = Math.max(0, held.holders - 1);
-    if (held.holders > 0 || held.memory || held.release) return;
+    if (held.holders > 0 || held.release) return;
+    if (held.memory) {
+      // A picture in this tab's memory alone that no card shows: once no alert names it (a repeat
+      // put a newer picture on its card), it is let go after a while, though no picture is taken
+      // after it.
+      forgetWhenUnnamed(held);
+      return;
+    }
     // A stored picture no card shows is let go; the next card to show it reads it again.
     held.release = setTimeout(() => {
       held.release = null;

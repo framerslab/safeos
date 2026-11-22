@@ -60,6 +60,22 @@ export function askNote(asked: Map<string, number>, tag: string, at: number): vo
 export function staleNote(asked: ReadonlyMap<string, number>, tag: string, at: number): boolean {
   return (asked.get(tag) ?? at) > at;
 }
+/**
+ * Shows an event's notifications one after another, in the order they come here: each waits until
+ * the one before it has gone to the browser, so a slower answer from the browser never puts an
+ * earlier notification over a later one. One that a newer alert of its event asked after, before
+ * its turn came, does not show. `turns` holds each tag's last turn.
+ */
+export function showInTurn(
+  turns: Map<string, Promise<void>>, asked: ReadonlyMap<string, number>, tag: string, at: number, show: () => Promise<unknown>,
+): Promise<void> {
+  const turn = (turns.get(tag) ?? Promise.resolve()).then(async () => {
+    if (staleNote(asked, tag, at)) return;
+    await show();
+  }).catch(() => undefined);
+  turns.set(tag, turn);
+  return turn;
+}
 /** A notification's drawn copy: this long on its long edge, a JPEG at this quality. */
 export const NOTIFICATION_LONG_EDGE = 640;
 export const NOTIFICATION_QUALITY = 0.8;

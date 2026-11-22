@@ -630,8 +630,8 @@ export function CameraFeed({
         </p>
       )}
 
-      {/* The alert's box and its plate, under the page's own marks */}
-      {alertBox && cameraActive && !error && (
+      {/* The alert's box and its plate, under the page's own marks; none over a paused, frozen picture */}
+      {alertBox && cameraActive && !videoPaused && !error && (
         <LiveBox
           key={alertBox.key}
           box={alertBox.box}

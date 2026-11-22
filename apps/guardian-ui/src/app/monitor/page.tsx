@@ -42,7 +42,8 @@ import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/ca
 import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { detectRegionalMotion } from '../../lib/motion-detection';
-import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, askNote, staleNote, boxFromCells, boxFromHotspots, boxFromRegion, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, askNote, showInTurn, boxFromCells, boxFromHotspots, boxFromRegion, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { LOCAL_TIMELINE_HREF } from '../../lib/app-routes';
 import { OPEN_IN_HISTORY, notificationBody, notificationTitle, plateLine, sightingNotificationBody, sightingPlate, sightingQuestion } from '../../lib/alert-pictures/words';
 import { useAlertPicturesStore } from '../../stores/alert-pictures-store';
 import type { LiveAlertBox } from '../../components/alert-pictures/LiveBox';
@@ -813,8 +814,9 @@ export default function MonitorPage() {
     return 'low';
   };
 
-  // The newest alert that asked for a notification, by tag.
+  // The newest alert that asked for a notification, by tag, and each tag's last turn to show one.
   const notesAsked = useRef(new Map<string, number>());
+  const noteTurns = useRef(new Map<string, Promise<void>>());
 
   /**
    * Asks the browser for an alert's notification: its title and body carry
@@ -859,11 +861,12 @@ export default function MonitorPage() {
       ]);
       // The person may have turned the picture off while it was drawn: the words go alone.
       if (!wantsPicture()) image = undefined;
-      // A newer alert of the event asked for its notification while this one waited: that one stands.
-      if (staleNote(notesAsked.current, tag, note.at)) return;
     }
 
-    await getNotificationManager().show(title, {
+    // An event's notifications go to the browser one after another, in the order they are ready:
+    // one a newer alert of the event asked for while this one waited does not go, so the newer
+    // one stands, and a slower answer from the browser never puts an earlier one over a later one.
+    await showInTurn(noteTurns.current, notesAsked.current, tag, note.at, () => getNotificationManager().show(title, {
       image,
       body,
       tag,
@@ -874,7 +877,7 @@ export default function MonitorPage() {
       requireInteraction,
       data: { title, severity },
       vibrate: severity === 'critical' ? [250, 100, 250, 100, 250] : severity === 'high' ? [200, 80, 200] : undefined,
-    });
+    }));
   };
 
   const maybeHaptic = (severity: 'low' | 'medium' | 'high' | 'critical') => {
@@ -997,10 +1000,17 @@ export default function MonitorPage() {
     setLiveBox(null);
   }, []);
   useEffect(() => clearLiveBox, [clearLiveBox]);
-  // The live picture's box belongs to the watch that raised it: it leaves when the watch stops.
+  // The live picture's box belongs to the watch and the camera that raised it: it leaves when the
+  // watch stops or another camera is chosen, and a picture still drawn from the camera before draws none.
   useEffect(() => {
     if (!captureRequested) clearLiveBox();
   }, [captureRequested, clearLiveBox]);
+  const boxCamera = useRef(deviceId);
+  useEffect(() => {
+    if (boxCamera.current === deviceId) return;
+    boxCamera.current = deviceId;
+    clearLiveBox();
+  }, [deviceId, clearLiveBox]);
 
   // A sighting's alert, in the check that raised it. The picture is cut from the comparison's own
   // frame of that check, before any JPEG is made of it, with the region as its box; a region
@@ -1869,7 +1879,7 @@ export default function MonitorPage() {
                 <SubjectPreview mode="full" showClose={false} onPhotosSaved={watchFor.photosSaved} savedUnder={petsMarker} />
                 <div className="mt-4 pt-4 border-t border-gray-700">
                   <Link
-                    href="/history/"
+                    href={LOCAL_TIMELINE_HREF}
                     className="block w-full text-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
                   >
                     {OPEN_IN_HISTORY}

@@ -21,7 +21,7 @@ it('states who sees saved alerts, the limits, what a clear and a sign-out reach 
   expect(screen.getByText(/The notice does not stop alerts from a configured server: the tab keeps the session this browser holds for it and makes no new one, or makes one if it holds none or the server has ended the one it holds\./)).toBeTruthy();
   expect(screen.getByText(/One case differs: a session that ran out on this device just as the notice came is kept, and alerts from a configured server pause in that tab until it is reloaded\./)).toBeTruthy();
   expect(screen.getByText(/Everything already saved comes back as it was after you reload\. If an update of your saved history cannot finish, the page says so; nothing is deleted, and a reload tries again\./)).toBeTruthy();
-  expect(screen.getByText(/November 20, 2026/)).toBeTruthy();
+  expect(screen.getByText(/November 22, 2026/)).toBeTruthy();
 });
 
 it('says what an alert keeps, where, for how long and how to delete it', () => {
@@ -30,7 +30,8 @@ it('says what an alert keeps, where, for how long and how to delete it', () => {
   for (const sentence of [
     'Your settings are stored in your browser\'s localStorage, and saved frames, alert pictures and reference photos in its IndexedDB.',
     'Alert pictures are not sent to that server.',
-    'Alert pictures: For each Motion and Picture change alert on the monitor page, SafeOS keeps the camera\'s picture of the moment, a box round what changed and a close-up of that box.',
+    'Alert pictures: For each Motion and Picture change alert on the monitor page, SafeOS keeps the camera\'s picture of the moment and, where it can mark what changed, a box round it and a close-up of that box.',
+    'A box over more than half of the picture has no close-up, and a Picture change over more than half of the picture has no box.',
     'A Sound alert keeps the picture with no box, and a Lost & Found alert keeps the camera\'s picture with a box round the part like your pet\'s photos.',
     'They are kept in this browser\'s IndexedDB on this device; Frame, which runs safeos.sh, never receives them.',
     'They are deleted after the time you choose under Keep alert pictures (3 days unless you choose 1, 7 or 30 days, or until you delete them); the alert\'s words stay in History.',

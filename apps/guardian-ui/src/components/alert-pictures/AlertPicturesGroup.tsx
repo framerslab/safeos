@@ -202,10 +202,15 @@ export function AlertPicturesGroup({ place }: AlertPicturesGroupProps) {
   };
   const deleteAll = async () => {
     setAsking(false);
+    // Focus goes back to the key that asked while the pictures are deleted.
+    requestAnimationFrame(() => deleteKey.current?.focus());
     const answer = await deleteAllPictures();
     setDeleteFailed(answer === 'failed');
-    // The key leaves with the last picture: focus goes to the control before it, the age's select.
+    // The key leaves with the last picture: focus that stood on it goes to the control before it,
+    // the age's select. Focus the person has moved elsewhere meanwhile stays where they put it.
     requestAnimationFrame(() => {
+      const here = document.activeElement;
+      if (here && here !== document.body && here !== deleteKey.current) return;
       const target = deleteKey.current ?? root.current?.querySelector<HTMLSelectElement>('select.alert-pictures-select');
       target?.focus();
     });

@@ -141,7 +141,8 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   const deleteRef = useRef<HTMLButtonElement>(null);
   const [showBox, setShowBox] = useState(true);
   const [brighten, setBrighten] = useState(false);
-  const [bright, setBright] = useState<{ frame: string; closeUp: string | null } | null>(null);
+  // The brightened view's copies, named for the picture they were made of.
+  const [bright, setBright] = useState<{ id: string; frame: string; closeUp: string | null } | null>(null);
   // The delete question is asked of one picture: the one shown when Delete picture was pressed.
   const [asking, setAsking] = useState<string | null>(null);
   // The picture whose delete failed. The line belongs to that picture, so a repeat that puts a
@@ -156,6 +157,8 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   // for, even when it comes back after a repeat put a newer picture in the panel.
   const [unreadId, setUnreadId] = useState<string | null>(null);
   const busy = useRef(false);
+  // Save picture's file while it is made: a delete confirmed meanwhile waits for it.
+  const saving = useRef<Promise<void> | null>(null);
 
   const set = view.status === 'shown' && view.kept !== 'saving' ? view.set : null;
   const loading = view.status === 'loading' || (view.status === 'shown' && view.kept === 'saving');
@@ -169,10 +172,18 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   useEffect(() => {
     if (gone) closeRef.current?.focus();
   }, [gone]);
-
-  // The brightened view: canvas copies for the view alone, let go when the switch turns off.
+  // A control that leaves the panel takes focus with it (Brighten, when a repeat brings a picture
+  // that is not dark): focus goes to Close, so it stays in the panel.
   useEffect(() => {
-    if (!brighten || !set) return;
+    if (asking !== null) return;
+    const here = document.activeElement;
+    if (!here || here === document.body) closeRef.current?.focus();
+  });
+
+  // The brightened view: canvas copies of a dark picture for the view alone, let go when the switch
+  // turns off or the picture changes.
+  useEffect(() => {
+    if (!brighten || !set || !set.dark) return;
     let alive = true;
     let made: { frame: string; closeUp: string | null } | null = null;
     const letGo = (urls: { frame: string; closeUp: string | null }) => {
@@ -183,7 +194,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
       (urls) => {
         if (!alive) return letGo(urls);
         made = urls;
-        setBright(urls);
+        setBright({ id: set.id, ...urls });
       },
       () => { if (alive) setBrighten(false); },
     );
@@ -216,34 +227,41 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
     }
   };
 
-  const save = async () => {
+  const save = () => {
     const target = set;
     if (!target || busy.current) return;
     busy.current = true;
-    try {
-      // As it shows: with the box drawn in while Show the box is on, clean while it is off; never brightened.
-      const file = await savedFile(target, showBox && Boolean(target.box));
-      const url = URL.createObjectURL(file);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = pictureFileName(kind, new Date(target.takenAt));
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    } catch (error) {
-      // A picture that cannot be read says so; a file that could not be made leaves the picture
-      // shown, and Save picture can be pressed again.
-      if (error instanceof PictureUnreadable) setUnreadId(target.id);
-    } finally {
-      busy.current = false;
-    }
+    saving.current = (async () => {
+      try {
+        // As it shows: with the box drawn in while Show the box is on, clean while it is off; never brightened.
+        const file = await savedFile(target, showBox && Boolean(target.box));
+        const url = URL.createObjectURL(file);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = pictureFileName(kind, new Date(target.takenAt));
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      } catch (error) {
+        // A picture that cannot be read says so; a file that could not be made leaves the picture
+        // shown, and Save picture can be pressed again.
+        if (error instanceof PictureUnreadable) setUnreadId(target.id);
+      } finally {
+        busy.current = false;
+        saving.current = null;
+      }
+    })();
   };
 
   const remove = async () => {
     const target = asking;
     setAsking(null);
-    if (!target || target !== alert.pictureId || busy.current) return;
+    if (!target || target !== alert.pictureId) return;
+    // Save picture may be making its file: the delete goes ahead once the file is made.
+    const making = saving.current;
+    if (making) await making;
+    if (busy.current) return;
     busy.current = true;
     const answer = await deletePicture(target, { kind, takenAt: at });
     busy.current = false;
@@ -274,6 +292,8 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   }, [asking, alert.pictureId]);
 
   const boxed = shown && Boolean(set?.box);
+  // A brightened view shows only with the dark picture it was made of.
+  const brightened = bright !== null && set !== null && set.dark && bright.id === set.id ? bright : null;
   const goneLine = view.status === 'gone-person' ? DELETED_BY_PERSON
     : view.status === 'gone-age' ? deletedAfter(view.days)
       : NO_PICTURE;
@@ -330,12 +350,12 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
                 <>
                   <Moment
                     set={set}
-                    url={bright?.frame ?? view.frameUrl}
+                    url={brightened?.frame ?? view.frameUrl}
                     at={at}
                     boxed={boxed && showBox}
                     className="alert-picture__frame"
                   />
-                  {bright && <p className="alert-picture-dialog__plate">{BRIGHTENED_VIEW}</p>}
+                  {brightened && <p className="alert-picture-dialog__plate">{BRIGHTENED_VIEW}</p>}
                 </>
               )}
               {unreadable && (
@@ -364,7 +384,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
                         <p className="alert-picture__quiet">{CLOSE_UP}</p>
                         <img
                           className="alert-picture-dialog__close-up"
-                          src={bright?.closeUp ?? view.closeUpUrl}
+                          src={brightened?.closeUp ?? view.closeUpUrl}
                           alt={closeUpName(at)}
                           width={set.closeUpWidth || undefined}
                           height={set.closeUpHeight || undefined}
@@ -391,7 +411,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
                       type="button"
                       className="alert-pictures-key"
                       aria-disabled={loading ? true : undefined}
-                      onClick={() => { if (!loading) void save(); }}
+                      onClick={() => { if (!loading) save(); }}
                     >
                       {SAVE_PICTURE}
                     </button>
