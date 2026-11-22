@@ -2319,8 +2319,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       acknowledgementOrder: seen ? 0 : 1, streamId: 'local', severity: 'low', message, acknowledged: seen,
       timestamp: iso(at), createdAt: iso(at), syncedAt: iso(at),
     })));
-    await put('subject_profile', pets.map(({ id, name, type = 'pet', at = 0 }) => ({
-      id, name, type, description: '', fingerprint: {}, referenceImages: [picture],
+    await put('subject_profile', pets.map(({ id, name, type = 'pet', at = 0, photo }) => ({
+      id, name, type, description: '', fingerprint: {}, referenceImages: [photo || picture],
       createdAt: iso(at), lastActiveAt: null, matchCount: 0,
     })));
     await put('match_frame', matches.map(({ id, pet, at, confidence = 80, seen = false, ...more }) => ({
@@ -5330,11 +5330,13 @@ export async function checkApp(browser, baseUrl, outDir) {
     localStorage.setItem('safeos-onboarding', JSON.stringify(kept));
   });
   const LONG_PET = 'Mrwhiskersthethird';
+  // A pet's photo a person can see in the pictures (the shared picture is one clear pixel).
+  const PET_PHOTO = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#8a5a2b"/><circle cx="32" cy="38" r="18" fill="#e9c891"/><circle cx="20" cy="18" r="8" fill="#e9c891"/><circle cx="44" cy="18" r="8" fill="#e9c891"/></svg>')}`;
   for (const [name, width, look, pet] of [['settings list, Lost and Found', 390, 'light', 'Mittens'], ['settings list, a long pet name at 320 px', 320, 'dark', LONG_PET]]) {
     await openSettings({ name, width, look }, async (page, context, check) => {
       await visit(page, '/settings/');
       await listRows(page);
-      await seedAlerts(page, { pets: [{ id: 'pet-1', name: pet, at: 1000 }] });
+      await seedAlerts(page, { pets: [{ id: 'pet-1', name: pet, at: 1000, photo: PET_PHOTO }] });
       await chooseLostFound(page);
       await page.reload({ waitUntil: 'networkidle' });
       const rows = await listRows(page);
