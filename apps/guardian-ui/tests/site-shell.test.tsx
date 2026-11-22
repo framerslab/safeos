@@ -111,7 +111,7 @@ it('gives Setup the app header and no phone bar', () => {
 });
 
 it('marks a page built in the readable look, so its whole body follows the device before script', () => {
-  for (const pathname of ['/dashboard/', '/tutorial/']) {
+  for (const pathname of ['/dashboard/', '/tutorial/', '/monitor/']) {
     const { container } = open(pathname);
     expect([pathname, container.querySelector('.app-shell--look.look-part') !== null]).toEqual([pathname, true]);
     cleanup();
