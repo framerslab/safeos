@@ -1,0 +1,19 @@
+{
+  "controls": [
+    {
+      "page": "/settings/sounds/",
+      "name": "Alert volume",
+      "role": "slider",
+      "change": "Home",
+      "store": "safeos-settings",
+      "path": "state.globalSettings.alertVolume",
+      "after": 0,
+      "saved": true
+    }
+  ],
+  "absent": [
+    { "page": "/settings/", "role": "button", "name": "Save Changes" },
+    { "page": "/settings/", "role": "button", "name": "Privacy" },
+    { "page": "/settings/", "role": "button", "name": "General" }
+  ]
+}

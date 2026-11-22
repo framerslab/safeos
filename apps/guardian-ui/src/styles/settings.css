@@ -464,3 +464,151 @@
     transform: none;
   }
 }
+
+/* =============================================================================
+   The list of settings pages and its small pictures
+   ============================================================================= */
+
+.set-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.set-pic {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 88px;
+}
+
+.set-pic--meters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.set-pic-meter {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-steel-800);
+}
+
+/* A meter's alert tick: where an alert would start. */
+.set-pic-meter__tick {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-steel-50);
+}
+
+.set-pic--volume {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-steel-800);
+  overflow: hidden;
+}
+
+.set-pic-volume__fill {
+  display: block;
+  height: 100%;
+  background: var(--look-accent);
+}
+
+.set-pic--band {
+  height: 14px;
+  border-radius: 3px;
+  background: var(--color-steel-800);
+  overflow: hidden;
+}
+
+.set-pic-band__quiet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-steel-300);
+}
+
+.set-pic-band__moon {
+  position: absolute;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  color: var(--color-steel-950);
+}
+
+.set-pic-pet {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+/* A settings row set on a page still on its old layout. */
+.set-on-page {
+  margin-bottom: 24px;
+  padding: 4px 16px 8px;
+  border-radius: var(--key-radius);
+}
+
+/* A row that holds a key: Export settings, Clear all data on this device,
+   Save. Its line or result stands under the key. */
+.set-action {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.set-action .set-line:empty {
+  display: none;
+}
+
+/* A failure named beside the key that caused it, in the ink with the
+   problem glyph. */
+.set-failure {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+.set-failure .set-glyph {
+  margin-top: 2px;
+}
+
+/* A row that is a button (Server address): the link row's look. */
+.set-link--button {
+  width: calc(100% + 32px);
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.set-link--button:hover {
+  background: var(--color-steel-900);
+}
+
+@media (min-width: 48em) {
+  .set-link--button {
+    width: calc(100% + 24px);
+  }
+}
+
+/* The Save of a form sent to a server, with its note beside it. */
+.set-save {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0 12px;
+}

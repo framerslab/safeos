@@ -3,8 +3,8 @@
 /**
  * A row that opens a page: its name, its value line and a chevron, the whole
  * row the link. The link is named by the page's name and described by its
- * value; a value still being read is a short bar along the row's foot, never
- * a default. The page being read carries aria-current and a 2 px bar at the
+ * value; a value still being read (null) is a short bar along the row's foot,
+ * never a default, and a row with no value (undefined) shows its name alone. The page being read carries aria-current and a 2 px bar at the
  * row's left edge.
  *
  * @module components/settings/LinkRow
@@ -26,7 +26,7 @@ export function LinkRow({
 }: {
   href: string;
   name: string;
-  value: string | null;
+  value?: string | null;
   valueId: string;
   /** A small picture at the row's right, aria-hidden beside the value's words. */
   picture?: ReactNode;
@@ -41,7 +41,7 @@ export function LinkRow({
       href={href}
       className="set-row set-link"
       aria-labelledby={nameId}
-      aria-describedby={value === null ? undefined : valueId}
+      aria-describedby={typeof value === 'string' ? valueId : undefined}
       aria-current={current ? 'page' : undefined}
       onClick={onClick}
     >
@@ -56,11 +56,11 @@ export function LinkRow({
         </span>
         {value === null ? (
           <span className="set-row__loading" aria-hidden="true" />
-        ) : (
+        ) : typeof value === 'string' ? (
           <span id={valueId} className="set-row__value">
             {value}
           </span>
-        )}
+        ) : null}
       </span>
       {picture ? (
         <span className="set-link__picture" aria-hidden="true">
