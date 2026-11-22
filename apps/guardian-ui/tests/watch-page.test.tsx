@@ -194,18 +194,19 @@ const seedMotionOnly = () => {
 };
 const meter = (name: string) => screen.getByRole('meter', { name: `${name} level` });
 const valueText = (name: string) => meter(name).getAttribute('aria-valuetext');
+// The test setup's matchMedia can be set but not redefined.
+const setUpMatchMedia = window.matchMedia;
 const reducedMotion = (reduce: boolean) => {
-  Object.defineProperty(window, 'matchMedia', {
-    configurable: true,
-    value: (query: string) => ({
-      matches: reduce && query.includes('prefers-reduced-motion'),
+  window.matchMedia = reduce
+    ? ((query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
       media: query,
       addEventListener() {},
       removeEventListener() {},
       addListener() {},
       removeListener() {},
-    }),
-  });
+    })) as unknown as typeof window.matchMedia
+    : setUpMatchMedia;
 };
 
 it('reads the Motion meter against its line and says when it is over', async () => {

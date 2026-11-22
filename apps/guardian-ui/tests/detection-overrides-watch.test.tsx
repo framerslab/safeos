@@ -179,21 +179,26 @@ it('returns the watch to the preset with Fine-Tune\'s Reset, clearing the use\'s
   expect(await watch()).toEqual(presetValues);
 });
 
+/** The preset card's Pixel Threshold figure, as the watch runs at it. */
+const cardPixelThreshold = () => screen.getAllByText('Pixel Threshold')
+  .map((label) => label.previousElementSibling?.textContent ?? '')
+  .find((figure) => /^\d+px$/.test(figure));
+
 it('runs at the preset\'s pixel threshold and interval, which the Sensitivity and Fine-Tune sliders move, whatever a saved override holds', async () => {
   await loadSaved({ baby: { absolutePixelThreshold: 20, analysisInterval: 5 } });
   render(<MonitorPage />);
   await act(async () => {});
-  expect(screen.getByText(`Threshold ${preset.absolutePixelThreshold}px`)).toBeTruthy();
+  expect(cardPixelThreshold()).toBe(`${preset.absolutePixelThreshold}px`);
 
   fireEvent.click(screen.getByRole('button', { name: /^Sensitivity/ }));
   fireEvent.change(screen.getByRole('slider', { name: 'Pixel Threshold' }), { target: { value: '40' } });
-  expect(screen.getByText('Threshold 40px')).toBeTruthy();
+  expect(cardPixelThreshold()).toBe('40px');
 
   const [, , pixel, interval] = openFineTune();
   expect(pixel.value).toBe('40');
   fireEvent.change(pixel, { target: { value: '30' } });
   fireEvent.change(interval, { target: { value: '10' } });
-  expect(screen.getByText('Threshold 30px')).toBeTruthy();
+  expect(cardPixelThreshold()).toBe('30px');
   expect(useSettingsStore.getState().getEffectiveSettings('baby')).toMatchObject({ absolutePixelThreshold: 30, analysisInterval: 10 });
 });
 
