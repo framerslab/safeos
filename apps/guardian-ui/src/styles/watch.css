@@ -634,3 +634,72 @@ html:has(.watch) {
   flex-direction: column;
   gap: 1rem;
 }
+
+/* -----------------------------------------------------------------------------
+   The alert list: it stands on the page's ground with no box. Its header row
+   holds the heading "Alerts" and, while any alert is new, the problem glyph
+   and "{n} new" in the ink. Empty, the bell over a sentence; while the saved
+   alerts are read, three bars in the track colour where entries go.
+   ----------------------------------------------------------------------------- */
+
+.watch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.watch-list__head {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.watch-list__new {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+  white-space: nowrap;
+}
+
+.watch-list__body {
+  min-width: 0;
+}
+
+.watch-list__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding-block: 0.5rem;
+}
+
+.watch-list__empty .watch-glyph--bell {
+  color: var(--color-steel-300);
+}
+
+.watch-list__empty p {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+}
+
+.watch-list__waits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.watch-list__wait {
+  display: block;
+  height: 1.5rem;
+  background: var(--color-steel-800);
+}
