@@ -1,0 +1,120 @@
+/* =============================================================================
+   The watch: the Motion and sound page (src/app/monitor/page.tsx) and its parts
+   (src/components/watch/).
+
+   On the readable look's tokens, so the light look follows from html.light and,
+   before script, from the device's own look: the page steel-950, the panel
+   steel-900 (the camera's drawn frame, the meters' strip), the track steel-800
+   (a meter's track, the chosen option, a muted key, the loading bars), the ink
+   steel-50 (headings, sentences, names, key labels), the quiet tone steel-200,
+   every edge, rule and glyph steel-300, the accent (--look-accent) for Start
+   watching's fill, the ring, the check, the ticks and a bar under its line, and
+   the alert colour (--look-alert) for the problem mark and a bar over its line.
+   The accent and the alert colour are never the colour of a word.
+
+   Words at weights 400 and 600 only: the watch's root sets --weight-bold to
+   600, so the keys' solid label and every name on the watch take it. Words in
+   rem so the browser's text size scales them; edges, glyphs and photos in px;
+   stops in em.
+   ============================================================================= */
+
+.watch {
+  --weight-bold: 600;
+  color: var(--color-steel-50);
+}
+
+html:has(.watch) {
+  scroll-padding-bottom: calc(var(--phone-bar-height) + 1rem);
+}
+
+.watch button,
+.watch a,
+.watch select {
+  touch-action: manipulation;
+}
+
+/* The page's places. On a phone and a tablet one column: the bar, the nap
+   banner, the frame, the wait line, the controls, the pet card and the alert
+   list, the statement after the list, then the settings. */
+.watch-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "bar"
+    "nap"
+    "frame"
+    "wait"
+    "controls"
+    "side"
+    "statement"
+    "settings";
+  gap: 1rem;
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+.watch-grid > * {
+  min-width: 0;
+}
+
+.watch-grid__bar { grid-area: bar; }
+.watch-grid__nap { grid-area: nap; }
+.watch-grid__frame { grid-area: frame; }
+.watch-grid__wait { grid-area: wait; }
+.watch-grid__controls { grid-area: controls; }
+.watch-grid__side { grid-area: side; }
+.watch-grid__statement { grid-area: statement; }
+.watch-grid__settings { grid-area: settings; }
+
+@media (min-width: 48em) {
+  .watch-grid {
+    max-width: 44rem;
+    padding-inline: 2rem;
+  }
+}
+
+/* From 64em the picture takes the left 8 of 12 columns and the pet card and
+   the alert list the right 4; a tall list grows the statement's row alone. */
+@media (min-width: 64em) {
+  .watch-grid {
+    max-width: 75rem;
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    column-gap: 1.5rem;
+    grid-template-rows: auto auto auto auto auto 1fr auto;
+    grid-template-areas:
+      "bar bar"
+      "nap side"
+      "frame side"
+      "wait side"
+      "controls side"
+      "statement side"
+      "settings settings";
+  }
+
+  .watch-grid > * {
+    align-self: start;
+  }
+}
+
+/* From 90em the left 7 and the right 5, the statement under the list. */
+@media (min-width: 90em) {
+  .watch {
+    --type-body-size: 1.25rem;
+    --type-body-line: 1.875rem;
+  }
+
+  .watch-grid {
+    max-width: 82.5rem;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-rows: auto auto auto auto 1fr auto auto;
+    grid-template-areas:
+      "bar bar"
+      "nap side"
+      "frame side"
+      "wait side"
+      "controls side"
+      ". statement"
+      "settings settings";
+  }
+}
