@@ -70,7 +70,12 @@ function smallMovementCamera() {
   }));
 }
 
-const stopKey = () => screen.queryByRole('button', { name: /^(Stop watching|Cancel)$/ });
+// The key under the camera's frame that stops the watch or the start; the
+// other tab's question has a Cancel of its own.
+const stopKey = () => {
+  const controls = document.querySelector<HTMLElement>('.watch-controls');
+  return controls ? within(controls).queryByRole('button', { name: /^(Stop watching|Cancel)$/ }) : null;
+};
 const sounds = () => play.mock.calls.map(([type]) => type);
 const smallMovementAlerted = () => useMonitoringStore.getState().alerts
   .some((alert) => alert.message.startsWith('Pixel movement detected') && alert.severity === 'low');

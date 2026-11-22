@@ -3,12 +3,16 @@
 import { useEffect, useId, useState } from 'react';
 import { useCameraStore } from '../stores/camera-store';
 
-export function CameraPicker({ refreshKey = false }: { refreshKey?: boolean }) {
+export const NAMES_HIDDEN_HINT = 'Camera names show once the camera is allowed.';
+
+export function CameraPicker({ refreshKey = false, className }: { refreshKey?: boolean; className?: string }) {
   const id = useId();
   const { deviceId, setDeviceId } = useCameraStore();
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [error, setError] = useState(false);
   const [availabilityKnown, setAvailabilityKnown] = useState(false);
+  // Before the camera is allowed the browser lists cameras without names.
+  const [namesHidden, setNamesHidden] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -23,6 +27,7 @@ export function CameraPicker({ refreshKey = false }: { refreshKey?: boolean }) {
         const identitiesHidden = cameras.some(device => !device.deviceId);
         setAvailabilityKnown(known => !identitiesHidden && (known || refreshKey || cameras.length > 0));
         setDevices(cameras.filter(device => device.deviceId));
+        setNamesHidden(cameras.length === 0 || cameras.some(device => !device.label));
         setError(false);
       } catch {
         if (active && request === current) { setError(true); setAvailabilityKnown(false); }
@@ -36,7 +41,7 @@ export function CameraPicker({ refreshKey = false }: { refreshKey?: boolean }) {
   const unlisted = deviceId && !devices.some(device => device.deviceId === deviceId);
   const missing = unlisted && availabilityKnown;
   return (
-    <div className="p-4 space-y-2">
+    <div className={className ?? 'p-4 space-y-2'}>
       <label htmlFor={id} className="block text-sm font-medium text-[var(--color-steel-300)]">Camera</label>
       <select
         id={id}
@@ -54,7 +59,7 @@ export function CameraPicker({ refreshKey = false }: { refreshKey?: boolean }) {
       <p id={`${id}-help`} className="text-sm text-[var(--color-steel-400)]">
         {error ? 'Camera list unavailable. Check browser permissions.' : missing
           ? 'Reconnect the saved camera or choose another camera.'
-          : 'Choice is saved on this device. Camera names may appear after access is granted.'}
+          : namesHidden ? NAMES_HIDDEN_HINT : 'Choice is saved on this device.'}
       </p>
     </div>
   );

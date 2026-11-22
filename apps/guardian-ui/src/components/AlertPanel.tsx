@@ -38,6 +38,8 @@ export type { Alert };
 interface AlertPanelProps {
   alerts?: Alert[];
   onAcknowledge?: (alertId: string) => void;
+  /** The panel's own mute key; the watch mutes from its bar instead. */
+  showMute?: boolean;
 }
 
 // =============================================================================
@@ -67,7 +69,7 @@ const SEVERITY_ICONS: Record<Alert['severity'], React.ComponentType<{ size?: num
 // AlertPanel Component
 // =============================================================================
 
-export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProps) {
+export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true }: AlertPanelProps) {
   const storeAlerts = useMonitoringStore((state) => state.alerts);
   const acknowledgeAlert = useMonitoringStore((state) => state.acknowledgeAlert);
   const effectiveVolume = useSettingsStore((state) => state.getEffectiveVolume());
@@ -293,7 +295,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
             </span>
           )}
         </h3>
-        <button
+        {showMute && <button
           onClick={toggleMute}
           disabled={globalMute}
           aria-label={effectiveMuted ? 'Unmute alerts' : 'Mute alerts'}
@@ -309,7 +311,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
           ) : (
             <IconVolume size={20} aria-hidden="true" />
           )}
-        </button>
+        </button>}
       </div>
 
       {/* Content */}

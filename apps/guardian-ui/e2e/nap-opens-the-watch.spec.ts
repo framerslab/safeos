@@ -73,7 +73,7 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   expect(preset).toBe('infant_sleep');
 
   // The watch starts on arrival, with no second press.
-  await expect(page.getByRole('button', { name: /^(Stop watching|Cancel)$/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.watch-controls').getByRole('button', { name: /^(Stop watching|Cancel)$/ })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'Start watching', exact: true })).toHaveCount(0);
   // Chromium's fake camera shows a moving picture, so the Nap preset's pixel check alerts.
   await expect(page.getByText(/Pixel movement detected/).first()).toBeVisible({ timeout: 45_000 });

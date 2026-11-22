@@ -40,7 +40,10 @@ import { getSoundManager } from '../../lib/sound-manager';
 import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import { forgetRaised } from '../../lib/watch-sound';
 import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
-import { announceWatch } from '../../lib/tab-channel';
+import { announceWatch, useOtherTabWatch } from '../../lib/tab-channel';
+import { useCameraAsk } from '../../lib/browser-asks';
+import { cameraFailureOf, type CameraFailure, type MicrophoneProblem } from '../../lib/camera-failure';
+import { WatchFrame, type FramePhase } from '../../components/watch/WatchFrame';
 import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
 import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
@@ -138,6 +141,13 @@ export default function MonitorPage() {
   const [captureRequested, setCaptureRequested] = useState(false);
   // True once this capture request has shown video; a later pause keeps it true.
   const [videoSeen, setVideoSeen] = useState(false);
+  // What the camera's frame shows when no picture is live: the failure of
+  // the last start, or when a camera that was watching stopped.
+  const [cameraFailure, setCameraFailure] = useState<CameraFailure | null>(null);
+  const [stoppedAt, setStoppedAt] = useState<number | null>(null);
+  const [microphone, setMicrophone] = useState<MicrophoneProblem | null>(null);
+  const otherTab = useOtherTabWatch();
+  const cameraAsk = useCameraAsk();
   const captureRequestedRef = useRef(false);
   const serverRequestedRef = useRef(false);
 
@@ -435,6 +445,9 @@ export default function MonitorPage() {
   const startStream = () => {
     // A click here turns the sound on in a browser that keeps it off until a tap.
     getSoundManager().unlockAudio();
+    setCameraFailure(null);
+    setStoppedAt(null);
+    setMicrophone(null);
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
@@ -450,6 +463,30 @@ export default function MonitorPage() {
     if (serverRequestedRef.current) sendMessage({ type: 'stop-stream' });
     serverRequestedRef.current = false;
   };
+
+  // A failed start is named in the frame with its fix; a camera that was
+  // watching and is lost says when it stopped.
+  const handleCameraError = (error: Error & { cause?: unknown }) => {
+    const lost = error.name === 'CameraLostError';
+    stopStream();
+    if (lost) {
+      setCameraFailure(null);
+      setStoppedAt(Date.now());
+    } else {
+      setStoppedAt(null);
+      setCameraFailure(cameraFailureOf(error.cause ?? error, Boolean(navigator.mediaDevices?.getUserMedia)));
+    }
+  };
+
+  const framePhase: FramePhase = captureRequested
+    ? (videoSeen ? 'live' : 'starting')
+    : cameraFailure ? 'failed' : stoppedAt !== null ? 'stopped' : 'off';
+
+  // Another camera chosen after a failure is the way out of it: the frame
+  // offers Start watching again.
+  useEffect(() => {
+    if (!captureRequestedRef.current) setCameraFailure(null);
+  }, [deviceId]);
 
   const stopStreamRef = useRef(stopStream);
   stopStreamRef.current = stopStream;
@@ -1207,7 +1244,7 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="watch look-part watch-grid">
+    <main className="watch look-part watch-grid">
       <h1 className="sr-only">Motion and sound</h1>
 
       <div className="watch-grid__bar">
@@ -1220,86 +1257,89 @@ export default function MonitorPage() {
         />
       </div>
 
-      <main className="watch-grid__frame">
-        <KeyRow>
-          {!captureRequested && nap && (
-            <button type="button" onClick={endNap} className="key key--outline">
-              End nap
-            </button>
-          )}
-
-          {!captureRequested && (
-            <button type="button" onClick={pressStart(startStream)} className="key key--solid key--start">
-              Start Monitoring
-            </button>
-          )}
-
-          {captureRequested && (
-            <button type="button" onClick={stopWatching} className="key key--outline">
-              {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
-            </button>
-          )}
-        </KeyRow>
-
-        {nap && napWaitsForTap && !captureRequested && (
-          <div role="status" className="mb-6 rounded-xl border border-indigo-400/50 bg-indigo-500/15 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <p className="text-base text-indigo-50 flex-1">
+      {!captureRequested && nap && (
+        <div className="watch-grid__nap watch-nap">
+          {napWaitsForTap && (
+            <p role="status" className="watch-nap__line">
               This nap stopped watching when the page reloaded, and the browser keeps its sound off until you tap. Resume nap turns the sound on and starts the camera again.
             </p>
-            <button
-              onClick={pressStart(resumeNap(nap))}
-              className="min-h-[44px] px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
-            >
-              Resume nap
+          )}
+          <KeyRow className="watch-nap__keys">
+            {napWaitsForTap && (
+              <button type="button" className="key key--outline" onClick={pressStart(resumeNap(nap))}>
+                Resume nap
+              </button>
+            )}
+            <button type="button" className="key key--outline" onClick={endNap}>
+              End nap
             </button>
-          </div>
+          </KeyRow>
+        </div>
+      )}
+
+      <div className="watch-grid__frame">
+        <WatchFrame
+          phase={framePhase}
+          failure={cameraFailure}
+          stoppedAt={stoppedAt}
+          otherTab={otherTab}
+          askLine={cameraAsk !== 'granted'}
+          noPetLine={watchFor.way === 'lost_found' && watchFor.petsRead === 'ready' && !watchFor.pet}
+          onStart={(key) => {
+            getSoundManager().unlockAudio();
+            void guard(startStream, key);
+          }}
+          onTryAgain={startStream}
+        >
+          <CameraFeed
+            bare
+            deviceId={deviceId}
+            enabled={captureRequested}
+            scenario={selectedScenario || scenario || undefined}
+            onFrame={handleFrame}
+            onMotion={handleMotion}
+            onMotionZones={handleMotionZones}
+            onAudio={handleAudio}
+            onPixel={handlePixel}
+            onVideoReady={handleVideoReady}
+            onError={handleCameraError}
+            onMicrophone={setMicrophone}
+            className="watch-frame__video"
+            detectionZones={detectionZones}
+            frameCaptureThresholds={{
+              motion: sensitivityToThreshold(currentPreset.motionSensitivity),
+              audio: sensitivityToThreshold(currentPreset.audioSensitivity),
+            }}
+            frameIntervalMs={Math.max(250, currentPreset.analysisInterval * 1000)}
+            pixelDetection={{
+              enabled: currentPreset.pixelDetectionEnabled,
+              sensitivity: Math.max(0, Math.min(100, 100 - currentPreset.pixelThreshold)),
+              absolutePixelThreshold: currentPreset.absolutePixelThreshold,
+              useAbsoluteThreshold: currentPreset.useAbsoluteThreshold,
+              instantLocalMode: isSleepPreset(activePresetId),
+              downsampleFactor: isSleepPreset(activePresetId) ? 2 : 1,
+            }}
+          />
+          {isLostFoundWatching && <SubjectPreviewOverlay />}
+        </WatchFrame>
+      </div>
+
+      <div className="watch-grid__controls watch-controls">
+        {framePhase === 'starting' && (
+          <button type="button" className="key key--outline watch-stop" onClick={stopWatching}>
+            Cancel
+          </button>
         )}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Camera Feed */}
-          <div className={`lg:col-span-8${petCard ? ' min-[1440px]:col-span-7' : ''}`}>
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden relative">
-              <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                <h2 className="font-semibold text-white">Camera Feed</h2>
-              </div>
-              {watchFor.way === 'lost_found' && watchFor.petsRead === 'ready' && !watchFor.pet && (
-                <p className="px-4 pt-3 text-base text-[var(--color-steel-50)]">{NO_PET_FRAME_LINE}</p>
-              )}
+        {framePhase === 'live' && (
+          <button type="button" className="key key--outline watch-stop" onClick={stopWatching}>
+            Stop watching
+          </button>
+        )}
+        <CameraPicker refreshKey={isStreaming} className="watch-camera" />
+      </div>
 
-              {/* Subject preview overlay */}
-              {isLostFoundWatching && <SubjectPreviewOverlay />}
-
-              <CameraPicker refreshKey={isStreaming} />
-              <CameraFeed
-                deviceId={deviceId}
-                enabled={captureRequested}
-                scenario={selectedScenario || scenario || undefined}
-                onFrame={handleFrame}
-                onMotion={handleMotion}
-                onMotionZones={handleMotionZones}
-                onAudio={handleAudio}
-                onPixel={handlePixel}
-                onVideoReady={handleVideoReady}
-                onError={stopStream}
-                showDebug={true}
-                showZonesOverlay={true}
-                className="aspect-video"
-                detectionZones={detectionZones}
-                frameCaptureThresholds={{
-                  motion: sensitivityToThreshold(currentPreset.motionSensitivity),
-                  audio: sensitivityToThreshold(currentPreset.audioSensitivity),
-                }}
-                frameIntervalMs={Math.max(250, currentPreset.analysisInterval * 1000)}
-                pixelDetection={{
-                  enabled: currentPreset.pixelDetectionEnabled,
-                  sensitivity: Math.max(0, Math.min(100, 100 - currentPreset.pixelThreshold)),
-                  absolutePixelThreshold: currentPreset.absolutePixelThreshold,
-                  useAbsoluteThreshold: currentPreset.useAbsoluteThreshold,
-                  instantLocalMode: isSleepPreset(activePresetId),
-                  downsampleFactor: isSleepPreset(activePresetId) ? 2 : 1,
-                }}
-              />
-            </div>
-
+      <div className="watch-grid__settings">
+        <div>
             {/* Stats */}
             <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
               <StatCard
@@ -1527,13 +1567,13 @@ export default function MonitorPage() {
             </div>
           </div>
 
-          {/* The pet's card, the alerts and, while the watch compares, the pet's matches */}
-          <div className={`lg:col-span-4${petCard ? ' min-[1440px]:col-span-5' : ''} flex flex-col gap-6`}>
+        <InlineSettingsPanel defaultExpanded={['detection']} />
+      </div>
+
+      <div className="watch-grid__side">
             {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
 
-            <div className="flex-1 bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden min-h-[400px]">
-              <AlertPanel />
-            </div>
+            <AlertPanel showMute={false} />
 
             {watchFor.comparing && activeSubject && (
               <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden p-4">
@@ -1552,12 +1592,7 @@ export default function MonitorPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Inline Settings Panel */}
-        <InlineSettingsPanel defaultExpanded={['detection']} />
-      </main>
+      </div>
 
       {/* Quick Settings Panel - floating bottom-right (mobile fallback) */}
       <div className="lg:hidden">
@@ -1708,7 +1743,7 @@ export default function MonitorPage() {
       )}
 
       {dialog}
-    </div>
+    </main>
   );
 }
 

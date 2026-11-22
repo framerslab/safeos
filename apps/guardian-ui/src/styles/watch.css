@@ -182,3 +182,207 @@ html:has(.watch) {
   line-height: var(--type-word-line);
   color: var(--color-steel-50);
 }
+
+/* -----------------------------------------------------------------------------
+   The camera's frame: the panel colour at 16:9 inside four corner ticks. The
+   picture is always mounted under the drawn panel, so the camera never
+   restarts; the drawn panel stands over it until the picture is live.
+   ----------------------------------------------------------------------------- */
+
+.watch-frame {
+  position: relative;
+  display: flex;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--color-steel-900);
+}
+
+.watch-frame__picture {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.watch-frame__picture .camera-feed--bare,
+.watch-frame__picture video {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.watch-frame__picture video {
+  object-fit: cover;
+}
+
+.watch-frame[data-phase='live'] .watch-frame__picture {
+  z-index: 0;
+}
+
+.watch-frame:not([data-phase='live']) .watch-frame__picture {
+  visibility: hidden;
+}
+
+.watch-frame .corner-ticks > i {
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+}
+
+/* The drawn panel: the camera drawing, a status line, the key, the lines.
+   It grows with its words at larger text, so the frame grows with it. */
+.watch-frame__drawn {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  padding: 1rem;
+  text-align: center;
+  background: var(--color-steel-900);
+}
+
+.watch-glyph--camera {
+  color: var(--color-steel-300);
+}
+
+.watch-frame__line {
+  margin: 0;
+  max-width: 32rem;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+  text-wrap: pretty;
+}
+
+.watch-frame__problem {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.watch-start {
+  width: calc(100% - 40px);
+  min-height: 3.25rem;
+  white-space: normal;
+}
+
+@media (min-width: 48em) {
+  .watch-start {
+    max-width: 25rem;
+  }
+}
+
+/* While the camera starts: no fill, a 2 px edge in the line colour. */
+.watch-start.key--waiting {
+  background: transparent;
+  border: 2px solid var(--color-steel-300);
+  color: var(--color-steel-50);
+  cursor: default;
+}
+
+/* The accent bar that grows along the frame's foot while the camera starts. */
+.watch-frame__starting {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--look-accent);
+  transform-origin: left center;
+  animation: capture-loading 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-frame__starting {
+    display: none;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   The controls under the frame: Stop watching (or Cancel) and the camera menu;
+   across the column on a phone, side by side from 48em.
+   ----------------------------------------------------------------------------- */
+
+.watch-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.watch-stop {
+  width: 100%;
+  min-height: 3.25rem;
+}
+
+@media (min-width: 48em) {
+  .watch-controls {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .watch-stop {
+    flex: none;
+    width: 20rem;
+  }
+}
+
+.watch-camera {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.watch-camera label,
+.watch-camera select,
+.watch-camera p {
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+.watch-camera label {
+  font-weight: var(--weight-bold);
+  color: var(--color-steel-50);
+}
+
+.watch-camera p {
+  color: var(--color-steel-200);
+}
+
+.watch-camera select {
+  min-height: 2.75rem;
+  border-color: var(--color-steel-300);
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+}
+
+/* -----------------------------------------------------------------------------
+   The nap banner above the frame: its sentence, then Resume nap and End nap.
+   ----------------------------------------------------------------------------- */
+
+.watch-nap {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 6px;
+  background: var(--color-steel-900);
+}
+
+.watch-nap__line {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--color-steel-50);
+}
+
+.watch-nap__keys {
+  justify-content: flex-start;
+}
