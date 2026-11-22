@@ -147,6 +147,11 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   // The picture whose delete failed. The line belongs to that picture, so a repeat that puts a
   // newer picture in the panel takes it away.
   const [deleteFailedId, setDeleteFailedId] = useState<string | null>(null);
+  // The picture the panel shows now, read after a delete's answer: a repeat can change it meanwhile.
+  const shownId = useRef(alert.pictureId);
+  useEffect(() => {
+    shownId.current = alert.pictureId;
+  }, [alert.pictureId]);
   // The picture Save picture could not read. A read failure belongs to the picture it was read
   // for, even when it comes back after a repeat put a newer picture in the panel.
   const [unreadId, setUnreadId] = useState<string | null>(null);
@@ -244,6 +249,11 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
     busy.current = false;
     if (answer === 'failed') {
       setDeleteFailedId(target);
+      deleteRef.current?.focus();
+      return;
+    }
+    // A repeat put a newer picture in the panel while the earlier one was deleted: the newer one stays open.
+    if (shownId.current !== target) {
       deleteRef.current?.focus();
       return;
     }

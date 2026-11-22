@@ -30,11 +30,12 @@ import {
   sweepUnheldAlertPictures,
   type AlertPictureDB,
 } from '../client-db';
-import { pictureStampNow } from '../local-data-generation';
+import { ACCOUNT_CLEAR_MARKER_KEY, pictureStampNow } from '../local-data-generation';
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 import type { PictureSet } from './capture';
 import { onPictureNews, postPictureNews, type PictureNews } from './channel';
+import { closePicture } from './opened';
 import { scaleBox, type AlertKind } from './rules';
 
 type Kept = 'memory' | 'saving' | 'saved' | 'failed';
@@ -403,7 +404,11 @@ export function stopPictureWatch(): void {
   ageSweep = null;
 }
 
-/** Forgets every picture this tab holds and revokes its URLs: Clear All Local Data and sign-out. */
+/**
+ * Forgets every picture this tab holds, revokes its URLs and closes the open picture: Clear All
+ * Local Data and sign-out, in this tab or another. The count is read again by `recountPictures`
+ * once the clear is done.
+ */
 export function forgetAllPictures(): void {
   for (const entry of [...entries.values()]) {
     if (entry.release) clearTimeout(entry.release);
@@ -415,8 +420,15 @@ export function forgetAllPictures(): void {
   for (const entry of [...entries.values()]) if (entry.holders === 0) entries.delete(entry.id);
   listLine = null;
   keptCount = null;
+  // A count read before the clear is not the count after it.
+  countReads += 1;
   tell();
-  void readCount();
+  closePicture();
+}
+
+/** Reads the count of kept pictures again, once a clear of all local data is done. */
+export function recountPictures(): Promise<void> {
+  return readCount();
 }
 
 // =============================================================================
@@ -475,6 +487,13 @@ function listenToOtherTabs(): void {
   listening = true;
   onPictureNews(hear);
   useAlertPicturesStore.subscribe(() => { heardKeep = null; });
+  // Clear All Local Data or a sign-out in another tab writes the account marker as its clear
+  // commits: this tab lets go of every picture it shows, and counts again after that clear.
+  window.addEventListener('storage', (event: StorageEvent) => {
+    if (event.key !== ACCOUNT_CLEAR_MARKER_KEY) return;
+    forgetAllPictures();
+    void readCount();
+  });
 }
 
 // =============================================================================

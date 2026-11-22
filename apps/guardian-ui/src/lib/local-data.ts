@@ -13,7 +13,7 @@ import { useScheduleStore } from './schedule-manager';
 import { useThemeStore } from './theme-manager';
 import { useOnboardingStore } from '../stores/onboarding-store';
 import { useAlertPicturesStore } from '../stores/alert-pictures-store';
-import { forgetAllPictures } from './alert-pictures/keeper';
+import { forgetAllPictures, recountPictures } from './alert-pictures/keeper';
 
 /** Browser keys written without the safeos prefix. */
 const GUARDIAN_KEYS = ['guardian-schedules', 'guardian-theme', 'guardian-onboarding-complete'];
@@ -45,7 +45,12 @@ export async function clearLocalData(options: { preserveBackendConfig?: boolean 
   useAlertPicturesStore.getState().reset();
   forgetAllPictures();
 
-  await Promise.all([clearClientData(), clearCustomSounds()]);
+  try {
+    await Promise.all([clearClientData(), clearCustomSounds()]);
+  } finally {
+    // The count of kept pictures is read once the clear is done or has failed.
+    void recountPictures();
+  }
   if ('caches' in window) {
     const names = await caches.keys();
     await Promise.all(names.filter((name) => name.startsWith('safeos')).map((name) => caches.delete(name)));

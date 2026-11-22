@@ -11,7 +11,7 @@ databases, including microphone recordings and uploaded sounds. It resets local
 monitoring state, schedules and appearance preferences and removes the SafeOS
 service-worker caches. It deletes alert pictures with the alerts, and a picture being
 saved when the clear comes is not written, so it cannot restore an earlier picture after
-clearing.
+clearing. Every open tab closes the picture it has open and shows none of the deleted pictures.
 The page reloads only after clearing succeeds. A failed operation displays an
 error and can be retried.
 
