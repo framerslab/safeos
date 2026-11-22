@@ -106,6 +106,25 @@ async function lateStorageEvents(page: Page, ms: number): Promise<void> {
   }, ms);
 }
 
+/**
+ * The page hears the other tabs' news on their channel `ms` late, as a busy
+ * tab may handle a message well after another tab sent it.
+ */
+async function lateChannelNews(page: Page, ms: number): Promise<void> {
+  await page.addInitScript((wait: number) => {
+    const Native = window.BroadcastChannel;
+    class Late extends Native {
+      set onmessage(handler: ((this: BroadcastChannel, event: MessageEvent) => unknown) | null) {
+        super.onmessage = handler ? (event: MessageEvent) => { setTimeout(() => handler.call(this, event), wait); } : null;
+      }
+      get onmessage(): ((this: BroadcastChannel, event: MessageEvent) => unknown) | null {
+        return super.onmessage;
+      }
+    }
+    window.BroadcastChannel = Late;
+  }, ms);
+}
+
 /** How many watch alerts the database holds, or -1 while it cannot be read: a failed read is never an empty store. */
 async function savedAlertCount(page: Page): Promise<number> {
   const reading = await databaseNow(page);
@@ -1439,6 +1458,41 @@ test.describe('Keeping pictures, 1280 px', () => {
     const time = await timeOf(held, 'Motion');
     await expect(held.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
     await expect(held.getByText('You deleted its picture.', { exact: true })).toHaveCount(0);
+    await other.close();
+  });
+
+  test('a picture taken while a Delete all pictures that then fails waits to commit is written', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+    await canvasCamera(page, LEFT_THIRD);
+    await faultPictureStore(page);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await startWatching(page);
+    await timeOf(cards(page).first(), 'Motion');
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+    // The picture holds still: the event ends.
+    await page.evaluate(() => { window.__camera!.moving.width = 0; });
+    await page.waitForTimeout(3_000);
+
+    // In the other tab, Delete all pictures' transaction stays open 20 seconds after its marker is
+    // written, then aborts.
+    const WAIT_MS = 20_000;
+    const other = await context.newPage();
+    await faultPictureStore(other);
+    await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await setFault(other, { deleteAllAbortsAfterMs: WAIT_MS });
+    await deleteAll(group(other)).click();
+    await other.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+    const pressed = Date.now();
+    // While it waits, the watch raises its next alert, and takes its picture.
+    await page.evaluate(() => { window.__camera!.moving.width = 1 / 3; });
+    await expect(cards(page)).toHaveCount(2, { timeout: 15_000 });
+    expect(Date.now() - pressed, 'the alert came while the deletion waited').toBeLessThan(WAIT_MS - 2_000);
+    await page.evaluate(() => { window.__camera!.moving.width = 0; });
+
+    // The deletion fails. The new picture, taken after the press, is written beside the first.
+    await expect(group(other).getByText(DELETE_FAILED_LINE, { exact: true })).toBeVisible({ timeout: WAIT_MS + 10_000 });
+    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(2);
     await other.close();
   });
 
@@ -3848,5 +3902,69 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await page.waitForTimeout(3_000);
     expect(await keptCount(page), 'the new alert’s picture is not kept').toBe(1);
     await other.close();
+  });
+
+  test('a choice another tab made before this tab turned keeping off keeps nothing when it is heard late', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    // This tab hears the other tabs' news 8 seconds late, and their saved choices a minute late.
+    const NEWS_MS = 8_000;
+    await lateChannelNews(page, NEWS_MS);
+    await lateStorageEvents(page, 60_000);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+    // The other tab turns keeping off and on again.
+    const other = await context.newPage();
+    await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await keepSwitch(group(other)).click();
+    await expect(keepSwitch(group(other))).toHaveAttribute('aria-checked', 'false');
+    await keepSwitch(group(other)).click();
+    await expect(keepSwitch(group(other))).toHaveAttribute('aria-checked', 'true');
+    const sent = Date.now();
+    // Then, before this tab hears of it, the person turns keeping off here.
+    const found = await openWatchGroup(page);
+    await keepSwitch(found).click();
+    await expect(keepSwitch(found)).toHaveAttribute('aria-checked', 'false');
+    expect(Date.now() - sent, 'this tab chose before it heard the other tab').toBeLessThan(NEWS_MS);
+    // The other tab's news comes after this tab's own choice. It is older, and keeps nothing.
+    await page.waitForTimeout(Math.max(0, NEWS_MS - (Date.now() - sent)) + 2_000);
+    await page.evaluate(() => { window.__camera!.moving.width = 1 / 3; });
+    await expect(cards(page)).toHaveCount(2, { timeout: 20_000 });
+    await expect(cards(page).first().getByText(NOT_KEPT_LINE, { exact: true })).toBeVisible();
+    await page.waitForTimeout(3_000);
+    expect(await keptCount(page), 'the new alert’s picture is not kept').toBe(1);
+    await other.close();
+  });
+
+  test('an age another tab chose before a later choice deletes nothing when this tab hears of it late', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // This tab hears the other tabs' news 30 seconds late; it reads their saved choices at once.
+    const NEWS_MS = 30_000;
+    await lateChannelNews(page, NEWS_MS);
+    await seedDevice(context, { pictures: { noticeAnswered: true, deleteAfterDays: 3 } });
+    await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await expect(countLine(group(page))).toBeVisible();
+    // A picture that turns one day old 20 seconds from now.
+    const at = Date.now() - DAY + 20_000;
+    const id = `picture-${at}-kept`;
+    await seedPictureRows(page, [{ alert: savedAlert(`motion-${at}-kept`, at, { kind: 'motion', pictureId: id }), picture: keptPicture(id, at) }], { here: true });
+    // One tab chooses 1 day, while the picture is younger; another then chooses Until I delete them.
+    const first = await context.newPage();
+    await first.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await afterSelect(group(first)).selectOption({ label: '1 day' });
+    const chose = Date.now();
+    const second = await context.newPage();
+    await second.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await afterSelect(group(second)).selectOption({ label: 'Until I delete them' });
+    await expect(afterSelect(group(page)).locator('option:checked')).toHaveText('Until I delete them');
+    expect(chose - at, 'the picture was younger than a day when 1 day was chosen').toBeLessThan(DAY);
+    // The first tab's news reaches this tab once the picture is past a day. It is older than the
+    // choice this tab holds, and deletes nothing.
+    await page.waitForTimeout(Math.max(0, NEWS_MS - (Date.now() - chose)) + 4_000);
+    expect(Date.now() - at, 'the picture is past a day').toBeGreaterThan(DAY);
+    expect(keptRows(await readDatabase(page)).map((row) => row.id), 'the newer choice is Until I delete them').toEqual([id]);
+    await first.close();
+    await second.close();
   });
 });

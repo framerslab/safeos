@@ -842,6 +842,8 @@ export interface PictureFault {
    * has written the pictures marker that every tab's waiting save reads.
    */
   deleteAllAborts?: boolean;
+  /** As `deleteAllAborts`, but the transaction is held open this long after the marker is written first. */
+  deleteAllAbortsAfterMs?: number;
 }
 
 declare global {
@@ -920,10 +922,23 @@ export async function faultPictureStore(page: Page, fault: PictureFault = {}): P
     const setItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function (this: Storage, name: string, value: string) {
       setItem.call(this, name, value);
-      if (name === picturesMarker && fault().deleteAllAborts && goneTx) {
+      const f = fault();
+      if (name === picturesMarker && (f.deleteAllAborts || f.deleteAllAbortsAfterMs) && goneTx) {
         const tx = goneTx;
         goneTx = null;
-        try { tx.abort(); } catch { /* It has finished already. */ }
+        const abort = () => { try { tx.abort(); } catch { /* It has finished already. */ } };
+        if (!f.deleteAllAbortsAfterMs) {
+          abort();
+          return;
+        }
+        // Reads of a row that is never there hold the transaction open, one after another, then it aborts.
+        const until = Date.now() + f.deleteAllAbortsAfterMs;
+        const store = tx.objectStore(STORE);
+        const holdOpen = () => {
+          const request = get.call(store, 'walk-held-open');
+          request.onsuccess = () => { if (Date.now() < until) holdOpen(); else abort(); };
+        };
+        holdOpen();
       }
     } as typeof setItem;
 

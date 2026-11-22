@@ -9,6 +9,7 @@
 
 import {
   alertBox,
+  askNote,
   boxFromCells,
   boxFromHotspots,
   boxFromRegion,
@@ -22,6 +23,7 @@ import {
   meanLuma,
   pictureFileName,
   scaleBox,
+  staleNote,
 } from '@/lib/alert-pictures/rules';
 
 describe('the live picture is the frame drawn object-cover', () => {
@@ -171,5 +173,23 @@ describe('a saved picture name', () => {
     expect(pictureFileName('motion', at)).toBe('safeos-motion-2026-11-19-090405.jpg');
     expect(pictureFileName('picture-change', at)).toBe('safeos-picture-change-2026-11-19-090405.jpg');
     expect(pictureFileName('sighting', at)).toBe('safeos-lost-and-found-2026-11-19-090405.jpg');
+  });
+});
+
+describe('the order of an event’s notifications', () => {
+  it('leaves out a notification whose picture came after a newer alert of its event asked for its own', () => {
+    const asked = new Map<string, number>();
+    // A low alert waits for its picture; a critical alert of the same event comes 150 ms later.
+    askNote(asked, 'safeos-Motion alert-e1', 1_000);
+    askNote(asked, 'safeos-Motion alert-e1', 1_150);
+    expect(staleNote(asked, 'safeos-Motion alert-e1', 1_150)).toBe(false);
+    // The low alert's notification, ready after the critical one, does not replace it.
+    expect(staleNote(asked, 'safeos-Motion alert-e1', 1_000)).toBe(true);
+    // Another event's notification stands apart.
+    askNote(asked, 'safeos-Motion alert-e2', 1_100);
+    expect(staleNote(asked, 'safeos-Motion alert-e2', 1_100)).toBe(false);
+    // An earlier alert asked late does not move the newest back.
+    askNote(asked, 'safeos-Motion alert-e1', 900);
+    expect(staleNote(asked, 'safeos-Motion alert-e1', 1_150)).toBe(false);
   });
 });
