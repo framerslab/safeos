@@ -265,7 +265,7 @@ test('a pet added on the Lost & Found page is the watch’s pet, compared while 
   await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
   // The Lost & Found page's own start key opens the watch with Miso.
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
-  await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
+  await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
 
   await expect(lostAndFound(page)).toBeChecked();
   await expect(shown(page.getByRole('img', { name: 'Miso’s first saved photo' }))).toBeVisible();
@@ -318,7 +318,7 @@ test('the Lost & Found page’s start key opens the watch with Lost and Found an
   await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
   await page.getByRole('heading', { name: 'Tofu', exact: true }).click();
   await page.getByRole('button', { name: 'Start Monitoring' }).click();
-  await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
+  await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
 
   await expect(lostAndFound(page)).toBeChecked();
   await expect(shown(page.getByRole('img', { name: 'Tofu’s first saved photo' }))).toBeVisible();
@@ -998,3 +998,35 @@ for (const look of ['light', 'dark'] as const) {
     });
   }
 }
+
+test('the address names the way and the pet, so a reload and a bookmark open the same watch', async ({ page, context }) => {
+  test.setTimeout(120_000);
+  await setUpDevice(context);
+  await openWatchWithPets(page, [MISO, TOFU]);
+  await expect(motionAndSound(page)).toBeChecked();
+
+  // An address naming Lost and Found and the second pet opens with both chosen.
+  await page.goto(`/monitor/?way=lost-found&pet=${TOFU.id}`, { waitUntil: 'networkidle', timeout: 60_000 });
+  await expect(lostAndFound(page)).toBeChecked();
+  await expect(page.getByText(comparesLine('Tofu'), { exact: true })).toBeVisible();
+  await expect(shown(page.getByText('1 photo', { exact: true }))).toBeVisible();
+  expect(new URL(page.url()).search).toBe(`?way=lost-found&pet=${TOFU.id}`);
+
+  // Motion and sound chosen: the address says so.
+  await motionAndSound(page).check();
+  await expect(motionAndSound(page)).toBeChecked();
+  await expect.poll(() => new URL(page.url()).search).toBe('?way=monitor');
+
+  // A bookmark naming the way alone opens Lost and Found with the pet this device keeps.
+  const second = await context.newPage();
+  await second.goto('/monitor/?way=lost-found', { waitUntil: 'networkidle', timeout: 60_000 });
+  await expect(lostAndFound(second)).toBeChecked();
+  const kept = await storedPetId(second);
+  const keptPet = [MISO, TOFU].find((pet) => pet.id === kept) ?? MISO;
+  await expect(second.getByText(comparesLine(keptPet.name), { exact: true })).toBeVisible();
+
+  // An address naming Motion and sound opens it, whatever the device keeps.
+  await second.goto('/monitor/?way=monitor', { waitUntil: 'networkidle', timeout: 60_000 });
+  await expect(motionAndSound(second)).toBeChecked();
+  await second.close();
+});

@@ -117,7 +117,7 @@ test('a match saved from a striped camera picture shows an Edge value above 0', 
   // The watch is held in memory, so the monitor is reached by the page's own
   // key, without a reload.
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
-  await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
+  await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
 
   // Start the camera and wait for the watch to report a match.
   await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });

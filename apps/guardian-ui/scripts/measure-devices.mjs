@@ -594,7 +594,7 @@ async function measureLostFound(browser, cls, rate, name, watchDelay) {
     // The page's own key opens the watch with Lost and Found chosen and this
     // pet; the watch compares once its Start Monitoring is pressed.
     await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 120_000 });
-    await page.waitForURL(/\/monitor\/?$/, { timeout: 120_000 });
+    await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 120_000 });
     await startMonitoring(page);
 
     // The monitor's motion loop reads pixels too; matching is the other timer
