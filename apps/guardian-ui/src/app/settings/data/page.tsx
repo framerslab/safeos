@@ -23,6 +23,7 @@ import { ProblemGlyph } from '@/components/settings/glyphs';
 const QUESTION = 'Clear all data on this device? Alerts, pictures, pets, sounds and settings leave this device.';
 const OFFLINE = ' SafeOS will not open again until you are back online.';
 const FAILED = 'Could not clear all local data. Please try again.';
+const NOT_COUNTED = 'Could not count what this device keeps.';
 
 /** Today as this device's calendar reads it: "2026-11-22". */
 function today(): string {
@@ -45,6 +46,7 @@ function download(blob: Blob, filename: string) {
 export default function DataOnThisDevicePage() {
   const exportSettings = useSettingsStore((s) => s.exportSettings);
   const [words, setWords] = useState<string | null>(null);
+  const [notCounted, setNotCounted] = useState(false);
   const [exported, setExported] = useState('');
   const [asking, setAsking] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -58,7 +60,8 @@ export default function DataOnThisDevicePage() {
         if (live) setWords(keptOnDeviceWords(counts));
       })
       .catch(() => {
-        // The counts could not be read: the line stays empty.
+        // The counts could not be read: the line says so, and the keys stay.
+        if (live) setNotCounted(true);
       });
     return () => {
       live = false;
@@ -99,7 +102,18 @@ export default function DataOnThisDevicePage() {
       <div className="settings-page">
         <PageHead
           title="Data on this device"
-          lead={words === null ? <span className="set-row__loading" aria-hidden="true" /> : words}
+          lead={
+            notCounted ? (
+              <p className="set-failure">
+                <ProblemGlyph />
+                {NOT_COUNTED}
+              </p>
+            ) : words === null ? (
+              <span className="set-row__loading" aria-hidden="true" />
+            ) : (
+              words
+            )
+          }
         />
         <Group id="data-export">
           <div className="set-row set-action">
