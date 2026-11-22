@@ -304,7 +304,8 @@ A picture is deleted:
   signing out.
 
 A picture being saved when **Delete all pictures** comes, in any tab, is not saved. When
-the deletion fails, nothing is deleted and that picture is saved. **Clear All Local Data** and
+the deletion fails, nothing is deleted and that picture is saved. A picture another tab deletes
+before it is saved (a tab that could not read it) stays deleted. **Clear All Local Data** and
 signing out, in any tab, close the open picture in every tab and leave no picture on screen; the
 count of pictures kept is read once the clear is done.
 

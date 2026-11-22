@@ -1036,7 +1036,8 @@ function goneRow(row: AlertPictureDB, gone: 'age' | 'person', days?: number): Al
 /**
  * Saves an alert's picture set. It is written only while no clear came since `stamp` was taken at
  * the alert: not Clear all, Clear All Local Data or sign-out (the clear generation, or the clear
- * marker when this tab had read none), and not Delete all pictures (the pictures marker). Out of
+ * marker when this tab had read none), and not Delete all pictures (the pictures marker); and not
+ * over the row that says the set was deleted, which another tab writes for a set it cannot read. Out of
  * room, the oldest kept sets make way one at a time, each try its own transaction that deletes
  * them and writes the new set together; when every older set would have to go, nothing is deleted
  * and the answer is `out-of-room`, which is noted for the visit so the dashboard says the device is
@@ -1068,6 +1069,11 @@ export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureSta
         return { result: 'dropped' };
       }
       const pictures = write.objectStore('alert_picture');
+      // A tab that could not read the set deleted it before it was written: it stays deleted.
+      if ((await pictures.get(record.id))?.state === 'gone') {
+        await write.done;
+        return { result: 'dropped' };
+      }
       const deleted: string[] = [];
       if (take > 0) {
         // The oldest kept sets taken before this one, never this one.
