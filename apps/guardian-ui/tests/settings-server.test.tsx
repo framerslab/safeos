@@ -74,6 +74,43 @@ it('keeps the name as typed and says it was not saved when the server refuses', 
   expect(screen.queryByText('Saved')).toBeNull();
 });
 
+it('says the name was not saved when no profile has been read yet', async () => {
+  const updateProfile = jest.fn().mockResolvedValue(undefined);
+  useAuthStore.setState({ profile: null, updateProfile } as never);
+  render(<ServerPage />);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Your name on your server' }), { target: { value: 'Robin' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText(NOT_SAVED)).toBeTruthy();
+  expect(screen.getByRole('textbox', { name: 'Your name on your server' })).toHaveProperty('value', 'Robin');
+  expect(screen.queryByText('Saved')).toBeNull();
+});
+
+it('keeps a name typed while an earlier one is being saved', async () => {
+  let finish: () => void = () => undefined;
+  const updateProfile = jest.fn(() => new Promise<void>((resolve) => {
+    finish = resolve;
+  }));
+  withProfile(updateProfile);
+  render(<ServerPage />);
+  const field = () => screen.getByRole('textbox', { name: 'Your name on your server' });
+  fireEvent.change(field(), { target: { value: 'Robin' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.change(field(), { target: { value: 'Robin Lee' } });
+  await act(async () => {
+    // The server takes the first name, as the store records it.
+    useAuthStore.setState({ profile: { id: 'person-1', displayName: 'Robin', preferences: {} } } as never);
+    finish();
+  });
+  expect(field()).toHaveProperty('value', 'Robin Lee');
+});
+
+it('shows the name this device keeps when the profile holds none', async () => {
+  localStorage.setItem('safeos_user_settings', JSON.stringify({ displayName: 'Robin' }));
+  useAuthStore.setState({ profile: { id: 'person-1', displayName: '', preferences: {} }, updateProfile: jest.fn() } as never);
+  render(<ServerPage />);
+  await waitFor(() => expect(screen.getByRole('textbox', { name: 'Your name on your server' })).toHaveProperty('value', 'Robin'));
+});
+
 it('offers no name field while no server address is saved', () => {
   mockApiUrl = '';
   withProfile(jest.fn());

@@ -207,6 +207,14 @@ it('lists Your own server while a server address is saved', async () => {
   expect(screen.queryByText('Server address')).toBeNull();
 });
 
+it('names you on your server by the name this device keeps when the profile holds none', async () => {
+  mockApiUrl = 'https://watch.example.org';
+  localStorage.setItem('safeos_user_settings', JSON.stringify({ displayName: 'Robin' }));
+  render(<SettingsList />);
+  await settle();
+  expect(descriptionOf(screen.getByRole('link', { name: 'Your name on your server' }))).toBe('Robin');
+});
+
 it('reads quiet hours as quiet now inside them', async () => {
   useSettingsStore.getState().updateQuietHoursSettings({ enabled: true, startTime: '22:00', endTime: '07:00', days: [0, 1, 2, 3, 4, 5, 6] });
   jest.useFakeTimers({

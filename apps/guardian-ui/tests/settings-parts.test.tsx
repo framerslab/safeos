@@ -167,6 +167,22 @@ it('says at the top that the browser is not keeping settings, and nothing while 
   );
 });
 
+it('says at the top that the browser is not keeping settings once a settings write is refused', () => {
+  render(<StorageLine />);
+  expect(screen.queryByText(/This browser is not keeping settings/)).toBeNull();
+  const write = localStorage.setItem.bind(localStorage);
+  jest.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+    if (key === 'safeos-settings') throw new DOMException('full', 'QuotaExceededError');
+    write(key, value);
+  });
+  act(() => {
+    useSettingsStore.getState().updateGlobalSettings({ alertVolume: 30 });
+  });
+  expect(screen.getByRole('status').textContent).toContain(
+    'This browser is not keeping settings. Changes last until you close this tab.'
+  );
+});
+
 it('asks in place, takes focus on the question and gives it back on Cancel', () => {
   const onConfirm = jest.fn();
   const confirmBox = jest.spyOn(window, 'confirm');

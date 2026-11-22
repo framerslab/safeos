@@ -23,6 +23,15 @@ jest.mock('@/lib/local-data', () => ({
 jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ status: { api: 'disconnected' }, config: { apiUrl: '' } }),
 }));
+// Set to make the count of what this device keeps fail, as a blocked database does.
+let mockCountFails = false;
+jest.mock('@/lib/kept-on-device', () => {
+  const actual = jest.requireActual('@/lib/kept-on-device');
+  return {
+    ...actual,
+    countKept: () => (mockCountFails ? Promise.reject(new Error('blocked')) : actual.countKept()),
+  };
+});
 
 const QUESTION = 'Clear all data on this device? Alerts, pictures, pets, sounds and settings leave this device.';
 const OFFLINE = ' SafeOS will not open again until you are back online.';
@@ -36,6 +45,7 @@ async function settle() {
 beforeEach(() => {
   jest.restoreAllMocks();
   mockClear.mockReset();
+  mockCountFails = false;
 });
 
 it('says nothing is saved on a new device', async () => {
@@ -84,6 +94,15 @@ it('asks in place before clearing, and clears nothing on Cancel', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Clear all data' }));
   await waitFor(() => expect(clear).toHaveBeenCalledTimes(1));
   expect(confirmBox).not.toHaveBeenCalled();
+});
+
+it('says so when what this device keeps cannot be counted, and keeps its keys', async () => {
+  mockCountFails = true;
+  render(<DataPage />);
+  expect(await screen.findByText('Could not count what this device keeps.')).toBeTruthy();
+  expect(document.querySelector('.set-row__loading')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Export settings' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Clear all data on this device' })).toBeTruthy();
 });
 
 it('says so when clearing fails', async () => {
