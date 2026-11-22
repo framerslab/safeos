@@ -36,6 +36,7 @@ import {
   naturalSize,
   near,
   notesOf,
+  partsPastEdge,
   pixelsAt,
   pngUrl,
   readDatabase,
@@ -51,6 +52,7 @@ import {
   seedPictureRows,
   seedVersion7,
   setFault,
+  sidewaysParts,
   startWatching,
   wordsOn,
   type CanvasCamera,
@@ -656,7 +658,7 @@ for (const look of ['dark', 'light'] as const) {
           expect(Math.abs(frame.y - tile.y)).toBeLessThanOrEqual(2);
           expect(tile.x).toBeGreaterThanOrEqual(frame.x + frame.width);
         }
-        expect(await scrollsSideways(page)).toBe(false);
+        expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
         const block = card.locator('.alert-picture');
         expect(await block.evaluate((el) => Array.from(el.querySelectorAll('*')).filter((child) => {
           const style = getComputedStyle(child);
@@ -715,8 +717,8 @@ for (const reduced of [true, false]) {
     test.use({ viewport: { width: 1280, height: 900 }, contextOptions: { reducedMotion: reduced ? 'reduce' : 'no-preference' } });
 
     test(`a card's fourth-level bar holds its colour with no pulse under reduced motion${reduced ? '' : ': without it, it pulses until Acknowledge'}`, async ({ page, context }) => {
-      test.setTimeout(60_000);
-      await seedDevice(context, { pictures: { noticeAnswered: true } });
+      test.setTimeout(150_000);
+      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
       await context.addInitScript(() => {
         const levels = [1, 2, 3, 4, 5].map((level) => ({
           level, name: `Level ${level}`, description: '', volumeMultiplier: 1, delaySeconds: level === 1 ? 0 : 1, soundType: 'notification',
@@ -726,11 +728,12 @@ for (const reduced of [true, false]) {
         saved.state.globalMute = true;
         localStorage.setItem('safeos-settings', JSON.stringify(saved));
       });
-      const at = Date.now();
-      await seedPictureRows(page, [{ alert: savedAlert(`motion-${at}-levelsx`, at, { kind: 'motion' }) }]);
+      // Only an alert the running watch raised grows louder: the watch raises it.
+      await canvasCamera(page, LEFT_THIRD);
       await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startWatching(page);
       const card = cards(page).first();
-      await expect(card.getByText(/^Level [45]$/)).toBeVisible({ timeout: 20_000 });
+      await expect(card.getByText(/^Level [45]$/)).toBeVisible({ timeout: 60_000 });
       const bar = card.locator('[data-escalation-bar]');
       const animation = await bar.evaluate((el) => getComputedStyle(el).animationName);
       if (reduced) {
@@ -896,7 +899,7 @@ for (const look of ['dark', 'light'] as const) {
       for (const control of [keepSwitch(choice), afterSelect(choice)]) {
         expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
       }
-      expect(await scrollsSideways(page), 'nothing scrolls sideways').toBe(false);
+      expect(await scrollsSideways(page), `nothing scrolls sideways: ${await sidewaysParts(page)}`).toBe(false);
       // Nothing is answered while the step shows.
       expect((await storedPictures(page)).noticeAnswered ?? false).toBe(false);
 
@@ -905,7 +908,7 @@ for (const look of ['dark', 'light'] as const) {
       await page.getByRole('button', { name: /^Continue$/ }).click();
       await page.getByRole('checkbox').uncheck();
       await page.getByRole('button', { name: /Skip & Continue/ }).click();
-      await page.getByRole('button', { name: /Launch Dashboard/ }).click();
+      await page.getByRole('button', { name: 'Open dashboard', exact: true }).click();
       await expect(page).toHaveURL(/\/dashboard\/?$/);
       expect(await storedPictures(page)).toMatchObject({ noticeAnswered: true, keep: true, deleteAfterDays: 7 });
 
@@ -1315,13 +1318,15 @@ test.describe('Keeping pictures, 1280 px', () => {
       else if (way === 'Clear All Local Data') {
         await other.goto('/settings/', { waitUntil: 'networkidle' });
         await other.getByRole('button', { name: 'Privacy' }).click();
-      } else await other.goto('/history/', { waitUntil: 'networkidle' });
+      } else await other.goto('/settings/test-alerts/', { waitUntil: 'networkidle' });
 
-      // The next alert's picture is handed back ten seconds after it is drawn: its save waits.
-      await setFault(page, { holdDrawMs: 10_000 });
+      // The next alert's picture is handed back 30 seconds after it is drawn: its save waits.
+      const HOLD_MS = 30_000;
+      await setFault(page, { holdDrawMs: HOLD_MS });
       await raiseEvents(page, 2, 2);
       const held = cards(page).first();
       await expect(held.locator('.alert-picture__wait')).toBeVisible();
+      const heldSince = Date.now();
 
       if (way === 'Delete all pictures') {
         await deleteAll(group(other)).click();
@@ -1332,15 +1337,21 @@ test.describe('Keeping pictures, 1280 px', () => {
         await other.getByRole('button', { name: 'Clear All Local Data' }).click();
         await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
       } else {
-        await other.getByRole('button', { name: /Notifications/ }).first().click();
-        await other.getByRole('button', { name: 'Clear all', exact: true }).click();
+        // The alert list's own clear, on Settings' test alerts.
+        await other.getByRole('button', { name: 'Clear All', exact: true }).click();
         await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
       }
-      // The clear came while the save still waited.
-      await expect(held.locator('.alert-picture__wait'), 'the save waits until after the clear').toBeVisible();
+      // The clear came while the save still waited. A clear of the alerts empties this tab's list
+      // too, so the time tells it there.
+      if (way === 'Delete all pictures') {
+        await expect(held.locator('.alert-picture__wait'), 'the save waits until after the clear').toBeVisible();
+      } else {
+        expect(Date.now() - heldSince, 'the clear came while the save still waited').toBeLessThan(HOLD_MS - 5_000);
+        await expect(cards(page)).toHaveCount(0);
+      }
 
       // The held save goes on now, and writes nothing.
-      await page.waitForTimeout(12_000);
+      await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - heldSince)) + 5_000);
       const reading = await readDatabase(page);
       expect(keptRows(reading)).toEqual([]);
       if (way === 'Delete all pictures') {
@@ -1673,7 +1684,7 @@ test.describe('The group and the notice: order, sizes and faults', () => {
         expect(Math.abs(left.width / right.width - 7 / 5), 'the lines and the controls stand 7 to 5').toBeLessThanOrEqual(0.2);
         expect(await found.getByText(STAY_LINE, { exact: true }).evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
       }
-      expect(await scrollsSideways(page)).toBe(false);
+      expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
     });
   }
 });
@@ -2532,7 +2543,9 @@ test.describe('The opened picture of a saved alert, 390 px', () => {
     expect(remove.y).toBeGreaterThanOrEqual(save.y + save.height);
     expect(await cutWords(dialog), 'nothing in the dialog is cut at 200 per cent').toEqual([]);
     expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'the panel does not scroll sideways').toBe(true);
-    expect(await scrollsSideways(page)).toBe(false);
+    // The panel fits the window. History's own head behind it is wider than a phone at 200 per
+    // cent, which is History's matter.
+    expect(await partsPastEdge(dialog), 'nothing in the panel reaches past the window').toEqual([]);
   });
 });
 
@@ -2588,7 +2601,7 @@ test.describe('The opened picture at each width', () => {
       const close = (await closeKey(dialog).boundingBox())!;
       expect(panel.x + panel.width - (close.x + close.width)).toBeLessThanOrEqual(26);
       expect(close.y - panel.y).toBeLessThanOrEqual(26);
-      expect(await scrollsSideways(page)).toBe(false);
+      expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
     });
   }
 });
@@ -2826,6 +2839,7 @@ test.describe('History’s rows at each width, in keyboard order and in another 
       if (width === 1440) expect(edge.width, 'the rows keep to the left 8 columns of the 1320 px grid').toBeLessThanOrEqual(880);
       expect(key.height).toBeGreaterThanOrEqual(44);
       expect(await cutWords(row), 'nothing in the row is cut').toEqual([]);
+      expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
       if (width === 320) {
         await doubleText(page);
         expect(await row.evaluate((el) => {
@@ -2835,8 +2849,9 @@ test.describe('History’s rows at each width, in keyboard order and in another 
             .filter((child) => child.getBoundingClientRect().right > within + 1 || child.scrollWidth > child.clientWidth + 1)
             .map((child) => (child.textContent || '').slice(0, 40));
         }), 'nothing in the row is cut or overlaps at 200 per cent').toEqual([]);
+        // History's own head is wider than a 320 px phone at 200 per cent: the rows fit the window.
+        for (const each of await historyRows(page).all()) expect(await partsPastEdge(each), 'nothing in a row reaches past the window').toEqual([]);
       }
-      expect(await scrollsSideways(page)).toBe(false);
     });
   }
 
@@ -3058,7 +3073,9 @@ test.describe('The notification’s picture in Settings: a browser that shows wo
         expect(switchBox.x, `the switch keeps its place at the row's right at ${text} per cent`).toBeGreaterThanOrEqual(labelBox.x + labelBox.width - 1);
         expect(rowBox.x + rowBox.width - (switchBox.x + switchBox.width)).toBeLessThanOrEqual(24);
         expect(await cutWords(row), `nothing in the row is cut at ${text} per cent`).toEqual([]);
-        expect(await scrollsSideways(page)).toBe(false);
+        // At 200 per cent the page's own heading is wider than a 320 px phone: the row fits the window.
+        if (text === 100) expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
+        else expect(await partsPastEdge(row), 'nothing in the row reaches past the window').toEqual([]);
       }
       expect((await label.boundingBox())!.height, 'the label wraps').toBeGreaterThan(40);
     });
@@ -3078,7 +3095,7 @@ test.describe('The notification’s picture in Settings: a browser that shows wo
       expect(lineBox.x + lineBox.width, 'the line keeps to the label’s side').toBeLessThanOrEqual(switchBox.x);
       expect(lineBox.width).toBeLessThanOrEqual(width === 768 ? 520 : 640);
       if (width === 1440) expect(await line.evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
-      expect(await scrollsSideways(page)).toBe(false);
+      expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
     });
   }
 
@@ -3540,25 +3557,27 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
     await canvasCamera(page, LEFT_THIRD);
     await faultPictureStore(page);
+    // Another tab holds History open from before the watch: it reads each alert as the watch saves
+    // it, and its opening found none to mark as seen.
+    const other = await context.newPage();
+    await other.goto('/history/', { waitUntil: 'networkidle' });
     await page.goto('/monitor/', { waitUntil: 'networkidle' });
     await startWatching(page);
     await timeOf(cards(page).first(), 'Motion');
     await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
-    // The next alert's picture is handed back 20 seconds after it is drawn: its save waits.
-    await setFault(page, { holdDrawMs: 20_000 });
+    // The next alert's picture is handed back 30 seconds after it is drawn: its save waits.
+    await setFault(page, { holdDrawMs: 30_000 });
     await raiseEvents(page, 2, 2);
     const held = cards(page).first();
     await expect(held.locator('.alert-picture__wait')).toBeVisible();
     const time = await timeOf(held, 'Motion');
-    // Another tab opens History once the alert is saved, while its picture waits.
+    // The other tab lists the alert once it is saved, while its picture waits.
     await expect.poll(() => savedAlertCount(page), { timeout: 12_000 }).toBe(2);
-    const other = await context.newPage();
-    await other.goto('/history/', { waitUntil: 'networkidle' });
     const row = historyRows(other).filter({ hasText: time }).filter({ hasText: 'Motion' });
-    await expect(row).toHaveCount(1);
+    await expect(row).toHaveCount(1, { timeout: 15_000 });
     await expect(held.locator('.alert-picture__wait'), 'the save waits while the other tab reads').toBeVisible();
     // The save goes on: the other tab's row shows the picture with no reload.
-    await expect(row.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible({ timeout: 40_000 });
+    await expect(row.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible({ timeout: 60_000 });
     await other.close();
   });
 

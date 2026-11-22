@@ -754,6 +754,58 @@ export async function doubleText(page: Page): Promise<void> {
 export const scrollsSideways = (page: Page): Promise<boolean> =>
   page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
 
+/**
+ * The parts of `root` that reach past the window's right edge, outside any part of it that
+ * scrolls or clips sideways: none when this part itself fits the window, whatever the page round
+ * it does.
+ */
+export const partsPastEdge = (root: Locator): Promise<string[]> =>
+  root.evaluate((top) => {
+    const edge = document.documentElement.clientWidth;
+    const inner = (el: Element): boolean => {
+      for (let part = el.parentElement; part && part !== top.parentElement; part = part.parentElement) {
+        if (getComputedStyle(part).overflowX !== 'visible') return true;
+      }
+      return false;
+    };
+    return [top, ...Array.from(top.querySelectorAll('*'))]
+      .filter((el) => {
+        const box = el.getBoundingClientRect();
+        return box.width > 0 && box.right > edge + 1 && !inner(el);
+      })
+      .map((el) => `${el.tagName.toLowerCase()} to ${Math.round(el.getBoundingClientRect().right)} of ${edge} ("${(el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 30)}")`);
+  });
+
+/**
+ * What reaches past the window's right edge outside any part that scrolls, clips or stays fixed:
+ * what makes a page scroll sideways, for a failing check's message. The outermost of each.
+ */
+export const sidewaysParts = (page: Page): Promise<string> =>
+  page.evaluate(() => {
+    const edge = document.documentElement.clientWidth;
+    const held = (el: Element): boolean => {
+      for (let part: Element | null = el; part && part !== document.documentElement; part = part.parentElement) {
+        const style = getComputedStyle(part);
+        if (style.position === 'fixed') return true;
+        if (part !== el && part !== document.body && style.overflowX !== 'visible') return true;
+      }
+      return false;
+    };
+    const past = Array.from(document.body.querySelectorAll('*'))
+      .filter((el) => {
+        const box = el.getBoundingClientRect();
+        return box.width > 0 && box.right > edge + 1 && !held(el);
+      });
+    return past
+      .filter((el) => !past.some((other) => other !== el && other.contains(el)))
+      .slice(0, 6)
+      .map((el) => {
+        const name = `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ''}.${(el.getAttribute('class') ?? '').trim().split(/\s+/).slice(0, 4).join('.')}`;
+        return `${name} to ${Math.round(el.getBoundingClientRect().right)} of ${edge} ("${(el.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 30)}")`;
+      })
+      .join('; ');
+  });
+
 // =============================================================================
 // The picture store's faults
 // =============================================================================

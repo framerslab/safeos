@@ -1,15 +1,18 @@
 /** @jest-environment jsdom */
 /**
- * Whether a Lost and Found frame raised the alert
+ * Whether a Lost and Found check raised the alert
  *
- * Each frame the check saves says whether that check raised the alert, so the
- * record keeps what the person heard: a threshold changed later changes
- * nothing already saved, and a frame saved before the field existed has none.
+ * A check at or over the alert line raises a sighting: one alert in the
+ * watch's list, of kind `sighting`, for the pet it was read for. A check
+ * under the line keeps nothing, and no check saves a frame: the record keeps
+ * what the person heard, and a threshold changed later changes nothing
+ * already raised. A frame an earlier version saved keeps no `alerted` field.
  */
 import React from 'react';
 import { act, cleanup, render, waitFor } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import { getAllMatchFrames, getMatchFrame, saveMatchFrame, saveSubjectProfile, type MatchFrameDB } from '@/lib/client-db';
+import { kindOfAlert } from '@/lib/alert-pictures/rules';
 import type { MatchResult } from '@/lib/subject-matcher';
 import {
   calculateAverageColor,
@@ -54,6 +57,8 @@ const mockMatcher = {
   getState: () => ({ consecutiveMatches: mockMatcher.last ? 1 : 0 }),
   shouldRecord: () => (mockMatcher.last?.confidence ?? 0) >= 50,
   shouldAlert: () => (mockMatcher.last?.confidence ?? 0) >= mockMatcher.threshold,
+  // No frame of the check to cut a picture from: the sighting keeps its words alone.
+  frameCanvas: () => null,
 };
 jest.mock('@/lib/subject-matcher', () => ({
   ...jest.requireActual('@/lib/subject-matcher'),
@@ -107,17 +112,16 @@ function result(id: string, confidence: number): MatchResult {
   };
 }
 
-/** Reads the database until it holds a frame for each id: the saves run on the database's own tasks. */
-async function savedFrames(...ids: string[]) {
-  const holdsAll = (frames: MatchFrameDB[]) => ids.every((id) => frames.some((frame) => frame.id === id));
-  let frames = await getAllMatchFrames();
-  for (let turn = 0; turn < 200 && !holdsAll(frames); turn += 1) frames = await getAllMatchFrames();
-  return Object.fromEntries(frames.filter((frame) => ids.includes(frame.id)).map((frame) => [frame.id, frame.alerted]));
+/** The sightings in the watch's alert list: their pet and whether they are marked as seen. */
+function sightings() {
+  return useMonitoringStore.getState().alerts
+    .filter((alert) => kindOfAlert(alert) === 'sighting')
+    .map((alert) => ({ subjectId: alert.subjectId, subjectName: alert.subjectName, acknowledged: alert.acknowledged }));
 }
 
-function keptFrames(...ids: string[]) {
-  const frames = useLostFoundStore.getState().matchFrames.filter((frame) => ids.includes(frame.id));
-  return Object.fromEntries(frames.map((frame) => [frame.id, frame.alerted]));
+/** Lets the database's own tasks run, so a save the checks queued has landed before the store is read. */
+async function settle() {
+  for (let turn = 0; turn < 50; turn += 1) await getAllMatchFrames();
 }
 
 /** Watches for Mittens on Motion and sound's page while two checks run, at 75 and then 55 per cent. */
@@ -177,24 +181,24 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-it('a frame saved while the alert sounded says so, and one under the threshold says it did not', async () => {
+it('a check over the alert line raises one sighting for its pet, and neither check saves a frame', async () => {
   await twoChecks('frame-75', 'frame-55');
-  const saved = await savedFrames('frame-75', 'frame-55');
-  expect(Object.keys(saved).sort()).toEqual(['frame-55', 'frame-75']);
-  expect(saved['frame-75']).toBe(true);
-  expect(saved['frame-55']).toBe(false);
-  expect(keptFrames('frame-75', 'frame-55')).toEqual({ 'frame-75': true, 'frame-55': false });
+  await waitFor(() => expect(sightings()).toEqual([{ subjectId: 'pet-1', subjectName: 'Mittens', acknowledged: false }]));
+  await settle();
+  expect(await getAllMatchFrames()).toEqual([]);
+  expect(useLostFoundStore.getState().matchFrames).toEqual([]);
 });
 
-it('a threshold changed later changes nothing already saved', async () => {
+it('a threshold changed later changes nothing already raised', async () => {
   await twoChecks('later-75', 'later-55');
-  await savedFrames('later-75', 'later-55');
+  await waitFor(() => expect(sightings()).toHaveLength(1));
   act(() => useLostFoundStore.getState().updateSettings({ minConfidenceForAlert: 95 }));
   await act(async () => {
     jest.advanceTimersByTime(1000);
   });
-  expect(await savedFrames('later-75', 'later-55')).toEqual({ 'later-75': true, 'later-55': false });
-  expect(keptFrames('later-75', 'later-55')).toEqual({ 'later-75': true, 'later-55': false });
+  expect(sightings()).toEqual([{ subjectId: 'pet-1', subjectName: 'Mittens', acknowledged: false }]);
+  await settle();
+  expect(await getAllMatchFrames()).toEqual([]);
 });
 
 it('a frame saved before this change keeps no field', async () => {
