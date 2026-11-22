@@ -74,6 +74,14 @@ export function AskInPlace({
     }
   }, [asking]);
 
+  // A key made inactive while it asks takes its question back, as Cancel does.
+  useEffect(() => {
+    if (disabled && asking) {
+      giveBack.current = true;
+      setAsking(false);
+    }
+  }, [disabled, asking]);
+
   if (asking) {
     return (
       <ConfirmInPlace
@@ -82,7 +90,7 @@ export function AskInPlace({
         onConfirm={() => {
           giveBack.current = true;
           setAsking(false);
-          onConfirm();
+          if (!disabled) onConfirm();
         }}
         onCancel={() => {
           giveBack.current = true;
