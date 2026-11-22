@@ -1174,7 +1174,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   };
   // 1024 px is the narrowest width where a way's name and its keys share a row.
   for (const width of [...ROW_WIDTHS, 1024]) {
-    for (const route of ['/monitor/', '/lost-found/', '/security/', '/wildlife/']) {
+    for (const route of ['/lost-found/', '/security/', '/wildlife/']) {
       await open({ name: 'a way page, its width', width, look: 'dark' }, async (page, context, check) => {
         await visit(page, route);
         const sideways = await sidewaysScroll(page);
@@ -1182,36 +1182,6 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (route === '/lost-found/') return;
         const broken = await page.evaluate(brokenKeys);
         check(broken.length === 0, `on ${route} the words of ${broken.map((words) => `"${words}"`).join(', ')} break over two lines`);
-        if (route === '/monitor/') {
-          const key = page.getByRole('button', { name: 'Select Security Mode', exact: true });
-          const modes = page.locator('[aria-label="Select Security Mode"] + .absolute');
-          const place = await key.click({ timeout: 5_000 })
-            .then(() => modes.waitFor({ timeout: 5_000 }))
-            .then(() => modes.evaluate((menu) => {
-              const box = menu.getBoundingClientRect();
-              const hit = document.elementFromPoint(box.left + box.width / 2, box.top + 20);
-              let fade = null;
-              for (let part = menu.parentElement; part && !fade; part = part.parentElement) {
-                if (getComputedStyle(part).maskImage !== 'none') fade = `${part.tagName.toLowerCase()}.${String(part.className).split(' ').join('.')}`;
-              }
-              return {
-                left: box.left, right: box.right, screen: document.documentElement.clientWidth,
-                shown: !!hit && menu.contains(hit), fade,
-              };
-            }))
-            .catch(() => null);
-          check(place, 'on /monitor/ a press on the mode key does not open its menu');
-          if (place) {
-            check(place.left >= -0.5 && place.right <= place.screen + 0.5,
-              `on /monitor/ the modes menu runs from ${Math.round(place.left)} to ${Math.round(place.right)} px on a ${place.screen} px screen`);
-            check(place.shown, 'on /monitor/ the open modes menu is cut away where it opens');
-            check(!place.fade, `on /monitor/ the open modes menu is drawn under the faded edge of ${place.fade}`);
-            // Closed again, so the row is read at rest.
-            await key.click({ timeout: 5_000 })
-              .then(() => modes.waitFor({ state: 'detached', timeout: 5_000 }))
-              .catch(() => check(false, 'on /monitor/ a second press on the mode key leaves its menu open'));
-          }
-        }
         const row = await page.evaluate(readKeyRow);
         if (!row) throw new Error(`${route} has no row of keys`);
         check(row.offLine.length === 0, `on ${route} the keys ${row.offLine.join(', ')} leave the row's line`);
@@ -1229,7 +1199,6 @@ export async function checkApp(browser, baseUrl, outDir) {
         } else {
           check(!row.marked, `on ${route} the keys fit and their row is marked as running over`);
         }
-        if (route === '/monitor/') return;
         // The browser's own account of the press says why it did not open.
         const missed = await page.getByRole('button', { name: 'Settings', exact: true }).click({ timeout: 5_000 })
           .then(() => page.locator('.fixed.inset-0', { has: page.locator('h2') }).waitFor({ timeout: 5_000 }))
@@ -1242,22 +1211,45 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
-  // With text at 200 per cent on a phone the modes menu's 18rem is wider than
-  // the screen. It opens under the head at its right edge, no wider than the
-  // head, so its whole width stays on the screen.
+  // The watch's bar: the heading "Watch for" and Mute alerts share one row at
+  // every phone and tablet width in both looks, and the page never scrolls
+  // sideways. At 200 per cent text the row keeps its one line and scrolls
+  // inside itself with its arrow keys.
+  const barRow = (page) => page.evaluate(() => {
+    const heading = [...document.querySelectorAll('h2')].find((h) => h.textContent.trim() === 'Watch for');
+    const mute = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Mute alerts');
+    if (!heading || !mute) return null;
+    const middle = (part) => { const box = part.getBoundingClientRect(); return box.top + box.height / 2; };
+    const row = heading.closest('.watch-bar');
+    return {
+      apart: Math.abs(middle(heading) - middle(mute)),
+      sameRow: !!row && row === mute.closest('.watch-bar'),
+      more: row?.getAttribute('data-more') ?? null,
+      arrows: row ? [...row.querySelectorAll('button')].map((b) => b.getAttribute('aria-label')).filter(Boolean) : [],
+    };
+  });
   for (const look of LOOKS) {
-    await open({ name: 'a way page, its menu with larger text', width: 390, look }, async (page, context, check) => {
+    for (const width of ROW_WIDTHS) {
+      await open({ name: "watch, the bar's row", width, look }, async (page, context, check) => {
+        await visit(page, '/monitor/');
+        const bar = await barRow(page);
+        check(bar, `at ${width} px /monitor/ has no heading "Watch for" or no key "Mute alerts"`);
+        if (!bar) return;
+        check(bar.sameRow, `at ${width} px "Watch for" and Mute alerts are not in one row`);
+        check(bar.apart <= 1, `at ${width} px the middles of "Watch for" and Mute alerts lie ${bar.apart.toFixed(1)} px apart`);
+        const sideways = await sidewaysScroll(page);
+        check(sideways === 0, `at ${width} px /monitor/ scrolls ${sideways} px sideways: ${await pushesPast(page)}`);
+      });
+    }
+    await open({ name: "watch, the bar's row with larger text", width: 390, look }, async (page, context, check) => {
       await visit(page, '/monitor/');
       await largerText(page);
-      await page.getByRole('button', { name: 'Select Security Mode', exact: true }).click({ timeout: 5_000 });
-      const modes = page.locator('[aria-label="Select Security Mode"] + .absolute');
-      await modes.waitFor({ timeout: 5_000 });
-      const place = await modes.evaluate((menu) => {
-        const box = menu.getBoundingClientRect();
-        return { left: box.left, right: box.right, screen: document.documentElement.clientWidth };
-      });
-      check(place.left >= -0.5 && place.right <= place.screen + 0.5,
-        `on /monitor/ the modes menu runs from ${Math.round(place.left)} to ${Math.round(place.right)} px on a ${place.screen} px screen`);
+      const bar = await barRow(page);
+      check(bar, 'at 200 per cent text /monitor/ has no heading "Watch for" or no key "Mute alerts"');
+      if (!bar) return;
+      check(bar.sameRow && bar.apart <= 1, `at 200 per cent text "Watch for" and Mute alerts leave one row (${bar.apart.toFixed(1)} px apart)`);
+      check(bar.more !== null, 'at 200 per cent text the bar\'s row is not marked as holding more');
+      check(bar.arrows.includes('Scroll right'), `at 200 per cent text the bar's row has no key "Scroll right" (${bar.arrows.join(', ') || 'none'})`);
     });
   }
 
