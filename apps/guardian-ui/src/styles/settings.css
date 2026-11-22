@@ -1,0 +1,58 @@
+/* =============================================================================
+   Settings: the list of settings pages and the rows every page shares.
+
+   On the readable look's tokens, so the light look follows from html.light:
+   the page steel-950, the panel steel-900 (a hovered row), the track
+   steel-800, the ink steel-50 (names, headings, sentences), the quiet tone
+   steel-200 (values, lines, group headings, "Saved"), every drawn line
+   steel-300 and the accent for a filled track, the ring and the bar of the
+   page being read. Two weights, 400 and 600. Words in rem so the browser's
+   text size scales them; edges and glyphs in px; stops in em.
+   ============================================================================= */
+
+.settings {
+  --weight-bold: 600;
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+}
+
+/* One column with 16 px gutters on a phone; from the tablet stop it is held
+   to 640 px and centred. */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0 16px 32px;
+  margin: 0 auto;
+}
+
+@media (min-width: 48em) {
+  .settings-page {
+    max-width: 40rem;
+    padding: 0 0 48px;
+  }
+}
+
+.set-heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  color: var(--color-steel-50);
+}
+
+@media (min-width: 48em) {
+  .set-heading {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+  }
+}
+
+.set-lead {
+  margin: 4px 0 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-200);
+}
