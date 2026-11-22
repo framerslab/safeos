@@ -3267,14 +3267,22 @@ export async function checkApp(browser, baseUrl, outDir) {
             .filter((element) => !getComputedStyle(element).fontVariantNumeric.includes('tabular-nums'))
             .map((element) => element.textContent.trim()));
           check(figures.length === 0, `${figures.map((f) => `"${f}"`).join(', ')} not in tabular figures`);
-          // The strokes of the bar's row and of the strip, read from their pixels.
+          // The strokes of the bar's row and, while watching, of the strip, read
+          // from their pixels: a part that cannot be pictured or measured fails.
           const scratch = await context.newPage();
-          for (const [what, selector] of [["the bar's row", '.watch-bar'], ['the meters', '.watch-meters']]) {
+          for (const [what, selector, needed] of [["the bar's row", '.watch-bar', true], ['the meters', '.watch-meters', watching]]) {
             const part = page.locator(selector).first();
-            if (!(await part.count())) continue;
-            const picture = await part.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' }).catch(() => null);
+            if (!(await part.count())) {
+              check(!needed, `${what} is not on the page to measure`);
+              continue;
+            }
+            const picture = await part.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' }).catch((err) => {
+              check(false, `${what} could not be pictured: ${err.message.split('\n')[0]}`);
+              return null;
+            });
             if (!picture) continue;
             const read = await scratch.evaluate(readStrokes, picture.toString('base64'));
+            check(read !== null, `${what} shows too few strokes to measure`);
             if (read) check(read.strokes >= 7, `${what} measures ${read.strokes.toFixed(2)}:1 on its strokes, under 7`);
           }
           await scratch.close();
@@ -3345,17 +3353,20 @@ export async function checkApp(browser, baseUrl, outDir) {
     await open({ name: 'watch, reduced motion', width: 390, look, reducedMotion: 'reduce' }, async (page, context, check) => {
       await visit(page, '/monitor/');
       await watchRead(page);
-      await page.evaluate(() => { window.__camera.waitMs = 2000; });
+      // The camera answers after a minute, so the start stands while it is read.
+      await page.evaluate(() => { window.__camera.waitMs = 60_000; });
       await page.getByRole('button', { name: 'Start watching', exact: true }).click();
-      const starting = await page.getByRole('button', { name: 'Starting the camera…', exact: true }).waitFor({ timeout: 1_500 }).then(() => true, () => false);
+      const starting = await page.getByRole('button', { name: 'Starting the camera…', exact: true }).waitFor({ timeout: 5_000 }).then(() => true, () => false);
       check(starting, 'a press does not show "Starting the camera…"');
-      const bar = await page.evaluate(() => {
+      // The key and the bar read at one moment, while the camera starts.
+      const read = await page.evaluate(() => {
+        const stillStarting = [...document.querySelectorAll('button')].some((key) => key.textContent.trim() === 'Starting the camera…');
         const growing = document.querySelector('.watch-frame__starting');
-        if (!growing) return false;
-        const style = getComputedStyle(growing);
-        return style.display !== 'none' && style.animationName !== 'none';
+        const style = growing ? getComputedStyle(growing) : null;
+        return { stillStarting, bar: Boolean(style && style.display !== 'none' && style.animationName !== 'none') };
       });
-      check(!bar, 'under reduced motion the frame shows a growing bar while the camera starts');
+      check(!starting || read.stillStarting, 'the camera finished starting before the bar was read');
+      check(!read.bar, 'under reduced motion the frame shows a growing bar while the camera starts');
     }, { script: FAKE_CAMERA });
 
     for (const width of [768, 1024, 1440]) {

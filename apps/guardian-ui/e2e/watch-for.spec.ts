@@ -1017,13 +1017,13 @@ test('the address names the way and the pet, so a reload and a bookmark open the
   await expect(motionAndSound(page)).toBeChecked();
   await expect.poll(() => new URL(page.url()).search).toBe('?way=monitor');
 
-  // A bookmark naming the way alone opens Lost and Found with the pet this device keeps.
+  // A bookmark naming the way alone opens Lost and Found with the pet this
+  // device keeps: Tofu, which the address above chose.
   const second = await context.newPage();
   await second.goto('/monitor/?way=lost-found', { waitUntil: 'networkidle', timeout: 60_000 });
   await expect(lostAndFound(second)).toBeChecked();
-  const kept = await storedPetId(second);
-  const keptPet = [MISO, TOFU].find((pet) => pet.id === kept) ?? MISO;
-  await expect(second.getByText(comparesLine(keptPet.name), { exact: true })).toBeVisible();
+  await expect(second.getByText(comparesLine(TOFU.name), { exact: true })).toBeVisible();
+  expect(await storedPetId(second)).toBe(TOFU.id);
 
   // An address naming Motion and sound opens it, whatever the device keeps.
   await second.goto('/monitor/?way=monitor', { waitUntil: 'networkidle', timeout: 60_000 });
