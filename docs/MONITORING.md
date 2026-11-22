@@ -244,7 +244,8 @@ Each Motion and Picture change alert keeps the camera's picture of the moment: t
 the check that raised the alert, at the camera frame's own shape, 640 px on its long edge and
 never enlarged, as a JPEG at quality 0.7. One box marks what set the alert off: for Motion,
 the cells of the 16 by 12 grid that changed between the check's two frames, inside the zone
-that set it off where zones are set; for Picture change, the spots whose pixels changed. A
+that set it off where zones are set; for Picture change, the spots whose pixels changed, inside
+the zone that set it off where zones are set and it names one. A
 close-up of that box comes with it: the box widened by an eighth of its width and height on
 each side, cut from the camera's full frame, at most 480 px on its long edge, as a JPEG at
 quality 0.8. There is no close-up where the box covers more than half of the frame, and a

@@ -1222,6 +1222,8 @@ export default function MonitorPage() {
     let chosenThresholdPx = thresholdPx;
     let chosenChangedPx = result.changedPixelCount;
     let chosenZoneName: string | null = null;
+    // The parts that changed: across the picture, or inside the zone that raised the alert.
+    let chosenHotspots = result.hotspots ?? [];
 
     if (currentPreset.useAbsoluteThreshold && !fullZone && enabledZones.length > 0 && result.zoneStats && result.zoneStats.length > 0) {
       const statsById = new Map(result.zoneStats.filter((s) => s.id).map((s) => [s.id as string, s]));
@@ -1238,6 +1240,7 @@ export default function MonitorPage() {
           chosenThresholdPx = zoneThresholdPx;
           chosenChangedPx = changedPx;
           chosenZoneName = zone.name;
+          chosenHotspots = stat?.hotspots ?? [];
           triggered = changedPx >= zoneThresholdPx;
         }
       }
@@ -1269,12 +1272,13 @@ export default function MonitorPage() {
 
     if (outcome.kind !== 'alert') return;
 
-    // The box goes round the parts of the picture that changed; a change over more than half of
-    // the frame, or one with no part to name, keeps the picture alone.
+    // The box goes round the parts of the picture that changed, inside the zone that raised the
+    // alert where one did; a change over more than half of the frame, or one with no part to name,
+    // keeps the picture alone.
     const frame = frames?.current;
     const taken = frame && takePicture('picture-change', now, frame, frame.width, frame.height, alertBox(
       'picture-change',
-      boxFromHotspots(result.hotspots ?? [], frame.width, frame.height),
+      boxFromHotspots(chosenHotspots, frame.width, frame.height),
       frame.width,
       frame.height,
     ));

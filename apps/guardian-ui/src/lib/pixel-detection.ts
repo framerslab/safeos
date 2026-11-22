@@ -26,6 +26,8 @@ export interface ZonePixelStats {
   changedPixelCount: number;
   totalPixels: number;
   difference: number; // 0-100 percentage of changed pixels
+  /** The parts of the picture that changed inside this zone, the strongest first, ten at most. */
+  hotspots?: Hotspot[];
 }
 
 export interface Hotspot {
@@ -364,6 +366,18 @@ export class PixelDetectionEngine {
 
     const zoneTotals = zoneBounds ? Array(zoneBounds.length).fill(0) : null;
     const zoneChanges = zoneBounds ? Array(zoneBounds.length).fill(0) : null;
+    // Each zone's own grid: a zone's changed parts are its own, whatever changes in another zone.
+    const cells = gridRows * gridCols;
+    const zoneGridTotals = zoneBounds && !skipHotspots ? zoneBounds.map(() => new Array<number>(cells).fill(0)) : null;
+    const zoneGridChanges = zoneBounds && !skipHotspots ? zoneBounds.map(() => new Array<number>(cells).fill(0)) : null;
+    const countInZones = (zones: number[] | null, x: number, y: number, changed: boolean) => {
+      if (!zones || !zoneGridTotals || !zoneGridChanges) return;
+      const cell = Math.min(Math.floor(y / cellHeight), gridRows - 1) * gridCols + Math.min(Math.floor(x / cellWidth), gridCols - 1);
+      for (const zi of zones) {
+        zoneGridTotals[zi][cell]++;
+        if (changed) zoneGridChanges[zi][cell]++;
+      }
+    };
 
     // Iterate through pixels (with optional downsampling)
     for (let i = 0; i < current.data.length; i += step) {
@@ -438,11 +452,13 @@ export class PixelDetectionEngine {
           const cellY = Math.min(Math.floor(y / cellHeight), gridRows - 1);
           gridTotals[cellY][cellX]++;
           gridChanges[cellY][cellX]++;
+          countInZones(matchedZones, x, y, true);
         }
       } else if (!skipHotspots) {
         const cellX = Math.min(Math.floor(x / cellWidth), gridCols - 1);
         const cellY = Math.min(Math.floor(y / cellHeight), gridRows - 1);
         gridTotals[cellY][cellX]++;
+        countInZones(matchedZones, x, y, false);
       }
     }
     
@@ -463,35 +479,32 @@ export class PixelDetectionEngine {
       if (triggered) triggeredBy = 'percentage';
     }
     
-    // Find hotspots (skip in instant mode)
-    const hotspots: Hotspot[] = [];
-    if (!skipHotspots) {
+    // Find hotspots (skip in instant mode): the cells where more than 5% of the samples changed,
+    // the strongest first.
+    const hotspotsOf = (total: (cell: number) => number, changes: (cell: number) => number): Hotspot[] => {
+      const found: Hotspot[] = [];
       const hotspotThreshold = 0.05; // 5% of cell must have changes
-      
       for (let row = 0; row < gridRows; row++) {
         for (let col = 0; col < gridCols; col++) {
-          const cellTotal = gridTotals[row][col];
-          const cellChanges = gridChanges[row][col];
-          
-          if (cellTotal > 0) {
-            const cellChangePercent = cellChanges / cellTotal;
-            
-            if (cellChangePercent > hotspotThreshold) {
-              hotspots.push({
-                x: ((col + 0.5) / gridCols) * 100,
-                y: ((row + 0.5) / gridRows) * 100,
-                width: (1 / gridCols) * 100,
-                height: (1 / gridRows) * 100,
-                intensity: Math.min(cellChangePercent * 100, 100),
-              });
-            }
+          const cellTotal = total(row * gridCols + col);
+          if (cellTotal <= 0) continue;
+          const cellChangePercent = changes(row * gridCols + col) / cellTotal;
+          if (cellChangePercent > hotspotThreshold) {
+            found.push({
+              x: ((col + 0.5) / gridCols) * 100,
+              y: ((row + 0.5) / gridRows) * 100,
+              width: (1 / gridCols) * 100,
+              height: (1 / gridRows) * 100,
+              intensity: Math.min(cellChangePercent * 100, 100),
+            });
           }
         }
       }
-      
-      // Sort hotspots by intensity
-      hotspots.sort((a, b) => b.intensity - a.intensity);
-    }
+      return found.sort((a, b) => b.intensity - a.intensity);
+    };
+    const hotspots: Hotspot[] = skipHotspots
+      ? []
+      : hotspotsOf((cell) => gridTotals[Math.floor(cell / gridCols)][cell % gridCols], (cell) => gridChanges[Math.floor(cell / gridCols)][cell % gridCols]);
     
     const processingTimeMs = performance.now() - startTime;
 
@@ -505,6 +518,9 @@ export class PixelDetectionEngine {
             changedPixelCount: changed,
             totalPixels: total,
             difference: Math.round(diff * 100) / 100,
+            ...(zoneGridTotals && zoneGridChanges
+              ? { hotspots: hotspotsOf((cell) => zoneGridTotals[idx][cell], (cell) => zoneGridChanges[idx][cell]).slice(0, 10) }
+              : {}),
           };
         })
       : undefined;
