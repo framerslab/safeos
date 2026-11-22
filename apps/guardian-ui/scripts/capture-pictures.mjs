@@ -313,6 +313,7 @@ try {
       }
     }
     failures += await captureLostAndFoundWatch(browser, baseUrl, outDir);
+    failures += await captureWatchStates(browser, baseUrl, outDir);
   }
   // A profile save of a server session that the server does not take, and one of a browser-only
   // session that this browser cannot write. The base build shows its own words for the same saves;
@@ -863,6 +864,91 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 // -----------------------------------------------------------------------------
 
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
+// Both versions: the watch at 390 and 1280 px in both looks while its camera
+// starts, with a blocked camera, while watching, and with its settings open
+// (monitor-watch-<state>-<width>-<look>.png). The base build's start key reads
+// "Start Monitoring" and this build's "Start watching"; the base build has no
+// Show settings, so its settings picture is the page as it stands, scrolled
+// to its settings. A canvas stands in for the camera.
+async function captureWatchStates(browser, baseUrl, outDir) {
+  let failed = 0;
+  const startKey = (page) => page.getByRole('button', { name: /^(Start watching|Start Monitoring)$/ }).first();
+  const stopKey = (page) => page.getByRole('button', { name: /^(Stop watching|Stop Monitoring)$/ }).first();
+  for (const state of ['starting', 'blocked', 'watching', 'settings']) {
+    for (const size of WIDTHS.filter((each) => each.width === 390 || each.width === 1280)) {
+      for (const look of LOOKS) {
+        const context = await finishedSetupContext(browser, {
+          viewport: { width: size.width, height: size.height },
+          isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look,
+        });
+        await context.addInitScript((answer) => {
+          localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
+          localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+          const media = navigator.mediaDevices;
+          if (!media) return;
+          media.getUserMedia = async (constraints) => {
+            if (answer === 'held') return new Promise(() => {});
+            if (answer === 'blocked') throw new DOMException('Permission denied', 'NotAllowedError');
+            const canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 360;
+            const pen = canvas.getContext('2d');
+            let tick = 0;
+            setInterval(() => {
+              tick += 1;
+              pen.fillStyle = '#3b4a57';
+              pen.fillRect(0, 0, 640, 360);
+              pen.fillStyle = '#c9b48a';
+              pen.fillRect(120 + ((tick * 12) % 360), 140, 140, 120);
+            }, 150);
+            const stream = canvas.captureStream(10);
+            if (constraints && constraints.audio) {
+              const audio = new AudioContext();
+              const out = audio.createMediaStreamDestination();
+              audio.createOscillator().connect(out);
+              out.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
+            }
+            return stream;
+          };
+        }, state === 'starting' ? 'held' : state === 'blocked' ? 'blocked' : 'ok');
+        const page = await context.newPage();
+        const file = path.join(outDir, `monitor-watch-${state}-${size.width}-${look}.png`);
+        try {
+          await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+          if (state === 'settings') {
+            const show = page.getByRole('button', { name: 'Show settings', exact: true });
+            if (await show.count()) {
+              await show.click();
+              await page.getByRole('button', { name: 'Hide settings', exact: true }).waitFor({ timeout: 10_000 });
+              await page.locator('.watch-fold').scrollIntoViewIfNeeded();
+            } else {
+              await page.getByRole('heading', { name: 'Mode Selection' }).scrollIntoViewIfNeeded().catch(() => {});
+            }
+          } else {
+            await startKey(page).click({ timeout: 30_000 });
+            if (state === 'watching') {
+              await stopKey(page).waitFor({ timeout: 30_000 });
+              await page.waitForTimeout(2_000);
+            } else {
+              await page.waitForTimeout(1_500);
+            }
+            await page.evaluate(() => window.scrollTo(0, 0));
+          }
+          await page.waitForTimeout(400);
+          await page.screenshot({ path: file, animations: 'disabled', caret: 'hide' });
+          console.log(`captured ${file}`);
+        } catch (err) {
+          failed += 1;
+          console.error(`failed monitor ${state} at ${size.width} ${look}: ${err.message}`);
+        } finally {
+          await context.close();
+        }
+      }
+    }
+  }
+  return failed;
+}
+
 async function finishedSetupContext(browser, options) {
   const context = await browser.newContext(options);
   await context.addInitScript(OWN_WINDOW);
