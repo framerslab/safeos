@@ -508,14 +508,15 @@ pictures" makes it:
    path.
 3. For each look it seeds a finished setup and the Custom preset in
    `scripts/home-capture-settings.json` (the default preset with pixel
-   detection off), opens `/monitor/`, presses "Start Monitoring" and waits
-   until the alert list holds a motion alert.
+   detection off), opens `/monitor/`, presses "Start watching" and waits
+   until the alert list holds a motion alert and the Motion meter reads
+   "Over the line".
 4. It saves the three crops in both looks (`capture-phone-*`,
    `capture-portrait-*`, `capture-landscape-*`, each a `.png` and a `.webp`;
-   the portrait crop is the 390 px monitor's camera view with two whole rows
-   of readout tiles, at its own ratio, near 4:5, and the job fails a frame
-   that cuts a tile; the home page gives each crop's box the ratio of its
-   file),
+   the portrait crop is the 390 px watch's camera frame with its live
+   picture and the meters under it, at its own ratio, and the job fails a
+   frame that cuts a meter; the home page gives each crop's box the ratio of
+   its file),
    `screenshots/dashboard.png` and `screenshots/monitoring.png` (the two the
    web app manifest names), the shared-link card `home/card.jpg` (from
    `scripts/home-card.html`, a page the site does not serve) and

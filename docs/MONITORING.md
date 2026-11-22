@@ -1,21 +1,59 @@
 # Camera monitoring
 
-Choose a camera in **Setup → Device Access** or above the camera feed on
+Choose a camera in **Setup → Device Access** or under the camera's frame on
 **Monitor**. The choice is shared between these pages and saved in this browser.
 Camera names may become available only after permission is granted. Device changes
 refresh the list. If a saved camera is unavailable, reconnect it or choose another;
 SafeOS does not silently replace an explicitly selected camera.
 
-Opening Monitor leaves the camera and microphone off. **Start Monitoring** requests
-access to the selected camera and microphone. The stream shows **Starting** until
-the camera preview is ready; **Cancel Starting** cancels that request. A denied or
-missing camera leaves monitoring inactive and shows the camera error. A device with
-a camera and no microphone monitors video alone and shows the microphone warning;
-Setup's **Grant Permissions** also completes with the camera alone.
+Opening Monitor leaves the camera and microphone off. Until the camera runs, a
+drawn frame holds **Start watching** and, until this site may use the camera, the
+line "Your browser will ask you to allow the camera and microphone." **Start watching**
+requests access to the selected camera and microphone; while the camera starts the
+key reads "Starting the camera…" and **Cancel** under the frame cancels that
+request. A camera that fails is named inside the frame with its fix and, where a
+press can help, **Try again**. Once the live picture shows, it stands in four
+corner ticks and **Stop watching** stands under it. A device with a camera and no
+microphone watches video alone, and the Sound meter names the missing or blocked
+microphone while Motion goes on; Setup's **Grant Permissions** also completes with
+the camera alone.
+
+## The meters
+
+Under the live picture, a strip holds a meter for each kind the setting in use
+checks: **Motion**, **Sound** and **Picture change**. Each meter shows its name, a
+word for its state ("Quiet", "Over the line", or "No alert" where the setting turns
+that kind's alerts off) and a bar on a track with the alert line drawn across it:
+the bar fills in green up to the line and in the alert colour past it. Before the
+first reading after a press the names stand over empty tracks with no state word.
+A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";
+a change of state is not announced. Under reduced motion a meter's shown reading
+changes at most once a second. While Lost and Found compares, the pet's meter names
+the pet and reads "Comparing with {name}'s photos", with no bar and no number. On a
+phone each meter is one row; from a tablet they stand side by side.
+
+## Settings for this watch
+
+The watch's settings fold under one row below the alert list, **Settings for this
+watch**, with **Show settings** at its right; a press anywhere along the row opens
+them in place and the key reads **Hide settings**. The choice is kept on this
+device (`safeos-watch-view`, cleared by Clear All Local Data). Open, they hold the
+link **Nap Mode**, the preset card (its name, description, Pixel Threshold, Motion
+and Audio, **Calibrate Baseline**, Fine-Tune) and the detection settings. The
+preset card shows **Interval** only while this device's own server is connected.
+
+## The alert list
+
+The alert list stands on the page under the heading **Alerts**; while any alert is
+new, the count of new alerts stands beside it. With no alert in the list it says
+"Alerts show here while this device watches." before a watch and "No alert so
+far." while watching; while the saved alerts are read, three bars hold the
+entries' place.
 
 ## Watch for
 
-Under the page's name, Monitor opens with **Watch for** and two options above the
+Monitor opens with one row, at every width from 320 px: **Watch for** and **Mute
+alerts**. Two options stand in that row from 1024 px and under it below, above the
 camera and the settings: **Motion and sound** (chosen on a fresh device) and **Lost and
 Found**. Motion and sound sounds an alert on this device when something moves or
 makes a sound. Lost and Found does the same and, while the watch runs, compares
@@ -30,7 +68,12 @@ Found | SafeOS".
 The choice is setup's Lost & Found choice (`lostFoundChosen` in the onboarding
 store): setup and Monitor show the same one, whatever the use setup saved, and
 the Lost & Found page's **Start Monitoring** opens Monitor with Lost and Found
-and the pet it shows. The pet is kept as `chosenPetId` in the Lost & Found store;
+and the pet it shows.
+
+The address names the way and the pet: `/monitor/?way=lost-found&pet=<id>` opens
+Lost and Found with that saved pet, `/monitor/?way=monitor` opens Motion and sound,
+and an address with no way keeps the stored choice. Each change of way or pet
+writes the address in place, so a bookmark or a reload opens the same watch. The pet is kept as `chosenPetId` in the Lost & Found store;
 until one is chosen it is the newest saved pet. A thing saved on the Lost &
 Found page as an object is the watch's only once it is chosen there or in
 **Choose a pet**. A subject an earlier version saved as a person is never the
@@ -49,7 +92,7 @@ px the pet's other photos stand under its photo. **Change pet** opens **Choose a
 pet**, which lists every saved pet and thing with its photo and count; the arrow
 keys move the check, a press (or Enter) chooses and closes, and Escape or
 **Close** close it with no change. It stands above the page's navigation. With no pet saved, Monitor shows "No pet saved" and **Add a pet**, which
-opens the Lost & Found page, and the camera's panel says "Without a saved pet, it
+opens the Lost & Found page, and the camera's frame says "Without a saved pet, it
 watches for motion and sound." While the saved pets are read it shows "Loading
 saved pets…"; when they cannot be read it says "Saved pets could not be read on
 this device. Reload the page to try again." and watches for motion and sound
@@ -57,24 +100,22 @@ until a reload. The pets and their photos are this device's, so Watch for and th
 comparison work offline. A long name with no spaces breaks inside the line that
 names the pet, at every width from 320 px.
 
-While the watch compares, the Lost & Found panel under the alerts shows the pet's
-matches and links to its match history. A photo added there with **Add Photos**
-counts at once on the pet and in **Choose a pet**, and stays with the pet when it
-is chosen again, also when another pet is chosen before the photo is saved.
-Another pet chosen while the watch compares starts with none of the first pet's
-matches, with no restart of the camera.
+While the watch compares, the pet's meter under the live picture names the pet.
+Photos are added to a pet on the Lost & Found page, and the frames the comparison
+saves stay in its match history. Another pet chosen while the watch compares
+starts with none of the first pet's matches, with no restart of the camera.
 
 When another tab of this browser clears all local data (**Clear All Local Data**,
 or a sign-out), the open watch drops the pets it had read and ends the
 comparison: it says "Stopped comparing at {time}.", shows "No pet saved", and
 goes on watching for motion and sound. A read of the saved pets on its way at
-that moment shows none of them, and a photo being added or a match being saved
+that moment shows none of them, and a match being saved
 then is not written back. The watch hears of the clear from the account marker
 in local storage, which a browser may show to another tab a moment late.
 
 Setup does not need the camera. Until access is granted, its **Device Access**
 step shows **Continue without the camera**, which records camera and microphone
-access as off and goes on; **Start Monitoring** asks for them later. After a
+access as off and goes on; **Start watching** asks for them later. After a
 failed request the step says what happened and its key reads **Try again**:
 
 | What happened | What the step says |
@@ -86,18 +127,17 @@ failed request the step says what happened and its key reads **Try again**:
 | The browser has no camera support on the page | This browser cannot use a camera on this page. |
 | Anything else | Unable to access the camera or microphone. Check the device and try again. |
 
-**Stop Monitoring**, leaving Monitor, or cancelling startup releases all acquired
+**Stop watching**, leaving Monitor, or cancelling startup releases all acquired
 tracks and audio analysis resources. A browser permission prompt may remain open
 after cancellation, but its eventual result cannot restart capture. Changing the
 camera while monitoring releases the old feed before requesting the selected one.
 
 An ended video track (camera unplugged, switched off or taken away by the system)
-stops monitoring, removes **LIVE**, and reports lost coverage. Check the device and
-use **Start Monitoring** again. A muted video track (the device stops sending video
-for a while) removes **LIVE**, shows **Camera paused**, sets the stream to
-**Paused** and pauses frame analysis; when the track unmutes, monitoring resumes on
-its own. An ended or muted microphone stops audio analysis and shows a warning while
-video monitoring continues.
+stops watching, and the frame says "The camera stopped at {time}. Press Start
+watching to start again." with **Start watching** under it. A muted video track (the
+device stops sending video for a while) pauses frame analysis; when the track
+unmutes, watching resumes on its own. An ended or muted microphone stops audio
+analysis while video watching continues.
 
 ## What the settings change on the watch
 
