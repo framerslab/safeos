@@ -331,6 +331,37 @@ test.describe('A sighting on the watch, 390 px', () => {
     await expect(card.getByText(QUESTION, { exact: true })).toBeVisible();
     expect(keptRows(await readDatabase(page))).toEqual([]);
   });
+
+  test('the dashboard lists the sighting as Lost and Found’s, with its kept picture, and Mark all as seen marks it', async ({ page, context }) => {
+    test.setTimeout(240_000);
+    await setUp(context);
+    await stripedCamera(page);
+    await watchForStripes(page);
+    const card = sightings(page).first();
+    const time = await timeOf(card);
+    await expect(card.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+    await page.evaluate(() => { window.__stripes!.hidden = true; });
+    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+
+    // The phone bar's Dashboard, in the same visit.
+    await page.locator('nav[aria-label="App"]:visible').getByRole('link', { name: 'Dashboard', exact: true }).click();
+    await page.waitForURL(/\/dashboard\/?$/, { timeout: 60_000 });
+    const row = page.getByRole('link', { name: /^Colours like Stripes’s at .+, from Lost and Found$/ });
+    await expect(row).toHaveCount(1, { timeout: 30_000 });
+    await expect(page.getByRole('link', { name: /, from Motion and sound$/ })).toHaveCount(0);
+    // Its picture is the sighting's kept picture, read from this device.
+    const picture = row.locator('img');
+    await expect(picture).toBeVisible({ timeout: 15_000 });
+    expect(await picture.getAttribute('src')).toMatch(/^blob:/);
+    expect(await picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Mark all as seen', exact: true }).click();
+    await expect(row).toHaveCount(0, { timeout: 15_000 });
+    const [alert] = (await readDatabase(page)).alerts.filter((row) => String(row.id).startsWith('sighting-'));
+    expect(alert.acknowledged).toBe(true);
+    expect((await readDatabase(page)).matchFrames).toEqual([]);
+  });
 });
 
 test.describe('A sighting on the watch, 1280 px', () => {

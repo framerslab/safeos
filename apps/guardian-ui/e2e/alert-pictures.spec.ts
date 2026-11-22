@@ -25,6 +25,7 @@ import {
   EDGE,
   LEFT_THIRD,
   MOTION_ONLY,
+  brightestIn,
   canvasCamera,
   clipSettings,
   controlEdges,
@@ -1042,6 +1043,12 @@ test.describe('Keeping pictures, 390 px', () => {
     await expect(outOfRoom).toHaveCount(1);
     await expect(outOfRoom.locator('.alert-picture__problem')).toHaveCount(1);
     await expect(outOfRoom.getByRole('link')).toHaveCount(0);
+
+    // Out of room for this visit: the dashboard says so, as it does for an alert the device refused.
+    await page.locator('nav[aria-label="App"]:visible').getByRole('link', { name: 'Dashboard', exact: true }).click();
+    await page.waitForURL(/\/dashboard\/?$/, { timeout: 60_000 });
+    await expect(page.getByRole('status').filter({ hasText: 'This device is out of room, so new alerts and pictures cannot be saved.' }))
+      .toBeVisible({ timeout: 15_000 });
   });
 
   test('a window that keeps nothing says so once and shows each picture', async ({ page, context }) => {
@@ -2247,6 +2254,8 @@ test.describe('The opened picture on the watch, 390 px', () => {
     const size = await naturalSize(picture);
     const still: Array<[number, number]> = [[size.width * 0.7, size.height / 2], [size.width * 0.9, size.height / 4]];
     const before = await pixelsAt(page, keptSrc, still);
+    // The view stretches the levels so the picture's brightest part reaches full white.
+    const most = await brightestIn(page, keptSrc);
 
     await brightenSwitch(dialog).click();
     await expect(brightenSwitch(dialog)).toHaveAttribute('aria-checked', 'true');
@@ -2254,7 +2263,12 @@ test.describe('The opened picture on the watch, 390 px', () => {
     await expect.poll(() => picture.getAttribute('src')).not.toBe(keptSrc);
     await expect.poll(() => closeUp.getAttribute('src')).not.toBe(keptCloseUp);
     const after = await pixelsAt(page, (await picture.getAttribute('src'))!, still);
-    after.forEach(([grey], i) => expect(grey, `the still part shows brighter (${before[i][0]} to ${grey})`).toBeGreaterThan(before[i][0] + 10));
+    after.forEach(([grey], i) => {
+      const stretched = Math.min(255, Math.round((before[i][0] * 255) / most));
+      expect(grey, `the still part shows brighter (${before[i][0]} to ${grey}, brightest ${most})`).toBeGreaterThan(before[i][0]);
+      expect(Math.abs(grey - stretched), `the still part is stretched by 255 / ${most} (${before[i][0]} to ${grey}, expected ${stretched})`)
+        .toBeLessThanOrEqual(3);
+    });
     // The label stands at the picture's top left, on its own plate.
     const [where, shown] = [(await plate.boundingBox())!, (await picture.boundingBox())!];
     expect(where.x - shown.x).toBeLessThanOrEqual(16);

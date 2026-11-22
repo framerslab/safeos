@@ -531,6 +531,26 @@ export function pixelsAt(page: Page, imageUrl: string, points: Array<[number, nu
   }), { url: imageUrl, list: points });
 }
 
+/** The highest channel value of any pixel of an image, 0 to 255, as the page decodes it. */
+export function brightestIn(page: Page, imageUrl: string): Promise<number> {
+  return page.evaluate((url) => new Promise<number>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(image, 0, 0);
+      const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+      let most = 0;
+      for (let i = 0; i < data.length; i += 4) most = Math.max(most, data[i], data[i + 1], data[i + 2]);
+      resolve(most);
+    };
+    image.onerror = () => reject(new Error('the image did not load'));
+    image.src = url;
+  }), imageUrl);
+}
+
 /** A screenshot as a data URL the page can sample. */
 export const pngUrl = (bytes: Buffer): string => `data:image/png;base64,${bytes.toString('base64')}`;
 
