@@ -121,7 +121,9 @@ it('moves the value and says Not saved when the browser refuses the write', () =
   render(<VolumeSlider />);
   refuseStorage();
   expect(writeRefused()).toBe(true);
-  expect(() => useSettingsStore.getState().updateGlobalSettings({ alertVolume: 40 })).not.toThrow();
+  act(() => {
+    expect(() => useSettingsStore.getState().updateGlobalSettings({ alertVolume: 40 })).not.toThrow();
+  });
   expect(useSettingsStore.getState().globalSettings.alertVolume).toBe(40);
   fireEvent.keyDown(screen.getByRole('slider', { name: 'Alert volume' }), { key: 'ArrowUp' });
   expect(useSettingsStore.getState().globalSettings.alertVolume).toBe(41);
