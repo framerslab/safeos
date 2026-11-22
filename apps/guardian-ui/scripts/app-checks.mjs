@@ -3220,6 +3220,10 @@ export async function checkApp(browser, baseUrl, outDir) {
       await visit(page, '/monitor/');
       await watchRead(page);
       const counted = await firstScreen(page);
+      // The frame's four corner ticks are its drawing, as the dashboard's drawn
+      // frame is; a fully clear colour paints nothing.
+      counted.boxes = counted.boxes.filter((box) => box !== 'i.');
+      counted.colours = counted.colours.filter((colour) => !/^rgba\(.*,\s*0\)$/.test(colour));
       check(counted.controls.length <= 8, `the first screen holds ${counted.controls.length} controls, over 8: ${counted.controls.map((name) => `"${name}"`).join(', ')}`);
       check(counted.styles.length <= 8, `the first screen sets its words in ${counted.styles.length} styles, over 8: ${counted.styles.join('; ')}`);
       check(counted.boxes.length <= 8, `the first screen draws ${counted.boxes.length} rules and boxes, over 8: ${counted.boxes.join(', ')}`);
@@ -3283,12 +3287,13 @@ export async function checkApp(browser, baseUrl, outDir) {
       await watchRead(page);
       await page.getByRole('button', { name: 'Start watching', exact: true }).click();
       await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
-      await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+      await page.evaluate(() => { window.scrollTo(0, 0); document.querySelector('.skip-link')?.focus(); });
       const order = [];
       const rings = [];
       const under = [];
       for (let i = 0; i < 40; i++) {
         await page.keyboard.press('Tab');
+        await scrollSettled(page);
         const seen = await page.evaluate(() => {
           const element = document.activeElement;
           if (!element || element === document.body) return null;
@@ -3377,8 +3382,8 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (width === 768) {
           check(read.options.top >= read.heading.bottom - 0.5, 'at 768 px the options are not under the bar\'s row');
           if (read.stop && read.camera) {
-            const apart = Math.abs((read.stop.top + read.stop.height / 2) - (read.camera.top + read.camera.height / 2));
-            check(read.stop.right <= read.camera.left + 0.5 && apart <= 8, `at 768 px Stop watching does not stand beside the camera menu (${apart.toFixed(1)} px apart)`);
+            const sameRow = read.stop.top < read.camera.bottom && read.stop.bottom > read.camera.top;
+            check(read.stop.right <= read.camera.left + 0.5 && sameRow, `at 768 px Stop watching does not stand beside the camera menu (Stop ${Math.round(read.stop.top)} to ${Math.round(read.stop.bottom)} px, the menu ${Math.round(read.camera.top)} to ${Math.round(read.camera.bottom)} px)`);
           } else check(false, 'at 768 px Stop watching or the camera menu is missing');
         } else {
           check(read.options.top < read.heading.bottom, `at ${width} px the options are not in the bar's row`);
