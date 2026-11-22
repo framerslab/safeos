@@ -280,14 +280,14 @@ test('a pet added on the Lost & Found page is the watch’s pet, compared while 
   await page.getByRole('button', { name: 'Start watching', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
-  await expect(page.getByText('Watching...', { exact: true })).toBeVisible();
+  await expect(page.locator('.watch-meter--pet').getByText('Comparing with Miso’s photos', { exact: true })).toBeVisible();
 
   // Motion and sound stops the comparison, with no restart of the camera.
   await expect.poll(() => page.evaluate(() => Boolean(document.querySelector('video')?.srcObject)), { timeout: 30_000 }).toBe(true);
   await page.evaluate(() => { (window as unknown as { watchedStream: unknown }).watchedStream = document.querySelector('video')?.srcObject; });
   await motionAndSound(page).check();
   await expect(announced(page, /^Stopped comparing at .+\.$/)).toHaveCount(1);
-  await expect(page.getByText('Watching...', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.watch-meter--pet')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.querySelector('video')?.srcObject === (window as unknown as { watchedStream: unknown }).watchedStream)).toBe(true);
   expect(await storedLostFound(page)).toBe(false);
@@ -295,7 +295,7 @@ test('a pet added on the Lost & Found page is the watch’s pet, compared while 
   // Lost and Found again compares again.
   await lostAndFound(page).check();
   await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
-  await expect(page.getByText('Watching...', { exact: true })).toBeVisible();
+  await expect(page.locator('.watch-meter--pet').getByText('Comparing with Miso’s photos', { exact: true })).toBeVisible();
 
   // The words while it compares: none of a match, a recognition or a score.
   const words = [
@@ -554,7 +554,7 @@ test('offline, Lost and Found shows the pet and compares while the watch runs', 
   await expect(shown(page.getByRole('img', { name: 'Miso’s first saved photo' }))).toBeVisible();
   await page.getByRole('button', { name: 'Start watching', exact: true }).click();
   await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
-  await expect(page.getByText('Watching...', { exact: true })).toBeVisible();
+  await expect(page.locator('.watch-meter--pet').getByText('Comparing with Miso’s photos', { exact: true })).toBeVisible();
 });
 
 test('the arrow keys move between Motion and sound and Lost and Found and choose, with the ring round the group', async ({ page, context }) => {
@@ -726,7 +726,7 @@ test('Clear All Local Data in another tab takes the pets from the open watch and
   await expect(shown(page.getByText('No pet saved', { exact: true }))).toBeVisible({ timeout: 15_000 });
   await expect(announced(page, /^Stopped comparing at .+\.$/)).toHaveCount(1);
   await expect(page.getByText('Comparing with Miso’s photos', { exact: true })).toHaveCount(0);
-  await expect(page.getByText('Watching...', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.watch-meter--pet')).toHaveCount(0);
   await expect(changePet(page)).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('watch-for-cleared-in-another-tab-1280.png') });
 
@@ -779,7 +779,7 @@ test('a read of the saved pets still on its way when another tab clears all loca
   await expect(changePet(page)).toHaveCount(0);
 });
 
-test('the pet on the camera’s picture has no key of its own; Watch for stops the comparison and starts it again', async ({ page, context }) => {
+test('the pet’s meter under the camera’s picture has no key of its own; Watch for stops the comparison and starts it again', async ({ page, context }) => {
   test.setTimeout(120_000);
   await setUpDevice(context, { lostFoundChosen: true });
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -787,20 +787,20 @@ test('the pet on the camera’s picture has no key of its own; Watch for stops t
   await page.getByRole('button', { name: 'Start watching', exact: true }).click();
   await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
 
-  // The pet's name and "Watching..." over the picture: no key there stops the comparison apart from Watch for.
-  const onPicture = page.getByText('Watching...', { exact: true }).locator('xpath=ancestor::div[contains(concat(" ", @class, " "), " absolute ")][1]');
+  // The pet's meter under the picture names the pet: no key there stops the comparison apart from Watch for.
+  const onPicture = page.locator('.watch-meter--pet');
   await expect(onPicture).toBeVisible();
-  await expect(onPicture.getByText('Miso', { exact: true })).toBeVisible();
+  await expect(onPicture.locator('.watch-meter__name', { hasText: 'Miso' })).toBeVisible();
   await expect(onPicture.getByRole('button')).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('watch-for-pet-on-picture-1280.png') });
 
   // Motion and sound stops it and says so; Lost and Found starts it again.
   await motionAndSound(page).check();
   await expect(announced(page, /^Stopped comparing at .+\.$/)).toHaveCount(1);
-  await expect(page.getByText('Watching...', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.watch-meter--pet')).toHaveCount(0);
   await lostAndFound(page).check();
   await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
-  await expect(page.getByText('Watching...', { exact: true })).toBeVisible();
+  await expect(page.locator('.watch-meter--pet').getByText('Comparing with Miso’s photos', { exact: true })).toBeVisible();
 });
 
 test('Continue in setup run again keeps a baby device’s use, with Lost & Found shown as chosen', async ({ page, context }) => {

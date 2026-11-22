@@ -46,6 +46,8 @@ test('a set time of Night at 22:00 makes the watch run at Night at 22:00', async
   // 22:00 and a little past: the check runs once a minute.
   await page.clock.fastForward('01:30');
   await expect.poll(() => savedSetting(page), { timeout: 15_000 }).toBe('night');
+  // The setting in use, in the watch's settings.
+  await page.getByRole('button', { name: 'Show settings', exact: true }).click();
   await expect(page.getByText('Night Mode', { exact: true }).first()).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('set-time-night-1280.png') });
 });
@@ -77,6 +79,7 @@ test('a set time made with the form as it opens puts on a whole setting', async 
 
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   await expect.poll(() => savedValue(page, 'motionSensitivity'), { timeout: 15_000 }).toBe(80);
+  await page.getByRole('button', { name: 'Show settings', exact: true }).click();
   await expect(page.getByText(/^Motion: 80% \| Audio: 80%/)).toBeVisible();
 });
 
@@ -209,6 +212,7 @@ test("a set time in force is put on over the preferences an account brings when 
   await expect.poll(() => savedSetting(page), { timeout: 15_000 }).toBe('night');
   // Night's own values, motion 40 and audio 60, not the account's 30.
   expect(await savedValue(page, 'motionSensitivity')).toBe(40);
+  await page.getByRole('button', { name: 'Show settings', exact: true }).click();
   await expect(page.getByText('Night Mode', { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/^Motion: 40% \| Audio: 60%/)).toBeVisible();
   await page.waitForTimeout(2_000);

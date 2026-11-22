@@ -670,6 +670,8 @@ test.describe('Alerts repeat while the activity goes on', () => {
     });
     const first = await firstAlert(page, 'pixel');
     await runUntil(page, first + 2_000);
+    // The switch is in the watch's settings, folded under Settings for this watch.
+    await page.getByRole('button', { name: 'Show settings', exact: true }).click();
     const pixelSwitch = page.getByRole('switch', { name: 'Toggle pixel detection' });
     await pixelSwitch.click();
     await expect(pixelSwitch).toHaveAttribute('aria-checked', 'false');

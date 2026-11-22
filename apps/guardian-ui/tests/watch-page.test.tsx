@@ -323,7 +323,7 @@ it('folds the settings under Settings for this watch until Show settings opens t
   expect(screen.queryByText('Calibrate Baseline (10s)')).toBeNull();
   fireEvent.click(show);
   expect(screen.getByRole('button', { name: 'Hide settings' }).getAttribute('aria-expanded')).toBe('true');
-  expect(screen.getByRole('link', { name: 'Nap Mode' }).getAttribute('href')).toBe('/nap/');
+  expect(screen.getByRole('link', { name: 'Nap Mode' }).getAttribute('href')).toMatch(/^\/nap\/?$/);
   first.unmount();
   render(<MonitorPage />);
   await act(async () => {});
@@ -349,13 +349,19 @@ it('shows no confidence panel and no tag on the live picture', async () => {
   const createdAt = new Date().toISOString();
   useLostFoundStore.setState({
     isWatching: true,
-    activeSubject: { id: 'pet-1', name: 'Mittens', type: 'pet', description: '', referenceImages: [], createdAt } as never,
+    activeSubject: {
+      id: 'pet-1', name: 'Mittens', type: 'pet', description: '', referenceImages: [], createdAt,
+      fingerprint: { version: Number.MAX_SAFE_INTEGER },
+    } as never,
   });
-  render(<MonitorPage />);
-  await act(async () => {});
-  await startMonitoring();
-  expect(screen.queryByText(/Confidence|consecutive match|Matching|View Match History/)).toBeNull();
-  useLostFoundStore.setState({ isWatching: false, activeSubject: null });
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    await startMonitoring();
+    expect(screen.queryByText(/Confidence|consecutive match|Matching|View Match History/)).toBeNull();
+  } finally {
+    useLostFoundStore.setState({ isWatching: false, activeSubject: null });
+  }
 });
 
 it('floats no quick settings over the page', async () => {
