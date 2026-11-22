@@ -16,11 +16,19 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { useLostFoundStore } from '@/stores/lost-found-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 import { clockTime } from '@/lib/clock-time';
-import * as clientDb from '@/lib/client-db';
 
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 const mockBackendConfig = { wsUrl: 'wss://monitor.example.test' };
 let mockConnected = false;
+// A read of the saved alerts a test holds until it settles it; null reads them as the app does.
+const mockAlertRead: { held: Promise<never[]> | null } = { held: null };
+jest.mock('@/lib/client-db', () => {
+  const actual = jest.requireActual('@/lib/client-db');
+  return {
+    ...actual,
+    getCachedMonitoringAlerts: (...args: unknown[]) => mockAlertRead.held ?? actual.getCachedMonitoringAlerts(...args),
+  };
+});
 jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ config: mockBackendConfig, isConnected: mockConnected }),
 }));
@@ -390,16 +398,20 @@ it('says where alerts show before a watch, and that none came while watching', a
 
 it('holds three bars in the entries\' place until the saved alerts are read', async () => {
   let settle: (alerts: never[]) => void = () => {};
-  jest.spyOn(clientDb, 'getCachedMonitoringAlerts').mockReturnValue(new Promise((resolve) => { settle = resolve; }) as never);
+  mockAlertRead.held = new Promise((resolve) => { settle = resolve; });
   useMonitoringStore.setState({ alertsRead: false });
-  render(<MonitorPage />);
-  await act(async () => {});
-  expect(screen.getByRole('heading', { level: 2, name: 'Alerts' })).toBeTruthy();
-  expect(document.querySelectorAll('.watch-list__wait')).toHaveLength(3);
-  expect(screen.queryByText('Alerts show here while this device watches.')).toBeNull();
-  await act(async () => { settle([]); });
-  expect(document.querySelectorAll('.watch-list__wait')).toHaveLength(0);
-  expect(screen.getByText('Alerts show here while this device watches.')).toBeTruthy();
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    expect(screen.getByRole('heading', { level: 2, name: 'Alerts' })).toBeTruthy();
+    expect(document.querySelectorAll('.watch-list__wait')).toHaveLength(3);
+    expect(screen.queryByText('Alerts show here while this device watches.')).toBeNull();
+    await act(async () => { settle([]); });
+    expect(document.querySelectorAll('.watch-list__wait')).toHaveLength(0);
+    expect(screen.getByText('Alerts show here while this device watches.')).toBeTruthy();
+  } finally {
+    mockAlertRead.held = null;
+  }
 });
 
 it('counts the new alerts beside the heading', async () => {
