@@ -186,7 +186,9 @@ test('Silent quiet hours that begin while the watch runs keep the next match fro
   // A start already on its way may still count.
   await page.waitForTimeout(1_500);
   const atQuiet = await timesPlayed(page);
+  const framesAtQuiet = await savedMatchFrames(page);
   await page.waitForTimeout(6_000);
-  expect(await savedMatchFrames(page)).toBeGreaterThan(0);
+  // The comparison goes on: it saves frames after quiet hours begin.
+  await expect.poll(() => savedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(framesAtQuiet);
   expect(await timesPlayed(page), 'no match plays the saved sound once quiet hours begin').toBe(atQuiet);
 });
