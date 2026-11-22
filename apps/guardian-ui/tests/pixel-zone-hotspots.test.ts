@@ -43,6 +43,8 @@ it('names, for each zone, the parts of the picture that changed inside it, befor
       { id: 'right', x: 50, y: 0, width: 50, height: 100 },
     ],
   });
+  // The check compares a picture with the one before the last: two still pictures come first.
+  engine.analyzeImageData(picture(() => 0));
   engine.analyzeImageData(picture(() => 0));
   // Half of the left zone's top left part of the 8 by 8 grid changes; the whole right zone changes.
   const result = engine.analyzeImageData(picture((x, y) => ((x < 5 && y < 10) || x >= 40 ? 255 : 0)));
@@ -58,5 +60,5 @@ it('names, for each zone, the parts of the picture that changed inside it, befor
   expect(left?.hotspots?.[0].intensity).toBe(50);
   // The right zone's own list holds only parts inside it.
   expect(right?.hotspots?.length).toBeGreaterThan(0);
-  expect(right?.hotspots?.every((part) => part.x > 50)).toBe(true);
+  expect(right?.hotspots?.every((part: { x: number }) => part.x > 50)).toBe(true);
 });
