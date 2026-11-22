@@ -438,7 +438,9 @@ export default function MonitorPage() {
       // Watch for runs the way the dashboard's key named.
       useOnboardingStore.getState().setLostFoundChosen(lostFound);
       pendingStart.current = null;
-      startStream();
+      // On a device that has not answered the notice about alert pictures it opens first; Go
+      // back closes the camera the dashboard opened for this start.
+      startStream(dropStart);
     })();
     return () => {
       live = false;

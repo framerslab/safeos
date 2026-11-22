@@ -19,6 +19,7 @@ import type { CSSProperties } from 'react';
 
 import type { Alert } from '../../stores/monitoring-store';
 import { cardTime } from '../../lib/alert-event';
+import { recordTime } from '../../lib/alert-groups';
 import { kindOfAlert, type AlertKind, type Box } from '../../lib/alert-pictures/rules';
 import { usePicture, usePictureStoreState, type PictureView } from '../../lib/alert-pictures/keeper';
 import type { PictureSet } from '../../lib/alert-pictures/capture';
@@ -63,10 +64,13 @@ interface PictureBlockProps {
   form: 'large' | 'small' | 'row';
 }
 
-/** The time a card's words say: its newest alert's. */
+/**
+ * The time a card's words say: its newest alert's. A time that does not parse is read by the
+ * alerts' own rule (its other date, else the time its id carries); now only when none is known.
+ */
 export function alertMoment(alert: Alert): number {
   const at = Date.parse(cardTime(alert) ?? '');
-  return Number.isFinite(at) ? at : Date.now();
+  return Number.isFinite(at) ? at : recordTime(alert) ?? Date.now();
 }
 
 /** A frame taller than 4:3 stands whole inside a 4:3 tile. */

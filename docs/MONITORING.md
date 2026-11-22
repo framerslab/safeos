@@ -275,7 +275,9 @@ can open SafeOS in this browser can see them, when to ask first, and what the la
 camera that sees a street or a neighbour's home. It carries the **Keep alert pictures** switch
 and **Delete pictures after** (1, 3, 7 or 30 days, or "Until I delete them"; 3 days unless
 chosen). **Start watching** keeps the choice and starts the watch; **Go back** starts nothing
-and the notice opens again at the next start. No picture is kept before it is answered.
+and the notice opens again at the next start. The dashboard's start key opens it on Motion and
+sound's page before the watch, and there **Go back** also closes the camera the dashboard opened
+for that start. No picture is kept before it is answered.
 Setup's camera step shows the same title, switch, choice and lines: going on past that step
 (**Continue**, or **Continue without the camera**) answers the notice with the choice as set
 there, so the first watch starts with no notice; **Back** answers nothing. Running setup again
