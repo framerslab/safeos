@@ -163,3 +163,146 @@ it('says when a camera that was watching stopped, and gives Start watching back'
   expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Stop watching' })).toBeNull();
 });
+
+// =============================================================================
+// The meters
+// =============================================================================
+
+// The alert walk's own setting: the Custom preset, Motion's line at 20, the
+// Picture change and Sound alerts off.
+const MOTION_ONLY = {
+  id: 'custom' as const,
+  name: 'Maximum Alert',
+  description: 'High sensitivity (80%) and max volume.',
+  motionSensitivity: 80,
+  audioSensitivity: 80,
+  pixelThreshold: 20,
+  absolutePixelThreshold: 50,
+  analysisInterval: 5,
+  alertDelay: 30,
+  alertVolume: 100,
+  emergencyMode: false,
+  pixelDetectionEnabled: false,
+  motionDetectionEnabled: true,
+  audioDetectionEnabled: false,
+  processingMode: 'hybrid' as const,
+  useAbsoluteThreshold: false,
+};
+const seedMotionOnly = () => {
+  useSettingsStore.setState({ activePresetId: 'custom', globalSettings: { ...useSettingsStore.getState().globalSettings, ...MOTION_ONLY } });
+};
+const meter = (name: string) => screen.getByRole('meter', { name: `${name} level` });
+const valueText = (name: string) => meter(name).getAttribute('aria-valuetext');
+const reducedMotion = (reduce: boolean) => {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (query: string) => ({
+      matches: reduce && query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+    }),
+  });
+};
+
+it('reads the Motion meter against its line and says when it is over', async () => {
+  seedMotionOnly();
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  act(() => useMonitoringStore.getState().setMotionScore(25));
+  expect(valueText('Motion')).toBe('25 per cent, line at 20, Over the line');
+  expect(within(meter('Motion').closest('.watch-meter') as HTMLElement).getByText('Over the line')).toBeTruthy();
+  act(() => useMonitoringStore.getState().setMotionScore(5));
+  expect(valueText('Motion')).toBe('5 per cent, line at 20, Quiet');
+});
+
+it('shows Sound with No alert and no line where the setting turns sound alerts off', async () => {
+  seedMotionOnly();
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  act(() => useMonitoringStore.getState().setAudioLevel(12));
+  expect(valueText('Sound')).toMatch(/^\d+ per cent, No alert$/);
+  expect(meter('Sound').closest('.watch-meter')?.querySelector('.watch-meter__line')).toBeNull();
+});
+
+it('shows no Picture change meter where the setting does not check it', async () => {
+  seedMotionOnly();
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(screen.queryByRole('meter', { name: 'Picture change level' })).toBeNull();
+});
+
+it('shows the names over empty tracks with no state word until the first reading', async () => {
+  seedMotionOnly();
+  browser.getUserMedia.mockReturnValue(new Promise(() => {}));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  const strip = document.querySelector('.watch-meters') as HTMLElement;
+  expect(strip).not.toBeNull();
+  expect(within(strip).getByText('Motion')).toBeTruthy();
+  expect(within(strip).getByText('Sound')).toBeTruthy();
+  for (const word of ['Quiet', 'Over the line', 'No alert']) expect(within(strip).queryByText(word)).toBeNull();
+  expect(meter('Motion').getAttribute('aria-valuetext')).toBeNull();
+});
+
+it('steps each meter once a second under reduced motion', async () => {
+  reducedMotion(true);
+  seedMotionOnly();
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  act(() => useMonitoringStore.getState().setMotionScore(10));
+  act(() => { jest.advanceTimersByTime(1000); });
+  expect(meter('Motion').getAttribute('aria-valuenow')).toBe('10');
+  act(() => useMonitoringStore.getState().setMotionScore(30));
+  expect(meter('Motion').getAttribute('aria-valuenow')).toBe('10');
+  act(() => { jest.advanceTimersByTime(1000); });
+  expect(meter('Motion').getAttribute('aria-valuenow')).toBe('30');
+  reducedMotion(false);
+});
+
+it('names a missing microphone beside Sound, and Motion goes on', async () => {
+  seedMotionOnly();
+  browser.getUserMedia.mockImplementation((asked: MediaStreamConstraints) =>
+    asked.audio ? Promise.reject(new DOMException('', 'NotFoundError')) : Promise.resolve(browser.stream));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(screen.getByText('No microphone found. Sound alerts are off. Connect a microphone, then stop and start watching.')).toBeTruthy();
+  expect(meter('Motion')).toBeTruthy();
+});
+
+it('names a blocked microphone beside Sound, and Motion goes on', async () => {
+  seedMotionOnly();
+  Object.defineProperty(navigator, 'permissions', {
+    configurable: true,
+    value: { query: jest.fn().mockResolvedValue({ state: 'granted', addEventListener() {}, removeEventListener() {} }) },
+  });
+  browser.getUserMedia.mockImplementation((asked: MediaStreamConstraints) =>
+    asked.audio ? Promise.reject(new DOMException('', 'NotAllowedError')) : Promise.resolve(browser.stream));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  await act(async () => {});
+  expect(
+    screen.getByText(
+      'The browser blocked the microphone for this site. To allow it, open the site settings from the address bar, set Microphone to Allow, then stop and start watching.',
+    ),
+  ).toBeTruthy();
+  expect(meter('Motion')).toBeTruthy();
+  Object.defineProperty(navigator, 'permissions', { configurable: true, value: undefined });
+});
+
+it('shows none of the five old tiles', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  for (const word of ['Stream', 'Mode', 'Pixel']) expect(screen.queryByText(new RegExp(`^${word}$`, 'i'))).toBeNull();
+  expect(screen.queryByText(/^Threshold \d+px$/)).toBeNull();
+});
