@@ -33,8 +33,10 @@ export interface WatchFrameProps {
   noPetLine: boolean;
   onStart: (key: HTMLButtonElement) => void;
   onTryAgain: () => void;
-  /** The bare camera feed; while live, the strip and the live box over it. */
+  /** The bare camera feed and what stands over the live picture. */
   children: ReactNode;
+  /** The meters' strip along the picture's foot, inside the ticks. */
+  strip?: ReactNode;
 }
 
 export const STARTING_WORDS = 'Starting the camera…';
@@ -60,6 +62,7 @@ export function WatchFrame({
   onStart,
   onTryAgain,
   children,
+  strip,
 }: WatchFrameProps) {
   const drawnRef = useRef<HTMLDivElement>(null);
   const previous = useRef<FramePhase>(phase);
@@ -88,51 +91,54 @@ export function WatchFrame({
 
   return (
     <div className="watch-frame" data-phase={phase}>
-      <div className="watch-frame__picture">{children}</div>
-      <CornerTicks />
-      {phase !== 'live' && (
-        <div ref={drawnRef} className="watch-frame__drawn">
-          {(phase === 'off' || phase === 'starting') && (
-            <>
-              <CameraGlyph />
-              {otherTab && phase === 'off' && (
-                <p role="status" aria-live="polite" className="watch-frame__line">
-                  {OTHER_TAB_LINE}
+      <div className="watch-frame__screen">
+        <div className="watch-frame__picture">{children}</div>
+        {phase !== 'live' && (
+          <div ref={drawnRef} className="watch-frame__drawn">
+            {(phase === 'off' || phase === 'starting') && (
+              <>
+                <CameraGlyph />
+                {otherTab && phase === 'off' && (
+                  <p role="status" aria-live="polite" className="watch-frame__line">
+                    {OTHER_TAB_LINE}
+                  </p>
+                )}
+                {phase === 'off' ? startKey : <StartingKey />}
+                {noPetLine && <p className="watch-frame__line">{NO_PET_FRAME_LINE}</p>}
+                {askLine && <p className="watch-frame__line">{ASK_LINE}</p>}
+              </>
+            )}
+            {phase === 'failed' && failure && (
+              <>
+                <p role="status" aria-live="polite" className="watch-frame__line watch-frame__problem">
+                  <ProblemMark />
+                  <span>{CAMERA_FAILURE_WORDS[failure]}</span>
                 </p>
-              )}
-              {phase === 'off' ? startKey : <StartingKey />}
-              {noPetLine && <p className="watch-frame__line">{NO_PET_FRAME_LINE}</p>}
-              {askLine && <p className="watch-frame__line">{ASK_LINE}</p>}
-            </>
-          )}
-          {phase === 'failed' && failure && (
-            <>
-              <p role="status" aria-live="polite" className="watch-frame__line watch-frame__problem">
-                <ProblemMark />
-                <span>{CAMERA_FAILURE_WORDS[failure]}</span>
-              </p>
-              {canTryAgain && (
-                <button
-                  type="button"
-                  className="key key--outline watch-try"
-                  onClick={onTryAgain}
-                >
-                  Try again
-                </button>
-              )}
-            </>
-          )}
-          {phase === 'stopped' && stoppedAt !== null && (
-            <>
-              <p role="status" aria-live="polite" className="watch-frame__line">
-                {cameraStoppedLine(stoppedAt)}
-              </p>
-              {startKey}
-            </>
-          )}
-        </div>
-      )}
-      {phase === 'starting' && <span className="watch-frame__starting" aria-hidden="true" />}
+                {canTryAgain && (
+                  <button
+                    type="button"
+                    className="key key--outline watch-try"
+                    onClick={onTryAgain}
+                  >
+                    Try again
+                  </button>
+                )}
+              </>
+            )}
+            {phase === 'stopped' && stoppedAt !== null && (
+              <>
+                <p role="status" aria-live="polite" className="watch-frame__line">
+                  {cameraStoppedLine(stoppedAt)}
+                </p>
+                {startKey}
+              </>
+            )}
+          </div>
+        )}
+        {phase === 'starting' && <span className="watch-frame__starting" aria-hidden="true" />}
+      </div>
+      {strip}
+      <CornerTicks />
       <p role="status" aria-live="polite" className="sr-only">
         {phase === 'starting' ? STARTING_WORDS : ''}
       </p>

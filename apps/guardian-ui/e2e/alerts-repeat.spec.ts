@@ -126,7 +126,10 @@ const cooldownPeriod = (seconds: number) => ({
   emergencyEscalationDelay: 300,
 });
 
-const LINES: Record<Kind, number> = { motion: 20, pixel: 50, audio: 5 };
+// Each meter's alert line on its 0 to 100 track: Motion at 20, Sound at 5,
+// and Picture change at 20, where its bar stands exactly when the check says
+// yes (its own line is 50 changed pixels).
+const LINES: Record<Kind, number> = { motion: 20, pixel: 20, audio: 5 };
 
 async function openMonitor(page: Page, seed: Seed): Promise<void> {
   await page.addInitScript((s: Seed) => {
@@ -185,7 +188,8 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
       ['pixel', /^Pixel movement detected/],
       ['audio', /^Audio detected: \d+%/],
     ];
-    const READOUTS: Array<[Kind, string]> = [['motion', 'Motion'], ['pixel', 'Pixel'], ['audio', 'Audio']];
+    // Each kind's meter under the live picture, read from its value.
+    const READOUTS: Array<[Kind, string]> = [['motion', 'Motion level'], ['pixel', 'Picture change level'], ['audio', 'Sound level']];
     const look = () => {
       const now = Date.now();
       const lines = Array.from(document.querySelectorAll('p'));
@@ -201,11 +205,10 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
         walk.cards[kind] = cards;
         while (walk.alerts[kind].length < alerts) walk.alerts[kind].push(now);
       }
-      const heads = Array.from(document.querySelectorAll('div.uppercase'));
       for (const [kind, label] of READOUTS) {
-        const head = heads.find((d) => d.textContent === label && d.nextElementSibling?.classList.contains('text-xl'));
-        if (!head) continue;
-        const value = parseFloat(head.nextElementSibling?.textContent || '');
+        const meter = document.querySelector(`[role="meter"][aria-label="${label}"]`);
+        if (!meter || !meter.hasAttribute('aria-valuetext')) continue;
+        const value = parseFloat(meter.getAttribute('aria-valuenow') || '');
         if (!Number.isFinite(value)) continue;
         const list = walk.readings[kind];
         if (list.length === 0 || list[list.length - 1][1] !== value) list.push([now, value]);

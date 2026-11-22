@@ -97,13 +97,14 @@ async function walk(
     await page.getByRole('button', { name: 'Start watching', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
 
-    const level = page.locator('div.uppercase:text-is("Audio") + div.text-xl');
+    // The Sound meter under the live picture, read from its value.
+    const level = page.getByRole('meter', { name: 'Sound level' });
     await expect(level).toBeVisible();
     // The microphone's first second, while the browser starts it, is not read.
     await page.waitForTimeout(1_000);
     const readings: number[] = [];
     for (let i = 0; i < 30; i++) {
-      readings.push(Number.parseFloat((await level.textContent()) ?? ''));
+      readings.push(Number.parseFloat((await level.getAttribute('aria-valuenow')) ?? ''));
       await page.waitForTimeout(200);
     }
     const alerts = await page.locator('p').filter({ hasText: /^Audio detected: \d+%/ }).count();

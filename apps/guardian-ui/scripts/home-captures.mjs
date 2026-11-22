@@ -100,7 +100,7 @@ async function seededContext(browser, options) {
 }
 
 // Opens the monitor, presses its own start key and waits for the alert list
-// to hold a motion alert. Returns once the Motion indicator is over its line.
+// to hold a motion alert. Returns once the Motion meter is over its line.
 async function watchUntilMotionAlert(page, name) {
   await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-settings') || '{}').state || {});
@@ -119,102 +119,79 @@ async function watchUntilMotionAlert(page, name) {
   const motionAt = ((Date.now() - started) / 1000).toFixed(1);
   console.log(`${name}: the alert list holds a motion alert ${motionAt} s after the camera went live`);
   console.log(`${name}: motion alert reads "${(await page.getByText(MOTION_ALERT).first().textContent()).trim()}"`);
-  // The Motion indicator turns to its alert colour while the reading is at or
-  // over the line; the capture is saved while it is.
-  const indicator = page.getByRole('status', { name: /^Motion level/ });
-  await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
-  console.log(`${name}: Motion indicator before saving: "${await indicator.getAttribute('aria-label')}"`);
+  // The Motion meter reads "Over the line" while the reading is at or over
+  // its line, its bar past the line in the alert colour; the capture is saved
+  // while it does.
+  const indicator = page.getByRole('meter', { name: 'Motion level' });
+  await overTheLine(page, 60_000);
+  console.log(`${name}: Motion meter before saving: "${await indicator.getAttribute('aria-valuetext')}"`);
   return { indicator };
 }
 
-// The monitor's readout tiles (Motion, Audio, Pixel, Stream, Mode) that a
-// crop would cut: a tile is wholly in the picture or wholly out of it.
-async function tilesCutBy(page, frame) {
+// Waits until the Motion meter reads over its line.
+function overTheLine(page, timeout) {
+  return page.waitForFunction(() => /Over the line$/.test(
+    document.querySelector('[role="meter"][aria-label="Motion level"]')?.getAttribute('aria-valuetext') || '',
+  ), null, { timeout, polling: 100 });
+}
+
+// The meters under the live picture that a crop would cut: a meter is wholly
+// in the picture or wholly out of it.
+async function metersCutBy(page, frame) {
   return page.evaluate((f) => {
-    const label = [...document.querySelectorAll('main div')].find((element) => element.children.length === 0 && element.textContent.trim() === 'Stream');
-    const grid = label?.parentElement?.parentElement;
-    if (!grid) return ['(the readout tiles were not found)'];
-    return [...grid.children].filter((tile) => {
-      const box = tile.getBoundingClientRect();
+    const meters = [...document.querySelectorAll('.watch-meter')];
+    if (meters.length === 0) return ['(the meters were not found)'];
+    return meters.filter((meter) => {
+      const box = meter.getBoundingClientRect();
       const right = f.x + f.width;
       const bottom = f.y + f.height;
       const inside = box.left >= f.x - 0.5 && box.right <= right + 0.5 && box.top >= f.y - 0.5 && box.bottom <= bottom + 0.5;
       const apart = box.right <= f.x + 0.5 || box.left >= right - 0.5 || box.bottom <= f.y + 0.5 || box.top >= bottom - 0.5;
       return !inside && !apart;
-    }).map((tile) => tile.firstElementChild?.textContent.trim() || tile.textContent.trim().slice(0, 20));
+    }).map((meter) => meter.querySelector('.watch-meter__name')?.textContent.trim() || '(a meter)');
   }, frame);
 }
 
-// What collides in the camera view's own overlay at the width a picture is
-// taken at: the LIVE badge under the Motion indicator, or a reading past the
-// edge of the readout strip. The monitor draws both clear at 390 px; a
-// picture of a monitor narrowed until they collide is not kept.
-async function overlayCollisions(page) {
+// What collides in the meters' strip at the width a picture is taken at: a
+// meter's state word over its name. The watch draws them clear at 390 px; a
+// picture of a watch narrowed until they collide is not kept.
+async function meterCollisions(page) {
   return page.evaluate(() => {
     const out = [];
-    const spans = [...document.querySelectorAll('span')];
-    const live = spans.find((element) => element.textContent.trim() === 'LIVE')?.parentElement?.getBoundingClientRect();
-    const motion = document.querySelector('[role="status"][aria-label^="Motion level"]')?.getBoundingClientRect();
-    if (!live || !motion) out.push('the LIVE badge or the Motion indicator was not found');
-    else if (live.right > motion.left + 0.5) {
-      out.push(`the LIVE badge, which ends at ${Math.round(live.right)} px, runs under the Motion indicator, which starts at ${Math.round(motion.left)} px`);
-    }
-    const cells = spans.find((element) => element.textContent.trim() === 'Threshold:')?.parentElement?.parentElement;
-    const strip = cells?.parentElement;
-    if (!cells || !strip) out.push('the readout strip was not found');
-    else {
-      const edge = strip.getBoundingClientRect().right;
-      for (const cell of cells.children) {
-        const right = Math.max(...[...cell.children].map((element) => element.getBoundingClientRect().right));
-        if (right > edge + 0.5) {
-          out.push(`"${cell.textContent.replace(/:/, ': ').trim()}" runs to ${Math.round(right)} px, past the readout strip's edge at ${Math.round(edge)} px`);
-        }
-      }
+    const meters = [...document.querySelectorAll('.watch-meter:not(.watch-meter--pet)')];
+    if (meters.length === 0) out.push('the meters were not found');
+    for (const meter of meters) {
+      const name = meter.querySelector('.watch-meter__name')?.getBoundingClientRect();
+      const state = meter.querySelector('.watch-meter__state')?.getBoundingClientRect();
+      if (!name || !state) continue;
+      const apart = state.left >= name.right - 0.5 || state.top >= name.bottom - 0.5;
+      if (!apart) out.push(`the state word of ${meter.querySelector('.watch-meter__name').textContent.trim()} runs over its name`);
     }
     return out;
   });
 }
 
-// The portrait crop, from the 390 px monitor as it stands: the camera view
-// and the first two rows of readout tiles, every tile wholly in it. It is as
-// wide as the column and ends midway between the second and third rows, so
-// its ratio is its own, near 4:5 (a 4:5 frame of that width would end inside
-// the third row). The home page gives its box the ratio of the file.
+// The portrait crop, from the 390 px watch as it stands: the camera's frame,
+// its live picture and the meters' strip under it, the corner ticks inside
+// the crop. The home page gives its box the ratio of the file.
 async function portraitFrame(page, name) {
-  const margin = 4;
-  const layout = await page.evaluate(() => {
-    const view = document.querySelector('video')?.parentElement?.getBoundingClientRect();
-    const label = [...document.querySelectorAll('main div')].find((element) => element.children.length === 0 && element.textContent.trim() === 'Stream');
-    const grid = label?.parentElement?.parentElement;
-    if (!view || !grid) return null;
-    const tiles = [...grid.children].map((tile) => tile.getBoundingClientRect());
-    const rows = [...new Set(tiles.map((box) => Math.round(box.top)))].sort((a, b) => a - b);
-    const gridBox = grid.getBoundingClientRect();
-    return {
-      top: view.top,
-      left: Math.min(view.left, gridBox.left),
-      right: Math.max(view.right, gridBox.right),
-      rows: rows.length,
-      secondBottom: Math.max(...tiles.filter((box) => Math.round(box.top) <= rows[1]).map((box) => box.bottom)),
-      thirdTop: rows.length > 2 ? rows[2] : null,
-    };
-  });
-  if (!layout) throw new Error(`${name}: the camera view or the readout tiles were not found`);
-  if (layout.rows < 2) throw new Error(`${name}: the readout tiles are in ${layout.rows} row, not two or more`);
-  const x = Math.floor(layout.left - margin);
-  const width = Math.ceil(layout.right + margin) - x;
-  const bottom = layout.thirdTop === null ? layout.secondBottom + 2 * margin : (layout.secondBottom + layout.thirdTop) / 2;
-  const height = Math.round(bottom - layout.top);
+  const margin = 8;
+  const box = await page.locator('.watch-frame').first().boundingBox();
+  if (!box) throw new Error(`${name}: the camera's frame was not found`);
+  const x = Math.floor(box.x - margin);
+  const y = Math.floor(box.y - margin);
+  const width = Math.ceil(box.x + box.width + margin) - x;
+  const height = Math.ceil(box.y + box.height + margin) - y;
   const ratio = width / height;
-  if (ratio < 0.78 || ratio > 0.9) {
-    throw new Error(`${name}: the camera view with two rows of readout tiles is ${width} by ${height} px, ${ratio.toFixed(3)} wide for its height, not near 4:5`);
+  if (ratio < 0.6 || ratio > 1.6) {
+    throw new Error(`${name}: the frame with its meters is ${width} by ${height} px, ${ratio.toFixed(3)} wide for its height`);
   }
-  return { x, y: layout.top, width, height };
+  return { x, y, width, height };
 }
 
-// Every crop shows the Motion indicator in its alert colour, as its text
-// equivalent says: the picture is taken while the indicator reads "motion
-// detected" and kept only if it still does once the picture is saved;
+// Every crop shows the Motion meter over its line, as its text equivalent
+// says: the picture is taken while the meter reads "Over the line" and kept
+// only if it still does once the picture is saved;
 // otherwise it is taken again at the next motion, up to five times. A crop
 // that runs past the edge of the screen is saved cut short, so a picture is
 // kept only at the size its crop asks for: it is written beside its name and
@@ -222,14 +199,14 @@ async function portraitFrame(page, name) {
 async function saveCrop(page, relative, clip, details) {
   const file = path.join(outDir, relative);
   const taken = `${file}.taking.png`;
-  const indicator = page.getByRole('status', { name: /^Motion level/ });
+  const indicator = page.getByRole('meter', { name: 'Motion level' });
   for (let attempt = 1; ; attempt += 1) {
-    await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
+    await overTheLine(page, 60_000);
     await page.screenshot({ path: taken, clip });
-    const after = (await indicator.getAttribute('aria-label')) || '';
-    if (after.includes('motion detected')) break;
-    if (attempt === 5) throw new Error(`${relative}: the Motion indicator left its alert state while each of five pictures was taken`);
-    console.log(`${relative}: the Motion indicator read "${after}" once the picture was saved; taking it again`);
+    const after = (await indicator.getAttribute('aria-valuetext')) || '';
+    if (/Over the line$/.test(after)) break;
+    if (attempt === 5) throw new Error(`${relative}: the Motion meter left its line while each of five pictures was taken`);
+    console.log(`${relative}: the Motion meter read "${after}" once the picture was saved; taking it again`);
   }
   const size = pngSize(await readFile(taken));
   const asked = { width: clip.width * details.deviceScaleFactor, height: clip.height * details.deviceScaleFactor };
@@ -274,22 +251,22 @@ try {
       const name = `390 px monitor, ${look}`;
       try {
         const { indicator } = await watchUntilMotionAlert(page, name);
-        const view = await page.locator('video').first().locator('xpath=..').boundingBox();
+        const view = await page.locator('.watch-frame__screen').first().boundingBox();
         if (!view || view.width < 300 || view.width > 390) throw new Error(`${name}: the camera view is ${view ? Math.round(view.width) : 'not'} px wide`);
         const width = Math.floor(view.width);
         const details = { look, viewport: `${viewport.width}x${viewport.height}`, deviceScaleFactor: scale };
         await saveCrop(page, `home/capture-phone-${look}.png`,
           { x: view.x, y: view.y, width, height: Math.round(width * 9 / 16) }, { ...details, crop: 'camera view, 16:9' });
-        console.log(`${name}: Motion indicator after the camera view was saved: "${await indicator.getAttribute('aria-label')}"`);
+        console.log(`${name}: Motion meter after the camera view was saved: "${await indicator.getAttribute('aria-valuetext')}"`);
         const portrait = await portraitFrame(page, name);
         console.log(`${name}: the portrait crop is ${portrait.width} by ${portrait.height} CSS px, ${(portrait.width / portrait.height).toFixed(3)} wide for its height`);
-        const cut = await tilesCutBy(page, portrait);
-        if (cut.length > 0) throw new Error(`${name}: the portrait crop cuts the readout tiles ${cut.join(', ')}`);
-        const collisions = await overlayCollisions(page);
+        const cut = await metersCutBy(page, portrait);
+        if (cut.length > 0) throw new Error(`${name}: the portrait crop cuts the meters ${cut.join(', ')}`);
+        const collisions = await meterCollisions(page);
         if (collisions.length > 0) throw new Error(`${name}: at ${viewport.width} px, where the portrait crop is taken, ${collisions.join('; ')}`);
         await saveCrop(page, `home/capture-portrait-${look}.png`, portrait,
-          { ...details, crop: 'camera view with two rows of its readings, near 4:5' });
-        console.log(`${name}: Motion indicator after the portrait crop was saved: "${await indicator.getAttribute('aria-label')}"`);
+          { ...details, crop: 'camera frame with its meters' });
+        console.log(`${name}: Motion meter after the portrait crop was saved: "${await indicator.getAttribute('aria-valuetext')}"`);
         portraitForCard[look] = path.join(outDir, `home/capture-portrait-${look}.png`);
       } catch (err) {
         failures += 1;
@@ -314,9 +291,17 @@ try {
           .catch(() => { throw new Error(`${name}: the alert list holds no sound alert`); });
         const sound = await page.getByText(SOUND_ALERT).count();
         console.log(`${name}: the alert list holds ${sound} sound alert${sound === 1 ? '' : 's'}`);
-        await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
-        const gridPart = page.locator('main > div.grid').first();
-        let grid = await gridPart.boundingBox();
+        await overTheLine(page, 60_000);
+        // The crop starts 8 px over the camera's frame, across the watch's
+        // two columns: the frame and its meters beside the alert list.
+        const framePart = page.locator('.watch-grid__frame').first();
+        const gridPart = page.locator('.watch-grid').first();
+        const placed = async () => {
+          const whole = await gridPart.boundingBox();
+          const frame = await framePart.boundingBox();
+          return whole && frame ? { x: whole.x, y: frame.y - 8, width: whole.width } : null;
+        };
+        let grid = await placed();
         if (!grid || grid.width < 1100 || grid.width > 1280) throw new Error(`${name}: the monitor's grid is ${grid ? Math.round(grid.width) : 'not'} px wide`);
         const width = Math.floor(grid.width);
         const height = Math.round(width * 10 / 16);
@@ -326,14 +311,14 @@ try {
         const lacking = Math.ceil(grid.y + height - viewport.height);
         if (lacking > 0) {
           await page.evaluate((by) => window.scrollBy({ top: by, behavior: 'instant' }), lacking + 8);
-          grid = await gridPart.boundingBox();
+          grid = await placed();
           if (!grid) throw new Error(`${name}: the monitor's grid was not found once the page had moved up`);
           console.log(`${name}: the landscape crop ran ${lacking} px past the foot of the screen; the page moved up and the grid starts ${grid.y.toFixed(1)} px down it`);
         }
         await saveCrop(page, `home/capture-landscape-${look}.png`,
           { x: grid.x, y: grid.y, width, height },
           { look, viewport: `${viewport.width}x${viewport.height}`, deviceScaleFactor: scale, crop: 'camera view beside the alert list, 16:10' });
-        console.log(`${name}: Motion indicator after saving: "${await indicator.getAttribute('aria-label')}"`);
+        console.log(`${name}: Motion meter after saving: "${await indicator.getAttribute('aria-valuetext')}"`);
       } catch (err) {
         failures += 1;
         console.error(`failed ${name}: ${err.message}`);

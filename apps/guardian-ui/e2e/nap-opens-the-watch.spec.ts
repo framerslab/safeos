@@ -88,9 +88,9 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   expect(await page.evaluate(() => window.history.state?.safeosNap?.minutes)).toBe(15);
   await page.screenshot({ path: test.info().outputPath('nap-resume-1280.png') });
   await resume.click();
-  // The camera runs again: the key reads Stop watching and the Stream tile reads Active.
+  // The camera runs again: the key reads Stop watching and the Motion meter reads the live picture.
   await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('Stream', { exact: true }).locator('xpath=following-sibling::div[1]')).toHaveText('Active', { timeout: 30_000 });
+  await expect(page.getByRole('meter', { name: 'Motion level' })).toHaveAttribute('aria-valuetext', /per cent/, { timeout: 30_000 });
 });
 
 test('says when quiet hours will silence a nap, and End nap ends a nap whose camera failed', async ({ page, context }) => {
@@ -122,7 +122,9 @@ test('says when quiet hours will silence a nap, and End nap ends a nap whose cam
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   const endNap = page.getByRole('button', { name: 'End nap', exact: true });
   await expect(endNap).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('button', { name: 'Start watching', exact: true })).toBeVisible();
+  // The frame names the blocked camera with its fix and Try again.
+  await expect(page.locator('.watch-frame').getByText(/^The browser blocked the camera for this site\./)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('nap-camera-failed-1280.png') });
   await endNap.click();
   await expect(endNap).toHaveCount(0);

@@ -44,6 +44,8 @@ import { announceWatch, useOtherTabWatch } from '../../lib/tab-channel';
 import { useCameraAsk } from '../../lib/browser-asks';
 import { cameraFailureOf, type CameraFailure, type MicrophoneProblem } from '../../lib/camera-failure';
 import { WatchFrame, type FramePhase } from '../../components/watch/WatchFrame';
+import { Meters, type MeterRow } from '../../components/watch/Meters';
+import { levelMeter, pictureChangeMeter } from '../../lib/watch-meters';
 import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
 import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
@@ -761,7 +763,7 @@ export default function MonitorPage() {
   }, [currentPreset.pixelDetectionEnabled]);
 
   const [pixelChangePercent, setPixelChangePercent] = useState(0);
-  const [pixelChangedPixels, setPixelChangedPixels] = useState(0);
+  const [, setPixelChangedPixels] = useState(0);
   const [pixelZoneStatus, setPixelZoneStatus] = useState<null | {
     zoneName: string | null;
     changedPx: number;
@@ -979,6 +981,11 @@ export default function MonitorPage() {
     setMotionScore(score);
   }, [setMotionScore]);
 
+  // With zones set, the Motion meter reads the zone whose reading stands
+  // highest over its own line: the zone an alert reads.
+  const [motionZone, setMotionZone] = useState<{ score: number; threshold: number } | null>(null);
+  const zonesSet = detectionZones.some((zone) => zone.enabled && !(zone.x === 0 && zone.y === 0 && zone.width === 100 && zone.height === 100));
+
   const handleMotionZones = useCallback((zones: Array<{ id: string; name: string; score: number }>) => {
     if (!currentPreset.motionDetectionEnabled || !isStreaming) {
       endDetectorEvent(motionEventRef.current);
@@ -989,14 +996,17 @@ export default function MonitorPage() {
     const now = Date.now();
 
     let best: { id: string; name: string; score: number; threshold: number; delta: number } | null = null;
+    let highest: { score: number; threshold: number; delta: number } | null = null;
     for (const z of zones) {
       const override = detectionZones.find((dz) => dz.id === z.id)?.sensitivityOverride?.motion;
       const threshold = override !== undefined ? sensitivityToThreshold(override) : globalThreshold;
       const delta = z.score - threshold;
+      if (!highest || delta > highest.delta) highest = { score: z.score, threshold, delta };
       if (delta >= 0 && (!best || delta > best.delta)) {
         best = { id: z.id, name: z.name, score: z.score, threshold, delta };
       }
     }
+    setMotionZone(highest ? { score: highest.score, threshold: highest.threshold } : null);
 
     const severity = best ? classifyDeltaSeverity(best.score, best.threshold) : null;
     const outcome = readDetector(motionEventRef.current, now, severity, {
@@ -1240,6 +1250,39 @@ export default function MonitorPage() {
   }, [wsConnected, sendMessage]);
 
   // ---------------------------------------------------------------------------
+  // The meters: each level waits for the camera's first picture after a press
+  // ---------------------------------------------------------------------------
+
+  const metersLive = framePhase === 'live';
+  const motionByZone = zonesSet && motionZone !== null;
+  const meterRows: MeterRow[] = [
+    {
+      kind: 'motion',
+      reading: levelMeter(
+        metersLive ? (motionByZone ? motionZone!.score : motionScore) : null,
+        motionByZone ? motionZone!.threshold : sensitivityToThreshold(currentPreset.motionSensitivity),
+        currentPreset.motionDetectionEnabled,
+      ),
+    },
+    {
+      kind: 'sound',
+      reading: levelMeter(
+        metersLive ? audioLevel : null,
+        sensitivityToThreshold(currentPreset.audioSensitivity),
+        currentPreset.audioDetectionEnabled,
+      ),
+    },
+  ];
+  const pictureChange = pictureChangeMeter(
+    metersLive && pixelZoneStatus ? { ratio: pixelZoneStatus.ratio, triggered: pixelZoneStatus.triggered } : null,
+    currentPreset.pixelDetectionEnabled,
+  );
+  if (pictureChange) meterRows.push({ kind: 'picture-change', reading: pictureChange });
+  const meterPet = watchFor.comparing && watchFor.pet
+    ? { name: watchFor.pet.name, photo: watchFor.pet.referenceImages?.[0] ?? null }
+    : null;
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
@@ -1290,6 +1333,9 @@ export default function MonitorPage() {
             void guard(startStream, key);
           }}
           onTryAgain={startStream}
+          strip={(framePhase === 'starting' || framePhase === 'live') && (
+            <Meters rows={meterRows} pet={meterPet} microphone={microphone} />
+          )}
         >
           <CameraFeed
             bare
@@ -1340,53 +1386,6 @@ export default function MonitorPage() {
 
       <div className="watch-grid__settings">
         <div>
-            {/* Stats */}
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
-              <StatCard
-                label="Motion"
-                value={motionScore.toFixed(1)}
-                unit="%"
-                color={motionScore > 30 ? 'yellow' : 'green'}
-              />
-              <StatCard
-                label="Audio"
-                value={audioLevel.toFixed(1)}
-                unit="%"
-                color={audioLevel > 30 ? 'yellow' : 'green'}
-              />
-              <StatCard
-                label="Pixel"
-                value={(pixelZoneStatus?.changedPx ?? pixelChangedPixels).toFixed(0)}
-                unit="px"
-                color={
-                  pixelZoneStatus
-                    ? pixelZoneStatus.ratio >= 5
-                      ? 'red'
-                      : pixelZoneStatus.ratio >= 1
-                        ? 'yellow'
-                        : 'green'
-                    : pixelChangedPixels >= currentPreset.absolutePixelThreshold
-                      ? 'yellow'
-                      : 'green'
-                }
-                subtext={
-                  pixelZoneStatus
-                    ? `${pixelZoneStatus.zoneName ?? 'All Zones'} • threshold ${pixelZoneStatus.thresholdPx}px`
-                    : `Threshold ${currentPreset.absolutePixelThreshold}px`
-                }
-              />
-              <StatCard
-                label="Stream"
-                value={isStreaming ? 'Active' : captureRequested ? (videoSeen ? 'Paused' : 'Starting') : 'Inactive'}
-                color={isStreaming ? 'green' : 'gray'}
-              />
-              <StatCard
-                label="Mode"
-                value={currentPreset.name}
-                color={isSleepPreset(activePresetId) ? 'blue' : currentPreset.emergencyMode ? 'red' : 'green'}
-              />
-            </div>
-
             {/* Active Mode Info Panel */}
             <div
               key={activePresetId}
@@ -1773,47 +1772,4 @@ function PresetInitializer() {
   }, [searchParams, setActivePreset, applied]);
 
   return null; // This component only handles side effects
-}
-
-// =============================================================================
-// Sub-Components
-// =============================================================================
-
-function StatCard({
-  label,
-  value,
-  unit,
-  color,
-  subtext,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  color: 'green' | 'yellow' | 'red' | 'blue' | 'gray';
-  subtext?: string;
-}) {
-  const colorClasses = {
-    green: 'bg-green-500/20 text-green-400',
-    yellow: 'bg-yellow-500/20 text-yellow-400',
-    red: 'bg-red-500/20 text-red-400',
-    blue: 'bg-blue-500/20 text-blue-400',
-    gray: 'bg-gray-500/20 text-gray-400',
-  };
-
-  return (
-    <div
-      className={`p-4 rounded-lg ${colorClasses[color]} border border-current/20`}
-    >
-      <div className="text-xs uppercase mb-1">{label}</div>
-      <div className="text-xl font-bold capitalize">
-        {value}
-        {unit && <span className="text-sm ml-1">{unit}</span>}
-      </div>
-      {subtext && (
-        <div className="mt-1 text-[11px] leading-tight text-current/80 truncate">
-          {subtext}
-        </div>
-      )}
-    </div>
-  );
 }
