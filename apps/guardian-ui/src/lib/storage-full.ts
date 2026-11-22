@@ -17,6 +17,7 @@ let full = false;
 const listeners = new Set<() => void>();
 // The keys whose last write through guardedStorage the browser refused.
 const refusedKeys = new Set<string>();
+const refusalListeners = new Set<() => void>();
 
 /** True for the error a browser raises when this site's storage is full. */
 export function isStorageFull(error: unknown): boolean {
@@ -39,6 +40,14 @@ export function storageIsFull(): boolean {
 /** True when the browser refused the last write of this key through guardedStorage. */
 export function lastWriteRefused(name: string): boolean {
   return refusedKeys.has(name);
+}
+
+/** Calls the listener each time the browser refuses a write through guardedStorage. */
+export function onWriteRefused(listener: () => void): () => void {
+  refusalListeners.add(listener);
+  return () => {
+    refusalListeners.delete(listener);
+  };
 }
 
 export function onStorageFull(listener: () => void): () => void {
@@ -64,6 +73,7 @@ export const guardedStorage: StateStorage = {
     } catch (error) {
       refusedKeys.add(name);
       noteStorageFull(error);
+      refusalListeners.forEach((listener) => listener());
     }
   },
   removeItem: (name) => {

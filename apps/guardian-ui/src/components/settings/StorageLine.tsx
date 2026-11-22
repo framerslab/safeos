@@ -1,14 +1,17 @@
 'use client';
 
 /**
- * The line at the top of Settings while this browser refuses its storage,
- * read once by a polite status.
+ * The line at the top of Settings while this browser refuses its storage, or
+ * has refused to keep the settings themselves (a device too full to take
+ * them), read once by a polite status. A refusal after the page opened shows
+ * it too.
  *
  * @module components/settings/StorageLine
  */
 
 import { useEffect, useState } from 'react';
-import { writeRefused } from '@/lib/settings-save';
+import { SETTINGS_KEY, writeRefused } from '@/lib/settings-save';
+import { lastWriteRefused, onWriteRefused } from '@/lib/storage-full';
 import { ProblemGlyph } from './glyphs';
 
 export const NOT_KEEPING = 'This browser is not keeping settings. Changes last until you close this tab.';
@@ -17,7 +20,9 @@ export function StorageLine() {
   const [refused, setRefused] = useState(false);
 
   useEffect(() => {
-    setRefused(writeRefused());
+    const read = () => setRefused(writeRefused() || lastWriteRefused(SETTINGS_KEY));
+    read();
+    return onWriteRefused(read);
   }, []);
 
   return (
