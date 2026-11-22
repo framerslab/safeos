@@ -6,6 +6,13 @@ import SoundsSettingsPage from '@/app/settings/sounds/page';
 import { useSettingsStore } from '@/stores/settings-store';
 import { getSoundManager, useSoundManager } from '@/lib/sound-manager';
 import { Providers } from '@/components/Providers';
+
+// Alert sounds' back link reads the router.
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({ back: () => undefined, push: () => undefined, replace: () => undefined }),
+  usePathname: () => '/settings/sounds/',
+}));
+
 function MonitoringSound() {
   const sound = useSoundManager();
   return <button onClick={() => sound.play('notification', { fadeIn: 0 })}>Play monitoring alert</button>;

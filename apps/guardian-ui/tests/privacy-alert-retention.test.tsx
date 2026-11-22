@@ -20,7 +20,9 @@ it('states who sees saved alerts, the limits, what a clear and a sign-out reach 
   expect(screen.getByText(/The notice does not stop alerts from a configured server: the tab keeps the session this browser holds for it and makes no new one, or makes one if it holds none or the server has ended the one it holds\./)).toBeTruthy();
   expect(screen.getByText(/One case differs: a session that ran out on this device just as the notice came is kept, and alerts from a configured server pause in that tab until it is reloaded\./)).toBeTruthy();
   expect(screen.getByText(/Everything already saved comes back as it was after you reload\. If an update of your saved history cannot finish, the page says so; nothing is deleted, and a reload tries again\./)).toBeTruthy();
-  expect(screen.getByText(/November 13, 2026/)).toBeTruthy();
+  expect(screen.getByText(/Clear all data on this device, on Settings, Data on this device, also removes recorded sounds and the offline cache\./)).toBeTruthy();
+  expect(container.textContent).not.toContain('Clear All Local Data');
+  expect(screen.getByText(/November 22, 2026/)).toBeTruthy();
 });
 
 it('distinguishes browser clearing from records kept on a configured server', () => {

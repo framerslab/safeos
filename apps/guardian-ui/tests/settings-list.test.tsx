@@ -64,10 +64,22 @@ function rows() {
   return within(screen.getByRole('navigation', { name: 'Settings pages' })).getAllByRole('link');
 }
 
-async function settle() {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+/** True once the values read from this device's database (the pets, the sounds) are in their rows. */
+function databaseRead(): boolean {
+  return ['Detection', 'Alert sounds'].every((name) => {
+    const link = screen.queryByRole('link', { name });
+    return !!link && descriptionOf(link) !== '';
   });
+}
+
+/** Lets the list mount and read the database: its first open takes several turns of the event loop. */
+async function settle() {
+  for (let turn = 0; turn < 200; turn += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    if (databaseRead()) return;
+  }
 }
 
 beforeEach(() => {
