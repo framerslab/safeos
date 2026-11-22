@@ -20,6 +20,7 @@ import MonitorPage from '@/app/monitor/page';
 import { getSoundManager } from '@/lib/sound-manager';
 import { askOtherTabs, takeOverWatch } from '@/lib/tab-channel';
 import { useMonitoringStore } from '@/stores/monitoring-store';
+import { useAlertPicturesStore } from '@/stores/alert-pictures-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
@@ -84,9 +85,9 @@ const realQuietHours = useSettingsStore.getState().isQuietHoursActive;
 beforeEach(() => {
   jest.useFakeTimers();
   localStorage.clear();
-  // The device has answered the notice about alert pictures, so a watch starts at its key.
-  localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: { keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false }, version: 0 }));
   sessionStorage.clear();
+  // The device has answered the notice about alert pictures, so a watch starts at its key.
+  useAlertPicturesStore.setState({ keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false });
   window.history.replaceState(null, '', '/monitor/');
   useMonitoringStore.getState().reset();
   useSettingsStore.getState().resetToDefaults();

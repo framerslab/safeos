@@ -224,7 +224,21 @@ jobs:
       # alert's card, the picture opened, History, the two settings groups, the
       # notice, the notification setting, the live box and a sighting. A state
       # the script cannot reach fails the step, naming the state.
+      # A manual run on a commit from before the alert pictures has no script
+      # for them: both of their steps are left out there. Where the script is,
+      # a state it cannot reach still fails the step.
+      - name: Look for the alert pictures script
+        id: alert-script
+        run: |
+          if [ -f scripts/alert-picture-captures.mjs ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "No alert pictures script at this commit: its captures are left out."
+          fi
+
       - name: Capture the alert pictures
+        if: steps.alert-script.outputs.present == 'true'
         env:
           CAPTURE_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
@@ -246,7 +260,7 @@ jobs:
           retention-days: 14
 
       - name: Upload the alert pictures
-        if: always()
+        if: always() && steps.alert-script.outputs.present == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: alert-pictures

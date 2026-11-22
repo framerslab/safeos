@@ -290,6 +290,7 @@ jobs:
             apps/guardian-ui/test-results
             ${{ runner.temp }}/alert-pictures-results
             ${{ runner.temp }}/alert-notification-results
+            ${{ runner.temp }}/walk-firefox
           if-no-files-found: ignore
           retention-days: 14
 

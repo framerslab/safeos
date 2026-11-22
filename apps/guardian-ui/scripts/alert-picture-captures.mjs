@@ -228,15 +228,22 @@ async function waitForCards(page, lead, count) {
   }, { source: lead.source, count }, { timeout: 120_000, polling: 250 });
 }
 
-/** Waits until every picture inside `locator` has loaded. */
+/**
+ * Waits until every picture inside `locator` has loaded. A picture that fails
+ * to load, or has not loaded in five seconds, fails the state, naming it.
+ */
 async function picturesLoaded(locator) {
-  await locator.evaluate((root) => Promise.all([...root.querySelectorAll('img')].map((img) => (
-    img.complete && img.naturalWidth > 0 ? null : new Promise((resolve) => {
-      img.addEventListener('load', resolve, { once: true });
-      img.addEventListener('error', resolve, { once: true });
-      setTimeout(resolve, 5_000);
-    })
-  ))));
+  const broken = await locator.evaluate((root) => Promise.all([...root.querySelectorAll('img')].map((img) => {
+    const loaded = () => img.complete && img.naturalWidth > 0;
+    if (loaded()) return null;
+    return new Promise((resolve) => {
+      const settle = () => resolve(loaded() ? null : img.getAttribute('alt') || img.currentSrc || 'a picture');
+      img.addEventListener('load', settle, { once: true });
+      img.addEventListener('error', settle, { once: true });
+      setTimeout(settle, 5_000);
+    });
+  })).then((names) => names.filter(Boolean)));
+  if (broken.length > 0) throw new Error(`pictures that did not load: ${broken.join('; ')}`);
 }
 
 const saved = [];

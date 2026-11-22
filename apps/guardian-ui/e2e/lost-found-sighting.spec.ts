@@ -103,7 +103,19 @@ async function stripedCamera(page: Page): Promise<void> {
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('no 2d context for the striped camera');
       let frame = 0;
+      let audio: AudioContext | null = null;
+      let stream: MediaStream | null = null;
+      // Once the page stops the camera's track, the camera stops drawing and lets its canvas go.
+      const retire = () => {
+        clearInterval(timer);
+        canvas.remove();
+        if (audio) void audio.close();
+      };
       const draw = () => {
+        if (stream && stream.getVideoTracks().every((track) => track.readyState === 'ended')) {
+          retire();
+          return;
+        }
         if (window.__stripes?.hidden) {
           ctx.fillStyle = 'rgb(128, 128, 128)';
           ctx.fillRect(0, 0, width, height);
@@ -120,10 +132,10 @@ async function stripedCamera(page: Page): Promise<void> {
         }
       };
       draw();
-      setInterval(draw, 40);
-      const stream = canvas.captureStream(25);
+      const timer = setInterval(draw, 40);
+      stream = canvas.captureStream(25);
       if (constraints && constraints.audio) {
-        const audio = new AudioContext();
+        audio = new AudioContext();
         const microphone = audio.createMediaStreamDestination();
         void audio.resume();
         for (const track of microphone.stream.getAudioTracks()) stream.addTrack(track);
@@ -421,8 +433,14 @@ test.describe('A sighting on the watch, 1280 px', () => {
     await watchForStripes(page);
     const card = sightings(page).first();
     await timeOf(card);
+    // The comparison's reading stands while the stripes are seen.
+    const scanning = page.getByText('Scanning...', { exact: true });
+    await expect(scanning).toHaveCount(0, { timeout: 10_000 });
+    const hid = Date.now();
     await page.evaluate(() => { window.__stripes!.hidden = true; });
-    await page.waitForTimeout(10_000);
+    // A check of a picture with no stripes in it comes while they are gone: the reading drops.
+    await expect(scanning.first()).toBeVisible({ timeout: 8_000 });
+    await page.waitForTimeout(Math.max(0, 10_000 - (Date.now() - hid)));
     await page.evaluate(() => { window.__stripes!.hidden = false; });
     await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 90_000 });
     await expect(sightings(page)).toHaveCount(1);
