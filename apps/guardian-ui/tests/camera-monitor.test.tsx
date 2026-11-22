@@ -80,12 +80,19 @@ it('keeps monitoring requested while the camera is muted and resumes on unmute',
   await act(async () => {});
   await startMonitoring();
   expect(useMonitoringStore.getState().isStreaming).toBe(true);
+  const frame = document.querySelector('.watch-frame')!;
+  expect(frame.getAttribute('data-phase')).toBe('live');
   act(() => browser.video.mute());
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
   expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
+  // The frame does not look live while no picture comes: it says so over the picture.
+  expect(frame.getAttribute('data-phase')).toBe('paused');
+  expect(screen.getByText('The camera is not sending a picture. Watching resumes when the picture returns.')).toBeTruthy();
   act(() => browser.video.unmute());
   expect(useMonitoringStore.getState().isStreaming).toBe(true);
   expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
+  expect(frame.getAttribute('data-phase')).toBe('live');
+  expect(screen.queryByText('The camera is not sending a picture. Watching resumes when the picture returns.')).toBeNull();
 });
 
 it('uses the selected camera and remembers it when the monitor reopens', async () => {

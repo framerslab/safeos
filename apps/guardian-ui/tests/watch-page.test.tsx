@@ -52,7 +52,7 @@ afterEach(() => { cleanup(); jest.useRealTimers(); jest.restoreAllMocks(); });
 // The bar's row
 // =============================================================================
 
-it('holds "Watch for" and Mute alerts on the bar, and says when alerts are muted', async () => {
+it('holds "Watch for" and Mute alerts on the bar, and says when alerts are muted and what sounds all the same', async () => {
   useSettingsStore.setState({ globalMute: false });
   render(<MonitorPage />);
   await act(async () => {});
@@ -62,10 +62,10 @@ it('holds "Watch for" and Mute alerts on the bar, and says when alerts are muted
   expect(heading.closest('.watch-bar')).not.toBeNull();
   expect(heading.closest('.watch-bar')).toBe(mute.closest('.watch-bar'));
   expect(mute.getAttribute('aria-pressed')).toBe('false');
-  expect(screen.queryByText('Alerts are muted. New alerts show here without a sound.')).toBeNull();
+  expect(screen.queryByText('Alerts are muted. New alerts show here without a sound. One left unanswered until it reaches Emergency sounds its alarm.')).toBeNull();
   fireEvent.click(mute);
   expect(mute.getAttribute('aria-pressed')).toBe('true');
-  expect(screen.getByText('Alerts are muted. New alerts show here without a sound.')).toBeTruthy();
+  expect(screen.getByText('Alerts are muted. New alerts show here without a sound. One left unanswered until it reaches Emergency sounds its alarm.')).toBeTruthy();
   expect(useSettingsStore.getState().globalMute).toBe(true);
 });
 

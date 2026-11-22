@@ -43,11 +43,32 @@ it('opens the camera without a microphone on a device that has none', async () =
   expect(request).toHaveBeenCalledTimes(2);
 });
 
+function cameraPermission(state: PermissionState | null) {
+  Object.defineProperty(navigator, 'permissions', {
+    configurable: true,
+    value: state === null ? undefined : { query: jest.fn().mockResolvedValue({ state }) },
+  });
+}
+
+it('opens the camera without the microphone when only the microphone is refused', async () => {
+  cameraPermission('granted');
+  const request = browserAnswers((constraints) =>
+    constraints.audio ? Promise.reject(named('NotAllowedError')) : Promise.resolve(camera),
+  );
+
+  await expect(openCamera({ deviceId: '', audio: true })).resolves.toBe(camera);
+  expect(request).toHaveBeenCalledTimes(2);
+  expect(request).toHaveBeenLastCalledWith(expect.objectContaining({ audio: false }));
+  cameraPermission(null);
+});
+
 it('asks once when the camera is refused', async () => {
+  cameraPermission('prompt');
   const request = browserAnswers(() => Promise.reject(named('NotAllowedError')));
 
   await expect(openCamera({ deviceId: '', audio: true })).rejects.toMatchObject({ name: 'NotAllowedError' });
   expect(request).toHaveBeenCalledTimes(1);
+  cameraPermission(null);
 });
 
 it("names what went wrong by the browser's own error", () => {
