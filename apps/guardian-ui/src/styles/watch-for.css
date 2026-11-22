@@ -92,8 +92,8 @@
 .watch-for__line {
   margin: 12px 0 0;
   max-width: 40rem;
-  font-size: 1.125rem;
-  line-height: 1.55;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
   color: var(--color-steel-50);
   text-wrap: pretty;
   overflow-wrap: anywhere;

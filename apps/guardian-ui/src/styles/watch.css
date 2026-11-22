@@ -24,7 +24,7 @@
 }
 
 html:has(.watch) {
-  scroll-padding-bottom: calc(var(--phone-bar-height) + 1rem);
+  scroll-padding-bottom: calc(var(--phone-bar-height) + 1rem + env(safe-area-inset-bottom, 0px));
 }
 
 .watch button,
@@ -192,7 +192,6 @@ html:has(.watch) {
 .watch-frame {
   position: relative;
   width: 100%;
-  background: var(--color-steel-900);
 }
 
 /* The picture's place: 16:9, grown by the drawn panel at larger text. */
@@ -345,24 +344,24 @@ html:has(.watch) {
   min-width: 0;
 }
 
-.watch-camera label,
-.watch-camera select,
-.watch-camera p {
+.watch .watch-camera label,
+.watch .watch-camera select,
+.watch .watch-camera p {
   margin: 0;
   font-size: var(--type-word-size);
   line-height: var(--type-word-line);
 }
 
-.watch-camera label {
+.watch .watch-camera label {
   font-weight: var(--weight-bold);
   color: var(--color-steel-50);
 }
 
-.watch-camera p {
-  color: var(--color-steel-200);
+.watch .watch-camera p {
+  color: var(--color-steel-50);
 }
 
-.watch-camera select {
+.watch .watch-camera select {
   min-height: 2.75rem;
   border-color: var(--color-steel-300);
   background: var(--color-steel-950);
@@ -603,6 +602,13 @@ html:has(.watch) {
   content: '';
   position: absolute;
   inset: 0;
+}
+
+/* A pressed button is drawn smaller on the site's touch rule; a transform
+   would make the key hold its own stretched layer, so a press at the row's
+   far end would end outside the key. The row stays as it is. */
+.watch .watch-disclosure__key:active {
+  transform: none;
 }
 
 .watch-disclosure__key:focus-visible {
