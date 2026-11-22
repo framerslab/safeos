@@ -259,6 +259,46 @@ export function useWatchFor(watching: boolean): WatchFor {
     [pets, setActiveSubject]
   );
 
+  // The address names the way and the pet (`?way=lost-found&pet=<id>` or
+  // `?way=monitor`), so a bookmark or a reload opens the same watch. It is
+  // read once, after the saved pets are read: a pet it names is chosen when
+  // it is a saved pet, and no way named keeps the stored choice.
+  const [addressRead, setAddressRead] = useState(false);
+  useEffect(() => {
+    if (addressRead || petsRead === 'loading') return;
+    const params = new URLSearchParams(window.location.search);
+    const named = params.get('way');
+    if (named === 'lost-found') {
+      setLostFoundChosen(true);
+      const petId = params.get('pet');
+      const saved = petId ? pets.find((held) => held.id === petId) : undefined;
+      if (saved) setActiveSubject(toSubject(saved));
+    } else if (named === 'monitor') {
+      setLostFoundChosen(false);
+    }
+    setAddressRead(true);
+  }, [addressRead, petsRead, pets, setLostFoundChosen, setActiveSubject]);
+
+  // Each change of way or pet afterwards writes the address in place, other
+  // parameters kept.
+  const writtenRef = useRef<string | null>(null);
+  const petId = pet?.id ?? null;
+  useEffect(() => {
+    if (!addressRead) return;
+    const named = way === 'lost_found' ? `lost-found:${petId ?? ''}` : 'monitor';
+    if (writtenRef.current === null || writtenRef.current === named) {
+      writtenRef.current = named;
+      return;
+    }
+    writtenRef.current = named;
+    const params = new URLSearchParams(window.location.search);
+    params.delete('way');
+    params.delete('pet');
+    params.set('way', way === 'lost_found' ? 'lost-found' : 'monitor');
+    if (way === 'lost_found' && petId) params.set('pet', petId);
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params.toString()}${window.location.hash}`);
+  }, [addressRead, way, petId]);
+
   const photosSaved = useCallback((saved: SubjectProfileDB) => {
     setPets((held) => held.map((record) => (record.id === saved.id ? saved : record)));
   }, []);
