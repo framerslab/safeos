@@ -607,10 +607,10 @@ for (const look of ['dark', 'light'] as const) {
         const time = await timeOf(card);
         await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
 
-        // The watch's Lost and Found panel, shown while it compares, links to History.
+        // The watch's Lost and Found panel, shown while it compares, links to History's Local Timeline.
         const link = page.getByRole('link', { name: 'Open in History', exact: true });
         await expect(link).toBeVisible();
-        await expect(link).toHaveAttribute('href', /^\/history\/?$/);
+        await expect(link).toHaveAttribute('href', '/history/?view=local');
         await expect(page.getByText('View Match History')).toHaveCount(0);
 
         // A frame an earlier version saved for this pet, with its own thumbnail and score.
@@ -642,7 +642,7 @@ for (const look of ['dark', 'light'] as const) {
         }));
 
         await link.click();
-        await page.waitForURL(/\/history\/?$/, { timeout: 30_000 });
+        await page.waitForURL(/\/history\/\?view=local$/, { timeout: 30_000 });
         const rows = page.locator('[data-history-row]');
         const sighting = rows.filter({ hasText: time }).first();
         await expect(sighting.getByText(QUESTION, { exact: true })).toBeVisible({ timeout: 30_000 });
