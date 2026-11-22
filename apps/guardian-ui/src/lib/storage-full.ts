@@ -15,6 +15,8 @@ const FULL_NAMES = new Set(['QuotaExceededError', 'NS_ERROR_DOM_QUOTA_REACHED'])
 
 let full = false;
 const listeners = new Set<() => void>();
+// The keys whose last write through guardedStorage the browser refused.
+const refusedKeys = new Set<string>();
 
 /** True for the error a browser raises when this site's storage is full. */
 export function isStorageFull(error: unknown): boolean {
@@ -32,6 +34,11 @@ export function noteStorageFull(error: unknown): void {
 
 export function storageIsFull(): boolean {
   return full;
+}
+
+/** True when the browser refused the last write of this key through guardedStorage. */
+export function lastWriteRefused(name: string): boolean {
+  return refusedKeys.has(name);
 }
 
 export function onStorageFull(listener: () => void): () => void {
@@ -53,7 +60,9 @@ export const guardedStorage: StateStorage = {
   setItem: (name, value) => {
     try {
       window.localStorage.setItem(name, value);
+      refusedKeys.delete(name);
     } catch (error) {
+      refusedKeys.add(name);
       noteStorageFull(error);
     }
   },
@@ -69,4 +78,5 @@ export const guardedStorage: StateStorage = {
 /** For tests. */
 export function forgetStorageFull(): void {
   full = false;
+  refusedKeys.clear();
 }
