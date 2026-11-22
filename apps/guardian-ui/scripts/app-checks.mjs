@@ -2516,7 +2516,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     checkHistory(check, await historyReads(page, 390, 'History'), 'History');
     await visit(page, '/history/');
     await localTimeline(page);
-    const listed = await timelineHolds(page, 'Lost & Found Match: Mittens');
+    const listed = await timelineHolds(page, 'Could this be Mittens?');
     check(listed === 6, `History lists ${listed} of the six frames`);
     await visit(page, '/settings/');
     await seedAlerts(page, {
@@ -2540,7 +2540,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(!/Sam/.test(frame), 'the header or the phone bar names Sam');
       await visit(page, '/history/');
       await localTimeline(page);
-      const listed = await timelineHolds(page, 'Lost & Found Match: Sam');
+      const listed = await timelineHolds(page, 'Could this be Sam?');
       check(listed === 3, `History lists ${listed} of the three frames`);
     });
   }

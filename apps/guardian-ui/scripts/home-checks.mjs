@@ -40,7 +40,8 @@ export const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, 
 
 // A person who has finished setup on this device. Seeded on the first page of
 // the visit only: later pages read what the earlier ones left, so a page that
-// cleared the saved setup is seen.
+// cleared the saved setup is seen. Setup's camera step answers the notice
+// about alert pictures, with what it offers at first.
 export const SETUP_DONE = () => {
   if (sessionStorage.getItem('home-checks-seeded')) return;
   sessionStorage.setItem('home-checks-seeded', '1');
@@ -49,6 +50,9 @@ export const SETUP_DONE = () => {
     acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
   }, version: 0 }));
   localStorage.setItem('guardian-onboarding-complete', 'true');
+  localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+    keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+  }, version: 0 }));
 };
 
 // Reads what the readability rule measures: every visible piece of text with

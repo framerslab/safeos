@@ -348,6 +348,8 @@ export interface CanvasCamera {
 declare global {
   interface Window {
     __camera?: CanvasCamera;
+    /** Every stream the test camera handed the page. */
+    __streams?: MediaStream[];
   }
 }
 
@@ -412,6 +414,7 @@ export async function canvasCamera(page: Page, camera: CanvasCamera): Promise<vo
       draw();
       setInterval(draw, 40);
       const stream = canvas.captureStream(25);
+      window.__streams = [...(window.__streams ?? []), stream];
       if (constraints && constraints.audio) {
         const audio = new AudioContext();
         const microphone = audio.createMediaStreamDestination();
@@ -749,6 +752,11 @@ export function controlEdges(root: Locator, edge: string): Promise<EdgeFault[]> 
 export async function doubleText(page: Page): Promise<void> {
   await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
 }
+
+/** How many of the test camera's streams still hold a live picture: cameras the page left on. */
+export const liveCameras = (page: Page): Promise<number> =>
+  page.evaluate(() => (window.__streams ?? [])
+    .filter((stream) => stream.getVideoTracks().some((track) => track.readyState === 'live')).length);
 
 /** True when the page scrolls sideways. */
 export const scrollsSideways = (page: Page): Promise<boolean> =>

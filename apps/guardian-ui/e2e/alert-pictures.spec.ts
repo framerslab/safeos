@@ -33,6 +33,7 @@ import {
   doubleText,
   faultPictureStore,
   keptPicture,
+  liveCameras,
   naturalSize,
   near,
   notesOf,
@@ -855,6 +856,40 @@ for (const width of [390, 1280]) {
     });
   });
 }
+
+test.describe('The dashboard’s start before the notice is answered, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 900 } });
+
+  test('the dashboard’s start opens the notice before the watch, and Go back closes the camera it opened', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    // No alert pictures settings are saved: the device has not answered the notice.
+    await seedDevice(context, { settings: MOTION_ONLY });
+    await canvasCamera(page, LEFT_THIRD);
+    await page.goto('/dashboard/', { waitUntil: 'networkidle' });
+    const dashKey = page.locator('.dash-key-place .dash-key');
+    await expect(dashKey).toBeVisible({ timeout: 20_000 });
+    await dashKey.click();
+    await page.waitForURL(/\/monitor\/?$/, { timeout: 30_000 });
+
+    const dialog = notice(page);
+    await expect(dialog).toBeVisible({ timeout: 20_000 });
+    await expect(live(page)).toHaveCount(0);
+    expect((await readDatabase(page)).pictures).toEqual([]);
+
+    await dialog.getByRole('button', { name: 'Go back', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(startKey(page)).toBeVisible();
+    await expect(live(page)).toHaveCount(0);
+    // The camera the dashboard opened for this start is closed with it.
+    await expect.poll(() => liveCameras(page), { timeout: 5_000 }).toBe(0);
+
+    // The page's own key asks again, and Start watching starts the watch.
+    await startKey(page).click();
+    await notice(page).getByRole('button', { name: 'Start watching', exact: true }).click();
+    await live(page).waitFor({ state: 'visible', timeout: 30_000 });
+    await expect(notice(page)).toHaveCount(0);
+  });
+});
 
 /** Setup's choice of what an alert keeps, in its camera step. */
 const setupChoice = (page: Page) => page.getByRole('group', { name: 'Each alert keeps a picture', exact: true });
