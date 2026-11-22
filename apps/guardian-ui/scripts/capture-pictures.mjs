@@ -143,6 +143,12 @@ try {
         try {
           const response = await page.goto(url, { waitUntil: 'networkidle', timeout: 60_000 });
           if (!response || !response.ok()) {
+            // The base build of a pull request that adds a page has no such
+            // page: it is noted and skipped, not failed.
+            if (response && response.status() === 404 && process.env.PICTURE_VERSION !== 'after') {
+              console.log(`not in the base build: ${route}`);
+              continue;
+            }
             throw new Error(`HTTP ${response ? response.status() : 'no response'}`);
           }
           if (route === '/export/') {
@@ -326,10 +332,6 @@ try {
         browserOnly: true, localFails: true,
         words: 'Notification settings were not saved. Try again.' },
     ] : []),
-    ...(routes.includes('/settings/') ? [
-      { name: 'settings-failed', route: '/settings/', button: 'Save Changes', browserOnly: false, localFails: false,
-        words: 'Failed to save settings.' },
-    ] : []),
   ];
   const cors = {
     'Access-Control-Allow-Origin': '*',
@@ -411,7 +413,10 @@ try {
           // The session is saved in this browser before the tab holds it.
           await page.waitForTimeout(1_000);
           await page.locator('a[href="/settings/"]:visible, a[href="/settings"]:visible').first().click();
-          await page.getByRole('button', { name: 'Save Changes', exact: true }).waitFor({ timeout: 20_000 });
+          // Settings links to Notifications (the base build's section link, the list's row in
+          // this one); the press waits until the page has mounted, with no value still loading.
+          await page.locator('a[href^="/settings/notifications"]:visible').first().waitFor({ timeout: 20_000 });
+          await page.waitForFunction(() => !document.querySelector('.set-row__loading'), null, { timeout: 20_000 });
           if (save.route === '/settings/notifications/') {
             await page.locator('a[href^="/settings/notifications"]:visible').first().click();
           }

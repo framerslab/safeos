@@ -59,7 +59,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /history/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/ /about/ /blog/ /blog/how-safeos-guardian-works/ /tutorials/ /tutorial/ /donate/ /terms/ /lost-found/ /404.html
+  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /history/ /settings/ /settings/data/ /settings/sounds/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/ /about/ /blog/ /blog/how-safeos-guardian-works/ /tutorials/ /tutorial/ /donate/ /terms/ /lost-found/ /404.html
 
 jobs:
   # Every job runs on ubuntu-24.04: ubuntu-latest moved to Ubuntu 26.04, where the
@@ -71,8 +71,9 @@ jobs:
       matrix:
         version: ${{ fromJSON(github.event_name == 'pull_request' && '["after","before"]' || '["after"]') }}
     runs-on: ubuntu-24.04
-    # A capture at four widths takes about fifteen minutes.
-    timeout-minutes: 45
+    # A capture at four widths takes about fifteen minutes; the app's walks,
+    # the Settings walks among them, add to it.
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: apps/guardian-ui

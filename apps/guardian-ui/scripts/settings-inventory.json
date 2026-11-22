@@ -14,6 +14,15 @@
   "absent": [
     { "page": "/settings/", "role": "button", "name": "Save Changes" },
     { "page": "/settings/", "role": "button", "name": "Privacy" },
-    { "page": "/settings/", "role": "button", "name": "General" }
+    { "page": "/settings/", "role": "button", "name": "General" },
+    { "page": "/settings/", "role": "button", "name": "Detection" },
+    { "page": "/settings/", "role": "button", "name": "AI Models" },
+    { "page": "/settings/", "role": "button", "name": "Detection Zones" },
+    { "page": "/settings/", "role": "button", "name": "Notifications" },
+    { "page": "/settings/", "role": "button", "name": "Alerts" },
+    { "page": "/settings/", "role": "button", "name": "Escalation" },
+    { "page": "/settings/", "role": "button", "name": "Appearance" },
+    { "page": "/settings/", "role": "button", "name": "Schedule" },
+    { "page": "/settings/", "role": "button", "name": "Clear All Local Data" }
   ]
 }

@@ -1297,29 +1297,6 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
   }
 
-  // What Settings says after a save shows: the message stands clear of the
-  // header at the top of the screen, whether the save was taken or refused.
-  for (const width of [390, 1280]) {
-    await open({ name: 'Settings, the message after a save', width, look: 'dark' }, async (page, context, check) => {
-      await visit(page, '/settings/');
-      await page.getByRole('button', { name: 'Save Changes', exact: true }).click();
-      const message = page.getByText(/^(Settings saved!|Failed to save settings\.)$/);
-      await message.waitFor({ timeout: 10_000 });
-      const seen = await message.evaluate((node) => {
-        const box = node.getBoundingClientRect();
-        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-        const frame = hit?.closest('header.app-header, nav.phone-bar');
-        return {
-          words: node.textContent.trim(),
-          top: Math.round(box.top),
-          shows: !!hit && node.contains(hit),
-          over: frame ? (frame.matches('nav') ? 'the phone bar' : 'the app header') : hit ? hit.tagName.toLowerCase() : 'nothing',
-        };
-      });
-      check(seen.shows, `"${seen.words}", ${seen.top} px from the top of the screen, is drawn under ${seen.over}`);
-    });
-  }
-
   // Before setup the header is the same as after it.
   for (const width of [390, 1280]) {
     for (const look of LOOKS) {
@@ -5295,6 +5272,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
         const violations = await axeOn(page);
         check(violations.length === 0, `axe finds ${violations.join(', ')}`);
+        await page.screenshot({ path: path.join(outDir, `settings-list-${width}-${look}.png`), fullPage: true });
       });
     }
   }
@@ -5349,6 +5327,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       const spill = await page.evaluate(() => [...document.querySelectorAll('nav[aria-label="Settings pages"] a')]
         .filter((a) => a.scrollWidth > a.clientWidth + 0.5).map((a) => a.textContent.trim().slice(0, 30)));
       check(spill.length === 0, `rows wider than the column: ${spill.join(', ')}`);
+      await page.screenshot({ path: path.join(outDir, `settings-list-lost-found-${width}-${look}.png`) });
     });
   }
 
@@ -5377,6 +5356,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     const noon = await listRows(page);
     const set = `${await at('22:00')} to ${await at('07:00')}, every day`;
     check(noon[2]?.value === set, `at 12:00 Quiet hours reads "${noon[2]?.value}", not "${set}"`);
+    await page.screenshot({ path: path.join(outDir, 'settings-list-quiet-390-dark.png') });
   });
 
   // A server address saved: the group Your own server with its four rows.
@@ -5388,6 +5368,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     const names = rows.slice(10).map((row) => row.name);
     check(names.join('|') === 'Server address|Your name on your server|Webhooks|Admin', `the server's rows read ${names.join(', ') || 'nothing'}`);
     check(rows[10]?.value === 'https://watch.example.org', `Server address reads "${rows[10]?.value}"`);
+    await page.screenshot({ path: path.join(outDir, 'settings-list-server-1280-light.png'), fullPage: true });
     await page.evaluate(() => localStorage.removeItem('safeos_backend_config'));
     await page.reload({ waitUntil: 'networkidle' });
     const after = await listRows(page);
@@ -5404,6 +5385,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(await line.waitFor({ timeout: 10_000 }).then(() => true, () => false), 'the line that says the browser is not keeping settings is not shown');
     const rows = await listRows(page);
     check(rows.length === 10, `the list holds ${rows.length} rows`);
+    await page.screenshot({ path: path.join(outDir, 'settings-list-storage-refused-390-light.png') });
     await page.locator('nav[aria-label="Settings pages"] a').nth(9).click();
     await page.waitForURL(/\/settings\/data\/?$/, { timeout: 15_000 }).catch(() => check(false, `the Data on this device row opened ${page.url()}`));
   });
