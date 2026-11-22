@@ -23,7 +23,8 @@
  */
 
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { KeyRow } from '../KeyRow';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { DEFAULT_SETTINGS, useLostFoundStore, type SubjectProfile } from '../../stores/lost-found-store';
 import { readSavedPets, type SubjectProfileDB } from '../../lib/client-db';
@@ -341,6 +342,10 @@ interface ChooserProps {
   watching: boolean;
   /** From 1024 px the pet card heads the right column instead of the pet row. */
   wide: boolean;
+  /** The keys at the end of the bar's row (the watch's Mute alerts). */
+  end?: ReactNode;
+  /** What stands under the bar's row, outside it (the muted line). */
+  afterBar?: ReactNode;
 }
 
 /**
@@ -348,14 +353,16 @@ interface ChooserProps {
  * below 1024 px, the pet row. Its polite status reads the comparison's start
  * and stop.
  */
-export function WatchForChooser({ watchFor, watching, wide }: ChooserProps) {
+export function WatchForChooser({ watchFor, watching, wide, end, afterBar }: ChooserProps) {
   const { way, chooseWay, pet, petsRead, lostFoundChosen, status } = watchFor;
   const line = way === 'motion_sound' ? MOTION_LINE : pet ? comparesLine(pet.name) : null;
+  // The built page has the options under the row; they move into it from
+  // 1024 px once the page runs, so the first render matches the built page.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const inRow = wide && mounted;
 
-  return (
-    <section aria-labelledby="watch-for-heading" className="watch-for">
-      <div className="watch-for__bar">
-        <h2 id="watch-for-heading" className="watch-for__heading">Watch for</h2>
+  const options = (
         <div role="radiogroup" aria-labelledby="watch-for-heading" className="watch-for__options">
           {WAYS.map(({ way: option, label }) => {
             const chosen = way === option;
@@ -377,7 +384,20 @@ export function WatchForChooser({ watchFor, watching, wide }: ChooserProps) {
             );
           })}
         </div>
-      </div>
+  );
+
+  // The bar is one row at every width: the heading, from 1024 px the two
+  // options, then the end keys. It scrolls inside itself, with its arrow
+  // keys, when larger text makes it wider than the column.
+  return (
+    <section aria-labelledby="watch-for-heading" className="watch-for">
+      <KeyRow className="watch-bar">
+        <h2 id="watch-for-heading" className="watch-for__heading">Watch for</h2>
+        {inRow && options}
+        {end && <span className="watch-bar__end">{end}</span>}
+      </KeyRow>
+      {afterBar}
+      {!inRow && options}
 
       {line && <p className={`watch-for__line${watching ? ' watch-for__line--watching' : ''}`}>{line}</p>}
 

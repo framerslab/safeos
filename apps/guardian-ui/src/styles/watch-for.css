@@ -16,31 +16,25 @@
   font-family: var(--font-sans);
 }
 
-.watch-for__bar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .watch-for__heading {
   margin: 0;
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.5rem;
-  line-height: 2rem;
   color: var(--color-steel-50);
+  white-space: nowrap;
 }
 
-/* The two options, joined in one control across the column. */
+/* The two options, joined in one control across the column: one edge in the
+   line colour round both, a rule between them, the ring round the group. */
 .watch-for__options {
   display: flex;
   width: 100%;
+  margin-top: 12px;
   border: 1px solid var(--color-steel-300);
   border-radius: 6px;
   overflow: hidden;
 }
 
-.watch-for__options:has(input:focus-visible) {
+.watch-for__options:focus-within {
   outline: 2px solid var(--look-accent);
   outline-offset: 2px;
 }
@@ -53,14 +47,14 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 48px;
+  min-height: 3rem;
   padding: 6px 12px;
-  font-size: 0.9375rem;
+  font-size: 1rem;
   line-height: 1.4;
-  font-weight: 400;
+  font-weight: var(--weight-regular);
   text-align: center;
   color: var(--color-steel-50);
-  background: transparent;
+  background: var(--color-steel-950);
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -75,7 +69,7 @@
 
 .watch-for__option[data-chosen] {
   background: var(--color-steel-800);
-  font-weight: 600;
+  font-weight: var(--weight-bold);
 }
 
 /* The radio covers its option, so a press anywhere on it chooses. */
@@ -110,38 +104,28 @@
   display: none;
 }
 
-@media (min-width: 360px) {
+/* Under 360 px the option words step down to 15 px, the one size under 16. */
+@media not all and (min-width: 22.5em) {
   .watch-for__option {
-    font-size: 1rem;
+    font-size: 0.9375rem;
   }
 }
 
 @media (min-width: 768px) {
-  .watch-for__heading {
-    font-size: 1.75rem;
-    line-height: 2.25rem;
-  }
-
   .watch-for__line--watching {
     display: block;
   }
 }
 
-/* From 1024 px the options stand in the heading's row, about 200 px each. */
-@media (min-width: 1024px) {
-  .watch-for__bar {
-    flex-direction: row;
-    align-items: center;
-    gap: 24px;
-  }
-
-  .watch-for__options {
+/* From 64em the options stand in the bar's row, 12.5rem each. */
+@media (min-width: 64em) {
+  .watch-bar .watch-for__options {
     width: auto;
+    margin-top: 0;
   }
 
-  .watch-for__option {
-    flex: 0 0 auto;
-    min-width: 200px;
+  .watch-bar .watch-for__option {
+    flex: 0 0 12.5rem;
   }
 }
 

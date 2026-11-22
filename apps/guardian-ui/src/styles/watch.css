@@ -118,3 +118,67 @@ html:has(.watch) {
       "settings settings";
   }
 }
+
+/* -----------------------------------------------------------------------------
+   The bar's row: the heading "Watch for", from 64em the two options, and Mute
+   alerts at the row's end. One row at every width; larger text scrolls it
+   inside itself with its arrow keys (components/KeyRow).
+   ----------------------------------------------------------------------------- */
+
+.watch .watch-for {
+  margin-bottom: 0;
+}
+
+.watch-bar {
+  justify-content: flex-start;
+}
+
+.watch-bar .key-row__keys {
+  flex: 1 1 auto;
+  gap: 1rem;
+}
+
+.watch-bar__end {
+  display: flex;
+  margin-left: auto;
+}
+
+.watch-heading,
+.watch .watch-for__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  color: var(--color-steel-50);
+}
+
+@media (min-width: 48em) {
+  .watch-heading,
+  .watch .watch-for__heading {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+  }
+}
+
+/* Mute alerts: the speaker and its words in both states; pressed, its ground
+   is the track colour. */
+.watch-mute {
+  gap: 0.5rem;
+  min-width: 8rem;
+}
+
+.watch-mute[aria-pressed='true'] {
+  background: var(--color-steel-800);
+}
+
+.watch-glyph {
+  flex: none;
+}
+
+.watch-muted {
+  margin: 0.5rem 0 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}

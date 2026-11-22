@@ -18,14 +18,15 @@ import { useSearchParams } from 'next/navigation';
 import { CameraPicker } from '../../components/CameraPicker';
 import { useCameraStore } from '../../stores/camera-store';
 import { CameraFeed } from '../../components/CameraFeed';
-import { KeyRow } from '../../components/app/KeyRow';
+import { KeyRow } from '../../components/KeyRow';
+import { MuteAlerts, MutedLine } from '../../components/watch/MuteAlerts';
 import { AlertPanel } from '../../components/AlertPanel';
 import { SubjectPreviewOverlay, SubjectPreview } from '../../components/SubjectPreview';
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
 import { QuickSettingsPanel } from '../../components/QuickSettingsPanel';
 import { InlineSettingsPanel } from '../../components/monitor';
 import { WatchForChooser, WatchForPet, useWatchFor, useWideWatch, NO_PET_FRAME_LINE } from '../../components/monitor/WatchFor';
-import { IconSearch, IconChevronDown, IconShield } from '../../components/icons';
+import { IconSearch } from '../../components/icons';
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from '../../stores/settings-store';
@@ -139,7 +140,6 @@ export default function MonitorPage() {
   const [videoSeen, setVideoSeen] = useState(false);
   const captureRequestedRef = useRef(false);
   const serverRequestedRef = useRef(false);
-  const [showModeDropdown, setShowModeDropdown] = useState(false);
 
   // Watch for: Motion and sound, or Lost and Found with the pet it compares
   // with. It compares while the watch runs; from 1024 px the pet's card
@@ -158,10 +158,9 @@ export default function MonitorPage() {
   } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const matcherRef = useRef(getSubjectMatcher());
-  const modeDropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Settings store for security modes/presets
-  const { activePresetId, setActivePreset, activeSleepPreset, globalSettings, globalMute, toggleGlobalMute, timingSettings, getCooldownForSeverity } = useSettingsStore();
+  const { activePresetId, activeSleepPreset, globalSettings, globalMute, toggleGlobalMute, timingSettings, getCooldownForSeverity } = useSettingsStore();
   const detectionFeatureSettings = useSettingsStore((state) => state.detectionFeatureSettings);
   const detectionZones = useSettingsStore((state) => state.detectionZones);
   // The watch runs at the preset, with the Motion and Audio set for this use on Settings > Detection laid over it.
@@ -170,17 +169,6 @@ export default function MonitorPage() {
   const [showOverrides, setShowOverrides] = useState(false);
 
   // URL parameter handling is done via PresetInitializer component below
-
-  // Close mode dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (modeDropdownRef.current && !modeDropdownRef.current.contains(event.target as Node)) {
-        setShowModeDropdown(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // ---------------------------------------------------------------------------
   // Lost & Found Integration
@@ -1219,183 +1207,39 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      {/* Header */}
-      <header className="border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm relative z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="way-head">
-            <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                aria-label="SafeOS home"
-                className="text-emerald-400 hover:text-emerald-300 hover:scale-110 transition-all"
-              >
-                <IconShield size={28} />
-              </Link>
-              <h1 className="text-xl font-bold text-white">Motion and sound</h1>
-            </div>
+    <div className="watch look-part watch-grid">
+      <h1 className="sr-only">Motion and sound</h1>
 
-            <KeyRow>
-              {/* Volume Mute Toggle */}
-              <button
-                onClick={toggleGlobalMute}
-                className={`p-2 rounded-lg transition-colors ${globalMute
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/50'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-                aria-label={globalMute ? 'Unmute Alerts' : 'Mute Alerts'}
-                title={globalMute ? 'Unmute Alerts (click to enable sounds)' : 'Mute Alerts (click to silence)'}
-              >
-                {globalMute ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                  </svg>
-                )}
-              </button>
+      <div className="watch-grid__bar">
+        <WatchForChooser
+          watchFor={watchFor}
+          watching={captureRequested}
+          wide={wide}
+          end={<MuteAlerts muted={globalMute} onToggle={toggleGlobalMute} />}
+          afterBar={<MutedLine muted={globalMute} />}
+        />
+      </div>
 
-              {/* Security Mode Selector */}
-              <div ref={modeDropdownRef} className="way-head__menu">
-                <button
-                  onClick={() => setShowModeDropdown(!showModeDropdown)}
-                  className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${isSleepPreset(activePresetId)
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                    : currentPreset.emergencyMode
-                      ? 'bg-red-500/20 text-red-400 border border-red-500/50'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
-                  aria-label="Select Security Mode"
-                  aria-expanded={showModeDropdown}
-                  aria-haspopup="listbox"
-                >
-                  <IconShield size={18} />
-                  <span className="hidden sm:inline max-w-[120px] truncate">
-                    {currentPreset.name}
-                  </span>
-                  <IconChevronDown size={14} className={`transition-transform ${showModeDropdown ? 'rotate-180' : ''}`} />
-                </button>
+      <main className="watch-grid__frame">
+        <KeyRow>
+          {!captureRequested && nap && (
+            <button type="button" onClick={endNap} className="key key--outline">
+              End nap
+            </button>
+          )}
 
-                {/* Dropdown Menu */}
-                {showModeDropdown && (
-                  <div className="absolute right-0 mt-2 w-72 bg-gray-800 rounded-xl border border-gray-700 shadow-xl z-50 overflow-hidden">
-                    <div className="p-2 border-b border-gray-700">
-                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Security Modes</p>
-                    </div>
-                    <div className="max-h-[400px] overflow-y-auto">
-                      {/* Sleep Presets */}
-                      <div className="p-2 border-b border-gray-700/50">
-                        <p className="text-[10px] text-blue-400 font-medium uppercase tracking-wider px-2 py-1">Sleep Monitoring</p>
-                        {(['infant_sleep', 'pet_sleep', 'deep_sleep_minimal'] as const).map((presetId) => {
-                          const preset = DEFAULT_PRESETS[presetId];
-                          const isActive = activePresetId === presetId;
-                          return (
-                            <button
-                              key={presetId}
-                              onClick={() => {
-                                setActivePreset(presetId);
-                                setShowModeDropdown(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${isActive
-                                ? 'bg-blue-500/20 text-blue-400'
-                                : 'text-gray-300 hover:bg-gray-700'
-                                }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm">{preset.name}</span>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                                  {preset.absolutePixelThreshold}px
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{preset.description}</p>
-                            </button>
-                          );
-                        })}
-                        {/* A watch while you rest, with its reminder: Nap Mode's own page. */}
-                        <Link
-                          href="/nap/"
-                          onClick={() => setShowModeDropdown(false)}
-                          className="flex items-center w-full min-h-[44px] text-left px-3 py-2 rounded-lg transition-colors text-gray-300 hover:bg-gray-700"
-                        >
-                          <span className="font-medium text-sm">Nap Mode</span>
-                        </Link>
-                      </div>
+          {!captureRequested && (
+            <button type="button" onClick={pressStart(startStream)} className="key key--solid key--start">
+              Start Monitoring
+            </button>
+          )}
 
-                      {/* General Presets */}
-                      <div className="p-2">
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider px-2 py-1">General Modes</p>
-                        {(['silent', 'night', 'maximum', 'ultimate'] as const).map((presetId) => {
-                          const preset = DEFAULT_PRESETS[presetId];
-                          const isActive = activePresetId === presetId;
-                          return (
-                            <button
-                              key={presetId}
-                              onClick={() => {
-                                setActivePreset(presetId);
-                                setShowModeDropdown(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${isActive
-                                ? preset.emergencyMode
-                                  ? 'bg-red-500/20 text-red-400'
-                                  : 'bg-emerald-500/20 text-emerald-400'
-                                : 'text-gray-300 hover:bg-gray-700'
-                                }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm">{preset.name}</span>
-                                {preset.emergencyMode && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">
-                                    EMERGENCY
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{preset.description}</p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {!captureRequested && nap && (
-                <button
-                  onClick={endNap}
-                  className="px-4 py-2 border border-slate-500 text-slate-200 hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  End nap
-                </button>
-              )}
-
-              {!captureRequested && (
-                <button
-                  onClick={pressStart(startStream)}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                >
-                  Start Monitoring
-                </button>
-              )}
-
-              {captureRequested && (
-                <button
-                  onClick={stopWatching}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                >
-                  {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
-                </button>
-              )}
-            </KeyRow>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <WatchForChooser watchFor={watchFor} watching={captureRequested} wide={wide} />
+          {captureRequested && (
+            <button type="button" onClick={stopWatching} className="key key--outline">
+              {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
+            </button>
+          )}
+        </KeyRow>
 
         {nap && napWaitsForTap && !captureRequested && (
           <div role="status" className="mb-6 rounded-xl border border-indigo-400/50 bg-indigo-500/15 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
