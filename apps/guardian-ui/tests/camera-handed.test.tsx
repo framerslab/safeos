@@ -433,7 +433,8 @@ it('a Lost and Found start goes on when the same pet is still chosen', async () 
   await answer();
 
   expect(useLostFoundStore.getState().isWatching).toBe(true);
-  expect(mockPush).toHaveBeenCalledWith('/monitor');
+  // The address names the way and the pet, so a reload opens the same watch.
+  expect(mockPush).toHaveBeenCalledWith('/monitor/?way=lost-found&pet=pet-1');
 });
 
 it('End nap pressed while Resume nap waits for the other tabs starts no camera', async () => {
