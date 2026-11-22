@@ -163,6 +163,20 @@ it('asks for the camera again on Try again', async () => {
   expect(browser.getUserMedia.mock.calls.length).toBeGreaterThan(asked);
 });
 
+it('asks before a second watch on Try again while another tab watches', async () => {
+  browser.getUserMedia.mockRejectedValue(new DOMException('', 'NotAllowedError'));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  const asked = browser.getUserMedia.mock.calls.length;
+  // Another tab on this device starts watching after the failure.
+  localStorage.setItem('safeos-tab-watch', JSON.stringify({ tab: 'another-tab', way: 'monitor', at: Date.now() }));
+  fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+  await act(async () => {});
+  expect(screen.getByRole('dialog', { name: 'Watch here instead? The other tab stops.' })).toBeTruthy();
+  expect(browser.getUserMedia.mock.calls.length).toBe(asked);
+});
+
 it('says when a camera that was watching stopped, and gives Start watching back', async () => {
   render(<MonitorPage />);
   await act(async () => {});
@@ -228,6 +242,29 @@ it('reads the Motion meter against its line and says when it is over', async () 
   expect(within(meter('Motion').closest('.watch-meter') as HTMLElement).getByText('Over the line')).toBeTruthy();
   act(() => useMonitoringStore.getState().setMotionScore(5));
   expect(valueText('Motion')).toBe('5 per cent, line at 20, Quiet');
+});
+
+it("reads the Motion meter against a full-screen zone's own line, as the alert does", async () => {
+  seedMotionOnly();
+  const zones = useSettingsStore.getState().detectionZones;
+  useSettingsStore.setState({
+    detectionZones: [{ id: 'full', name: 'Full Screen', enabled: true, x: 0, y: 0, width: 100, height: 100, sensitivityOverride: { motion: 40 } }],
+  });
+  // A quarter of each picture changes from one reading of the camera to the next.
+  browser.readFrame.mockImplementation(() => {
+    const data = new Uint8ClampedArray(16 * 16 * 4).fill(128);
+    data.fill(Math.floor(Date.now() / 200) % 2 ? 0 : 255, 0, 16 * 4 * 4);
+    return new ImageData(data, 16, 16);
+  });
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    await startMonitoring();
+    act(() => { jest.advanceTimersByTime(1000); });
+    expect(valueText('Motion')).toBe('25 per cent, line at 60, Quiet');
+  } finally {
+    useSettingsStore.setState({ detectionZones: zones });
+  }
 });
 
 it('shows Sound with No alert and no line where the setting turns sound alerts off', async () => {
@@ -308,6 +345,18 @@ it('names a blocked microphone beside Sound, and Motion goes on', async () => {
   ).toBeTruthy();
   expect(meter('Motion')).toBeTruthy();
   Object.defineProperty(navigator, 'permissions', { configurable: true, value: undefined });
+});
+
+it('names a microphone lost while watching beside Sound, and Motion goes on', async () => {
+  seedMotionOnly();
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  const lost = 'No microphone found. Sound alerts are off. Connect a microphone, then stop and start watching.';
+  expect(screen.queryByText(lost)).toBeNull();
+  act(() => browser.audio.end());
+  expect(screen.getByText(lost)).toBeTruthy();
+  expect(meter('Motion')).toBeTruthy();
 });
 
 it('shows none of the five old tiles', async () => {
