@@ -194,7 +194,8 @@ test.describe('The picture store and the alert record', () => {
     test.setTimeout(120_000);
     await seedDevice(context, { settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(20) }, pictures: { noticeAnswered: true } });
     await canvasCamera(page, LEFT_THIRD);
-    const oldest = 1763400000000;
+    // Within the 3 days a picture is kept at first: the age deletes none of them as the watch starts.
+    const oldest = Date.now() - 2 * 60 * 60_000;
     const rows = Array.from({ length: 100 }, (_, i) => {
       const at = oldest + i * 60_000;
       const tail = i === 0 ? 'aaaaaaa' : `k${String(i).padStart(6, '0')}`;
@@ -209,14 +210,18 @@ test.describe('The picture store and the alert record', () => {
     await page.goto('/monitor/', { waitUntil: 'networkidle' });
     await startWatching(page);
 
+    const first = rows[0].picture!.id as string;
     await expect.poll(async () => {
       const reading = await databaseNow(page);
-      return reading ? monitoringAlerts(reading).some((row) => row.id === 'motion-1763400000000-aaaaaaa') : true;
+      return reading ? monitoringAlerts(reading).some((row) => row.id === rows[0].alert.id) : true;
     }, { timeout: 60_000, message: 'the oldest alert leaves when the 101st is saved' }).toBe(false);
     const reading = (await readDatabase(page))!;
     expect(monitoringAlerts(reading)).toHaveLength(100);
-    expect(reading.pictures.map((row) => row.id)).not.toContain('picture-1763400000000-aaaaaaa');
-    expect(reading.pictures.filter((row) => row.state === 'kept').length).toBeLessThanOrEqual(100);
+    expect(reading.pictures.map((row) => row.id)).not.toContain(first);
+    // The other 99 are kept, with the 101st alert's own picture.
+    const kept = keptRows(reading).map((row) => row.id as string);
+    expect(kept).toEqual(expect.arrayContaining(rows.slice(1).map((row) => row.picture!.id as string)));
+    expect(kept).toHaveLength(100);
   });
 });
 
@@ -738,16 +743,11 @@ for (const reduced of [true, false]) {
 
     test(`a card's fourth-level bar holds its colour with no pulse under reduced motion${reduced ? '' : ': without it, it pulses until Acknowledge'}`, async ({ page, context }) => {
       test.setTimeout(150_000);
-      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
-      await context.addInitScript(() => {
-        const levels = [1, 2, 3, 4, 5].map((level) => ({
-          level, name: `Level ${level}`, description: '', volumeMultiplier: 1, delaySeconds: level === 1 ? 0 : 1, soundType: 'notification',
-        }));
-        const saved = JSON.parse(localStorage.getItem('safeos-settings') || '{"state":{},"version":0}');
-        saved.state.alertEscalationLevels = levels;
-        saved.state.globalMute = true;
-        localStorage.setItem('safeos-settings', JSON.stringify(saved));
-      });
+      // The five levels a second apart, and the sound muted, seeded with the settings in one write.
+      const levels = [1, 2, 3, 4, 5].map((level) => ({
+        level, name: `Level ${level}`, description: '', volumeMultiplier: 1, delaySeconds: level === 1 ? 0 : 1, soundType: 'notification',
+      }));
+      await seedDevice(context, { settings: { ...MOTION_ONLY, alertEscalationLevels: levels, globalMute: true }, pictures: { noticeAnswered: true } });
       // Only an alert the running watch raised grows louder: the watch raises it.
       await canvasCamera(page, LEFT_THIRD);
       await page.goto('/monitor/', { waitUntil: 'networkidle' });
@@ -992,6 +992,26 @@ for (const look of ['dark', 'light'] as const) {
   });
 }
 
+test.describe('Setup’s age for pictures, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('an age chosen in setup deletes the pictures past it as setup goes on', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    // A device that kept a picture two days ago, then runs setup.
+    const at = Date.now() - 2 * DAY;
+    const id = `picture-${at}-kept`;
+    await seedPictureRows(page, [{ alert: savedAlert(`motion-${at}-kept`, at, { kind: 'motion', pictureId: id }), picture: keptPicture(id, at) }]);
+    expect(keptRows(await readDatabase(page)).map((row) => row.id)).toEqual([id]);
+    await setupToCameraStep(page, context);
+    await afterSelect(setupChoice(page)).selectOption({ label: '1 day' });
+    await page.getByRole('button', { name: 'Grant Permissions', exact: true }).click();
+    await page.getByRole('button', { name: /^Continue$/ }).click();
+    // Setup's next step shows: no watch has started and History has not opened, and the picture has gone.
+    await expect.poll(async () => keptRows(await readDatabase(page)).map((row) => row.id), { timeout: 10_000 }).toEqual([]);
+    expect(await storedPictures(page)).toMatchObject({ noticeAnswered: true, deleteAfterDays: 1 });
+  });
+});
+
 test.describe('Keeping pictures, 390 px', () => {
   test.use({ viewport: { width: 390, height: 900 } });
 
@@ -1055,11 +1075,21 @@ test.describe('Keeping pictures, 390 px', () => {
     await expect(failed.locator('.alert-picture__problem')).toHaveCount(1);
     expect(await keptCount(page)).toBe(1);
 
+    // A newer alert, saved, moves it down the list to the small form: its line goes with it.
     await setFault(page, {});
+    await raiseEvents(page, 3, 3);
+    const moved = cards(page).nth(1);
+    await expect(moved.locator('.alert-picture').first()).toHaveAttribute('data-form', 'small');
+    await expect(moved.locator('.alert-picture img').first()).toBeVisible();
+    await expect(moved.getByText(SAVE_FAILED_LINE, { exact: true })).toBeVisible();
+    await expect(moved.locator('.alert-picture__problem')).toHaveCount(1);
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(2);
+
     await page.reload({ waitUntil: 'networkidle' });
-    await expect(cards(page)).toHaveCount(2);
-    await expect(cards(page).first().getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
-    await expect(cards(page).nth(1).locator('.alert-picture img').first()).toBeVisible();
+    await expect(cards(page)).toHaveCount(3);
+    await expect(cards(page).nth(1).getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
+    await expect(cards(page).first().locator('.alert-picture img').first()).toBeVisible();
+    await expect(cards(page).nth(2).locator('.alert-picture img').first()).toBeVisible();
   });
 
   test('out of room: the oldest picture goes with the new one’s save, or nothing goes', async ({ page, context }) => {
@@ -1811,6 +1841,38 @@ test.describe('The group and the notice: order, sizes and faults', () => {
     expect(await keptCount(page)).toBe(0);
   });
 
+  test('focus moved to another setting while Delete all pictures runs stays there when it is done', async ({ page, context }) => {
+    test.setTimeout(60_000);
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedKept(page, 3);
+    // The app hears that the pictures went 3 seconds after the browser wrote it.
+    await faultPictureStore(page, { holdDeleteMs: 3_000 });
+    await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    const found = group(page);
+    await expect(countLine(found)).toHaveText('3 pictures kept on this device');
+    await deleteAll(found).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+    // While the store works, the person moves on to the Keep alert pictures switch.
+    await keepSwitch(found).focus();
+    await expect(countLine(found)).toHaveText('No pictures kept on this device', { timeout: 15_000 });
+    await page.waitForTimeout(500);
+    expect(await keepSwitch(found).evaluate((el) => el === document.activeElement), 'focus stays on the switch').toBe(true);
+  });
+
+  test('focus that stood on Delete all pictures goes to the age’s select when the key leaves with the pictures', async ({ page, context }) => {
+    test.setTimeout(60_000);
+    await seedDevice(context, { pictures: { noticeAnswered: true } });
+    await seedKept(page, 3);
+    await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    const found = group(page);
+    await expect(countLine(found)).toHaveText('3 pictures kept on this device');
+    await deleteAll(found).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+    await expect(countLine(found)).toHaveText('No pictures kept on this device', { timeout: 15_000 });
+    await expect(deleteAll(found)).toHaveCount(0);
+    await expect.poll(() => afterSelect(found).evaluate((el) => el === document.activeElement)).toBe(true);
+  });
+
   test('another profile keeps its own choice and notice', async ({ page, context, browser }) => {
     test.setTimeout(120_000);
     await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
@@ -1873,6 +1935,15 @@ test.describe('The group and the notice: order, sizes and faults', () => {
 const liveBox = (page: Page) => page.locator('.alert-live__box');
 const livePlate = (page: Page) => page.locator('.alert-live__plate');
 const livePicture = (page: Page) => page.locator('.alert-live');
+
+/** The browser lists two cameras, and each one the page asks for is the walk's camera. */
+async function twoCameras(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const camera = (n: number) => ({ deviceId: `walk-camera-${n}`, groupId: 'walk', kind: 'videoinput', label: `Walk camera ${n}`, toJSON() { return this; } });
+    const devices = [camera(1), camera(2)];
+    navigator.mediaDevices.enumerateDevices = async () => devices as unknown as MediaDeviceInfo[];
+  });
+}
 
 /** A sound alone: a tone on the microphone over a 5 % line, with the motion check off. */
 const SOUND_ONLY = {
@@ -1972,12 +2043,32 @@ test.describe('The live box: one at a time, never for a sound, clear of the pict
     await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
     const first = await timeOf(cards(page).first(), 'Motion');
     await expect(livePlate(page)).toHaveText(`Motion here at ${first}`);
+    const seen = Date.now();
     await raiseEvents(page, 2, 2);
     const second = await timeOf(cards(page).first(), 'Motion');
     expect(second).not.toBe(first);
+    expect(Date.now() - seen, 'the second alert came inside the first box’s 10 seconds').toBeLessThan(9_000);
     await expect(livePlate(page)).toHaveText(`Motion here at ${second}`);
     await expect(liveBox(page)).toHaveCount(1);
     await expect(livePlate(page)).toHaveCount(1);
+  });
+
+  test('a box leaves the live picture when another camera is chosen', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    await twoCameras(page);
+    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+    await timeOf(cards(page).first(), 'Motion');
+    await expect(liveBox(page)).toHaveCount(1);
+    const seen = Date.now();
+    await holdStill(page);
+    await page.getByRole('combobox', { name: 'Camera', exact: true }).selectOption({ label: 'Walk camera 2' });
+    await expect(page.getByRole('combobox', { name: 'Camera', exact: true })).toHaveValue('walk-camera-2');
+    // The second camera shows, inside the first box's 10 seconds, with no box over it.
+    await expect(page.locator('[data-live-mark]').first()).toBeVisible({ timeout: 5_000 });
+    await page.waitForTimeout(800);
+    expect(Date.now() - seen, 'the first box’s 10 seconds have not run out').toBeLessThan(8_000);
+    await expect(liveBox(page)).toHaveCount(0);
+    await expect(livePlate(page)).toHaveCount(0);
   });
 
   test('a Sound alert draws no box', async ({ page, context }) => {
@@ -3508,7 +3599,8 @@ test.describe('The privacy page and the notices', () => {
     for (const sentence of [
       'saved frames, alert pictures and reference photos in its IndexedDB',
       'Alert pictures are not sent to that server.',
-      'For each Motion and Picture change alert on the monitor page, SafeOS keeps the camera\'s picture of the moment, a box round what changed and a close-up of that box.',
+      'For each Motion and Picture change alert on the monitor page, SafeOS keeps the camera\'s picture of the moment and, where it can mark what changed, a box round it and a close-up of that box.',
+      'A box over more than half of the picture has no close-up, and a Picture change over more than half of the picture has no box.',
       'A Sound alert keeps the picture with no box, and a Lost & Found alert keeps the camera\'s picture with a box round the part like your pet\'s photos.',
       'They are kept in this browser\'s IndexedDB on this device; Frame, which runs safeos.sh, never receives them.',
       'They are deleted after the time you choose under Keep alert pictures (3 days unless you choose 1, 7 or 30 days, or until you delete them); the alert\'s words stay in History.',
@@ -3520,7 +3612,7 @@ test.describe('The privacy page and the notices', () => {
       'Clear All Local Data also removes recorded sounds, alert pictures and the offline cache.',
       'clears the alerts and their pictures, frames, recordings and personal settings saved in this browser',
       'If you turn on Show the picture in alert notifications, the picture shows in the notification, and on some phones on the lock screen, to anyone who can see this device.',
-      'Last updated: November 20, 2026',
+      'Last updated: November 22, 2026',
     ]) {
       expect(words, `the privacy page says: ${sentence}`).toContain(sentence);
     }
@@ -3630,6 +3722,8 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
       HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, quality?: number) {
         // The notification's copy alone is a JPEG at 0.8; the camera's frames for a server are at 0.7.
         if (type === 'image/jpeg' && quality === 0.8) {
+          const marks = window as unknown as { __turnedOffAt?: number };
+          marks.__turnedOffAt ??= Date.now();
           const key = 'safeos-alert-pictures';
           const stored = JSON.parse(localStorage.getItem(key) ?? '{"state":{},"version":0}');
           stored.state.inNotifications = false;
@@ -3646,6 +3740,11 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
     const [note] = await notesOf(page);
     expect(note.title).toBe('Motion alert');
+    // The copy was drawn, and the picture turned off, before the notification went: the words go
+    // alone for the person's choice, not for a picture that came too late.
+    const turnedOffAt = await page.evaluate(() => (window as unknown as { __turnedOffAt?: number }).__turnedOffAt);
+    expect(turnedOffAt, 'the notification’s copy was drawn').toBeDefined();
+    expect(turnedOffAt!, 'the picture was turned off before the notification went').toBeLessThanOrEqual(note.at);
     expect(note.image ?? null, 'no picture once the person turned it off').toBeNull();
   });
 

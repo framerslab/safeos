@@ -397,7 +397,19 @@ export async function canvasCamera(page: Page, camera: CanvasCamera): Promise<vo
         return image;
       };
       let still: ImageData | null = null;
+      let audio: AudioContext | null = null;
+      let stream: MediaStream | null = null;
+      // Once the page stops the camera's track, the camera stops drawing and lets its canvas and sound go.
+      const retire = () => {
+        clearInterval(timer);
+        canvas.remove();
+        if (audio) void audio.close();
+      };
       const draw = () => {
+        if (stream && stream.getVideoTracks().every((track) => track.readyState === 'ended')) {
+          retire();
+          return;
+        }
         const cam = window.__camera!;
         const cycle = cam.cycle ?? 0;
         if (cycle > 0) {
@@ -414,11 +426,11 @@ export async function canvasCamera(page: Page, camera: CanvasCamera): Promise<vo
         ctx.putImageData(paint(), 0, 0);
       };
       draw();
-      setInterval(draw, 40);
-      const stream = canvas.captureStream(25);
+      const timer = setInterval(draw, 40);
+      stream = canvas.captureStream(25);
       window.__streams = [...(window.__streams ?? []), stream];
       if (constraints && constraints.audio) {
-        const audio = new AudioContext();
+        audio = new AudioContext();
         const microphone = audio.createMediaStreamDestination();
         if (live.tone) {
           const tone = audio.createOscillator();
@@ -827,7 +839,7 @@ export interface PictureFault {
   holdReadMs?: number;
   /** A picture's JPEG is handed back this long after it was drawn: its save starts that much later. */
   holdDrawMs?: number;
-  /** The app hears that a picture was deleted (the row that says it went) this long after the browser wrote it. */
+  /** The app hears that a picture was deleted (the row that says it went), one or all, this long after the browser wrote it. */
   holdDeleteMs?: number;
   /** Every write of a kept picture fails: for lack of room, or with a plain error (the store's probe too). */
   writes?: 'quota' | 'error';
@@ -911,8 +923,10 @@ export async function faultPictureStore(page: Page, fault: PictureFault = {}): P
     const cursorUpdate = IDBCursor.prototype.update;
     IDBCursor.prototype.update = function (this: IDBCursor, value: { state?: string }) {
       if (onPictures(this.source) && value?.state === 'gone') {
-        if (fault().deletes === 'error') refuse('UnknownError');
+        const f = fault();
+        if (f.deletes === 'error') refuse('UnknownError');
         goneTx = storeOf(this.source)!.transaction;
+        if (f.holdDeleteMs) heldSaves.set(goneTx, f.holdDeleteMs);
       }
       return cursorUpdate.call(this, value);
     } as typeof cursorUpdate;

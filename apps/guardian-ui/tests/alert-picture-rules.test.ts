@@ -23,6 +23,7 @@ import {
   meanLuma,
   pictureFileName,
   scaleBox,
+  showInTurn,
   staleNote,
 } from '@/lib/alert-pictures/rules';
 
@@ -192,4 +193,47 @@ describe('the order of an event’s notifications', () => {
     askNote(asked, 'safeos-Motion alert-e1', 900);
     expect(staleNote(asked, 'safeos-Motion alert-e1', 1_150)).toBe(false);
   });
+
+  it('shows an event\'s notifications in the order their alerts asked, whatever order the browser answers in', async () => {
+    const asked = new Map<string, number>();
+    const turns = new Map<string, Promise<void>>();
+    const shown: string[] = [];
+    // The browser's answer to each notification's request for the service worker, handed back by the test.
+    const answer = () => {
+      let give!: () => void;
+      const given = new Promise<void>((resolve) => { give = resolve; });
+      return { given, give };
+    };
+    const low = answer();
+    const critical = answer();
+    const tag = 'safeos-Motion alert-e1';
+    // The low alert's notification is on its way to the browser when the critical alert asks for its own.
+    askNote(asked, tag, 1_000);
+    const first = showInTurn(turns, asked, tag, 1_000, async () => { await low.given; shown.push('low'); });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    askNote(asked, tag, 1_150);
+    const second = showInTurn(turns, asked, tag, 1_150, async () => { await critical.given; shown.push('critical'); });
+    // The browser answers the critical one first.
+    critical.give();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    low.give();
+    await Promise.all([first, second]);
+    // The critical notification is the one that stands.
+    expect(shown).toEqual(['low', 'critical']);
+  });
+
+  it('leaves out a notification that a newer alert of its event asked after, before its turn came', async () => {
+    const asked = new Map<string, number>();
+    const turns = new Map<string, Promise<void>>();
+    const shown: string[] = [];
+    const tag = 'safeos-Motion alert-e1';
+    askNote(asked, tag, 1_000);
+    askNote(asked, tag, 1_150);
+    await Promise.all([
+      showInTurn(turns, asked, tag, 1_000, async () => { shown.push('low'); }),
+      showInTurn(turns, asked, tag, 1_150, async () => { shown.push('critical'); }),
+    ]);
+    expect(shown).toEqual(['critical']);
+  });
 });
+
