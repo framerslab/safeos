@@ -1362,6 +1362,8 @@ test.describe('Keeping pictures, 1280 px', () => {
       const held = cards(page).first();
       await expect(held.locator('.alert-picture__wait')).toBeVisible();
       const heldSince = Date.now();
+      // The picture holds still: the event ends with no repeat, and no later alert comes.
+      await page.evaluate(() => { window.__camera!.moving.width = 0; });
 
       if (way === 'Delete all pictures') {
         await deleteAll(group(other)).click();
@@ -3605,6 +3607,8 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await raiseEvents(page, 2, 2);
     const held = cards(page).first();
     await expect(held.locator('.alert-picture__wait')).toBeVisible();
+    // The picture holds still: the event ends with no repeat, so the card keeps this alert's time.
+    await page.evaluate(() => { window.__camera!.moving.width = 0; });
     const time = await timeOf(held, 'Motion');
     // The other tab lists the alert once it is saved, while its picture waits.
     await expect.poll(() => savedAlertCount(page), { timeout: 12_000 }).toBe(2);

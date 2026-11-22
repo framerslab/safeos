@@ -347,7 +347,8 @@ test.describe('A sighting on the watch, 390 px', () => {
     // The phone bar's Dashboard, in the same visit.
     await page.locator('nav[aria-label="App"]:visible').getByRole('link', { name: 'Dashboard', exact: true }).click();
     await page.waitForURL(/\/dashboard\/?$/, { timeout: 60_000 });
-    const row = page.getByRole('link', { name: /^Colours like Stripes’s at .+, from Lost and Found$/ });
+    // The row's name is said with a plain apostrophe.
+    const row = page.getByRole('link', { name: /^Colours like Stripes['’]s at .+, from Lost and Found$/ });
     await expect(row).toHaveCount(1, { timeout: 30_000 });
     await expect(page.getByRole('link', { name: /, from Motion and sound$/ })).toHaveCount(0);
     // Its picture is the sighting's kept picture, read from this device.
