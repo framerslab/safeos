@@ -2819,8 +2819,9 @@ export async function checkApp(browser, baseUrl, outDir) {
 
   // The first screen as a person sees it at 390 by 844, the phone bar
   // included; what stands behind the bar is not seen. The mark is the brand's
-  // own drawing, counted as a picture is, and the skip link stands off screen
-  // until it has focus: neither counts.
+  // own drawing, counted as a picture is, and so are the small pictures of
+  // the settings list's rows (their meters, volume bar, quiet band and pet's
+  // photo); the skip link stands off screen until it has focus: none counts.
   const firstScreen = (page) => page.evaluate(() => {
     const foot = window.innerHeight;
     const bar = document.querySelector('nav.phone-bar');
@@ -2828,7 +2829,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     const ground = getComputedStyle(document.querySelector('.app-shell')).backgroundColor;
     const clear = 'rgba(0, 0, 0, 0)';
     const seen = (el) => {
-      if (el.closest('.sr-only, .skip-link, .site-mark')) return false;
+      if (el.closest('.sr-only, .skip-link, .site-mark, .set-pic, .set-pic-pet')) return false;
       const box = el.getBoundingClientRect();
       const style = getComputedStyle(el);
       const limit = bar && bar.contains(el) ? foot : barTop;
@@ -5277,9 +5278,28 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
-  // The first screen at 390 by 844 in the dark look.
+  // The first screen at 390 by 844 in the dark look: these 10 controls; the
+  // wordmark's two styles, the list's four (the heading, a row's name, a
+  // value, which the line under the heading and the phone bar's places share,
+  // and a group's heading) and the frame's look and Help rows, which keep
+  // their own Inter 700 at 16 px; the two frame rows' edges, the one rule
+  // above a group, the phone bar and its place mark, the rows' small pictures
+  // counted as pictures; and five colours.
   const LIST_FIRST_CONTROLS = [/^Switch to the light look$/, /^Help$/, /^Detection/, /^Alert sounds/, /^Quiet hours/, /^Unanswered alerts/, /^Notifications/,
     (name) => name === 'Dashboard', (name) => name === 'History', (name) => name === 'Settings'];
+  const styleOf = (face, weight, size, colour) => (style) => {
+    const [family, ...rest] = style.split(' ');
+    return family.replace(/["']/g, '').includes(face) && rest.join(' ') === `${weight} ${size} ${colour}`;
+  };
+  const LIST_FIRST_STYLES = [
+    styleOf('Space_Grotesk', '700', '16px', INK.dark), styleOf('Space_Grotesk', '400', '16px', QUIET.dark),
+    styleOf('Space_Grotesk', '600', '24px', INK.dark), styleOf('Inter', '400', '18px', INK.dark),
+    styleOf('Inter', '400', '16px', QUIET.dark), styleOf('Inter', '600', '16px', QUIET.dark),
+    styleOf('Inter', '700', '16px', INK.dark),
+  ];
+  const LIST_FIRST_BOXES = [/^button\.settings-row$/, /^a\.settings-row$/, /^section\.set-group\..*set-group--headed/,
+    /^nav\.phone-bar\..*look-part/, /^a\.phone-bar__place.*::before$/];
+  const LIST_FIRST_COLOURS = [PAGE.dark, INK.dark, QUIET.dark, LINE.dark, ACCENT.dark];
   await openSettings({ name: 'settings list, first screen counted', width: 390, height: 844, look: 'dark' }, async (page, context, check) => {
     await visit(page, '/settings/');
     await listRows(page);
@@ -5294,9 +5314,12 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
     check(seen.controls.length === 10 && matched && left.length === 0,
       `the first screen holds ${seen.controls.length} controls, not the 10 named: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
-    check(seen.styles.length === 6, `the first screen holds ${seen.styles.length} text styles, not 6: ${seen.styles.join(' | ')}`);
-    check(seen.boxes.length === 5, `the first screen draws ${seen.boxes.length} rules and boxes, not 5: ${seen.boxes.join(', ')}`);
-    check(seen.colours.length === 5, `the first screen holds ${seen.colours.length} colours, not 5: ${seen.colours.join(', ')}`);
+    check(seen.styles.length === 7 && matchesAll(seen.styles, LIST_FIRST_STYLES),
+      `the first screen holds ${seen.styles.length} text styles, not the 7 named: ${seen.styles.join(' | ')}`);
+    check(seen.boxes.length === 5 && matchesAll(seen.boxes, LIST_FIRST_BOXES),
+      `the first screen draws ${seen.boxes.length} rules and boxes, not the 5 named: ${seen.boxes.join(', ')}`);
+    check(seen.colours.length === 5 && LIST_FIRST_COLOURS.every((colour) => seen.colours.includes(colour)),
+      `the first screen holds ${seen.colours.length} colours, not the 5 named: ${seen.colours.join(', ')}`);
   });
 
   // Lost and Found chosen in setup with a saved pet: the Detection row names
@@ -5401,6 +5424,8 @@ export async function checkApp(browser, baseUrl, outDir) {
         const order = [];
         for (let i = 0; i < 40 && order.length < 12; i += 1) {
           await page.keyboard.press('Tab');
+          // The page scrolls smoothly to the focused row: read it once it stands still.
+          await scrollSettled(page);
           const at = await page.evaluate(() => {
             const el = document.activeElement;
             if (!el || !el.closest('.settings, .settings-phone-rows')) return null;
@@ -5410,7 +5435,8 @@ export async function checkApp(browser, baseUrl, outDir) {
             const style = getComputedStyle(el);
             const name = el.getAttribute('aria-labelledby') ? document.getElementById(el.getAttribute('aria-labelledby'))?.textContent : el.textContent;
             return { name: (name || '').replace(/\s+/g, ' ').trim(), ringed: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2,
-              clear: box.bottom <= barTop + 0.5 && box.top >= 0 };
+              clear: box.bottom <= barTop + 0.5 && box.top >= 0,
+              box: `${Math.round(box.top)} to ${Math.round(box.bottom)} px, the bar from ${Math.round(barTop)} px` };
           });
           if (at && !order.some((seen) => seen.name === at.name)) order.push(at);
         }
@@ -5420,7 +5446,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         const bare = order.filter((at) => !at.ringed);
         check(bare.length === 0, `focused with no ring: ${bare.map((at) => at.name).join(', ')}`);
         const hidden = order.filter((at) => !at.clear);
-        check(hidden.length === 0, `focused under the phone bar or off screen: ${hidden.map((at) => at.name).join(', ')}`);
+        check(hidden.length === 0, `focused under the phone bar or off screen: ${hidden.map((at) => `${at.name} (${at.box})`).join(', ')}`);
         if (width === 320) {
           const sideways = await sidewaysScroll(page);
           check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
@@ -5452,7 +5478,9 @@ export async function checkApp(browser, baseUrl, outDir) {
   const INVENTORY = JSON.parse(await readFile(new URL('./settings-inventory.json', import.meta.url), 'utf8'));
   await openSettings({ name: 'settings, every control', width: 1280, look: 'light' }, async (page, context, check) => {
     for (const row of INVENTORY.controls) {
+      // The pull request's own build serves every page the file names.
       const served = await page.goto(address(row.page), { waitUntil: 'networkidle', timeout: 60_000 }).then((r) => r && r.ok()).catch(() => false);
+      check(served, `${row.page} did not open, so "${row.name}" was not checked`);
       if (!served) continue;
       const control = page.getByRole(row.role, { name: row.name, exact: true });
       const found = await control.waitFor({ timeout: 15_000 }).then(() => true, () => false);
