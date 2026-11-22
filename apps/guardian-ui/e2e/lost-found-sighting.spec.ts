@@ -443,6 +443,26 @@ test.describe('A sighting on the watch, 1280 px', () => {
     await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(2);
   });
 
+  test('Stop and a new start make the next sighting a new entry, with no wait for the Cooldown Period', async ({ page, context }) => {
+    test.setTimeout(300_000);
+    await setUp(context, {
+      settings: { ...SIGHTINGS_ONLY, timingSettings: { cooldownPeriod: 120, minimumMotionDuration: 500, emergencyEscalationDelay: 300 } },
+    });
+    await stripedCamera(page);
+    await watchForStripes(page);
+    await expect(sightings(page)).toHaveCount(1, { timeout: 90_000 });
+    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+    await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
+    await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+    // The stripes are in view again: the new watch's first sighting is an entry of its own, long
+    // before the earlier entry's 120-second Cooldown Period has passed.
+    await expect(sightings(page)).toHaveCount(2, { timeout: 45_000 });
+    await expect(sightings(page).first().getByText(/^Repeated /)).toHaveCount(0);
+    await expect(sightings(page).last().getByText(/^Repeated /)).toHaveCount(0);
+    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(2);
+  });
+
   test('the sighting opens with the pet’s photo, and Save picture saves the camera’s picture', async ({ page, context }) => {
     test.setTimeout(240_000);
     await setUp(context);

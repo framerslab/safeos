@@ -15,6 +15,8 @@
 
 import type { BrowserContext, Locator, Page } from '@playwright/test';
 
+import { PICTURES_CLEAR_MARKER_KEY } from '../../src/lib/local-data-generation';
+
 // =============================================================================
 // The device
 // =============================================================================
@@ -833,6 +835,11 @@ export interface PictureFault {
   reads?: 'error';
   /** Every delete of a kept picture (the row that says it went) fails. */
   deletes?: 'error';
+  /**
+   * Delete all pictures' transaction aborts as it commits: after its rows are written and the app
+   * has written the pictures marker that every tab's waiting save reads.
+   */
+  deleteAllAborts?: boolean;
 }
 
 declare global {
@@ -850,7 +857,7 @@ const FAULT_KEY = 'walk-picture-fault';
  * delete. With no fault set every call goes straight through.
  */
 export async function faultPictureStore(page: Page, fault: PictureFault = {}): Promise<void> {
-  await page.addInitScript(({ key, first }: { key: string; first: PictureFault }) => {
+  await page.addInitScript(({ key, first, picturesMarker }: { key: string; first: PictureFault; picturesMarker: string }) => {
     const saved = localStorage.getItem(key);
     window.__pictureFault = saved ? JSON.parse(saved) : first;
     if (!saved) localStorage.setItem(key, JSON.stringify(first));
@@ -893,11 +900,29 @@ export async function faultPictureStore(page: Page, fault: PictureFault = {}): P
       return cursorDelete.call(this);
     } as typeof cursorDelete;
 
+    // The transaction that last wrote a row saying its picture went: Delete all pictures' own when
+    // the app then writes the pictures marker.
+    let goneTx: IDBTransaction | null = null;
     const cursorUpdate = IDBCursor.prototype.update;
     IDBCursor.prototype.update = function (this: IDBCursor, value: { state?: string }) {
-      if (onPictures(this.source) && value?.state === 'gone' && fault().deletes === 'error') refuse('UnknownError');
+      if (onPictures(this.source) && value?.state === 'gone') {
+        if (fault().deletes === 'error') refuse('UnknownError');
+        goneTx = storeOf(this.source)!.transaction;
+      }
       return cursorUpdate.call(this, value);
     } as typeof cursorUpdate;
+
+    // Delete all pictures writes the pictures marker inside its transaction; with the fault set, that
+    // transaction aborts right after the marker is written.
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (this: Storage, name: string, value: string) {
+      setItem.call(this, name, value);
+      if (name === picturesMarker && fault().deleteAllAborts && goneTx) {
+        const tx = goneTx;
+        goneTx = null;
+        try { tx.abort(); } catch { /* It has finished already. */ }
+      }
+    } as typeof setItem;
 
     const read = <T extends IDBRequest>(request: T): T => {
       const hold = fault().holdReadMs;
@@ -949,7 +974,7 @@ export async function faultPictureStore(page: Page, fault: PictureFault = {}): P
       const handBack: BlobCallback = wait ? (blob: Blob | null) => { setTimeout(() => callback(blob), wait); } : callback;
       return toBlob.call(this, handBack, type, quality);
     } as typeof toBlob;
-  }, { key: FAULT_KEY, first: fault });
+  }, { key: FAULT_KEY, first: fault, picturesMarker: PICTURES_CLEAR_MARKER_KEY });
 }
 
 /** Changes the fault while the walk runs; a reload keeps it. */

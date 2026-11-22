@@ -1402,6 +1402,46 @@ test.describe('Keeping pictures, 1280 px', () => {
     });
   }
 
+  test('a save running when Delete all pictures fails in another tab is written', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+    await canvasCamera(page, LEFT_THIRD);
+    await faultPictureStore(page);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await startWatching(page);
+    await timeOf(cards(page).first(), 'Motion');
+    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+
+    // In the other tab, Delete all pictures' transaction aborts as it commits, after its marker is written.
+    const other = await context.newPage();
+    await faultPictureStore(other);
+    await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
+    await setFault(other, { deleteAllAborts: true });
+
+    // The next alert's picture is handed back 30 seconds after it is drawn: its save waits.
+    const HOLD_MS = 30_000;
+    await setFault(page, { holdDrawMs: HOLD_MS });
+    await raiseEvents(page, 2, 2);
+    const held = cards(page).first();
+    await expect(held.locator('.alert-picture__wait')).toBeVisible();
+    const heldSince = Date.now();
+    // The picture holds still: the event ends with no repeat, and no later alert comes.
+    await page.evaluate(() => { window.__camera!.moving.width = 0; });
+
+    await deleteAll(group(other)).click();
+    await other.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+    await expect(group(other).getByText(DELETE_FAILED_LINE, { exact: true })).toBeVisible();
+    await expect(held.locator('.alert-picture__wait'), 'the save waits until after the failed deletion').toBeVisible();
+
+    // The held save goes on now. Nothing was deleted, so its picture is written beside the first.
+    await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - heldSince)) + 5_000);
+    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(2);
+    const time = await timeOf(held, 'Motion');
+    await expect(held.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+    await expect(held.getByText('You deleted its picture.', { exact: true })).toHaveCount(0);
+    await other.close();
+  });
+
   test('a connected server receives its frames and no kept picture, box or close-up', async ({ page, context }) => {
     test.setTimeout(150_000);
     const wsUrl = 'ws://127.0.0.1:4174/ws';
@@ -3587,6 +3627,33 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await expect(dialog.getByText(UNREADABLE_LINE, { exact: false })).toHaveCount(0);
     await expect(picture).toBeVisible();
     await expect(saveKey(dialog)).toBeVisible();
+  });
+
+  test('a failed delete’s line leaves with its picture when a repeat puts a newer one in the panel', async ({ page, context }) => {
+    test.setTimeout(150_000);
+    await faultPictureStore(page);
+    await watchWith(page, context, { settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) }, camera: LEFT_THIRD });
+    const card = cards(page).first();
+    const time = await timeOf(card, 'Motion');
+    await openKey(card).click();
+    await expect(page.getByRole('dialog', { name: `Motion at ${time}`, exact: true })).toBeVisible();
+    // The panel takes the newest alert's title with a repeat, so it is found by its own mark.
+    const dialog = page.locator('[role="dialog"].alert-picture-dialog');
+    const picture = dialog.getByRole('img', { name: /^What the camera saw at / });
+    const first = await picture.getAttribute('src');
+    // The delete of the shown picture fails, and the panel says so.
+    await setFault(page, { deletes: 'error' });
+    await deleteKey(dialog).click();
+    await confirmDelete(page).click();
+    const failed = dialog.getByText(PICTURE_DELETE_FAILED_LINE, { exact: true });
+    await expect(failed).toBeVisible();
+    await setFault(page, {});
+    // The event goes on and repeats: the opened picture becomes the newest alert's.
+    await expect.poll(() => picture.getAttribute('src'), { timeout: 60_000 }).not.toBe(first);
+    // The failure was the earlier picture's: the newer one shows with no line saying it could not be deleted.
+    await expect(failed).toHaveCount(0);
+    await expect(picture).toBeVisible();
+    await expect(deleteKey(dialog)).toBeVisible();
   });
 
   test('a tab that reads an alert before its picture is saved shows the picture once it is', async ({ page, context }) => {
