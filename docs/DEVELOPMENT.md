@@ -400,13 +400,30 @@ prints an error and carries on.
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
 | `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
-| `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the dashboard for the pull request's own build |
+| `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the app's pages for the pull request's own build |
 | `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera, then captures each alert picture state (see below) |
 
 `measure.yml` (Measure) is apart from these: it runs on each push to
 `master` and by hand, never on a pull request. It records how fast the watch,
 the detection model and Lost & Found matching run in Chromium with the CPU
 slowed, and a slow number does not fail it. See [Performance](./PERFORMANCE.md).
+
+The star count beside the public header's GitHub link is read when the site is
+built, never by a visitor's browser. Before the build, `deploy-pages.yml` and
+`pictures.yml` run `apps/guardian-ui/scripts/read-github-stars.mjs`. It asks
+GitHub's REST API for the repository once
+([Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository),
+the field `stargazers_count`) and appends `NEXT_PUBLIC_GITHUB_STARS` and
+`NEXT_PUBLIC_GITHUB_STARS_DATE` to the job's environment; the build writes them
+into every page (`apps/guardian-ui/src/lib/github-stars.ts`). The script needs
+no token. The workflows give it the run's own read-only token, because GitHub
+counts a request without one against the runner's address, at 60 requests an
+hour ([Rate limits for the REST API](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)).
+When GitHub does not answer within ten seconds, answers with an error, or
+answers with anything but a whole number above zero, the script prints a
+warning, writes nothing and ends with success: the pages then show the link's
+word alone. To see a count in a local build, set the two values yourself, for
+example `NEXT_PUBLIC_GITHUB_STARS=58 NEXT_PUBLIC_GITHUB_STARS_DATE=2026-11-18 npm run build`.
 
 Concurrency: a newer push to a pull request cancels that pull request's older
 runs, and a pull request never cancels a run on `master`. On `master`, every
@@ -418,9 +435,10 @@ land at once the site and the `latest` images go straight to the newest.
 ### Pictures
 
 `pictures.yml` builds the static site, serves it inside the job, opens each
-route in Chromium with Playwright at 390 and 1280 pixels wide, in the light and
-the dark look, and uploads the full-page PNG files as the run's `pictures`
-artifact (`<route>-<width>-<look>.png`).
+route in Chromium with Playwright at 390, 820, 1280 and 1920 pixels wide (one
+width for each layout), in the light and the dark look, and uploads the
+full-page PNG files as the run's `pictures` artifact
+(`<route>-<width>-<look>.png`).
 
 Pull-request picture runs also capture the base commit with the same routes,
 widths and looks. The `pictures` artifact contains the proposed change and
@@ -441,9 +459,23 @@ beside Back for a scenario already chosen. The headless browser has no prompt,
 so the refused and none-found answers are given to the page's camera request by
 the script; the third walk uses the browser's own answer. A finding fails the run.
 
+When `/dashboard/` is captured, both versions also capture the dashboard after
+setup (`dashboard-setup-<width>-<look>.png`), and the pull request's own build
+checks that each of the four ways to watch opens its page. For the pull
+request's own build the script also walks the app's pages
+(`apps/guardian-ui/scripts/app-checks.mjs`): the header, the phone bar and the
+footer at every width from 320 px, each page with scripts off and with its
+script held, the dashboard in each state (before setup, the camera blocked or
+in use, notifications blocked or not asked, a second tab, alerts new, the
+stores held, a private window) at every width with its first screen counted,
+sizes and contrast against the readable look's figures, the old addresses and
+the offline page. The camera in these walks is a stand-in that draws a
+changing picture, and the browser's answers for the camera and notifications
+are given by the script. A finding fails the run.
+
 - On a pull request: add the label `pictures`. It runs on the labelling and on
   every later push to that pull request, for the routes in `DEFAULT_ROUTES`
-  (home, monitoring, setup, dashboard, settings, notifications, models, nap,
+  (home, monitoring, setup, dashboard, history, settings, notifications, models, nap,
   admin, privacy, FAQ and help).
 - By hand: Actions, Pictures, Run workflow. Give a branch, tag or commit and the
   routes separated by spaces (for example `/ /about/ /faq/`).
@@ -463,6 +495,22 @@ and the words of each part, the footer, the title and cards, sizes and
 contrast against the readable look's figures, and the page offline after one
 visit. It saves the page from top to bottom at 820 and 1920 pixels too. A
 finding fails the run.
+
+It then walks what every public page shares
+(`apps/guardian-ui/scripts/public-chrome-checks.mjs`): the row's links at 820,
+1024, 1280, 1440 and 1920 pixels with GitHub and its star count; a row that
+runs short, which gives up GitHub first, then Privacy; every request each
+public page and each app page makes for ten seconds, none of it to another
+host; the keys of every public page; the footer's makers and About's part on
+who builds SafeOS. For the key sheet it lays the four kinds of key out on a
+public page with the site's own stylesheet, pictures each at rest, under the
+pointer, focused, pressed and inactive in both looks, measures its label, edge,
+ring and glyph from the picture's pixels, and saves the pictures side by side
+as `keys-sheet-<look>.png`. Both versions of a pull request also capture the
+public header and footer on their own (`site-header-<width>-<look>.png`,
+`site-footer-<width>-<look>.png`), the open Menu at 390 pixels
+(`site-menu-390-<look>.png`) and About's part
+(`about-builders-<width>-<look>.png`), so the two read side by side.
 
 #### The home page's own pictures
 
@@ -493,6 +541,12 @@ pictures" makes it:
    `scripts/home-card.html`, a page the site does not serve) and
    `home/provenance.json`: the run, the commit, the clip's sha256 and each
    file's viewport, width, height and bytes.
+
+A crop is kept only at the size it asks for: one that runs past the edge of
+the screen is saved cut short, and the job fails on it. The landscape crop is
+16:10 from the top of the 1280 px monitor's grid; where the grid starts too
+far down the 1000 px screen for it, the script first moves the page up until
+the crop ends inside the screen.
 
 The files are uploaded as the run's `home-pictures` artifact. To ship them,
 download it and copy it over `apps/guardian-ui/public/`:

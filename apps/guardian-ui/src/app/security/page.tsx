@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Security Mode Page
+ * People page
  * 
  * Main interface for the anti-theft/intruder detection system.
  * Combines live camera feed, person detection, and alert controls.
@@ -17,6 +17,7 @@ import { useDetectionModel } from '@/lib/detection-model';
 import { SecurityPanel } from '../../components/SecurityPanel';
 import { IntrusionGallery } from '../../components/IntrusionGallery';
 import { CameraFeed } from '../../components/CameraFeed';
+import { KeyRow } from '../../components/app/KeyRow';
 import {
   IconShield,
   IconCamera,
@@ -27,7 +28,11 @@ import {
 import { useSecurityStore, createIntrusionFrame } from '../../stores/security-store';
 import { getPersonDetector, PersonDetectionResult, calculatePersonChange } from '../../lib/person-detection';
 import { startSecurityAlert, stopSecurityAlert } from '../../lib/tts-alerts';
-import { saveIntrusionFrame, type IntrusionFrameDB } from '../../lib/client-db';
+import { deleteIntrusionFrame, saveIntrusionFrame, type IntrusionFrameDB } from '../../lib/client-db';
+import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
+import { announceWatch } from '../../lib/tab-channel';
+import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
+import { useStartGuard } from '../../lib/start-guard';
 
 // =============================================================================
 // Flash Overlay Component
@@ -239,7 +244,7 @@ export default function SecurityPage() {
   }, [download.status, download.setupComplete]);
 
   // Handle intrusion trigger
-  const handleIntrusion = useCallback(async (result: PersonDetectionResult) => {
+  const handleIntrusion = useCallback(async (result: PersonDetectionResult, live: () => boolean) => {
     const { exceeded, isNewIntrusion } = calculatePersonChange(
       result.personCount,
       previousCountRef.current,
@@ -287,7 +292,14 @@ export default function SecurityPage() {
       notes: '',
       exported: false,
     };
+    // A check whose watch ended saves nothing; a frame whose save lands after
+    // the watch ended is taken back, so no alert of an ended watch stays.
+    if (!live()) return;
     await saveIntrusionFrame(frameDB);
+    if (!live()) {
+      await deleteIntrusionFrame(frameDB.id);
+      return;
+    }
 
     // Trigger intrusion in store
     triggerIntrusion(intrusionFrame);
@@ -339,6 +351,52 @@ export default function SecurityPage() {
     }
   }, [armingState]);
 
+  // While another tab watches, the arm key asks first.
+  const { guard, dialog } = useStartGuard();
+
+  // A start the dashboard's key asked for arms the page once its model is
+  // ready; the camera the key opened waits for the countdown to end. Another
+  // tab that took over while the model loaded dropped the start: nothing arms.
+  const [startAsked, setStartAsked] = useState<StartRequest | null>(null);
+  useEffect(() => {
+    const start = takeStart('security');
+    if (start) setStartAsked(start);
+  }, []);
+  useEffect(() => {
+    if (!startAsked || modelStatus !== 'ready' || armingState !== 'disarmed') return;
+    setStartAsked(null);
+    if (startHeld(startAsked)) useSecurityStore.getState().arm();
+  }, [startAsked, modelStatus, armingState]);
+
+  // The watch runs from the press that arms it until it is disarmed, and the
+  // other tabs hear of it from that press, before the camera is asked for.
+  // This effect's end is the watch's one end, whatever disarmed it: DISARM,
+  // Cancel during the countdown, another tab, or leaving the page.
+  const watchOn = armingState !== 'disarmed';
+  useEffect(() => {
+    if (!watchOn) return;
+    rememberWay('security');
+    watchStarted();
+    const endTimes = keepWatchTimes();
+    const endAnnounce = announceWatch('security', () => useSecurityStore.getState().disarm());
+    return () => {
+      endTimes();
+      watchEnded();
+      endAnnounce();
+      dropStart();
+      stopSecurityAlert();
+    };
+  }, [watchOn]);
+
+  // Leaving the page ends its watch in full: the armed state, the siren and
+  // the spoken alert. The page opens disarmed the next time. A camera held
+  // for a start the page never armed for is closed.
+  useEffect(() => () => {
+    stopSecurityAlert();
+    useSecurityStore.getState().disarm();
+    dropStart();
+  }, []);
+
   const isArmed = armingState === 'armed' || armingState === 'triggered';
 
   // Detection loop (uses video element directly; avoids relying on CameraFeed's gated onFrame)
@@ -365,6 +423,8 @@ export default function SecurityPage() {
         const result = shouldForce
           ? await detectorRef.current.forceDetection(video)
           : await detectorRef.current.processFrame(video);
+        // A check that lands after its run ended counts for nothing.
+        if (cancelled) return;
 
         if (!result) return;
         if (shouldForce) lastForceDetectionRef.current = now;
@@ -375,7 +435,7 @@ export default function SecurityPage() {
 
         // Check for intrusion
         if (result.personCount > settings.allowedPersons) {
-          await handleIntrusion(result);
+          await handleIntrusion(result, () => !cancelled);
         } else {
           // Clear alerts if no longer exceeded
           if (alertActiveRef.current) {
@@ -413,9 +473,9 @@ export default function SecurityPage() {
       />
 
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-30">
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm relative z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="way-head">
             <div className="flex items-center gap-4">
               <Link
                 href="/"
@@ -426,11 +486,11 @@ export default function SecurityPage() {
               </Link>
               <div className="flex items-center gap-2">
                 <IconShield size={24} className="text-emerald-400" />
-                <h1 className="text-xl font-bold text-white">Security Mode</h1>
+                <h1 className="text-xl font-bold text-white">People</h1>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <KeyRow>
               {/* Model Status */}
               <div
                 className={`px-2 py-1 rounded text-xs font-medium ${
@@ -469,7 +529,7 @@ export default function SecurityPage() {
                 <IconSettings size={16} />
                 Settings
               </button>
-            </div>
+            </KeyRow>
           </div>
         </div>
       </header>
@@ -544,6 +604,7 @@ export default function SecurityPage() {
             <div>
               <SecurityPanel
                 armBlockedReason={armBlockedReason}
+                guardArm={(arm, opener) => void guard(arm, opener)}
                 onTrigger={() => {
                   // Additional trigger handling if needed
                 }}
@@ -555,7 +616,7 @@ export default function SecurityPage() {
         {/* Settings Panel (Slide-over) */}
         {showSettings && (
           <div
-            className="fixed inset-0 z-50 bg-black/50"
+            className="fixed inset-0 z-[110] bg-black/50"
             onClick={() => setShowSettings(false)}
           >
             <div
@@ -572,12 +633,14 @@ export default function SecurityPage() {
                 </button>
               </div>
               <div className="p-4">
-                <SecurityPanel armBlockedReason={armBlockedReason} />
+                <SecurityPanel armBlockedReason={armBlockedReason} guardArm={(arm, opener) => void guard(arm, opener)} />
               </div>
             </div>
           </div>
         )}
       </main>
+
+      {dialog}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 /**
- * Security metadata
+ * People metadata
  *
  * The page is a client component, so its title, description, canonical
  * address and social card are set here.
@@ -8,13 +8,15 @@
  */
 
 import type { Metadata } from 'next';
-import { pageMetadata } from '@/lib/page-metadata';
+import { WAYS } from '@/lib/app-routes';
+import { appPageMetadata } from '@/lib/page-metadata';
 
-export const metadata: Metadata = pageMetadata({
-  title: 'Security mode',
-  description:
-    'Security mode watches a room for movement, counts the people in view with COCO-SSD in your browser, and alerts you with a siren and a browser notification.',
-  path: '/security/',
+const way = WAYS.find((w) => w.id === 'security')!;
+
+export const metadata: Metadata = appPageMetadata({
+  name: way.name,
+  description: way.line,
+  path: way.href,
 });
 
 export default function SecurityLayout({ children }: { children: React.ReactNode }) {

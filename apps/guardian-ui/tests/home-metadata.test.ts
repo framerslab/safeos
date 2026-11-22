@@ -180,11 +180,12 @@ describe('the install entry and the sitemap', () => {
     expect(Math.abs(new Date(faq?.lastModified as Date).getTime() - Date.now())).toBeLessThan(60_000);
   });
 
-  it('keeps the forwarding page at /donate as it was, out of the sitemap and the navigation', () => {
+  it('keeps /donate a forward to About, out of the sitemap and the navigation', () => {
     expect(sitemap().map((entry) => entry.url).filter((url) => /\/donate\b/.test(url))).toEqual([]);
     for (const file of [['src', 'components', 'visitor', 'VisitorHeader.tsx'], ['src', 'components', 'visitor', 'VisitorFooter.tsx'], ['src', 'app', 'page.tsx']]) {
       expect(fs.readFileSync(path.join(APP_ROOT, ...file), 'utf8')).not.toMatch(/\/donate\b/);
     }
-    expect(fs.existsSync(path.join(APP_ROOT, 'src', 'app', 'donate', 'ForwardToAbout.tsx'))).toBe(true);
+    expect(fs.existsSync(path.join(APP_ROOT, 'src', 'components', 'Forward.tsx'))).toBe(true);
+    expect(fs.readFileSync(path.join(APP_ROOT, 'src', 'app', 'donate', 'page.tsx'), 'utf8')).toMatch(/<Forward[\s\S]*to="\/about\/"/);
   });
 });

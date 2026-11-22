@@ -1,27 +1,22 @@
 /**
  * Visitor routes
  *
- * The pages a visitor can read before using the app (the home page and the
- * pages the sitemap lists) carry the visitor header and footer. Every other
- * route is an app screen and keeps the app's own header.
+ * The app's own pages are listed in lib/app-routes. Every other address (the
+ * home page, the pages a visitor reads and the page for an address the site
+ * does not have) carries the visitor header and footer.
  *
  * @module lib/visitor-routes
  */
 
-const VISITOR_SECTIONS = ['/about', '/faq', '/help', '/tutorials', '/tutorial', '/blog', '/privacy', '/terms', '/donate'];
+import { barePath, isAppRoute } from './app-routes';
 
-/** A pathname without its trailing slash; the root stays "/". */
-export function barePath(pathname: string | null | undefined): string {
-  const bare = (pathname || '').split(/[?#]/)[0].replace(/\/+$/, '');
-  return bare === '' ? '/' : bare;
-}
+export { barePath };
 
 export function isHomeRoute(pathname: string | null | undefined): boolean {
   return barePath(pathname) === '/';
 }
 
+/** Every address that is not one of the app's own pages, an address the site does not have among them. */
 export function isVisitorRoute(pathname: string | null | undefined): boolean {
-  const bare = barePath(pathname);
-  if (bare === '/') return true;
-  return VISITOR_SECTIONS.some((section) => bare === section || bare.startsWith(`${section}/`));
+  return !isAppRoute(pathname);
 }

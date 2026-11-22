@@ -13,6 +13,7 @@ import { useMonitoringStore, type Alert } from '../stores/monitoring-store';
 import { isStaticMode, getApiUrl } from '../lib/env';
 import { useSettingsStore } from '../stores/settings-store';
 import { getSoundManager, type SoundType } from '../lib/sound-manager';
+import { raisedByThisWatch } from '../lib/watch-sound';
 import { cardTime } from '../lib/alert-event';
 import { kindOfAlert } from '../lib/alert-pictures/rules';
 import { announceAlert, announceSighting, levelWords } from '../lib/alert-pictures/words';
@@ -127,9 +128,13 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
 
     const tick = () => {
       const now = Date.now();
-      // A Lost and Found sighting sounds the pet's own alert at each of its alerts and takes no
-      // part in the list's escalation.
-      const unacknowledged = alerts.filter((a) => !a.acknowledged && kindOfAlert(a) !== 'sighting');
+      // Only the alerts of the running watch sound or grow louder. One left
+      // unseen from an earlier watch stays in the list, silent. A Lost and
+      // Found sighting sounds the pet's own alert at each of its alerts and
+      // takes no part in the list's escalation.
+      const unacknowledged = alerts.filter(
+        (a) => !a.acknowledged && kindOfAlert(a) !== 'sighting' && raisedByThisWatch(a.id),
+      );
 
       const nextLevels = new Map<string, number>();
 

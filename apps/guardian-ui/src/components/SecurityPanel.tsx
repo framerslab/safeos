@@ -9,7 +9,7 @@
  * @module components/SecurityPanel
  */
 
-import { useState, useEffect, useCallback, useRef, useId } from 'react';
+import { useState, useEffect, useCallback, useRef, useId, type MouseEvent } from 'react';
 import {
   IconShield,
   IconShieldCheck,
@@ -113,7 +113,8 @@ function AlertModeToggle({ value, onChange, disabled }: AlertModeToggleProps) {
 interface ArmButtonProps {
   armingState: 'disarmed' | 'arming' | 'armed' | 'triggered';
   armingTimeRemaining: number;
-  onArm: () => void;
+  /** Given the key that was pressed, so a question before arming can return focus to it. */
+  onArm: (opener: HTMLElement) => void;
   onDisarm: () => void;
   /** Why arming is not possible yet; disarming always stays possible. */
   armBlockedReason?: string;
@@ -155,11 +156,11 @@ function ArmButton({ armingState, armingTimeRemaining, onArm, onDisarm, armBlock
     }
   };
 
-  const handleClick = () => {
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (isArmed || isArming) {
       onDisarm();
     } else if (!armBlocked) {
-      onArm();
+      onArm(event.currentTarget);
     }
   };
 
@@ -314,9 +315,11 @@ interface SecurityPanelProps {
   onTrigger?: () => void;
   /** Set while the system cannot watch (for example, no detection model yet). */
   armBlockedReason?: string;
+  /** Runs the arm press through the page's question before a second watch. */
+  guardArm?: (arm: () => void, opener: HTMLElement) => void;
 }
 
-export function SecurityPanel({ className = '', onTrigger, armBlockedReason }: SecurityPanelProps) {
+export function SecurityPanel({ className = '', onTrigger, armBlockedReason, guardArm }: SecurityPanelProps) {
   const {
     armingState,
     settings,
@@ -408,7 +411,7 @@ export function SecurityPanel({ className = '', onTrigger, armBlockedReason }: S
       <ArmButton
         armingState={armingState}
         armingTimeRemaining={armingTimeRemaining}
-        onArm={arm}
+        onArm={(opener) => (guardArm ? guardArm(arm, opener) : arm())}
         onDisarm={disarm}
         armBlockedReason={armBlockedReason}
       />

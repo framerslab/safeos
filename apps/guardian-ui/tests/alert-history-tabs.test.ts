@@ -30,9 +30,10 @@ async function tab(options: { held?: boolean } = {}) {
   const { useAuthStore: auth } = await import('@/stores/auth-store');
   const { useMonitoringStore: monitoring } = await import('@/stores/monitoring-store');
   const { clearLocalData } = await import('@/lib/local-data');
+  const sound = await import('@/lib/watch-sound');
   jest.dontMock('@/lib/client-db');
   const listed = () => monitoring.getState().alerts.map((alert) => alert.id).sort();
-  return { auth, monitoring, clearLocalData, hold, listed, read: () => monitoring.getState().hydrateAlerts() };
+  return { auth, monitoring, clearLocalData, hold, listed, sound, read: () => monitoring.getState().hydrateAlerts() };
 }
 /** Every alert write fails once it has read the database. */
 function failSaves() {
@@ -197,6 +198,47 @@ it.each(['acknowledges', 'removes', 'clears all'])('keeps what another tab did w
   expect(shown).toMatchObject({ acknowledged: false, severity: 'high', message: 'the repeat', createdAt: FRESH.createdAt });
   expect(shown.repeats).toBeUndefined();
   expect(watching.listed()).toContain('fresh-card');
+});
+
+it('lets the fresh card of a repeat sound for the watch that raised it, and not for a watch that has ended', async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  const other = await tab();
+  await watching.read();
+  await other.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  await other.read();
+  other.monitoring.getState().acknowledgeAlert('event-card');
+  await other.read();
+
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH });
+  await watching.read();
+
+  expect(watching.listed()).toContain('fresh-card');
+  expect(watching.sound.raisedByThisWatch('fresh-card')).toBe(true);
+});
+
+it("gives a repeat's fresh card no sound once the watch that raised the card has ended", async () => {
+  (await oldTab()).close();
+  const watching = await tab();
+  const other = await tab();
+  await watching.read();
+  await other.read();
+  watching.monitoring.getState().addAlert(FIRST);
+  await watching.read();
+  await other.read();
+  other.monitoring.getState().acknowledgeAlert('event-card');
+  await other.read();
+
+  // The watch ends, and a repeat it queued lands after.
+  watching.sound.forgetRaised();
+  watching.monitoring.getState().addAlert(REPEAT, { fresh: () => FRESH, raised: false });
+  await watching.read();
+
+  expect(watching.listed()).toContain('fresh-card');
+  expect(watching.sound.raisedByThisWatch('fresh-card')).toBe(false);
+  expect(watching.sound.raisedByThisWatch('event-card')).toBe(false);
 });
 
 it('puts repeats queued behind a card another tab acknowledged on one fresh card', async () => {

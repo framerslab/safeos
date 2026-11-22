@@ -15,8 +15,8 @@ Setup's **Grant Permissions** also completes with the camera alone.
 
 ## Watch for
 
-Monitor opens with the heading **Watch for** and two options above the camera
-and the settings: **Motion and sound** (chosen on a fresh device) and **Lost and
+Under the page's name, Monitor opens with **Watch for** and two options above the
+camera and the settings: **Motion and sound** (chosen on a fresh device) and **Lost and
 Found**. Motion and sound sounds an alert on this device when something moves or
 makes a sound. Lost and Found does the same and, while the watch runs, compares
 what the camera sees with a saved pet's photos, by colour and shape, one pet at a
@@ -184,8 +184,8 @@ again, in place of the event's last one (each event has its own tag, which holds
 when the severity changes, so a new event's notification stands beside an earlier
 one; once an event has alerted at high or critical, each of its notifications
 stays up until it is dismissed), and updates the event's card in the alert list in place: the card
-shows the newest severity, reading and time, and "Repeated N times". History, the
-dashboard and the alert menu list the card at its newest alert, and the alert
+shows the newest severity, reading and time, and "Repeated N times". History and the
+dashboard's **Since you last looked** list the card at its newest alert, and the alert
 panel's screen-reader announcement names the repeat count, so each repeat is read
 out. Escalation counts from the event's first alert, so one event climbs the
 escalation levels once. A card
@@ -193,6 +193,10 @@ that has been acknowledged stays as it is, and the next repeat makes a new card.
 The same holds for a card acknowledged, dismissed or cleared in another tab: the
 repeat reads the saved card in the same database transaction as its write, leaves
 what the other tab did, and goes on a new card, which the event's later repeats update.
+The new card sounds and escalates while the watch that raised the old card runs; a
+repeat that lands after that watch ended goes on a silent card. An alert the
+monitoring server sends for another stream than the running watch's (a late alert of
+a watch that has ended) is listed as new and stays silent.
 A custom sound set to loop for the alert's trigger plays one copy while it loops: a
 repeat does not start a second copy on top of it, and counts no play in Settings >
 Sounds.
@@ -324,7 +328,8 @@ and reconnect timer.
 Monitor alerts are written to the `safeos-guardian` IndexedDB alert cache. Saved alerts
 belong to the browser, not to a session or a profile: Monitor, **History → Local
 Timeline** and History's offline export show the same records on every page and in every
-tab, the dashboard shows the newest five of them, and anyone who uses SafeOS in this
+tab, the dashboard lists the newest of those not marked as seen beside the other ways'
+alerts and counts them on History's link, and anyone who uses SafeOS in this
 browser sees them until someone signs out or clears local data. Reading and writing them
 never waits for a session, and a replaced session changes nothing.
 

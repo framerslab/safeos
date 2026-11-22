@@ -8,13 +8,15 @@
  */
 
 import type { Metadata } from 'next';
-import { pageMetadata } from '@/lib/page-metadata';
+import { WAYS } from '@/lib/app-routes';
+import { appPageMetadata } from '@/lib/page-metadata';
 
-export const metadata: Metadata = pageMetadata({
-  title: 'Wildlife mode',
-  description:
-    'Wildlife mode watches a yard or a feeder with COCO-SSD in your browser and logs each animal it can name: dogs, cats, birds, horses, sheep, cows, bears, elephants, zebras and giraffes.',
-  path: '/wildlife/',
+const way = WAYS.find((w) => w.id === 'wildlife')!;
+
+export const metadata: Metadata = appPageMetadata({
+  name: way.name,
+  description: way.line,
+  path: way.href,
 });
 
 export default function WildlifeLayout({ children }: { children: React.ReactNode }) {

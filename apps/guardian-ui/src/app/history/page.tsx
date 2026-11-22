@@ -8,10 +8,11 @@
 
 'use client';
 
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { isStaticMode } from '@/lib/env';
 import { useMonitoringStore } from '@/stores/monitoring-store';
+import { useAnimalAlertStore } from '@/stores/animal-alert-store';
 import { cardTime } from '@/lib/alert-event';
 import { kindOfAlert } from '@/lib/alert-pictures/rules';
 import { kindWords, levelWords, pictureName, sightingQuestion } from '@/lib/alert-pictures/words';
@@ -20,15 +21,19 @@ import { sweepPicturesByAge } from '@/lib/alert-pictures/keeper';
 import { OpenPictureKey, PictureBlock } from '@/components/alert-pictures/PictureBlock';
 import { PictureDialogHost } from '@/components/alert-pictures/PictureDialog';
 import { KeyRow } from '@/components/alert-pictures/KeyRow';
+import { recordTime } from '@/lib/alert-groups';
+import { markSeen, onAlertsChanged, useDeviceAlerts } from '@/lib/device-alerts';
+import type { DeviceAlert } from '@/lib/alert-groups';
+import { onTabMessage } from '@/lib/tab-channel';
 import { useSettingsStore } from '@/stores/settings-store';
 import {
   acknowledgeIntrusionFrame,
   acknowledgeMatchFrame,
-  getAllIntrusionFrames,
-  getAllMatchFrames,
   getAllSubjectProfiles,
   markIntrusionFramesExported,
   markMatchFramesExported,
+  readNewestIntrusionFrames,
+  readNewestMatchFrames,
   updateIntrusionFrameNotes,
   updateMatchFrameNotes,
   type IntrusionFrameDB,
@@ -64,12 +69,12 @@ interface AnalysisResult {
 type ViewMode = 'local' | 'alerts' | 'analysis';
 type FilterSeverity = 'all' | 'info' | 'low' | 'medium' | 'high' | 'critical';
 
-type LocalFilterType = 'all' | 'alerts' | 'lost_found' | 'intrusions';
+type LocalFilterType = 'all' | 'alerts' | 'lost_found' | 'intrusions' | 'wildlife';
 type LocalTimelineSeverity = FilterSeverity;
 
 interface LocalTimelineEvent {
   id: string;
-  type: 'alert' | 'lost_found' | 'intrusion';
+  type: 'alert' | 'lost_found' | 'intrusion' | 'wildlife';
   timestamp: number;
   acknowledged: boolean;
   severity: LocalTimelineSeverity;
@@ -150,6 +155,7 @@ export default function HistoryPage() {
   const localAlerts = useMemo(() => (picturesSwept ? savedAlerts : []), [picturesSwept, savedAlerts]);
   const localAlertById = useMemo(() => new Map(localAlerts.map((alert) => [alert.id, alert])), [localAlerts]);
   const acknowledgeLocalAlert = useMonitoringStore((s) => s.acknowledgeAlert);
+  const sightings = useAnimalAlertStore((s) => s.detectionHistory);
   const exportSettingsJson = useSettingsStore((s) => s.exportSettings);
 
   const [isStaticDeployment, setIsStaticDeployment] = useState(false);
@@ -171,25 +177,72 @@ export default function HistoryPage() {
   const [exportMarkExported, setExportMarkExported] = useState(true);
   const [isExportingLocal, setIsExportingLocal] = useState(false);
 
-  const loadLocalData = useCallback(async () => {
-    setLocalLoading(true);
+  // Quiet: another tab saved or marked an alert, and the list takes it in
+  // place, with no loading wheel over it. A read that began before an edit
+  // this page saved (Mark Exported, a note) could hold the frames as they were
+  // before it, so its answer is set aside and the frames are read again.
+  const localEdits = useRef(0);
+  const [localReady, setLocalReady] = useState(false);
+  const loadLocalData = useCallback(async (quiet = false) => {
+    if (!quiet) setLocalLoading(true);
     setLocalError(null);
 
     try {
-      const [matches, intrusions, profiles] = await Promise.all([
-        getAllMatchFrames(250),
-        getAllIntrusionFrames(250),
-        getAllSubjectProfiles(),
-      ]);
-      setMatchFrames(matches);
-      setIntrusionFrames(intrusions);
-      setSubjects(profiles);
+      for (;;) {
+        const edits = localEdits.current;
+        const [matches, intrusions, profiles] = await Promise.all([
+          // These reads throw when the browser will not read the saved frames,
+          // so a list that could not be read is never shown, or marked, as empty.
+          readNewestMatchFrames(250),
+          readNewestIntrusionFrames(250),
+          getAllSubjectProfiles(),
+        ]);
+        if (edits !== localEdits.current) continue;
+        setMatchFrames(matches);
+        setIntrusionFrames(intrusions);
+        setSubjects(profiles);
+        setLocalReady(true);
+        break;
+      }
     } catch (err) {
       setLocalError('Failed to load local timeline data');
     } finally {
-      setLocalLoading(false);
+      if (!quiet) setLocalLoading(false);
     }
   }, []);
+
+  useEffect(() => onAlertsChanged(() => { void loadLocalData(true); }), [loadLocalData]);
+
+  // Opening History marks the alerts that were new when it opened as seen,
+  // once for each opening: an alert that arrives while it is open stays new,
+  // even while its list is still being read, so a tab left on History never
+  // silences a running watch. The device's alerts are on Local Timeline, so
+  // History opens there when the device holds new alerts, and marks them once
+  // that list has been read; a list that could not be read marks nothing. The
+  // server's Alerts stays one press away.
+  const { status: alertsStatus, newAlerts, readAgain } = useDeviceAlerts();
+  // null until the alerts are first read; then the alerts this opening marks, none once marked.
+  const toMark = useRef<DeviceAlert[] | null>(null);
+  // Alerts read before History opened are the opening's. Alerts first read
+  // after it, once another tab has changed them, may hold one that came
+  // later, and no clock tells which: that opening marks nothing.
+  const readyAtOpening = useRef(alertsStatus === 'ready');
+  const changedSinceOpening = useRef(false);
+  useEffect(() => onTabMessage((message) => {
+    if (message.type === 'alerts-changed') changedSinceOpening.current = true;
+  }), []);
+  useEffect(() => {
+    if (toMark.current !== null || alertsStatus !== 'ready') return;
+    toMark.current = newAlerts;
+    if (newAlerts.length > 0) setViewMode('local');
+  }, [alertsStatus, newAlerts]);
+  useEffect(() => {
+    const opening = toMark.current;
+    if (!opening || opening.length === 0 || viewMode !== 'local' || !localReady) return;
+    toMark.current = [];
+    if (!readyAtOpening.current && changedSinceOpening.current) return;
+    void markSeen(opening).then(() => readAgain());
+  }, [alertsStatus, newAlerts, readAgain, viewMode, localReady]);
 
   useEffect(() => {
     // Detect static deployments (GitHub Pages, Pages.dev, etc) and default to local timeline.
@@ -269,9 +322,11 @@ export default function HistoryPage() {
     const events: LocalTimelineEvent[] = [];
 
     for (const alert of localAlerts) {
-      // A card whose event repeated is listed at its newest alert.
-      const time = cardTime(alert);
-      const ts = time ? new Date(time).getTime() : Date.now();
+      // A card whose event repeated is listed at its newest alert. A time
+      // that does not parse is read by the alerts' own rule, and a card with
+      // none is listed after every dated one.
+      const shown = Date.parse(cardTime(alert) ?? '');
+      const ts = Number.isFinite(shown) ? shown : recordTime(alert) ?? Number.NEGATIVE_INFINITY;
 
       // A Motion, Sound or Picture change alert is listed by its kind and level, with its picture;
       // a Lost and Found sighting by its question, with no level.
@@ -339,6 +394,22 @@ export default function HistoryPage() {
       });
     }
 
+    for (const sighting of sightings) {
+      const animal = sighting.type === 'unknown_animal' ? 'animal' : sighting.type;
+      events.push({
+        id: sighting.id,
+        type: 'wildlife',
+        timestamp: sighting.timestamp,
+        acknowledged: sighting.acknowledged,
+        severity: sighting.dangerLevel === 'extreme' ? 'critical'
+          : sighting.dangerLevel === 'high' ? 'high'
+            : sighting.dangerLevel === 'medium' ? 'medium' : 'low',
+        title: `Looks like ${/^[aeiou]/.test(animal) ? 'an' : 'a'} ${animal}`,
+        description: 'Wildlife',
+        thumbnailData: sighting.frameData,
+      });
+    }
+
     events.sort((a, b) => b.timestamp - a.timestamp);
 
     const filteredByType = localFilter === 'all'
@@ -347,7 +418,9 @@ export default function HistoryPage() {
         ? e.type === 'alert' && !e.meta?.sighting
         : localFilter === 'lost_found'
           ? e.type === 'lost_found' || Boolean(e.meta?.sighting)
-          : e.type === 'intrusion'));
+          : localFilter === 'wildlife'
+            ? e.type === 'wildlife'
+            : e.type === 'intrusion'));
 
     const filteredByAck = localUnackOnly
       ? filteredByType.filter((e) => !e.acknowledged)
@@ -368,7 +441,7 @@ export default function HistoryPage() {
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [intrusionFrames, localAlerts, localFilter, localQuery, localUnackOnly, matchFrames, subjectNameById]);
+  }, [intrusionFrames, localAlerts, localFilter, localQuery, localUnackOnly, matchFrames, sightings, subjectNameById]);
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = window.URL.createObjectURL(blob);
@@ -405,6 +478,14 @@ export default function HistoryPage() {
         ? selectedIntrusionFrames
         : selectedIntrusionFrames.map(({ frameData, ...rest }) => rest);
 
+      // Wildlife's sightings, under the same picture and incremental choices.
+      const selectedSightings = exportOnlyUnexportedFrames
+        ? sightings.filter((s) => !s.exported)
+        : sightings;
+      const sightingExport = exportIncludeFullFrames
+        ? selectedSightings
+        : selectedSightings.map(({ frameData, ...rest }) => rest);
+
       const payload = {
         version: 1,
         generatedAt: new Date().toISOString(),
@@ -416,6 +497,9 @@ export default function HistoryPage() {
         },
         security: {
           intrusionFrames: intrusionExport,
+        },
+        wildlife: {
+          sightings: sightingExport,
         },
       };
 
@@ -436,11 +520,15 @@ export default function HistoryPage() {
       if (exportMarkExported) {
         const matchIds = selectedMatchFrames.map((f) => f.id);
         const intrusionIds = selectedIntrusionFrames.map((f) => f.id);
+        const sightingIds = selectedSightings.map((s) => s.id);
+        if (sightingIds.length > 0) useAnimalAlertStore.getState().markDetectionsExported(sightingIds);
 
         await Promise.all([
           matchIds.length > 0 ? markMatchFramesExported(matchIds) : Promise.resolve(),
           intrusionIds.length > 0 ? markIntrusionFramesExported(intrusionIds) : Promise.resolve(),
         ]);
+        // A quiet read that began before these marks were saved holds the frames as they were.
+        localEdits.current += 1;
 
         if (matchIds.length > 0) {
           const matchIdSet = new Set(matchIds);
@@ -541,6 +629,7 @@ export default function HistoryPage() {
                   <option value="alerts">Alerts</option>
                   <option value="lost_found">Lost &amp; Found</option>
                   <option value="intrusions">Intrusions</option>
+                  <option value="wildlife">Wildlife</option>
                 </select>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-300 select-none">
@@ -721,13 +810,20 @@ export default function HistoryPage() {
                         return;
                       }
 
+                      if (event.type === 'wildlife') {
+                        useAnimalAlertStore.getState().acknowledgeDetection(event.id);
+                        return;
+                      }
+
                       if (event.type === 'lost_found') {
                         await acknowledgeMatchFrame(event.id);
+                        localEdits.current += 1;
                         setMatchFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, acknowledged: true } : f));
                         return;
                       }
 
                       await acknowledgeIntrusionFrame(event.id);
+                      localEdits.current += 1;
                       setIntrusionFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, acknowledged: true } : f));
                     } catch {
                       setLocalError('Failed to acknowledge item');
@@ -751,9 +847,11 @@ export default function HistoryPage() {
                     try {
                       if (event.type === 'lost_found') {
                         await updateMatchFrameNotes(event.id, notesDraft);
+                        localEdits.current += 1;
                         setMatchFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, notes: notesDraft } : f));
                       } else {
                         await updateIntrusionFrameNotes(event.id, notesDraft);
+                        localEdits.current += 1;
                         setIntrusionFrames((prev) => prev.map((f) => f.id === event.id ? { ...f, notes: notesDraft } : f));
                       }
                     } catch {
@@ -852,7 +950,7 @@ export default function HistoryPage() {
                               </span>
                             </div>
                             <span className="text-xs text-slate-500 whitespace-nowrap">
-                              {formatDate(new Date(event.timestamp).toISOString())}
+                              {Number.isFinite(event.timestamp) ? formatDate(new Date(event.timestamp).toISOString()) : null}
                             </span>
                           </div>
 

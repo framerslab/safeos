@@ -797,7 +797,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs text-slate-500">Volume:</span>
           <input
             type="range"
@@ -805,7 +805,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
             max={100}
             value={globalSettings.alertVolume}
             onChange={(e) => updateGlobalSettings({ alertVolume: Number(e.target.value) })}
-            className="w-24 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
+            className="w-24 min-w-0 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer
                        [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
                        [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-emerald-500
                        [&::-webkit-slider-thumb]:rounded-full"

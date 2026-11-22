@@ -22,7 +22,7 @@ const slugs = generateStaticParams().map(({ slug }) => slug);
 it('names the team on the blog page and no person', () => {
   const html = renderToStaticMarkup(<BlogPage />);
   expect(html).toContain(TEAM);
-  expect(html).toContain('/logos/frame.svg');
+  expect(html).toContain('/logos/frame-icon-dark.svg');
   expect(html).not.toMatch(/Johnny|First-person/);
 });
 

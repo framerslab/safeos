@@ -7,7 +7,7 @@
  */
 
 import Link from 'next/link';
-import Image from 'next/image';
+import { MakerMark } from '@/components/visitor/MakerMark';
 import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/page-metadata';
 import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
@@ -323,7 +323,7 @@ export default function BlogArticlePage({
           </p>
           <Link
             href="/blog"
-            className="px-6 py-3 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors"
+            className="key key--solid"
           >
             Back to Blog
           </Link>
@@ -359,7 +359,7 @@ export default function BlogArticlePage({
               url: 'https://frame.dev',
               logo: {
                 '@type': 'ImageObject',
-                url: `${siteUrl}/logos/frame.svg`,
+                url: `${siteUrl}/logos/frame-icon-light.svg`,
               },
             },
             mainEntityOfPage: {
@@ -423,7 +423,7 @@ export default function BlogArticlePage({
               {post.date}
             </span>
             <span className="flex items-center gap-1">
-              <Image src="/logos/frame.svg" alt="" width={14} height={14} />
+              <MakerMark maker="frame" size={14} />
               {post.author}
             </span>
             <span>{post.readTime}</span>
@@ -438,15 +438,7 @@ export default function BlogArticlePage({
         {/* Share / Author */}
         <footer className="mt-16 pt-8 border-t border-slate-700">
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-blue-500 flex items-center justify-center">
-              <Image
-                src="/logos/frame.svg"
-                alt="Frame.dev"
-                width={32}
-                height={32}
-                className="invert"
-              />
-            </div>
+            <MakerMark maker="frame" size={40} />
             <div>
               <p className="font-medium text-white">Frame.dev Team</p>
               <p className="text-sm text-slate-400">
@@ -468,13 +460,13 @@ export default function BlogArticlePage({
         <nav className="mt-12 flex justify-center gap-4">
           <Link
             href="/blog"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+            className="link-row"
           >
             All Posts
           </Link>
           <Link
             href="/about"
-            className="px-4 py-2 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors"
+            className="link-row"
           >
             About SafeOS
           </Link>

@@ -11,11 +11,16 @@
 /* Import design system */
 @import '../styles/design-system.css';
 
+/* Import the keys: the four kinds of control every page uses */
+@import '../styles/keys.css';
+
 /* Import touch optimization styles */
 @import '../styles/touch.css';
 
-/* Import the public pages' header and footer and the home page */
+/* Import the public pages' header and footer and the home page, then the app
+   pages' shell, header and phone bar */
 @import '../styles/visitor.css';
+@import '../styles/app.css';
 
 /* Import the watch's Watch for, its pet and Choose a pet */
 @import '../styles/watch-for.css';
@@ -66,107 +71,8 @@ html.light .app-layout {
 
 .app-content {
   flex: 1;
-  padding-top: 64px; /* Height of nav */
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
-}
-
-/* =============================================================================
-   Navigation Layout
-   ============================================================================= */
-
-.nav-links-desktop {
-  display: none;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-/* The page links join the row only where the whole row fits (1280 px);
-   below that they are in the menu, so the row never runs off the edge. */
-@media (min-width: 1280px) {
-  .nav-links-desktop {
-    display: flex;
-  }
-}
-
-/* Nav bar light mode */
-html.light nav.fixed {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-bottom-color: rgba(16, 185, 129, 0.2) !important;
-}
-
-html.light .nav-links-desktop a {
-  color: var(--color-steel-400);
-}
-
-html.light .nav-links-desktop a:hover {
-  color: var(--color-steel-100);
-  background: rgba(0, 0, 0, 0.05);
-}
-
-html.light .nav-mobile-menu {
-  background: rgba(255, 255, 255, 0.98);
-  border-top-color: rgba(0, 0, 0, 0.1);
-}
-
-html.light .nav-mobile-menu a,
-html.light .nav-mobile-menu button {
-  color: var(--color-steel-400);
-}
-
-html.light .nav-mobile-menu a:hover,
-html.light .nav-mobile-menu button:hover {
-  color: var(--color-steel-100);
-  background: rgba(0, 0, 0, 0.05);
-}
-
-.nav-mobile-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
-  border-radius: 0.5rem;
-  color: var(--color-steel-400, #a1a1aa);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.nav-mobile-toggle:hover {
-  color: var(--color-steel-100, #f4f5f6);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-html.light .nav-mobile-toggle:hover {
-  background: rgba(0, 0, 0, 0.05);
-}
-
-@media (min-width: 1280px) {
-  .nav-mobile-toggle {
-    display: none;
-  }
-}
-
-.nav-mobile-menu {
-  display: flex;
-  flex-direction: column;
-  padding: 0.5rem 1rem 1rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  /* The header is fixed, so the page cannot scroll to the menu's end: the
-     menu stops at the bottom of the screen and scrolls inside itself. */
-  max-height: calc(100vh - 4rem);
-  max-height: calc(100dvh - 4rem);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-@media (min-width: 1280px) {
-  .nav-mobile-menu {
-    display: none;
-  }
 }
 
 /* Fix for container class conflicts with Tailwind */
@@ -348,13 +254,6 @@ a:focus-visible {
 
 .safe-area-bottom {
   padding-bottom: env(safe-area-inset-bottom, 0);
-}
-
-/* Add bottom padding on mobile to prevent content from hiding behind MobileBottomNav */
-@media (max-width: 767px) {
-  .app-content {
-    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0));
-  }
 }
 
 /* =============================================================================

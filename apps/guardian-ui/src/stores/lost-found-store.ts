@@ -52,6 +52,11 @@ export interface MatchFrame {
   acknowledged: boolean;
   notes: string;
   exported: boolean;
+  /**
+   * True when the check that saved this frame raised the alert, false when it
+   * only recorded it. A frame saved before this field existed has none.
+   */
+  alerted?: boolean;
 }
 
 export interface LostFoundSettings {
@@ -461,11 +466,12 @@ export function createSubjectProfile(
 }
 
 /**
- * Create a match frame from a match result
+ * Create a match frame from a match result and whether its check raised the alert
  */
 export function createMatchFrame(
   subjectId: string,
   matchResult: MatchResult,
+  alerted: boolean,
   thumbnailData?: string
 ): MatchFrame {
   return {
@@ -480,6 +486,7 @@ export function createMatchFrame(
     acknowledged: false,
     notes: '',
     exported: false,
+    alerted,
   };
 }
 

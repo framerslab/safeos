@@ -1,17 +1,21 @@
 /**
  * Site shell
  *
- * Chooses the header and footer by route. The home page and the other public
- * pages (lib/visitor-routes) get the visitor header and footer; every app
- * screen keeps the app's own header, footer and bottom navigation. The home
- * page shows no notification card and no install sheet: they belong to setup
- * and the app, and wait for the visitor to act.
- *
- * On the other public pages the app's bottom navigation shows on a phone, and
- * the shell marks itself so the footer ends above it.
+ * Chooses the frame by route (lib/app-routes). The home page and the other
+ * pages a visitor reads get the visitor header and footer. Every app page
+ * gets the app's header, the same site footer and, on a phone, the bar at
+ * the foot of the screen (on every app page but Setup). A page built in the
+ * readable look is marked so its whole body follows the device's light or
+ * dark setting before script runs; on the other app pages the header, the
+ * footer's wrapper and the bar carry the look themselves. No page mounts a
+ * notification card or an install sheet.
  *
  * Once its script has started, the shell marks the document, which hides the
- * home page's line for a page whose script did not start.
+ * line for a page whose script did not start.
+ *
+ * Every app page reads the device's alerts once (lib/device-alerts): History
+ * in the header and the bar carries the count of new alerts, and a rise in
+ * the count is said once from the frame's one status region.
  *
  * @module components/layout/SiteShell
  */
@@ -20,27 +24,26 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { Nav } from './Nav';
-import { Footer } from './Footer';
-import { MobileBottomNav } from './MobileBottomNav';
+import { AppHeader } from '../app/AppHeader';
+import { NewAlertsSaid } from '../app/NewAlertsCount';
+import { PhoneBar } from '../app/PhoneBar';
 import { VisitorHeader } from '../visitor/VisitorHeader';
 import { VisitorFooter } from '../visitor/VisitorFooter';
-import { PWAInstallPrompt } from '../PWAInstallPrompt';
-import { NotificationPermission } from '../NotificationPermission';
 import { StatusBanner } from '../StatusBanner';
-import { isHomeRoute, isVisitorRoute } from '@/lib/visitor-routes';
+import { isAppRoute, isLookBuiltRoute, showsPhoneBar } from '@/lib/app-routes';
+import { DeviceAlertsProvider, useDeviceAlerts } from '@/lib/device-alerts';
+import { isHomeRoute } from '@/lib/visitor-routes';
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const home = isHomeRoute(pathname);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-app-started', 'true');
   }, []);
 
-  if (isVisitorRoute(pathname)) {
+  if (!isAppRoute(pathname)) {
     return (
-      <div className={home ? 'visitor-shell device-look' : 'visitor-shell visitor-shell--bottom-nav'}>
+      <div className={isHomeRoute(pathname) ? 'visitor-shell device-look' : 'visitor-shell'}>
         <a href="#main-content" className="skip-link">
           Skip to content
         </a>
@@ -51,40 +54,39 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
           {children}
         </div>
         <VisitorFooter />
-        {!home && (
-          <>
-            <MobileBottomNav />
-            <PWAInstallPrompt />
-            <NotificationPermission />
-          </>
-        )}
       </div>
     );
   }
 
   return (
-    <>
-      <a href="#main-content" className="sr-only sr-only-focusable">
+    <DeviceAlertsProvider>
+      <AppFrame pathname={pathname}>{children}</AppFrame>
+    </DeviceAlertsProvider>
+  );
+}
+
+/** The app's header, its content, the site footer and, where it shows, the phone bar. */
+function AppFrame({ pathname, children }: { pathname: string | null; children: React.ReactNode }) {
+  const { status, newAlerts } = useDeviceAlerts();
+  const count = status === 'ready' ? newAlerts.length : 0;
+  const look = isLookBuiltRoute(pathname);
+  const bar = showsPhoneBar(pathname);
+  return (
+    <div className={`app-shell${look ? ' app-shell--look look-part' : ''}${bar ? ' app-shell--bar' : ''}`}>
+      <a href="#main-content" className="skip-link">
         Skip to content
       </a>
-      <Nav />
-      <div id="main-content" className="app-content">
-        {/* Rendered here (not in Providers) so it sits *below* the
-            fixed nav, not behind it. */}
+      <AppHeader newAlerts={count} />
+      <div id="main-content" className="app-content" tabIndex={-1}>
         <StatusBanner />
         {children}
       </div>
-      <Footer />
-
-      {/* Mobile Bottom Navigation */}
-      <MobileBottomNav />
-
-      {/* PWA Install Prompt */}
-      <PWAInstallPrompt />
-
-      {/* Notification Permission Request */}
-      <NotificationPermission />
-    </>
+      <div className="app-shell__footer look-part">
+        <VisitorFooter />
+      </div>
+      {bar && <PhoneBar newAlerts={count} />}
+      <NewAlertsSaid count={count} ready={status === 'ready'} />
+    </div>
   );
 }
 

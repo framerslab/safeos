@@ -9,6 +9,7 @@
 // top to bottom at 820 and 1920 pixels in both looks. Every finding is
 // printed, and the count of findings is returned; any finding fails the run.
 import path from 'node:path';
+import { checkPublicChrome, starsHanded } from './public-chrome-checks.mjs';
 
 const LOOKS = ['light', 'dark'];
 const HEADLINE = 'Free motion and sound alerts from an old phone or laptop';
@@ -21,17 +22,26 @@ const PAGE_COLOURS = { light: 'rgb(248, 249, 250)', dark: 'rgb(11, 19, 27)' };
 const PANEL_COLOURS = { light: 'rgb(241, 243, 244)', dark: 'rgb(16, 26, 36)' };
 const INK = { light: 'rgb(15, 18, 21)', dark: 'rgb(244, 245, 246)' };
 const THEME_COLOURS = { light: '#f8f9fa', dark: '#0b131b' };
+// A solid key's fill and label in each look.
+const SOLID_KEY = {
+  light: { fill: 'rgb(20, 83, 45)', label: 'rgb(255, 255, 255)' },
+  dark: { fill: 'rgb(74, 222, 128)', label: 'rgb(11, 19, 27)' },
+};
+// The repository's star count, when the build was handed one: the GitHub link
+// then shows it and is named with it, and the footer's last line says it.
+const STARS = starsHanded();
+const GITHUB_NAME = STARS ? STARS.name : 'SafeOS on GitHub';
 // The longest walk takes about fifteen seconds on the CI runner.
 const WALK_LIMIT_MS = 180_000;
 
 // Straight and curly apostrophes are one character to a reader; so are a
 // space and a non-breaking space.
-const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+export const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
 
 // A person who has finished setup on this device. Seeded on the first page of
 // the visit only: later pages read what the earlier ones left, so a page that
 // cleared the saved setup is seen.
-const SETUP_DONE = () => {
+export const SETUP_DONE = () => {
   if (sessionStorage.getItem('home-checks-seeded')) return;
   sessionStorage.setItem('home-checks-seeded', '1');
   localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
@@ -44,7 +54,7 @@ const SETUP_DONE = () => {
 // Reads what the readability rule measures: every visible piece of text with
 // its size, face and contrast against the colour behind it, and every element
 // that scrolls sideways.
-function measureText(root) {
+export function measureText(root) {
   const parse = (value) => {
     const n = (value.match(/[\d.]+/g) || ['0', '0', '0', '0']).map(Number);
     return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 };
@@ -107,7 +117,7 @@ function measureText(root) {
 // core. The strokes' figure keeps the anti-aliased half of each stroke, so a
 // thin face reads under its computed colour; it is the figure the minimum is
 // held to. Returns null when the picture holds too little ink to read.
-function readStrokes(base64) {
+export function readStrokes(base64) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onerror = () => reject(new Error('the picture of the words did not load'));
@@ -367,14 +377,14 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     // the skip link's #main-content and start Tab there.
     await visit(page);
     const order = [];
-    for (let i = 0; i < 9; i += 1) {
+    for (let i = 0; i < 10; i += 1) {
       await page.keyboard.press('Tab');
       order.push(await page.evaluate(() => {
         const element = document.activeElement;
         return element.getAttribute('aria-label') || element.textContent.trim();
       }));
     }
-    const wanted = ['Skip to content', 'SafeOS Guardian, home', 'How it works', 'Uses', 'Privacy', 'FAQ', 'SafeOS on GitHub', 'Switch to the light look', 'Start setup'];
+    const wanted = ['Skip to content', 'SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', GITHUB_NAME, 'Switch to the light look', 'Start setup'];
     expect(order.join(' > ') === wanted.join(' > '), `header: the Tab order is ${order.join(' > ')}`);
   });
 
@@ -593,7 +603,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   }
 
   // The first screen's counts.
-  for (const [width, height, controls] of [[390, 844, 4], [1280, 800, 9]]) {
+  for (const [width, height, controls] of [[390, 844, 4], [1280, 800, 10]]) {
     await open({ name: 'first visit, first screen', width, height, look: 'dark' }, async (page) => {
       await visit(page);
       const count = await page.evaluate(() => [...document.querySelectorAll('a, button, summary')].filter((element) => {
@@ -615,7 +625,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         await visit(page);
         const header = page.locator('nav[aria-label="Site"]');
         if (look === 'light') await header.screenshot({ path: path.join(outDir, `header-${width}-light.png`) });
-        const found = await header.evaluate((nav) => {
+        const found = await header.evaluate((nav, githubName) => {
           const out = [];
           const bar = nav.querySelector('.site-header__bar');
           const barBox = bar.getBoundingClientRect();
@@ -634,8 +644,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
             if (box.height < 43.5) out.push(`${name} is ${Math.round(box.height)} px tall`);
           }
           const want = phone ? ['SafeOS Guardian, home', 'Switch to the dark look|Switch to the light look', 'Menu']
-            : screen < 1024 ? ['SafeOS Guardian, home', 'How it works', 'Uses', 'Privacy', 'FAQ', 'Switch to the dark look|Switch to the light look', 'Start setup']
-              : ['SafeOS Guardian, home', 'How it works', 'Uses', 'Privacy', 'FAQ', 'SafeOS on GitHub', 'Switch to the dark look|Switch to the light look', 'Start setup'];
+            : screen < 1024 ? ['SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Switch to the dark look|Switch to the light look', 'Start setup']
+              : ['SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', githubName, 'Switch to the dark look|Switch to the light look', 'Start setup'];
           if (names.length !== want.length || names.some((name, i) => !want[i].split('|').includes(name))) out.push(`its items are ${names.join(', ')}`);
           if (nav.querySelector('[aria-label="Help"], [aria-label*="otification"]')) out.push('it holds a bell or a shortcuts key');
           if (nav.querySelector('svg path[d^="M12 2C6.477"]')) out.push('it holds the GitHub logo');
@@ -648,7 +658,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           }
           if (getComputedStyle(nav).boxShadow !== 'none') out.push('the bar draws a line in the first screen');
           return out;
-        });
+        }, GITHUB_NAME);
         for (const p of found) fail(`header at ${width} px, ${look}: ${p}`);
         expect((await sidewaysScroll(page)) <= 0, `header at ${width} px, ${look}: the page scrolls sideways`);
         // Once the page has moved under the bar, a 1 px line in the line colour.
@@ -691,7 +701,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       expect(opened.words === 'Close' && opened.name === 'Close menu' && opened.expanded === 'true' && opened.controls === 'site-menu',
         `header: the open Menu key shows "${opened.words}", is named "${opened.name}", aria-expanded ${opened.expanded}`);
       expect(Math.abs(opened.width - sizes.key[0]) < 0.5, `header: the Menu key changes width when open (${sizes.key[0]} to ${opened.width})`);
-      expect(opened.rows.join(', ') === 'Start setup, How it works, Uses, Privacy, FAQ, GitHub', `header: the Menu's rows are ${opened.rows.join(', ')}`);
+      const wantedRows = `Start setup, How it works, Uses, Guides, FAQ, Privacy, About SafeOS, Blog, ${STARS ? GITHUB_NAME : 'GitHub'}`;
+      expect(opened.rows.join(', ') === wantedRows, `header: the Menu's rows are ${opened.rows.join(', ')}`);
       expect(opened.heights.every((height) => height >= 48), `header: the Menu's rows are ${opened.heights.join(', ')} px tall`);
       expect(opened.animation === 'site-menu-in', `header: the Menu panel's animation is ${opened.animation}`);
       // The picture shows the Menu as a visitor reads it, after its fade.
@@ -729,11 +740,11 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect(last.name === 'none' || parseFloat(last.duration) < 0.001, `header, reduced motion: the Menu panel still fades (${last.name}, ${last.duration})`);
   });
 
-  // Privacy and FAQ open with their own H1 and the same header and footer.
+  // Guides, FAQ and Privacy open with their own H1 and the same header and footer.
   await open({ name: 'header, links', width: 1280, height: 800 }, async (page) => {
     await visit(page);
     const footerGroups = await page.evaluate(() => [...document.querySelectorAll('footer h2')].map((heading) => heading.textContent.trim()).join(', '));
-    for (const [link, address] of [['Privacy', '/privacy/'], ['FAQ', '/faq/']]) {
+    for (const [link, address] of [['Guides', '/tutorials/'], ['FAQ', '/faq/'], ['Privacy', '/privacy/']]) {
       await visit(page);
       await Promise.all([
         page.waitForURL((url) => url.pathname === address, { timeout: 15_000 }),
@@ -754,25 +765,6 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect((await github.getAttribute('href')) === 'https://github.com/framerslab/safeos' && !(await github.getAttribute('target')),
       'header: the GitHub link does not open the repository in the same tab');
   });
-
-  // The other public pages carry the app's bottom navigation on a phone; the
-  // footer's last line still reads above it at the end of the page.
-  for (const address of ['/faq/', '/privacy/']) {
-    await open({ name: 'footer, bottom navigation', width: 390 }, async (page) => {
-      await visit(page, new URL(address, baseUrl).toString());
-      await page.locator('nav[aria-label="Mobile navigation"]').waitFor({ timeout: 15_000 });
-      // The page scrolls smoothly; the walk goes straight to its end.
-      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'instant' }));
-      await page.waitForTimeout(500);
-      const seen = await page.evaluate(() => ({
-        end: Math.abs(window.scrollY + window.innerHeight - document.documentElement.scrollHeight) <= 1,
-        last: document.querySelector('.site-footer__last').getBoundingClientRect().bottom,
-        nav: document.querySelector('nav[aria-label="Mobile navigation"]').getBoundingClientRect().top,
-      }));
-      expect(seen.end, `footer on ${address} at 390 px: the walk did not reach the end of the page`);
-      expect(seen.last <= seen.nav, `footer on ${address} at 390 px: its last line ends at ${Math.round(seen.last)} px, under the bottom navigation from ${Math.round(seen.nav)} px`);
-    });
-  }
 
   // After setup the start key reads "Open dashboard" in the header, the first
   // screen, the closing block, the Menu and the footer.
@@ -822,6 +814,39 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   // Look switch
   // ---------------------------------------------------------------------------
 
+  // Presses the look switch and reads every frame from the press on: in the
+  // first frame the page shows the new look, each solid key shown already has
+  // the new look's fill and label.
+  const pressLookSwitch = async (page, look, width) => {
+    const other = look === 'light' ? 'dark' : 'light';
+    await page.evaluate((want) => {
+      window.__lookFrames = null;
+      const keys = () => [...document.querySelectorAll('.key--solid')].filter((key) => key.getClientRects().length > 0);
+      const read = () => {
+        if (getComputedStyle(document.body).backgroundColor === want) {
+          window.__lookFrames = keys().map((key) => ({
+            name: key.textContent.trim(),
+            fill: getComputedStyle(key).backgroundColor,
+            label: getComputedStyle(key).color,
+          }));
+          return;
+        }
+        requestAnimationFrame(read);
+      };
+      requestAnimationFrame(read);
+    }, PAGE_COLOURS[other]);
+    await page.getByRole('button', { name: `Switch to the ${other} look`, exact: true }).click();
+    await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
+    await page.waitForFunction(() => window.__lookFrames !== null, null, { timeout: 5_000 })
+      .catch(() => fail(`look switch, ${width}: the page never showed the new look in a frame`));
+    const firstFrame = (await page.evaluate(() => window.__lookFrames)) || [];
+    expect(firstFrame.length > 0, `look switch, ${width}: no solid key is shown`);
+    for (const solid of firstFrame) {
+      expect(solid.fill === SOLID_KEY[other].fill && solid.label === SOLID_KEY[other].label,
+        `look switch, ${width}: in the first frame of the ${other} look, "${solid.name}" is ${solid.label} on ${solid.fill}, not ${SOLID_KEY[other].label} on ${SOLID_KEY[other].fill}`);
+    }
+  };
+
   for (const look of LOOKS) {
     const other = look === 'light' ? 'dark' : 'light';
     await open({ name: 'look switch, look switch', width: 390, look }, async (page) => {
@@ -835,9 +860,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       }));
       const before = await state();
       expect(before.background === PAGE_COLOURS[look], `look switch: with the device set to ${look} the page is ${before.background}`);
-      const key = page.getByRole('button', { name: `Switch to the ${other} look`, exact: true });
-      await key.click();
-      await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
+      await pressLookSwitch(page, look, 390);
       const after = await state();
       expect(after.background === PAGE_COLOURS[other], `look switch: after a press the page is ${after.background}, not ${PAGE_COLOURS[other]}`);
       expect(after.said === `${other === 'dark' ? 'Dark' : 'Light'} look on`, `look switch: the press announced "${after.said}"`);
@@ -858,6 +881,14 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       await page.getByRole('button', { name: `Switch to the ${other} look`, exact: true }).waitFor({ timeout: 5_000 });
       await page.keyboard.press('Enter');
       await page.getByRole('button', { name: `Switch to the ${look} look`, exact: true }).waitFor({ timeout: 5_000 });
+    });
+
+    // At 1280 pixels the header's start key is shown beside the first
+    // screen's: both turn in the frame the page turns.
+    await open({ name: 'look switch, 1280', width: 1280, look }, async (page) => {
+      await visit(page);
+      await pressLookSwitch(page, look, 1280);
+      await page.screenshot({ path: path.join(outDir, `home-after-look-switch-1280-${look}.png`) });
     });
 
     // A browser that refuses storage: the look changes for the visit and no error shows.
@@ -1176,12 +1207,12 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       'Use it: Start setup /setup',
       'Uses: A baby\'s nap /#baby-nap | A pet while you are out /#pet-out | An elderly parent /#elderly-parent | A lost pet near home /#lost-pet | Backyard wildlife /#wildlife',
       'Learn: How it works /#how-it-works | Guides /tutorials | FAQ /faq | Help /help | Blog /blog',
-      'About: About SafeOS /about | SafeOS on GitHub https://github.com/framerslab/safeos | Discord https://wilds.ai/discord | team@frame.dev mailto:team@frame.dev',
+      `About: About SafeOS /about | ${GITHUB_NAME} https://github.com/framerslab/safeos | Discord https://wilds.ai/discord | team@frame.dev mailto:team@frame.dev`,
       'Legal: Privacy /privacy | Terms /terms | MIT License https://github.com/framerslab/safeos/blob/master/LICENSE | Security policy https://github.com/framerslab/safeos/blob/master/SECURITY.md',
       'From Frame: Frame https://frame.dev | AgentOS https://agentos.sh | Paracosm https://paracosm.agentos.sh',
     ], 'footer: the groups are');
     same(seen.brand, ['SafeOS Guardian', 'Motion and sound alerts that run in your browser.'], 'footer: the brand block reads');
-    expect(seen.last === `© ${new Date().getFullYear()} Frame. SafeOS code is MIT-licensed.`, `footer: the last line reads "${seen.last}"`);
+    expect(seen.last === `© ${new Date().getFullYear()} Frame. SafeOS code is MIT-licensed.${STARS ? ` ${STARS.sentence}` : ''}`, `footer: the last line reads "${seen.last}"`);
     // The structured data.
     const kinds = seen.structured.map((block) => block['@type']).sort().join(', ');
     expect(kinds === 'Organization, WebApplication', `search and card: the structured data blocks are ${kinds}`);
@@ -1296,6 +1327,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     ]);
     await page.getByRole('button', { name: /Begin Setup/i }).waitFor({ timeout: 15_000 });
   });
+
+  // The row's links, GitHub with its count, the keys and the makers' marks.
+  for (const p of await checkPublicChrome(browser, baseUrl, outDir)) fail(p);
 
   for (const p of problems) console.error(`failed home page check: ${p}`);
   console.log(`checked the home page: ${problems.length} findings`);

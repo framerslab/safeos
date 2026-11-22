@@ -16,6 +16,7 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
 import { clearLocalData } from '@/lib/local-data';
 import { FeatureDisabledBadge } from '@/components/StatusBanner';
+import { PhoneRows } from '@/components/settings/PhoneRows';
 
 // =============================================================================
 // Types
@@ -357,6 +358,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 overflow-x-hidden">
+      <PhoneRows />
       {/* Header */}
       <header className="p-4 sm:p-6 border-b border-slate-700/50">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -391,13 +393,16 @@ export default function SettingsPage() {
         </div>
       </header>
 
-      {/* Save Message */}
+      {/* Save Message: under the app's header, which is fixed at the top of the screen */}
       {saveMessage && (
-        <div className={`
-          fixed top-4 right-4 px-4 py-2 rounded-lg shadow-lg z-50
+        <div
+          className={`
+          fixed right-4 px-4 py-2 rounded-lg shadow-lg z-50
           ${saveMessage.type === 'success' ? 'bg-emerald-500' : 'bg-red-500'}
           text-white
-        `}>
+        `}
+          style={{ top: 'calc(var(--site-header-height) + 16px + env(safe-area-inset-top, 0px))' }}
+        >
           {saveMessage.text}
         </div>
       )}
@@ -788,7 +793,12 @@ export default function SettingsPage() {
                   </p>
                   <button
                     onClick={async () => {
-                      if (confirm('This will delete all local data. Are you sure?')) {
+                      // The installed copy goes with everything else, and the worker stores it
+                      // again only on a load with a connection.
+                      const ask = navigator.onLine === false
+                        ? 'This will delete all local data. Are you sure? SafeOS will not open again until you are back online.'
+                        : 'This will delete all local data. Are you sure?';
+                      if (confirm(ask)) {
                         try {
                           await clearLocalData();
                           window.location.reload();

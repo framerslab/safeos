@@ -116,7 +116,7 @@ it('saves the new answers when the visitor finishes the last step', async () => 
   fireEvent.click(await screen.findByRole('button', { name: /^Continue$/ }));
   fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.click(screen.getByRole('button', { name: /Skip & Continue/ }));
-  fireEvent.click(await screen.findByRole('button', { name: /Launch Dashboard/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Open dashboard' }));
 
   const saved = useOnboardingStore.getState();
   expect(saved.isComplete).toBe(true);
@@ -144,7 +144,7 @@ async function finishFromNotifications() {
   expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
   fireEvent.click(screen.getByRole('checkbox'));
   fireEvent.click(screen.getByRole('button', { name: /Skip & Continue/ }));
-  fireEvent.click(await screen.findByRole('button', { name: /Launch Dashboard/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Open dashboard' }));
 }
 
 it('Continue without the camera keeps its answer on the page: a visitor who leaves part way keeps the saved camera and microphone', async () => {

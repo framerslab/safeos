@@ -101,7 +101,7 @@ export function QuickSettingsPanel({ className = '' }: QuickSettingsPanelProps) 
   const presets = Object.values(DEFAULT_PRESETS);
 
   return (
-    <div className={`fixed bottom-4 right-4 z-50 ${className}`}>
+    <div className={`quick-settings fixed bottom-4 right-4 z-50 ${className}`}>
       {/* Collapsed Button */}
       {!isExpanded && (
         <button

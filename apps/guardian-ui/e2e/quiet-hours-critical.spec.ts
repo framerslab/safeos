@@ -2,10 +2,12 @@
  * Quiet hours in Emergency Only: a critical alert sounds
  *
  * The browser's clock reads 23:00, inside quiet hours from 22:00 to 07:00 in
- * Emergency Only. An alert made on Test Alerts opens the watch, whose alert
- * panel plays its sound. The page records the volume each sound is given (the
- * gain between the sound and the speakers): a high alert plays nothing, and a
- * critical alert plays at the alert volume, 60.
+ * Emergency Only. An alert made on Test Alerts, then the watch's page opened
+ * through the app's own links, so the alert is one this tab raised: the
+ * watch's alert panel plays its sound (an alert read back from the device's
+ * saved list stays silent). The page records the volume each sound is given
+ * (the gain between the sound and the speakers): a high alert plays nothing,
+ * and a critical alert plays at the alert volume, 60.
  *
  * @module e2e/quiet-hours-critical.spec
  */
@@ -48,7 +50,11 @@ const savedAlerts = (page: Page): Promise<number> =>
     };
   }));
 
-/** Makes one alert of `level` on Test Alerts, alone, and opens the watch. */
+/**
+ * Makes one alert of `level` on Test Alerts, alone, and opens the watch's page
+ * from there through the header's Dashboard and the dashboard's link to it,
+ * with no new page load between.
+ */
 async function alertThenWatch(page: Page, level: 'high' | 'critical') {
   await page.goto('/settings/test-alerts/', { waitUntil: 'networkidle', timeout: 60_000 });
   await page.getByRole('button', { name: 'Clear All', exact: true }).click();
@@ -57,7 +63,14 @@ async function alertThenWatch(page: Page, level: 'high' | 'critical') {
   await expect(page.getByText('Active alerts: 1')).toBeVisible();
   await expect.poll(() => savedAlerts(page), { timeout: 15_000 }).toBe(1);
 
-  await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await page.getByRole('navigation', { name: 'App' }).getByRole('link', { name: 'Dashboard', exact: true }).click();
+  await page.waitForURL(/\/dashboard\/?$/, { timeout: 30_000 });
+  // Only the sounds played on the watch's page are counted.
+  await page.evaluate(() => {
+    window.__soundVolumes?.splice(0);
+  });
+  await page.locator('#main-content a[href^="/monitor"]:visible').first().click();
+  await page.waitForURL(/\/monitor\/?$/, { timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'Acknowledge' })).toHaveCount(1, { timeout: 30_000 });
   // The panel plays an alert's first sound on its next tick, within half a second.
   await page.waitForTimeout(2_000);

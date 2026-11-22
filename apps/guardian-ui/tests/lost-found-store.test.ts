@@ -141,20 +141,21 @@ describe('Lost & Found Store Helpers', () => {
       const { createMatchFrame } = await import('../src/stores/lost-found-store');
       
       const mockResult = createMockMatchResult(75);
-      const frame = createMatchFrame('subject-id', mockResult);
+      const frame = createMatchFrame('subject-id', mockResult, false);
       
       expect(frame.id).toBe(mockResult.id);
       expect(frame.subjectId).toBe('subject-id');
       expect(frame.confidence).toBe(75);
       expect(frame.acknowledged).toBe(false);
       expect(frame.details).toEqual(mockResult.details);
+      expect(frame.alerted).toBe(false);
     });
 
     it('should include frame data if available', async () => {
       const { createMatchFrame } = await import('../src/stores/lost-found-store');
       
       const mockResult = createMockMatchResult();
-      const frame = createMatchFrame('subject-id', mockResult);
+      const frame = createMatchFrame('subject-id', mockResult, false);
       
       expect(frame.frameData).toBe(mockResult.frameData);
     });

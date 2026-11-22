@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Wildlife Detection Page
+ * Wildlife page
  * 
  * Main interface for animal/wildlife detection and monitoring.
  * Features dual alert controls for large and small animals.
@@ -10,11 +10,12 @@
  */
 
 import { showBrowserNotification } from '@/lib/browser-notification';
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react';
 import Link from 'next/link';
 import { ModelDownloadProgress } from '@/components/ModelDownloadProgress';
 import { useDetectionModel } from '@/lib/detection-model';
 import { CameraFeed } from '../../components/CameraFeed';
+import { KeyRow } from '../../components/app/KeyRow';
 import {
   IconShield,
   IconCamera,
@@ -41,6 +42,10 @@ import {
 } from '../../lib/animal-detection';
 import { getTTSManager } from '../../lib/tts-alerts';
 import { getSoundManager } from '../../lib/sound-manager';
+import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
+import { announceWatch } from '../../lib/tab-channel';
+import { dropStart, takeStart, type StartRequest } from '../../lib/camera-handoff';
+import { useStartGuard } from '../../lib/start-guard';
 
 // =============================================================================
 // Sub-Components
@@ -188,7 +193,14 @@ export default function WildlifePage() {
 
   const download = useDetectionModel();
   const [detectorReady, setDetectorReady] = useState(false);
-  const modelStatus = !download.setupComplete ? 'idle' : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
+  // The animal check could not start on this device (its model files are
+  // stored, but the browser could not run them).
+  const [detectorFailed, setDetectorFailed] = useState(false);
+  const modelStatus = !download.setupComplete
+    ? 'idle'
+    : download.status === 'ready' && detectorFailed
+      ? 'error'
+      : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
   const [showSettings, setShowSettings] = useState(false);
   const [isFlashing, setIsFlashing] = useState(false);
   const [flashColor, setFlashColor] = useState('#ef4444');
@@ -221,10 +233,13 @@ export default function WildlifePage() {
     if (download.status !== 'ready' || !download.setupComplete) return;
     let cancelled = false;
     const detector = detectorRef.current;
+    setDetectorFailed(false);
     void detector.initialize().then(() => {
       if (!cancelled) setDetectorReady(true);
     }).catch(() => {
-      if (!cancelled) setDetectorReady(false);
+      if (cancelled) return;
+      setDetectorReady(false);
+      setDetectorFailed(true);
     });
     return () => {
       cancelled = true;
@@ -315,6 +330,8 @@ export default function WildlifePage() {
       detectionLoopBusyRef.current = true;
       try {
         const result = await detectorRef.current.processFrame(video);
+        // A sighting that lands after its run ended counts for nothing.
+        if (cancelled) return;
         if (result && result.animals.length > 0) {
           handleDetections(result.animals);
         }
@@ -329,14 +346,61 @@ export default function WildlifePage() {
     };
   }, [isMonitoring, modelStatus, handleDetections]);
 
-  const toggleMonitoring = () => {
+  // While another tab watches, the start key asks first; Stop stops at once.
+  const { guard, dialog } = useStartGuard();
+  const toggleMonitoring = (event: MouseEvent<HTMLButtonElement>) => {
     if (isMonitoring) {
       setMonitoring(false);
       clearCurrentDetections();
     } else {
-      setMonitoring(true);
+      void guard(() => setMonitoring(true), event.currentTarget);
     }
   };
+
+  // A start the dashboard's key asked for: the watch starts with the camera
+  // the key opened. The start is kept in a ref, so a mount effect run twice,
+  // as React runs it in development, starts the watch all the same.
+  const startAsked = useRef<StartRequest | null>(null);
+  useEffect(() => {
+    startAsked.current = startAsked.current ?? takeStart('wildlife');
+    if (startAsked.current) useAnimalAlertStore.getState().setMonitoring(true);
+  }, []);
+
+  // A watch whose animal check cannot start ends: its camera closes, and the
+  // other tabs hear that nothing watches here.
+  useEffect(() => {
+    if (isMonitoring && detectorFailed) useAnimalAlertStore.getState().setMonitoring(false);
+  }, [isMonitoring, detectorFailed]);
+
+  // The watch runs from its start until it stops, and the other tabs hear of
+  // it from the start. This effect's end is the watch's one end, whatever
+  // stopped it: the page's key, another tab, or leaving the page.
+  useEffect(() => {
+    if (!isMonitoring) return;
+    rememberWay('wildlife');
+    watchStarted();
+    const endTimes = keepWatchTimes();
+    const endAnnounce = announceWatch('wildlife', () => useAnimalAlertStore.getState().setMonitoring(false));
+    return () => {
+      endTimes();
+      watchEnded();
+      endAnnounce();
+      dropStart();
+      useAnimalAlertStore.getState().clearCurrentDetections();
+      getTTSManager().stop();
+    };
+  }, [isMonitoring]);
+
+  // Leaving the page ends its watch: the store keeps no running watch for the
+  // next time the page opens. A camera held for a start the page never took
+  // is closed.
+  useEffect(() => () => {
+    const store = useAnimalAlertStore.getState();
+    store.setMonitoring(false);
+    store.clearCurrentDetections();
+    getTTSManager().stop();
+    dropStart();
+  }, []);
 
   const recentDetections = detectionHistory.slice(0, 5);
 
@@ -344,9 +408,9 @@ export default function WildlifePage() {
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
       <FlashOverlay isActive={isFlashing} color={flashColor} />
       {/* Header */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm sticky top-0 z-30">
+      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-sm relative z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+          <div className="way-head">
             <div className="flex items-center gap-4">
               <Link
                 href="/"
@@ -357,11 +421,11 @@ export default function WildlifePage() {
               </Link>
               <div className="flex items-center gap-2">
                 <IconWildlife size={22} className="text-emerald-400" />
-                <h1 className="text-xl font-bold text-white">Wildlife Detection</h1>
+                <h1 className="text-xl font-bold text-white">Wildlife</h1>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
+            <KeyRow>
               {/* Model Status */}
               <div
                 className={`px-2 py-1 rounded text-xs font-medium ${
@@ -400,7 +464,7 @@ export default function WildlifePage() {
               >
                 {isMonitoring ? 'Stop' : 'Start'} Monitoring
               </button>
-            </div>
+            </KeyRow>
           </div>
         </div>
       </header>
@@ -424,11 +488,22 @@ export default function WildlifePage() {
                   </span>
                 )}
               </div>
+              {detectorFailed && (
+                <p role="alert" className="p-4 text-sm text-amber-200 border-b border-slate-700">
+                  Wildlife could not start its animal check in this browser. Reload the page to try again.
+                </p>
+              )}
               <CameraFeed
                 scenario="pet"
                 enabled={isMonitoring && modelStatus === 'ready'}
                 showDebug={true}
                 audioEnabled={false}
+                onError={() => {
+                  // A camera that fails or is lost ends the watch; Start Monitoring starts it again.
+                  const store = useAnimalAlertStore.getState();
+                  store.setMonitoring(false);
+                  store.clearCurrentDetections();
+                }}
                 onVideoReady={(video) => {
                   videoRef.current = video;
                 }}
@@ -528,7 +603,7 @@ export default function WildlifePage() {
               )}
               {detectionHistory.length > 5 && (
                 <Link
-                  href="/wildlife/history"
+                  href="/history/"
                   className="block mt-3 text-center text-sm text-emerald-400 hover:text-emerald-300"
                 >
                   View All ({detectionHistory.length})
@@ -565,7 +640,7 @@ export default function WildlifePage() {
       {/* Settings Panel */}
       {showSettings && (
         <div
-          className="fixed inset-0 z-50 bg-black/50"
+          className="fixed inset-0 z-[110] bg-black/50"
           onClick={() => setShowSettings(false)}
         >
           <div
@@ -688,6 +763,8 @@ export default function WildlifePage() {
           </div>
         </div>
       )}
+
+      {dialog}
     </div>
   );
 }

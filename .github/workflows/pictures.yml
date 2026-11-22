@@ -1,19 +1,18 @@
 # SafeOS Guardian - pictures of the web app
 #
 # Builds the static site, serves it inside the job and captures each route at
-# 390 and 1280 pixels wide in the light and the dark look with Playwright. The
-# PNG files are uploaded as the run's "pictures" artifact. Pull requests also
-# capture the base commit with the same routes as "pictures-before". The
-# pull request's own capture also checks a first visit to the home page (the
-# header row, the look switch, no notification prompt, heading contrast,
-# the Menu on a short screen), walks the home page part by part
+# 390, 820, 1280 and 1920 pixels wide in the light and the dark look with
+# Playwright. The PNG files are uploaded as the run's "pictures" artifact. Pull
+# requests also capture the base commit with the same routes as
+# "pictures-before". The pull request's own capture also checks a first visit
+# to the home page (the header row, the look switch, no notification prompt,
+# heading contrast, the Menu on a short screen), walks the home page part by part
 # (scripts/home-checks.mjs) and checks the Test
 # Alerts page's alert key (its generated tones start, an analyser on the
 # way to the speakers reads signal, no sound file is asked for). Both
-# versions capture the dashboard after setup and its header menu open; the
-# pull request's own capture checks that the dashboard's Lost & Found,
-# Security and Wildlife cards open their pages and that the header menu
-# lists all three while the header row stays one row from 320 to 768 pixels.
+# versions capture the dashboard after setup; the pull request's own capture
+# checks that the dashboard's four ways to watch open their pages, and walks
+# the app's pages with scripts/app-checks.mjs.
 # Both versions capture the monitor on a device whose setup chose Lost & Found,
 # with no pet saved and with a pet; the pull request's own capture checks that
 # Watch for shows Lost and Found checked with "No pet saved" or the pet.
@@ -60,7 +59,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/ /about/ /blog/ /blog/how-safeos-guardian-works/ /tutorials/ /tutorial/ /donate/ /terms/ /lost-found/ /404.html
+  DEFAULT_ROUTES: / /monitor/ /setup/ /dashboard/ /history/ /settings/ /settings/notifications/ /settings/models/ /nap/ /admin/ /privacy/ /faq/ /help/ /help/integrations/telegram/ /security/ /wildlife/ /export/ /about/ /blog/ /blog/how-safeos-guardian-works/ /tutorials/ /tutorial/ /donate/ /terms/ /lost-found/ /404.html
 
 jobs:
   # Every job runs on ubuntu-24.04: ubuntu-latest moved to Ubuntu 26.04, where the
@@ -72,8 +71,8 @@ jobs:
       matrix:
         version: ${{ fromJSON(github.event_name == 'pull_request' && '["after","before"]' || '["after"]') }}
     runs-on: ubuntu-24.04
-    # A capture takes about seven minutes.
-    timeout-minutes: 30
+    # A capture at four widths takes about fifteen minutes.
+    timeout-minutes: 45
     defaults:
       run:
         working-directory: apps/guardian-ui
@@ -101,6 +100,19 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The star count beside the GitHub link, read once and handed to the
+      # build and to the capture, which checks the pages against it. The base
+      # commit of a pull request may be older than the script. A read that
+      # fails leaves a warning and no count: the pictures then show the link
+      # with its word alone.
+      - name: Read the repository's star count
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f scripts/read-github-stars.mjs ]; then
+            node scripts/read-github-stars.mjs
+          fi
 
       - name: Build static site
         run: npm run build
@@ -162,6 +174,16 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      # The count, read as the pictures job reads it, so the home page's
+      # pictures show the GitHub link as the deployed site does.
+      - name: Read the repository's star count
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f scripts/read-github-stars.mjs ]; then
+            node scripts/read-github-stars.mjs
+          fi
 
       - name: Build static site
         run: npm run build

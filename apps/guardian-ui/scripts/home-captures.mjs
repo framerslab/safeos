@@ -32,7 +32,7 @@
 // file that is missing or differs from that record.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
@@ -71,10 +71,22 @@ async function record(relative, details) {
   console.log(`saved ${relative}: ${details.width} by ${details.height}, ${bytes.length} bytes`);
 }
 
+// A window opened here keeps nothing on disk, and a headless browser reads
+// notifications as blocked; the dashboard says each of the two to a person.
+// A picture stands for a person's own window, so the page is told that its
+// storage is kept and that notifications are allowed.
+const OWN_WINDOW = () => {
+  try { sessionStorage.setItem('safeos-window-storage', 'kept'); } catch (e) { /* storage refused */ }
+  try {
+    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
+  } catch (e) { /* this browser has no notifications */ }
+};
+
 // A person who has finished setup, with the capture's preset saved, and the
 // two cards that appear unasked already put away.
 async function seededContext(browser, options) {
   const context = await browser.newContext({ ...options, permissions: ['camera', 'microphone'] });
+  await context.addInitScript(OWN_WINDOW);
   await context.addInitScript((settings) => {
     localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
       isComplete: true, selectedScenario: 'pet',
@@ -208,19 +220,29 @@ async function portraitFrame(page, name) {
 // Every crop shows the Motion indicator in its alert colour, as its text
 // equivalent says: the picture is taken while the indicator reads "motion
 // detected" and kept only if it still does once the picture is saved;
-// otherwise it is taken again at the next motion, up to five times.
+// otherwise it is taken again at the next motion, up to five times. A crop
+// that runs past the edge of the screen is saved cut short, so a picture is
+// kept only at the size its crop asks for: it is written beside its name and
+// takes the name only once its size is right.
 async function saveCrop(page, relative, clip, details) {
   const file = path.join(outDir, relative);
+  const taken = `${file}.taking.png`;
   const indicator = page.getByRole('status', { name: /^Motion level/ });
   for (let attempt = 1; ; attempt += 1) {
     await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
-    await page.screenshot({ path: file, clip });
+    await page.screenshot({ path: taken, clip });
     const after = (await indicator.getAttribute('aria-label')) || '';
     if (after.includes('motion detected')) break;
     if (attempt === 5) throw new Error(`${relative}: the Motion indicator left its alert state while each of five pictures was taken`);
     console.log(`${relative}: the Motion indicator read "${after}" once the picture was saved; taking it again`);
   }
-  const size = pngSize(await readFile(file));
+  const size = pngSize(await readFile(taken));
+  const asked = { width: clip.width * details.deviceScaleFactor, height: clip.height * details.deviceScaleFactor };
+  if (Math.abs(size.width - asked.width) > 1 || Math.abs(size.height - asked.height) > 1) {
+    await rm(taken, { force: true });
+    throw new Error(`${relative} is ${size.width} by ${size.height} px, not the ${Math.round(asked.width)} by ${Math.round(asked.height)} px its crop asks for: the crop runs past the edge of the ${details.viewport} screen`);
+  }
+  await rename(taken, file);
   await record(relative, { ...details, ...size });
   const webp = relative.replace(/\.png$/, '.webp');
   execFileSync('ffmpeg', ['-nostdin', '-v', 'error', '-y', '-i', file, '-c:v', 'libwebp', '-quality', '86', '-compression_level', '6', path.join(outDir, webp)]);
@@ -298,11 +320,23 @@ try {
         const sound = await page.getByText(SOUND_ALERT).count();
         console.log(`${name}: the alert list holds ${sound} sound alert${sound === 1 ? '' : 's'}`);
         await page.getByRole('status', { name: /motion detected/ }).waitFor({ timeout: 60_000 });
-        const grid = await page.locator('main > div.grid').first().boundingBox();
+        const gridPart = page.locator('main > div.grid').first();
+        let grid = await gridPart.boundingBox();
         if (!grid || grid.width < 1100 || grid.width > 1280) throw new Error(`${name}: the monitor's grid is ${grid ? Math.round(grid.width) : 'not'} px wide`);
         const width = Math.floor(grid.width);
+        const height = Math.round(width * 10 / 16);
+        // The crop is taken whole. Where the grid starts too far down the
+        // screen for it, the page moves up by what the crop lacks and 8 px
+        // more, so a move the browser rounds to its own pixels leaves room.
+        const lacking = Math.ceil(grid.y + height - viewport.height);
+        if (lacking > 0) {
+          await page.evaluate((by) => window.scrollBy({ top: by, behavior: 'instant' }), lacking + 8);
+          grid = await gridPart.boundingBox();
+          if (!grid) throw new Error(`${name}: the monitor's grid was not found once the page had moved up`);
+          console.log(`${name}: the landscape crop ran ${lacking} px past the foot of the screen; the page moved up and the grid starts ${grid.y.toFixed(1)} px down it`);
+        }
         await saveCrop(page, `home/capture-landscape-${look}.png`,
-          { x: grid.x, y: grid.y, width, height: Math.round(width * 10 / 16) },
+          { x: grid.x, y: grid.y, width, height },
           { look, viewport: `${viewport.width}x${viewport.height}`, deviceScaleFactor: scale, crop: 'camera view beside the alert list, 16:10' });
         console.log(`${name}: Motion indicator after saving: "${await indicator.getAttribute('aria-label')}"`);
       } catch (err) {
@@ -323,7 +357,7 @@ try {
     const details = { look: 'dark', viewport: '1280x720', deviceScaleFactor: 1 };
     try {
       await page.goto(new URL('/dashboard/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-      await page.getByRole('heading', { name: 'Quick Actions', exact: true }).waitFor({ timeout: 20_000 });
+      await page.getByRole('heading', { level: 1, name: 'Not watching', exact: true }).waitFor({ timeout: 20_000 });
       await page.screenshot({ path: path.join(outDir, 'screenshots/dashboard.png') });
       await record('screenshots/dashboard.png', { ...details, crop: 'the dashboard after setup', ...pngSize(await readFile(path.join(outDir, 'screenshots/dashboard.png'))) });
 

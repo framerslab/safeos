@@ -8,7 +8,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ShortcutList } from '../../hooks/useKeyboardShortcuts';
 import { NotAMedicalDevice } from '../../components/NotAMedicalDevice';
@@ -117,7 +117,7 @@ const faqs: FAQItem[] = [
   {
     category: 'privacy',
     question: 'What happens to my video data?',
-    answer: 'Video is processed in your browser. The motion check keeps only the last three frames in memory. Frames that Security, Wildlife or Lost & Found save stay in your browser\'s IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to it.',
+    answer: 'Video is processed in your browser. The motion check keeps only the last three frames in memory. Frames that People, Wildlife or Lost and Found save stay in your browser\'s IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to it.',
   },
   {
     category: 'privacy',
@@ -142,7 +142,7 @@ const faqs: FAQItem[] = [
   {
     category: 'technical',
     question: 'How does the AI work?',
-    answer: 'On safeos.sh, the monitor compares frames and sound levels in your browser, and Security and Wildlife modes run the COCO-SSD model in your browser. If you run the optional SafeOS server, it can also send frames to a local Ollama model, and to a cloud model you configure when the local one fails.',
+    answer: 'On safeos.sh, the monitor compares frames and sound levels in your browser, and People and Wildlife run the COCO-SSD model in your browser. If you run the optional SafeOS server, it can also send frames to a local Ollama model, and to a cloud model you configure when the local one fails.',
   },
   {
     category: 'alerts',
@@ -177,6 +177,28 @@ export default function HelpPage() {
   const [activeSection, setActiveSection] = useState('getting-started');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
   const [faqCategory, setFaqCategory] = useState<string>('all');
+
+  // An address that names an entry (/help/#camera, /help/#notifications) opens
+  // Troubleshooting with that entry in view. Any other fragment (Skip to
+  // content's #main-content) forgets the entry and leaves the section as it is.
+  const [entry, setEntry] = useState<string | null>(null);
+  useEffect(() => {
+    const read = () => {
+      const named = window.location.hash.slice(1);
+      if (named === 'camera' || named === 'notifications') {
+        setActiveSection('troubleshooting');
+        setEntry(named);
+      } else {
+        setEntry(null);
+      }
+    };
+    read();
+    window.addEventListener('hashchange', read);
+    return () => window.removeEventListener('hashchange', read);
+  }, []);
+  useEffect(() => {
+    if (entry && activeSection === 'troubleshooting') document.getElementById(entry)?.scrollIntoView();
+  }, [entry, activeSection]);
 
   const filteredFaqs = faqCategory === 'all' 
     ? faqs 
@@ -231,7 +253,7 @@ export default function HelpPage() {
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
                   <h2 className="text-2xl font-bold text-white mb-4">Getting Started with SafeOS</h2>
                   <p className="text-slate-300 mb-6">
-                    Welcome to SafeOS Guardian! Follow these steps to set up your first monitoring session.
+                    Welcome to SafeOS Guardian! <Link href="/setup/" className="text-emerald-400 hover:underline">Setup</Link> takes you through the first three steps, then the dashboard starts the watch.
                   </p>
 
                   <div className="space-y-6">
@@ -269,7 +291,7 @@ export default function HelpPage() {
                       <div>
                         <h3 className="text-white font-medium mb-1">Allow Camera Access</h3>
                         <p className="text-sm text-slate-400">
-                          Grant browser permission to access your camera (and optionally microphone).
+                          Setup asks the browser for the camera and the microphone together. With no microphone, the camera watches for movement and not for sound.
                         </p>
                       </div>
                     </div>
@@ -280,24 +302,12 @@ export default function HelpPage() {
                         4
                       </div>
                       <div>
-                        <h3 className="text-white font-medium mb-1">Start Monitoring</h3>
+                        <h3 className="text-white font-medium mb-1">Start watching</h3>
                         <p className="text-sm text-slate-400">
-                          Click &quot;Start Monitoring&quot; and position your camera. SafeOS starts watching for motion and sound.
+                          Open the dashboard, press &quot;Start watching&quot; and position your camera. SafeOS starts watching for motion and sound.
                         </p>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="mt-8">
-                    <Link
-                      href="/tutorial"
-                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
-                    >
-                      Start Interactive Tutorial
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </Link>
                   </div>
                 </div>
 
@@ -394,13 +404,13 @@ export default function HelpPage() {
                   <h2 className="text-lg font-semibold text-white mb-4">Common Issues</h2>
                   
                   <div className="space-y-4">
-                    <div className="p-4 bg-slate-700/30 rounded-lg">
+                    <div id="camera" className="p-4 bg-slate-700/30 rounded-lg">
                       <h3 className="text-white font-medium mb-2">Camera not working</h3>
                       <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
-                        <li>Check that you&apos;ve granted camera permissions</li>
+                        <li>If the browser blocked the camera for this site, open its site settings (the icon beside the address), set Camera to Allow, then go back to the dashboard and press Start watching</li>
                         <li>Make sure no other app is using the camera</li>
                         <li>Try refreshing the page</li>
-                        <li>Check browser camera settings</li>
+                        <li>Check that the camera is turned on in the system&apos;s privacy settings</li>
                       </ul>
                     </div>
 
@@ -413,9 +423,10 @@ export default function HelpPage() {
                       </ul>
                     </div>
 
-                    <div className="p-4 bg-slate-700/30 rounded-lg">
+                    <div id="notifications" className="p-4 bg-slate-700/30 rounded-lg">
                       <h3 className="text-white font-medium mb-2">Notifications not appearing</h3>
                       <ul className="text-sm text-slate-300 space-y-1 list-disc list-inside">
+                        <li>If the browser blocked notifications for this site, open its site settings (the icon beside the address) and set Notifications to Allow</li>
                         <li>Enable browser notifications in system settings</li>
                         <li>Check Settings → Notifications in SafeOS</li>
                         <li>Ensure you&apos;re not in Quiet Hours mode</li>

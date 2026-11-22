@@ -126,11 +126,17 @@ export function BackendStatusProvider({ children }: { children: React.ReactNode 
   const healthCheckRef = useRef<NodeJS.Timeout | null>(null);
   const retryCountRef = useRef(0);
 
-  // Load config from localStorage on mount
+  // Load config from localStorage on mount. A browser that refuses this
+  // site's storage has no saved address.
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const stored = localStorage.getItem(STORAGE_KEY);
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(STORAGE_KEY);
+    } catch {
+      return;
+    }
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as BackendConfig;
@@ -283,9 +289,14 @@ export function BackendStatusProvider({ children }: { children: React.ReactNode 
     setConfig(prev => {
       const newConfig = { ...prev, ...updates, configured: true };
 
-      // Save to localStorage
+      // Save to localStorage; where the browser refuses, the address lasts
+      // for this page.
       if (typeof window !== 'undefined') {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(newConfig));
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newConfig));
+        } catch {
+          // Kept in memory only.
+        }
       }
 
       return newConfig;
