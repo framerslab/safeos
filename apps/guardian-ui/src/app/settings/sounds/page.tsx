@@ -23,6 +23,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SoundUploader } from '@/components/SoundUploader';
+import { AlertVolume } from '@/components/settings/AlertVolume';
 import { BackButton } from '@/components/BackButton';
 import { IconChevronLeft } from '@/components/icons';
 import {
@@ -230,6 +231,11 @@ export default function SoundsSettingsPage() {
           <p className="text-slate-400 mt-2">
             Upload or record custom sounds to play when specific events are detected.
           </p>
+        </div>
+
+        {/* How loud alerts play, with a key that plays it */}
+        <div className="settings look-part set-on-page">
+          <AlertVolume />
         </div>
 
         {/* Usage Guide */}
