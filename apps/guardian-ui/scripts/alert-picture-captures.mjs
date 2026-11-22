@@ -24,6 +24,8 @@
 //   live-box              the box on the live picture after an alert
 //   sighting              a Lost and Found sighting, from a striped clip this
 //                         script writes, with the pet "Stripes" enrolled
+//   dashboard-sighting    the dashboard's Since you last looked after that
+//                         sighting, in the same visit
 //
 // The clip's camera moves, so a Motion alert raised from the whole clip boxes
 // the whole frame, and a box over half of the frame has no close-up. For the
@@ -431,6 +433,15 @@ async function sightingState(browser, size, look) {
       await card.locator('.alert-picture[data-status="shown"] img').first().waitFor({ timeout: 30_000 });
       await stopKey(page).click();
       await capture('sighting', size, look, card);
+    });
+    await state(['dashboard-sighting'], size, look, async () => {
+      // The app's Dashboard in the same visit: Since you last looked lists the sighting as Lost
+      // and Found's, with its kept picture.
+      await page.locator('nav[aria-label="App"]:visible').getByRole('link', { name: 'Dashboard', exact: true }).first().click();
+      await page.waitForURL(/\/dashboard\/?$/, { timeout: 60_000 });
+      const since = page.getByRole('region', { name: 'Since you last looked' });
+      await since.getByRole('link', { name: /^Colours like Stripes['’]s at / }).locator('img').waitFor({ timeout: 30_000 });
+      await capture('dashboard-sighting', size, look, since);
     });
   } finally {
     await context.close();
