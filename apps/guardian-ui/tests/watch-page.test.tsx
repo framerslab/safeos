@@ -16,6 +16,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { useLostFoundStore } from '@/stores/lost-found-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 import { clockTime } from '@/lib/clock-time';
+import * as clientDb from '@/lib/client-db';
 
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 const mockBackendConfig = { wsUrl: 'wss://monitor.example.test' };
@@ -361,4 +362,46 @@ it('floats no quick settings over the page', async () => {
   render(<MonitorPage />);
   await act(async () => {});
   expect(screen.queryByRole('button', { name: 'Quick Settings' })).toBeNull();
+});
+
+// =============================================================================
+// The alert list's header, and its empty and loading states
+// =============================================================================
+
+it('says where alerts show before a watch, and that none came while watching', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.getByRole('heading', { level: 2, name: 'Alerts' })).toBeTruthy();
+  expect(screen.getByText('Alerts show here while this device watches.')).toBeTruthy();
+  expect(screen.queryByText('No alert so far.')).toBeNull();
+  await startMonitoring();
+  expect(screen.getByText('No alert so far.')).toBeTruthy();
+  expect(screen.queryByText('Alerts show here while this device watches.')).toBeNull();
+  expect(screen.queryByText(/No active alerts/)).toBeNull();
+  expect(screen.queryByText('Monitoring is inactive')).toBeNull();
+  expect(screen.queryByText('Monitoring is running normally')).toBeNull();
+});
+
+it('holds three bars in the entries\' place until the saved alerts are read', async () => {
+  let settle: (alerts: never[]) => void = () => {};
+  jest.spyOn(clientDb, 'getCachedMonitoringAlerts').mockReturnValue(new Promise((resolve) => { settle = resolve; }) as never);
+  useMonitoringStore.setState({ alertsRead: false });
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.getByRole('heading', { level: 2, name: 'Alerts' })).toBeTruthy();
+  expect(document.querySelectorAll('.watch-list__wait')).toHaveLength(3);
+  expect(screen.queryByText('Alerts show here while this device watches.')).toBeNull();
+  await act(async () => { settle([]); });
+  expect(document.querySelectorAll('.watch-list__wait')).toHaveLength(0);
+  expect(screen.getByText('Alerts show here while this device watches.')).toBeTruthy();
+});
+
+it('counts the new alerts beside the heading', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(document.querySelector('.watch-list__new')).toBeNull();
+  act(() => useMonitoringStore.getState().addAlert({ id: 'motion-1', streamId: 'local', severity: 'low', message: '', acknowledged: false }));
+  const count = document.querySelector('.watch-list__new');
+  expect(count?.textContent).toBe('1 new');
+  expect(count?.closest('.watch-list__head')?.querySelector('h2')?.textContent).toBe('Alerts');
 });

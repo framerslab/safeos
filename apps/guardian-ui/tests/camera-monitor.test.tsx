@@ -117,11 +117,12 @@ it('keeps the monitor socket across metric renders and closes it without reconne
   expect(BrowserSocket.instances).toHaveLength(count);
 });
 
-it('does not claim normal monitoring in the empty alert panel before camera startup', async () => {
+it('does not claim normal monitoring in the empty alert list before camera startup', async () => {
   render(<MonitorPage />);
   await act(async () => {});
   expect(screen.queryByText('Monitoring is running normally')).toBeNull();
-  expect(screen.getByText('Monitoring is inactive')).toBeTruthy();
+  expect(screen.queryByText('No alert so far.')).toBeNull();
+  expect(screen.getByText('Alerts show here while this device watches.')).toBeTruthy();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
 });
 
