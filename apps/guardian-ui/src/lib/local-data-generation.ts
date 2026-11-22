@@ -55,9 +55,29 @@ export const PICTURES_CLEAR_MARKER_KEY = 'safeos_alert_pictures_cleared';
 export function readPicturesClearMarker(): string {
   try { return localStorage.getItem(PICTURES_CLEAR_MARKER_KEY) ?? ''; } catch { return ''; }
 }
-/** Throws when local storage refuses the write; the caller then aborts its deletion. */
-export function writePicturesClearMarker(): void {
-  localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, newClearValue());
+/**
+ * Writes a new pictures marker and answers it with the one it replaced ('' for none). Throws when
+ * local storage refuses the write; the caller then aborts its deletion.
+ */
+export function writePicturesClearMarker(): { written: string; before: string } {
+  const before = readPicturesClearMarker();
+  const written = newClearValue();
+  localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, written);
+  return { written, before };
+}
+/**
+ * Puts back the marker a deletion replaced when that deletion did not commit, so a save that
+ * waits in any tab is written as if the deletion never came. A marker another deletion wrote
+ * since stays.
+ */
+export function restorePicturesClearMarker({ written, before }: { written: string; before: string }): void {
+  try {
+    if (localStorage.getItem(PICTURES_CLEAR_MARKER_KEY) !== written) return;
+    if (before === '') localStorage.removeItem(PICTURES_CLEAR_MARKER_KEY);
+    else localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, before);
+  } catch {
+    // The new marker stays: a save that waits is then not written, as after a deletion.
+  }
 }
 
 /** What a picture save carries from its alert: the clear boundary and the pictures marker then. */

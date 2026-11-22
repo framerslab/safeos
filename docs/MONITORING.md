@@ -260,7 +260,9 @@ live camera picture shows the box with "Motion here at {time}" or "Picture chang
 picture, opens the picture large: **Show the box** hides and shows the box, **Save picture**
 saves the picture as it shows to the device as `safeos-{kind}-{date}-{time}.jpg` (with the box
 drawn in while it shows), and **Delete picture** asks first, then deletes the picture, its box
-and its close-up; the alert's words stay. A dark picture offers **Brighten the picture**, which
+and its close-up; the alert's words stay. A repeat while the picture is open puts the newest
+alert's picture in its place; a delete question, or a failed save or delete, that was about the
+earlier picture leaves with it. A dark picture offers **Brighten the picture**, which
 brightens the view alone. **History → Local Timeline** lists each watch alert with its
 thumbnail, its kind, level, date and time, and **Open picture**.
 
@@ -299,6 +301,9 @@ A picture is deleted:
   alert holds deletes it when a watch starts, once it is 10 minutes old;
 - by **Delete picture**, by **Delete all pictures**, by **Clear All Local Data** and by
   signing out.
+
+A picture being saved when **Delete all pictures** comes, in any tab, is not saved. When
+the deletion fails, nothing is deleted and that picture is saved.
 
 When the device runs out of room, the oldest pictures make way for the newest, and the alert
 list says so once; when every older picture would have to go, the new one is not kept, the

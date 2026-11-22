@@ -9,7 +9,7 @@
 
 import {
   getLocalDataGeneration, isCurrentLocalData, learnClearGeneration, newClearValue, readLocalClearMarker,
-  readPicturesClearMarker, writeAccountClearMarker, writeLocalClearMarker, writePicturesClearMarker,
+  readPicturesClearMarker, restorePicturesClearMarker, writeAccountClearMarker, writeLocalClearMarker, writePicturesClearMarker,
   type ClearStamp, type PictureStamp,
 } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
@@ -1148,10 +1148,12 @@ export async function goneAlertPicture(
 /**
  * Delete all pictures: every kept set leaves its row that says the person deleted it, and the
  * pictures marker is written before the transaction commits, so a save that waits in any tab is
- * not written afterwards. A marker local storage refuses aborts it, and nothing is deleted.
+ * not written afterwards. A marker local storage refuses aborts it, and nothing is deleted. A
+ * transaction that does not commit puts the marker back, so a waiting save is written.
  */
 export async function goneAllAlertPictures(): Promise<{ result: 'deleted'; ids: string[] } | { result: 'failed' }> {
   let tx: Abandonable | undefined;
+  let marker: { written: string; before: string } | null = null;
   try {
     const db = await getDB();
     const write = db.transaction(['alert_picture'], 'readwrite');
@@ -1164,11 +1166,12 @@ export async function goneAllAlertPictures(): Promise<{ result: 'deleted'; ids: 
       await cursor.update(goneRow(cursor.value, 'person'));
       cursor = await cursor.continue();
     }
-    writePicturesClearMarker();
+    marker = writePicturesClearMarker();
     await tx.done;
     return { result: 'deleted', ids };
   } catch {
     await abandonTransaction(tx);
+    if (marker) restorePicturesClearMarker(marker);
     return { result: 'failed' };
   }
 }

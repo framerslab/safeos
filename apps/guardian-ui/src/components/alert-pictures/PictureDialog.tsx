@@ -144,7 +144,9 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   const [bright, setBright] = useState<{ frame: string; closeUp: string | null } | null>(null);
   // The delete question is asked of one picture: the one shown when Delete picture was pressed.
   const [asking, setAsking] = useState<string | null>(null);
-  const [deleteFailed, setDeleteFailed] = useState(false);
+  // The picture whose delete failed. The line belongs to that picture, so a repeat that puts a
+  // newer picture in the panel takes it away.
+  const [deleteFailedId, setDeleteFailedId] = useState<string | null>(null);
   // The picture Save picture could not read. A read failure belongs to the picture it was read
   // for, even when it comes back after a repeat put a newer picture in the panel.
   const [unreadId, setUnreadId] = useState<string | null>(null);
@@ -241,7 +243,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
     const answer = await deletePicture(target, { kind, takenAt: at });
     busy.current = false;
     if (answer === 'failed') {
-      setDeleteFailed(true);
+      setDeleteFailedId(target);
       deleteRef.current?.focus();
       return;
     }
@@ -367,7 +369,7 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
                   <SwitchRow label={SHOW_THE_BOX} on={showBox} inactive={loading} onChange={setShowBox} />
                 )}
                 {shown && set?.dark && <SwitchRow label={BRIGHTEN} on={brighten} onChange={setBrighten} />}
-                {deleteFailed && (
+                {deleteFailedId !== null && deleteFailedId === alert.pictureId && (
                   <p className="alert-picture__quiet alert-picture__why" role="alert">
                     <ProblemGlyph />
                     <span>{PICTURE_DELETE_FAILED}</span>
