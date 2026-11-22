@@ -66,7 +66,8 @@ Alert sounds, saves to this device the moment it moves and the row says
 **Saved**; it sets the volume monitoring and sound playback use. A browser that
 refuses this site's storage keeps the change for the visit, the row says "Not
 saved. This browser is not keeping settings.", and Settings says at its top that
-the browser is not keeping settings. Motion sensitivity, audio sensitivity and
+the browser is not keeping settings. A device too full to take the settings
+keeps the change for the visit too, and the row says the same. Motion sensitivity, audio sensitivity and
 alert volume use the same values as the monitor controls. A volume of zero stays
 zero.
 Emergency alarms retain their explicit full-volume behavior. Quiet hours are
