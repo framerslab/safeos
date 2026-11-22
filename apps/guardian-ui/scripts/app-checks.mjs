@@ -3089,6 +3089,48 @@ export async function checkApp(browser, baseUrl, outDir) {
       const first = await focusedOn(second);
       check(first === 'Cancel', `focus starts on "${first}", not on the key that keeps the other tab`);
     }, { script: FAKE_CAMERA });
+
+    // Try again after a failed start asks first while another tab watches,
+    // as Start watching does, and asks for no camera before the answer.
+    await open({ name: 'watch, Try again while another tab watches', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await page.evaluate(() => { window.__camera.answer = 'NotAllowedError'; });
+      await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+      const tryAgain = page.getByRole('button', { name: 'Try again', exact: true });
+      await tryAgain.waitFor({ timeout: 20_000 });
+      const second = await context.newPage();
+      await visit(second, '/monitor/');
+      await second.getByRole('button', { name: 'Start watching', exact: true }).click();
+      await second.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+      const requests = await cameraRequests(page);
+      await tryAgain.click();
+      const asked = await theQuestion(page).waitFor({ timeout: 5_000 }).then(() => true, () => false);
+      check(asked, `Try again, while another tab watches, showed no dialog named "${QUESTION}"`);
+      check((await cameraRequests(page)) === requests, 'Try again asked for the camera before the question was answered');
+      await page.screenshot({ path: path.join(outDir, `watch-try-again-other-tab-390-${look}.png`) });
+      await second.close();
+    }, { script: FAKE_CAMERA });
+
+    // A microphone lost while watching is named beside Sound, and the watch goes on.
+    await open({ name: 'watch, a microphone lost while watching', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+      const ended = await page.evaluate(() => {
+        const tracks = window.__camera.live.flatMap((stream) => stream.getAudioTracks());
+        for (const track of tracks) {
+          track.stop();
+          track.dispatchEvent(new Event('ended'));
+        }
+        return tracks.length;
+      });
+      check(ended > 0, 'the watch holds no microphone to lose');
+      const words = 'No microphone found. Sound alerts are off. Connect a microphone, then stop and start watching.';
+      const named = await page.locator('.watch-meters').getByText(words, { exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
+      check(named, `a microphone lost while watching is not named beside Sound as "${words}"`);
+      check(await page.getByRole('button', { name: 'Stop watching', exact: true }).isVisible(), 'the watch stopped when the microphone was lost');
+      await page.locator('.watch-frame').screenshot({ path: path.join(outDir, `watch-microphone-lost-390-${look}.png`) });
+    }, { script: FAKE_CAMERA });
   }
 
   // The watch's meters: inside the ticks, one row each on a phone, side by
