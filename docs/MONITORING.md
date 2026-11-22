@@ -12,11 +12,13 @@ line "Your browser will ask you to allow the camera and microphone." **Start wat
 requests access to the selected camera and microphone; while the camera starts the
 key reads "Starting the camera…" and **Cancel** under the frame cancels that
 request. A camera that fails is named inside the frame with its fix and, where a
-press can help, **Try again**. Once the live picture shows, it stands in four
-corner ticks and **Stop watching** stands under it. A device with a camera and no
-microphone watches video alone, and the Sound meter names the missing or blocked
-microphone while Motion goes on; Setup's **Grant Permissions** also completes with
-the camera alone.
+press can help, **Try again**. While another tab of this browser watches, **Try
+again** asks "Watch here instead? The other tab stops." first, as **Start
+watching** does. Once the live picture shows, it stands in four corner ticks and
+**Stop watching** stands under it. A device with a camera and no microphone
+watches video alone, and the Sound meter names the missing or blocked microphone
+while Motion goes on; a microphone lost while watching is named there as missing.
+Setup's **Grant Permissions** also completes with the camera alone.
 
 ## The meters
 
@@ -24,8 +26,11 @@ Under the live picture, a strip holds a meter for each kind the setting in use
 checks: **Motion**, **Sound** and **Picture change**. Each meter shows its name, a
 word for its state ("Quiet", "Over the line", or "No alert" where the setting turns
 that kind's alerts off) and a bar on a track with the alert line drawn across it:
-the bar fills in green up to the line and in the alert colour past it. Before the
-first reading after a press the names stand over empty tracks with no state word.
+the bar fills in green up to the line and in the alert colour past it. With
+detection zones, the Motion meter reads the zone that stands highest over its own
+line, a full-screen zone's own Motion sensitivity included, as its alert does.
+Before the first reading after a press the names stand over empty tracks with no
+state word.
 A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";
 a change of state is not announced. Under reduced motion a meter's shown reading
 changes at most once a second. While Lost and Found compares, the pet's meter names
@@ -72,8 +77,10 @@ and the pet it shows.
 
 The address names the way and the pet: `/monitor/?way=lost-found&pet=<id>` opens
 Lost and Found with that saved pet, `/monitor/?way=monitor` opens Motion and sound,
-and an address with no way keeps the stored choice. Each change of way or pet
-writes the address in place, so a bookmark or a reload opens the same watch. The pet is kept as `chosenPetId` in the Lost & Found store;
+and an address with no way keeps the stored choice. Each change of way or pet on
+the page writes the address in place, so a bookmark or a reload of that address
+opens the same watch; `/monitor/` opened with no way follows the choice this device
+keeps, and so does a bookmark of it. The pet is kept as `chosenPetId` in the Lost & Found store;
 until one is chosen it is the newest saved pet. A thing saved on the Lost &
 Found page as an object is the watch's only once it is chosen there or in
 **Choose a pet**. A subject an earlier version saved as a person is never the
@@ -137,7 +144,8 @@ stops watching, and the frame says "The camera stopped at {time}. Press Start
 watching to start again." with **Start watching** under it. A muted video track (the
 device stops sending video for a while) pauses frame analysis; when the track
 unmutes, watching resumes on its own. An ended or muted microphone stops audio
-analysis while video watching continues.
+analysis while video watching continues, and the Sound meter says "No microphone
+found. Sound alerts are off. Connect a microphone, then stop and start watching."
 
 ## What the settings change on the watch
 
