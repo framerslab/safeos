@@ -2,7 +2,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { fakeCaches } from './helpers/browser-data';
-import SettingsPage from '@/app/settings/page';
+import DataPage from '@/app/settings/data/page';
 import { AuthButton } from '@/components/AuthButton';
 import { useAuthStore } from '@/stores/auth-store';
 import { useScheduleStore, DEFAULT_SCHEDULES } from '@/lib/schedule-manager';
@@ -16,10 +16,9 @@ it.each(['clear', 'sign out'])('%s removes stored and active schedules and appea
   useThemeStore.getState().setThemeMode('light');
   useThemeStore.getState().updateAccessibility({ largeText: true });
   if (action === 'clear') {
-    jest.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<SettingsPage />);
-    fireEvent.click(screen.getByRole('button', { name: 'Privacy' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Clear All Local Data' }));
+    render(<DataPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear all data on this device' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all data' }));
   } else {
     useAuthStore.setState({ isInitialized: true, isAuthenticated: true, isGuest: false, sessionToken: 'local-first' });
     render(<AuthButton />);
@@ -40,10 +39,9 @@ it.each(['clear', 'sign out'])('%s removes the dashboard onboarding record', asy
   localStorage.setItem('guardian-onboarding-complete', 'true');
   localStorage.setItem('safeos-clear-marker', 'present');
   if (action === 'clear') {
-    jest.spyOn(window, 'confirm').mockReturnValue(true);
-    render(<SettingsPage />);
-    fireEvent.click(screen.getByRole('button', { name: 'Privacy' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Clear All Local Data' }));
+    render(<DataPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Clear all data on this device' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all data' }));
   } else {
     useAuthStore.setState({ isInitialized: true, isAuthenticated: true, isGuest: false, sessionToken: 'local-first' });
     render(<AuthButton />);
