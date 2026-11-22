@@ -23,7 +23,8 @@ cleared until Clear all data is pressed.
 
 Data on this device also counts what this device keeps (alerts, saved pictures,
 pets and sounds of your own) and exports the settings as a file,
-`safeos-settings-<yyyy-mm-dd>.json`.
+`safeos-settings-<yyyy-mm-dd>.json`. When the device's databases cannot be read,
+the page says "Could not count what this device keeps." and its keys still work.
 
 **Log Out** and **Clear Session** clear personal data before completing
 sign-out. They retain the device's server connection so the next account can
@@ -67,7 +68,8 @@ Alert sounds, saves to this device the moment it moves and the row says
 refuses this site's storage keeps the change for the visit, the row says "Not
 saved. This browser is not keeping settings.", and Settings says at its top that
 the browser is not keeping settings. A device too full to take the settings
-keeps the change for the visit too, and the row says the same. Motion sensitivity, audio sensitivity and
+keeps the change for the visit too, and the row and the top of Settings say the
+same. Motion sensitivity, audio sensitivity and
 alert volume use the same values as the monitor controls. A volume of zero stays
 zero.
 Emergency alarms retain their explicit full-volume behavior. Quiet hours are
