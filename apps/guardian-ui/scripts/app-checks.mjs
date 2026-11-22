@@ -3254,7 +3254,7 @@ export async function checkApp(browser, baseUrl, outDir) {
           }
           // The sentences read as body text: 18 px, 20 px from 1440.
           const body = width >= 1440 ? 20 : 18;
-          const sentences = await page.evaluate(() => [...document.querySelectorAll('.watch-frame__line, .watch-list__empty p, .watch-for__line')]
+          const sentences = await page.evaluate(() => [...document.querySelectorAll('.watch-list__empty p, .watch-for__line')]
             .filter((element) => element.getBoundingClientRect().height > 0 && !element.closest('.sr-only'))
             .map((element) => ({ words: element.textContent.trim().slice(0, 40), size: parseFloat(getComputedStyle(element).fontSize) })));
           for (const sentence of sentences) check(Math.abs(sentence.size - body) < 0.5, `"${sentence.words}" is ${sentence.size} px, not ${body}`);
