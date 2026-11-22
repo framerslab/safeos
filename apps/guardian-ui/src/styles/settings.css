@@ -56,3 +56,411 @@
   font-weight: var(--weight-regular);
   color: var(--color-steel-200);
 }
+
+/* =============================================================================
+   The head: the back link, the heading and its line
+   ============================================================================= */
+
+.set-head {
+  padding: 8px 0 16px;
+}
+
+.set-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-bottom: 4px;
+  color: var(--color-steel-50);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  text-decoration: none;
+}
+
+.set-back:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.look-part .set-back:active {
+  transform: translateY(1px);
+}
+
+/* =============================================================================
+   Glyphs
+   ============================================================================= */
+
+.set-glyph {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.set-glyph--chevron,
+.set-glyph--back {
+  color: var(--color-steel-300);
+}
+
+.set-glyph--back {
+  color: var(--color-steel-50);
+}
+
+.set-glyph--check {
+  width: 18px;
+  height: 18px;
+  color: var(--color-steel-200);
+}
+
+.set-glyph--problem {
+  color: var(--look-alert);
+}
+
+/* =============================================================================
+   Groups and rows: on the page's own ground with no box, card, fill or
+   shadow; one 1 px line above each group's heading, none between rows.
+   ============================================================================= */
+
+.set-group {
+  margin: 0;
+}
+
+.set-group--headed {
+  margin-top: 16px;
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.set-group__heading {
+  margin: 0;
+  padding: 16px 0 4px;
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  color: var(--color-steel-200);
+}
+
+.set-group__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.set-row {
+  position: relative;
+  display: flex;
+  min-height: 56px;
+  color: var(--color-steel-50);
+}
+
+.set-row__name {
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+}
+
+.set-row__value {
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-200);
+  overflow-wrap: anywhere;
+}
+
+/* A value still being read: a short accent bar along the row's foot, never
+   a default. */
+.set-row__loading {
+  display: block;
+  width: 3rem;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background: var(--look-accent);
+}
+
+.set-row--inactive .set-row__name,
+.set-row--inactive .set-slider__value {
+  color: var(--color-steel-200);
+}
+
+/* A link row: the whole row its link, 96 px tall on a phone and 80 px from
+   the tablet stop, the hover fill across the row. */
+.set-link {
+  align-items: center;
+  gap: 12px;
+  min-height: 96px;
+  margin: 0 -16px;
+  padding: 20px 16px 16px;
+  text-decoration: none;
+}
+
+.set-link:hover {
+  background: var(--color-steel-900);
+}
+
+.look-part .set-link:active {
+  transform: translateY(1px);
+}
+
+.look-part .set-link:focus-visible {
+  outline-offset: -2px;
+}
+
+/* The page being read: a 2 px accent bar at the row's left edge, on the
+   page's own ground. */
+.set-link[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 2px;
+  background: var(--look-accent);
+}
+
+.set-link__words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.set-link__lead {
+  display: inline-flex;
+  flex: none;
+}
+
+.set-link__picture {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+@media (min-width: 48em) {
+  .set-link {
+    min-height: 80px;
+    margin: 0 -12px;
+    padding: 16px 12px;
+  }
+}
+
+/* =============================================================================
+   A slider row: the name and the value, the slider, the ends' words
+   ============================================================================= */
+
+.set-slider {
+  flex-direction: column;
+  padding: 12px 0;
+}
+
+.set-slider__top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.set-slider__top .set-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.set-slider__value {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--color-steel-50);
+}
+
+.set-slider__extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.set-slider__input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.set-slider__input:disabled {
+  cursor: default;
+}
+
+.set-slider__input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--look-accent) var(--set-fill), var(--color-steel-800) var(--set-fill));
+}
+
+.set-slider__input::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-steel-800);
+}
+
+.set-slider__input::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--look-accent);
+}
+
+.set-slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -10px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-steel-50);
+}
+
+.set-slider__input::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-steel-50);
+}
+
+.set-slider__ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-200);
+}
+
+/* A row's line under its control. */
+.set-line {
+  margin: 4px 0 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-200);
+}
+
+/* =============================================================================
+   Keys a settings row holds: 44 px tall and 64 px wide or more; the solid
+   key 52 px tall.
+   ============================================================================= */
+
+.set-key {
+  min-width: 4rem;
+}
+
+.settings .key--solid.set-key {
+  min-height: 52px;
+}
+
+/* =============================================================================
+   Saved, and a change this browser did not keep
+   ============================================================================= */
+
+.set-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-200);
+}
+
+.set-saved--refused {
+  color: var(--color-steel-50);
+}
+
+.set-saved:empty {
+  display: none;
+}
+
+/* =============================================================================
+   A question asked in place
+   ============================================================================= */
+
+.set-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.set-confirm__question {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--color-steel-50);
+}
+
+/* =============================================================================
+   A field: its label above, its error under it
+   ============================================================================= */
+
+.set-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.set-field__input {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-steel-300);
+  border-radius: var(--key-radius);
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.set-field__input[aria-invalid='true'] {
+  border-color: var(--look-alert);
+}
+
+.set-field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+/* =============================================================================
+   The storage line at the top of Settings
+   ============================================================================= */
+
+.set-storage__line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+.set-storage__line .set-glyph,
+.set-field__error .set-glyph {
+  margin-top: 2px;
+}
+
+/* Under reduced motion nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  .look-part .set-link:active,
+  .look-part .set-back:active {
+    transform: none;
+  }
+}
