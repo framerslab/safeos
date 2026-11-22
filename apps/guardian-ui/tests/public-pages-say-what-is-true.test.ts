@@ -133,11 +133,13 @@ const SCANNED = Array.from(new Set([
 ]));
 
 // The sample clip's record and its caption and description files, which say
-// what is in the clip.
+// what is in the clip, and the record of the Lost and Found example's photos
+// of the same kitten.
 const CLIP_FILES = [
   app('public', 'home', 'sample-clip.json'),
   app('public', 'home', 'sample-clip.captions.vtt'),
   app('public', 'home', 'sample-clip.descriptions.vtt'),
+  app('public', 'home', 'lost-found', 'photos.json'),
 ];
 
 // The one statement that may name breathing and SIDS (the not-a-medical-device
