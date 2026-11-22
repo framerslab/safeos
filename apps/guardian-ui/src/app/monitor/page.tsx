@@ -21,12 +21,9 @@ import { CameraFeed } from '../../components/CameraFeed';
 import { KeyRow } from '../../components/KeyRow';
 import { MuteAlerts, MutedLine } from '../../components/watch/MuteAlerts';
 import { AlertPanel } from '../../components/AlertPanel';
-import { SubjectPreviewOverlay, SubjectPreview } from '../../components/SubjectPreview';
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
-import { QuickSettingsPanel } from '../../components/QuickSettingsPanel';
 import { InlineSettingsPanel } from '../../components/monitor';
 import { WatchForChooser, WatchForPet, useWatchFor, useWideWatch, NO_PET_FRAME_LINE } from '../../components/monitor/WatchFor';
-import { IconSearch } from '../../components/icons';
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from '../../stores/settings-store';
@@ -45,6 +42,7 @@ import { useCameraAsk } from '../../lib/browser-asks';
 import { cameraFailureOf, type CameraFailure, type MicrophoneProblem } from '../../lib/camera-failure';
 import { WatchFrame, type FramePhase } from '../../components/watch/WatchFrame';
 import { Meters, type MeterRow } from '../../components/watch/Meters';
+import { SettingsFold } from '../../components/watch/SettingsFold';
 import { levelMeter, pictureChangeMeter } from '../../lib/watch-meters';
 import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
 import { useStartGuard } from '../../lib/start-guard';
@@ -123,7 +121,7 @@ export default function MonitorPage() {
     addAlert,
   } = useMonitoringStore();
 
-  const { config: backendConfig } = useBackendStatus();
+  const { config: backendConfig, isConnected: serverConnected } = useBackendStatus();
   const deviceId = useCameraStore(state => state.deviceId);
 
   const { selectedScenario } = useOnboardingStore();
@@ -1366,7 +1364,6 @@ export default function MonitorPage() {
               downsampleFactor: isSleepPreset(activePresetId) ? 2 : 1,
             }}
           />
-          {isLostFoundWatching && <SubjectPreviewOverlay />}
         </WatchFrame>
       </div>
 
@@ -1385,7 +1382,9 @@ export default function MonitorPage() {
       </div>
 
       <div className="watch-grid__settings">
-        <div>
+        <SettingsFold>
+          <Link href="/nap/" className="link-row">Nap Mode</Link>
+          <div>
             {/* Active Mode Info Panel */}
             <div
               key={activePresetId}
@@ -1397,12 +1396,6 @@ export default function MonitorPage() {
                     }`} />
                   {currentPreset.name}
                 </h3>
-                <span className={`text-xs px-2 py-1 rounded-full ${currentPreset.processingMode === 'local'
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-blue-500/20 text-blue-400'
-                  }`}>
-                  {currentPreset.processingMode === 'local' ? 'Local Processing' : 'Cloud AI'}
-                </span>
               </div>
 
               <p className="text-xs text-gray-400 mb-4">{currentPreset.description}</p>
@@ -1427,12 +1420,15 @@ export default function MonitorPage() {
                   </div>
                   <div className="text-xs sm:text-[10px] text-gray-500 uppercase">Audio</div>
                 </div>
-                <div className="text-center p-2 bg-gray-900/50 rounded-lg">
-                  <div className="text-lg font-bold text-amber-400">
-                    {currentPreset.analysisInterval}s
+                {/* How often frames go to this device's own server: shown only while one is connected. */}
+                {serverConnected && (
+                  <div className="text-center p-2 bg-gray-900/50 rounded-lg">
+                    <div className="text-lg font-bold text-amber-400">
+                      {currentPreset.analysisInterval}s
+                    </div>
+                    <div className="text-xs sm:text-[10px] text-gray-500 uppercase">Interval</div>
                   </div>
-                  <div className="text-xs sm:text-[10px] text-gray-500 uppercase">Interval</div>
-                </div>
+                )}
               </div>
 
               {/* Emergency Mode Badge */}
@@ -1566,36 +1562,13 @@ export default function MonitorPage() {
             </div>
           </div>
 
-        <InlineSettingsPanel defaultExpanded={['detection']} />
+          <InlineSettingsPanel defaultExpanded={['detection']} />
+        </SettingsFold>
       </div>
 
       <div className="watch-grid__side">
-            {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
-
-            <AlertPanel showMute={false} />
-
-            {watchFor.comparing && activeSubject && (
-              <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden p-4">
-                <h2 className="font-semibold text-white flex items-center gap-2 mb-4">
-                  <IconSearch size={18} />
-                  Lost and Found
-                </h2>
-                <SubjectPreview mode="full" showClose={false} onPhotosSaved={watchFor.photosSaved} savedUnder={petsMarker} />
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <Link
-                    href="/lost-found/gallery"
-                    className="block w-full text-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                  >
-                    View Match History
-                  </Link>
-                </div>
-              </div>
-            )}
-      </div>
-
-      {/* Quick Settings Panel - floating bottom-right (mobile fallback) */}
-      <div className="lg:hidden">
-        <QuickSettingsPanel />
+        {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
+        <AlertPanel showMute={false} />
       </div>
 
       {/* Preset Initializer - handles URL params */}
