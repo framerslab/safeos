@@ -372,6 +372,14 @@ html:has(.watch) {
   font-family: var(--font-sans);
 }
 
+/* The light look's rule for every menu on the site carries !important; the
+   watch's camera menu keeps its own edge, ground and ink over it. */
+html.light .watch .watch-camera select {
+  border-color: var(--color-steel-300) !important;
+  background-color: var(--color-steel-950) !important;
+  color: var(--color-steel-50) !important;
+}
+
 .watch .watch-camera select:focus-visible {
   outline: 2px solid var(--look-accent);
   outline-offset: 2px;
