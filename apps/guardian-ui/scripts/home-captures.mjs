@@ -17,9 +17,9 @@
 // the alert list holds a motion alert. It then saves:
 //
 //   home/capture-phone-<look>.png      the 390 px monitor's camera view, 16:9
-//   home/capture-portrait-<look>.png   the 390 px monitor's camera view with
-//                                      two whole rows of its readout tiles,
-//                                      at its own ratio, near 4:5
+//   home/capture-portrait-<look>.png   the 390 px watch's camera frame with
+//                                      its live picture and the meters under
+//                                      it, at its own ratio
 //   home/capture-landscape-<look>.png  the 1280 px monitor's camera view
 //                                      beside its alert list, 16:10
 //
@@ -238,8 +238,8 @@ let failures = 0;
 const portraitForCard = {};
 try {
   for (const look of LOOKS) {
-    // The 390 px monitor: the camera view itself, and the portrait crop that
-    // also holds two rows of readout tiles under it. The scale gives the
+    // The 390 px watch: the camera view itself, and the portrait crop that
+    // also holds the meters under it. The scale gives the
     // portrait crop more than twice the width the desktop page shows it at.
     {
       const viewport = { width: 390, height: 1100 };
