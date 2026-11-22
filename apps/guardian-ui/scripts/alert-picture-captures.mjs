@@ -20,6 +20,7 @@
 //   watch-group           Alert pictures in the watch's settings
 //   settings-group        Alert pictures on Settings > Detection
 //   notice                the notice before a device's first watch
+//   setup-choice          the same choice in setup's camera step, on a first visit
 //   notification-setting  Show the picture in alert notifications
 //   live-box              the box on the live picture after an alert
 //   sighting              a Lost and Found sighting, from a striped clip this
@@ -410,6 +411,35 @@ async function noticeState(browser, size, look) {
   }
 }
 
+/** The notice's choice in setup's camera step, on a first visit that has not finished setup. */
+async function setupChoiceState(browser, size, look) {
+  const context = await browser.newContext({
+    viewport: size,
+    deviceScaleFactor: SCALE,
+    colorScheme: look,
+    reducedMotion: 'reduce',
+    permissions: ['camera', 'microphone'],
+  });
+  await context.addInitScript(() => {
+    localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
+    localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+  });
+  const page = await context.newPage();
+  try {
+    await state(['setup-choice'], size, look, async () => {
+      await page.goto(address('/setup/'), { waitUntil: 'networkidle', timeout: 60_000 });
+      await page.getByRole('button', { name: /Begin Setup/ }).click({ timeout: 60_000 });
+      await page.getByRole('checkbox').check();
+      await page.getByRole('button', { name: /Accept & Continue/ }).click();
+      await page.getByRole('button', { name: /Pet Monitoring/ }).click();
+      await page.getByRole('heading', { name: 'Device Access' }).waitFor({ timeout: 30_000 });
+      await capture('setup-choice', size, look, page.getByRole('group', { name: 'Each alert keeps a picture', exact: true }));
+    });
+  } finally {
+    await context.close();
+  }
+}
+
 /** A Lost and Found sighting of the striped pet, on a browser whose camera plays the stripes. */
 async function sightingState(browser, size, look) {
   const context = await seededContext(browser, { size, look, settings: SIGHTINGS_ONLY });
@@ -469,6 +499,7 @@ try {
       await notificationState(clipBrowser, size, look);
       await soundState(clipBrowser, size, look);
       await noticeState(clipBrowser, size, look);
+      await setupChoiceState(clipBrowser, size, look);
     }
   }
 } finally {
