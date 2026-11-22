@@ -3590,6 +3590,41 @@ test.describe('A watch alert’s notification, 1280 px', () => {
     expect(note.image).toMatch(/^data:image\/jpeg;base64,/);
     await context.setOffline(false);
   });
+
+  // It reads the copy drawn within the 300 ms, so it runs in the notifications' own step, alone.
+  test('turning the picture off while the notification’s picture is drawn sends the words alone', async ({ page, context }) => {
+    test.setTimeout(120_000);
+    // The notification's copy is drawn after the person turned the picture off in another tab.
+    await page.addInitScript(() => {
+      const toDataURL = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, quality?: number) {
+        // The notification's copy alone is a JPEG at 0.8; the camera's frames for a server are at 0.7.
+        if (type === 'image/jpeg' && quality === 0.8) {
+          const marks = window as unknown as { __turnedOffAt?: number };
+          marks.__turnedOffAt ??= Date.now();
+          const key = 'safeos-alert-pictures';
+          const stored = JSON.parse(localStorage.getItem(key) ?? '{"state":{},"version":0}');
+          stored.state.inNotifications = false;
+          const value = JSON.stringify(stored);
+          localStorage.setItem(key, value);
+          window.dispatchEvent(new StorageEvent('storage', { key, newValue: value, storageArea: localStorage }));
+        }
+        return toDataURL.call(this, type, quality);
+      } as typeof toDataURL;
+    });
+    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, inNotifications: true } });
+    await timeOf(cards(page).first(), 'Motion');
+    await holdStill(page);
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    const [note] = await notesOf(page);
+    expect(note.title).toBe('Motion alert');
+    // The copy was drawn, and the picture turned off, before the notification went: the words go
+    // alone for the person's choice, not for a picture that came too late.
+    const turnedOffAt = await page.evaluate(() => (window as unknown as { __turnedOffAt?: number }).__turnedOffAt);
+    expect(turnedOffAt, 'the notification’s copy was drawn').toBeDefined();
+    expect(turnedOffAt!, 'the picture was turned off before the notification went').toBeLessThanOrEqual(note.at);
+    expect(note.image ?? null, 'no picture once the person turned it off').toBeNull();
+  });
 });
 
 // =============================================================================
@@ -3716,40 +3751,6 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     const card = cards(page).first();
     await timeOf(card, 'Motion');
     await expect(card.locator('.alert-picture__frame .alert-picture__box'), 'the alert’s picture has its box').toHaveCount(1);
-  });
-
-  test('turning the picture off while the notification’s picture is drawn sends the words alone', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    // The notification's copy is drawn after the person turned the picture off in another tab.
-    await page.addInitScript(() => {
-      const toDataURL = HTMLCanvasElement.prototype.toDataURL;
-      HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, quality?: number) {
-        // The notification's copy alone is a JPEG at 0.8; the camera's frames for a server are at 0.7.
-        if (type === 'image/jpeg' && quality === 0.8) {
-          const marks = window as unknown as { __turnedOffAt?: number };
-          marks.__turnedOffAt ??= Date.now();
-          const key = 'safeos-alert-pictures';
-          const stored = JSON.parse(localStorage.getItem(key) ?? '{"state":{},"version":0}');
-          stored.state.inNotifications = false;
-          const value = JSON.stringify(stored);
-          localStorage.setItem(key, value);
-          window.dispatchEvent(new StorageEvent('storage', { key, newValue: value, storageArea: localStorage }));
-        }
-        return toDataURL.call(this, type, quality);
-      } as typeof toDataURL;
-    });
-    await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, inNotifications: true } });
-    await timeOf(cards(page).first(), 'Motion');
-    await holdStill(page);
-    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
-    const [note] = await notesOf(page);
-    expect(note.title).toBe('Motion alert');
-    // The copy was drawn, and the picture turned off, before the notification went: the words go
-    // alone for the person's choice, not for a picture that came too late.
-    const turnedOffAt = await page.evaluate(() => (window as unknown as { __turnedOffAt?: number }).__turnedOffAt);
-    expect(turnedOffAt, 'the notification’s copy was drawn').toBeDefined();
-    expect(turnedOffAt!, 'the picture was turned off before the notification went').toBeLessThanOrEqual(note.at);
-    expect(note.image ?? null, 'no picture once the person turned it off').toBeNull();
   });
 
   test('a repeat that changes the opened picture while its delete question is open closes the question', async ({ page, context }) => {
