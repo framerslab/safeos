@@ -81,7 +81,7 @@ interface Seed {
 const CUSTOM = {
   id: 'custom',
   name: 'Maximum Alert',
-  description: 'High sensitivity (80%), max volume, 5-second intervals.',
+  description: 'High sensitivity (80%) and max volume.',
   motionSensitivity: 80,
   audioSensitivity: 80,
   pixelThreshold: 20,
