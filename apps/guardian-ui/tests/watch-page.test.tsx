@@ -46,16 +46,16 @@ it('holds "Watch for" and Mute alerts on the bar, and says when alerts are muted
   useSettingsStore.setState({ globalMute: false });
   render(<MonitorPage />);
   await act(async () => {});
-  expect(screen.getByRole('heading', { level: 1, name: 'Motion and sound' })).toHaveClass('sr-only');
+  expect(screen.getByRole('heading', { level: 1, name: 'Motion and sound' }).classList.contains('sr-only')).toBe(true);
   const heading = screen.getByRole('heading', { level: 2, name: 'Watch for' });
   const mute = screen.getByRole('button', { name: 'Mute alerts' });
   expect(heading.closest('.watch-bar')).not.toBeNull();
   expect(heading.closest('.watch-bar')).toBe(mute.closest('.watch-bar'));
-  expect(mute).toHaveAttribute('aria-pressed', 'false');
+  expect(mute.getAttribute('aria-pressed')).toBe('false');
   expect(screen.queryByText('Alerts are muted. New alerts show here without a sound.')).toBeNull();
   fireEvent.click(mute);
-  expect(mute).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByText('Alerts are muted. New alerts show here without a sound.')).toBeInTheDocument();
+  expect(mute.getAttribute('aria-pressed')).toBe('true');
+  expect(screen.getByText('Alerts are muted. New alerts show here without a sound.')).toBeTruthy();
   expect(useSettingsStore.getState().globalMute).toBe(true);
 });
 
@@ -83,9 +83,9 @@ it('holds the camera drawing, Start watching and what the browser will ask befor
   await act(async () => {});
   const start = screen.getByRole('button', { name: 'Start watching' });
   expect(start.closest('.watch-frame')).not.toBeNull();
-  expect(screen.getByText('Your browser will ask you to allow the camera and microphone.')).toBeInTheDocument();
+  expect(screen.getByText('Your browser will ask you to allow the camera and microphone.')).toBeTruthy();
   const picker = screen.getByRole('combobox', { name: 'Camera' });
-  expect(within(picker).getByRole('option', { name: 'Default camera' })).toBeInTheDocument();
+  expect(within(picker).getByRole('option', { name: 'Default camera' })).toBeTruthy();
   expect(screen.queryByText('LIVE')).toBeNull();
   expect(screen.queryByRole('heading', { name: 'Camera Feed' })).toBeNull();
 });
@@ -98,14 +98,14 @@ it('turns Start watching inactive while the camera starts, with Cancel, then sho
   fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
   await act(async () => {});
   const waiting = screen.getByRole('button', { name: 'Starting the camera…' });
-  expect(waiting).toHaveAttribute('aria-disabled', 'true');
+  expect(waiting.getAttribute('aria-disabled')).toBe('true');
   const asked = browser.getUserMedia.mock.calls.length;
   fireEvent.click(waiting);
   await act(async () => {});
   expect(browser.getUserMedia).toHaveBeenCalledTimes(asked);
-  expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy();
   await act(async () => { answer(browser.stream); });
-  expect(await screen.findByRole('button', { name: 'Stop watching' })).toBeInTheDocument();
+  expect(await screen.findByRole('button', { name: 'Stop watching' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
 });
 
@@ -137,7 +137,7 @@ it('says this browser cannot use a camera where it has no camera request', async
     screen.getByText(
       'This browser cannot use a camera on this page. Open SafeOS in a current version of Chrome, Edge, Firefox or Safari.',
     ),
-  ).toBeInTheDocument();
+  ).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
 });
 
@@ -157,9 +157,9 @@ it('says when a camera that was watching stopped, and gives Start watching back'
   render(<MonitorPage />);
   await act(async () => {});
   await startMonitoring();
-  expect(screen.getByRole('button', { name: 'Stop watching' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
   act(() => browser.video.end());
-  expect(screen.getByText(`The camera stopped at ${clockTime(Date.now())}. Press Start watching to start again.`)).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Start watching' })).toBeInTheDocument();
+  expect(screen.getByText(`The camera stopped at ${clockTime(Date.now())}. Press Start watching to start again.`)).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Stop watching' })).toBeNull();
 });
