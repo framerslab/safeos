@@ -14,6 +14,7 @@ import { useRef, useState } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useSaveNote, writeRefused } from '@/lib/settings-save';
+import { forgetStorageFull } from '@/lib/storage-full';
 import { SliderRow } from '@/components/settings/SliderRow';
 import { SavedNote } from '@/components/settings/SavedNote';
 import { AskInPlace } from '@/components/settings/ConfirmInPlace';
@@ -72,6 +73,7 @@ function VolumeSlider() {
 
 beforeEach(() => {
   jest.restoreAllMocks();
+  forgetStorageFull();
   jest.useRealTimers();
   localStorage.clear();
   useSettingsStore.getState().resetToDefaults();
@@ -134,6 +136,26 @@ it('moves the value and says Not saved when the browser refuses the write', () =
   expect(screen.getByRole('status').textContent).toBe('Not saved. This browser is not keeping settings.');
 });
 
+it('says Not saved when the settings are refused though a small write goes through', () => {
+  // A device nearly out of room takes a short write and refuses the settings themselves.
+  render(<VolumeSlider />);
+  const write = localStorage.setItem.bind(localStorage);
+  jest.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+    if (key === 'safeos-settings') throw new DOMException('full', 'QuotaExceededError');
+    write(key, value);
+  });
+  expect(writeRefused()).toBe(false);
+  fireEvent.keyDown(screen.getByRole('slider', { name: 'Alert volume' }), { key: 'ArrowUp' });
+  expect(useSettingsStore.getState().globalSettings.alertVolume).toBe(81);
+  expect(screen.getByRole('status').textContent).toBe('Not saved. This browser is not keeping settings.');
+
+  // Once a write is kept again, the next change says Saved.
+  jest.restoreAllMocks();
+  fireEvent.keyDown(screen.getByRole('slider', { name: 'Alert volume' }), { key: 'ArrowUp' });
+  expect(JSON.parse(localStorage.getItem('safeos-settings') ?? '{}').state.globalSettings.alertVolume).toBe(82);
+  expect(screen.getByRole('status').textContent).toBe('Saved');
+});
+
 it('says at the top that the browser is not keeping settings, and nothing while it keeps them', () => {
   const { unmount } = render(<StorageLine />);
   expect(screen.queryByText('This browser is not keeping settings. Changes last until you close this tab.')).toBeNull();
@@ -169,6 +191,29 @@ it('asks in place, takes focus on the question and gives it back on Cancel', () 
   fireEvent.click(screen.getByRole('button', { name: 'Clear all data' }));
   expect(onConfirm).toHaveBeenCalledTimes(1);
   expect(confirmBox).not.toHaveBeenCalled();
+});
+
+it('closes its question and never acts once its key is made inactive', () => {
+  const onConfirm = jest.fn();
+  const ask = (disabled: boolean) => (
+    <AskInPlace
+      label="Clear all data on this device"
+      question="Clear all data on this device? Alerts, pictures, pets, sounds and settings leave this device."
+      confirm="Clear all data"
+      onConfirm={onConfirm}
+      disabled={disabled}
+    />
+  );
+  const { rerender } = render(ask(false));
+  fireEvent.click(screen.getByRole('button', { name: 'Clear all data on this device' }));
+  expect(screen.getByRole('button', { name: 'Clear all data' })).toBeTruthy();
+  rerender(ask(true));
+  const confirm = screen.queryByRole('button', { name: 'Clear all data' });
+  if (confirm) fireEvent.click(confirm);
+  expect(onConfirm).not.toHaveBeenCalled();
+  const key = screen.getByRole('button', { name: 'Clear all data on this device' });
+  expect(key.getAttribute('aria-disabled')).toBe('true');
+  expect(document.activeElement).toBe(key);
 });
 
 it('plays and stops a test key named for what it plays', () => {
