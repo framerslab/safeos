@@ -20,6 +20,7 @@ import { FieldRow } from '@/components/settings/FieldRow';
 import { SavedNote } from '@/components/settings/SavedNote';
 import { ChevronGlyph } from '@/components/settings/glyphs';
 import { SAVED_FOR_MS, type SaveNote } from '@/lib/settings-save';
+import { keepNameOnDevice, readNameOnDevice } from '@/lib/name-on-device';
 
 const NOT_SAVED = 'Your name was not saved. Try again.';
 const OFFLINE = 'Your server cannot be reached while this device is offline.';
@@ -40,34 +41,33 @@ function useOnline(): boolean {
   return online;
 }
 
-/** Keeps the name with the device's other profile choices, for a visit with no server. */
-function keepNameOnDevice(displayName: string) {
-  try {
-    const stored = JSON.parse(localStorage.getItem('safeos_user_settings') || '{}');
-    localStorage.setItem('safeos_user_settings', JSON.stringify({ ...(stored && typeof stored === 'object' ? stored : {}), displayName }));
-  } catch {
-    // A browser that refuses storage: the server holds the name.
-  }
-}
-
 export default function YourOwnServerPage() {
   const { config } = useBackendStatus();
   const address = config?.apiUrl ?? '';
   const profileName = useAuthStore((s) => s.profile?.displayName ?? '');
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const online = useOnline();
-  const [name, setName] = useState(profileName);
+  // The name this device keeps, read once the page has mounted.
+  const [deviceName, setDeviceName] = useState('');
+  const shownName = profileName || deviceName;
+  const [name, setName] = useState(shownName);
+  const latest = useRef(name);
+  latest.current = name;
   const [typed, setTyped] = useState(false);
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState<SaveNote>(null);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  useEffect(() => {
+    setDeviceName(readNameOnDevice());
+  }, []);
+
   // A profile read after the page opened fills the field, unless the person
   // has typed in it.
   useEffect(() => {
-    if (!typed) setName(profileName);
-  }, [profileName, typed]);
+    if (!typed) setName(shownName);
+  }, [shownName, typed]);
 
   useEffect(
     () => () => {
@@ -78,13 +78,18 @@ export default function YourOwnServerPage() {
 
   const save = async () => {
     if (!online || saving) return;
+    const submitted = name;
     setSaving(true);
     setError(null);
     setNote(null);
     try {
-      await updateProfile({ displayName: name });
-      keepNameOnDevice(name);
-      setTyped(false);
+      // With no profile read yet the store keeps nothing: the name is not saved.
+      if (!useAuthStore.getState().profile) throw new Error('no profile');
+      await updateProfile({ displayName: submitted });
+      keepNameOnDevice(submitted);
+      setDeviceName(submitted);
+      // A name typed while this one was saving stays as typed.
+      if (latest.current === submitted) setTyped(false);
       setNote('saved');
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(() => setNote(null), SAVED_FOR_MS);

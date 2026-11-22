@@ -25,6 +25,7 @@ import { useModelOnDevice } from '@/lib/model-on-device';
 import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 import { useAccessibility, useTheme } from '@/lib/theme-manager';
 import { getAllCustomSounds } from '@/lib/custom-sounds-db';
+import { readNameOnDevice } from '@/lib/name-on-device';
 import {
   detectionValue,
   lookValue,
@@ -101,7 +102,7 @@ export function SettingsList({ current }: { current?: string | null }) {
   const cooldown = useSettingsStore((s) => s.timingSettings.cooldownPeriod);
   const levels = useSettingsStore((s) => s.alertEscalationLevels);
   const zones = useSettingsStore((s) => s.detectionZones);
-  const displayName = useAuthStore((s) => s.profile?.displayName ?? '');
+  const profileName = useAuthStore((s) => s.profile?.displayName ?? '');
   const { way, pet, read: petsRead } = useNextWay();
   const ownSounds = useOwnSoundCount();
   const now = useMinute();
@@ -112,6 +113,8 @@ export function SettingsList({ current }: { current?: string | null }) {
   const { largeText } = useAccessibility();
   const { config } = useBackendStatus();
   const serverAddress = config?.apiUrl ?? '';
+  // The name sent to the server, else the one this device keeps.
+  const displayName = profileName || (mounted ? readNameOnDevice() : '');
 
   const motion = watchSettings.motionSensitivity;
   const sound = watchSettings.audioSensitivity;
