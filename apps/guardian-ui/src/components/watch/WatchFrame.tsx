@@ -32,7 +32,7 @@ export interface WatchFrameProps {
   /** Lost and Found is chosen and no pet is saved. */
   noPetLine: boolean;
   onStart: (key: HTMLButtonElement) => void;
-  onTryAgain: () => void;
+  onTryAgain: (key: HTMLButtonElement) => void;
   /** The bare camera feed and what stands over the live picture. */
   children: ReactNode;
   /** The meters' strip along the picture's foot, inside the ticks. */
@@ -118,7 +118,7 @@ export function WatchFrame({
                   <button
                     type="button"
                     className="key key--outline watch-try"
-                    onClick={onTryAgain}
+                    onClick={(event) => onTryAgain(event.currentTarget)}
                   >
                     Try again
                   </button>

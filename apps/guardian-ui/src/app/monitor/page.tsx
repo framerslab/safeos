@@ -979,10 +979,10 @@ export default function MonitorPage() {
     setMotionScore(score);
   }, [setMotionScore]);
 
-  // With zones set, the Motion meter reads the zone whose reading stands
-  // highest over its own line: the zone an alert reads.
+  // The Motion meter reads the zone whose reading stands highest over its own
+  // line, a full-screen zone with its own sensitivity included: the zone and
+  // the line an alert reads.
   const [motionZone, setMotionZone] = useState<{ score: number; threshold: number } | null>(null);
-  const zonesSet = detectionZones.some((zone) => zone.enabled && !(zone.x === 0 && zone.y === 0 && zone.width === 100 && zone.height === 100));
 
   const handleMotionZones = useCallback((zones: Array<{ id: string; name: string; score: number }>) => {
     if (!currentPreset.motionDetectionEnabled || !isStreaming) {
@@ -1252,7 +1252,7 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
 
   const metersLive = framePhase === 'live';
-  const motionByZone = zonesSet && motionZone !== null;
+  const motionByZone = metersLive && motionZone !== null;
   const meterRows: MeterRow[] = [
     {
       kind: 'motion',
@@ -1330,7 +1330,10 @@ export default function MonitorPage() {
             getSoundManager().unlockAudio();
             void guard(startStream, key);
           }}
-          onTryAgain={startStream}
+          onTryAgain={(key) => {
+            getSoundManager().unlockAudio();
+            void guard(startStream, key);
+          }}
           strip={(framePhase === 'starting' || framePhase === 'live') && (
             <Meters rows={meterRows} pet={meterPet} microphone={microphone} />
           )}

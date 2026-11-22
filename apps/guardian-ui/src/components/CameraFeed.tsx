@@ -363,6 +363,10 @@ export function CameraFeed({
         resetCryDetection();
         onAudioRef.current?.(0);
         setMicrophoneUnavailable(true);
+        // A bare feed shows no warning of its own: the page names the lost
+        // microphone beside its Sound meter. A camera asked for again without
+        // sound has named its microphone's problem already.
+        if (!withoutSound) onMicrophoneRef.current?.('missing');
       };
       for (const track of audioTracks) {
         track.addEventListener('ended', audioLost);
