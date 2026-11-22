@@ -3209,6 +3209,215 @@ export async function checkApp(browser, baseUrl, outDir) {
   }
 
   const watchRuns = (page) => page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
+
+  // ---------------------------------------------------------------------------
+  // The watch, read whole: its first screen, its words and sizes, its focus
+  // order, larger text, reduced motion, its layouts, offline and the look.
+  // ---------------------------------------------------------------------------
+  const watchRead = (page) => page.locator('.watch-grid').waitFor({ timeout: 20_000 }).then(() => page.evaluate(() => document.fonts.ready));
+  for (const look of LOOKS) {
+    await open({ name: 'watch, the first screen', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await watchRead(page);
+      const counted = await firstScreen(page);
+      check(counted.controls.length <= 8, `the first screen holds ${counted.controls.length} controls, over 8: ${counted.controls.map((name) => `"${name}"`).join(', ')}`);
+      check(counted.styles.length <= 8, `the first screen sets its words in ${counted.styles.length} styles, over 8: ${counted.styles.join('; ')}`);
+      check(counted.boxes.length <= 8, `the first screen draws ${counted.boxes.length} rules and boxes, over 8: ${counted.boxes.join(', ')}`);
+      const most = look === 'dark' ? 7 : 8;
+      check(counted.colours.length <= most, `the first screen uses ${counted.colours.length} colours, over ${most}: ${counted.colours.join(', ')}`);
+      await page.screenshot({ path: path.join(outDir, `watch-first-screen-390-${look}.png`) });
+    });
+
+    for (const width of [320, 390, 768, 1100, 1440]) {
+      for (const watching of [false, true]) {
+        await open({ name: `watch, its words and sizes${watching ? ' while watching' : ''}`, width, look }, async (page, context, check) => {
+          await visit(page, '/monitor/');
+          await watchRead(page);
+          if (watching) {
+            await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+            await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+            await page.locator('.watch-meter__state').first().waitFor({ timeout: 10_000 }).catch(() => {});
+          }
+          const watch = await page.$('main.watch');
+          if (!watch) throw new Error('the page has no main.watch');
+          const texts = await page.evaluate(measureText, watch);
+          check(texts.length > 5, `only ${texts.length} pieces of the watch's text were measured`);
+          const option = await page.evaluate(() => [...document.querySelectorAll('[role="radiogroup"] label')].flatMap((label) => [...label.querySelectorAll('*')].map((part) => part.textContent.trim())).filter(Boolean));
+          for (const text of texts) {
+            const where = `"${text.words}" (${text.tag})`;
+            const least = option.includes(text.words) && width < 360 ? 15 : 16;
+            check(text.size >= least - 0.5, `${where} is ${text.size} px, under ${least}`);
+            check(!/mono/i.test(face(text.face)), `${where} is set in ${face(text.face)}`);
+            check(['400', '600'].includes(text.weight) || text.tag === 'h1', `${where} has weight ${text.weight}, not 400 or 600`);
+            const contrast = text.body ? 12 : 7;
+            check(text.contrast >= contrast, `${where} has contrast ${text.contrast.toFixed(2)}, under ${contrast}`);
+          }
+          // The sentences read as body text: 18 px, 20 px from 1440.
+          const body = width >= 1440 ? 20 : 18;
+          const sentences = await page.evaluate(() => [...document.querySelectorAll('.watch-frame__line, .watch-list__empty p, .watch-for__line')]
+            .filter((element) => element.getBoundingClientRect().height > 0 && !element.closest('.sr-only'))
+            .map((element) => ({ words: element.textContent.trim().slice(0, 40), size: parseFloat(getComputedStyle(element).fontSize) })));
+          for (const sentence of sentences) check(Math.abs(sentence.size - body) < 0.5, `"${sentence.words}" is ${sentence.size} px, not ${body}`);
+          // Every time and count in tabular figures.
+          const figures = await page.evaluate(() => [...document.querySelectorAll('main.watch .num')]
+            .filter((element) => !getComputedStyle(element).fontVariantNumeric.includes('tabular-nums'))
+            .map((element) => element.textContent.trim()));
+          check(figures.length === 0, `${figures.map((f) => `"${f}"`).join(', ')} not in tabular figures`);
+          // The strokes of the bar's row and of the strip, read from their pixels.
+          const scratch = await context.newPage();
+          for (const [what, selector] of [["the bar's row", '.watch-bar'], ['the meters', '.watch-meters']]) {
+            const part = page.locator(selector).first();
+            if (!(await part.count())) continue;
+            const picture = await part.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' }).catch(() => null);
+            if (!picture) continue;
+            const read = await scratch.evaluate(readStrokes, picture.toString('base64'));
+            if (read) check(read.strokes >= 7, `${what} measures ${read.strokes.toFixed(2)}:1 on its strokes, under 7`);
+          }
+          await scratch.close();
+        }, { script: FAKE_CAMERA });
+      }
+    }
+
+    await open({ name: 'watch, focus', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await watchRead(page);
+      await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+      await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+      const order = [];
+      const rings = [];
+      const under = [];
+      for (let i = 0; i < 40; i++) {
+        await page.keyboard.press('Tab');
+        const seen = await page.evaluate(() => {
+          const element = document.activeElement;
+          if (!element || element === document.body) return null;
+          const name = (element.getAttribute('aria-label') || element.labels?.[0]?.textContent || element.textContent || '').replace(/\s+/g, ' ').trim();
+          const ringed = element.closest('.watch-disclosure') && element.matches('.watch-disclosure__key') ? element.closest('.watch-disclosure') : element;
+          const style = getComputedStyle(ringed);
+          const box = element.getBoundingClientRect();
+          const bar = document.querySelector('nav.phone-bar');
+          return {
+            name,
+            ring: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2 && parseFloat(style.outlineOffset) >= 2,
+            underBar: !!bar && !bar.contains(element) && box.bottom > bar.getBoundingClientRect().top + 0.5,
+          };
+        });
+        if (!seen) continue;
+        order.push(seen.name);
+        if (['Mute alerts', 'Stop watching', 'Show settings'].includes(seen.name) && !seen.ring) rings.push(seen.name);
+        if (seen.underBar) under.push(seen.name);
+        if (seen.name === 'Show settings') break;
+      }
+      const at = (name) => order.findIndex((seen) => seen === name || seen.startsWith(name));
+      const wanted = ['Mute alerts', 'Motion and sound', 'Stop watching', 'Camera', 'Show settings'];
+      const places = wanted.map(at);
+      check(places.every((place) => place >= 0), `Tab does not reach ${wanted.filter((_, i) => places[i] < 0).join(', ')} (reached ${order.join(' > ')})`);
+      check(places.every((place, i) => i === 0 || place > places[i - 1]), `Tab reaches them out of order: ${order.join(' > ')}`);
+      check(rings.length === 0, `${rings.join(', ')} show no 2 px ring at a 2 px offset on focus`);
+      check(under.length === 0, `${under.join(', ')} sit under the phone bar when focused`);
+    }, { script: FAKE_CAMERA });
+
+    await open({ name: 'watch, larger text', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await watchRead(page);
+      await largerText(page);
+      const frame = await page.evaluate(() => {
+        const screen = document.querySelector('.watch-frame__screen')?.getBoundingClientRect();
+        const parts = [...document.querySelectorAll('.watch-frame__drawn > *')].map((part) => part.getBoundingClientRect()).filter((box) => box.height > 0);
+        if (!screen || parts.length === 0) return null;
+        const overlaps = parts.some((a, i) => parts.some((b, j) => j > i && a.bottom > b.top + 0.5 && b.bottom > a.top + 0.5 && a.right > b.left + 0.5 && b.right > a.left + 0.5));
+        return { held: parts.every((box) => box.top >= screen.top - 0.5 && box.bottom <= screen.bottom + 0.5), overlaps };
+      });
+      check(frame, 'at 200 per cent text the frame has no drawn parts');
+      if (!frame) return;
+      check(frame.held, 'at 200 per cent text the frame does not grow to hold Start watching and its lines');
+      check(!frame.overlaps, 'at 200 per cent text the frame\'s key and lines overlap');
+      const sideways = await sidewaysScroll(page);
+      check(sideways === 0, `at 200 per cent text /monitor/ scrolls ${sideways} px sideways`);
+    });
+
+    await open({ name: 'watch, reduced motion', width: 390, look, reducedMotion: 'reduce' }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await watchRead(page);
+      await page.evaluate(() => { window.__camera.waitMs = 2000; });
+      await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+      const starting = await page.getByRole('button', { name: 'Starting the camera…', exact: true }).waitFor({ timeout: 1_500 }).then(() => true, () => false);
+      check(starting, 'a press does not show "Starting the camera…"');
+      const bar = await page.evaluate(() => {
+        const growing = document.querySelector('.watch-frame__starting');
+        if (!growing) return false;
+        const style = getComputedStyle(growing);
+        return style.display !== 'none' && style.animationName !== 'none';
+      });
+      check(!bar, 'under reduced motion the frame shows a growing bar while the camera starts');
+    }, { script: FAKE_CAMERA });
+
+    for (const width of [768, 1024, 1440]) {
+      await open({ name: 'watch, layouts', width, look }, async (page, context, check) => {
+        await visit(page, '/monitor/');
+        await watchRead(page);
+        await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+        await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+        const read = await page.evaluate(() => {
+          const box = (selector) => document.querySelector(selector)?.getBoundingClientRect() ?? null;
+          const heading = [...document.querySelectorAll('h2')].find((h) => h.textContent.trim() === 'Watch for')?.getBoundingClientRect() ?? null;
+          const stop = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Stop watching')?.getBoundingClientRect() ?? null;
+          return {
+            heading,
+            options: box('[role="radiogroup"]'),
+            stop,
+            camera: box('.watch-camera'),
+            frame: box('.watch-grid__frame'),
+            side: box('.watch-grid__side'),
+            grid: box('.watch-grid'),
+          };
+        });
+        if (!read.heading || !read.options || !read.frame || !read.grid) throw new Error('the watch has no bar, options, frame or grid');
+        if (width === 768) {
+          check(read.options.top >= read.heading.bottom - 0.5, 'at 768 px the options are not under the bar\'s row');
+          if (read.stop && read.camera) {
+            const apart = Math.abs((read.stop.top + read.stop.height / 2) - (read.camera.top + read.camera.height / 2));
+            check(read.stop.right <= read.camera.left + 0.5 && apart <= 8, `at 768 px Stop watching does not stand beside the camera menu (${apart.toFixed(1)} px apart)`);
+          } else check(false, 'at 768 px Stop watching or the camera menu is missing');
+        } else {
+          check(read.options.top < read.heading.bottom, `at ${width} px the options are not in the bar's row`);
+          check(read.side && read.side.left >= read.frame.right - 0.5, `at ${width} px the alert list does not stand beside the picture`);
+          const share = read.frame.width / read.grid.width;
+          const want = width >= 1440 ? 7 / 12 : 8 / 12;
+          check(Math.abs(share - want) <= 0.06, `at ${width} px the picture takes ${(share * 12).toFixed(1)} of 12 columns, not ${want * 12}`);
+        }
+      }, { script: FAKE_CAMERA });
+    }
+
+    await open({ name: 'watch, offline', width: 390, look }, async (page, context, check) => {
+      await visitThenOffline(page, context, '/monitor/');
+      await visit(page, '/monitor/');
+      const seen = await shown(page);
+      check(itsPage(seen) && seen.h1 === 'Motion and sound', `/monitor/ opened offline shows ${whatShows(seen)}`);
+      await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 15_000 }).catch(() => {});
+      check(await watchRuns(page), 'offline, Start watching does not start the camera');
+    }, { script: FAKE_CAMERA });
+
+    await open({ name: 'watch, the look switch', width: 1280, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await watchRead(page);
+      const ground = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      check((await ground()) === PAGE[look], `the watch's ground is ${await ground()}, not ${PAGE[look]}`);
+      await page.locator('header.app-header button.look-switch').click();
+      await page.waitForTimeout(300);
+      check((await ground()) === PAGE[OTHER[look]], `after the header's look switch the watch's ground is ${await ground()}, not ${PAGE[OTHER[look]]}`);
+    });
+    await open({ name: 'watch, the look row', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/settings/');
+      await page.locator(SETTINGS_LOOK_ROW).click({ timeout: 10_000 });
+      await visit(page, '/monitor/');
+      await watchRead(page);
+      const ground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      check(ground === PAGE[OTHER[look]], `after Settings' look row the watch's ground is ${ground}, not ${PAGE[OTHER[look]]}`);
+    });
+  }
+
   const noCameraOn = (page, ms) => page.waitForFunction(() => window.__camera.live
     .filter((s) => s.getVideoTracks().some((t) => t.readyState === 'live')).length === 0, null, { timeout: ms }).then(() => true, () => false);
   // A pet saved on this device: removed, or put again with a change.
