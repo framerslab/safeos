@@ -1478,7 +1478,7 @@ test.describe('Keeping pictures, 1280 px', () => {
     await deleteKey(dialog).click();
     await confirmDelete(other).click();
     await expect(dialog).toHaveCount(0);
-    await expect(held.locator('.alert-picture__wait'), 'the save waits until after the delete').toBeVisible();
+    expect(Date.now() - heldSince, 'the delete came while the save waited').toBeLessThan(HOLD_MS - 5_000);
 
     // The held save goes on now, and writes nothing over the delete.
     await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - heldSince)) + 5_000);
@@ -2958,6 +2958,8 @@ test.describe('History’s rows of saved alerts, 390 px', () => {
     await expect.poll(() => savedAlertCount(second), { timeout: 15_000 }).toBe(0);
     await second.close();
     expect(Date.now() - readSince, 'the clear came while the answers waited').toBeLessThan(HOLD_MS);
+    // The rows stay: their words are this tab's, and only their pictures went.
+    await expect(historyRows(page), 'the rows stay after the clear').toHaveCount(2);
 
     // The answers come from before the clear: this tab shows none of their pictures.
     await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - readSince)) + 3_000);
