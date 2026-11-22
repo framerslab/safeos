@@ -120,8 +120,9 @@ test("the person's own setting during a set time stays after a reload", async ({
 
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   await expect.poll(() => savedSetting(page), { timeout: 15_000 }).toBe('night');
-  await page.getByRole('button', { name: 'Select Security Mode' }).click();
-  await page.getByRole('button', { name: /^Maximum Alert/ }).click();
+  // The watch's settings fold under Settings for this watch; Max is chosen there.
+  await page.getByRole('button', { name: 'Show settings', exact: true }).click();
+  await page.getByRole('button', { name: 'Max', exact: true }).click();
   await expect.poll(() => savedSetting(page)).toBe('maximum');
 
   await page.reload({ waitUntil: 'networkidle' });

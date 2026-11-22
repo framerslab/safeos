@@ -13,6 +13,7 @@ import MonitorPage from '@/app/monitor/page';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useLostFoundStore } from '@/stores/lost-found-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 import { clockTime } from '@/lib/clock-time';
 
@@ -305,4 +306,58 @@ it('shows none of the five old tiles', async () => {
   await startMonitoring();
   for (const word of ['Stream', 'Mode', 'Pixel']) expect(screen.queryByText(new RegExp(`^${word}$`, 'i'))).toBeNull();
   expect(screen.queryByText(/^Threshold \d+px$/)).toBeNull();
+});
+
+// =============================================================================
+// Settings for this watch, and what leaves
+// =============================================================================
+
+it('folds the settings under Settings for this watch until Show settings opens them, and keeps the choice', async () => {
+  const first = render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.getByRole('heading', { level: 2, name: 'Settings for this watch' })).toBeTruthy();
+  const show = screen.getByRole('button', { name: 'Show settings' });
+  expect(show.getAttribute('aria-expanded')).toBe('false');
+  expect(screen.queryByText('Calibrate Baseline (10s)')).toBeNull();
+  fireEvent.click(show);
+  expect(screen.getByRole('button', { name: 'Hide settings' }).getAttribute('aria-expanded')).toBe('true');
+  expect(screen.getByRole('link', { name: 'Nap Mode' }).getAttribute('href')).toBe('/nap/');
+  first.unmount();
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Hide settings' })).toBeTruthy();
+});
+
+it('names no processing on the preset card and shows Interval only while this device has its own server', async () => {
+  localStorage.setItem('safeos-watch-view', 'settings');
+  const first = render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Hide settings' })).toBeTruthy();
+  expect(screen.queryByText('Cloud AI')).toBeNull();
+  expect(screen.queryByText('Local Processing')).toBeNull();
+  expect(screen.queryByText('Interval')).toBeNull();
+  first.unmount();
+  mockConnected = true;
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.getByText('Interval')).toBeTruthy();
+});
+
+it('shows no confidence panel and no tag on the live picture', async () => {
+  const createdAt = new Date().toISOString();
+  useLostFoundStore.setState({
+    isWatching: true,
+    activeSubject: { id: 'pet-1', name: 'Mittens', type: 'pet', description: '', referenceImages: [], createdAt } as never,
+  });
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(screen.queryByText(/Confidence|consecutive match|Matching|View Match History/)).toBeNull();
+  useLostFoundStore.setState({ isWatching: false, activeSubject: null });
+});
+
+it('floats no quick settings over the page', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.queryByRole('button', { name: 'Quick Settings' })).toBeNull();
 });

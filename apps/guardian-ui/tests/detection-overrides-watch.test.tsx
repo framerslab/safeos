@@ -77,6 +77,8 @@ async function watch() {
 beforeEach(() => {
   jest.useFakeTimers();
   localStorage.clear();
+  // The watch's settings open, as a person who pressed Show settings left them.
+  localStorage.setItem('safeos-watch-view', 'settings');
   useMonitoringStore.getState().reset();
   useSettingsStore.getState().resetToDefaults();
   useSettingsStore.setState({ globalMute: true });
@@ -150,15 +152,12 @@ it('moves the watch with its own Motion slider when the use has an override', as
   expect((await watch()).motionThreshold).toBe(30);
 });
 
-it('shows and moves the use\'s Motion and Audio in Quick Settings, and leaves the preset for other uses', async () => {
+it('shows and moves the use\'s Motion and Audio in Fine-Tune, and leaves the preset for other uses', async () => {
   tuneOnDetection('Baby Monitoring', 60, 55);
   const view = render(<MonitorPage />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: /Quick Settings/ }));
-  const quick = screen.getByRole('dialog', { name: 'Quick Settings' });
-  fireEvent.click(within(quick).getByRole('button', { name: 'More options' }));
-  expect((within(quick).getByRole('slider', { name: 'Motion sensitivity' }) as HTMLInputElement).value).toBe('60');
-  const audio = within(quick).getByRole('slider', { name: 'Audio sensitivity' }) as HTMLInputElement;
+  const [motion, audio] = openFineTune();
+  expect(motion.value).toBe('60');
   expect(audio.value).toBe('55');
   fireEvent.change(audio, { target: { value: '70' } });
   view.unmount();

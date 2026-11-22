@@ -122,8 +122,6 @@ test('a match saved from a striped camera picture shows an Edge value above 0', 
   // Start the camera and wait for the watch to report a match.
   await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/consecutive match/).first()).toBeVisible({ timeout: 60_000 });
-
   // Stay on the monitor until a match is in the browser's database; the
   // gallery reads the database when it opens.
   await expect.poll(() => savedMatches(page), { timeout: 60_000 }).toBeGreaterThan(0);

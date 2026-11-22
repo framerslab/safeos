@@ -3163,6 +3163,51 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // The watch's settings fold under one row below the alert list: the row is
+  // 44 px tall, a press anywhere along it opens the settings in place, and
+  // its key then reads Hide settings.
+  const foldReading = (page) => page.evaluate(() => {
+    const key = [...document.querySelectorAll('button')].find((button) => /^(Show|Hide) settings$/.test(button.textContent.trim()));
+    const row = key?.closest('.watch-disclosure');
+    const side = document.querySelector('.watch-grid__side');
+    if (!key || !row || !side) return null;
+    const box = row.getBoundingClientRect();
+    return {
+      key: key.textContent.trim(),
+      expanded: key.getAttribute('aria-expanded'),
+      top: box.top,
+      bottom: box.bottom,
+      left: box.left,
+      right: box.right,
+      height: box.height,
+      underList: box.top >= side.getBoundingClientRect().bottom - 0.5,
+      panelUnder: (() => {
+        const panel = document.getElementById('watch-settings');
+        return panel ? panel.getBoundingClientRect().top >= box.bottom - 0.5 : null;
+      })(),
+    };
+  });
+  for (const look of LOOKS) {
+    for (const width of [390, 1280]) {
+      await open({ name: 'watch, the settings', width, look }, async (page, context, check) => {
+        await visit(page, '/monitor/');
+        const rest = await foldReading(page);
+        check(rest, `at ${width} px /monitor/ has no row for Settings for this watch with Show settings`);
+        if (!rest) return;
+        check(rest.key === 'Show settings' && rest.expanded === 'false', `at ${width} px the settings row reads "${rest.key}" with aria-expanded ${rest.expanded}, not Show settings, folded`);
+        check(rest.underList, `at ${width} px the settings row is not under the alert list`);
+        check(rest.height >= 43.5, `at ${width} px the settings row is ${rest.height.toFixed(1)} px tall, under 44`);
+        // A press at the row's other end, on the heading's side, away from the key's words.
+        await page.locator('.watch-disclosure').first().scrollIntoViewIfNeeded();
+        const placed = await foldReading(page);
+        await page.mouse.click(placed.left + 4, placed.top + placed.height / 2);
+        const opened = await foldReading(page);
+        check(opened?.key === 'Hide settings' && opened?.expanded === 'true', `at ${width} px a press at the settings row's other end leaves it reading "${opened?.key}"`);
+        check(opened?.panelUnder === true, `at ${width} px the settings do not open in place under their row`);
+      });
+    }
+  }
+
   const watchRuns = (page) => page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
   const noCameraOn = (page, ms) => page.waitForFunction(() => window.__camera.live
     .filter((s) => s.getVideoTracks().some((t) => t.readyState === 'live')).length === 0, null, { timeout: ms }).then(() => true, () => false);

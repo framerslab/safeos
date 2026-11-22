@@ -25,7 +25,7 @@ import { test, expect } from '@playwright/test';
 
 import monitorSettings from '../scripts/home-capture-settings.json';
 import {
-  countOwnSoundPasses, holdSavedSounds, ownSoundCounts, releaseSavedSounds, saveOwnSound, timesPlayed, watchStripes,
+  countOwnSoundPasses, holdSavedSounds, ownSoundCounts, releaseSavedSounds, saveOwnSound, savedMatchFrames, timesPlayed, watchStripes,
 } from './helpers/own-sound';
 import { setUpDevice } from './helpers/seeded-device';
 import { CAMERA_FILE } from './helpers/striped-subject';
@@ -187,6 +187,6 @@ test('Silent quiet hours that begin while the watch runs keep the next match fro
   await page.waitForTimeout(1_500);
   const atQuiet = await timesPlayed(page);
   await page.waitForTimeout(6_000);
-  await expect(page.getByText(/consecutive match/).first()).toBeVisible();
+  expect(await savedMatchFrames(page)).toBeGreaterThan(0);
   expect(await timesPlayed(page), 'no match plays the saved sound once quiet hours begin').toBe(atQuiet);
 });

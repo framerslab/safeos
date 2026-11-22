@@ -209,8 +209,8 @@ test('a fresh device watches for Motion and sound, with Lost and Found beside it
 
   // Above the camera and the watch's settings.
   const chooser = await box(watchFor(page));
-  expect(chooser.y + chooser.height).toBeLessThanOrEqual((await box(page.getByRole('heading', { name: 'Camera Feed' }))).y);
-  expect(chooser.y + chooser.height).toBeLessThanOrEqual((await box(page.getByRole('heading', { name: 'Mode Selection' }))).y);
+  expect(chooser.y + chooser.height).toBeLessThanOrEqual((await box(page.locator('.watch-frame'))).y);
+  expect(chooser.y + chooser.height).toBeLessThanOrEqual((await box(page.getByRole('heading', { level: 2, name: 'Settings for this watch' }))).y);
   // Lost and Found is chosen here, not from a key of its own in the bar.
   await expect(page.getByRole('button', { name: 'Lost & Found Mode' })).toHaveCount(0);
 });
@@ -398,49 +398,6 @@ test('Change pet opens Choose a pet; choosing the other pet names it, and Escape
   // A reload keeps Tofu.
   await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
   await expect(shown(page.getByRole('img', { name: 'Tofu’s first saved photo' }))).toBeVisible();
-});
-
-test('a photo added to the pet while the watch compares counts on the pet row and in Choose a pet, and choosing the pet again keeps it', async ({ page, context }) => {
-  test.setTimeout(120_000);
-  await setUpDevice(context, { lostFoundChosen: true });
-  await openWatchWithPets(page, [MISO, TOFU]);
-  await expect(shown(page.getByText('3 photos', { exact: true }))).toBeVisible();
-  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
-  await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
-
-  // A fourth photo of Miso, added with the Lost and Found panel's Add Photos as a person adds one.
-  const photo = await page.evaluate(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 160;
-    canvas.height = 120;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('no 2D canvas');
-    ctx.fillStyle = '#f4f1ea';
-    ctx.fillRect(0, 0, 160, 120);
-    ctx.fillStyle = 'hsl(200, 70%, 45%)';
-    ctx.fillRect(40, 30, 80, 60);
-    return canvas.toDataURL('image/png').split(',')[1];
-  });
-  const picking = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Add Photos', exact: true }).click();
-  await (await picking).setFiles({ name: 'miso-4.png', mimeType: 'image/png', buffer: Buffer.from(photo, 'base64') });
-  await expect(page.getByRole('img', { name: 'Reference 4', exact: true })).toBeVisible({ timeout: 60_000 });
-
-  // The pet row counts it, and so does Choose a pet.
-  await expect(shown(page.getByText('4 photos', { exact: true }))).toBeVisible();
-  await changePet(page).click();
-  const dialog = choosePet(page);
-  await expect(dialog.getByText('4 photos', { exact: true })).toBeVisible();
-
-  // Tofu, then Miso again: Miso keeps the photo added, for the count and the comparison.
-  await dialog.getByText('Tofu', { exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(shown(page.getByText('1 photo', { exact: true }))).toBeVisible();
-  await changePet(page).click();
-  await dialog.getByText('Miso', { exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(shown(page.getByText('4 photos', { exact: true }))).toBeVisible();
-  await expect(page.getByRole('img', { name: 'Reference 4', exact: true })).toBeVisible();
 });
 
 test('twelve saved pets scroll inside Choose a pet with Add a pet at its foot, and a person saved by an earlier version is not listed', async ({ page, context }) => {
@@ -683,8 +640,8 @@ test('the pet band, the pet card and its photos follow the width: 768, 1024 and 
   await page.setViewportSize({ width: 1024, height: 1000 });
   const headingBox = await box(heading);
   expect((await box(watchFor(page))).y).toBeLessThan(headingBox.y + headingBox.height);
-  // The camera's panel: its heading's row, then the panel round it.
-  const camera = await box(page.getByRole('heading', { name: 'Camera Feed' }).locator('xpath=../..'));
+  // The camera's frame.
+  const camera = await box(page.locator('.watch-frame'));
   const card = await box(photo());
   expect(card.x).toBeGreaterThan(camera.x + camera.width);
   expect(card.width).toBe(96);
@@ -751,44 +708,8 @@ async function clearAllLocalDataInAnotherTab(context: BrowserContext, watch: Pag
 
 type HeldPhotos = { __holdPhotos?: boolean };
 
-/**
- * Lets a walk hold each photo a person adds at its read, as a slow device
- * holds it, until the walk lets go. Call before the page opens.
- */
-async function photoReadsCanBeHeld(page: Page) {
-  await page.addInitScript(() => {
-    const w = window as unknown as { __holdPhotos?: boolean };
-    const read = FileReader.prototype.readAsDataURL;
-    FileReader.prototype.readAsDataURL = function (this: FileReader, blob: Blob) {
-      const go = () => {
-        if (w.__holdPhotos) window.setTimeout(go, 50);
-        else read.call(this, blob);
-      };
-      go();
-    };
-  });
-}
 const holdPhotoReads = (page: Page, held: boolean) =>
   page.evaluate((hold) => { (window as unknown as HeldPhotos).__holdPhotos = hold; }, held);
-
-/** Adds one photo to the pet the watch compares with, through the Lost and Found panel's Add Photos. */
-async function addPhoto(page: Page, name: string) {
-  const photo = await page.evaluate(() => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 160;
-    canvas.height = 120;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('no 2D canvas');
-    ctx.fillStyle = '#f4f1ea';
-    ctx.fillRect(0, 0, 160, 120);
-    ctx.fillStyle = 'hsl(200, 70%, 45%)';
-    ctx.fillRect(40, 30, 80, 60);
-    return canvas.toDataURL('image/png').split(',')[1];
-  });
-  const picking = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Add Photos', exact: true }).click();
-  await (await picking).setFiles({ name, mimeType: 'image/png', buffer: Buffer.from(photo, 'base64') });
-}
 
 test('Clear All Local Data in another tab takes the pets from the open watch and ends its comparison', async ({ page, context }) => {
   test.setTimeout(180_000);
@@ -797,14 +718,14 @@ test('Clear All Local Data in another tab takes the pets from the open watch and
   await openWatchWithPets(page, [MISO, TOFU]);
   await page.getByRole('button', { name: 'Start watching', exact: true }).click();
   await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Add Photos', exact: true })).toBeVisible();
+  await expect(page.locator('.watch-meter--pet').getByText('Comparing with Miso’s photos', { exact: true })).toBeVisible();
 
   await clearAllLocalDataInAnotherTab(context, page);
 
   // The open watch holds no pet of the cleared device: nothing to compare with, no photos to add to.
   await expect(shown(page.getByText('No pet saved', { exact: true }))).toBeVisible({ timeout: 15_000 });
   await expect(announced(page, /^Stopped comparing at .+\.$/)).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Add Photos', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Comparing with Miso’s photos', { exact: true })).toHaveCount(0);
   await expect(page.getByText('Watching...', { exact: true })).toHaveCount(0);
   await expect(changePet(page)).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('watch-for-cleared-in-another-tab-1280.png') });
@@ -858,26 +779,6 @@ test('a read of the saved pets still on its way when another tab clears all loca
   await expect(changePet(page)).toHaveCount(0);
 });
 
-test('photos still being added when another tab clears all local data are not saved back', async ({ page, context }) => {
-  test.setTimeout(180_000);
-  await photoReadsCanBeHeld(page);
-  await setUpDevice(context, { lostFoundChosen: true });
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await openWatchWithPets(page, [MISO, TOFU]);
-  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
-  await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
-
-  await holdPhotoReads(page, true);
-  await addPhoto(page, 'miso-4.png');
-  await expect(page.getByRole('button', { name: 'Adding…', exact: true })).toBeVisible();
-  await clearAllLocalDataInAnotherTab(context, page);
-  await holdPhotoReads(page, false);
-
-  // Time for the photo to be read, made small and compared, as it is when nothing was cleared.
-  await page.waitForTimeout(10_000);
-  expect(await savedRows(page, 'subject_profile'), 'no pet is saved back after the clear').toBe(0);
-});
-
 test('the pet on the camera’s picture has no key of its own; Watch for stops the comparison and starts it again', async ({ page, context }) => {
   test.setTimeout(120_000);
   await setUpDevice(context, { lostFoundChosen: true });
@@ -900,38 +801,6 @@ test('the pet on the camera’s picture has no key of its own; Watch for stops t
   await lostAndFound(page).check();
   await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
   await expect(page.getByText('Watching...', { exact: true })).toBeVisible();
-});
-
-test('a photo added to one pet is kept on it when another pet is chosen before the photo is saved', async ({ page, context }) => {
-  test.setTimeout(180_000);
-  await photoReadsCanBeHeld(page);
-  await setUpDevice(context, { lostFoundChosen: true });
-  await openWatchWithPets(page, [MISO, TOFU]);
-  await expect(shown(page.getByText('3 photos', { exact: true }))).toBeVisible();
-  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
-  await expect(announced(page, /^Comparing with Miso’s photos from .+\.$/)).toHaveCount(1);
-
-  // A fourth photo of Miso, slow to be read; Tofu is chosen meanwhile.
-  await holdPhotoReads(page, true);
-  await addPhoto(page, 'miso-4.png');
-  await expect(page.getByRole('button', { name: 'Adding…', exact: true })).toBeVisible();
-  await changePet(page).click();
-  const dialog = choosePet(page);
-  await dialog.getByText('Tofu', { exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(shown(page.getByText('1 photo', { exact: true }))).toBeVisible();
-  await holdPhotoReads(page, false);
-  await expect.poll(() => savedPhotos(page, MISO.id), { timeout: 60_000 }).toBe(4);
-
-  // Choose a pet counts Miso's four photos, and Miso chosen again shows them.
-  await changePet(page).click();
-  await expect(dialog.getByText('4 photos', { exact: true })).toBeVisible();
-  await page.screenshot({ path: test.info().outputPath('watch-for-photo-kept-390.png') });
-  await dialog.getByText('Miso', { exact: true }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(shown(page.getByText('4 photos', { exact: true }))).toBeVisible();
-  await expect(page.getByRole('img', { name: 'Reference 4', exact: true })).toBeVisible();
-  expect(await savedPhotos(page, MISO.id)).toBe(4);
 });
 
 test('Continue in setup run again keeps a baby device’s use, with Lost & Found shown as chosen', async ({ page, context }) => {
@@ -1004,7 +873,7 @@ test('the pet\u2019s meter names the pet and what it compares while Lost and Fou
 
   const petMeter = page.locator('.watch-meter--pet');
   await expect(petMeter.getByText('Comparing with Miso\u2019s photos', { exact: true })).toBeVisible({ timeout: 15_000 });
-  await expect(petMeter.locator('[translate="no"]', { hasText: 'Miso' })).toBeVisible();
+  await expect(petMeter.locator('.watch-meter__name[translate="no"]', { hasText: 'Miso' })).toBeVisible();
   // No bar and no number for the pet.
   await expect(petMeter.getByRole('meter')).toHaveCount(0);
   await expect(petMeter.getByText(/\d/)).toHaveCount(0);

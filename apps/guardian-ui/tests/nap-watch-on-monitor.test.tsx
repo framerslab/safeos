@@ -323,10 +323,10 @@ it('keeps the setting of a watch not started from Nap Mode when it stops', async
   expect(useSettingsStore.getState().activePresetId).toBe('night');
 });
 
-it('links Nap Mode from the settings menu', async () => {
+it('links Nap Mode first in the watch\'s settings', async () => {
   render(<MonitorPage />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Select Security Mode' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Show settings' }));
 
   const links = screen.getAllByRole('link', { name: 'Nap Mode' });
   expect(links.map((link) => bare(link.getAttribute('href')))).toEqual(['/nap']);
