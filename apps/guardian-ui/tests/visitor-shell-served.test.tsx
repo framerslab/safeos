@@ -52,6 +52,11 @@ describe('visitor header, before script runs', () => {
     expect(page.querySelectorAll('.site-header__bar button')).toHaveLength(0);
   });
 
+  it('serves the brand as a name on home and a working home link elsewhere', () => {
+    expect(header('/').querySelector('.site-header__brand[href]')).toBeNull();
+    expect(header('/privacy/').querySelector('.site-header__brand')?.getAttribute('href')).toBe('/');
+  });
+
   it('shows the wordmark as live text, "SafeOS" over "Guardian", and draws the mark inline as decoration', () => {
     const page = header();
     const brand = page.querySelector('.site-header__brand');

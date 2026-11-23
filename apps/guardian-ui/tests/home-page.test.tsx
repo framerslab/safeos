@@ -44,14 +44,24 @@ describe('the page reads before any script runs and asks for nothing', () => {
   it('has one main landmark and one H1, with every part\'s heading in the served HTML', () => {
     expect(all('main')).toHaveLength(1);
     expect(all('h1')).toHaveLength(1);
-    expect(all('main h2').map(words)).toEqual([
-      'What people set it up for',
+    expect(all('main h1, main h2').map(words)).toEqual([
+      'Free motion and sound alerts from an old phone or laptop',
+      'What SafeOS is',
+      'Deep learning, in your browser.',
       'One device does the watching and the alerting',
-      'Four things set off an alert',
+      'What people set it up for',
       'Free on safeos.sh, with the code in the open',
-      'Questions people ask first',
       'Start with the device you have',
     ]);
+    for (const id of ['home-headline', 'how-it-works', 'uses', 'baby-nap', 'pet-out', 'elderly-parent', 'lost-pet', 'wildlife']) {
+      expect(all(`[id="${id}"]`)).toHaveLength(1);
+    }
+  });
+
+  it('serves the Guardian lockup and the detection explanation on home', () => {
+    expect(one('.home-first [role="img"][aria-label="SafeOS Guardian"]')).not.toBeNull();
+    expect(words(one('#how-it-works h2'))).toBe('Deep learning, in your browser.');
+    expect(all('#how-it-works details')).toHaveLength(6);
   });
 
   it('shows the line for a page whose script did not start, under the statement, until the app marks itself started', () => {
