@@ -5,7 +5,9 @@
 // Runs before every build (package.json "prebuild"), after the QR code. It
 // reads package-lock.json: every package the lockfile does not mark as a
 // development dependency (dev or devOptional) is listed with its version, its
-// licence and the first copyright line of its licence file. Then comes the
+// licence and the first copyright line of its licence file. An optional
+// package npm left out on the build machine, such as a compiler build for
+// another platform, is not listed. Then comes the
 // line for the COCO dataset the detection model was trained on, then each
 // package's licence text whole, from its own licence file, under the names of
 // the packages it belongs to: a text two packages share word for word stands
@@ -13,7 +15,7 @@
 // scripts/licenses/Apache-2.0.txt where it names Apache-2.0, else the first
 // text of a package that names the same licence. The file is made at build
 // time and is not committed.
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -42,6 +44,16 @@ async function licenceText(dir) {
     return await readFile(path.join(dir, name), 'utf8');
   } catch {
     return null;
+  }
+}
+
+/** Whether npm put the package on this machine: an optional package for another platform it leaves out. */
+async function installed(dir) {
+  try {
+    await access(path.join(dir, 'package.json'));
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -83,6 +95,7 @@ for (const [key, entry] of Object.entries(lock.packages ?? {})) {
   if (!key || entry.dev || entry.devOptional || entry.link) continue;
   const name = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
   const dir = path.join(appRoot, key);
+  if (entry.optional && !(await installed(dir))) continue;
   const licence = await licenceName(entry, dir);
   const text = await licenceText(dir);
   if (text && !byName.has(licence)) byName.set(licence, text.trimEnd());
