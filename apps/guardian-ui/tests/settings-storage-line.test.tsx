@@ -8,7 +8,7 @@
  */
 
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import './helpers/browser-data';
 import SettingsLayout from '@/app/settings/layout';
 import QuietHoursPage from '@/app/settings/schedule/page';
@@ -50,4 +50,30 @@ it('says on Quiet hours that the browser is not keeping settings once their writ
   fireEvent.click(screen.getByRole('switch', { name: 'Enable quiet hours' }));
   expect(useSettingsStore.getState().quietHoursSettings.enabled).toBe(false);
   expect(await screen.findByText(NOT_KEEPING)).toBeTruthy();
+});
+
+it('takes the line away once the settings are kept again', async () => {
+  act(() => {
+    useSettingsStore.getState().updateQuietHoursSettings({ enabled: true });
+  });
+  render(
+    <SettingsLayout>
+      <QuietHoursPage />
+    </SettingsLayout>
+  );
+  await act(async () => {});
+  const setItem = localStorage.setItem.bind(localStorage);
+  const refuse = jest.spyOn(localStorage, 'setItem').mockImplementation((key: string, value: string) => {
+    if (key === 'safeos-settings') throw new DOMException('full', 'QuotaExceededError');
+    setItem(key, value);
+  });
+  fireEvent.click(screen.getByRole('switch', { name: 'Enable quiet hours' }));
+  expect(await screen.findByText(NOT_KEEPING)).toBeTruthy();
+
+  // Room again: the next write of the settings is kept, and the line goes.
+  refuse.mockRestore();
+  fireEvent.click(screen.getByRole('switch', { name: 'Enable quiet hours' }));
+  expect(useSettingsStore.getState().quietHoursSettings.enabled).toBe(true);
+  expect(localStorage.getItem('safeos-settings')).not.toBeNull();
+  await waitFor(() => expect(screen.queryByText(NOT_KEEPING)).toBeNull());
 });

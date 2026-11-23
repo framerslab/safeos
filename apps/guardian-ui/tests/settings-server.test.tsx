@@ -163,3 +163,19 @@ it('sends nothing and says so when this device holds no session on the server', 
   expect(screen.queryByText('Saved')).toBeNull();
   expect(screen.getByRole('textbox', { name: 'Your name on your server' })).toHaveProperty('value', 'Robin');
 });
+
+it('keeps no name on this device and says nothing saved when the session changes while the name saves', async () => {
+  // The server answers once this tab holds another session: the name was sent
+  // for the one before, so this device does not keep it as its own.
+  const updateProfile = jest.fn(async () => {
+    useAuthStore.setState({ sessionToken: 'server-session-2' } as never);
+  });
+  withProfile(updateProfile);
+  render(<ServerPage />);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Your name on your server' }), { target: { value: 'Robin' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(updateProfile).toHaveBeenCalledWith({ displayName: 'Robin' }));
+  await act(async () => {});
+  expect(localStorage.getItem('safeos_user_settings')).toBeNull();
+  expect(screen.queryByText('Saved')).toBeNull();
+});
