@@ -17,6 +17,7 @@ import {
   coverBox,
   coversOverHalf,
   expiredPictureIds,
+  forgetOldNotes,
   fitLongEdge,
   isDark,
   kindOfAlert,
@@ -220,6 +221,18 @@ describe('the order of an event’s notifications', () => {
     await Promise.all([first, second]);
     // The critical notification is the one that stands.
     expect(shown).toEqual(['low', 'critical']);
+  });
+
+  it('lets go of the notes of events no alert has asked for in a minute', () => {
+    const asked = new Map<string, number>();
+    const turns = new Map<string, Promise<void>>();
+    askNote(asked, 'safeos-Motion alert-e1', 1_000);
+    turns.set('safeos-Motion alert-e1', Promise.resolve());
+    askNote(asked, 'safeos-Motion alert-e2', 50_000);
+    turns.set('safeos-Motion alert-e2', Promise.resolve());
+    forgetOldNotes(asked, turns, 62_000);
+    expect([...asked.keys()]).toEqual(['safeos-Motion alert-e2']);
+    expect([...turns.keys()]).toEqual(['safeos-Motion alert-e2']);
   });
 
   it('leaves out a notification that a newer alert of its event asked after, before its turn came', async () => {

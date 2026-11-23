@@ -57,3 +57,30 @@ it('a sweep by an age that waits for the store deletes nothing once Until I dele
 
   expect((await getAlertPicture(id))?.state).toBe('kept');
 });
+
+it('a sweep by an age deletes nothing when Until I delete them is chosen while it writes', async () => {
+  const now = Date.now();
+  const at = now - 2 * DAY;
+  const id = `picture-${at}-written`;
+  expect(await saveAlertPicture({ id, state: 'kept', kind: 'motion', takenAt: at }, pictureStampNow()))
+    .toEqual({ result: 'saved', deleted: [] });
+  useAlertPicturesStore.getState().setDeleteAfterDays(1);
+
+  // The person chooses Until I delete them as the sweep writes the row that says the picture went.
+  const put = IDBObjectStore.prototype.put;
+  let chose = false;
+  const spy = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+    if (!chose && (value as { state?: string } | null)?.state === 'gone') {
+      chose = true;
+      useAlertPicturesStore.getState().setDeleteAfterDays(null);
+    }
+    return put.call(this, value, key);
+  });
+  try {
+    await sweepPicturesByAge(now);
+  } finally {
+    spy.mockRestore();
+  }
+  expect(chose).toBe(true);
+  expect((await getAlertPicture(id))?.state).toBe('kept');
+});
