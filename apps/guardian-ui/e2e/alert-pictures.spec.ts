@@ -3671,6 +3671,10 @@ test.describe('The privacy page and the notices', () => {
     expect(notices).toContain('The COCO-SSD model was trained on the COCO dataset; COCO\'s annotations are © COCO Consortium, licensed CC BY 4.0 (https://cocodataset.org/#termsofuse).');
     // A package used to build or test the site alone is not listed.
     expect(notices).not.toMatch(/^@playwright\/test /m);
+    // Nor is a package for another platform, which the build machine (Linux) never installs.
+    for (const name of ['@next/swc-darwin-arm64', '@next/swc-win32-x64-msvc', '@parcel/watcher-darwin-arm64']) {
+      expect(notices, `the notices leave out ${name}`).not.toMatch(new RegExp(`^${name.replace(/[/]/g, '\\/')} `, 'm'));
+    }
 
     for (const address of ['/about/', '/settings/models/']) {
       await page.goto(address, { waitUntil: 'networkidle' });
