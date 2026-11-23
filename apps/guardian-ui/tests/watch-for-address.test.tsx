@@ -53,3 +53,13 @@ it('opens the watch the address names when nothing was chosen first', async () =
   expect(result.current.pet?.id).toBe('pet-1');
   expect(window.location.search).toBe('?way=lost-found&pet=pet-1');
 });
+
+it('writes a choice made while the pets were read to an address that named no way', async () => {
+  window.history.replaceState(null, '', '/monitor/');
+  const { result } = renderHook(() => useWatchFor(false));
+  await act(async () => {});
+  act(() => result.current.chooseWay('lost_found'));
+  await act(async () => { mockPetsRead.settle([mittens]); });
+  expect(result.current.way).toBe('lost_found');
+  expect(new URLSearchParams(window.location.search).get('way')).toBe('lost-found');
+});
