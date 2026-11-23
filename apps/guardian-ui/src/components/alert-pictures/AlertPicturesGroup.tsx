@@ -202,8 +202,12 @@ export function AlertPicturesGroup({ place }: AlertPicturesGroupProps) {
   };
   const deleteAll = async () => {
     setAsking(false);
-    // Focus goes back to the key that asked while the pictures are deleted.
-    requestAnimationFrame(() => deleteKey.current?.focus());
+    // Focus goes back to the key that asked while the pictures are deleted, unless the person has
+    // put it somewhere already.
+    requestAnimationFrame(() => {
+      const here = document.activeElement;
+      if (!here || here === document.body) deleteKey.current?.focus();
+    });
     const answer = await deleteAllPictures();
     setDeleteFailed(answer === 'failed');
     // The key leaves with the last picture: focus that stood on it goes to the control before it,
