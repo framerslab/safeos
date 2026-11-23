@@ -25,9 +25,9 @@ it('keeps a volume changed after the browser preferences were read when a profil
   localStorage.clear();
   useAuthStore.setState({ profile: null, sessionToken: null });
   useSettingsStore.getState().resetToDefaults();
-  localStorage.setItem('safeos_user_settings', JSON.stringify({ preferences: { alertVolume: 0.55 } }));
+  localStorage.setItem('safeos_user_settings', JSON.stringify({ preferences: { alertVolume: 0.25 } }));
   render(<SettingsPage />);
-  await waitFor(() => expect(useSettingsStore.getState().globalSettings.alertVolume).toBe(55));
+  await waitFor(() => expect(useSettingsStore.getState().globalSettings.alertVolume).toBe(25));
   // The volume moves on Alert sounds, as its slider moves it.
   act(() => {
     useSettingsStore.getState().tuneScenario(null, { alertVolume: 30 });
