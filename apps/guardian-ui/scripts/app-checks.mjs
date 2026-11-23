@@ -3086,8 +3086,15 @@ export async function checkApp(browser, baseUrl, outDir) {
       const asked = await theQuestion(second).waitFor({ timeout: 5_000 }).then(() => true, () => false);
       check(asked, `Start watching, while another tab watches, showed no dialog named "${QUESTION}"`);
       if (!asked) return;
+      // The watch page's question names its second key: Keep the other tab.
+      const keys = (await theQuestion(second).getByRole('button').allTextContents()).map(plain);
+      check(keys.join(' | ') === 'Watch here | Keep the other tab', `the dialog's keys read ${keys.map((key) => `"${key}"`).join(', ')}, not "Watch here" then "Keep the other tab"`);
       const first = await focusedOn(second);
-      check(first === 'Cancel', `focus starts on "${first}", not on the key that keeps the other tab`);
+      check(first === 'Keep the other tab', `focus starts on "${first}", not on Keep the other tab`);
+      await second.keyboard.press('Escape');
+      check(await gone(theQuestion(second)), 'Escape left the dialog open');
+      const back = await focusedOn(second);
+      check(back === 'Start watching', `after Escape focus is on "${back}", not Start watching`);
     }, { script: FAKE_CAMERA });
 
     // Try again after a failed start asks first while another tab watches,
