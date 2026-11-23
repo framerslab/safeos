@@ -1,6 +1,6 @@
 # Settings: one list that says how this device is set
 
-Both folders come from [Pictures run 45076489651](https://github.com/framerslab/safeos/actions/runs/45076489651) of commit fa6efaaa175ba782ba14c2f1fd8735446e5e9ae5 and the base commit c59795dda9cbefa88c59e4aa777e5bf038717882: `after/` from the run's `pictures` artifact and `before/` from its `pictures-before` artifact, each file copied byte for byte under the name the run gave it.
+Both folders come from [Pictures run 45089832789](https://github.com/framerslab/safeos/actions/runs/45089832789) of commit 3fca997ec36c19796cb9ae293deb6eae41ee957f and the base commit c59795dda9cbefa88c59e4aa777e5bf038717882: `after/` from the run's `pictures` artifact and `before/` from its `pictures-before` artifact, each file copied byte for byte under the name the run gave it.
 
 A picture of a whole page on a phone shows the phone bar where the first screen ends, 844 px down, since the bar stays at the foot of the screen. The short mark at the left end of the footer's top line is the footer's own, before and after.
 
@@ -31,7 +31,7 @@ A picture of a whole page on a phone shows the phone bar where the first screen 
 - `settings-data-390-light.png`: Data on this device, 390 px, light.
 - `settings-data-1280-dark.png`: Data on this device, 1280 px, dark.
 - `settings-data-1280-light.png`: Data on this device, 1280 px, light.
-- `settings-sounds-390-dark.png`: Alert sounds, 390 px, dark: the Alert volume row at the top, at 100, with its Play key and "Unanswered alerts get louder from here."; the rest of the page is as before.
+- `settings-sounds-390-dark.png`: Alert sounds, 390 px, dark: the Alert volume row at the top, at 100, with its Play key and "Unanswered alerts get louder from here."; the guide below it reads Pet Recall, Night Alert, Baby Monitor and Lost & Found in plain words, and the rest of the page is as before.
 - `settings-sounds-390-light.png`: Alert sounds, 390 px, light.
 - `settings-sounds-1280-dark.png`: Alert sounds, 1280 px, dark.
 - `settings-sounds-1280-light.png`: Alert sounds, 1280 px, light.
