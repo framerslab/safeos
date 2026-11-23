@@ -60,6 +60,22 @@ export function askNote(asked: Map<string, number>, tag: string, at: number): vo
 export function staleNote(asked: ReadonlyMap<string, number>, tag: string, at: number): boolean {
   return (asked.get(tag) ?? at) > at;
 }
+/** An event's notes are let go once no alert of it has asked for a notification in this long. */
+export const NOTE_KEEP_MS = 60_000;
+
+/**
+ * Lets go of the notes of events no alert has asked for in `NOTE_KEEP_MS`: a long watch keeps the
+ * notes of its recent events alone. A notification waits for its picture for 300 ms at most, so
+ * none of an event that old is waiting.
+ */
+export function forgetOldNotes(asked: Map<string, number>, turns: Map<string, Promise<void>>, now: number): void {
+  for (const [tag, at] of asked) {
+    if (now - at < NOTE_KEEP_MS) continue;
+    asked.delete(tag);
+    turns.delete(tag);
+  }
+}
+
 /**
  * Shows an event's notifications one after another, in the order they come here: each waits until
  * the one before it has gone to the browser, so a slower answer from the browser never puts an

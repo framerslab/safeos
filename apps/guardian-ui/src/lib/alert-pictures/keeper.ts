@@ -32,7 +32,7 @@ import {
 } from '../client-db';
 import { ACCOUNT_CLEAR_MARKER_KEY, pictureStampNow } from '../local-data-generation';
 import { useMonitoringStore } from '../../stores/monitoring-store';
-import { useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
+import { heardChoiceAt, useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 import type { PictureSet } from './capture';
 import { onPictureNews, postPictureNews, type PictureNews } from './channel';
 import { closePicture } from './opened';
@@ -485,11 +485,14 @@ function hear(news: PictureNews): void {
     }
     tell();
   } else if (news.type === 'settings') {
+    // A choice this tab makes after hearing of this one is the later one, even in the same millisecond.
+    if (news.at !== undefined) heardChoiceAt(news.at);
     // Choices made before the ones this tab holds, heard late, change nothing here and delete
     // nothing; so do choices made in the same millisecond, where this tab's own stands.
     if (news.at !== undefined && news.at <= useAlertPicturesStore.getState().chosenAt) return;
     // The other tab's choices hold here from now, though this tab may read them from the browser only later.
     if (news.keep !== undefined) heardKeep = news.keep;
+    if (news.inNotifications !== undefined) heardInNotifications = news.inNotifications;
     if (news.deleteAfterDays !== undefined) heardAge = { at: news.at ?? Date.now(), days: news.deleteAfterDays };
     void sweepPicturesByAge(Date.now(), news.deleteAfterDays);
   } else if (news.type === 'saved') {
@@ -506,6 +509,17 @@ function hear(news: PictureNews): void {
  */
 let heardKeep: boolean | null = null;
 
+/** Show the picture in alert notifications as another tab just chose it; null till then, as `heardKeep`. */
+let heardInNotifications: boolean | null = null;
+
+/**
+ * Whether an alert's notification carries its picture: this tab's choice, or a later one another
+ * tab made that this tab's store has not read yet.
+ */
+export function picturesInNotifications(): boolean {
+  return heardInNotifications ?? useAlertPicturesStore.getState().inNotifications;
+}
+
 /** Delete pictures after as another tab chose it, with when; null till one is heard. */
 let heardAge: { at: number; days: DeleteAfterDays } | null = null;
 
@@ -520,7 +534,10 @@ function listenToOtherTabs(): void {
   if (listening || typeof window === 'undefined') return;
   listening = true;
   onPictureNews(hear);
-  useAlertPicturesStore.subscribe(() => { heardKeep = null; });
+  useAlertPicturesStore.subscribe(() => {
+    heardKeep = null;
+    heardInNotifications = null;
+  });
   // Clear All Local Data or a sign-out in another tab writes the account marker as its clear
   // commits: this tab lets go of every picture it shows, and counts again after that clear.
   window.addEventListener('storage', (event: StorageEvent) => {

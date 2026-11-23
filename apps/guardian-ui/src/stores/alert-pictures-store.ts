@@ -27,8 +27,8 @@ interface AlertPicturesChoices {
   /** An alert's notification shows its picture. */
   inNotifications: boolean;
   /**
-   * When Keep alert pictures or Delete pictures after was last chosen, in any tab: news of a
-   * choice made before it is older than the choice this tab holds.
+   * When a choice was last made, in any tab: news of a choice made before it is older than the
+   * choices this tab holds. A choice made here is later than every choice this tab has heard of.
    */
   chosenAt: number;
 }
@@ -40,6 +40,14 @@ interface AlertPicturesState extends AlertPicturesChoices {
   answerNotice: (choice: { keep: boolean; deleteAfterDays: DeleteAfterDays }) => void;
   setInNotifications: (show: boolean) => void;
   reset: () => void;
+}
+
+/** The newest time of a choice this tab has heard from another tab. */
+let heardAt = 0;
+
+/** Notes the time of a choice another tab made: a choice made here after it is later. */
+export function heardChoiceAt(at: number): void {
+  heardAt = Math.max(heardAt, at);
 }
 
 const DEFAULTS: AlertPicturesChoices = {
@@ -80,14 +88,19 @@ const quietStorage: StateStorage = {
 
 export const useAlertPicturesStore = create<AlertPicturesState>()(
   persist(
-    (set) => ({
-      ...DEFAULTS,
-      setKeep: (keep) => set({ keep, chosenAt: Date.now() }),
-      setDeleteAfterDays: (deleteAfterDays) => set({ deleteAfterDays, chosenAt: Date.now() }),
-      answerNotice: ({ keep, deleteAfterDays }) => set({ keep, deleteAfterDays, noticeAnswered: true, chosenAt: Date.now() }),
-      setInNotifications: (inNotifications) => set({ inNotifications }),
-      reset: () => set({ ...DEFAULTS }),
-    }),
+    (set, get) => {
+      // Now, or just after the newest choice this tab holds or has heard of, whichever is later:
+      // two choices made in one millisecond are told apart.
+      const chosenNow = () => Math.max(Date.now(), get().chosenAt + 1, heardAt + 1);
+      return {
+        ...DEFAULTS,
+        setKeep: (keep) => set({ keep, chosenAt: chosenNow() }),
+        setDeleteAfterDays: (deleteAfterDays) => set({ deleteAfterDays, chosenAt: chosenNow() }),
+        answerNotice: ({ keep, deleteAfterDays }) => set({ keep, deleteAfterDays, noticeAnswered: true, chosenAt: chosenNow() }),
+        setInNotifications: (inNotifications) => set({ inNotifications, chosenAt: chosenNow() }),
+        reset: () => set({ ...DEFAULTS }),
+      };
+    },
     {
       name: ALERT_PICTURES_KEY,
       storage: createJSONStorage(() => quietStorage),

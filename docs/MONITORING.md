@@ -300,8 +300,9 @@ person moves it; when the key leaves with the last picture, focus on it goes to 
 pictures after**. With keeping off, each alert's picture shows on the watch until a reload and
 nothing is saved. Turning the switch in one tab holds in every open tab from the next alert,
 and a new age at once; a tab that hears of a choice after a later one was made, or one made in
-the same millisecond as its own, changes nothing for it. A sweep by an age that waits for the
-store deletes nothing once a longer age, or "Until I delete them", has been chosen.
+the same millisecond as its own, changes nothing for it, and a choice made after hearing another
+tab's is the later one, even in the same millisecond. A sweep by an age deletes nothing once a
+longer age, or "Until I delete them", has been chosen while it waited for the store or wrote.
 
 A picture is deleted:
 
@@ -345,7 +346,8 @@ change alert", with the level and the time. While the browser shows a notificati
 alone, while notifications are not allowed (the row offers **Allow notifications**) and while
 they are blocked, the switch is inactive and says why. The row reads the browser's answer
 again when the page comes back into view, so notifications allowed in the site settings make
-the switch usable with no reload.
+the switch usable with no reload. Turning the switch in one tab holds in every open tab from the
+next notification.
 
 ## Processing and connection
 

@@ -1187,7 +1187,8 @@ export async function goneAllAlertPictures(): Promise<{ result: 'deleted'; ids: 
 
 /**
  * Deletes the kept sets at or past `days` old, leaving rows that say after how long. Answers their
- * ids. `stillChosen` is asked inside the transaction, once the kept sets are read: false deletes nothing.
+ * ids. `stillChosen` is asked inside the transaction, once the kept sets are read and again once
+ * their rows are written, before it commits: false deletes nothing.
  */
 export async function goneExpiredAlertPictures(days: number, now: number, stillChosen: () => boolean = () => true): Promise<string[]> {
   let tx: Abandonable | undefined;
@@ -1211,6 +1212,12 @@ export async function goneExpiredAlertPictures(days: number, now: number, stillC
     for (const id of expired) {
       const row = await pictures.get(id);
       if (row) await pictures.put(goneRow(row, 'age', days));
+    }
+    // Asked again once the rows are written, before the transaction commits: a longer age chosen
+    // while they were written undoes them.
+    if (expired.length > 0 && !stillChosen()) {
+      await abandonTransaction(tx);
+      return [];
     }
     await tx.done;
     return expired;

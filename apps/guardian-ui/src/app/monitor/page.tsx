@@ -42,13 +42,12 @@ import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/ca
 import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { detectRegionalMotion } from '../../lib/motion-detection';
-import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, askNote, showInTurn, boxFromCells, boxFromHotspots, boxFromRegion, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
+import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, askNote, forgetOldNotes, showInTurn, boxFromCells, boxFromHotspots, boxFromRegion, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
 import { LOCAL_TIMELINE_HREF } from '../../lib/app-routes';
 import { OPEN_IN_HISTORY, notificationBody, notificationTitle, plateLine, sightingNotificationBody, sightingPlate, sightingQuestion } from '../../lib/alert-pictures/words';
-import { useAlertPicturesStore } from '../../stores/alert-pictures-store';
 import type { LiveAlertBox } from '../../components/alert-pictures/LiveBox';
 import { capturePictureSet, newPictureId, notificationCopy, showsNotificationPictures, type PictureSet } from '../../lib/alert-pictures/capture';
-import { holdPicture, startPictureWatch, stopPictureWatch } from '../../lib/alert-pictures/keeper';
+import { holdPicture, picturesInNotifications, startPictureWatch, stopPictureWatch } from '../../lib/alert-pictures/keeper';
 import { useNoticeGate } from '../../components/alert-pictures/PicturesNotice';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -849,7 +848,8 @@ export default function MonitorPage() {
     // notification stands beside an earlier one that is kept up.
     const requireInteraction = event ? keepsNotificationUp(event) : severity === 'high' || severity === 'critical';
     const tag = event?.notifyTag ? `safeos-${title}-${event.notifyTag}` : `safeos-${title}`;
-    const wantsPicture = () => useAlertPicturesStore.getState().inNotifications && showsNotificationPictures();
+    const wantsPicture = () => picturesInNotifications() && showsNotificationPictures();
+    forgetOldNotes(notesAsked.current, noteTurns.current, note.at);
     askNote(notesAsked.current, tag, note.at);
 
     let image: string | undefined;

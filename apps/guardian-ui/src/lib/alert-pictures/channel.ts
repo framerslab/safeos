@@ -16,11 +16,15 @@ export type PictureNews =
   | { type: 'saved'; id: string }
   // The choices travel with the news: a tab can hear it before the browser hands it the saved choices.
   // `at` is when they were chosen. A tab of an earlier release sends none of them.
-  | { type: 'settings'; keep?: boolean; deleteAfterDays?: DeleteAfterDays; at?: number };
+  | { type: 'settings'; keep?: boolean; deleteAfterDays?: DeleteAfterDays; inNotifications?: boolean; at?: number };
 
 /** The news of a change of the choices, as this tab's store holds them now. */
-export function settingsNews(choices: { keep: boolean; deleteAfterDays: DeleteAfterDays; chosenAt: number }): PictureNews {
-  return { type: 'settings', keep: choices.keep, deleteAfterDays: choices.deleteAfterDays, at: choices.chosenAt };
+export function settingsNews(choices: {
+  keep: boolean; deleteAfterDays: DeleteAfterDays; inNotifications: boolean; chosenAt: number;
+}): PictureNews {
+  return {
+    type: 'settings', keep: choices.keep, deleteAfterDays: choices.deleteAfterDays, inNotifications: choices.inNotifications, at: choices.chosenAt,
+  };
 }
 
 /** Tells the other tabs. This tab's own views are changed by the caller. */
