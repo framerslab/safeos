@@ -455,8 +455,11 @@ in use, notifications blocked or not asked, a second tab, alerts new, the
 stores held, a private window) at every width with its first screen counted,
 sizes and contrast against the readable look's figures, the old addresses and
 the offline page, and Settings: the list of settings pages with each row's
-value and axe on the settings parts, its first screen counted, Lost and Found's
-pet, quiet hours read by the page's clock, a server's rows, a browser that
+value and axe on the settings parts, its first screen counted with each of its
+rows whole above the phone bar, Lost and Found's pet, quiet hours read by the
+page's clock, a server's rows and Your own server's page, the alert volume's
+knob, filled track and edged empty track read from its pixels on the page's own
+ground, a browser that
 refuses storage, the focus order clear of the app's header and the phone bar,
 larger text, the list's values offline, every control
 of `apps/guardian-ui/scripts/settings-inventory.json` changed and read back from

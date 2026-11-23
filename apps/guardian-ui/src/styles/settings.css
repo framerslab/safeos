@@ -62,7 +62,7 @@
    ============================================================================= */
 
 .set-head {
-  padding: 8px 0 16px;
+  padding: 8px 0 12px;
 }
 
 .set-back {
@@ -126,13 +126,13 @@
 }
 
 .set-group--headed {
-  margin-top: 16px;
+  margin-top: 8px;
   border-top: 1px solid var(--color-steel-300);
 }
 
 .set-group__heading {
   margin: 0;
-  padding: 16px 0 4px;
+  padding: 12px 0 4px;
   font-family: var(--font-sans);
   font-size: var(--type-word-size);
   line-height: var(--type-word-line);
@@ -281,7 +281,9 @@
   gap: 12px;
 }
 
-.set-slider__input {
+/* The slider's own parts are named on input[type='range'] with its class, so
+   they hold over the app's touch sliders (touch.css) whatever its order. */
+input.set-slider__input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
@@ -291,29 +293,36 @@
   cursor: pointer;
 }
 
-.set-slider__input:disabled {
+input.set-slider__input[type='range']:disabled {
   cursor: default;
 }
 
-.set-slider__input::-webkit-slider-runnable-track {
+/* A 4 px track: the filled part in the accent, the rest in the track colour,
+   with a 1 px edge in the line colour so the empty part reads on any
+   ground. */
+input.set-slider__input[type='range']::-webkit-slider-runnable-track {
   height: 4px;
   border-radius: 2px;
   background: linear-gradient(to right, var(--look-accent) var(--set-fill), var(--color-steel-800) var(--set-fill));
+  box-shadow: 0 0 0 1px var(--color-steel-300);
 }
 
-.set-slider__input::-moz-range-track {
+input.set-slider__input[type='range']::-moz-range-track {
   height: 4px;
   border-radius: 2px;
   background: var(--color-steel-800);
+  box-shadow: 0 0 0 1px var(--color-steel-300);
 }
 
-.set-slider__input::-moz-range-progress {
+input.set-slider__input[type='range']::-moz-range-progress {
   height: 4px;
   border-radius: 2px;
   background: var(--look-accent);
 }
 
-.set-slider__input::-webkit-slider-thumb {
+/* A 24 px knob in the ink, held still while pressed. */
+input.set-slider__input[type='range']::-webkit-slider-thumb,
+input.set-slider__input[type='range']::-webkit-slider-thumb:active {
   -webkit-appearance: none;
   appearance: none;
   width: 24px;
@@ -322,14 +331,19 @@
   border: 0;
   border-radius: 50%;
   background: var(--color-steel-50);
+  box-shadow: none;
+  transform: none;
 }
 
-.set-slider__input::-moz-range-thumb {
+input.set-slider__input[type='range']::-moz-range-thumb,
+input.set-slider__input[type='range']::-moz-range-thumb:active {
   width: 24px;
   height: 24px;
   border: 0;
   border-radius: 50%;
   background: var(--color-steel-50);
+  box-shadow: none;
+  transform: none;
 }
 
 .set-slider__ends {
@@ -488,11 +502,19 @@
   flex-direction: column;
 }
 
+/* 64 px on a phone, so a row's value line keeps to one line beside it;
+   88 px from the tablet stop. */
 .set-pic {
   position: relative;
   display: block;
   flex: none;
-  width: 88px;
+  width: 64px;
+}
+
+@media (min-width: 48em) {
+  .set-pic {
+    width: 88px;
+  }
 }
 
 .set-pic--meters {
@@ -563,11 +585,12 @@
   object-fit: cover;
 }
 
-/* A settings row set on a page still on its old layout. */
-.set-on-page {
+/* A settings row set on a page still on its old layout: on that page's own
+   ground, with no box or fill of its own. */
+.settings.set-on-page {
   margin-bottom: 24px;
-  padding: 4px 16px 8px;
-  border-radius: var(--key-radius);
+  padding: 0;
+  background: transparent;
 }
 
 /* A row that holds a key: Export settings, Clear all data on this device,
