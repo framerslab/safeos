@@ -280,8 +280,11 @@ export function useWatchFor(watching: boolean): WatchFor {
     const params = new URLSearchParams(window.location.search);
     const named = params.get('way');
     if (choseRef.current) {
+      // What the address names, or nothing a choice can equal, so the choice
+      // is written either way.
       if (named === 'lost-found') writtenRef.current = `lost-found:${params.get('pet') ?? ''}`;
       else if (named === 'monitor') writtenRef.current = 'monitor';
+      else writtenRef.current = '';
     } else if (named === 'lost-found') {
       setLostFoundChosen(true);
       const petId = params.get('pet');
