@@ -435,6 +435,16 @@ it('says where alerts show before a watch, and that none came while watching', a
   expect(screen.queryByText('Monitoring is running normally')).toBeNull();
 });
 
+const STATEMENT = 'SafeOS adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.';
+
+it('says SafeOS adds an alert and does not replace a person nearby, before and during a watch', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  expect(screen.getAllByText(STATEMENT)).toHaveLength(1);
+  await startMonitoring();
+  expect(screen.getAllByText(STATEMENT)).toHaveLength(1);
+});
+
 it('holds three bars in the entries\' place until the saved alerts are read', async () => {
   let settle: (alerts: never[]) => void = () => {};
   mockAlertRead.held = new Promise((resolve) => { settle = resolve; });
@@ -528,7 +538,7 @@ it("starts a new watch's Motion meter from nothing, not from the last watch's zo
   }
 });
 
-it('says the saved alerts could not be read, in place of an empty list', async () => {
+it('says alerts cannot be saved on this device when the saved ones could not be read', async () => {
   const refused = Promise.reject(new Error('The database refused the read.'));
   refused.catch(() => {});
   mockAlertRead.held = refused as Promise<never[]>;
@@ -539,8 +549,12 @@ it('says the saved alerts could not be read, in place of an empty list', async (
     await act(async () => {});
     await act(async () => {});
     await startMonitoring();
-    expect(screen.queryByText('No alert so far.')).toBeNull();
-    expect(screen.getByText('The saved alerts could not be read on this device. New alerts show here.')).toBeTruthy();
+    // The store's error line beside the problem glyph, under the header; the
+    // list goes on in memory under it.
+    const line = screen.getByText('Alerts could not be saved on this device. They show here until you reload.');
+    expect(line.closest('.watch-list__problem')?.querySelector('.problem-glyph')).toBeTruthy();
+    expect(screen.queryByText(/could not be read/)).toBeNull();
+    expect(screen.getByText('No alert so far.')).toBeTruthy();
   } finally {
     mockAlertRead.held = null;
     warn.mockRestore();

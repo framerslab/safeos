@@ -71,7 +71,7 @@ function smallMovementCamera() {
 }
 
 // The key under the camera's frame that stops the watch or the start; the
-// other tab's question has a Cancel of its own.
+// other tab's question has keys of its own.
 const stopKey = () => {
   const controls = document.querySelector<HTMLElement>('.watch-controls');
   return controls ? within(controls).queryByRole('button', { name: /^(Stop watching|Cancel)$/ }) : null;
@@ -356,13 +356,13 @@ it("asks before a nap's watch starts while another tab watches", async () => {
   expect(stopKey()).not.toBeNull();
   cleanup();
 
-  // Cancel: nothing watches, and the nap stays.
+  // Keep the other tab: nothing watches, and the nap stays.
   browser.getUserMedia.mockClear();
   window.history.replaceState(null, '', '/monitor/');
   arriveFromNap(30);
   render(<MonitorPage />);
   await act(async () => {});
-  fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Cancel' }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Keep the other tab' }));
   await act(async () => {});
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(browser.getUserMedia).not.toHaveBeenCalled();

@@ -347,20 +347,25 @@ it('People disarmed during its countdown closes the held camera', async () => {
 
 it("each way's own start key asks first while another tab watches", async () => {
   jest.mocked(askOtherTabs).mockResolvedValue({ watching: true, way: 'monitor' });
-  const asks = async (key: HTMLElement) => {
+  // The watch page's second key keeps the other tab; the other ways' keep Cancel.
+  const asks = async (key: HTMLElement, keep = 'Cancel') => {
     fireEvent.click(key);
     await act(async () => {});
     const dialog = screen.getByRole('dialog', { name: QUESTION });
     expect(browser.getUserMedia).not.toHaveBeenCalled();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    const keys = within(dialog).getAllByRole('button').map((button) => button.textContent);
+    expect(keys).toEqual(['Watch here', keep]);
+    expect(document.activeElement?.textContent).toBe(keep);
+    fireEvent.click(within(dialog).getByRole('button', { name: keep }));
     await act(async () => {});
     expect(screen.queryByRole('dialog')).toBeNull();
   };
 
   render(<MonitorPage />);
   await act(async () => {});
-  await asks(screen.getByRole('button', { name: 'Start watching' }));
+  await asks(screen.getByRole('button', { name: 'Start watching' }), 'Keep the other tab');
   expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
+  expect(document.activeElement?.textContent).toBe('Start watching');
   expect(useMonitoringStore.getState().isStreaming).toBe(false);
   cleanup();
 
