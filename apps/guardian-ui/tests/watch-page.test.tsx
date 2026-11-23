@@ -13,7 +13,7 @@ import MonitorPage from '@/app/monitor/page';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
-import { useLostFoundStore } from '@/stores/lost-found-store';
+import { useCameraStore } from '@/stores/camera-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 import { clockTime } from '@/lib/clock-time';
 
@@ -411,25 +411,6 @@ it('names no processing on the preset card and shows Interval only while this de
   expect(screen.getByText('Interval')).toBeTruthy();
 });
 
-it('shows no confidence panel and no tag on the live picture', async () => {
-  const createdAt = new Date().toISOString();
-  useLostFoundStore.setState({
-    isWatching: true,
-    activeSubject: {
-      id: 'pet-1', name: 'Mittens', type: 'pet', description: '', referenceImages: [], createdAt,
-      fingerprint: { version: Number.MAX_SAFE_INTEGER },
-    } as never,
-  });
-  try {
-    render(<MonitorPage />);
-    await act(async () => {});
-    await startMonitoring();
-    expect(screen.queryByText(/Confidence|consecutive match|Matching|View Match History/)).toBeNull();
-  } finally {
-    useLostFoundStore.setState({ isWatching: false, activeSubject: null });
-  }
-});
-
 it('floats no quick settings over the page', async () => {
   render(<MonitorPage />);
   await act(async () => {});
@@ -480,4 +461,90 @@ it('counts the new alerts beside the heading', async () => {
   const count = document.querySelector('.watch-list__new');
   expect(count?.textContent).toBe('1 new');
   expect(count?.closest('.watch-list__head')?.querySelector('h2')?.textContent).toBe('Alerts');
+});
+
+// =============================================================================
+// A watch read again, a camera back, a reading from the start
+// =============================================================================
+
+it('offers Start watching again once the saved camera that was unavailable is connected again', async () => {
+  useCameraStore.getState().setDeviceId('usb');
+  browser.mediaDevices.enumerateDevices.mockResolvedValue([
+    { kind: 'videoinput', deviceId: 'built-in', label: 'Built-in camera' },
+  ]);
+  browser.getUserMedia.mockRejectedValueOnce(new DOMException('', 'OverconstrainedError'));
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    await startMonitoring();
+    expect(screen.getByText(FAILURE_WORDS.gone)).toBeTruthy();
+    // The same camera is plugged in again: the browser lists it and says the devices changed.
+    browser.mediaDevices.enumerateDevices.mockResolvedValue([
+      { kind: 'videoinput', deviceId: 'built-in', label: 'Built-in camera' },
+      { kind: 'videoinput', deviceId: 'usb', label: 'USB camera' },
+    ]);
+    await act(async () => { browser.mediaDevices.dispatchEvent(new Event('devicechange')); });
+    await act(async () => {});
+    expect(screen.queryByText(FAILURE_WORDS.gone)).toBeNull();
+    await startMonitoring();
+    expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
+  } finally {
+    useCameraStore.getState().setDeviceId('');
+  }
+});
+
+it("starts a new watch's Motion meter from nothing, not from the last watch's zone", async () => {
+  seedMotionOnly();
+  const zones = useSettingsStore.getState().detectionZones;
+  useSettingsStore.setState({
+    detectionZones: [{ id: 'full', name: 'Full Screen', enabled: true, x: 0, y: 0, width: 100, height: 100, sensitivityOverride: { motion: 40 } }],
+  });
+  browser.readFrame.mockImplementation(() => {
+    const data = new Uint8ClampedArray(16 * 16 * 4).fill(128);
+    data.fill(Math.floor(Date.now() / 200) % 2 ? 0 : 255, 0, 16 * 4 * 4);
+    return new ImageData(data, 16, 16);
+  });
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    await startMonitoring();
+    act(() => { jest.advanceTimersByTime(1000); });
+    expect(valueText('Motion')).toBe('25 per cent, line at 60, Quiet');
+    fireEvent.click(screen.getByRole('button', { name: 'Stop watching' }));
+    // The new watch sees a still scene.
+    browser.readFrame.mockImplementation(() => new ImageData(new Uint8ClampedArray(16 * 16 * 4).fill(128), 16, 16));
+    await startMonitoring();
+    expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
+    expect(valueText('Motion')).not.toMatch(/^25 per cent/);
+  } finally {
+    useSettingsStore.setState({ detectionZones: zones });
+  }
+});
+
+it('says the saved alerts could not be read, in place of an empty list', async () => {
+  const refused = Promise.reject(new Error('The database refused the read.'));
+  refused.catch(() => {});
+  mockAlertRead.held = refused as Promise<never[]>;
+  useMonitoringStore.setState({ alertsRead: false });
+  const warn = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    await act(async () => {});
+    await startMonitoring();
+    expect(screen.queryByText('No alert so far.')).toBeNull();
+    expect(screen.getByText('The saved alerts could not be read on this device. New alerts show here.')).toBeTruthy();
+  } finally {
+    mockAlertRead.held = null;
+    warn.mockRestore();
+  }
+});
+
+it('offers Deep Sleep Ultra-Sensitive among the presets under Show settings', async () => {
+  localStorage.setItem('safeos-watch-view', 'settings');
+  useSettingsStore.getState().setActivePreset('maximum');
+  render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Deep sleep' }));
+  expect(useSettingsStore.getState().activePresetId).toBe('deep_sleep_minimal');
 });

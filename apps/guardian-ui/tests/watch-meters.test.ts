@@ -7,7 +7,7 @@
  * gives, Picture change from the check's own answer in both of its modes.
  */
 
-import { levelMeter, meterValueText, pictureChangeMeter, METER_STATE_WORDS } from '@/lib/watch-meters';
+import { levelMeter, meterValueText, pictureChangeMeter, pictureChangeRatio, METER_STATE_WORDS } from '@/lib/watch-meters';
 
 it('reads no level yet as loading, with no words to say', () => {
   const reading = levelMeter(null, 20, true);
@@ -51,6 +51,17 @@ it('reads Picture change from the check, under its line until the check answers 
   expect(pictureChangeMeter({ ratio: 0.9, triggered: true }, true)).toEqual({ value: 20, line: 20, state: 'over' });
   expect(pictureChangeMeter({ ratio: 1.2, triggered: false }, true)).toEqual({ value: 19, line: 20, state: 'quiet' });
   expect(pictureChangeMeter({ ratio: 9, triggered: true }, true)).toEqual({ value: 100, line: 20, state: 'over' });
+});
+
+it("reads Picture change on the scale of the check's mode", () => {
+  // A count of pixels: the share of the count's own line.
+  expect(pictureChangeRatio({ useAbsoluteThreshold: true, changedPx: 25, thresholdPx: 50, difference: 0.003 })).toBe(0.5);
+  // A share of the picture: 1,000 changed pixels of a 1280 by 720 picture is
+  // about 0.11 per cent against the check's 1 per cent, whatever the count's line.
+  const share = pictureChangeRatio({ useAbsoluteThreshold: false, changedPx: 1000, thresholdPx: 50, difference: 0.11 });
+  expect(share).toBeCloseTo(0.11, 5);
+  expect(pictureChangeMeter({ ratio: share, triggered: false }, true)).toEqual({ value: 2, line: 20, state: 'quiet' });
+  expect(pictureChangeRatio({ useAbsoluteThreshold: false, changedPx: 9000, thresholdPx: 50, difference: 1 })).toBe(1);
 });
 
 it('names the three states', () => {

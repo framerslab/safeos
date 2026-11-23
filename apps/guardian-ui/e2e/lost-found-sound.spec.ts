@@ -14,7 +14,7 @@
 import { test, expect } from '@playwright/test';
 
 import monitorSettings from '../scripts/home-capture-settings.json';
-import { saveOwnSound, savedMatchFrames, timesPlayed, watchStripes } from './helpers/own-sound';
+import { alertedMatchFrames, saveOwnSound, timesPlayed, watchStripes } from './helpers/own-sound';
 import { setUpDevice } from './helpers/seeded-device';
 import { CAMERA_FILE } from './helpers/striped-subject';
 
@@ -100,7 +100,8 @@ test('in Silent quiet hours a Lost & Found alert does not play the saved sound',
   await saveOwnSound(page);
   await watchStripes(page);
   // The comparison alerts on the matching frames that follow; give it five seconds of them.
+  // Frames that raised the alert are saved, so each of those alerts went down the sound path.
+  await expect.poll(() => alertedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(0);
   await page.waitForTimeout(5_000);
-  expect(await savedMatchFrames(page)).toBeGreaterThan(0);
   expect(await timesPlayed(page)).toBe(0);
 });

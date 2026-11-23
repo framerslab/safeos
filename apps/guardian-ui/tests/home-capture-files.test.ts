@@ -86,6 +86,8 @@ describe('the sample clip and its record', () => {
     expect(clip.words.captureCaption).toBe('SafeOS watching a recorded clip of a kitten. Captured from the app while it ran.');
     expect(Object.keys(clip.words.captureAlt).sort()).toEqual(['landscape', 'phone', 'portrait']);
     for (const text of Object.values(clip.words.captureAlt)) expect(text).toMatch(/kitten/);
+    // The phone crop holds the camera view alone: its text names no meter or indicator outside it.
+    expect(clip.words.captureAlt.phone).not.toMatch(/indicator|meter|reading/i);
     // The words say what the clip shows; none says SafeOS, a phone or a laptop recorded it.
     for (const text of [clip.words.caption, clip.words.description]) {
       expect(text).not.toMatch(/SafeOS|phone|laptop|recorded by/i);

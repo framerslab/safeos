@@ -117,6 +117,37 @@ export const savedMatchFrames = (page: Page): Promise<number> =>
     });
   });
 
+/**
+ * How many saved frames raised the alert (`alerted: true`): the frames whose
+ * alert went down the sound path. A close look under the alert's threshold is
+ * saved too, and is not counted here.
+ */
+export const alertedMatchFrames = (page: Page): Promise<number> =>
+  page.evaluate(async () => {
+    if (!(await indexedDB.databases()).some((database) => database.name === 'safeos-guardian')) return 0;
+    return new Promise<number>((resolve) => {
+      const opening = indexedDB.open('safeos-guardian');
+      opening.onerror = () => resolve(0);
+      opening.onsuccess = () => {
+        const database = opening.result;
+        if (!database.objectStoreNames.contains('match_frame')) {
+          database.close();
+          resolve(0);
+          return;
+        }
+        const reading = database.transaction('match_frame').objectStore('match_frame').getAll();
+        reading.onsuccess = () => {
+          database.close();
+          resolve((reading.result as Array<{ alerted?: boolean }>).filter((frame) => frame.alerted === true).length);
+        };
+        reading.onerror = () => {
+          database.close();
+          resolve(0);
+        };
+      };
+    });
+  });
+
 /** Enrols the striped pet, opens the watch and waits for the comparison to save a close look. */
 export async function watchStripes(page: Page) {
   await enrolPet(page, 'Stripes', await stripedPhoto(page));

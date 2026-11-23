@@ -25,7 +25,7 @@ import { test, expect } from '@playwright/test';
 
 import monitorSettings from '../scripts/home-capture-settings.json';
 import {
-  countOwnSoundPasses, holdSavedSounds, ownSoundCounts, releaseSavedSounds, saveOwnSound, savedMatchFrames, timesPlayed, watchStripes,
+  alertedMatchFrames, countOwnSoundPasses, holdSavedSounds, ownSoundCounts, releaseSavedSounds, saveOwnSound, timesPlayed, watchStripes,
 } from './helpers/own-sound';
 import { setUpDevice } from './helpers/seeded-device';
 import { CAMERA_FILE } from './helpers/striped-subject';
@@ -186,9 +186,10 @@ test('Silent quiet hours that begin while the watch runs keep the next match fro
   // A start already on its way may still count.
   await page.waitForTimeout(1_500);
   const atQuiet = await timesPlayed(page);
-  const framesAtQuiet = await savedMatchFrames(page);
+  const alertsAtQuiet = await alertedMatchFrames(page);
   await page.waitForTimeout(6_000);
-  // The comparison goes on: it saves frames after quiet hours begin.
-  await expect.poll(() => savedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(framesAtQuiet);
+  // The comparison goes on: frames that raised the alert are saved after quiet
+  // hours begin, so each of those alerts went down the sound path.
+  await expect.poll(() => alertedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(alertsAtQuiet);
   expect(await timesPlayed(page), 'no match plays the saved sound once quiet hours begin').toBe(atQuiet);
 });
