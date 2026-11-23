@@ -42,7 +42,7 @@ export function lastWriteRefused(name: string): boolean {
   return refusedKeys.has(name);
 }
 
-/** Calls the listener each time the browser refuses a write through guardedStorage. */
+/** Calls the listener each time the browser refuses a write through guardedStorage, and when a refused key is kept again. */
 export function onWriteRefused(listener: () => void): () => void {
   refusalListeners.add(listener);
   return () => {
@@ -69,7 +69,8 @@ export const guardedStorage: StateStorage = {
   setItem: (name, value) => {
     try {
       window.localStorage.setItem(name, value);
-      refusedKeys.delete(name);
+      // A key refused before and kept now: the readers learn it is kept again.
+      if (refusedKeys.delete(name)) refusalListeners.forEach((listener) => listener());
     } catch (error) {
       refusedKeys.add(name);
       noteStorageFull(error);

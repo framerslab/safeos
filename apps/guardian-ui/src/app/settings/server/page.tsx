@@ -8,7 +8,8 @@
  * with its own Save. A name the server does not take is kept as typed and the
  * page says it was not saved. Offline, Save waits and the page says why. A
  * session made on this device alone sends nothing, and the page says so; a
- * clear of all data while the name saves leaves no copy of it on this device.
+ * clear of all data while the name saves, or another session taking this
+ * tab, leaves no copy of it on this device.
  *
  * @module app/settings/server/page
  */
@@ -101,6 +102,9 @@ export default function YourOwnServerPage() {
       }
       await updateProfile({ displayName: submitted });
       if (!isCurrentLocalData(counter) || readAccountClearMarker() !== marker) return;
+      // Another session now holds this tab: the name went to the one before, so
+      // this device does not keep it as its own.
+      if (useAuthStore.getState().sessionToken !== sessionToken) return;
       keepNameOnDevice(submitted);
       setDeviceName(submitted);
       // A name typed while this one was saving stays as typed.

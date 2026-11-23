@@ -73,7 +73,8 @@ refuses this site's storage keeps the change for the visit, the row says "Not
 saved. This browser is not keeping settings.", and Settings, and each page under
 it, says at its top that the browser is not keeping settings. A device too full
 to take the settings keeps the change for the visit too, and the row and the top
-of each settings page say the same. Motion sensitivity, audio sensitivity and
+of each settings page say the same. The line goes once a later write of the
+settings is kept. Motion sensitivity, audio sensitivity and
 alert volume use the same values as the monitor controls. A volume of zero stays
 zero.
 Emergency alarms retain their explicit full-volume behavior. Quiet hours are

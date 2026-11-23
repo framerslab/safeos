@@ -4,7 +4,7 @@
  * The line at the top of Settings while this browser refuses its storage, or
  * has refused to keep the settings themselves (a device too full to take
  * them), read once by a polite status. A refusal after the page opened shows
- * it too.
+ * it too, and a later write of the settings that is kept takes it away.
  *
  * @module components/settings/StorageLine
  */
