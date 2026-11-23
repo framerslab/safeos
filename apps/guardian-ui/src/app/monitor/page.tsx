@@ -827,6 +827,8 @@ export default function MonitorPage() {
    * notification never carries a picture, and a picture that cannot be drawn
    * leaves the words. A notification ready after a newer alert of its event
    * asked for its own does not go: the newer one stands, a higher level's too.
+   * The switch turned off before a notification goes, while its picture is
+   * drawn or while it waits its turn, sends it with its words alone.
    */
   const maybeNotify = async (note: {
     kind: AlertKind;
@@ -867,7 +869,8 @@ export default function MonitorPage() {
     // one a newer alert of the event asked for while this one waited does not go, so the newer
     // one stands, and a slower answer from the browser never puts an earlier one over a later one.
     await showInTurn(noteTurns.current, notesAsked.current, tag, note.at, () => getNotificationManager().show(title, {
-      image,
+      // The person may have turned the picture off while this waited its turn: the words go alone.
+      image: image && wantsPicture() ? image : undefined,
       body,
       tag,
       // A repeat replaces the earlier notification with the same tag; renotify

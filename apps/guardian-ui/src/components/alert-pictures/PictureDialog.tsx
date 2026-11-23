@@ -159,6 +159,13 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   const busy = useRef(false);
   // Save picture's file while it is made: a delete confirmed meanwhile waits for it.
   const saving = useRef<Promise<void> | null>(null);
+  // Whether this panel is on the page: a delete that goes ahead after it closed leaves alone the
+  // picture opened since.
+  const onPage = useRef(true);
+  useEffect(() => {
+    onPage.current = true;
+    return () => { onPage.current = false; };
+  }, []);
 
   const set = view.status === 'shown' && view.kept !== 'saving' ? view.set : null;
   const loading = view.status === 'loading' || (view.status === 'shown' && view.kept === 'saving');
@@ -265,6 +272,9 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
     busy.current = true;
     const answer = await deletePicture(target, { kind, takenAt: at });
     busy.current = false;
+    // The panel closed while the file was made or the picture deleted: the picture shown now is
+    // another panel's, and it stays open.
+    if (!onPage.current) return;
     if (answer === 'failed') {
       setDeleteFailedId(target);
       deleteRef.current?.focus();

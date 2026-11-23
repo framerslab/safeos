@@ -265,7 +265,8 @@ picture, opens the picture large: **Show the box** hides and shows the box, **Sa
 saves the picture as it shows to the device as `safeos-{kind}-{date}-{time}.jpg` (with the box
 drawn in while it shows), and **Delete picture** asks first, then deletes the picture, its box
 and its close-up; the alert's words stay. A delete confirmed while **Save picture** makes its
-file goes ahead once the file is made. A repeat while the picture is open puts the newest
+file goes ahead once the file is made, also when the picture was closed meanwhile, and a picture
+opened since stays open. A repeat while the picture is open puts the newest
 alert's picture in its place; a delete question, or a failed save or delete, that was about the
 earlier picture leaves with it, and a delete of the earlier picture leaves the newer one open. A
 dark picture offers **Brighten the picture**, which
@@ -347,7 +348,8 @@ alone, while notifications are not allowed (the row offers **Allow notifications
 they are blocked, the switch is inactive and says why. The row reads the browser's answer
 again when the page comes back into view, so notifications allowed in the site settings make
 the switch usable with no reload. Turning the switch in one tab holds in every open tab from the
-next notification.
+next notification. Turned off while a notification's picture is drawn, or while the notification
+waits its turn behind an earlier one of its event, it sends that notification with its words alone.
 
 ## Processing and connection
 
