@@ -66,6 +66,24 @@ html:has(.watch) {
 .watch-grid__side { grid-area: side; }
 .watch-grid__statement { grid-area: statement; }
 .watch-grid__settings { grid-area: settings; }
+.watch-grid__camera { grid-area: camera; }
+
+/* On a phone while watching, the camera menu steps under the alert list, so
+   the newest alert follows Stop watching in the first screen. */
+@media (max-width: 47.99em) {
+  .watch-grid--camera-after {
+    grid-template-areas:
+      "bar"
+      "nap"
+      "frame"
+      "wait"
+      "controls"
+      "side"
+      "camera"
+      "statement"
+      "settings";
+  }
+}
 
 /* The statement: what the watch is for, in the body's size and ink. */
 .watch-statement {
@@ -559,7 +577,11 @@ html.light .watch .watch-camera select {
 }
 
 @media (min-width: 64em) {
+  /* A column is never narrower than its name and state word on one line:
+     the others share what is left, and a strip too narrow for all of them
+     takes a meter onto a second row. */
   .watch-meter:not(.watch-meter--pet):not(.watch-meter--problem) {
+    min-width: max-content;
     grid-template-columns: minmax(0, 1fr) auto;
     grid-template-areas:
       "name state"

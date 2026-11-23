@@ -23,7 +23,7 @@ import { MuteAlerts, MutedLine } from '../../components/watch/MuteAlerts';
 import { AlertPanel } from '../../components/AlertPanel';
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
 import { InlineSettingsPanel } from '../../components/monitor';
-import { WatchForChooser, WatchForPet, useWatchFor, useWideWatch, NO_PET_FRAME_LINE } from '../../components/monitor/WatchFor';
+import { WatchForChooser, WatchForPet, useWatchFor, useWideWatch, usePhoneWatch, NO_PET_FRAME_LINE } from '../../components/monitor/WatchFor';
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from '../../stores/settings-store';
@@ -158,6 +158,7 @@ export default function MonitorPage() {
   const watchFor = useWatchFor(captureRequested);
   const petsMarker = watchFor.petsMarker;
   const wide = useWideWatch();
+  const phone = usePhoneWatch();
   const petCard = wide && watchFor.way === 'lost_found';
 
   // Media overlay state for Lost & Found alerts
@@ -494,6 +495,10 @@ export default function MonitorPage() {
   const framePhase: FramePhase = captureRequested
     ? (!videoSeen ? 'starting' : isStreaming ? 'live' : 'paused')
     : cameraFailure ? 'failed' : stoppedAt !== null ? 'stopped' : 'off';
+
+  // On a phone while watching, Stop watching is followed by the alert list and
+  // the camera menu stands under the list.
+  const cameraAfterList = phone && (framePhase === 'live' || framePhase === 'paused');
 
   // Another camera chosen after a failure is the way out of it: the frame
   // offers Start watching again.
@@ -1330,7 +1335,7 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <main className="watch look-part watch-grid">
+    <main className={`watch look-part watch-grid${cameraAfterList ? ' watch-grid--camera-after' : ''}`}>
       <h1 className="sr-only">Motion and sound</h1>
 
       <div className="watch-grid__bar">
@@ -1426,7 +1431,7 @@ export default function MonitorPage() {
             Stop watching
           </button>
         )}
-        <CameraPicker refreshKey={isStreaming} className="watch-camera" />
+        {!cameraAfterList && <CameraPicker refreshKey={isStreaming} className="watch-camera" />}
       </div>
 
       <div className="watch-grid__settings">
@@ -1618,6 +1623,12 @@ export default function MonitorPage() {
         {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
         <AlertPanel showMute={false} />
       </div>
+
+      {cameraAfterList && (
+        <div className="watch-grid__camera">
+          <CameraPicker refreshKey={isStreaming} className="watch-camera" />
+        </div>
+      )}
 
       <p className="watch-grid__statement watch-statement">
         <Brand>SafeOS</Brand> adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.

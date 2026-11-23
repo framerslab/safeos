@@ -325,6 +325,22 @@ export function useWatchFor(watching: boolean): WatchFor {
 }
 
 const WIDE = '(min-width: 1024px)';
+const PHONE = '(max-width: 47.99em)';
+
+function useWatchWidth(media: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(media).matches
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia(media);
+    const update = () => setMatches(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, [media]);
+  return matches;
+}
 
 /**
  * True from 1024 px, where the pet card heads the right column. Read at once
@@ -332,18 +348,16 @@ const WIDE = '(min-width: 1024px)';
  * choice, so the first render matches the built page either way.
  */
 export function useWideWatch(): boolean {
-  const [wide, setWide] = useState(
-    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(WIDE).matches
-  );
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia(WIDE);
-    const update = () => setWide(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-  return wide;
+  return useWatchWidth(WIDE);
+}
+
+/**
+ * True under 48em, the phone's one column, where the camera menu steps under
+ * the alert list while the watch runs. No watch runs on the first render, so
+ * it matches the built page either way.
+ */
+export function usePhoneWatch(): boolean {
+  return useWatchWidth(PHONE);
 }
 
 // =============================================================================

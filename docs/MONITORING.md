@@ -15,7 +15,9 @@ request. A camera that fails is named inside the frame with its fix and, where a
 press can help, **Try again**. While another tab of this browser watches, **Try
 again** asks "Watch here instead? The other tab stops." first, as **Start
 watching** does. Once the live picture shows, it stands in four corner ticks and
-**Stop watching** stands under it. A device with a camera and no microphone, or
+**Stop watching** stands under it. On a phone the alert list follows **Stop
+watching** while the watch runs, so the newest alert shows in the first screen,
+and the camera menu stands under the list. A device with a camera and no microphone, or
 one whose camera is allowed and whose microphone is blocked, watches video alone,
 from the watch's own key and from the dashboard's, and the Sound meter names the
 missing or blocked microphone while Motion goes on; a microphone lost while watching is named there as missing.
@@ -39,7 +41,9 @@ A screen reader reads each meter's value as "{n} per cent, line at {line}, {stat
 a change of state is not announced. Under reduced motion a meter's shown reading
 changes at most once a second. While Lost and Found compares, the pet's meter names
 the pet and reads "Comparing with {name}'s photos", with no bar and no number. On a
-phone each meter is one row; from a tablet they stand side by side.
+phone each meter is one row; from a tablet they stand side by side, and from
+1024 px each meter's name and state word keep one line over its bar, a longer
+state word widening its column.
 
 ## Settings for this watch
 

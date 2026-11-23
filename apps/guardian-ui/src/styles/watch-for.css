@@ -24,7 +24,9 @@
 }
 
 /* The two options, joined in one control across the column: one edge in the
-   line colour round both, a rule between them, the ring round the group. */
+   line colour round both, a rule between them, the ring round the group. The
+   words stand in the middle of each option with 4 px at either side, so the
+   check and "Motion and sound" keep one line, 48 px tall, from 390 px. */
 .watch-for__options {
   display: flex;
   width: 100%;
@@ -48,7 +50,7 @@
   justify-content: center;
   gap: 6px;
   min-height: 3rem;
-  padding: 6px 12px;
+  padding: 6px 4px;
   font-size: 1rem;
   line-height: 1.4;
   font-weight: var(--weight-regular);
