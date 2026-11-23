@@ -14,7 +14,7 @@ import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useCameraStore } from '@/stores/camera-store';
-import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
+import { BrowserTrack, installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 import { clockTime } from '@/lib/clock-time';
 
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
@@ -511,7 +511,14 @@ it("starts a new watch's Motion meter from nothing, not from the last watch's zo
     act(() => { jest.advanceTimersByTime(1000); });
     expect(valueText('Motion')).toBe('25 per cent, line at 60, Quiet');
     fireEvent.click(screen.getByRole('button', { name: 'Stop watching' }));
-    // The new watch sees a still scene.
+    // The new watch has a camera of its own, and sees a still scene.
+    const tracks = [new BrowserTrack('video'), new BrowserTrack('audio')];
+    browser.getUserMedia.mockResolvedValueOnce({
+      getTracks: () => [...tracks],
+      getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+      getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+      removeTrack: (track: BrowserTrack) => { tracks.splice(tracks.indexOf(track), 1); },
+    } as unknown as MediaStream);
     browser.readFrame.mockImplementation(() => new ImageData(new Uint8ClampedArray(16 * 16 * 4).fill(128), 16, 16));
     await startMonitoring();
     expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
@@ -545,6 +552,7 @@ it('offers Deep Sleep Ultra-Sensitive among the presets under Show settings', as
   useSettingsStore.getState().setActivePreset('maximum');
   render(<MonitorPage />);
   await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Infant' })).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Deep sleep' }));
   expect(useSettingsStore.getState().activePresetId).toBe('deep_sleep_minimal');
 });
