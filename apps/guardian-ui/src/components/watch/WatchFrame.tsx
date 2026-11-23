@@ -5,8 +5,9 @@
  * The panel colour at 16:9 inside four corner ticks. The picture slot is
  * always mounted, so the camera never restarts; over it, until the picture
  * is live, the drawn panel says where the watch stands: Start watching with
- * what the browser will ask, the inactive key while the camera starts, a
- * failure named with its fix and Try again, or the time a camera stopped.
+ * what the browser will ask, the inactive key while the camera starts, that
+ * the camera of a running watch sends no picture, a failure named with its
+ * fix and Try again, or the time a camera stopped.
  *
  * @module components/watch/WatchFrame
  */
@@ -17,7 +18,7 @@ import { CameraGlyph } from './Glyphs';
 import { CAMERA_FAILURE_WORDS, cameraStoppedLine, type CameraFailure } from '../../lib/camera-failure';
 import { NO_PET_FRAME_LINE } from '../monitor/WatchFor';
 
-export type FramePhase = 'off' | 'starting' | 'live' | 'failed' | 'stopped';
+export type FramePhase = 'off' | 'starting' | 'live' | 'paused' | 'failed' | 'stopped';
 
 export interface WatchFrameProps {
   phase: FramePhase;
@@ -42,6 +43,8 @@ export interface WatchFrameProps {
 export const STARTING_WORDS = 'Starting the camera…';
 export const ASK_LINE = 'Your browser will ask you to allow the camera and microphone.';
 export const OTHER_TAB_LINE = 'Watching in another tab';
+/** Over the picture while a watch's camera sends no picture: muted, or another camera starting. */
+export const PAUSED_LINE = 'The camera is not sending a picture. Watching resumes when the picture returns.';
 
 /** The inactive key while the camera starts: a second press does nothing. */
 function StartingKey() {
@@ -72,7 +75,7 @@ export function WatchFrame({
   useEffect(() => {
     const was = previous.current;
     previous.current = phase;
-    if (was !== 'starting' && was !== 'live') return;
+    if (was !== 'starting' && was !== 'live' && was !== 'paused') return;
     if (phase !== 'off' && phase !== 'failed' && phase !== 'stopped') return;
     drawnRef.current?.querySelector<HTMLButtonElement>('button:not([aria-disabled="true"])')?.focus();
   }, [phase]);
@@ -108,6 +111,12 @@ export function WatchFrame({
                 {askLine && <p className="watch-frame__line">{ASK_LINE}</p>}
               </>
             )}
+            {phase === 'paused' && (
+              <>
+                <CameraGlyph />
+                <p className="watch-frame__line">{PAUSED_LINE}</p>
+              </>
+            )}
             {phase === 'failed' && failure && (
               <>
                 <p role="status" aria-live="polite" className="watch-frame__line watch-frame__problem">
@@ -140,7 +149,7 @@ export function WatchFrame({
       {strip}
       <CornerTicks />
       <p role="status" aria-live="polite" className="sr-only">
-        {phase === 'starting' ? STARTING_WORDS : ''}
+        {phase === 'starting' ? STARTING_WORDS : phase === 'paused' ? PAUSED_LINE : ''}
       </p>
     </div>
   );

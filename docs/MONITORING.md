@@ -15,9 +15,10 @@ request. A camera that fails is named inside the frame with its fix and, where a
 press can help, **Try again**. While another tab of this browser watches, **Try
 again** asks "Watch here instead? The other tab stops." first, as **Start
 watching** does. Once the live picture shows, it stands in four corner ticks and
-**Stop watching** stands under it. A device with a camera and no microphone
-watches video alone, and the Sound meter names the missing or blocked microphone
-while Motion goes on; a microphone lost while watching is named there as missing.
+**Stop watching** stands under it. A device with a camera and no microphone, or
+one whose camera is allowed and whose microphone is blocked, watches video alone,
+from the watch's own key and from the dashboard's, and the Sound meter names the
+missing or blocked microphone while Motion goes on; a microphone lost while watching is named there as missing.
 Setup's **Grant Permissions** also completes with the camera alone.
 
 ## The meters
@@ -58,7 +59,9 @@ entries' place.
 ## Watch for
 
 Monitor opens with one row, at every width from 320 px: **Watch for** and **Mute
-alerts**. Two options stand in that row from 1024 px and under it below, above the
+alerts**. While alerts are muted, a line under the row reads "Alerts are muted. New
+alerts show here without a sound. One left unanswered until it reaches Emergency
+sounds its alarm.": the Emergency step of an unanswered alert always sounds. Two options stand in that row from 1024 px and under it below, above the
 camera and the settings: **Motion and sound** (chosen on a fresh device) and **Lost and
 Found**. Motion and sound sounds an alert on this device when something moves or
 makes a sound. Lost and Found does the same and, while the watch runs, compares
@@ -142,8 +145,10 @@ camera while monitoring releases the old feed before requesting the selected one
 An ended video track (camera unplugged, switched off or taken away by the system)
 stops watching, and the frame says "The camera stopped at {time}. Press Start
 watching to start again." with **Start watching** under it. A muted video track (the
-device stops sending video for a while) pauses frame analysis; when the track
-unmutes, watching resumes on its own. An ended or muted microphone stops audio
+device stops sending video for a while) pauses frame analysis, and the frame says
+"The camera is not sending a picture. Watching resumes when the picture returns."
+with **Stop watching** under it, as it does while another camera chosen during a
+watch starts; when the track unmutes, watching resumes on its own. An ended or muted microphone stops audio
 analysis while video watching continues, and the Sound meter says "No microphone
 found. Sound alerts are off. Connect a microphone, then stop and start watching."
 

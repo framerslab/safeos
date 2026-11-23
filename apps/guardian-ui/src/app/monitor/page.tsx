@@ -478,8 +478,10 @@ export default function MonitorPage() {
     }
   };
 
+  // A watch whose camera sends no picture (a muted camera, or another camera
+  // chosen while it starts) is not shown as live: no picture is read then.
   const framePhase: FramePhase = captureRequested
-    ? (videoSeen ? 'live' : 'starting')
+    ? (!videoSeen ? 'starting' : isStreaming ? 'live' : 'paused')
     : cameraFailure ? 'failed' : stoppedAt !== null ? 'stopped' : 'off';
 
   // Another camera chosen after a failure is the way out of it: the frame
@@ -1334,7 +1336,7 @@ export default function MonitorPage() {
             getSoundManager().unlockAudio();
             void guard(startStream, key);
           }}
-          strip={(framePhase === 'starting' || framePhase === 'live') && (
+          strip={(framePhase === 'starting' || framePhase === 'live' || framePhase === 'paused') && (
             <Meters rows={meterRows} pet={meterPet} microphone={microphone} />
           )}
         >
@@ -1376,7 +1378,7 @@ export default function MonitorPage() {
             Cancel
           </button>
         )}
-        {framePhase === 'live' && (
+        {(framePhase === 'live' || framePhase === 'paused') && (
           <button type="button" className="key key--outline watch-stop" onClick={stopWatching}>
             Stop watching
           </button>

@@ -14,7 +14,7 @@ import { getAudioLevel, detectCryingPattern, resetCryDetection, AUDIO_THRESHOLDS
 import { PixelDetectionEngine, type PixelDetectionResult } from '../lib/pixel-detection';
 import { useSettingsStore, type DetectionZone as SettingsDetectionZone } from '../stores/settings-store';
 import { closeCamera, takeHeldCamera } from '@/lib/camera-handoff';
-import { cameraConstraints } from '@/lib/camera-constraints';
+import { cameraAllowed, cameraConstraints, microphoneLeftOut } from '@/lib/camera-constraints';
 
 // =============================================================================
 // Types
@@ -88,16 +88,6 @@ const AUDIO_INTERVAL = 100; // Audio level every 100ms
 // =============================================================================
 // CameraFeed Component
 // =============================================================================
-
-/** True when the browser reads the camera as allowed for this site. */
-async function cameraAllowed(): Promise<boolean> {
-  try {
-    const status = await navigator.permissions?.query({ name: 'camera' as PermissionName });
-    return status?.state === 'granted';
-  } catch {
-    return false;
-  }
-}
 
 export function CameraFeed({
   onFrame,
@@ -284,6 +274,12 @@ export function CameraFeed({
           closeCamera(acquired);
           acquired = null;
         }
+      }
+      // A held camera the dashboard opened without its microphone names why.
+      const heldWithoutSound = acquired ? microphoneLeftOut(acquired) : null;
+      if (heldWithoutSound && audioEnabled) {
+        withoutSound = true;
+        onMicrophoneRef.current?.(heldWithoutSound);
       }
       if (!acquired) {
         try {
