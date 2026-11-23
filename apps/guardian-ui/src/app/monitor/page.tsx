@@ -43,7 +43,7 @@ import { cameraFailureOf, type CameraFailure, type MicrophoneProblem } from '../
 import { WatchFrame, type FramePhase } from '../../components/watch/WatchFrame';
 import { Meters, type MeterRow } from '../../components/watch/Meters';
 import { SettingsFold } from '../../components/watch/SettingsFold';
-import { levelMeter, pictureChangeMeter } from '../../lib/watch-meters';
+import { levelMeter, pictureChangeMeter, pictureChangeRatio } from '../../lib/watch-meters';
 import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
 import { useStartGuard } from '../../lib/start-guard';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
@@ -163,7 +163,6 @@ export default function MonitorPage() {
   const [showMediaOverlay, setShowMediaOverlay] = useState(false);
   const [mediaOverlayData, setMediaOverlayData] = useState<{
     subjectName: string;
-    confidence: number;
     images: string[];
   } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -337,8 +336,9 @@ export default function MonitorPage() {
 
         // Show notification if enabled
         if (lostFoundSettings.alertNotification && 'Notification' in window && Notification.permission === 'granted') {
-          void showBrowserNotification('Potential Match Detected!', {
-            body: `${activeSubject.name} - ${result.confidence}% confidence`,
+          // The alert list's words: the pet's colours, never a score or a find.
+          void showBrowserNotification('Lost and Found alert', {
+            body: `Colours like ${activeSubject.name}’s`,
             icon: activeSubject.referenceImages[0],
           });
         }
@@ -347,7 +347,6 @@ export default function MonitorPage() {
         if (lostFoundSettings.customMediaEnabled && activeSubject.referenceImages.length > 0) {
           setMediaOverlayData({
             subjectName: activeSubject.name,
-            confidence: result.confidence,
             images: activeSubject.referenceImages,
           });
           setShowMediaOverlay(true);
@@ -451,10 +450,21 @@ export default function MonitorPage() {
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
+    forgetReadings();
+  };
+
+  // A new watch's meters start from its own camera's readings, never from
+  // the last watch's.
+  const forgetReadings = () => {
+    setMotionZone(null);
+    setPixelZoneStatus(null);
+    setMotionScore(0);
+    setAudioLevel(0);
   };
 
   const stopStream = () => {
     stopOwnLostFoundSounds(true);
+    forgetReadings();
     captureRequestedRef.current = false;
     setCaptureRequested(false);
     setVideoSeen(false);
@@ -489,6 +499,30 @@ export default function MonitorPage() {
   useEffect(() => {
     if (!captureRequestedRef.current) setCameraFailure(null);
   }, [deviceId]);
+
+  // The chosen camera that was unavailable and is connected again is the
+  // other way out: once the browser lists it, the frame offers Start watching.
+  useEffect(() => {
+    if (cameraFailure !== 'gone') return;
+    const media = navigator.mediaDevices;
+    if (!media?.enumerateDevices || !media.addEventListener) return;
+    let live = true;
+    const listed = async () => {
+      try {
+        const devices = await media.enumerateDevices();
+        const cameras = devices.filter((device) => device.kind === 'videoinput');
+        const back = deviceId ? cameras.some((device) => device.deviceId === deviceId) : cameras.length > 0;
+        if (live && back && !captureRequestedRef.current) setCameraFailure(null);
+      } catch {
+        // A list the browser refuses leaves the failure named.
+      }
+    };
+    media.addEventListener('devicechange', listed);
+    return () => {
+      live = false;
+      media.removeEventListener('devicechange', listed);
+    };
+  }, [cameraFailure, deviceId]);
 
   const stopStreamRef = useRef(stopStream);
   stopStreamRef.current = stopStream;
@@ -1122,7 +1156,14 @@ export default function MonitorPage() {
       zoneName: chosenZoneName ?? fullZone?.name ?? (enabledZones.length === 0 ? 'Full Screen' : null),
       changedPx: chosenChangedPx,
       thresholdPx: chosenThresholdPx,
-      ratio: ratioNow,
+      // The meter reads on the scale the check used: in the share mode the
+      // changed share of the picture against the check's share, not the count.
+      ratio: pictureChangeRatio({
+        useAbsoluteThreshold: currentPreset.useAbsoluteThreshold,
+        changedPx: chosenChangedPx,
+        thresholdPx: chosenThresholdPx,
+        difference: result.difference,
+      }),
       triggered,
     });
 
@@ -1714,7 +1755,6 @@ export default function MonitorPage() {
             setMediaOverlayData(null);
           }}
           subjectName={mediaOverlayData.subjectName}
-          confidence={mediaOverlayData.confidence}
           images={mediaOverlayData.images}
         />
       )}

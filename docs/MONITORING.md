@@ -31,7 +31,10 @@ the bar fills in green up to the line and in the alert colour past it. With
 detection zones, the Motion meter reads the zone that stands highest over its own
 line, a full-screen zone's own Motion sensitivity included, as its alert does.
 Before the first reading after a press the names stand over empty tracks with no
-state word.
+state word, and a new watch's meters start from its own camera's readings, never
+from the last watch's. **Picture change** reads on the scale its check uses: the
+changed pixels against the pixel count, or, where the setting checks a share of the
+picture, the changed share against the check's 1 per cent.
 A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";
 a change of state is not announced. Under reduced motion a meter's shown reading
 changes at most once a second. While Lost and Found compares, the pet's meter names
@@ -45,8 +48,9 @@ watch**, with **Show settings** at its right; a press anywhere along the row ope
 them in place and the key reads **Hide settings**. The choice is kept on this
 device (`safeos-watch-view`, cleared by Clear All Local Data). Open, they hold the
 link **Nap Mode**, the preset card (its name, description, Pixel Threshold, Motion
-and Audio, **Calibrate Baseline**, Fine-Tune) and the detection settings. The
-preset card shows **Interval** only while this device's own server is connected.
+and Audio, **Calibrate Baseline**, Fine-Tune) and the detection settings, whose mode keys
+include **Deep sleep** (Deep Sleep Ultra-Sensitive). The preset card shows
+**Interval** only while this device's own server is connected.
 
 ## The alert list
 
@@ -54,7 +58,8 @@ The alert list stands on the page under the heading **Alerts**; while any alert 
 new, the count of new alerts stands beside it. With no alert in the list it says
 "Alerts show here while this device watches." before a watch and "No alert so
 far." while watching; while the saved alerts are read, three bars hold the
-entries' place.
+entries' place. When the saved alerts cannot be read, it says "The saved alerts
+could not be read on this device. New alerts show here." in place of an empty list.
 
 ## Watch for
 
@@ -80,8 +85,10 @@ and the pet it shows.
 
 The address names the way and the pet: `/monitor/?way=lost-found&pet=<id>` opens
 Lost and Found with that saved pet, `/monitor/?way=monitor` opens Motion and sound,
-and an address with no way keeps the stored choice. Each change of way or pet on
-the page writes the address in place, so a bookmark or a reload of that address
+and an address with no way keeps the stored choice. The address is read once the
+saved pets are read; a way or a pet chosen on Watch for before then stands, and is
+written to the address. Each change of way or pet on the page writes the address
+in place, so a bookmark or a reload of that address
 opens the same watch; `/monitor/` opened with no way follows the choice this device
 keeps, and so does a bookmark of it. The pet is kept as `chosenPetId` in the Lost & Found store;
 until one is chosen it is the newest saved pet. A thing saved on the Lost &
@@ -136,6 +143,9 @@ failed request the step says what happened and its key reads **Try again**:
 | The camera chosen in the menu is gone | The selected camera is unavailable. Choose another camera. |
 | The browser has no camera support on the page | This browser cannot use a camera on this page. |
 | Anything else | Unable to access the camera or microphone. Check the device and try again. |
+
+On the watch, a selected camera that is unavailable and is connected again clears
+its failure once the browser lists it, and the frame offers **Start watching**.
 
 **Stop watching**, leaving Monitor, or cancelling startup releases all acquired
 tracks and audio analysis resources. A browser permission prompt may remain open
@@ -196,8 +206,10 @@ that has a named setting.
 
 A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
 **Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
-sound is on. With Lost & Found's custom media on, the full-screen media takes the
-built-in sound's place: the saved sounds play and the built-in alert sound does not. A saved sound that still plays is not started again by the next
+sound is on. Its browser notification reads "Lost and Found alert" with "Colours
+like {name}'s", and the full-screen media reads "Lost and Found alert" and "Colours
+like {name}'s", as the alert list does, with no score. With Lost & Found's custom
+media on, the full-screen media takes the built-in sound's place: the saved sounds play and the built-in alert sound does not. A saved sound that still plays is not started again by the next
 matching frame, and it stops when the watch stops, when Lost & Found stops
 watching or its pet changes, and when the page closes. A start on its way when
 the watch stops plays nothing, a sound set to repeat starts no further pass once

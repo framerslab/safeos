@@ -62,10 +62,13 @@ export interface PixelDetectionOptions {
   downsampleFactor: number;        // Downsample for performance (1 = full, 2 = half, etc.)
 }
 
+/** The share of the picture, in per cent, that changes before the check says yes in its share mode. */
+export const DEFAULT_MIN_CHANGE_PERCENT = 1;
+
 const DEFAULT_OPTIONS: PixelDetectionOptions = {
   threshold: 30,
   gridSize: 8,
-  minChangePercent: 1,
+  minChangePercent: DEFAULT_MIN_CHANGE_PERCENT,
   colorWeight: { r: 0.299, g: 0.587, b: 0.114 }, // Luminance weights
   absolutePixelThreshold: 100,  // Default: 100 pixels must change
   useAbsoluteThreshold: false,  // Default: use percentage

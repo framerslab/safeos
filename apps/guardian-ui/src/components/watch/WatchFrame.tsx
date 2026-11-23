@@ -114,7 +114,9 @@ export function WatchFrame({
             {phase === 'paused' && (
               <>
                 <CameraGlyph />
-                <p className="watch-frame__line">{PAUSED_LINE}</p>
+                <p role="status" aria-live="polite" className="watch-frame__line">
+                  {PAUSED_LINE}
+                </p>
               </>
             )}
             {phase === 'failed' && failure && (
@@ -149,7 +151,7 @@ export function WatchFrame({
       {strip}
       <CornerTicks />
       <p role="status" aria-live="polite" className="sr-only">
-        {phase === 'starting' ? STARTING_WORDS : phase === 'paused' ? PAUSED_LINE : ''}
+        {phase === 'starting' ? STARTING_WORDS : ''}
       </p>
     </div>
   );

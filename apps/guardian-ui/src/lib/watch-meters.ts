@@ -10,6 +10,8 @@
  * @module lib/watch-meters
  */
 
+import { DEFAULT_MIN_CHANGE_PERCENT } from './pixel-detection';
+
 export type MeterState = 'loading' | 'quiet' | 'over' | 'no-alert';
 
 export interface MeterReading {
@@ -35,6 +37,26 @@ export function levelMeter(level: number | null, line: number, enabled: boolean)
   const value = held(Math.round(level), 0, 100);
   if (!enabled) return { value, line: null, state: 'no-alert' };
   return { value, line, state: value >= line ? 'over' : 'quiet' };
+}
+
+/**
+ * How far a Picture change reading stands towards the check's yes, 1 at the
+ * yes: in the count mode the changed pixels against the count's line, in the
+ * share mode the changed share of the picture against the check's share.
+ */
+export function pictureChangeRatio({
+  useAbsoluteThreshold,
+  changedPx,
+  thresholdPx,
+  difference,
+}: {
+  useAbsoluteThreshold: boolean;
+  changedPx: number;
+  thresholdPx: number;
+  difference: number;
+}): number {
+  if (useAbsoluteThreshold) return thresholdPx > 0 ? changedPx / thresholdPx : 0;
+  return difference / DEFAULT_MIN_CHANGE_PERCENT;
 }
 
 /** Picture change's meter, or none where the setting does not check it. */

@@ -247,14 +247,22 @@ export function useWatchFor(watching: boolean): WatchFor {
     };
   }, [way]);
 
+  // Set by a choice the person makes on Watch for; one made before the
+  // address is read stands over what the address names.
+  const choseRef = useRef(false);
   const chooseWay = useCallback(
-    (next: WatchWay) => setLostFoundChosen(next === 'lost_found'),
+    (next: WatchWay) => {
+      choseRef.current = true;
+      setLostFoundChosen(next === 'lost_found');
+    },
     [setLostFoundChosen]
   );
   const choosePet = useCallback(
     (id: string) => {
       const chosen = pets.find((saved) => saved.id === id);
-      if (chosen) setActiveSubject(toSubject(chosen));
+      if (!chosen) return;
+      choseRef.current = true;
+      setActiveSubject(toSubject(chosen));
     },
     [pets, setActiveSubject]
   );
@@ -262,13 +270,19 @@ export function useWatchFor(watching: boolean): WatchFor {
   // The address names the way and the pet (`?way=lost-found&pet=<id>` or
   // `?way=monitor`), so a bookmark or a reload opens the same watch. It is
   // read once, after the saved pets are read: a pet it names is chosen when
-  // it is a saved pet, and no way named keeps the stored choice.
+  // it is a saved pet, and no way named keeps the stored choice. A choice
+  // made on Watch for while the pets were read stands, and is written to the
+  // address in place of what it named.
   const [addressRead, setAddressRead] = useState(false);
+  const writtenRef = useRef<string | null>(null);
   useEffect(() => {
     if (addressRead || petsRead === 'loading') return;
     const params = new URLSearchParams(window.location.search);
     const named = params.get('way');
-    if (named === 'lost-found') {
+    if (choseRef.current) {
+      if (named === 'lost-found') writtenRef.current = `lost-found:${params.get('pet') ?? ''}`;
+      else if (named === 'monitor') writtenRef.current = 'monitor';
+    } else if (named === 'lost-found') {
       setLostFoundChosen(true);
       const petId = params.get('pet');
       const saved = petId ? pets.find((held) => held.id === petId) : undefined;
@@ -281,7 +295,6 @@ export function useWatchFor(watching: boolean): WatchFor {
 
   // Each change of way or pet afterwards writes the address in place, other
   // parameters kept.
-  const writtenRef = useRef<string | null>(null);
   const petId = pet?.id ?? null;
   useEffect(() => {
     if (!addressRead) return;

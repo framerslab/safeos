@@ -51,6 +51,17 @@ const PRESET_BUTTONS: { id: PresetId; label: string; icon: React.ReactNode; colo
     color: 'bg-amber-500/20 text-amber-400 border-amber-500/50',
   },
   {
+    id: 'deep_sleep_minimal',
+    label: 'Deep sleep',
+    icon: (
+      <svg className="w-4 h-4 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M4 6h6l-6 8h6" />
+        <path d="M14 12h6l-6 8h6" />
+      </svg>
+    ),
+    color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50',
+  },
+  {
     id: 'silent',
     label: 'Silent',
     icon: (

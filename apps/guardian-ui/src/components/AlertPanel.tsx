@@ -83,6 +83,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
   
   const alerts = propAlerts || storeAlerts || [];
   const alertsRead = propAlerts !== undefined || storeRead;
+  // A failed read of the saved alerts is not an empty history.
+  const storeReadFailed = useMonitoringStore((state) => state.alertsReadFailed);
+  const readFailed = propAlerts === undefined && storeReadFailed;
   const [escalationLevels, setEscalationLevels] = useState<Map<string, number>>(new Map());
   const escalationLevelsRef = useRef<Map<string, number>>(new Map());
   const [muted, setMuted] = useState(false);
@@ -319,7 +322,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
       {/* Content */}
       <div className="watch-list__body">
         {alerts.length === 0 ? (
-          alertsRead ? <EmptyState /> : <ListWaits />
+          readFailed ? <ReadFailed /> : alertsRead ? <EmptyState /> : <ListWaits />
         ) : (
           <div className="divide-y divide-slate-700/50">
             {/* Unacknowledged alerts */}
@@ -488,6 +491,18 @@ function EmptyState() {
     <div className="watch-list__empty">
       <BellGlyph />
       <p>{isStreaming ? 'No alert so far.' : 'Alerts show here while this device watches.'}</p>
+    </div>
+  );
+}
+
+export const ALERTS_READ_FAILED = 'The saved alerts could not be read on this device. New alerts show here.';
+
+/** In place of the empty list when the saved alerts could not be read. */
+function ReadFailed() {
+  return (
+    <div className="watch-list__empty">
+      <BellGlyph />
+      <p role="status">{ALERTS_READ_FAILED}</p>
     </div>
   );
 }
