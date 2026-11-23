@@ -3195,7 +3195,6 @@ export async function checkApp(browser, baseUrl, outDir) {
         name: name?.textContent.trim() ?? '',
         top: box(meter).top,
         sameLine: name && state ? Math.abs(middle(name) - middle(state)) <= 1 : false,
-        nameOneLine: name ? box(name).height <= parseFloat(getComputedStyle(name).lineHeight) * 1.5 : false,
         trackUnder: name && track ? box(track).top >= box(name).bottom - 0.5 : false,
         sizes: [name, state].filter(Boolean).map((part) => parseFloat(getComputedStyle(part).fontSize)),
         nameRatio: name ? ratio(name) : 0,
@@ -3215,9 +3214,6 @@ export async function checkApp(browser, baseUrl, outDir) {
         await page.getByRole('button', { name: 'Start watching', exact: true }).click();
         await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
         await page.locator('.watch-meter__state').first().waitFor({ timeout: 10_000 }).catch(() => {});
-        // The changing picture puts a meter over its line: its longer state
-        // word stands beside its name.
-        await page.waitForFunction(() => [...document.querySelectorAll('.watch-meter__state')].some((state) => state.textContent.trim() !== 'Quiet'), null, { timeout: 8_000 }).catch(() => {});
         const read = await meterReading(page);
         check(read.meters.length > 0, `at ${width} px the live picture shows no meter`);
         check(read.inside, `at ${width} px the meters' strip is not inside the frame`);
@@ -3225,10 +3221,23 @@ export async function checkApp(browser, baseUrl, outDir) {
         for (const meter of read.meters) {
           if (width === 390 || width === 1280) check(meter.sameLine, `at ${width} px the meter ${meter.name} has its name and state word on two lines`);
           if (width === 390) check(meter.trackUnder, `at 390 px the meter ${meter.name} has its bar beside its name, not under it`);
-          if (width >= 1024) check(meter.nameOneLine, `at ${width} px the meter's name ${meter.name} breaks onto two lines`);
           check(meter.sizes.every((size) => size >= 15.5), `at ${width} px the meter ${meter.name} has words of ${meter.sizes.join(', ')} px`);
           check(meter.nameRatio >= 12, `at ${width} px the name ${meter.name} stands at ${meter.nameRatio.toFixed(2)}:1, under 12:1`);
           check(meter.stateRatio >= 7, `at ${width} px the state word of ${meter.name} stands at ${meter.stateRatio.toFixed(2)}:1, under 7:1`);
+        }
+        // From 1024 px each name keeps one line beside its longest state word,
+        // "Over the line", written into every meter at once.
+        if (width >= 1024) {
+          const longest = await page.evaluate(() => [...document.querySelectorAll('.watch-meter:not(.watch-meter--pet)')].map((meter) => {
+            const name = meter.querySelector('.watch-meter__name');
+            const state = meter.querySelector('.watch-meter__state');
+            if (state) state.textContent = 'Over the line';
+            return {
+              name: name?.textContent.trim() ?? '',
+              oneLine: name ? name.getBoundingClientRect().height <= parseFloat(getComputedStyle(name).lineHeight) * 1.5 : false,
+            };
+          }));
+          for (const meter of longest) check(meter.oneLine, `at ${width} px the meter's name ${meter.name} breaks onto two lines beside "Over the line"`);
         }
         if (width === 820 && read.meters.length > 1) {
           const tops = read.meters.map((meter) => Math.round(meter.top));
