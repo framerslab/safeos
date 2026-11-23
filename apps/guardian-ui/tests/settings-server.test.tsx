@@ -19,10 +19,12 @@ jest.mock('@/contexts/BackendStatusContext', () => ({
 
 const NOT_SAVED = 'Your name was not saved. Try again.';
 const OFFLINE = 'Your server cannot be reached while this device is offline.';
+const NO_SESSION = 'This device is not signed in to your server, so your name was not sent.';
 
-function withProfile(updateProfile: jest.Mock) {
+function withProfile(updateProfile: jest.Mock, sessionToken = 'server-session-1') {
   useAuthStore.setState({
     profile: { id: 'person-1', displayName: 'Sam', preferences: {} } as never,
+    sessionToken,
     updateProfile,
   } as never);
 }
@@ -131,4 +133,33 @@ it('keeps Save waiting while the device is offline, and says why', async () => {
   fireEvent.click(save);
   await act(async () => {});
   expect(updateProfile).not.toHaveBeenCalled();
+});
+
+it('keeps no name on this device when all data is cleared while the name saves', async () => {
+  // The server answers once another tab has cleared all data: the clear moves
+  // the account marker and takes the device's profile choices with it.
+  const updateProfile = jest.fn(async () => {
+    localStorage.setItem('safeos_account_data_cleared', 'cleared-in-another-tab');
+    localStorage.removeItem('safeos_user_settings');
+  });
+  withProfile(updateProfile);
+  render(<ServerPage />);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Your name on your server' }), { target: { value: 'Robin' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  await waitFor(() => expect(updateProfile).toHaveBeenCalledWith({ displayName: 'Robin' }));
+  await act(async () => {});
+  expect(localStorage.getItem('safeos_user_settings')).toBeNull();
+  expect(screen.queryByText('Saved')).toBeNull();
+});
+
+it('sends nothing and says so when this device holds no session on the server', async () => {
+  const updateProfile = jest.fn().mockResolvedValue(undefined);
+  withProfile(updateProfile, 'local-guest-1');
+  render(<ServerPage />);
+  fireEvent.change(screen.getByRole('textbox', { name: 'Your name on your server' }), { target: { value: 'Robin' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText(NO_SESSION)).toBeTruthy();
+  expect(updateProfile).not.toHaveBeenCalled();
+  expect(screen.queryByText('Saved')).toBeNull();
+  expect(screen.getByRole('textbox', { name: 'Your name on your server' })).toHaveProperty('value', 'Robin');
 });

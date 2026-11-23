@@ -18,7 +18,8 @@ import { SettingsList } from '@/components/settings/SettingsList';
 import { readBrowserNotificationsOn, writeNotificationChoices } from '@/lib/notification-choices';
 import { petForWatch } from '@/lib/next-way';
 import { clockTimeOf } from '@/lib/settings-values';
-import { saveSubjectProfile, type SubjectProfileDB } from '@/lib/client-db';
+import { deleteSubjectProfile, saveSubjectProfile, type SubjectProfileDB } from '@/lib/client-db';
+import { ACCOUNT_CLEAR_MARKER_KEY } from '@/lib/local-data-generation';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useLostFoundStore } from '@/stores/lost-found-store';
@@ -30,6 +31,15 @@ const bare = (address: string | null | undefined) => (address || '').replace(/(?
 jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ status: { api: 'disconnected' }, config: { apiUrl: mockApiUrl } }),
 }));
+// Set to make the read of the person's own sounds fail, as a blocked database does.
+let mockSoundsFail = false;
+jest.mock('@/lib/custom-sounds-db', () => {
+  const actual = jest.requireActual('@/lib/custom-sounds-db');
+  return {
+    ...actual,
+    getAllCustomSounds: () => (mockSoundsFail ? Promise.reject(new Error('blocked')) : actual.getAllCustomSounds()),
+  };
+});
 jest.mock('next/navigation', () => ({
   usePathname: () => '/settings/',
   useRouter: () => ({ push: jest.fn(), replace: jest.fn(), back: jest.fn() }),
@@ -84,6 +94,7 @@ async function settle() {
 
 beforeEach(() => {
   mockApiUrl = '';
+  mockSoundsFail = false;
   localStorage.clear();
   useSettingsStore.getState().resetToDefaults();
   useOnboardingStore.setState({ lostFoundChosen: false, selectedScenario: null });
@@ -264,4 +275,31 @@ it('wraps a long pet name inside its row', async () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles', 'settings.css'), 'utf8');
   expect(css).toMatch(/\.set-row__value\s*\{[^}]*overflow-wrap:\s*anywhere/);
   expect(css).toMatch(/\.set-link__words\s*\{[^}]*min-width:\s*0/);
+});
+
+it('drops the pet once another tab clears all data', async () => {
+  useOnboardingStore.setState({ lostFoundChosen: true });
+  await saveSubjectProfile(pet('pet-cleared', 'Pepper', new Date(9000).toISOString()));
+  render(<SettingsList />);
+  await settle();
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+  expect(descriptionOf(rows()[0])).toBe('Lost and Found for Pepper, motion 80, sound 80');
+  // Another tab clears all data: the pets leave the database and the account marker moves.
+  await deleteSubjectProfile('pet-cleared');
+  for (const saved of ['pet-1', 'pet-9']) await deleteSubjectProfile(saved).catch(() => undefined);
+  await act(async () => {
+    localStorage.setItem(ACCOUNT_CLEAR_MARKER_KEY, 'cleared-in-another-tab');
+    window.dispatchEvent(new StorageEvent('storage', { key: ACCOUNT_CLEAR_MARKER_KEY, newValue: 'cleared-in-another-tab' }));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  });
+  expect(descriptionOf(rows()[0])).toBe('Standard, motion 80, sound 80');
+});
+
+it('says the sounds of your own could not be read, not that there are none', async () => {
+  mockSoundsFail = true;
+  render(<SettingsList />);
+  await settle();
+  expect(descriptionOf(screen.getByRole('link', { name: 'Alert sounds' }))).toBe('Volume 100, your own sounds could not be read');
 });

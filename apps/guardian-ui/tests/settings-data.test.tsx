@@ -14,6 +14,9 @@ import './helpers/browser-data';
 import { cacheAlert, saveMatchFrame, saveSubjectProfile } from '@/lib/client-db';
 import { countKept, keptOnDeviceWords } from '@/lib/kept-on-device';
 import DataPage from '@/app/settings/data/page';
+import { useAnimalAlertStore } from '@/stores/animal-alert-store';
+import { useThemeStore } from '@/lib/theme-manager';
+import { writeNotificationChoices } from '@/lib/notification-choices';
 
 const mockClear = jest.fn<Promise<void>, []>();
 jest.mock('@/lib/local-data', () => ({
@@ -148,9 +151,97 @@ it('downloads the settings as a file and says so', async () => {
     expect(downloads).toEqual(['safeos-settings-2026-11-22.json']);
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     expect(made[0].type).toBe('application/json');
+    const text = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(made[0]);
+    });
+    const data = JSON.parse(text);
+    expect(data.globalSettings.alertVolume).toBe(100);
     const status = await screen.findByText('Downloaded safeos-settings-2026-11-22.json.');
     expect(status.closest('[role="status"]')).toBeTruthy();
   } finally {
     jest.useRealTimers();
+  }
+});
+
+it('adds the offline sentence when the connection drops while it asks', async () => {
+  let online = true;
+  jest.spyOn(Navigator.prototype, 'onLine', 'get').mockImplementation(() => online);
+  const clear = mockClear.mockResolvedValue(undefined);
+  render(<DataPage />);
+  await settle();
+  fireEvent.click(screen.getByRole('button', { name: 'Clear all data on this device' }));
+  expect(screen.getByText(QUESTION)).toBeTruthy();
+  online = false;
+  act(() => {
+    window.dispatchEvent(new Event('offline'));
+  });
+  expect(screen.getByText(QUESTION + OFFLINE)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+  expect(clear).not.toHaveBeenCalled();
+});
+
+it('shows the offline sentence before it clears, when the connection dropped unseen', async () => {
+  let online = true;
+  jest.spyOn(Navigator.prototype, 'onLine', 'get').mockImplementation(() => online);
+  const clear = mockClear.mockResolvedValue(undefined);
+  render(<DataPage />);
+  await settle();
+  fireEvent.click(screen.getByRole('button', { name: 'Clear all data on this device' }));
+  // The connection is gone, and the page has not been told yet.
+  online = false;
+  fireEvent.click(screen.getByRole('button', { name: 'Clear all data' }));
+  expect(screen.getByText(QUESTION + OFFLINE)).toBeTruthy();
+  await settle();
+  expect(clear).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Clear all data' }));
+  await waitFor(() => expect(clear).toHaveBeenCalledTimes(1));
+});
+
+it('exports the look and the notification choices made from the same list', async () => {
+  const made: Blob[] = [];
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, writable: true, value: (blob: Blob) => {
+    made.push(blob);
+    return 'blob:settings';
+  } });
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, writable: true, value: jest.fn() });
+  jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+  act(() => {
+    useThemeStore.getState().updateAccessibility({ largeText: true });
+    writeNotificationChoices({ browserPush: false });
+  });
+  try {
+    render(<DataPage />);
+    await settle();
+    fireEvent.click(screen.getByRole('button', { name: 'Export settings' }));
+    const text = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(made[0]);
+    });
+    const data = JSON.parse(text);
+    expect(data.look.largeText).toBe(true);
+    expect(data.notifications.browserPush).toBe(false);
+    expect(data.globalSettings).toBeTruthy();
+  } finally {
+    useThemeStore.getState().resetAccessibility();
+    localStorage.removeItem('safeos_notifications_settings');
+  }
+});
+
+it('counts a Wildlife sighting saved on this device', async () => {
+  const before = await countKept();
+  try {
+    useAnimalAlertStore.getState().addDetection({
+      id: 'sighting-1', type: 'bird', displayName: 'Bird', sizeCategory: 'small', dangerLevel: 'none',
+      confidence: 70, bbox: [0, 0, 10, 10], timestamp: 1000,
+    } as never);
+    const after = { ...before, alerts: before.alerts + 1 };
+    expect(await countKept()).toEqual(after);
+    render(<DataPage />);
+    await screen.findByText(keptOnDeviceWords(after));
+  } finally {
+    useAnimalAlertStore.getState().clearHistory();
   }
 });

@@ -75,3 +75,35 @@ it('plays the Alert tone at the volume set, and its key reads Stop while it play
   expect(stop).toHaveBeenCalledWith('alert-tone');
   expect(screen.getByRole('button', { name: 'Play Alert volume' })).toBeTruthy();
 });
+
+it('stops the Alert tone when its key returns to Play without the tone saying it ended', async () => {
+  localStorage.clear();
+  useSettingsStore.getState().resetToDefaults();
+  jest.useFakeTimers();
+  try {
+    // A suspended audio context: the tone never says it ended.
+    jest.spyOn(getSoundManager(), 'play').mockImplementation(() => 'held-tone');
+    const stop = jest.spyOn(getSoundManager(), 'stop').mockImplementation(() => undefined);
+    const page = render(<SoundsSettingsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Play Alert volume' }));
+    expect(screen.getByRole('button', { name: 'Stop Alert volume' })).toBeTruthy();
+    act(() => {
+      jest.advanceTimersByTime(30_000);
+    });
+    expect(screen.getByRole('button', { name: 'Play Alert volume' })).toBeTruthy();
+    expect(stop).toHaveBeenCalledWith('held-tone');
+    page.unmount();
+  } finally {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  }
+});
+
+it('describes the sounds of your own without saying an animal or a person is detected', () => {
+  render(<SoundsSettingsPage />);
+  const guide = screen.getByRole('heading', { name: /How Custom Sounds Work/ }).closest('section');
+  const lead = screen.getByRole('heading', { level: 1 }).parentElement;
+  for (const part of [guide, lead]) {
+    expect(part?.textContent ?? '').not.toMatch(/detect|intruder|threat|identif|recogni|confidence/i);
+  }
+});
