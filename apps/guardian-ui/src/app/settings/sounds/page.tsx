@@ -7,12 +7,12 @@
  * - Upload audio files (MP3, WAV, OGG, WebM, M4A)
  * - Record from microphone (voice messages, custom alerts)
  * - Configure volume, looping, repeat count per sound
- * - Assign sounds to specific triggers (person detected, pet detected, etc.)
+ * - Assign sounds to specific triggers (a person, a pet, motion, and more)
  * - Preview and test sounds before saving
  *
  * USE CASES:
- * 1. Pet Recall: Record "Come home Buddy!" to play when your dog is detected
- * 2. Intruder Alert: Upload a siren sound for person detection at night
+ * 1. Pet Recall: Record "Come home Buddy!" to play when your dog shows on camera
+ * 2. Night Alert: Upload a siren sound for movement at night
  * 3. Baby Monitor: Record a lullaby that plays on inactivity
  * 4. Lost & Found: Custom sound when a missing pet/item is spotted
  *
@@ -229,7 +229,7 @@ export default function SoundsSettingsPage() {
             Custom Sounds
           </h1>
           <p className="text-slate-400 mt-2">
-            Upload or record custom sounds to play when specific events are detected.
+            Upload or record custom sounds to play when something happens on the watch.
           </p>
         </div>
 
@@ -251,7 +251,7 @@ export default function SoundsSettingsPage() {
           <div className="text-sm text-slate-300 space-y-2">
             <p>
               Custom sounds replace or supplement the default alert tones. Each sound can be
-              triggered by specific detection events.
+              set to play for a kind of alert.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
               <div className="p-2 bg-slate-800/50 rounded-lg">
@@ -265,7 +265,7 @@ export default function SoundsSettingsPage() {
                   Pet Recall
                 </span>
                 <p className="text-xs text-slate-400 mt-1">
-                  Record &quot;Come home Buddy!&quot; to play when your dog is detected outdoors
+                  Record &quot;Come home Buddy!&quot; to play when your dog shows on the outdoor camera
                 </p>
               </div>
               <div className="p-2 bg-slate-800/50 rounded-lg">
@@ -274,10 +274,10 @@ export default function SoundsSettingsPage() {
                     <circle cx="12" cy="8" r="4" />
                     <path d="M20 21a8 8 0 1 0-16 0" />
                   </svg>
-                  Intruder Alert
+                  Night Alert
                 </span>
                 <p className="text-xs text-slate-400 mt-1">
-                  Upload a loud siren for nighttime person detection
+                  Upload a loud siren for movement at night
                 </p>
               </div>
               <div className="p-2 bg-slate-800/50 rounded-lg">
@@ -289,7 +289,7 @@ export default function SoundsSettingsPage() {
                   Baby Monitor
                 </span>
                 <p className="text-xs text-slate-400 mt-1">
-                  Play a lullaby when baby is detected but no movement for 5 min
+                  Play a lullaby when there is no movement for 5 min
                 </p>
               </div>
               <div className="p-2 bg-slate-800/50 rounded-lg">

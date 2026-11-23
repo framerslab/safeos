@@ -452,6 +452,20 @@
   color: var(--color-steel-50);
 }
 
+/* On a page under the list the line stands above the page's own heading,
+   and takes no room while the settings are kept. */
+.set-storage-page {
+  background: none;
+}
+
+.set-storage-page .settings-page {
+  padding-bottom: 0;
+}
+
+.set-storage-page .set-storage__line {
+  margin: 16px 0;
+}
+
 .set-storage__line .set-glyph,
 .set-field__error .set-glyph {
   margin-top: 2px;

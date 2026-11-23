@@ -5191,6 +5191,15 @@ export async function checkApp(browser, baseUrl, outDir) {
   // seconds, a reload keeps it, and its key plays the Alert tone.
   for (const [width, look] of [[390, 'dark'], [1280, 'light']]) {
     await openSettings({ name: 'alert volume, saved and played', width, look }, async (page, context, check) => {
+      // Counts the tones the page starts, so Play is seen to play.
+      await context.addInitScript(() => {
+        window.settingsTones = 0;
+        const start = OscillatorNode.prototype.start;
+        OscillatorNode.prototype.start = function (...args) {
+          window.settingsTones += 1;
+          return start.apply(this, args);
+        };
+      });
       await visit(page, '/settings/sounds/');
       const slider = page.getByRole('slider', { name: 'Alert volume' });
       await slider.waitFor({ timeout: 15_000 });
@@ -5209,9 +5218,10 @@ export async function checkApp(browser, baseUrl, outDir) {
       const kept = await slider.inputValue();
       check(kept === '91', `after a reload the slider reads ${kept}, not 91`);
       const play = page.getByRole('button', { name: 'Play Alert volume' });
+      const before = await page.evaluate(() => window.settingsTones);
       await play.click();
-      const stop = page.getByRole('button', { name: 'Stop Alert volume' });
-      check(await stop.isVisible().catch(() => false) || await play.isVisible(), 'the key neither reads Stop nor comes back to Play');
+      const started = await page.waitForFunction((count) => window.settingsTones > count, before, { timeout: 5_000 }).then(() => true, () => false);
+      check(started, 'Play started no tone in 5 seconds');
       await play.waitFor({ timeout: 5_000 }).catch(() => check(false, 'the key still reads Stop 5 seconds after the tone began'));
       check(await page.getByText('Unanswered alerts get louder from here.').isVisible(), 'the line "Unanswered alerts get louder from here." is not shown');
     });

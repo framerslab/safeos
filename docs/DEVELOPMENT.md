@@ -425,8 +425,11 @@ widths and looks. The `pictures` artifact contains the proposed change and
 `pictures-before` contains the base, so visible changes can be compared without
 a separate manual workflow run. Camera-dependent and authenticated states still
 need to be identified separately in the pull request. A route the base commit's
-build does not have (a page the pull request adds) is logged as
-`not in the base build: <route>` and skipped in the base capture, not failed.
+build answers 404 for, and whose page the base commit lacks (a page the pull
+request adds), is logged as `not in the base build: <route>` and skipped in the
+base capture, not failed (`apps/guardian-ui/scripts/base-routes.mjs`). A 404 for
+a page the base commit holds fails, as does any 404 in the pull request's own
+capture or in a run without `PICTURE_VERSION`.
 
 When `/setup/` is among the routes, both versions also capture setup's camera
 step after a refused camera request (`setup-camera-refused-<width>-<look>.png`).

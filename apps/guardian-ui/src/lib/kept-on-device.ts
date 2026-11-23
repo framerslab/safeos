@@ -9,6 +9,7 @@
 
 import { countKeptRecords } from './client-db';
 import { getAllCustomSounds } from './custom-sounds-db';
+import { useAnimalAlertStore } from '../stores/animal-alert-store';
 
 export interface KeptCounts {
   alerts: number;
@@ -17,9 +18,11 @@ export interface KeptCounts {
   sounds: number;
 }
 
+/** Alerts count the alert records and the Wildlife sightings History shows. */
 export async function countKept(): Promise<KeptCounts> {
   const [records, sounds] = await Promise.all([countKeptRecords(), getAllCustomSounds()]);
-  return { ...records, sounds: sounds.length };
+  const sightings = useAnimalAlertStore.getState().detectionHistory.length;
+  return { ...records, alerts: records.alerts + sightings, sounds: sounds.length };
 }
 
 const counted = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;

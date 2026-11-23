@@ -35,6 +35,14 @@ export function readBrowserNotificationsOn(): boolean {
   return typeof stored.browserPush === 'boolean' ? stored.browserPush : true;
 }
 
+/** The choices kept on this device, never a key a server needs. */
+export function readNotificationChoices(): Record<string, unknown> {
+  if (typeof window === 'undefined') return {};
+  const kept = readStored();
+  for (const key of NEVER_KEPT) delete kept[key];
+  return kept;
+}
+
 /** Saves the choices over those kept, never a key a server needs, and tells every reader in this tab. */
 export function writeNotificationChoices(choices: Record<string, unknown>): void {
   const next: Record<string, unknown> = { ...readStored(), ...choices };

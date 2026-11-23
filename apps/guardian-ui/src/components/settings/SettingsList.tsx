@@ -44,9 +44,9 @@ import { ListMeters, PetPhoto, QuietBand, VolumeBar } from './ListPictures';
 export const TEST_ALERTS_VALUE = 'Play each sound and try an alert';
 export const DATA_VALUE = 'Alerts, pictures, pets, sounds and settings';
 
-/** The count of the person's own sounds; null until read. */
-function useOwnSoundCount(): number | null {
-  const [count, setCount] = useState<number | null>(null);
+/** The count of the person's own sounds; null until read, 'unread' when the read fails. */
+function useOwnSoundCount(): number | 'unread' | null {
+  const [count, setCount] = useState<number | 'unread' | null>(null);
   useEffect(() => {
     let live = true;
     getAllCustomSounds()
@@ -54,7 +54,7 @@ function useOwnSoundCount(): number | null {
         if (live) setCount(sounds.length);
       })
       .catch(() => {
-        if (live) setCount(0);
+        if (live) setCount('unread');
       });
     return () => {
       live = false;

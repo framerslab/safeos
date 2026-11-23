@@ -7,12 +7,17 @@
  * all data after a question asked in place. Offline, the question adds that
  * SafeOS will not open again until the device is back online: the installed
  * copy goes with the rest, and only a load with a connection stores it again.
+ * The question follows the connection while it is open, and a connection lost
+ * unseen is said before anything is cleared. The export holds the settings,
+ * the look and text, and the notification choices.
  *
  * @module app/settings/data/page
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { useSettingsStore } from '@/stores/settings-store';
+import { useThemeStore } from '@/lib/theme-manager';
+import { readNotificationChoices } from '@/lib/notification-choices';
 import { clearLocalData } from '@/lib/local-data';
 import { countKept, keptOnDeviceWords } from '@/lib/kept-on-device';
 import { PageHead } from '@/components/settings/PageHead';
@@ -24,6 +29,9 @@ const QUESTION = 'Clear all data on this device? Alerts, pictures, pets, sounds 
 const OFFLINE = ' SafeOS will not open again until you are back online.';
 const FAILED = 'Could not clear all local data. Please try again.';
 const NOT_COUNTED = 'Could not count what this device keeps.';
+
+/** The question, with the offline sentence while the device is offline. */
+const questionNow = () => (navigator.onLine === false ? QUESTION + OFFLINE : QUESTION);
 
 /** Today as this device's calendar reads it: "2026-11-22". */
 function today(): string {
@@ -77,16 +85,43 @@ export default function DataOnThisDevicePage() {
 
   const exportNow = () => {
     const name = `safeos-settings-${today()}.json`;
-    download(new Blob([exportSettings()], { type: 'application/json' }), name);
+    // The settings, then the look and text and the notification choices, each
+    // set from the same list.
+    const { themeMode, accessibility } = useThemeStore.getState();
+    const file = {
+      ...JSON.parse(exportSettings()),
+      look: { themeMode, ...accessibility },
+      notifications: readNotificationChoices(),
+    };
+    download(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }), name);
     setExported(`Downloaded ${name}.`);
   };
 
+  // While it asks, the question follows the connection.
+  const isAsking = asking !== null;
+  useEffect(() => {
+    if (!isAsking) return;
+    const follow = () => setAsking((now) => (now === null ? null : questionNow()));
+    window.addEventListener('online', follow);
+    window.addEventListener('offline', follow);
+    return () => {
+      window.removeEventListener('online', follow);
+      window.removeEventListener('offline', follow);
+    };
+  }, [isAsking]);
+
   const ask = () => {
     setFailed(false);
-    setAsking(navigator.onLine === false ? QUESTION + OFFLINE : QUESTION);
+    setAsking(questionNow());
   };
 
   const clearAll = async () => {
+    // Offline now, and the question did not say so: it says so first, and a
+    // second press clears.
+    if (navigator.onLine === false && asking !== QUESTION + OFFLINE) {
+      setAsking(QUESTION + OFFLINE);
+      return;
+    }
     giveBack.current = true;
     setAsking(null);
     try {

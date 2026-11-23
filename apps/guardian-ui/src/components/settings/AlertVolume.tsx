@@ -18,8 +18,8 @@ import { SliderRow } from './SliderRow';
 import { SavedNote } from './SavedNote';
 import { TestKey } from './TestKey';
 
-// The Alert tone's length; the key reads Play again after it, should the
-// browser never say the tone ended.
+// The Alert tone's length; the key stops the tone and reads Play again a
+// second after it, should the browser never say the tone ended.
 const TONE_MS = TONE_PATTERNS.alert.tones.reduce((sum, tone) => sum + tone.duration + tone.gapAfter, 0);
 
 export function AlertVolume() {
@@ -48,8 +48,10 @@ export function AlertVolume() {
     setPlaying(true);
     toneId.current = getSoundManager().play('alert', { volume, onEnd: ended });
     if (fallback.current) clearTimeout(fallback.current);
-    fallback.current = setTimeout(ended, TONE_MS + 1000);
-  }, [volume, ended]);
+    // A tone that never said it ended (a suspended audio context) is stopped
+    // here, while its id is known, so it cannot sound later.
+    fallback.current = setTimeout(stop, TONE_MS + 1000);
+  }, [volume, stop]);
 
   useEffect(
     () => () => {

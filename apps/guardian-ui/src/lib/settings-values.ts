@@ -86,8 +86,9 @@ export function detectionValue(v: {
 }
 
 /** Alert sounds' value: the volume, the sounds of one's own, or muted. */
-export function soundsValue(v: { volume: number; own: number; muted: boolean }): string {
+export function soundsValue(v: { volume: number; own: number | 'unread'; muted: boolean }): string {
   if (v.muted) return `Muted, volume ${v.volume}`;
+  if (v.own === 'unread') return `Volume ${v.volume}, your own sounds could not be read`;
   return v.own > 0 ? `Volume ${v.volume}, ${v.own} of your own` : `Volume ${v.volume}`;
 }
 

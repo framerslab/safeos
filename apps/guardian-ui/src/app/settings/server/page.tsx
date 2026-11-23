@@ -6,14 +6,17 @@
  * The address of a server of the person's own, opened in the address
  * dialog, and, while an address is saved, the name this device sends to it,
  * with its own Save. A name the server does not take is kept as typed and the
- * page says it was not saved. Offline, Save waits and the page says why.
+ * page says it was not saved. Offline, Save waits and the page says why. A
+ * session made on this device alone sends nothing, and the page says so; a
+ * clear of all data while the name saves leaves no copy of it on this device.
  *
  * @module app/settings/server/page
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
-import { useAuthStore } from '@/stores/auth-store';
+import { isServerSession, useAuthStore } from '@/stores/auth-store';
+import { getLocalDataGeneration, isCurrentLocalData, readAccountClearMarker } from '@/lib/local-data-generation';
 import { PageHead } from '@/components/settings/PageHead';
 import { Group } from '@/components/settings/Group';
 import { FieldRow } from '@/components/settings/FieldRow';
@@ -24,6 +27,7 @@ import { keepNameOnDevice, readNameOnDevice } from '@/lib/name-on-device';
 
 const NOT_SAVED = 'Your name was not saved. Try again.';
 const OFFLINE = 'Your server cannot be reached while this device is offline.';
+const NO_SESSION = 'This device is not signed in to your server, so your name was not sent.';
 
 /** Whether this device has a connection, followed as it changes. */
 function useOnline(): boolean {
@@ -82,10 +86,21 @@ export default function YourOwnServerPage() {
     setSaving(true);
     setError(null);
     setNote(null);
+    // A clear of all data, here or in another tab, while the name saves takes
+    // the device's copy with it: the name is not put back on this device.
+    const counter = getLocalDataGeneration();
+    const marker = readAccountClearMarker();
     try {
+      const { profile, sessionToken } = useAuthStore.getState();
       // With no profile read yet the store keeps nothing: the name is not saved.
-      if (!useAuthStore.getState().profile) throw new Error('no profile');
+      if (!profile) throw new Error('no profile');
+      // A session made on this device alone holds no place on the server to send to.
+      if (!isServerSession(sessionToken)) {
+        setError(NO_SESSION);
+        return;
+      }
       await updateProfile({ displayName: submitted });
+      if (!isCurrentLocalData(counter) || readAccountClearMarker() !== marker) return;
       keepNameOnDevice(submitted);
       setDeviceName(submitted);
       // A name typed while this one was saving stays as typed.

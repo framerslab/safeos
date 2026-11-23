@@ -289,11 +289,16 @@ it('drops the pet once another tab clears all data', async () => {
   // Another tab clears all data: the pets leave the database and the account marker moves.
   await deleteSubjectProfile('pet-cleared');
   for (const saved of ['pet-1', 'pet-9']) await deleteSubjectProfile(saved).catch(() => undefined);
-  await act(async () => {
+  act(() => {
     localStorage.setItem(ACCOUNT_CLEAR_MARKER_KEY, 'cleared-in-another-tab');
     window.dispatchEvent(new StorageEvent('storage', { key: ACCOUNT_CLEAR_MARKER_KEY, newValue: 'cleared-in-another-tab' }));
-    await new Promise((resolve) => setTimeout(resolve, 50));
   });
+  // The pets are read again from the emptied database.
+  for (let turn = 0; turn < 100 && descriptionOf(rows()[0]) !== 'Standard, motion 80, sound 80'; turn += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+  }
   expect(descriptionOf(rows()[0])).toBe('Standard, motion 80, sound 80');
 });
 

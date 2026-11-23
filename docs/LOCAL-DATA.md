@@ -19,12 +19,16 @@ pets, sounds and settings leave this device." with **Clear all data** and
 **Cancel**; Cancel clears nothing. The worker stores the site again on the next
 load with a connection. When the browser reports the device offline, the question
 adds "SafeOS will not open again until you are back online." and nothing is
-cleared until Clear all data is pressed.
+cleared until Clear all data is pressed. The question follows the connection
+while it is open; a connection lost before the page heard of it makes the first
+press show that sentence, and a second press clears.
 
-Data on this device also counts what this device keeps (alerts, saved pictures,
-pets and sounds of your own) and exports the settings as a file,
-`safeos-settings-<yyyy-mm-dd>.json`. When the device's databases cannot be read,
-the page says "Could not count what this device keeps." and its keys still work.
+Data on this device also counts what this device keeps (alerts, Wildlife
+sightings among them, saved pictures, pets and sounds of your own) and exports
+the settings as a file, `safeos-settings-<yyyy-mm-dd>.json`, with the look and
+text (`look`) and the notification choices (`notifications`), never a key a
+server needs. When the device's databases cannot be read, the page says "Could
+not count what this device keeps." and its keys still work.
 
 **Log Out** and **Clear Session** clear personal data before completing
 sign-out. They retain the device's server connection so the next account can
@@ -66,17 +70,19 @@ Settings has no Save Changes key. The alert volume, at the top of Settings →
 Alert sounds, saves to this device the moment it moves and the row says
 **Saved**; it sets the volume monitoring and sound playback use. A browser that
 refuses this site's storage keeps the change for the visit, the row says "Not
-saved. This browser is not keeping settings.", and Settings says at its top that
-the browser is not keeping settings. A device too full to take the settings
-keeps the change for the visit too, and the row and the top of Settings say the
-same. Motion sensitivity, audio sensitivity and
+saved. This browser is not keeping settings.", and Settings, and each page under
+it, says at its top that the browser is not keeping settings. A device too full
+to take the settings keeps the change for the visit too, and the row and the top
+of each settings page say the same. Motion sensitivity, audio sensitivity and
 alert volume use the same values as the monitor controls. A volume of zero stays
 zero.
 Emergency alarms retain their explicit full-volume behavior. Quiet hours are
 saved to the shared schedule settings from both Settings → Quiet hours and
 Notification Settings. Earlier saved preferences are imported once per account, or once for
 the browser without an account. Values explicitly saved on this browser take
-precedence, including zero values. Account sensitivity and volume are imported
+precedence, including zero values, and are read by the first import only: a
+later account import keeps the values in effect where this browser saved one, so
+a change made since is not undone. Account sensitivity and volume are imported
 only when they differ from a new session's defaults; account quiet hours are
 imported only when both times are set. Creating a session therefore preserves
 the sensitivity, volume and quiet hours already in effect. While a set time's
@@ -149,7 +155,9 @@ installed models is shown as an empty list, not an offline server.
 Navigation displays a GitHub link without fetching a star count. Opening that
 link contacts GitHub. Model downloads remain separate network requests.
 
-Browser notifications use an existing service-worker registration when available,
+Browser notifications show only while **Send browser notifications** is on in
+Settings → Notifications (on until it is turned off), and the browser allows
+them. They use an existing service-worker registration when available,
 including on phones that reject the page Notification constructor. Desktop
 installations without a worker use a guarded constructor fallback. Delivery
 failure does not interrupt in-app alerts. Opening a local notification focuses an

@@ -91,6 +91,7 @@ jobs:
         run: |
           git fetch origin "$CAPTURE_REF"
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/capture-pictures.mjs" > scripts/capture-pictures.mjs
+          git show "$CAPTURE_REF:apps/guardian-ui/scripts/base-routes.mjs" > scripts/base-routes.mjs
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

@@ -57,6 +57,7 @@
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
+import { skipsInBase } from './base-routes.mjs';
 
 const [baseUrl, outDir, ...routes] = process.argv.slice(2);
 if (!baseUrl || !outDir || routes.length === 0) {
@@ -144,8 +145,9 @@ try {
           const response = await page.goto(url, { waitUntil: 'networkidle', timeout: 60_000 });
           if (!response || !response.ok()) {
             // The base build of a pull request that adds a page has no such
-            // page: it is noted and skipped, not failed.
-            if (response && response.status() === 404 && process.env.PICTURE_VERSION !== 'after') {
+            // page: it is noted and skipped, not failed. A page the base
+            // commit holds fails (scripts/base-routes.mjs).
+            if (response && skipsInBase({ route, status: response.status(), version: process.env.PICTURE_VERSION, appDir: process.cwd() })) {
               console.log(`not in the base build: ${route}`);
               continue;
             }
