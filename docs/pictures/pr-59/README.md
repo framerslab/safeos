@@ -2,8 +2,10 @@
 
 Captured by the Pictures workflow (Playwright, Chromium, on the built static
 site) and copied byte for byte from the artifacts of
+[run 45257476771](https://github.com/framerslab/safeos/actions/runs/45257476771)
+on commit 8dcfebe, where every walk passed. The `before/` files come from
 [run 45075636798](https://github.com/framerslab/safeos/actions/runs/45075636798)
-on commit aa7d648, where every walk passed.
+on commit aa7d648; the base commit is the same in both runs.
 
 `after/`: the `pictures` artifact, the pull request's own build.
 
@@ -21,5 +23,5 @@ in place of the device's camera.
 | `monitor-watch-blocked-<width>-<look>.png` | A camera the browser blocked. After: the failure named inside the frame with its fix and **Try again**. Before: the camera box's error |
 | `monitor-watch-watching-<width>-<look>.png` | Watching the drawn camera. After: the live picture in its corner ticks with the meters under it. Before: the page as it stood at the base commit |
 | `monitor-watch-settings-<width>-<look>.png` | The watch's settings. After: **Show settings** open under **Settings for this watch**. Before: the page scrolled to its settings |
-| `watch-try-again-other-tab-390-<look>.png` (after only) | **Try again** after a blocked camera while another tab watches: the question "Watch here instead? The other tab stops." |
+| `watch-try-again-other-tab-390-<look>.png` (after only) | **Try again** after a blocked camera while another tab watches: the question "Watch here instead? The other tab stops." with **Watch here** and **Keep the other tab** |
 | `watch-microphone-lost-390-<look>.png` (after only) | The frame after the microphone's track ended while watching: Sound names the microphone, and Motion and Picture change go on |
