@@ -1215,6 +1215,19 @@ export async function checkApp(browser, baseUrl, outDir) {
   // every phone and tablet width in both looks, and the page never scrolls
   // sideways. At 200 per cent text the row keeps its one line and scrolls
   // inside itself with its arrow keys.
+  // Each Watch for option is 48 px tall with its words on one line from
+  // 390 px up; only larger text breaks them.
+  const optionsRead = (page) => page.evaluate(async () => {
+    await document.fonts.ready;
+    return [...document.querySelectorAll('.watch-for__option')].map((option) => {
+      const words = option.querySelector('span');
+      return {
+        name: words?.textContent.trim() ?? '',
+        height: option.getBoundingClientRect().height,
+        oneLine: words ? words.getBoundingClientRect().height <= parseFloat(getComputedStyle(words).lineHeight) * 1.5 : false,
+      };
+    });
+  });
   const barRow = (page) => page.evaluate(() => {
     const heading = [...document.querySelectorAll('h2')].find((h) => h.textContent.trim() === 'Watch for');
     const mute = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Mute alerts');
@@ -1239,6 +1252,14 @@ export async function checkApp(browser, baseUrl, outDir) {
         check(bar.apart <= 1, `at ${width} px the middles of "Watch for" and Mute alerts lie ${bar.apart.toFixed(1)} px apart`);
         const sideways = await sidewaysScroll(page);
         check(sideways === 0, `at ${width} px /monitor/ scrolls ${sideways} px sideways: ${await pushesPast(page)}`);
+        if (width >= 390) {
+          const options = await optionsRead(page);
+          check(options.length === 2, `at ${width} px Watch for shows ${options.length} options, not 2`);
+          for (const option of options) {
+            check(option.oneLine, `at ${width} px the option ${option.name} breaks its words onto two lines`);
+            check(option.height <= 48.5, `at ${width} px the option ${option.name} is ${option.height.toFixed(1)} px tall, over 48`);
+          }
+        }
       });
     }
     await open({ name: "watch, the bar's row with larger text", width: 390, look }, async (page, context, check) => {
@@ -3174,6 +3195,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         name: name?.textContent.trim() ?? '',
         top: box(meter).top,
         sameLine: name && state ? Math.abs(middle(name) - middle(state)) <= 1 : false,
+        nameOneLine: name ? box(name).height <= parseFloat(getComputedStyle(name).lineHeight) * 1.5 : false,
         trackUnder: name && track ? box(track).top >= box(name).bottom - 0.5 : false,
         sizes: [name, state].filter(Boolean).map((part) => parseFloat(getComputedStyle(part).fontSize)),
         nameRatio: name ? ratio(name) : 0,
@@ -3187,12 +3209,15 @@ export async function checkApp(browser, baseUrl, outDir) {
     };
   });
   for (const look of LOOKS) {
-    for (const width of [320, 390, 820, 1280, 1920]) {
+    for (const width of [320, 390, 820, 1024, 1280, 1920]) {
       await open({ name: 'watch, the meters', width, look }, async (page, context, check) => {
         await visit(page, '/monitor/');
         await page.getByRole('button', { name: 'Start watching', exact: true }).click();
         await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
         await page.locator('.watch-meter__state').first().waitFor({ timeout: 10_000 }).catch(() => {});
+        // The changing picture puts a meter over its line: its longer state
+        // word stands beside its name.
+        await page.waitForFunction(() => [...document.querySelectorAll('.watch-meter__state')].some((state) => state.textContent.trim() !== 'Quiet'), null, { timeout: 8_000 }).catch(() => {});
         const read = await meterReading(page);
         check(read.meters.length > 0, `at ${width} px the live picture shows no meter`);
         check(read.inside, `at ${width} px the meters' strip is not inside the frame`);
@@ -3200,6 +3225,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         for (const meter of read.meters) {
           if (width === 390 || width === 1280) check(meter.sameLine, `at ${width} px the meter ${meter.name} has its name and state word on two lines`);
           if (width === 390) check(meter.trackUnder, `at 390 px the meter ${meter.name} has its bar beside its name, not under it`);
+          if (width >= 1024) check(meter.nameOneLine, `at ${width} px the meter's name ${meter.name} breaks onto two lines`);
           check(meter.sizes.every((size) => size >= 15.5), `at ${width} px the meter ${meter.name} has words of ${meter.sizes.join(', ')} px`);
           check(meter.nameRatio >= 12, `at ${width} px the name ${meter.name} stands at ${meter.nameRatio.toFixed(2)}:1, under 12:1`);
           check(meter.stateRatio >= 7, `at ${width} px the state word of ${meter.name} stands at ${meter.stateRatio.toFixed(2)}:1, under 7:1`);
@@ -3210,6 +3236,60 @@ export async function checkApp(browser, baseUrl, outDir) {
         }
       }, { script: FAKE_CAMERA });
     }
+  }
+
+  // While watching on a phone the picture, the meters and Stop watching come
+  // first, then the alert list: its heading and the newest entry's first line
+  // stand in a 390 by 844 px screen, above the phone bar.
+  const newestReading = (page) => page.evaluate(() => {
+    const bar = document.querySelector('nav.phone-bar');
+    const foot = bar ? bar.getBoundingClientRect().top : window.innerHeight;
+    const heading = document.getElementById('watch-list-name');
+    const body = document.querySelector('.watch-list__body');
+    const stop = [...document.querySelectorAll('button')].find((key) => key.textContent.trim() === 'Stop watching');
+    if (!heading || !body || !stop) return null;
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+      acceptNode: (node) => (node.textContent.trim() && !node.parentElement.closest('.sr-only') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP),
+    });
+    const first = walker.nextNode();
+    let line = null;
+    if (first) {
+      const range = document.createRange();
+      range.selectNodeContents(first);
+      line = range.getClientRects()[0] ?? null;
+    }
+    const list = heading.closest('section') ?? heading;
+    const top = stop.getBoundingClientRect().bottom;
+    const between = [...document.querySelectorAll('.watch-grid select, .watch-grid label, .watch-grid p')]
+      .filter((part) => !list.contains(part) && !part.closest('.sr-only'))
+      .filter((part) => { const box = part.getBoundingClientRect(); return box.height > 0 && box.top >= top - 0.5 && box.bottom <= list.getBoundingClientRect().top + 0.5; })
+      .map((part) => `"${(part.textContent || part.getAttribute('aria-label') || part.tagName).replace(/\s+/g, ' ').trim().slice(0, 48)}"`);
+    return {
+      foot,
+      heading: heading.getBoundingClientRect().bottom,
+      words: first ? first.textContent.trim() : '',
+      line: line ? line.bottom : null,
+      between,
+    };
+  });
+  for (const look of LOOKS) {
+    await open({ name: 'watch, the newest alert while watching', width: 390, height: 844, look }, async (page, context, check) => {
+      await visit(page, '/monitor/');
+      await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
+      const came = await page.locator('.watch-list__new').first().waitFor({ timeout: 20_000 }).then(() => true, () => false);
+      check(came, 'no alert came while watching the changing picture');
+      if (!came) return;
+      await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
+      await page.waitForTimeout(300);
+      const read = await newestReading(page);
+      check(read, '/monitor/ has no Stop watching, no heading "Alerts" or no list while watching');
+      if (!read) return;
+      const between = read.between.length ? `; between Stop watching and the list: ${read.between.join(', ')}` : '';
+      check(read.heading <= read.foot + 0.5, `the heading "Alerts" ends at ${Math.round(read.heading)} px, under the phone bar at ${Math.round(read.foot)} px${between}`);
+      check(read.line !== null && read.line <= read.foot + 0.5, `the newest entry's first line "${read.words}" ends at ${read.line === null ? 'no place' : `${Math.round(read.line)} px`}, under the phone bar at ${Math.round(read.foot)} px${between}`);
+      await page.screenshot({ path: path.join(outDir, `watch-newest-alert-390-${look}.png`) });
+    }, { script: FAKE_CAMERA });
   }
 
   // The watch's settings fold under one row below the alert list: the row is
