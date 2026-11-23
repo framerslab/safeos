@@ -5227,6 +5227,118 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
   }
 
+  // Alert volume as drawn, in both looks at a phone's and a desktop's width:
+  // the row stands on the page's own ground with no box, fill or shadow; a
+  // 24 px knob in the ink inside a 44 px target; the filled part of the track
+  // in the accent; the empty part in the track colour with an edge in the
+  // line colour. Read from the slider's own pixels.
+  const SLIDER_TRACK = { light: 'rgb(222, 226, 230)', dark: 'rgb(27, 40, 53)' };
+  const rgbOf = (colour) => colour.match(/\d+(\.\d+)?/g).slice(0, 3).map(Number);
+  const luminance = (rgb) => {
+    const [r, g, b] = rgb.map((c) => {
+      const v = c / 255;
+      return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const contrastOf = (a, b) => {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  };
+  const nearRgb = (a, b, tolerance = 24) => a.every((v, i) => Math.abs(v - b[i]) <= tolerance);
+  const readPixels = async (base64) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${base64}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const drawn = canvas.getContext('2d');
+    drawn.drawImage(image, 0, 0);
+    return { width: image.width, height: image.height, data: Array.from(drawn.getImageData(0, 0, image.width, image.height).data) };
+  };
+  const pixelAt = (picture, x, y) => {
+    const at = (y * picture.width + x) * 4;
+    return picture.data.slice(at, at + 3);
+  };
+  const columnOf = (picture, x) => Array.from({ length: picture.height }, (_, y) => pixelAt(picture, x, y));
+  const rgbText = (rgb) => `rgb(${rgb.join(', ')})`;
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await openSettings({ name: 'alert volume, drawn', width, look }, async (page, context, check) => {
+        await visit(page, '/settings/sounds/');
+        const slider = page.locator('#alert-volume');
+        await slider.waitFor({ timeout: 15_000 });
+        const boxes = await slider.evaluate((input) => {
+          const out = [];
+          const own = getComputedStyle(input);
+          if (own.backgroundColor !== 'rgba(0, 0, 0, 0)' || own.backgroundImage !== 'none') out.push(`the slider itself is filled ${own.backgroundColor}`);
+          for (let node = input.parentElement; node && node.tagName !== 'MAIN' && node !== document.body; node = node.parentElement) {
+            const style = getComputedStyle(node);
+            const name = `${node.tagName.toLowerCase()}${[...node.classList].map((c) => `.${c}`).join('')}`;
+            if (style.backgroundColor !== 'rgba(0, 0, 0, 0)' || style.backgroundImage !== 'none') out.push(`${name} is filled ${style.backgroundColor}`);
+            if (style.boxShadow !== 'none') out.push(`${name} casts a shadow`);
+            if (['Top', 'Right', 'Bottom', 'Left'].some((side) => parseFloat(style[`border${side}Width`]) > 0 && style[`border${side}Style`] !== 'none')) out.push(`${name} has a border`);
+          }
+          return out;
+        });
+        check(boxes.length === 0, `the Alert volume row stands in a box: ${boxes.join('; ')}`);
+        const target = await slider.boundingBox();
+        check(!!target && target.height >= 43.5, `the slider's target is ${target ? Math.round(target.height) : '?'} px tall, under 44`);
+        const scratch = await context.newPage();
+        const shot = async () => {
+          await slider.evaluate((input) => input.blur());
+          await page.mouse.move(0, 0);
+          const picture = await slider.screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
+          return scratch.evaluate(readPixels, picture.toString('base64'));
+        };
+        const ink = rgbOf(INK[look]);
+        const accent = rgbOf(ACCENT[look]);
+        const track = rgbOf(SLIDER_TRACK[look]);
+        const edge = rgbOf(LINE[look]);
+        await slider.focus();
+        await page.keyboard.press('End');
+        const full = await shot();
+        // The knob: every pixel of the ink, at the track's right end.
+        let left = Infinity; let right = -1; let top = Infinity; let bottom = -1;
+        for (let y = 0; y < full.height; y += 1) {
+          for (let x = 0; x < full.width; x += 1) {
+            if (!nearRgb(pixelAt(full, x, y), ink)) continue;
+            left = Math.min(left, x); right = Math.max(right, x); top = Math.min(top, y); bottom = Math.max(bottom, y);
+          }
+        }
+        const middle = Math.floor(full.height / 2);
+        const knobAt = right >= 0 ? pixelAt(full, Math.floor((left + right) / 2), Math.floor((top + bottom) / 2)) : pixelAt(full, full.width - 12, middle);
+        const ground = pixelAt(full, full.width - 12, 0);
+        check(right >= 0, `at 100 the knob is ${rgbText(knobAt)}, not the ink ${INK[look]}`);
+        if (right >= 0) {
+          const across = right - left + 1;
+          const tall = bottom - top + 1;
+          check(across >= 22 && across <= 26 && tall >= 22 && tall <= 26, `the knob is ${across} by ${tall} px, not 24 by 24`);
+          check(right >= full.width - 3, `at 100 the knob ends ${full.width - 1 - right} px short of the slider's right end`);
+        }
+        check(contrastOf(knobAt, ground) >= 4.5, `the knob ${rgbText(knobAt)} on the ground ${rgbText(ground)} is ${contrastOf(knobAt, ground).toFixed(2)}:1, under 4.5:1`);
+        const fullFill = columnOf(full, Math.floor(full.width / 2)).filter((rgb) => nearRgb(rgb, accent)).length;
+        check(fullFill >= 3, `at 100 the middle of the track holds ${fullFill} px of the accent ${ACCENT[look]}: ${[...new Set(columnOf(full, Math.floor(full.width / 2)).map(rgbText))].join(', ')}`);
+        await slider.focus();
+        await page.keyboard.press('Home');
+        for (let step = 0; step < 5; step += 1) await page.keyboard.press('PageUp');
+        check(await slider.inputValue() === '50', `Home then five Page Up leave the slider at ${await slider.inputValue()}, not 50`);
+        const half = await shot();
+        const filled = columnOf(half, Math.floor(half.width * 0.2)).filter((rgb) => nearRgb(rgb, accent)).length;
+        check(filled >= 3, `at 50 the filled part holds ${filled} px of the accent ${ACCENT[look]}`);
+        const empty = columnOf(half, Math.floor(half.width * 0.8));
+        const emptyTrack = empty.filter((rgb) => nearRgb(rgb, track, 12)).length;
+        const emptyEdge = empty.filter((rgb) => nearRgb(rgb, edge, 16)).length;
+        check(emptyTrack >= 1 && emptyEdge >= 1,
+          `at 50 the empty part holds ${emptyTrack} px of the track ${SLIDER_TRACK[look]} and ${emptyEdge} px of the edge ${LINE[look]}: ${[...new Set(empty.map(rgbText))].join(', ')}`);
+        check(contrastOf(edge, track) >= 4.5, `the empty track's edge is ${contrastOf(edge, track).toFixed(2)}:1 on the track`);
+        await scratch.close();
+        await page.screenshot({ path: path.join(outDir, `settings-sounds-volume-${width}-${look}.png`) });
+      });
+    }
+  }
+
   // The list of settings pages: every row in its group with its value, read
   // once the page has mounted (no row is left on its loading bar).
   const LIST_NAMES = ['Detection', 'Alert sounds', 'Quiet hours', 'Unanswered alerts', 'Notifications', 'Test alerts',
@@ -5330,6 +5442,26 @@ export async function checkApp(browser, baseUrl, outDir) {
       `the first screen draws ${seen.boxes.length} rules and boxes, not the 5 named: ${seen.boxes.join(', ')}`);
     check(seen.colours.length === 5 && LIST_FIRST_COLOURS.every((colour) => seen.colours.includes(colour)),
       `the first screen holds ${seen.colours.length} colours, not the 5 named: ${seen.colours.join(', ')}`);
+    // Each row of the first screen is whole above the phone bar: its name
+    // and its value line, so every row there says how it is set.
+    const whole = await page.evaluate(() => {
+      const bar = document.querySelector('nav.phone-bar');
+      const foot = bar ? bar.getBoundingClientRect().top : window.innerHeight;
+      const ends = [...document.querySelectorAll('nav[aria-label="Settings pages"] a')].map((a) => {
+        const part = (id) => (id ? document.getElementById(id) : null);
+        const name = part(a.getAttribute('aria-labelledby'));
+        const value = part(a.getAttribute('aria-describedby'));
+        return { name: (name?.textContent || '').trim(), value: (value?.textContent || '').trim(),
+          end: Math.max(name ? name.getBoundingClientRect().bottom : Infinity, value ? value.getBoundingClientRect().bottom : Infinity) };
+      });
+      return { foot, ends };
+    });
+    for (const name of ['Detection', 'Alert sounds', 'Quiet hours', 'Unanswered alerts', 'Notifications']) {
+      const row = whole.ends.find((item) => item.name === name);
+      check(!!row && row.end <= whole.foot, row
+        ? `${name} and its value "${row.value}" end at ${Math.round(row.end)} px, under the phone bar at ${Math.round(whole.foot)} px`
+        : `the first screen has no ${name} row`);
+    }
   });
 
   // Lost and Found chosen in setup with a saved pet: the Detection row names
@@ -5409,6 +5541,35 @@ export async function checkApp(browser, baseUrl, outDir) {
     const after = await listRows(page);
     check(after.length === 10, `with the address taken away the list holds ${after.length} rows`);
   });
+
+  // Your own server's page with a server address saved, at a phone's and a
+  // desktop's width in both looks: the address with its value, the name
+  // field with its own Save, and the list's Webhooks and Admin rows.
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await openSettings({ name: 'your own server page', width, look }, async (page, context, check) => {
+        await visit(page, '/settings/');
+        await page.evaluate(() => localStorage.setItem('safeos_backend_config', JSON.stringify({ apiUrl: 'https://watch.example.org', wsUrl: 'wss://watch.example.org/ws' })));
+        await visit(page, '/settings/server/');
+        const address = page.getByRole('button', { name: 'Server address' });
+        check(await address.waitFor({ timeout: 15_000 }).then(() => true, () => false), 'the page has no Server address row');
+        check(((await page.locator('#server-address-value').textContent().catch(() => '')) || '').trim() === 'https://watch.example.org',
+          'the Server address row does not read https://watch.example.org');
+        check(await page.getByLabel('Your name on your server', { exact: true }).isVisible(), 'the page has no field named "Your name on your server"');
+        check(await page.locator('#name').getByRole('button', { name: 'Save', exact: true }).isVisible(), 'the name field has no Save of its own');
+        await page.evaluate(() => document.fonts.ready);
+        await page.screenshot({ path: path.join(outDir, `settings-server-${width}-${look}.png`), fullPage: true });
+        const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        check(sideways <= 0, `the page scrolls ${sideways} px sideways (${await widest(page)})`);
+        await visit(page, '/settings/');
+        const rows = await listRows(page);
+        const server = rows.slice(10);
+        check(server.map((row) => row.name).join('|') === 'Server address|Your name on your server|Webhooks|Admin',
+          `the list's server rows read ${server.map((row) => row.name).join(', ') || 'nothing'}`);
+        check(server[2]?.href === '/webhooks/' && server[3]?.href === '/admin/', `Webhooks opens ${server[2]?.href} and Admin ${server[3]?.href}`);
+      });
+    }
+  }
 
   // A browser that refuses storage: the line at the top, and every row opens its page.
   await openSettings({ name: 'settings list, storage refused', width: 390, look: 'light' }, async (page, context, check) => {
