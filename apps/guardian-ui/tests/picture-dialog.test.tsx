@@ -7,7 +7,8 @@
  * the earlier one had: focus that stood on one goes to Close, and a
  * brightened view of the earlier picture is never shown over the newer one.
  * Delete picture confirmed while Save picture draws its file deletes the
- * picture once the file is made.
+ * picture once the file is made, and a panel closed meanwhile leaves open
+ * the picture opened since.
  */
 
 import React from 'react';
@@ -120,8 +121,38 @@ it('Delete picture confirmed while Save picture draws its file deletes the pictu
   await act(async () => {
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: DELETE_PICTURE }));
   });
-  // The file is made, and then the picture is deleted.
+  // The delete waits for the file; the file is made, and then the picture is deleted.
+  expect(mockDelete).not.toHaveBeenCalled();
+  await act(async () => { mockFileMade!(new Blob(['file'])); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+  expect(mockDelete).toHaveBeenCalledTimes(1);
+  expect(mockDelete).toHaveBeenCalledWith('picture-a');
+});
+
+it('a delete that goes ahead after its panel closed leaves open the picture opened since', async () => {
+  mockViews.set('picture-a', pictureOf('picture-a', false));
+  mockViews.set('picture-b', pictureOf('picture-b', false));
+  const first = card('picture-a');
+  const later = { ...card('picture-b'), id: `motion-${AT + 60_000}-later` } as Alert;
+  useMonitoringStore.setState({ alerts: [later, first] });
+  render(<PictureDialogHost />);
+  act(() => openPicture(first, null));
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: SAVE_PICTURE })); });
+  fireEvent.click(screen.getByRole('button', { name: DELETE_PICTURE }));
+  await act(async () => {
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: DELETE_PICTURE }));
+  });
+
+  // While the file is made, the person closes the panel and opens the later alert's picture.
+  act(() => { fireEvent.click(screen.getByRole('button', { name: CLOSE })); });
+  expect(screen.queryByRole('dialog')).toBeNull();
+  act(() => openPicture(later, null));
+  expect(frameImage()?.getAttribute('src')).toBe('blob:frame-picture-b');
+
+  // The file is made and the first picture deleted; the later picture stays open.
   await act(async () => { mockFileMade!(new Blob(['file'])); });
   await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
   expect(mockDelete).toHaveBeenCalledWith('picture-a');
+  expect(screen.queryByRole('dialog')).not.toBeNull();
+  expect(frameImage()?.getAttribute('src')).toBe('blob:frame-picture-b');
 });

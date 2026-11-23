@@ -32,6 +32,7 @@ import {
   cooldownPeriod,
   doubleText,
   faultPictureStore,
+  heldDraws,
   keptPicture,
   liveCameras,
   naturalSize,
@@ -215,6 +216,11 @@ test.describe('The picture store and the alert record', () => {
       const reading = await databaseNow(page);
       return reading ? monitoringAlerts(reading).some((row) => row.id === rows[0].alert.id) : true;
     }, { timeout: 60_000, message: 'the oldest alert leaves when the 101st is saved' }).toBe(false);
+    // The 101st alert's picture is written after its alert, in its own write: the reading waits for it.
+    const seeded = new Set(rows.map((row) => row.picture!.id as string));
+    await expect.poll(async () => keptRows(await readDatabase(page)).some((row) => !seeded.has(row.id as string)), {
+      timeout: 15_000, message: 'the 101st alert’s picture is kept',
+    }).toBe(true);
     const reading = (await readDatabase(page))!;
     expect(monitoringAlerts(reading)).toHaveLength(100);
     expect(reading.pictures.map((row) => row.id)).not.toContain(first);
@@ -1432,7 +1438,9 @@ test.describe('Keeping pictures, 1280 px', () => {
       if (way === 'Delete all pictures') {
         await expect(held.locator('.alert-picture__wait'), 'the save waits until after the clear').toBeVisible();
       } else {
-        expect(Date.now() - heldSince, 'the clear came while the save still waited').toBeLessThan(HOLD_MS - 5_000);
+        const draws = await heldDraws(page);
+        expect(draws.held, 'the save’s picture is held').toBeGreaterThan(0);
+        expect(draws.handed, 'the clear came while the save still waited').toBe(0);
         await expect(cards(page)).toHaveCount(0);
       }
 
@@ -1562,7 +1570,10 @@ test.describe('Keeping pictures, 1280 px', () => {
     await deleteKey(dialog).click();
     await confirmDelete(other).click();
     await expect(dialog).toHaveCount(0);
-    expect(Date.now() - heldSince, 'the delete came while the save waited').toBeLessThan(HOLD_MS - 5_000);
+    // No picture the hold took has been handed back: the save has not begun.
+    const draws = await heldDraws(page);
+    expect(draws.held, 'the save’s picture is held').toBeGreaterThan(0);
+    expect(draws.handed, 'the delete came while the save waited').toBe(0);
 
     // The held save goes on now, and writes nothing over the delete.
     await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - heldSince)) + 5_000);
@@ -3625,6 +3636,74 @@ test.describe('A watch alert’s notification, 1280 px', () => {
     expect(turnedOffAt!, 'the picture was turned off before the notification went').toBeLessThanOrEqual(note.at);
     expect(note.image ?? null, 'no picture once the person turned it off').toBeNull();
   });
+
+  // It reads copies drawn within the 300 ms, so it runs in the notifications' own step, alone.
+  test('turning the picture off while a repeat’s notification waits its turn sends that one with its words alone', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await page.addInitScript(() => {
+      const marks = window as unknown as { __copies?: number[]; __releaseNote?: () => void };
+      marks.__copies = [];
+      // When each notification's copy is drawn: the copy alone is a JPEG at 0.8.
+      const toDataURL = HTMLCanvasElement.prototype.toDataURL;
+      HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, quality?: number) {
+        const url = toDataURL.call(this, type, quality);
+        if (type === 'image/jpeg' && quality === 0.8) marks.__copies!.push(Date.now());
+        return url;
+      } as typeof toDataURL;
+      // The browser takes the event's first notification and holds it until the walk lets it go,
+      // so the repeat's notification waits its turn behind it.
+      const container = navigator.serviceWorker;
+      if (!container) return;
+      const getRegistration = container.getRegistration.bind(container);
+      let first = true;
+      container.getRegistration = ((clientURL?: string) => {
+        if (!first) return getRegistration(clientURL);
+        first = false;
+        return new Promise<ServiceWorkerRegistration | undefined>((resolve) => {
+          marks.__releaseNote = () => resolve(getRegistration(clientURL));
+        });
+      }) as typeof container.getRegistration;
+    });
+    await watchWithNotes(page, context, {
+      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(20) }, camera: { ...LEFT_THIRD, cycle: 8 },
+      pictures: { noticeAnswered: true, inNotifications: true },
+    });
+    const card = cards(page).first();
+    const first = await timeOf(card, 'Motion');
+    await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 60_000 });
+    const later = await timeOf(card, 'Motion');
+    await holdStill(page);
+    expect(await page.evaluate(() => typeof (window as unknown as { __releaseNote?: () => void }).__releaseNote), 'the browser holds the first notification').toBe('function');
+
+    // The repeat's copy was drawn within its 300 ms, so its notification has its picture as it waits.
+    const copies = () => page.evaluate(() => (window as unknown as { __copies: number[] }).__copies);
+    await expect.poll(async () => (await copies()).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+    const [firstDrawn, drawn] = await copies();
+    // The repeat's picture is kept with the repeat's time, which its notification was asked at.
+    const newestKept = async () => Math.max(0, ...keptRows(await readDatabase(page)).map((row) => row.takenAt as number));
+    await expect.poll(newestKept, { timeout: 15_000 }).toBeGreaterThan(firstDrawn);
+    const repeatAt = await newestKept();
+    expect(drawn - repeatAt, 'the repeat’s copy was drawn within its 300 ms').toBeLessThanOrEqual(300);
+    await page.waitForTimeout(1_000);
+    expect(await notesOf(page), 'no notification has gone while the browser holds the first').toHaveLength(0);
+
+    // The person turns the picture off in another tab, and then the browser takes the first.
+    await page.evaluate(() => {
+      const key = 'safeos-alert-pictures';
+      const stored = JSON.parse(localStorage.getItem(key) ?? '{"state":{},"version":0}');
+      stored.state.inNotifications = false;
+      const value = JSON.stringify(stored);
+      localStorage.setItem(key, value);
+      window.dispatchEvent(new StorageEvent('storage', { key, newValue: value, storageArea: localStorage }));
+    });
+    await page.evaluate(() => (window as unknown as { __releaseNote: () => void }).__releaseNote());
+    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(2);
+    const [one, two] = await notesOf(page);
+    // The first was in the browser's hands before the switch turned off.
+    expect(one.body).toMatch(noteBody(first));
+    expect(two.body).toMatch(noteBody(later));
+    expect(two.image ?? null, 'the repeat’s notification goes with its words alone').toBeNull();
+  });
 });
 
 // =============================================================================
@@ -4027,9 +4106,10 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
     await keepSwitch(group(other)).click();
     await expect(keepSwitch(group(other))).toHaveAttribute('aria-checked', 'false');
+    // Its news of keeping on goes out with the press, so this tab hears it no sooner than NEWS_MS after `sent`.
+    const sent = Date.now();
     await keepSwitch(group(other)).click();
     await expect(keepSwitch(group(other))).toHaveAttribute('aria-checked', 'true');
-    const sent = Date.now();
     // Then, before this tab hears of it, the person turns keeping off here.
     const found = await openWatchGroup(page);
     await keepSwitch(found).click();

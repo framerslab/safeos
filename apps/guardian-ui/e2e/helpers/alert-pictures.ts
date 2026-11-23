@@ -861,6 +861,9 @@ export interface PictureFault {
 declare global {
   interface Window {
     __pictureFault?: PictureFault;
+    /** How many JPEGs `holdDrawMs` has held, and how many of them it has handed back. */
+    __drawsHeld?: number;
+    __drawsHanded?: number;
   }
 }
 
@@ -1003,11 +1006,22 @@ export async function faultPictureStore(page: Page, fault: PictureFault = {}): P
     const toBlob = HTMLCanvasElement.prototype.toBlob;
     HTMLCanvasElement.prototype.toBlob = function (this: HTMLCanvasElement, callback: BlobCallback, type?: string, quality?: number) {
       const wait = type === 'image/jpeg' ? fault().holdDrawMs : 0;
-      const handBack: BlobCallback = wait ? (blob: Blob | null) => { setTimeout(() => callback(blob), wait); } : callback;
+      if (!wait) return toBlob.call(this, callback, type, quality);
+      window.__drawsHeld = (window.__drawsHeld ?? 0) + 1;
+      const handBack: BlobCallback = (blob: Blob | null) => {
+        setTimeout(() => {
+          window.__drawsHanded = (window.__drawsHanded ?? 0) + 1;
+          callback(blob);
+        }, wait);
+      };
       return toBlob.call(this, handBack, type, quality);
     } as typeof toBlob;
   }, { key: FAULT_KEY, first: fault, picturesMarker: PICTURES_CLEAR_MARKER_KEY });
 }
+
+/** How many pictures' JPEGs `holdDrawMs` has held so far, and how many of them it has handed back. */
+export const heldDraws = (page: Page): Promise<{ held: number; handed: number }> =>
+  page.evaluate(() => ({ held: window.__drawsHeld ?? 0, handed: window.__drawsHanded ?? 0 }));
 
 /** Changes the fault while the walk runs; a reload keeps it. */
 export async function setFault(page: Page, fault: PictureFault): Promise<void> {

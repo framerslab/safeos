@@ -9,7 +9,7 @@
  */
 
 import React from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { IDBFactory } from 'fake-indexeddb';
 
 require('fake-indexeddb/auto');
@@ -50,5 +50,9 @@ it('opens on the server\'s Alerts from its own link, with no new alert on the de
   window.history.pushState({}, '', '/history/');
   await openHistory();
   expect(await screen.findByRole('button', { name: /Analysis Results/ })).toBeTruthy();
+  // The Alerts view is the one open: it asks the server for its alerts, never for analysis results.
+  const asked = () => (global.fetch as jest.Mock).mock.calls.map(([url]) => String(url));
+  await waitFor(() => expect(asked().some((url) => url.includes('/api/alerts?'))).toBe(true));
+  expect(asked().some((url) => url.includes('/api/analysis?'))).toBe(false);
   expect(screen.queryByText('Type:')).toBeNull();
 });
