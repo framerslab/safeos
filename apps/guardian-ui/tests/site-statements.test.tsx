@@ -157,9 +157,12 @@ describe('storage and network statements', () => {
   const PAGES = listFiles(path.join(APP_ROOT, 'src', 'app'), ['.tsx']);
 
   it('settings are kept in localStorage, so no page says they are in IndexedDB', () => {
-    // stores/settings-store.ts persists with createJSONStorage(() => localStorage).
+    // stores/settings-store.ts persists with createJSONStorage(() => guardedStorage), which
+    // reads and writes window.localStorage and never throws when the browser refuses it.
     const store = fs.readFileSync(path.join(APP_ROOT, 'src', 'stores', 'settings-store.ts'), 'utf8');
-    expect(store).toMatch(/createJSONStorage\(\(\) => localStorage\)/);
+    expect(store).toMatch(/createJSONStorage\(\(\) => guardedStorage\)/);
+    const guarded = fs.readFileSync(path.join(APP_ROOT, 'src', 'lib', 'storage-full.ts'), 'utf8');
+    expect(guarded).toMatch(/window\.localStorage\.setItem\(name, value\)/);
     expect(filesMatching(PAGES, /settings(?:(?!localStorage)[^.'"]){0,80}\bin (your browser(&apos;|'|\\')s )?IndexedDB/i)).toEqual([]);
   });
 

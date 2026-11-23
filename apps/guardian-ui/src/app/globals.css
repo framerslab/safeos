@@ -25,6 +25,9 @@
 /* Import the watch's Watch for, its pet and Choose a pet */
 @import '../styles/watch-for.css';
 
+/* Import the settings pages' list and rows */
+@import '../styles/settings.css';
+
 /* =============================================================================
    Additional Base Styles
    ============================================================================= */

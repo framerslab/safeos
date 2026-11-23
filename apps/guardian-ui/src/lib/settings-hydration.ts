@@ -19,7 +19,7 @@ const NEW_PROFILE_PREFERENCES: Record<(typeof PREFERENCE_KEYS)[number], number> 
 
 const isNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
-/** The Settings page writes this record on every save on this browser. */
+/** Older versions of Settings wrote this record on each save on this browser. */
 function readBrowserSettings(): SavedSettings | null {
   if (typeof localStorage === 'undefined') return null;
   try {
@@ -32,8 +32,9 @@ function readBrowserSettings(): SavedSettings | null {
 /**
  * Import preferences a person saved before the shared store held them, once per
  * account (or once for the browser), then use the shared store. A value saved on
- * this browser wins; an account value is used only when it differs from a new
- * profile's default; account quiet hours only when both times are set. While a
+ * this browser wins, and is read only by the first import; an account value is
+ * used only when it differs from a new profile's default; account quiet hours
+ * only when both times are set. While a
  * set time's setting is on, the sensitivities and the volume stay the set
  * time's: the import is recorded as done, and quiet hours are taken.
  */
@@ -44,12 +45,16 @@ export function hydrateSavedSettings(profile: UserProfile | null): void {
 
   const browser = readBrowserSettings();
   if (!profile && !browser) return;
+  // The browser's record is imported once. After that the shared store holds
+  // every change, and the record is never written again: a value it holds
+  // keeps the store's own, so a later profile cannot bring an old value back.
+  const imported = state.settingsSourceId !== null;
 
   const values: Partial<SecurityPreset> = {};
   for (const key of PREFERENCE_KEYS) {
     const saved = browser?.preferences?.[key];
     const account = profile?.preferences?.[key];
-    const value = isNumber(saved) ? saved
+    const value = isNumber(saved) ? (imported ? undefined : saved)
       : isNumber(account) && account !== NEW_PROFILE_PREFERENCES[key] ? account
         : undefined;
     if (value !== undefined) values[key] = Math.max(0, Math.min(100, value * 100));
@@ -58,7 +63,9 @@ export function hydrateSavedSettings(profile: UserProfile | null): void {
   let quietHoursSettings = state.quietHoursSettings;
   const savedQuiet = browser?.notificationSettings;
   const accountQuiet = profile?.notificationSettings;
-  if (savedQuiet) {
+  if (savedQuiet && imported) {
+    // Imported before: the store's quiet hours stay.
+  } else if (savedQuiet) {
     quietHoursSettings = {
       ...quietHoursSettings,
       enabled: !!(savedQuiet.quietHoursStart && savedQuiet.quietHoursEnd),
