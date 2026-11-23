@@ -58,8 +58,17 @@ The alert list stands on the page under the heading **Alerts**; while any alert 
 new, the count of new alerts stands beside it. With no alert in the list it says
 "Alerts show here while this device watches." before a watch and "No alert so
 far." while watching; while the saved alerts are read, three bars hold the
-entries' place. When the saved alerts cannot be read, it says "The saved alerts
-could not be read on this device. New alerts show here." in place of an empty list.
+entries' place. When this device's storage refuses the saved alerts, the problem
+glyph and "Alerts could not be saved on this device. They show here until you
+reload." stand under the heading, and the list goes on under them for this visit.
+Under the list (beside the picture from 1024 px) stands the statement "SafeOS adds
+an alert. It does not replace a person nearby. A phone or a browser can sleep, lose
+power or drop the camera, so stay within reach."
+
+While another tab watches, **Start watching** asks "Watch here instead? The other
+tab stops." with **Watch here** and **Keep the other tab**; focus starts on **Keep
+the other tab**, and it or Escape closes the question and gives focus back to
+**Start watching**.
 
 ## Watch for
 

@@ -319,10 +319,18 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
         </button>}
       </div>
 
+      {/* Storage this device refused: the list goes on in memory under the line. */}
+      {readFailed && (
+        <p className="watch-list__problem" role="status">
+          <ProblemMark />
+          <span>{ALERTS_NOT_SAVED}</span>
+        </p>
+      )}
+
       {/* Content */}
       <div className="watch-list__body">
         {alerts.length === 0 ? (
-          readFailed ? <ReadFailed /> : alertsRead ? <EmptyState /> : <ListWaits />
+          alertsRead ? <EmptyState /> : <ListWaits />
         ) : (
           <div className="divide-y divide-slate-700/50">
             {/* Unacknowledged alerts */}
@@ -495,17 +503,8 @@ function EmptyState() {
   );
 }
 
-export const ALERTS_READ_FAILED = 'The saved alerts could not be read on this device. New alerts show here.';
-
-/** In place of the empty list when the saved alerts could not be read. */
-function ReadFailed() {
-  return (
-    <div className="watch-list__empty">
-      <BellGlyph />
-      <p role="status">{ALERTS_READ_FAILED}</p>
-    </div>
-  );
-}
+/** The saved alerts could not be read: this device's storage refuses them, so new ones are held in memory. */
+export const ALERTS_NOT_SAVED = 'Alerts could not be saved on this device. They show here until you reload.';
 
 /** Three bars where the entries go, while the saved alerts are read. */
 function ListWaits() {

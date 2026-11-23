@@ -46,6 +46,7 @@ import { SettingsFold } from '../../components/watch/SettingsFold';
 import { levelMeter, pictureChangeMeter, pictureChangeRatio } from '../../lib/watch-meters';
 import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
 import { useStartGuard } from '../../lib/start-guard';
+import { Brand } from '../../components/home/Brand';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -527,8 +528,9 @@ export default function MonitorPage() {
   const stopStreamRef = useRef(stopStream);
   stopStreamRef.current = stopStream;
 
-  // While another tab watches, a start key here asks first.
-  const { guard, dialog } = useStartGuard();
+  // While another tab watches, a start key here asks first; its second key
+  // keeps the other tab.
+  const { guard, dialog } = useStartGuard({ keep: 'Keep the other tab' });
   // The press turns the sound on before the other tabs answer: a browser that
   // keeps a page's sound off until a tap turns it on only inside the tap.
   const pressStart = (start: () => unknown) => (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -1616,6 +1618,10 @@ export default function MonitorPage() {
         {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
         <AlertPanel showMute={false} />
       </div>
+
+      <p className="watch-grid__statement watch-statement">
+        <Brand>SafeOS</Brand> adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.
+      </p>
 
       {/* Preset Initializer - handles URL params */}
       <Suspense fallback={null}>

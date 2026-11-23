@@ -437,12 +437,16 @@ it('says where alerts show before a watch, and that none came while watching', a
 
 const STATEMENT = 'SafeOS adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.';
 
+// The statement's paragraph, whose name SafeOS sits in a span of its own.
+const statements = () =>
+  [...document.querySelectorAll('p')].filter((p) => (p.textContent ?? '').replace(/\s+/g, ' ').trim() === STATEMENT);
+
 it('says SafeOS adds an alert and does not replace a person nearby, before and during a watch', async () => {
   render(<MonitorPage />);
   await act(async () => {});
-  expect(screen.getAllByText(STATEMENT)).toHaveLength(1);
+  expect(statements()).toHaveLength(1);
   await startMonitoring();
-  expect(screen.getAllByText(STATEMENT)).toHaveLength(1);
+  expect(statements()).toHaveLength(1);
 });
 
 it('holds three bars in the entries\' place until the saved alerts are read', async () => {
@@ -552,7 +556,7 @@ it('says alerts cannot be saved on this device when the saved ones could not be 
     // The store's error line beside the problem glyph, under the header; the
     // list goes on in memory under it.
     const line = screen.getByText('Alerts could not be saved on this device. They show here until you reload.');
-    expect(line.closest('.watch-list__problem')?.querySelector('.problem-glyph')).toBeTruthy();
+    expect(line.closest('.watch-list__problem')?.querySelector('.problem-mark')).toBeTruthy();
     expect(screen.queryByText(/could not be read/)).toBeNull();
     expect(screen.getByText('No alert so far.')).toBeTruthy();
   } finally {
