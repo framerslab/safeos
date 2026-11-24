@@ -1,8 +1,9 @@
 /**
  * What this device keeps, counted
  *
- * Settings, Data on this device, says how many alerts, saved pictures, pets
- * and sounds of the person's own this device holds.
+ * Settings, Data on this device, says how many alerts, saved pictures (the
+ * alert pictures kept among them), pets and sounds of the person's own this
+ * device holds.
  *
  * @module lib/kept-on-device
  */

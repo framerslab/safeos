@@ -25,7 +25,8 @@ while it is open; a connection lost before the page heard of it makes the first
 press show that sentence, and a second press clears.
 
 Data on this device also counts what this device keeps (alerts, Wildlife
-sightings among them, saved pictures, pets and sounds of your own) and exports
+sightings among them, saved pictures, the alert pictures kept among them, pets
+and sounds of your own) and exports
 the settings as a file, `safeos-settings-<yyyy-mm-dd>.json`, with the look and
 text (`look`) and the notification choices (`notifications`), never a key a
 server needs. When the device's databases cannot be read, the page says "Could

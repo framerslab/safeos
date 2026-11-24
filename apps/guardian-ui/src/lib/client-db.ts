@@ -1479,21 +1479,23 @@ export async function getStorageStats(): Promise<{
 /**
  * What this device keeps, counted for Settings, Data on this device: alerts
  * (the alert records and the wildlife sightings), saved pictures (Lost and
- * Found's and People's frames) and pets (every saved subject but a person).
- * A read that fails throws.
+ * Found's and People's frames, and the alert pictures kept, not the rows that
+ * say a picture went) and pets (every saved subject but a person). A read that
+ * fails throws.
  */
 export async function countKeptRecords(): Promise<{ alerts: number; pictures: number; pets: number }> {
   const db = await getDB();
-  const [alerts, sightings, matches, intrusions, subjects] = await Promise.all([
+  const [alerts, sightings, matches, intrusions, alertPictures, subjects] = await Promise.all([
     db.count('alert_cache'),
     db.count('animal_detection'),
     db.count('match_frame'),
     db.count('intrusion_frame'),
+    db.countFromIndex('alert_picture', 'by-state-taken', KEPT_RANGE()),
     db.getAll('subject_profile'),
   ]);
   return {
     alerts: alerts + sightings,
-    pictures: matches + intrusions,
+    pictures: matches + intrusions + alertPictures,
     pets: subjects.filter((subject) => subject.type !== 'person').length,
   };
 }
