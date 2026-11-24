@@ -225,6 +225,9 @@ async function concatWindow(frames, cut, seconds, directory) {
   if (cut.scroll) {
     assert.ok(new Set(segment.map(({ scrollY }) => scrollY)).size > 1,
       'The screencast did not record the scroll to the new alerts');
+    const firstFrame = await readFile(path.join(directory, segment[0].filename));
+    const lastFrame = await readFile(path.join(directory, segment.at(-1).filename));
+    assert.ok(!firstFrame.equals(lastFrame), 'The screenshot pixels did not move with the Dashboard scroll');
   }
   const posterFrame = segment.findLast(({ at }) => at <= cut.poster);
   const list = ['ffconcat version 1.0'];

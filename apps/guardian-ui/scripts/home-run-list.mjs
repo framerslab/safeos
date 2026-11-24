@@ -156,6 +156,10 @@ async function dashboard({ page, view, top, prepared, sample }) {
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
   const words = await sample();
+  const shown = words.map(({ word }) => word).join(' ');
+  for (const way of ['Motion and sound', 'Lost and Found', 'People', 'Wildlife']) {
+    assert.ok(shown.includes(way), `The Dashboard poster does not show ${way}`);
+  }
   await sleepUntil(page, start, 2.5);
   const header = await page.locator('.app-header').first().boundingBox();
   const subjectTop = Math.max(top + 6, (header?.height ?? 0) + 4);
@@ -164,8 +168,16 @@ async function dashboard({ page, view, top, prepared, sample }) {
     const from = await page.evaluate(() => scrollY);
     const target = await viewingTop(page, '#since-label') - subjectTop;
     await page.mouse.move(1, Math.min(subjectTop + 20, view.height - 1));
-    await page.mouse.wheel(0, target - from);
-    await page.waitForFunction((from) => Math.abs(scrollY - from) > 16, from);
+    const wheelStart = await browserTime(page);
+    let previous = from;
+    // One steady wheel gesture, with time for the compositor to paint it.
+    for (let step = 1; step <= 12; step += 1) {
+      const at = Math.round(from + (target - from) * step / 12);
+      await page.mouse.wheel(0, at - previous);
+      previous = at;
+      await sleepUntil(page, wheelStart, step / 12);
+    }
+    await page.waitForFunction((target) => Math.abs(scrollY - target) <= 3, target, { timeout: 1000 });
     scroll = { from, to: await page.evaluate(() => scrollY), target };
   } else {
     scroll = await scrollSubject(page, '#since-label', subjectTop, 1);
