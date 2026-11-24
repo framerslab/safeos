@@ -148,6 +148,45 @@ describe('the page reads before any script runs and asks for nothing', () => {
   });
 });
 
+describe('how camera frames, sound and photos reach the alert', () => {
+  it('serves the diagram as stages with only the connections each check uses', () => {
+    const figure = one('#how-it-works figure.home-diagram');
+    expect(figure).not.toBeNull();
+    expect(words(figure?.querySelector('figcaption'))).toBe(
+      'How SafeOS reads the camera and microphone, what it keeps and what a server adds'
+    );
+    const stages = Array.from(figure?.querySelectorAll('ol > li') ?? []);
+    expect(stages.map((stage) => Array.from(stage.querySelectorAll('[data-node]'), (node) => node.getAttribute('data-node')))).toEqual([
+      ['camera', 'microphone', 'pet-photos'],
+      ['motion', 'picture-change', 'sound', 'lost-found', 'people-wildlife'],
+      ['alert', 'storage'],
+      ['server-frames', 'server-alerts', 'server-model'],
+    ]);
+    expect(words(figure?.querySelector('[data-band="browser"]'))).toBe('In your browser, on the device that watches');
+    expect(words(figure?.querySelector('[data-band="server"]'))).toBe('Only with a server you run');
+
+    const connections: Record<string, string[]> = {
+      motion: ['camera'],
+      'picture-change': ['camera'],
+      sound: ['microphone'],
+      'lost-found': ['camera', 'pet-photos'],
+      'people-wildlife': ['camera'],
+      alert: ['motion', 'picture-change', 'sound', 'lost-found', 'people-wildlife'],
+    };
+    const edges = Array.from(figure?.querySelectorAll('[data-from], [data-to]') ?? [], (edge) => {
+      expect(edge.getAttribute('aria-hidden')).toBe('true');
+      return `${edge.getAttribute('data-from')}:${edge.getAttribute('data-to')}`;
+    });
+    expect(edges.sort()).toEqual(Object.entries(connections).flatMap(([to, from]) => from.map((source) => `${source}:${to}`)).sort());
+    for (const [to, from] of Object.entries(connections)) {
+      const node = figure?.querySelector(`[data-node="${to}"]`);
+      const inputs = node?.getAttribute('aria-describedby')?.split(' ');
+      expect(inputs).toEqual(from.map((id) => `home-diagram-${id}`));
+      for (const id of inputs ?? []) expect(figure?.querySelector(`[id="${id}"]`)).not.toBeNull();
+    }
+  });
+});
+
 describe('headline and benefits', () => {
   it('says what a visitor gets in the H1 and three benefits', () => {
     expect(words(one('h1'))).toBe('Free motion and sound alerts from an old phone or laptop');
