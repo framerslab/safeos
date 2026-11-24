@@ -109,6 +109,9 @@ jobs:
       - name: Add CNAME file for custom domain
         run: echo "safeos.sh" > out/CNAME
 
+      - name: Verify the recorded runs in the export
+        run: node scripts/home-run-inputs.mjs --verify-export out
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

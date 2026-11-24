@@ -333,3 +333,50 @@ jobs:
           path: ${{ runner.temp }}/home-run-diagnostics
           if-no-files-found: ignore
           retention-days: 7
+
+  check-home-runs:
+    name: Check the committed home runs
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        working-directory: apps/guardian-ui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/guardian-ui/package-lock.json
+
+      - run: npm ci
+
+      - name: Check which files change the recording input digest
+        run: node scripts/home-run-inputs.mjs --prove-input-digest public
+
+      - name: Check the source commit and producer artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRODUCER_COMMIT="$(node -p "require('./public/home/runs/runs.json').commit")"
+          PRODUCER_RUN_ID="$(node -p "new URL(require('./public/home/runs/runs.json').run).pathname.split('/').pop()")"
+          git merge-base --is-ancestor "$PRODUCER_COMMIT" HEAD
+          RECORD_JOB="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRODUCER_RUN_ID/jobs" --jq             '.jobs[] | select(.name == "Record the home page runs" and .conclusion == "success") | .id')"
+          test -n "$RECORD_JOB"
+          LIVE_ARTIFACT="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRODUCER_RUN_ID/artifacts" --jq             '.artifacts[] | select(.name == "home-runs" and .expired == false) | .id')"
+          if [ -n "$LIVE_ARTIFACT" ]; then
+            gh run download "$PRODUCER_RUN_ID" --repo "$GITHUB_REPOSITORY" --name home-runs --dir "$RUNNER_TEMP/producer"
+            node scripts/home-run-inputs.mjs --compare-artifact public "$RUNNER_TEMP/producer"
+          else
+            echo "The producer artifact is no longer retained. The successful job and committed hashes still apply."
+          fi
+
+      - name: Check source and file hashes of the committed runs
+        run: node scripts/home-run-inputs.mjs --verify-committed public

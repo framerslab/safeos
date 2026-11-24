@@ -17,6 +17,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import HomePage from '@/app/page';
 import { SiteShell } from '@/components/layout/SiteShell';
 import clip from '../public/home/sample-clip.json';
+import recording from '../public/home/runs/runs.json';
 import { SETUP_CAMERA_STEP, SETUP_STEPS, SETUP_STEP_COUNT } from '@/lib/setup-steps';
 import { MAX_PET_PHOTOS, MIN_PET_PHOTOS } from '@/lib/pet-photo-limits';
 import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
@@ -82,6 +83,25 @@ describe('the page reads before any script runs and asks for nothing', () => {
     const keys = Array.from(region!.querySelectorAll('button[data-run]')).map(words);
     expect(keys.filter(key => ['Dashboard', 'Watching', 'Settings'].includes(key)))
       .toEqual(['Dashboard', 'Watching', 'Settings']);
+  });
+
+  it('serves the recorded manifest’s keys and poster sizes on home', () => {
+    const region = one('section[aria-label="Recorded runs of SafeOS Guardian"]');
+    expect(region).not.toBeNull();
+    expect(Array.from(region!.querySelectorAll('button[data-run]')).map(words))
+      .toEqual(recording.runs.map(({ key }) => key));
+    const templates = Array.from(region!.querySelectorAll<HTMLTemplateElement>('template[data-run-poster]'));
+    expect(templates.map((template) => template.dataset.runPoster)).toEqual(recording.runs.map(({ id }) => id));
+    for (const run of recording.runs) {
+      const template = templates.find((candidate) => candidate.dataset.runPoster === run.id);
+      for (const variants of Object.values(run.variants)) {
+        for (const variant of Object.values(variants)) {
+          const file = variant.poster.webp;
+          const image = template?.content.querySelector('source[srcset="/' + file.path + '"]');
+          expect([Number(image?.getAttribute('width')), Number(image?.getAttribute('height'))]).toEqual([file.width, file.height]);
+        }
+      }
+    }
   });
 
   it('shows the line for a page whose script did not start, under the statement, until the app marks itself started', () => {

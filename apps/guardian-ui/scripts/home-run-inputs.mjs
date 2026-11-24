@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { limits, sha256 } from './home-run-frames.mjs';
+import { barredWording } from './home-wording.cjs';
 
 const app = fileURLToPath(new URL('..', import.meta.url));
 const repo = path.resolve(app, '../..');
@@ -122,4 +124,167 @@ export function recordingInputs(ids) {
   const hash = createHash('sha256');
   for (const [name, oid] of inputs) hash.update(`${name}\0${oid}\0`);
   return { inputDigest: hash.digest('hex'), inputs: Object.fromEntries(inputs) };
+}
+
+const ordered = ['dashboard', 'watching', 'alert', 'lost-found', 'settings'];
+const launch = ['dashboard', 'watching', 'settings'];
+const sizes = ['square', 'wide'];
+const looks = ['dark', 'light'];
+const mediaPrefix = 'home/runs/';
+const hex = /^[a-f0-9]{64}$/;
+
+function checkWords(words, label) {
+  assert.ok(Array.isArray(words) && words.length, label + ': missing visible words');
+  assert.ok(words.every((word) => typeof word === 'string' && word.trim()), label + ': empty visible word');
+  assert.doesNotMatch(words.join(' '), barredWording, label + ': barred wording');
+}
+
+export function verifyBundle(directory) {
+  const folder = path.resolve(directory);
+  const manifest = JSON.parse(readFileSync(path.join(folder, mediaPrefix, 'runs.json'), 'utf8'));
+  assert.equal(manifest.schemaVersion, 1, 'Unknown recording manifest version');
+  assert.match(manifest.commit, /^[a-f0-9]{40}$/, 'Missing recording commit');
+  assert.match(manifest.run, /^https:\/\/github\.com\/framerslab\/safeos\/actions\/runs\/\d+$/, 'Missing recording workflow');
+  assert.match(manifest.inputDigest, hex, 'Missing source digest');
+  assert.ok(manifest.browser && manifest.encoder, 'Missing recording tool versions');
+  const ids = manifest.runs.map(({ id }) => id);
+  assert.equal(new Set(ids).size, ids.length, 'Duplicate run ID: ' + ids.join(', '));
+  assert.ok(ids.length >= 3 && ids.length <= 5, 'Expected three to five runs');
+  for (const id of launch) assert.ok(ids.includes(id), 'Missing required run: ' + id);
+  assert.deepEqual(ids, ordered.filter((id) => ids.includes(id)), 'Runs are outside the published order');
+  assert.equal(new Set(manifest.runs.map(({ key }) => key)).size, ids.length, 'Run keys must be unique');
+  assert.deepEqual(manifest.omitted.map(({ id }) => id), ordered.filter((id) => !ids.includes(id)), 'Missing omitted runs');
+  assert.ok(manifest.omitted.every(({ reason }) => reason?.trim()), 'Omitted runs need a reason');
+  const paths = new Set([mediaPrefix + 'runs.json']);
+  const clipPaths = new Set();
+  for (const clip of manifest.clips) {
+    assert.match(clip.path, /^home\/(?:sample-clip\.mp4|runs\/garden\.mp4)$/);
+    assert.match(clip.sha256, hex);
+    assert.ok(clip.credit?.trim(), 'Clip needs a credit: ' + clip.path);
+    assert.equal(sha256(readFileSync(path.join(folder, clip.path))), clip.sha256, 'Clip hash mismatch: ' + clip.path);
+    clipPaths.add(clip.path);
+  }
+  const totals = {};
+  let hasAvif;
+  function checkFile(file, expected, max, crop, scale, kind) {
+    assert.ok(file && file.path === expected, 'Missing or invalid ' + expected);
+    assert.ok(!paths.has(file.path), 'Duplicate recording file: ' + file.path);
+    paths.add(file.path);
+    assert.ok(Number.isSafeInteger(file.bytes) && file.bytes > 0 && file.bytes <= max,
+      file.path + ': exceeds its file budget or has no bytes');
+    assert.match(file.sha256, hex, file.path + ': invalid hash');
+    assert.equal(file.kind, kind, file.path + ': unexpected file kind');
+    assert.deepEqual([file.width, file.height], [Math.round(crop.width * scale), Math.round(crop.height * scale)],
+      file.path + ': dimensions differ from the crop');
+    const bytes = readFileSync(path.join(folder, file.path));
+    assert.equal(bytes.length, file.bytes, file.path + ': byte count differs');
+    assert.equal(sha256(bytes), file.sha256, file.path + ': SHA-256 differs');
+  }
+  for (const run of manifest.runs) {
+    const { id, description, longDescription, visibleWords, variants } = run;
+    assert.ok(run.key && run.route?.startsWith('/') && run.state, id + ': missing route or state');
+    assert.ok(Number.isFinite(run.seconds) && run.seconds > 0, id + ': missing duration');
+    assert.ok(run.posterAt >= 0 && run.posterAt < run.seconds, id + ': poster is outside the recording');
+    assert.ok(run.eventAt >= 0 && run.eventAt <= run.seconds, id + ': missing event time');
+    assert.ok(id === 'settings' ? run.clip === null : clipPaths.has(run.clip), id + ': invalid clip');
+    assert.ok(description?.trim() && longDescription?.length, id + ': missing text equivalent');
+    assert.doesNotMatch([run.key, description, ...longDescription].join(' '), barredWording, id + ': barred caption');
+    checkWords(visibleWords, id);
+    assert.deepEqual(Object.keys(variants).sort(), sizes, id + ': size variants');
+    for (const size of sizes) {
+      assert.deepEqual(Object.keys(variants[size]).sort(), looks, id + ': look variants');
+      for (const look of looks) {
+        const { video, poster, crop, viewport, scale, words, posterAt } = variants[size][look];
+        const label = id + '-' + size + '-' + look;
+        const base = mediaPrefix + label;
+        const budget = limits[size];
+        assert.equal(scale, size === 'square' ? 3 : 2.5, label + ': wrong capture scale');
+        assert.equal(viewport.height, size === 'square' ? 844 : 480, label + ': wrong viewport height');
+        assert.ok(size === 'square' ? viewport.width >= 320 && viewport.width <= 390 : viewport.width === 768,
+          label + ': wrong viewport width');
+        assert.equal(crop.x, 0, label + ': capture must use the whole width');
+        assert.equal(crop.width, viewport.width, label + ': crop width differs from the viewport');
+        assert.equal(crop.height, size === 'square' ? crop.width : viewport.height, label + ': unexpected crop height');
+        assert.ok(crop.y >= 0 && crop.y + crop.height <= viewport.height, label + ': crop leaves the viewport');
+        assert.ok(posterAt >= 0 && posterAt < run.seconds, label + ': poster is outside the recording');
+        assert.deepEqual(Object.keys(poster).sort(), poster.avif ? ['avif', 'webp'] : ['webp'], label + ': unexpected poster formats');
+        hasAvif ??= Boolean(poster.avif);
+        assert.equal(Boolean(poster.avif), hasAvif, label + ': inconsistent AVIF availability');
+        const offered = Math.max(...Object.values(poster).map(({ bytes }) => bytes));
+        assert.ok(video?.bytes + offered <= budget.first, label + ': over the combined transfer budget');
+        checkFile(video, base + '.mp4', budget.video, crop, scale, 'video');
+        assert.equal(video.codec, 'h264', label + ': invalid codec');
+        assert.equal(video.format, 'mp4', label + ': invalid video format');
+        assert.ok(Math.abs(video.seconds - run.seconds) <= 1 / 15, label + ': duration differs');
+        for (const format of Object.keys(poster)) {
+          checkFile(poster[format], base + '.' + format, budget.poster, crop, scale, 'poster');
+          assert.equal(poster[format].format, format, label + ': invalid poster format');
+        }
+        checkWords(words?.map(({ word }) => word), label);
+        for (const { word, x, y, width, height, size: font } of words) {
+          assert.ok([x, y, width, height, font].every(Number.isFinite) && x >= -0.5 && y >= -0.5
+            && width > 0 && height > 0 && font > 0 && x + width <= crop.width + 0.5 && y + height <= crop.height + 0.5,
+          label + ': invalid word bounds for ' + word);
+        }
+        const group = size + '-' + look;
+        totals[group] = (totals[group] ?? 0) + video.bytes + offered;
+        assert.ok(totals[group] <= budget.all, group + ': over the total transfer budget');
+      }
+    }
+  }
+  const inventory = readdirSync(path.join(folder, mediaPrefix))
+    .map((file) => mediaPrefix + file)
+    .filter((file) => ![mediaPrefix + 'garden.mp4', mediaPrefix + 'garden.json'].includes(file));
+  assert.deepEqual(inventory.sort(), [...paths].sort(), 'Unexpected or missing recording files');
+  return { manifest, paths: [...paths] };
+}
+
+function verifyInputs(manifest) {
+  const actual = recordingInputs(manifest.runs.map(({ id }) => id));
+  if (actual.inputDigest !== manifest.inputDigest) {
+    const previous = manifest.inputs ?? {};
+    const names = new Set([...Object.keys(actual.inputs), ...Object.keys(previous)]);
+    const changed = [...names].filter((name) => actual.inputs[name] !== previous[name]);
+    throw Error('Stale recording sources. Changed paths: ' + changed.join(', '));
+  }
+  for (const [name, oid] of Object.entries(actual.inputs)) console.log(oid + '  ' + name);
+}
+
+
+function checkDigestScope(manifest) {
+  const ids = manifest.runs.map(({ id }) => id);
+  const before = recordingInputs(ids).inputDigest;
+  const proof = (file, changesDigest) => {
+    const name = path.join(repo, file);
+    const bytes = readFileSync(name);
+    try {
+      writeFileSync(name, Buffer.concat([bytes, Buffer.from('\n')]));
+      const after = recordingInputs(ids).inputDigest;
+      assert.equal(after !== before, changesDigest, 'Incorrect source digest behavior for ' + file);
+    } finally {
+      writeFileSync(name, bytes);
+    }
+  };
+  proof(path.join(appPath, 'src/app/settings/page.tsx'), true);
+  proof('README.md', false);
+}
+
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  const [option, directory, artifact] = process.argv.slice(2);
+  assert.ok(['--verify-files', '--verify-export', '--verify-committed', '--compare-artifact', '--prove-input-digest'].includes(option),
+    'Unknown home run verification command');
+  assert.ok(directory, 'Pass the public or exported directory');
+  const { manifest, paths } = verifyBundle(directory);
+  if (option === '--verify-export' || option === '--verify-committed') verifyInputs(manifest);
+  if (option === '--prove-input-digest') checkDigestScope(manifest);
+  if (option === '--compare-artifact') {
+    assert.ok(artifact, 'Pass the producer artifact directory');
+    const expected = paths.map((file) => path.basename(file)).sort();
+    assert.deepEqual(readdirSync(artifact).sort(), expected, 'Producer artifact inventory differs');
+    for (const file of paths) {
+      assert.ok(readFileSync(path.join(directory, file)).equals(readFileSync(path.join(artifact, path.basename(file)))),
+        'Producer artifact bytes differ: ' + file);
+    }
+  }
+  console.log('Verified ' + manifest.runs.length + ' committed runs (' + paths.length + ' files)');
 }
