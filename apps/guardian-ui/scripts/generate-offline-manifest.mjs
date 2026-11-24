@@ -6,7 +6,14 @@ import path from 'node:path';
 const root = path.resolve('out');
 async function walk(directory) {
   const entries = await readdir(directory, { withFileTypes: true });
-  const relativePath = (file) => path.relative(root, file).split(path.sep).join('/');
+  const files = await Promise.all(entries.map((entry) => {
+    const file = path.join(directory, entry.name);
+    return entry.isDirectory() ? walk(file) : [file];
+  }));
+  return files.flat();
+}
+
+const relativePath = (file) => path.relative(root, file).split(path.sep).join('/');
 const posterPattern = /^home\/runs\/[a-z]+(?:-[a-z]+)*-square-(?:dark|light)\.webp$/;
 const exported = (await walk(root)).sort();
 const posters = exported.filter((file) => posterPattern.test(relativePath(file)));
