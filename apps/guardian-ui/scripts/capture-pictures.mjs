@@ -98,7 +98,15 @@ try {
     ? await import('./home-checks.mjs')
     : null;
   if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks);
-  if (homeChecks) failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
+  if (homeChecks) {
+    failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
+    const { checkHomeRuns, checkRunPolicies } = await import('./home-run-checks.mjs');
+    const response = await fetch(new URL('/home/runs/runs.json', baseUrl));
+    if (!response.ok) throw Error('Missing exported home recordings');
+    const { runs } = await response.json();
+    failures += await checkHomeRuns(browser, baseUrl, runs);
+    failures += await checkRunPolicies(browser, baseUrl, runs);
+  }
   for (const route of routes) {
     for (const size of WIDTHS) {
       for (const look of LOOKS) {
@@ -225,12 +233,6 @@ try {
   }
   if (homeChecks) {
     failures += await checkFirstVisit(browser, baseUrl, outDir);
-    const { checkHomeRuns, checkRunPolicies } = await import('./home-run-checks.mjs');
-    const response = await fetch(new URL('/home/runs/runs.json', baseUrl));
-    if (!response.ok) throw Error('Missing exported home recordings');
-    const { runs } = await response.json();
-    failures += await checkHomeRuns(browser, baseUrl, runs);
-    failures += await checkRunPolicies(browser, baseUrl, runs);
     failures += await checkHomeUseSetup(browser, baseUrl);
   }
   // The app's own pages, for the pull request's own build. The base build

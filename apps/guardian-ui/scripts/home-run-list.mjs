@@ -171,7 +171,9 @@ async function dashboard({ page, view, top, prepared, sample }) {
 
   await sleepUntil(page, start, 2.5);
   const header = await page.locator('.app-header').first().boundingBox();
-  const subjectTop = Math.max(top + 6, (header?.height ?? 0) + 4);
+  // The gap before the alerts is larger on phones. Keep some of it in the
+  // square so the footer's brand stays below the crop.
+  const subjectTop = Math.max(top + (view.size === 'square' ? 38 : 6), (header?.height ?? 0) + 4);
   const scroll = await scrollSubject(page, '#since-label', subjectTop, 1);
   assert.ok(Math.abs(scroll.to - scroll.from) > 16, 'The dashboard did not scroll to its new alerts');
 
