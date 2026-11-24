@@ -19,7 +19,7 @@ function generate(files: Record<string, string>) {
   const worker = fs.readFileSync(path.join(root, 'out', 'sw.js'), 'utf8');
   const match = worker.match(/^self\.__SAFEOS_PRECACHE = (.*);$/m);
   fs.rmSync(root, { recursive: true, force: true });
-  return JSON.parse(match![1]) as { version: string; urls: string[] };
+  return JSON.parse(match![1]) as { version: string; urls: string[]; posters: string[] };
 }
 
 it('installs the images the exported pages and notifications show', () => {
@@ -70,4 +70,32 @@ it('assigns different cache versions to distinct exported file contents', () => 
   const second = generate({ ...shared, 'out/index.html': '<html/>', 'out/index.txt': 'index.txt' });
   expect(first.urls).toEqual(second.urls);
   expect(first.version).not.toBe(second.version);
+});
+
+
+it('keeps both square WebP looks as optional offline pictures and excludes other home media', () => {
+  const files: Record<string, string> = {
+    'out/index.html': '<main></main>',
+    'out/_next/static/chunks/main.js': '',
+    'out/home/sample-clip.mp4': 'source',
+    'out/home/capture-phone-light.webp': 'retired capture',
+    'out/home/capture-phone-dark.png': 'retired copy',
+    'out/home/card.jpg': 'sharing',
+    'out/screenshots/dashboard.png': 'install',
+    'out/screenshots/monitoring.png': 'install',
+  };
+  const square = [];
+  for (const id of ['dashboard', 'watching', 'settings']) {
+    for (const look of ['dark', 'light']) {
+      square.push('/home/runs/' + id + '-square-' + look + '.webp');
+      for (const size of ['square', 'wide']) {
+        for (const kind of ['mp4', 'webp', 'avif']) {
+          files['out/home/runs/' + id + '-' + size + '-' + look + '.' + kind] = kind;
+        }
+      }
+    }
+  }
+  const { urls, posters } = generate(files);
+  expect(posters).toEqual(square.sort());
+  expect(urls.filter((url) => /^\/(?:home\/(?:runs|capture-|card|sample-clip)|screenshots\/)/.test(url))).toEqual([]);
 });
