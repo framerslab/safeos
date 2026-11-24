@@ -1314,7 +1314,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         };
       }));
       await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
-      await page.getByRole('button', { name: 'View match details', exact: true }).dispatchEvent('click');
+      await page.getByRole('button', { name: 'Open this picture', exact: true }).dispatchEvent('click');
       await checkOverlay(page.locator('.fixed.inset-0', { hasText: 'No image available' }), check, 'the match opened large');
     });
   }

@@ -231,14 +231,16 @@ it('shows no score panel while the watch compares with a saved pet', async () =>
   expect(screen.queryByText(/Confidence|consecutive match|Matching|View Match History/)).toBeNull();
 });
 
-it("a Lost and Found notification names the pet's colours, with no score and no match", async () => {
+it('a Lost and Found notification asks the question and names colours and shape', async () => {
   useLostFoundStore.setState({ settings: { ...useLostFoundStore.getState().settings, alertNotification: true } });
   Object.defineProperty(global, 'Notification', { configurable: true, value: Object.assign(jest.fn(), {
     permission: 'granted', requestPermission: jest.fn().mockResolvedValue('granted'),
   }) });
   mockNotify.mockClear();
   await twoChecks('note-75', 'note-55');
-  expect(mockNotify).toHaveBeenCalledWith('Lost and Found alert', expect.objectContaining({ body: 'Colours like Mittens’s' }));
+  expect(mockNotify).toHaveBeenCalledWith('Could this be Mittens?', expect.objectContaining({
+    body: expect.stringMatching(/^Colours and shape like Mittens’s photos, .+\.$/),
+  }));
   for (const [title, options] of mockNotify.mock.calls as Array<[string, { body?: string } | undefined]>) {
     const words = `${title} ${options?.body ?? ''}`;
     if (words.includes('Mittens') || words.includes('Lost and Found')) {

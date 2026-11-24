@@ -96,16 +96,22 @@ test('another pet chosen while the watch compares starts with none of the first 
   const petMeter = page.locator('.watch-meter--pet');
   await expect(petMeter.getByText('Comparing with Stripes’s photos', { exact: true })).toBeVisible({ timeout: 30_000 });
   expect(await framesOf(page, 'Stripes')).toBeGreaterThan(0);
+  const petCard = page.locator('[data-lost-found-card="full"]');
+  await expect(petCard.getByRole('heading', { name: 'Recent possible sightings' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Change pet', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'Choose a pet' });
   await dialog.getByText('Plain', { exact: true }).click();
   await expect(dialog).toHaveCount(0);
 
-  // The meter names Plain at once, and no match is saved for Plain while it is compared.
+  // The meter names Plain at once. The checks and sightings from Stripes are gone.
   await expect(petMeter.getByText('Comparing with Plain’s photos', { exact: true })).toBeVisible();
+  const checks = petMeter.getByText(/checks? (in a row )?like/);
+  await expect(checks).toHaveCount(0);
+  await expect(petCard.getByRole('heading', { name: 'Recent possible sightings' })).toHaveCount(0);
   await page.waitForTimeout(3_000);
   expect(await framesOf(page, 'Plain')).toBe(0);
+  await expect(checks).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('watch-for-pet-changed-1280.png') });
 
   // The camera did not restart, and the comparison goes on with Plain.

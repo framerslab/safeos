@@ -6,8 +6,8 @@
  * live picture's foot: its name, a word for its state, and a bar on an 8 px
  * track filled in the accent up to the alert line and in the alert colour
  * past it, with the line drawn across the track. While Lost and Found
- * compares, the pet's meter names the pet and what it compares, with no bar
- * and no number. A change of state is not announced; under reduced motion a
+ * compares, the pet's meter names what it compares and says where it sits
+ * against the alert line. A change of state is not announced; under reduced motion a
  * meter's shown reading changes at most once a second.
  *
  * @module components/watch/Meters
@@ -15,6 +15,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ProblemMark } from '../dashboard/Drawn';
+import { SightingReading } from '../SubjectPreview';
+import { checksInARow } from '../../lib/lost-found-words';
 import { MICROPHONE_WORDS, type MicrophoneProblem } from '../../lib/camera-failure';
 import { METER_STATE_WORDS, meterValueText, type MeterReading } from '../../lib/watch-meters';
 
@@ -29,7 +31,7 @@ export interface MetersProps {
   /** Only the kinds the setting in use checks. */
   rows: MeterRow[];
   /** The pet, while Lost and Found compares. */
-  pet: { name: string; photo: string | null } | null;
+  pet: { name: string; photo: string | null; score: number; alertLine: number; checks: number } | null;
   microphone: MicrophoneProblem | null;
 }
 
@@ -124,7 +126,7 @@ export function Meters({ rows, pet, microphone }: MetersProps) {
         ),
       )}
       {pet && (
-        <div className="watch-meter watch-meter--pet">
+        <div className="watch-meter watch-meter--pet" data-lost-found-card="picture">
           {pet.photo && (
             // eslint-disable-next-line @next/next/no-img-element
             <img className="watch-meter__photo" src={pet.photo} alt="" width={24} height={24} />
@@ -133,6 +135,12 @@ export function Meters({ rows, pet, microphone }: MetersProps) {
           <span className="watch-meter__compares">
             Comparing with <span translate="no">{pet.name}</span>’s photos
           </span>
+          <div className="col-span-2 min-w-0">
+            <SightingReading score={pet.score} alertLine={pet.alertLine} />
+            {pet.score > 0 && pet.checks > 0 && (
+              <p className="mt-2 break-words text-sm">{checksInARow(pet.checks, pet.name)}</p>
+            )}
+          </div>
         </div>
       )}
     </div>

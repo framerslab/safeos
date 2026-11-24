@@ -10,6 +10,7 @@
 
 import { getLocalDataGeneration, isCurrentLocalData, readAccountClearMarker } from '@/lib/local-data-generation';
 import { showBrowserNotification } from '@/lib/browser-notification';
+import { sightingNotificationBody, sightingQuestion } from '@/lib/lost-found-words';
 import { newAlertId } from '@/lib/alert-id';
 import { newDetectorEvent, endDetectorEvent, freshCardFor, keepsNotificationUp, readDetector, type AlertSeverity, type DetectorEvent } from '@/lib/alert-event';
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
@@ -136,6 +137,8 @@ export default function MonitorPage() {
     activeSubject,
     isWatching: isLostFoundWatching,
     settings: lostFoundSettings,
+    currentConfidence,
+    consecutiveMatches,
     updateCurrentConfidence,
     updateConsecutiveMatches,
     addMatchFrame: addMatchFrameToStore,
@@ -357,9 +360,8 @@ export default function MonitorPage() {
 
         // Show notification if enabled
         if (lostFoundSettings.alertNotification && 'Notification' in window && Notification.permission === 'granted') {
-          // The alert list's words: the pet's colours, never a score or a find.
-          void showBrowserNotification('Lost and Found alert', {
-            body: `Colours like ${activeSubject.name}’s`,
+          void showBrowserNotification(sightingQuestion(activeSubject.name), {
+            body: sightingNotificationBody(activeSubject.name, result.timestamp),
             icon: activeSubject.referenceImages[0],
           });
         }
@@ -1358,8 +1360,15 @@ export default function MonitorPage() {
     currentPreset.pixelDetectionEnabled,
   );
   if (pictureChange) meterRows.push({ kind: 'picture-change', reading: pictureChange });
+  const readingBelongsToPet = activeSubject?.id === watchFor.pet?.id;
   const meterPet = watchFor.comparing && watchFor.pet
-    ? { name: watchFor.pet.name, photo: watchFor.pet.referenceImages?.[0] ?? null }
+    ? {
+        name: watchFor.pet.name,
+        photo: watchFor.pet.referenceImages?.[0] ?? null,
+        score: readingBelongsToPet ? currentConfidence : 0,
+        alertLine: lostFoundSettings.minConfidenceForAlert,
+        checks: readingBelongsToPet ? consecutiveMatches : 0,
+      }
     : null;
 
   // ---------------------------------------------------------------------------

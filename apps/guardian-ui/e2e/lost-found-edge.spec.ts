@@ -1,8 +1,8 @@
 /**
- * Lost & Found: a saved match carries an edge score
+ * Lost and Found: a saved frame or sighting carries an edge score
  *
- * Enrols a subject from a striped picture, shows the camera the same stripes
- * and reads the Edge value of the match the monitor saves, in the gallery.
+ * Enrols a pet from a striped picture, shows the camera the same stripes
+ * and reads the comparison details the watch kept on this device.
  *
  * The camera is Chromium's fake one, fed from a .y4m file through
  * --use-file-for-fake-video-capture as scripts/home-captures.mjs feeds it.
@@ -15,46 +15,59 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import monitorSettings from '../scripts/home-capture-settings.json';
+import { petOverTheLine } from './helpers/own-sound';
 import { CAMERA_FILE, stripedPhoto } from './helpers/striped-subject';
 
 // =============================================================================
-// The saved matches
+// The saved comparisons
 // =============================================================================
 
-/**
- * How many matches the browser's database holds. The monitor reports a match
- * on any frame that scores, and saves one only when the score reaches the
- * record line, a moment later (it makes a thumbnail first). Leaving the
- * monitor before that would leave the gallery empty.
- */
-const savedMatches = (page: Page): Promise<number> =>
-  page.evaluate(async () => {
-    const known = await indexedDB.databases();
-    if (!known.some((database) => database.name === 'safeos-guardian')) {
-      return 0;
-    }
-    return new Promise<number>((resolve) => {
+interface SavedScores {
+  colorMatch: number;
+  dominantMatch: number;
+  edgeMatch: number;
+  sizeMatch: number;
+}
+
+interface SavedComparison {
+  kind?: string;
+  subjectId: string;
+  details?: SavedScores;
+}
+
+/** Reads both versions of a comparison the watch can keep for this pet. */
+const savedScores = (page: Page, name: string): Promise<SavedScores[]> =>
+  page.evaluate(async (petName) => {
+    if (!(await indexedDB.databases()).some((database) => database.name === 'safeos-guardian')) return [];
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const opening = indexedDB.open('safeos-guardian');
-      opening.onerror = () => resolve(0);
-      opening.onsuccess = () => {
-        const database = opening.result;
-        if (!database.objectStoreNames.contains('match_frame')) {
-          database.close();
-          resolve(0);
+      opening.onsuccess = () => resolve(opening.result);
+      opening.onerror = () => reject(opening.error);
+    });
+    try {
+      const read = <T,>(store: string) => new Promise<T[]>((resolve, reject) => {
+        if (!database.objectStoreNames.contains(store)) {
+          resolve([]);
           return;
         }
-        const counting = database.transaction('match_frame').objectStore('match_frame').count();
-        counting.onsuccess = () => {
-          database.close();
-          resolve(counting.result);
-        };
-        counting.onerror = () => {
-          database.close();
-          resolve(0);
-        };
-      };
-    });
-  });
+        const reading = database.transaction(store).objectStore(store).getAll();
+        reading.onsuccess = () => resolve(reading.result as T[]);
+        reading.onerror = () => reject(reading.error);
+      });
+      const [pets, frames, alerts] = await Promise.all([
+        read<{ id: string; name: string }>('subject_profile'),
+        read<SavedComparison>('match_frame'),
+        read<SavedComparison>('alert_cache'),
+      ]);
+      const ids = new Set(pets.filter((pet) => pet.name === petName).map((pet) => pet.id));
+      const sightings = alerts.filter((alert) => alert.kind === 'sighting');
+      return [...frames, ...sightings].flatMap(({ subjectId, details }) =>
+        ids.has(subjectId) && details ? [details] : []
+      );
+    } finally {
+      database.close();
+    }
+  }, name);
 
 // =============================================================================
 // The test
@@ -78,7 +91,7 @@ test.skip(
   'The fake camera file is a Chromium switch; the test runs at desktop width'
 );
 
-test('a match saved from a striped camera picture shows an Edge value above 0', async ({ page, context }) => {
+test('a frame or sighting saved from a striped camera picture keeps an edge score above 0', async ({ page, context }) => {
   test.setTimeout(240_000);
 
   await context.grantPermissions(['camera', 'microphone']);
@@ -119,34 +132,19 @@ test('a match saved from a striped camera picture shows an Edge value above 0', 
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
   await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
 
-  // Start the camera and wait for the watch to report a match.
+  // Start the camera and wait for the comparison to reach the alert line.
   await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
-  // Stay on the monitor until a match is in the browser's database; the
-  // gallery reads the database when it opens.
-  await expect.poll(() => savedMatches(page), { timeout: 60_000 }).toBeGreaterThan(0);
+  await expect(petOverTheLine(page)).toBeVisible({ timeout: 60_000 });
 
-  const openMatch = page.getByRole('button', { name: 'View match details' }).first();
-  await expect(async () => {
-    await page.goto('/lost-found/gallery/', { waitUntil: 'networkidle', timeout: 30_000 });
-    await expect(openMatch).toBeVisible({ timeout: 5_000 });
-  }).toPass({ timeout: 60_000 });
-  await openMatch.click();
+  await expect.poll(async () => {
+    const scores = (await savedScores(page, 'Stripes')).find((comparison) => comparison.edgeMatch > 0);
+    if (!scores) return 0;
 
-  // The four scores sit in a row, each a value over its label.
-  const score = (label: string) =>
-    page.getByText(label, { exact: true }).locator('xpath=..').locator('p').first();
-  const edge = score('Edge');
-  await expect(edge).toHaveText(/^\d+(\.\d+)?%$/);
-
-  // The run's log keeps what the gallery showed.
-  const shownScores: string[] = [];
-  for (const label of ['Confidence', 'Color', 'Dominant', 'Edge', 'Size']) {
-    const value = score(label);
-    shownScores.push(`${label} ${(await value.count()) === 1 ? await value.textContent() : 'not read'}`);
-  }
-  console.log(`The saved match shows: ${shownScores.join(', ')}`);
-
-  const shown = (await edge.textContent()) ?? '';
-  expect(Number.parseFloat(shown)).toBeGreaterThan(0);
+    console.log(
+      `Saved comparison scores: colour ${scores.colorMatch}, main colours ${scores.dominantMatch}, ` +
+      `edges ${scores.edgeMatch}, size ${scores.sizeMatch}`
+    );
+    return scores.edgeMatch;
+  }, { timeout: 60_000 }).toBeGreaterThan(0);
 });

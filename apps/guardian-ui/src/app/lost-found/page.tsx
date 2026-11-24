@@ -26,6 +26,7 @@ import { useLostFoundStore, getSubjectTypeLabel } from '../../stores/lost-found-
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { getAllSubjectProfiles, deleteSubjectProfile, type SubjectProfileDB } from '../../lib/client-db';
 import { useStartGuard } from '../../lib/start-guard';
+import { savedSightings } from '../../lib/lost-found-words';
 
 export default function LostFoundPage() {
   const router = useRouter();
@@ -75,7 +76,7 @@ export default function LostFoundPage() {
   // Handle delete subject
   const handleDeleteSubject = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Are you sure you want to delete this subject? All match history will be lost.')) {
+    if (confirm('Delete this subject? Its saved pictures are deleted too.')) {
       await deleteSubjectProfile(id);
       setSavedSubjects(prev => prev.filter(s => s.id !== id));
       if (activeSubject?.id === id) {
@@ -184,7 +185,7 @@ export default function LostFoundPage() {
                       className="px-4 py-2 bg-[var(--color-steel-700)] hover:bg-[var(--color-steel-600)] text-white rounded-lg flex items-center gap-2 transition-colors"
                     >
                       <IconHistory size={16} />
-                      View Matches
+                      Saved pictures
                     </Link>
                   </div>
                 )}
@@ -253,7 +254,7 @@ export default function LostFoundPage() {
                             </span>
                           </div>
                           <p className="text-sm text-[var(--color-steel-400)] mt-1">
-                            {subject.matchCount} matches • Created {new Date(subject.createdAt).toLocaleDateString()}
+                            {savedSightings(subject.matchCount)} • Created {new Date(subject.createdAt).toLocaleDateString()}
                           </p>
                           {subject.description && (
                             <p className="text-sm text-[var(--color-steel-500)] mt-1 truncate">
@@ -289,9 +290,9 @@ export default function LostFoundPage() {
                       <IconHistory size={20} className="text-blue-400" />
                     </div>
                     <div>
-                      <p className="font-medium text-white">Match History</p>
+                      <p className="font-medium text-white">Saved pictures</p>
                       <p className="text-sm text-[var(--color-steel-400)]">
-                        View all detected potential matches
+                        Every picture the watch saved for a possible sighting
                       </p>
                     </div>
                   </div>
@@ -334,7 +335,7 @@ export default function LostFoundPage() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs flex-shrink-0 mt-0.5">4</span>
-                  Get an alert when the colours match; another animal or an object of similar colour can match too
+                  Get an alert when the colours and shape are like the photos; another animal or an object of similar colour can set it off too
                 </li>
               </ul>
             </div>

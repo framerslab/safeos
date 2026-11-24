@@ -20,15 +20,17 @@ import {
   IconChevronRight,
   IconExpand,
 } from './icons';
-import { getMatchQuality, formatMatchResult } from '../lib/subject-matcher';
+import { lineState, sightingLines, sightingQuestion } from '../lib/lost-found-words';
 import {
   getAllMatchFrames,
+  getAllSubjectProfiles,
   getMatchFramesBySubject,
   acknowledgeMatchFrame,
   deleteMatchFrame,
   markMatchFramesExported,
   exportMatchFrames,
   type MatchFrameDB,
+  type SubjectProfileDB,
 } from '../lib/client-db';
 import { useLostFoundStore } from '../stores/lost-found-store';
 
@@ -50,6 +52,7 @@ type SortType = 'newest' | 'oldest' | 'confidence';
 
 export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
   const [frames, setFrames] = useState<MatchFrameDB[]>([]);
+  const [subjects, setSubjects] = useState<SubjectProfileDB[]>([]);
   const [filteredFrames, setFilteredFrames] = useState<MatchFrameDB[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
@@ -58,17 +61,20 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showFilters, setShowFilters] = useState(false);
   
-  const { settings, subjects } = useLostFoundStore();
-  const subjectMap = new Map(subjects.map(s => [s.id, s]));
+  const { settings } = useLostFoundStore();
+  const subjectMap = new Map(subjects.map((subject) => [subject.id, subject]));
+  const selectedName = selectedFrame && subjectMap.get(selectedFrame.subjectId)?.name;
 
   // Load frames
   const loadFrames = useCallback(async () => {
     setIsLoading(true);
     try {
-      const data = subjectId
-        ? await getMatchFramesBySubject(subjectId)
-        : await getAllMatchFrames();
+      const [data, savedSubjects] = await Promise.all([
+        subjectId ? getMatchFramesBySubject(subjectId) : getAllMatchFrames(),
+        getAllSubjectProfiles(),
+      ]);
       setFrames(data);
+      setSubjects(savedSubjects);
     } catch (error) {
       console.error('Failed to load match frames:', error);
     } finally {
@@ -90,7 +96,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
         result = result.filter(f => !f.acknowledged);
         break;
       case 'high-confidence':
-        result = result.filter(f => f.confidence >= settings.minConfidenceForAlert);
+        result = result.filter(f => lineState(f.confidence, settings.minConfidenceForAlert) === 'over');
         break;
       case 'exported':
         result = result.filter(f => f.exported);
@@ -224,7 +230,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
       <div className="p-4 border-b border-[var(--color-steel-700)]">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white">
-            Potential Matches
+            Saved pictures
           </h2>
           {onClose && (
             <button
@@ -259,7 +265,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
           >
             <option value="newest">Newest First</option>
             <option value="oldest">Oldest First</option>
-            <option value="confidence">Highest Confidence</option>
+            <option value="confidence">Closest first</option>
           </select>
           
           {/* Spacer */}
@@ -315,7 +321,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
             {[
               { id: 'all', label: 'All' },
               { id: 'unacknowledged', label: 'New' },
-              { id: 'high-confidence', label: 'High Confidence' },
+              { id: 'high-confidence', label: 'Over the alert line' },
               { id: 'exported', label: 'Exported' },
             ].map((f) => (
               <button
@@ -337,7 +343,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
       {/* Gallery grid */}
       {filteredFrames.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-[var(--color-steel-400)]">No matches found</p>
+          <p className="text-[var(--color-steel-400)]">No pictures saved</p>
         </div>
       ) : (
         <div className="p-4">
@@ -354,7 +360,6 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
           
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {filteredFrames.map((frame) => {
-              const quality = getMatchQuality(frame.confidence);
               const subject = subjectMap.get(frame.subjectId);
               
               return (
@@ -374,7 +379,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
                     {frame.thumbnailData ? (
                       <img
                         src={frame.thumbnailData}
-                        alt="Match"
+                        alt={`What the camera saw at ${new Date(frame.timestamp).toLocaleTimeString()}`}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -386,10 +391,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
                   
                   {/* Overlay info */}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2">
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs font-medium text-${quality.color}-400`}>
-                        {frame.confidence}%
-                      </span>
+                    <div className="flex items-center justify-end">
                       <span className="text-xs text-[var(--color-steel-400)]">
                         {new Date(frame.timestamp).toLocaleTimeString()}
                       </span>
@@ -430,7 +432,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
                         setSelectedFrame(frame);
                       }}
                       className="p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
-                      aria-label="View match details"
+                      aria-label="Open this picture"
                     >
                       <IconExpand size={16} className="text-white" aria-hidden="true" />
                     </button>
@@ -440,7 +442,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
                         handleAcknowledge(frame.id);
                       }}
                       className="p-2 bg-emerald-500/50 rounded-full hover:bg-emerald-500/70 transition-colors"
-                      aria-label="Acknowledge match"
+                      aria-label="Acknowledge this picture"
                     >
                       <IconCheck size={16} className="text-white" aria-hidden="true" />
                     </button>
@@ -450,7 +452,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
                         handleDelete(frame.id);
                       }}
                       className="p-2 bg-red-500/50 rounded-full hover:bg-red-500/70 transition-colors"
-                      aria-label="Delete match"
+                      aria-label="Delete this picture"
                     >
                       <IconTrash size={16} className="text-white" aria-hidden="true" />
                     </button>
@@ -507,7 +509,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
                 {selectedFrame.frameData ? (
                   <img
                     src={selectedFrame.frameData}
-                    alt="Match"
+                    alt={`What the camera saw at ${new Date(selectedFrame.timestamp).toLocaleTimeString()}`}
                     className="w-full max-h-[60vh] object-contain bg-black"
                   />
                 ) : (
@@ -532,44 +534,20 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
               
               {/* Details */}
               <div className="p-4 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-lg font-semibold text-white">
-                      {getMatchQuality(selectedFrame.confidence).label} Match
+                <div>
+                  <p className="text-lg font-semibold text-white">
+                    {selectedName ? sightingQuestion(selectedName) : 'A possible sighting'}
+                  </p>
+                  {selectedName && (
+                    <p className="text-sm text-[var(--color-steel-300)]">
+                      {sightingLines(selectedName)[0]}
                     </p>
-                    <p className="text-sm text-[var(--color-steel-400)]">
-                      {new Date(selectedFrame.timestamp).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-2xl font-bold text-emerald-400">
-                      {selectedFrame.confidence}%
-                    </p>
-                    <p className="text-xs text-[var(--color-steel-500)]">
-                      Confidence
-                    </p>
-                  </div>
+                  )}
+                  <p className="text-sm text-[var(--color-steel-400)]">
+                    {new Date(selectedFrame.timestamp).toLocaleString()}
+                  </p>
                 </div>
-                
-                {/* Detail breakdown */}
-                <div className="grid grid-cols-4 gap-3">
-                  {[
-                    { label: 'Color', value: selectedFrame.details.colorMatch },
-                    { label: 'Dominant', value: selectedFrame.details.dominantMatch },
-                    { label: 'Edge', value: selectedFrame.details.edgeMatch },
-                    { label: 'Size', value: selectedFrame.details.sizeMatch },
-                  ].map((detail) => (
-                    <div key={detail.label} className="text-center">
-                      <p className="text-lg font-medium text-white">
-                        {detail.value}%
-                      </p>
-                      <p className="text-xs text-[var(--color-steel-500)]">
-                        {detail.label}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                
+
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-[var(--color-steel-700)]">
                   {!selectedFrame.acknowledged && (
