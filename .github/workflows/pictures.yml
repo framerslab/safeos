@@ -144,12 +144,22 @@ jobs:
           # shellcheck disable=SC2086
           node scripts/capture-pictures.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/pictures" $ROUTES
 
+      - name: Measure home readability from the captured pixels
+        if: always() && matrix.version == 'after'
+        run: |
+          if [ -f "$RUNNER_TEMP/pictures/home-readability-boxes.json" ]; then
+            python3 -m pip install --quiet Pillow==11.3.0
+            python3 -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures"
+          fi
+
       - name: Upload pictures
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.version == 'before' && 'pictures-before' || 'pictures' }}
-          path: ${{ runner.temp }}/pictures/*.png
+          path: |
+            ${{ runner.temp }}/pictures/*.png
+            ${{ runner.temp }}/pictures/home-readability.json
           if-no-files-found: error
           retention-days: 14
 

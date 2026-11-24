@@ -1003,6 +1003,10 @@ html.light .maker-mark__image--light {
   margin-inline: auto;
 }
 
+.home-detection > .home-wrap {
+  container-type: inline-size;
+}
+
 .home-diagram {
   margin: 32px 0 0;
 }
@@ -1069,7 +1073,7 @@ html.light .maker-mark__image--light {
   border-radius: 8px;
 }
 
-@media (min-width: 64em) {
+@container (min-width: 60rem) {
   .home-diagram__band {
     display: grid;
     gap: 0;
@@ -1973,4 +1977,23 @@ html.light .capture__pic--light {
 
 .home-closing__rule {
   background: var(--color-steel-900);
+}
+
+.home-first .key--start,
+.home-closing .key--start {
+  min-height: 56px;
+}
+
+.home-use p a,
+.home-free__words p a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+}
+
+@container (width < 44rem) {
+  .home-detection__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

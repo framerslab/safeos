@@ -23,7 +23,7 @@ export function HomeLockup() {
   return (
     <div ref={lockup} className="home-lockup" role="img" aria-label="SafeOS Guardian" translate="no">
       <SiteMark />
-      <span className="home-lockup__name">SafeOS</span>
+      <span className="home-lockup__name">SafeOS</span>{' '}
       <span className="home-lockup__line">Guardian</span>
     </div>
   );
