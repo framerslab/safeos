@@ -295,10 +295,10 @@ for (const look of ['light', 'dark'] as const) {
     const capture = look === 'light' ? 'lost-found-overlay-words-1280.png' : 'lost-found-overlay-words-1280-dark.png';
     await page.screenshot({ path: testInfo.outputPath(capture) });
     const title = dialog.getByRole('heading', { name: QUESTION, exact: true });
-    const shown = await wordsOn(dialog, title);
-    expect.soft(shown.ratio, 'the heading has at least 12:1 contrast against the black overlay').toBeGreaterThanOrEqual(12);
-    expect.soft(shown.solid).toBe(true);
-    expect.soft(shown.size).toBeGreaterThanOrEqual(18);
+    const titleStyle = await wordsOn(dialog, title);
+    expect.soft(titleStyle.ratio, 'the heading has at least 12:1 contrast against the black overlay').toBeGreaterThanOrEqual(12);
+    expect.soft(titleStyle.solid).toBe(true);
+    expect.soft(titleStyle.size).toBeGreaterThanOrEqual(18);
     expect(await readable(dialog, { lead: 18, other: 18, floor: 18, leadRatio: 12, otherRatio: 7 })).toEqual([]);
   });
 }
