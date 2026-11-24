@@ -36,7 +36,7 @@ jest.mock('@/lib/alert-pictures/capture', () => ({
 
 import { PictureDialogHost, openPicture } from '@/components/alert-pictures/PictureDialog';
 import { useMonitoringStore } from '@/stores/monitoring-store';
-import { BRIGHTEN, BRIGHTENED_VIEW, CLOSE, DELETE_PICTURE, SAVE_PICTURE } from '@/lib/alert-pictures/words';
+import { BRIGHTEN, BRIGHTENED_VIEW, CLOSE, DELETE_PICTURE, SAVE_PICTURE, UNREADABLE_DELETE } from '@/lib/alert-pictures/words';
 
 const AT = Date.UTC(2026, 10, 22, 21, 42, 40);
 
@@ -155,4 +155,16 @@ it('a delete that goes ahead after its panel closed leaves open the picture open
   expect(mockDelete).toHaveBeenCalledWith('picture-a');
   expect(screen.queryByRole('dialog')).not.toBeNull();
   expect(frameImage()?.getAttribute('src')).toBe('blob:frame-picture-b');
+});
+
+it('a kept picture whose file the browser cannot draw says so in the panel, and offers no Save picture', () => {
+  mockViews.set('picture-a', pictureOf('picture-a', false));
+  open('picture-a');
+  expect(screen.getByRole('button', { name: SAVE_PICTURE })).toBeTruthy();
+
+  // The browser cannot draw the stored file.
+  act(() => { fireEvent.error(frameImage()!); });
+  expect(screen.getByText(UNREADABLE_DELETE)).toBeTruthy();
+  expect(screen.queryByRole('button', { name: SAVE_PICTURE })).toBeNull();
+  expect(frameImage()).toBeNull();
 });

@@ -3772,9 +3772,13 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await seedPictureRows(page, [
       { alert: savedAlert('shared-odd-date', at, { producer: 'shared', monitoring: false, createdAt: at }) },
       { alert: savedAlert(`motion-${at}-other`, at, { kind: 'motion', pictureId: `picture-${at}-other` }), picture: keptPicture(`picture-${at}-other`, at) },
+      // A picture of the same age whose alert names no picture: no alert holds it.
+      { alert: savedAlert(`motion-${at}-unheld`, at, { kind: 'motion' }), picture: keptPicture(`picture-${at}-unheld`, at) },
     ], { here: true });
     await startWatching(page);
-    await page.waitForTimeout(4_000);
+    // The sweep ran: the picture no alert holds is deleted.
+    await expect.poll(async () => keptRows(await readDatabase(page)).map((row) => row.id), { timeout: 15_000 })
+      .not.toContain(`picture-${at}-unheld`);
     const kept = keptRows(await readDatabase(page)).map((row) => row.id);
     expect(kept, 'the other tab’s alert keeps its picture').toContain(`picture-${at}-other`);
   });
@@ -3788,6 +3792,7 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
       HTMLCanvasElement.prototype.toBlob = function (this: HTMLCanvasElement, callback: BlobCallback, type?: string, quality?: number) {
         if (!failed && type === 'image/jpeg' && quality === 0.92) {
           failed = true;
+          (window as unknown as { __savedFileRefused?: boolean }).__savedFileRefused = true;
           setTimeout(() => callback(null), 0);
           return;
         }
@@ -3801,8 +3806,13 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await openKey(card).click();
     const dialog = page.getByRole('dialog', { name: `Motion at ${time}`, exact: true });
     await expect(dialog.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+    // The first press makes no file: its JPEG is refused, and nothing downloads.
+    let downloads = 0;
+    page.on('download', () => { downloads += 1; });
     await saveKey(dialog).click();
     await page.waitForTimeout(1_000);
+    expect(await page.evaluate(() => (window as unknown as { __savedFileRefused?: boolean }).__savedFileRefused === true), 'the first file’s JPEG was refused').toBe(true);
+    expect(downloads, 'the first press downloads nothing').toBe(0);
     // Nothing says the picture cannot be read: it shows, and Save picture stays.
     await expect(dialog.getByText(UNREADABLE_LINE, { exact: false })).toHaveCount(0);
     await expect(dialog.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();

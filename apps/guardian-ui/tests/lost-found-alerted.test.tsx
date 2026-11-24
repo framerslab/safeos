@@ -201,6 +201,27 @@ it('a threshold changed later changes nothing already raised', async () => {
   expect(await getAllMatchFrames()).toEqual([]);
 });
 
+it('a check after another tab cleared all local data raises no sighting for the pet it cleared', async () => {
+  await saveSubjectProfile(pet());
+  useOnboardingStore.setState({ lostFoundChosen: true });
+  useLostFoundStore.setState({ chosenPetId: 'pet-1' });
+  mockResults.push(result('after-clear-75', 75), result('after-clear-80', 80));
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  await waitFor(() => expect(useLostFoundStore.getState().isWatching).toBe(true));
+  // Another tab clears all local data: its marker is written, and this tab has not heard of it yet.
+  localStorage.setItem('safeos_account_data_cleared', 'cleared-in-another-tab');
+  await act(async () => {
+    jest.advanceTimersByTime(500);
+  });
+  await act(async () => {
+    jest.advanceTimersByTime(500);
+  });
+  await settle();
+  expect(sightings()).toEqual([]);
+});
+
 it('a frame saved before this change keeps no field', async () => {
   const frame: MatchFrameDB = {
     id: 'older-frame',

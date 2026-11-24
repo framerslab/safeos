@@ -3,7 +3,7 @@ import './helpers/browser-data';
 import { getAlertPicture, saveAlertPicture } from '@/lib/client-db';
 import { pictureStampNow } from '@/lib/local-data-generation';
 import { sweepPicturesByAge } from '@/lib/alert-pictures/keeper';
-import { useAlertPicturesStore } from '@/stores/alert-pictures-store';
+import { ALERT_PICTURES_KEY, useAlertPicturesStore } from '@/stores/alert-pictures-store';
 
 // Nothing here is heard by other tabs.
 jest.mock('@/lib/tab-channel', () => ({
@@ -82,5 +82,37 @@ it('a sweep by an age deletes nothing when Until I delete them is chosen while i
     spy.mockRestore();
   }
   expect(chose).toBe(true);
+  expect((await getAlertPicture(id))?.state).toBe('kept');
+});
+
+it('a sweep by an age deletes nothing when another tab saved Until I delete them before this tab heard of it', async () => {
+  const now = Date.now();
+  const at = now - 2 * DAY;
+  const id = `picture-${at}-saved-elsewhere`;
+  expect(await saveAlertPicture({ id, state: 'kept', kind: 'motion', takenAt: at }, pictureStampNow()))
+    .toEqual({ result: 'saved', deleted: [] });
+  useAlertPicturesStore.getState().setDeleteAfterDays(1);
+
+  // As the sweep writes, another tab saves Until I delete them. This tab's store has not read it.
+  const put = IDBObjectStore.prototype.put;
+  let chose = false;
+  const spy = jest.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, value: unknown, key?: IDBValidKey) {
+    if (!chose && (value as { state?: string } | null)?.state === 'gone') {
+      chose = true;
+      const mine = useAlertPicturesStore.getState();
+      localStorage.setItem(ALERT_PICTURES_KEY, JSON.stringify({
+        state: { keep: mine.keep, deleteAfterDays: null, noticeAnswered: mine.noticeAnswered, inNotifications: mine.inNotifications, chosenAt: mine.chosenAt + 1_000 },
+        version: 0,
+      }));
+    }
+    return put.call(this, value, key);
+  });
+  try {
+    await sweepPicturesByAge(now);
+  } finally {
+    spy.mockRestore();
+  }
+  expect(chose).toBe(true);
+  expect(useAlertPicturesStore.getState().deleteAfterDays).toBe(1);
   expect((await getAlertPicture(id))?.state).toBe('kept');
 });
