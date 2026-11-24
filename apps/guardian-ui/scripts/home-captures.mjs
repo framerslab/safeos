@@ -35,7 +35,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from '@playwright/test';
+import { launchSampleDevice, seededContext, settings as CAPTURE_SETTINGS } from './home-run-seed.mjs';
 
 const [baseUrl, outDir, videoFile, audioFile] = process.argv.slice(2);
 if (!baseUrl || !outDir || !videoFile || !audioFile) {
@@ -47,14 +47,7 @@ const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const CLIP = path.join(APP_ROOT, 'public', 'home', 'sample-clip.mp4');
 const LOOKS = ['light', 'dark'];
 
-// The capture's preset (scripts/home-capture-settings.json). It is what
-// updateGlobalSettings({ pixelDetectionEnabled: false }) gives from the default
-// preset (src/stores/settings-store.ts); tests/home-capture-files.test.ts
-// holds it to the store.
-const CAPTURE_SETTINGS = JSON.parse(await readFile(path.join(APP_ROOT, 'scripts', 'home-capture-settings.json'), 'utf8'));
-
-const MOTION_ALERT = /Motion detected: \d+% \(threshold: 20%/;
-const SOUND_ALERT = /Audio detected: \d+% \(threshold: 20%/;
+const alertRows = (page, kind) => page.locator(`.watch-list__body [data-alert-kind="${kind}"]`);
 
 const files = [];
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -68,35 +61,6 @@ async function record(relative, details) {
   const bytes = await readFile(path.join(outDir, relative));
   files.push({ path: relative, ...details, bytes: bytes.length, sha256: sha256(bytes) });
   console.log(`saved ${relative}: ${details.width} by ${details.height}, ${bytes.length} bytes`);
-}
-
-// A window opened here keeps nothing on disk, and a headless browser reads
-// notifications as blocked; the dashboard says each of the two to a person.
-// A picture stands for a person's own window, so the page is told that its
-// storage is kept and that notifications are allowed.
-const OWN_WINDOW = () => {
-  try { sessionStorage.setItem('safeos-window-storage', 'kept'); } catch (e) { /* storage refused */ }
-  try {
-    Object.defineProperty(Notification, 'permission', { configurable: true, get: () => 'granted' });
-  } catch (e) { /* this browser has no notifications */ }
-};
-
-// A person who has finished setup, with the capture's preset saved, and the
-// two cards that appear unasked already put away.
-async function seededContext(browser, options) {
-  const context = await browser.newContext({ ...options, permissions: ['camera', 'microphone'] });
-  await context.addInitScript(OWN_WINDOW);
-  await context.addInitScript((settings) => {
-    localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
-      isComplete: true, selectedScenario: 'pet',
-      acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
-    }, version: 0 }));
-    localStorage.setItem('guardian-onboarding-complete', 'true');
-    localStorage.setItem('safeos-settings', JSON.stringify({ state: settings, version: 0 }));
-    localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
-    localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
-  }, CAPTURE_SETTINGS);
-  return context;
 }
 
 // Opens the monitor, presses its own start key and waits for the alert list
@@ -115,10 +79,10 @@ async function watchUntilMotionAlert(page, name) {
     throw new Error(shown ? `the camera did not start: ${shown.replace(/\s+/g, ' ').trim()}` : err.message);
   });
   const started = Date.now();
-  await page.getByText(MOTION_ALERT).first().waitFor({ timeout: 120_000 });
+  await alertRows(page, 'motion').first().waitFor({ timeout: 120_000 });
   const motionAt = ((Date.now() - started) / 1000).toFixed(1);
   console.log(`${name}: the alert list holds a motion alert ${motionAt} s after the camera went live`);
-  console.log(`${name}: motion alert reads "${(await page.getByText(MOTION_ALERT).first().textContent()).trim()}"`);
+  console.log(`${name}: motion alert reads "${(await alertRows(page, 'motion').first().locator('[data-alert-line]').textContent()).trim()}"`);
   // The Motion meter reads "Over the line" while the reading is at or over
   // its line, its bar past the line in the alert colour; the capture is saved
   // while it does.
@@ -224,16 +188,7 @@ async function saveCrop(page, relative, clip, details) {
 await mkdir(path.join(outDir, 'home'), { recursive: true });
 await mkdir(path.join(outDir, 'screenshots'), { recursive: true });
 
-// The headless browser has no prompt to answer a camera request and refuses
-// it ("Not supported") unless the request is granted by the fake prompt.
-const browser = await chromium.launch({
-  args: [
-    '--use-fake-ui-for-media-stream',
-    '--use-fake-device-for-media-stream',
-    `--use-file-for-fake-video-capture=${path.resolve(videoFile)}`,
-    `--use-file-for-fake-audio-capture=${path.resolve(audioFile)}`,
-  ],
-});
+const browser = await launchSampleDevice(videoFile, audioFile);
 let failures = 0;
 const portraitForCard = {};
 try {
@@ -287,9 +242,9 @@ try {
       try {
         const { indicator } = await watchUntilMotionAlert(page, name);
         // The landscape crop shows the alert list, which also holds a sound alert.
-        await page.getByText(SOUND_ALERT).first().waitFor({ timeout: 120_000 })
+        await alertRows(page, 'audio').first().waitFor({ timeout: 120_000 })
           .catch(() => { throw new Error(`${name}: the alert list holds no sound alert`); });
-        const sound = await page.getByText(SOUND_ALERT).count();
+        const sound = await alertRows(page, 'audio').count();
         console.log(`${name}: the alert list holds ${sound} sound alert${sound === 1 ? '' : 's'}`);
         await overTheLine(page, 60_000);
         // The crop starts 8 px over the camera's frame, across the watch's

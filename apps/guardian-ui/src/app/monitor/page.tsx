@@ -21,6 +21,7 @@ import { CameraFeed } from '../../components/CameraFeed';
 import { KeyRow } from '../../components/KeyRow';
 import { MuteAlerts, MutedLine } from '../../components/watch/MuteAlerts';
 import { AlertPanel } from '../../components/AlertPanel';
+import { watchAlertNotice } from '../../lib/watch-alert-words';
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
 import { InlineSettingsPanel } from '../../components/monitor';
 import { WatchForChooser, WatchForPet, useWatchFor, useWideWatch, usePhoneWatch, NO_PET_FRAME_LINE } from '../../components/monitor/WatchFor';
@@ -1102,7 +1103,8 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
     playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Motion Detected', `${best.score}% (threshold ${best.threshold}%) · ${best.name}`, severity, motionEventRef.current);
+    const notice = watchAlertNotice('motion', severity, now);
+    maybeNotify(notice.title, notice.body, severity, motionEventRef.current);
   }, [
     isStreaming,
     currentPreset.motionDetectionEnabled,
@@ -1145,7 +1147,8 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('audio_detected', { critical: severity === 'critical' });
     getSoundManager().playForSeverity(severity, { loop: false });
     maybeHaptic(severity);
-    maybeNotify('Audio Detected', `${level}% (threshold ${audioThreshold}%)`, severity, audioEventRef.current);
+    const notice = watchAlertNotice('audio', severity, now);
+    maybeNotify(notice.title, notice.body, severity, audioEventRef.current);
   }, [isStreaming, currentPreset.audioDetectionEnabled, currentPreset.audioSensitivity, getCooldownForSeverity, showDetectorAlert, timingSettings.cooldownPeriod, timingSettings.minimumMotionDuration]);
 
   const handlePixel = useCallback((result: PixelDetectionResult) => {
@@ -1231,7 +1234,8 @@ export default function MonitorPage() {
     getSoundManager().playForTrigger('motion_detected', { critical: severity === 'critical' });
     playMovementSound(severity);
     maybeHaptic(severity);
-    maybeNotify('Pixel Movement', `${chosenChangedPx}px (threshold ${chosenThresholdPx}px)`, severity, pixelEventRef.current);
+    const notice = watchAlertNotice('pixel', severity, now);
+    maybeNotify(notice.title, notice.body, severity, pixelEventRef.current);
   }, [
     isStreaming,
     currentPreset.absolutePixelThreshold,

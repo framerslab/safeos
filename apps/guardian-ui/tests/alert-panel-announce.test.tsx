@@ -44,7 +44,8 @@ it('announces each repeat of a card, also a repeat with the same reading and sev
   const { rerender } = render(panel(card));
   await act(async () => { await settle(); });
   const first = screen.getByRole('status').textContent;
-  expect(first).toContain('New high alert: Motion detected: 75% (threshold: 20%).');
+  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(new Date(card.createdAt!));
+  expect(first).toContain(`New alert: Motion, High, at ${time}.`);
 
   rerender(panel({ ...card, repeats: 1 }));
   await act(async () => { await settle(); });

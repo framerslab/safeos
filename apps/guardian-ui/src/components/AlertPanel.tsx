@@ -15,6 +15,7 @@ import { useSettingsStore } from '../stores/settings-store';
 import { getSoundManager, type SoundType } from '../lib/sound-manager';
 import { raisedByThisWatch } from '../lib/watch-sound';
 import { cardTime } from '../lib/alert-event';
+import { watchAlertAnnouncement, watchAlertKind, watchAlertLine } from '../lib/watch-alert-words';
 import { ProblemMark } from './dashboard/Drawn';
 import { Num } from './visitor/Num';
 import { BellGlyph } from './watch/Glyphs';
@@ -269,6 +270,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
 
   // Get the most recent unacknowledged alert for screen reader announcement
   const latestAlert = unacknowledgedAlerts[0];
+  const latestKind = latestAlert && watchAlertKind(latestAlert.id, latestAlert.message);
 
   return (
     <section className="watch-list" aria-labelledby="watch-list-name">
@@ -281,7 +283,9 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
       >
         {latestAlert && (
           <span>
-            New {latestAlert.severity} alert: {latestAlert.message}.
+            {latestKind
+              ? watchAlertAnnouncement(latestKind, latestAlert.severity, cardTime(latestAlert))
+              : `New ${latestAlert.severity} alert: ${latestAlert.message}.`}
             {/* A repeat often keeps the reading and severity; its count changes the words, so it is read. */}
             {(latestAlert.repeats ?? 0) > 0 &&
               ` Repeated ${latestAlert.repeats} ${latestAlert.repeats === 1 ? 'time' : 'times'}.`}
@@ -369,8 +373,9 @@ function AlertCard({ alert, escalationLevel, onAcknowledge }: AlertCardProps) {
   const IconComponent = SEVERITY_ICONS[alert.severity];
   // A card that counts repeats shows the time of its newest alert.
   const repeats = alert.repeats ?? 0;
-  const alertTime = cardTime(alert) || new Date().toISOString();
-  const timeAgo = getTimeAgo(alertTime);
+  const at = cardTime(alert);
+  const kind = watchAlertKind(alert.id, alert.message);
+  const timeAgo = getTimeAgo(at || new Date().toISOString());
 
   // Escalation indicator
   const escalationColor =
@@ -383,7 +388,7 @@ function AlertCard({ alert, escalationLevel, onAcknowledge }: AlertCardProps) {
           : 'bg-emerald-500';
 
   return (
-    <div className={`p-4 ${colors.bg} relative`}>
+    <div className={`p-4 ${colors.bg} relative`} data-alert-kind={kind} data-alert-at={at}>
       {/* Escalation indicator */}
       <div
         className={`absolute left-0 top-0 bottom-0 w-1 ${escalationColor}`}
@@ -413,7 +418,9 @@ function AlertCard({ alert, escalationLevel, onAcknowledge }: AlertCardProps) {
             <span className="text-xs text-slate-500">{timeAgo}</span>
           </div>
 
-          <p className="text-sm text-white mt-1 line-clamp-2">{alert.message}</p>
+          <p data-alert-line className="text-sm text-white mt-1 line-clamp-2">
+            {kind ? watchAlertLine(kind, at) : alert.message}
+          </p>
 
           <div className="flex items-center justify-between mt-2">
             <span className="text-xs text-slate-500">
@@ -467,20 +474,24 @@ function AcknowledgedSection({ alerts }: AcknowledgedSectionProps) {
 
       {expanded && (
         <div className="divide-y divide-slate-700/30">
-          {alerts.slice(0, 5).map((alert) => (
-            <div key={alert.id} className="p-3 opacity-60">
-              <div className="flex items-center gap-2 text-sm">
-                {(() => {
-                  const Icon = SEVERITY_ICONS[alert.severity];
-                  return <Icon size={14} className="text-slate-400 flex-shrink-0" aria-hidden="true" />;
-                })()}
-                <span className="text-slate-300 truncate">{alert.message}</span>
-                <span className="text-xs text-slate-500 ml-auto">
-                  {getTimeAgo(cardTime(alert) || new Date().toISOString())}
-                </span>
+          {alerts.slice(0, 5).map((alert) => {
+            const Icon = SEVERITY_ICONS[alert.severity];
+            const kind = watchAlertKind(alert.id, alert.message);
+            const at = cardTime(alert);
+            return (
+              <div key={alert.id} className="p-3 opacity-60">
+                <div className="flex items-center gap-2 text-sm">
+                  <Icon size={14} className="text-slate-400 flex-shrink-0" aria-hidden="true" />
+                  <span className="text-slate-300 truncate">
+                    {kind ? watchAlertLine(kind, at) : alert.message}
+                  </span>
+                  <span className="text-xs text-slate-500 ml-auto">
+                    {getTimeAgo(at || new Date().toISOString())}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {alerts.length > 5 && (
             <div className="p-3 text-center text-xs text-slate-500">
               + {alerts.length - 5} more

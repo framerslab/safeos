@@ -195,21 +195,18 @@ function instrument() {
     if (button && (button.textContent || '').includes('Start watching')) m.startPressedAt = performance.now();
   }, true);
 
-  // An alert card's message line starts with its kind; the screen-reader
-  // summary starts "New ..." and does not match. The observer stops once it
-  // has seen a motion card and a sound card, so it adds no work after that.
-  const KINDS = [['motion', /^Motion detected: /], ['sound', /^Audio detected: /]];
+  // Wait for the actual watch cards to arrive, then stop observing.
+  const kinds = { motion: 'motion', audio: 'sound' };
   const observer = new MutationObserver((records) => {
     if (m.startPressedAt === null) return;
     for (const record of records) {
       for (const node of record.addedNodes) {
         if (!(node instanceof Element)) continue;
-        const lines = node.matches('p') ? [node] : node.querySelectorAll('p');
-        for (const line of lines) {
-          const text = (line.textContent || '').trim();
-          for (const [kind, pattern] of KINDS) {
-            if (!m.alerts[kind] && pattern.test(text)) m.alerts[kind] = { at: performance.now(), text: text.slice(0, 120) };
-          }
+        const cards = node.matches('[data-alert-kind]') ? [node] : node.querySelectorAll('[data-alert-kind]');
+        for (const card of cards) {
+          const kind = kinds[card.dataset.alertKind];
+          const line = card.querySelector('[data-alert-line]');
+          if (kind && line && !m.alerts[kind]) m.alerts[kind] = { at: performance.now(), text: line.textContent.trim() };
         }
       }
     }

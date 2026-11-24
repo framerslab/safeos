@@ -15,6 +15,7 @@ import {
   getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp,
 } from './local-data-generation';
 import { getNotificationManager } from './notification-manager';
+import { watchAlertNotice } from './watch-alert-words';
 
 /**
  * A save that waits: `marker` and `counter` are noted when it is first queued; `stamp` once it has
@@ -762,8 +763,13 @@ class LocalAlertEngine {
 
   private async showNotification(alert: LocalAlert): Promise<void> {
     try {
-      await getNotificationManager().show(alert.message, {
-        body: alert.description,
+      const kind = alert.type;
+      const cameraLevels = { info: 'low', warning: 'medium', critical: 'high', emergency: 'critical' } as const;
+      const notice = kind === 'motion' || kind === 'audio'
+        ? watchAlertNotice(kind, cameraLevels[alert.severity], alert.timestamp)
+        : { title: alert.message, body: alert.description };
+      await getNotificationManager().show(notice.title, {
+        body: notice.body,
         tag: alert.id,
         requireInteraction: alert.severity === 'critical' || alert.severity === 'emergency',
         data: {
