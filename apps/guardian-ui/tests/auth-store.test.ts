@@ -78,14 +78,16 @@ function createDefaultNotificationSettings(): NotificationSettings {
 
 function createGuestProfile(displayName?: string): UserProfile {
   const id = `guest-${Date.now()}`;
+  // One time for both stamps: two reads of the clock can fall either side of a millisecond.
+  const now = new Date().toISOString();
   return {
     id,
     displayName: displayName || `Guest-${id.slice(0, 6)}`,
     avatarUrl: null,
     preferences: createDefaultPreferences(),
     notificationSettings: createDefaultNotificationSettings(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   };
 }
 
