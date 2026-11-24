@@ -873,23 +873,16 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
 // Both versions: the watch at 390 and 1280 px in both looks while its camera
 // starts, with a blocked camera, while watching, and with its settings open
-// (monitor-watch-<state>-<width>-<look>.png). The base build's start key reads
-// "Start Monitoring" and this build's "Start watching"; the base build has no
-// Show settings, so its settings picture is the page as it stands, scrolled
-// to its settings. Each picture waits for its state to show (this build's
-// Starting the camera…, Try again and Hide settings; the base build's Cancel
-// Starting, Camera Error and Mode Selection), and a state that does not show
-// fails that picture alone. A canvas stands in for the camera.
+// (monitor-watch-<state>-<width>-<look>.png). The page's frame tells us which
+// controls it offers. Each picture waits for its state to show, and a state
+// that does not show fails that picture alone. A canvas stands in for the camera.
 async function captureWatchStates(browser, baseUrl, outDir) {
   let failed = 0;
-  const after = process.env.PICTURE_VERSION === 'after';
   const startKey = (page) => page.getByRole('button', { name: /^(Start watching|Start Monitoring)$/ }).first();
   const stopKey = (page) => page.getByRole('button', { name: /^(Stop watching|Stop Monitoring)$/ }).first();
-  // What each version shows once the state stands: this build's key and Try
-  // again; the base build's Cancel Starting and its camera's error.
-  const shownFor = (page, state) => (state === 'starting'
-    ? page.getByRole('button', { name: after ? 'Starting the camera…' : 'Cancel Starting', exact: true })
-    : after
+  const shownFor = (page, state, hasWatchFrame) => (state === 'starting'
+    ? page.getByRole('button', { name: hasWatchFrame ? 'Starting the camera…' : 'Cancel Starting', exact: true })
+    : hasWatchFrame
       ? page.getByRole('button', { name: 'Try again', exact: true })
       : page.getByText('Camera Error', { exact: true })).first();
   for (const state of ['starting', 'blocked', 'watching', 'settings']) {
@@ -935,8 +928,9 @@ async function captureWatchStates(browser, baseUrl, outDir) {
           }, state === 'starting' ? 'held' : state === 'blocked' ? 'blocked' : 'ok');
           const page = await context.newPage();
           await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+          const hasWatchFrame = (await page.locator('.watch-frame').count()) > 0;
           if (state === 'settings') {
-            if (after) {
+            if (hasWatchFrame) {
               await page.getByRole('button', { name: 'Show settings', exact: true }).click({ timeout: 30_000 });
               await page.getByRole('button', { name: 'Hide settings', exact: true }).waitFor({ timeout: 10_000 });
               await page.locator('.watch-fold').scrollIntoViewIfNeeded();
@@ -949,9 +943,9 @@ async function captureWatchStates(browser, baseUrl, outDir) {
               await stopKey(page).waitFor({ timeout: 30_000 });
               await page.waitForTimeout(2_000);
               // Stop watching shows while paused too; the picture is taken live.
-              if (after) await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 10_000 });
+              if (hasWatchFrame) await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 10_000 });
             } else {
-              await shownFor(page, state).waitFor({ timeout: 30_000 });
+              await shownFor(page, state, hasWatchFrame).waitFor({ timeout: 30_000 });
             }
             await page.evaluate(() => window.scrollTo(0, 0));
           }
@@ -985,6 +979,11 @@ async function finishedSetupContext(browser, options) {
       acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
     }, version: 0 }));
     localStorage.setItem('guardian-onboarding-complete', 'true');
+    if (!localStorage.getItem('safeos-alert-pictures')) {
+      localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+        keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+      }, version: 0 }));
+    }
   });
   return context;
 }

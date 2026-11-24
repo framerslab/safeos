@@ -245,6 +245,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'], serverCon
       <ExpandableSection
         id="alert-pictures"
         title="Alert pictures"
+        summaryClassName="text-base whitespace-normal break-words"
         icon={
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <rect x="3" y="5" width="18" height="14" rx="1" strokeWidth={2} />

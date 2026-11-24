@@ -341,7 +341,7 @@ The newest card in the alert list shows the picture large with its box and the c
 "Close-up"; every other card shows one 112 by 84 px thumbnail. A repeat replaces the card's
 pictures with the newest alert's; a picture that could not be saved keeps its line when a newer
 alert moves it to a thumbnail. For 10 seconds from a Motion or Picture change alert, the
-live camera picture shows the box with "Motion here at {time}" or "Picture change here at
+live camera picture inside the watch frame shows the box with "Motion here at {time}" or "Picture change here at
 {time}"; a newer alert's box takes its place. The box leaves when another camera is chosen, and
 it is not drawn while the camera is paused. **Open picture** on a card, or a press on its
 picture, opens the picture large: **Show the box** hides and shows the box, **Save picture**
@@ -372,14 +372,15 @@ chosen). **Start watching** keeps the choice and starts the watch; **Go back** s
 and the notice opens again at the next start. The dashboard's start key opens it on Motion and
 sound's page before the watch, and there **Go back** also closes the camera the dashboard opened
 for that start and ends the Lost and Found watch for the pet that start began. No picture is
-kept before it is answered. An answer given in one tab holds in every open tab, also where the
+kept before it is answered. A first watch from Nap Mode or **Resume nap** opens the notice
+before starting the camera. An answer given in one tab holds in every open tab, also where the
 browser keeps no choices: the other tabs start their watch with no notice.
 Setup's camera step shows the same title, switch, choice and lines: going on past that step
 (**Continue**, or **Continue without the camera**) answers the notice with the choice as set
 there, so the first watch starts with no notice, and deletes the pictures past the age chosen
 there; **Back** answers nothing. Running setup again
 keeps that choice with the step's other answers until its last step is finished. The
-same switch, choice and lines stand in the group **Alert pictures** in the watch's settings
+same switch, choice and lines stand in **Alert pictures** under **Settings for this watch**
 and on **Settings > Detection**, with the count of pictures kept and **Delete all pictures**,
 which asks first. While the pictures are deleted, focus stays on that key or wherever the
 person moves it; when the key leaves with the last picture, focus on it goes to **Delete

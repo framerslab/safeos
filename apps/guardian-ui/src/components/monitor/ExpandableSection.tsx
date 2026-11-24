@@ -14,6 +14,7 @@ interface ExpandableSectionProps {
   title: string;
   icon?: React.ReactNode;
   summary: React.ReactNode;
+  summaryClassName?: string;
   defaultExpanded?: boolean;
   /** Expands the section when it turns true; the header still closes it. */
   open?: boolean;
@@ -26,6 +27,7 @@ export function ExpandableSection({
   title,
   icon,
   summary,
+  summaryClassName = 'text-xs truncate',
   defaultExpanded = false,
   open,
   children,
@@ -72,7 +74,7 @@ export function ExpandableSection({
           <div className="flex-1 min-w-0">
             <div className="text-sm font-medium text-white">{title}</div>
             {!isExpanded && (
-              <div className="text-xs text-slate-400 truncate mt-0.5">
+              <div className={`mt-0.5 text-slate-400 ${summaryClassName}`}>
                 {summary}
               </div>
             )}

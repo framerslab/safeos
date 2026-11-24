@@ -201,6 +201,14 @@ html.light {
   padding-inline: 14px;
 }
 
+/* The desktop watch's alert column is narrower than the full-width list. */
+@media (min-width: 64em) {
+  .watch-list .alert-card__keys .alert-pictures-key,
+  .watch-list .alert-card__keys .alert-card__acknowledge {
+    padding-inline: 10px;
+  }
+}
+
 .alert-card__ago {
   color: var(--ap-ink);
 }

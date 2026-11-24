@@ -1673,7 +1673,15 @@ export default function MonitorPage() {
       </div>
 
       {cameraAfterList && (
-        <div className="watch-grid__camera">
+        <div
+          className="watch-grid__camera"
+          onFocus={(event) => {
+            const bar = document.querySelector('nav.phone-bar');
+            if (bar && event.target.getBoundingClientRect().bottom > bar.getBoundingClientRect().top) {
+              event.target.scrollIntoView({ block: 'center' });
+            }
+          }}
+        >
           <CameraPicker refreshKey={isStreaming} className="watch-camera" />
         </div>
       )}

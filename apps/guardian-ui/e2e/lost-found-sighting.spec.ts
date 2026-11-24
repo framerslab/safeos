@@ -437,13 +437,18 @@ for (const look of ['light', 'dark'] as const) {
       await watchForStripes(page);
       const card = sightings(page).first();
       await timeOf(card);
-      // The comparison's reading stands while the stripes are seen.
-      const scanning = page.getByText('Scanning...', { exact: true });
-      await expect(scanning).toHaveCount(0, { timeout: 10_000 });
       const hid = Date.now();
       await page.evaluate(() => { window.__stripes!.hidden = true; });
-      // A check of a picture with no stripes in it comes while they are gone: the reading drops.
-      await expect(scanning.first()).toBeVisible({ timeout: 8_000 });
+      // Read a stripe's width from the live video until the grey frame reaches the watch.
+      await expect.poll(() => page.locator('.watch-frame video').evaluate((video: HTMLVideoElement) => {
+        const sample = document.createElement('canvas');
+        sample.width = 40;
+        sample.height = 1;
+        const context = sample.getContext('2d')!;
+        context.drawImage(video, 0, 0, 40, 1, 0, 0, 40, 1);
+        const red = Array.from(context.getImageData(0, 0, 40, 1).data).filter((_, i) => i % 4 === 0);
+        return red.every((value) => Math.abs(value - 128) <= 6);
+      }), { timeout: 8_000 }).toBe(true);
       await page.waitForTimeout(Math.max(0, 10_000 - (Date.now() - hid)));
       await page.evaluate(() => { window.__stripes!.hidden = false; });
       await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 90_000 });

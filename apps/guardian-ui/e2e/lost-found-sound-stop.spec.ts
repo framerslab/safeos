@@ -25,7 +25,7 @@ import { test, expect } from '@playwright/test';
 
 import monitorSettings from '../scripts/home-capture-settings.json';
 import {
-  alertedMatchFrames, countOwnSoundPasses, holdSavedSounds, ownSoundCounts, releaseSavedSounds, saveOwnSound, timesPlayed, watchStripes,
+  countOwnSoundPasses, holdSavedSounds, ownSoundCounts, releaseSavedSounds, saveOwnSound, sightingAlerts, timesPlayed, watchStripes,
 } from './helpers/own-sound';
 import { setUpDevice } from './helpers/seeded-device';
 import { CAMERA_FILE } from './helpers/striped-subject';
@@ -161,7 +161,7 @@ test('a loop that a motion or sound alert plays too, left playing when Watch for
   }).toBeGreaterThan(switched.pauses);
 });
 
-test('Silent quiet hours that begin while the watch runs keep the next match from playing the saved sound', async ({ page, context }) => {
+test('Silent quiet hours that begin while the watch runs mute the next sighting alert', async ({ page, context }) => {
   test.setTimeout(240_000);
   await page.clock.install({ time: new Date('2026-11-18T21:50:00Z') });
   await setUpDevice(context, {
@@ -178,18 +178,12 @@ test('Silent quiet hours that begin while the watch runs keep the next match fro
   await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
   await saveOwnSound(page);
   await watchStripes(page);
-  // Before 22:00 each match plays the sound.
   await expect.poll(() => timesPlayed(page), { timeout: 60_000 }).toBeGreaterThan(0);
+  const playsBeforeQuiet = await timesPlayed(page);
+  const alertsBeforeQuiet = await sightingAlerts(page);
 
-  // The clock passes 22:00; the app's timers keep their own schedule.
   await page.clock.setSystemTime(new Date('2026-11-18T22:00:05Z'));
-  // A start already on its way may still count.
+  await expect.poll(() => sightingAlerts(page), { timeout: 60_000 }).toBeGreaterThan(alertsBeforeQuiet);
   await page.waitForTimeout(1_500);
-  const atQuiet = await timesPlayed(page);
-  const alertsAtQuiet = await alertedMatchFrames(page);
-  await page.waitForTimeout(6_000);
-  // The comparison goes on: frames that raised the alert are saved after quiet
-  // hours begin, so each of those alerts went down the sound path.
-  await expect.poll(() => alertedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(alertsAtQuiet);
-  expect(await timesPlayed(page), 'no match plays the saved sound once quiet hours begin').toBe(atQuiet);
+  expect(await timesPlayed(page), 'the sighting alert during quiet hours is silent').toBe(playsBeforeQuiet);
 });

@@ -19,6 +19,7 @@
 //   opened                a Motion alert's picture, opened
 //   history               History's rows of the watch's alerts
 //   watch-group           Alert pictures in the watch's settings
+//   watch-group-collapsed The same row with its keeping status and count
 //   settings-group        Alert pictures on Settings > Detection
 //   notice                the notice before a device's first watch
 //   setup-choice          the same choice in setup's camera step, on a first visit
@@ -323,14 +324,14 @@ async function motionStates(browser, size, look) {
   const context = await seededContext(browser, { size, look, settings: PART_MOTION, before: [clipInOnePart] });
   const page = await context.newPage();
   try {
-    await state(['live-box', 'card', 'opened', 'watch-group'], size, look, async () => {
+    await state(['live-box', 'card', 'opened', 'watch-group', 'watch-group-collapsed'], size, look, async () => {
       await page.goto(address('/monitor/'), { waitUntil: 'networkidle', timeout: 60_000 });
       await startWatch(page);
       await waitForCards(page, MOTION_CARD, 1);
       // The box stands on the live picture for 10 seconds from the alert.
-      const box = page.locator('.alert-live__box');
+      const box = page.locator('.watch-frame__picture .alert-live__box');
       await box.waitFor({ state: 'visible', timeout: 8_000 });
-      await capture('live-box', size, look, page.locator('.alert-live').locator('xpath=..'));
+      await capture('live-box', size, look, page.locator('.watch-frame'));
 
       // Each start is a new event on a new card: three cards, the newest large.
       for (let count = 2; count <= 3; count++) {
@@ -352,7 +353,9 @@ async function motionStates(browser, size, look) {
 
       await page.getByRole('button', { name: 'Show settings', exact: true }).click();
       const head = page.getByRole('button', { name: /^Alert pictures/ });
-      if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
+      await head.getByText('Kept on this device · 3 pictures kept on this device', { exact: true }).waitFor({ timeout: 30_000 });
+      await capture('watch-group-collapsed', size, look, head);
+      await head.click();
       await page.getByRole('group', { name: 'Alert pictures', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
       // The watch's section, its heading row included.
       await capture('watch-group', size, look, head.locator('xpath=..'));

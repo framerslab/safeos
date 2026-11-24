@@ -3059,7 +3059,9 @@ export async function checkApp(browser, baseUrl, outDir) {
         check(rest.startInside, `at ${width} px Start watching is not inside the frame`);
         check(rest.pickerUnder, `at ${width} px the camera menu is not under the frame`);
 
-        await seedAlerts(page, { motion: [{ id: `motion-${Date.now()}-kept`, at: Date.now(), message: 'Seeded alert that stays after the watch stops' }] });
+        const savedAt = Date.now() - 60_000;
+        await seedAlerts(page, { motion: [{ id: `motion-${savedAt}-kept`, at: savedAt }] });
+        const savedTime = await page.evaluate((at) => new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(at), savedAt);
         await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
         // The request is held until both keys of the start are read.
         await page.evaluate(() => { window.__camera.held = new Promise((resolve) => { window.__camera.release = resolve; }); });
@@ -3076,7 +3078,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
         const back = await page.getByRole('button', { name: 'Start watching', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
         check(back, `at ${width} px Stop watching does not give Start watching back`);
-        const kept = await page.getByText('Seeded alert that stays after the watch stops').count();
+        const kept = await page.locator('[data-alert-card]').getByText(`Motion at ${savedTime}`, { exact: true }).count();
         check(kept > 0, `at ${width} px the saved alert leaves the list when the watch stops`);
 
         await context.addInitScript(CAMERA_ANSWER, 'denied');

@@ -289,7 +289,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: November 22, 2026
+          Last updated: November 24, 2026
         </div>
       </div>
     </main>
