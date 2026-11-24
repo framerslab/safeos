@@ -214,7 +214,9 @@ async function watching({ page, view, top, sample, nextFrameAfter }) {
   // Starting the live camera changes the page's height and moves keyboard
   // focus. Reframe by scrolling the actual page within the fixed crop.
   const header = await page.locator('.app-header').first().boundingBox();
-  const target = Math.max(top + (view.size === 'square' ? 14 : 6), (header?.height ?? 0) + 4);
+  // The square starts in the gap above the picture and ends before the
+  // Stop watching label below the meters.
+  const target = Math.max(top + (view.size === 'square' ? 26 : 6), (header?.height ?? 0) + 4);
   const cameraTop = await viewingTop(page, '.watch-frame__screen');
   await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), Math.max(0, cameraTop - target));
   const bottom = top + (view.size === 'wide' ? view.height : view.width);
@@ -328,11 +330,11 @@ export const recipes = [
     clip: 'home/sample-clip.mp4',
     seconds: 6,
     anchor: '#ways-label',
-    description: 'New alerts from the kitten watch and four ways to watch.',
+    description: 'Movement and sound alerts from the kitten watch.',
     longDescription: [
       '0–2 seconds. The dashboard shows the four ways to watch after a watch on the kitten clip.',
       '2–4 seconds. The page scrolls to Since you last looked.',
-      '4–6 seconds. The new movement and sound alerts remain on screen.',
+      '4–6 seconds. The alerts show with the movement alert’s kept picture.',
     ],
     prepare: prepareDashboard,
     record: dashboard,
