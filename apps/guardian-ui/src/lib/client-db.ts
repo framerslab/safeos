@@ -1394,6 +1394,24 @@ export async function getMatchFramesBySubject(subjectId: string): Promise<MatchF
   }
 }
 
+/**
+ * How many frames this device keeps for each of these subjects, by id, read
+ * from the frames themselves. A profile's matchCount goes up with each save
+ * and stays up when a frame is deleted, so it is not a count of what is kept.
+ * A read that fails gives null, so a screen shows no count it could not read.
+ */
+export async function countMatchFramesBySubject(subjectIds: string[]): Promise<Record<string, number> | null> {
+  try {
+    const db = await getDB();
+    const counts = await Promise.all(
+      subjectIds.map((id) => db.countFromIndex('match_frame', 'by-subject', id))
+    );
+    return Object.fromEntries(subjectIds.map((id, index) => [id, counts[index]]));
+  } catch {
+    return null;
+  }
+}
+
 /** Every Lost and Found frame, newest first. Unlike getAllMatchFrames, a read that fails throws. */
 export async function readAllMatchFrames(): Promise<MatchFrameDB[]> {
   const db = await getDB();

@@ -104,6 +104,8 @@ interface SubjectPreviewProps {
    * the marker read as the photos are picked counts.
    */
   savedUnder?: () => string;
+  /** How many pictures this device keeps for the subject, when the caller read them. */
+  savedPictures?: number;
 }
 
 // =============================================================================
@@ -117,6 +119,7 @@ export function SubjectPreview({
   onClick,
   onPhotosSaved,
   savedUnder,
+  savedPictures,
 }: SubjectPreviewProps) {
   const {
     activeSubject,
@@ -343,8 +346,12 @@ export function SubjectPreview({
           
           <div className="flex items-center gap-2 text-sm text-[var(--color-steel-400)]">
             <span className="capitalize">{activeSubject.type}</span>
-            <span>•</span>
-            <span>{savedSightings(activeSubject.matchCount)}</span>
+            {savedPictures !== undefined && (
+              <>
+                <span>•</span>
+                <span>{savedSightings(savedPictures)}</span>
+              </>
+            )}
           </div>
           
           {activeSubject.description && (

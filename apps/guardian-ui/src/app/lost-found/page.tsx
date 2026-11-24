@@ -24,7 +24,7 @@ import { LostFoundSetup } from '../../components/LostFoundSetup';
 import { SubjectPreview } from '../../components/SubjectPreview';
 import { useLostFoundStore, getSubjectTypeLabel } from '../../stores/lost-found-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
-import { getAllSubjectProfiles, deleteSubjectProfile, type SubjectProfileDB } from '../../lib/client-db';
+import { countMatchFramesBySubject, getAllSubjectProfiles, deleteSubjectProfile, type SubjectProfileDB } from '../../lib/client-db';
 import { useStartGuard } from '../../lib/start-guard';
 import { savedSightings } from '../../lib/lost-found-words';
 
@@ -32,7 +32,14 @@ export default function LostFoundPage() {
   const router = useRouter();
   const [showSetup, setShowSetup] = useState(false);
   const [savedSubjects, setSavedSubjects] = useState<SubjectProfileDB[]>([]);
+  // How many pictures this device keeps for each subject; null until read,
+  // or when the read fails, and then no count shows.
+  const [savedPictures, setSavedPictures] = useState<Record<string, number> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const countLine = (id: string): string => {
+    const count = savedPictures?.[id];
+    return count === undefined ? '' : `${savedSightings(count)} • `;
+  };
   
   const { 
     activeSubject, 
@@ -49,6 +56,7 @@ export default function LostFoundPage() {
       try {
         const profiles = await getAllSubjectProfiles();
         setSavedSubjects(profiles);
+        setSavedPictures(await countMatchFramesBySubject(profiles.map((profile) => profile.id)));
       } catch (error) {
         console.error('Failed to load subjects:', error);
       } finally {
@@ -169,6 +177,7 @@ export default function LostFoundPage() {
                 <SubjectPreview
                   mode="full"
                   showClose={true}
+                  savedPictures={savedPictures?.[activeSubject.id]}
                   onClose={() => setActiveSubject(null)}
                 />
                 
@@ -254,7 +263,7 @@ export default function LostFoundPage() {
                             </span>
                           </div>
                           <p className="text-sm text-[var(--color-steel-400)] mt-1">
-                            {savedSightings(subject.matchCount)} • Created {new Date(subject.createdAt).toLocaleDateString()}
+                            {countLine(subject.id)}Created {new Date(subject.createdAt).toLocaleDateString()}
                           </p>
                           {subject.description && (
                             <p className="text-sm text-[var(--color-steel-500)] mt-1 truncate">
