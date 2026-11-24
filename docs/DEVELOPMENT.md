@@ -569,9 +569,11 @@ alert with its score, its four parts and its region, the best score and the
 verdict. The step fails when the watch does not alert, when the camera does
 not start and when any step of the walk fails, with a picture of the page,
 `failed-lost-found-probe.png`. Its result, `lost-found-probe.json`, is in the
-run's `home-pictures` artifact beside `home/`; the set of photos that alerted
-is copied into the `tried` list of `public/home/lost-found/photos.json`, which
-`tests/home-lost-found-photos.test.ts` holds with each photo's size, digest,
+run's `home-pictures` artifact beside `home/`. Each set of photos the probe
+tries is copied into the `tried` list of `public/home/lost-found/photos.json`,
+the sets that did not alert as well as the one that did, and the last set
+listed is the one that alerted. The list is held by
+`tests/home-lost-found-photos.test.ts`, with each photo's size, digest,
 source, crop box and licence.
 
 ---

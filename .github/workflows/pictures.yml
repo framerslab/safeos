@@ -225,9 +225,10 @@ jobs:
       # watches the sample clip through the fake camera at the app's default
       # settings and fails when the watch does not alert. Its result,
       # lost-found-probe.json, goes into the capture's folder, so the
-      # home-pictures artifact carries it.
+      # home-pictures artifact carries it. It runs after a failed capture as
+      # well, but not in a run that was cancelled.
       - name: Probe Lost and Found on the sample clip
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           CAPTURE_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |

@@ -106,24 +106,25 @@ export async function startWatch(page) {
  * What the watch kept, read from the browser's database, each store only
  * where it exists: `saved` from the frames it saved (the match_frame store)
  * and `sightings` from the alerts it kept as sightings (alert_cache records
- * of kind 'sighting'). Pictures are left out.
+ * of kind 'sighting'). Pictures are left out. A database that cannot be
+ * opened, or a store that cannot be read, fails the read with its name, so a
+ * failed read is never taken for a watch that kept nothing.
  */
 export async function readWatch(page) {
   return page.evaluate(async () => {
     const empty = { saved: [], sightings: [] };
     const known = await indexedDB.databases();
     if (!known.some((database) => database.name === 'safeos-guardian')) return empty;
-    const database = await new Promise((resolve) => {
+    const database = await new Promise((resolve, reject) => {
       const opening = indexedDB.open('safeos-guardian');
-      opening.onerror = () => resolve(null);
+      opening.onerror = () => reject(new Error(`could not open the safeos-guardian database: ${opening.error?.message ?? 'no reason given'}`));
       opening.onsuccess = () => resolve(opening.result);
     });
-    if (!database) return empty;
-    const all = (store) => new Promise((resolve) => {
+    const all = (store) => new Promise((resolve, reject) => {
       if (!database.objectStoreNames.contains(store)) return resolve([]);
       const reading = database.transaction(store).objectStore(store).getAll();
       reading.onsuccess = () => resolve(reading.result);
-      reading.onerror = () => resolve([]);
+      reading.onerror = () => reject(new Error(`could not read the ${store} store: ${reading.error?.message ?? 'no reason given'}`));
     });
     try {
       const frames = await all('match_frame');
@@ -156,23 +157,25 @@ export async function readWatch(page) {
   });
 }
 
-/** The saved pet of that name (its subject_profile record), or null. */
+/**
+ * The saved pet of that name (its subject_profile record), or null. A read
+ * that fails, fails with the database's or the store's name.
+ */
 export async function readPet(page, name) {
   return page.evaluate(async (wanted) => {
     const known = await indexedDB.databases();
     if (!known.some((database) => database.name === 'safeos-guardian')) return null;
-    const database = await new Promise((resolve) => {
+    const database = await new Promise((resolve, reject) => {
       const opening = indexedDB.open('safeos-guardian');
-      opening.onerror = () => resolve(null);
+      opening.onerror = () => reject(new Error(`could not open the safeos-guardian database: ${opening.error?.message ?? 'no reason given'}`));
       opening.onsuccess = () => resolve(opening.result);
     });
-    if (!database) return null;
     try {
       if (!database.objectStoreNames.contains('subject_profile')) return null;
-      const pets = await new Promise((resolve) => {
+      const pets = await new Promise((resolve, reject) => {
         const reading = database.transaction('subject_profile').objectStore('subject_profile').getAll();
         reading.onsuccess = () => resolve(reading.result);
-        reading.onerror = () => resolve([]);
+        reading.onerror = () => reject(new Error(`could not read the subject_profile store: ${reading.error?.message ?? 'no reason given'}`));
       });
       return pets.find((pet) => pet.name === wanted) ?? null;
     } finally {
