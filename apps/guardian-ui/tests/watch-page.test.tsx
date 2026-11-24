@@ -557,6 +557,80 @@ it("starts a new watch's Motion meter from nothing, not from the last watch's zo
   }
 });
 
+it('shows no reading on a meter before the camera or the microphone gives one', async () => {
+  seedMotionOnly();
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(document.querySelector('.watch-frame')?.getAttribute('data-phase')).toBe('live');
+  // No reading has come yet: the tracks stand empty, with no state word.
+  expect(valueText('Motion')).toBeNull();
+  expect(valueText('Sound')).toBeNull();
+  act(() => { jest.advanceTimersByTime(1000); });
+  expect(valueText('Motion')).toMatch(/^\d+ per cent, line at 20, /);
+});
+
+it("shows no reading from the last camera once another camera is chosen while watching", async () => {
+  seedMotionOnly();
+  const zones = useSettingsStore.getState().detectionZones;
+  useSettingsStore.setState({
+    detectionZones: [{ id: 'full', name: 'Full Screen', enabled: true, x: 0, y: 0, width: 100, height: 100, sensitivityOverride: { motion: 40 } }],
+  });
+  browser.readFrame.mockImplementation(() => {
+    const data = new Uint8ClampedArray(16 * 16 * 4).fill(128);
+    data.fill(Math.floor(Date.now() / 200) % 2 ? 0 : 255, 0, 16 * 4 * 4);
+    return new ImageData(data, 16, 16);
+  });
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    await startMonitoring();
+    act(() => { jest.advanceTimersByTime(1000); });
+    expect(valueText('Motion')).toMatch(/^25 per cent/);
+    // The other camera opens with a stream of its own.
+    const tracks = [new BrowserTrack('video'), new BrowserTrack('audio')];
+    browser.getUserMedia.mockResolvedValueOnce({
+      getTracks: () => [...tracks],
+      getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+      getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+      removeTrack: (track: BrowserTrack) => { tracks.splice(tracks.indexOf(track), 1); },
+    } as unknown as MediaStream);
+    act(() => useCameraStore.getState().setDeviceId('usb'));
+    await act(async () => {});
+    await act(async () => {});
+    expect(document.querySelector('.watch-frame')?.getAttribute('data-phase')).toBe('live');
+    expect(valueText('Motion')).toBeNull();
+  } finally {
+    useSettingsStore.setState({ detectionZones: zones });
+    useCameraStore.getState().setDeviceId('');
+  }
+});
+
+it('leaves focus on a key outside the frame when the camera stops, and gives it to Start watching when Stop watching goes', async () => {
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  const show = screen.getByRole('button', { name: 'Show settings' });
+  show.focus();
+  act(() => browser.video.end());
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
+  expect(document.activeElement).toBe(show);
+
+  const tracks = [new BrowserTrack('video'), new BrowserTrack('audio')];
+  browser.getUserMedia.mockResolvedValueOnce({
+    getTracks: () => [...tracks],
+    getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+    getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+    removeTrack: (track: BrowserTrack) => { tracks.splice(tracks.indexOf(track), 1); },
+  } as unknown as MediaStream);
+  await startMonitoring();
+  const stop = screen.getByRole('button', { name: 'Stop watching' });
+  stop.focus();
+  fireEvent.click(stop);
+  await act(async () => {});
+  expect(document.activeElement?.textContent).toBe('Start watching');
+});
+
 it('says alerts cannot be saved on this device when the saved ones could not be read', async () => {
   const refused = Promise.reject(new Error('The database refused the read.'));
   refused.catch(() => {});

@@ -13,10 +13,10 @@ import { useLostFoundStore } from '@/stores/lost-found-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 
 // The saved pets' read, held until the test settles it.
-const mockPetsRead: { settle: (pets: SubjectProfileDB[]) => void } = { settle: () => {} };
+const mockPetsRead: { settle: (pets: SubjectProfileDB[]) => void; refuse: (error: Error) => void } = { settle: () => {}, refuse: () => {} };
 jest.mock('@/lib/client-db', () => ({
   ...jest.requireActual('@/lib/client-db'),
-  readSavedPets: () => new Promise((resolve) => { mockPetsRead.settle = resolve; }),
+  readSavedPets: () => new Promise((resolve, reject) => { mockPetsRead.settle = resolve; mockPetsRead.refuse = reject; }),
 }));
 
 const mittens: SubjectProfileDB = {
@@ -62,4 +62,16 @@ it('writes a choice made while the pets were read to an address that named no wa
   await act(async () => { mockPetsRead.settle([mittens]); });
   expect(result.current.way).toBe('lost_found');
   expect(new URLSearchParams(window.location.search).get('way')).toBe('lost-found');
+});
+
+it('writes Motion and sound to the address when it is chosen after the pets could not be read', async () => {
+  const { result } = renderHook(() => useWatchFor(false));
+  await act(async () => {});
+  await act(async () => { mockPetsRead.refuse(new Error('The database refused the read.')); });
+  // Lost and Found cannot run without the pets, so the watch is Motion and sound.
+  expect(result.current.way).toBe('motion_sound');
+  act(() => result.current.chooseWay('motion_sound'));
+  await act(async () => {});
+  // The choice stands in the address, so a reload whose read of the pets succeeds keeps it.
+  expect(window.location.search).toBe('?way=monitor');
 });

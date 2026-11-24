@@ -239,3 +239,33 @@ it('a start another tab takes over closes its camera and opens nothing', async (
   expect(other.heard).toContainEqual({ type: 'watch-ended' });
   expect(lastHeard()).toEqual({ type: 'watch-ended' });
 });
+
+it('asks for the camera no second time once another tab took over while the browser said whether the camera is allowed', async () => {
+  const actual = jest.requireActual<{ openCamera: typeof openCamera }>('@/lib/camera-constraints');
+  opened.mockImplementation(actual.openCamera);
+  const camera = standInCamera();
+  // The request with sound is refused; the browser's answer on the camera is held.
+  const getUserMedia = jest.fn()
+    .mockRejectedValueOnce(named('NotAllowedError'))
+    .mockResolvedValue(camera.stream);
+  let answer!: (status: { state: PermissionState }) => void;
+  const query = jest.fn(() => new Promise<{ state: PermissionState }>((resolve) => { answer = resolve; }));
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+  Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query } });
+  try {
+    const outcome = startWatch({ way: 'monitor' }, go);
+    await arrive();
+    expect(query).toHaveBeenCalledTimes(1);
+    other.say({ type: 'watch-stop' });
+    await arrive();
+    answer({ state: 'granted' });
+
+    await expect(outcome).resolves.toBe('stopped');
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    expect(go).not.toHaveBeenCalled();
+    expect(takeStart('monitor')).toBeNull();
+  } finally {
+    delete (navigator as { mediaDevices?: unknown }).mediaDevices;
+    delete (navigator as { permissions?: unknown }).permissions;
+  }
+});
