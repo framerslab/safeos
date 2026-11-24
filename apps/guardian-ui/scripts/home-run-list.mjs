@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { recordingSettings as settings } from './home-run-seed.mjs';
 
 export const omittedRuns = [
-  { id: 'alert', reason: 'Requires saved alert pictures and the live box on the Motion and sound page.' },
-  { id: 'lost-found', reason: 'Requires the sample photos, the saved pet’s fingerprint and the possible sighting on the watch.' },
+  { id: 'alert', reason: 'Requires a garden recording with a kept movement picture and its close-up.' },
+  { id: 'lost-found', reason: 'Requires a recording of a saved pet’s fingerprint and its possible sighting.' },
 ];
 
 const SECOND = 1000;
@@ -173,12 +173,12 @@ async function dashboard({ page, view, top, prepared, sample }) {
   const end = top + (view.size === 'square' ? view.width : view.height);
   assert.ok(first && first.y >= top && first.y + first.height <= end, 'The Dashboard must start with a complete way to watch');
 
-  await sleepUntil(page, start, 2.5);
+  await sleepUntil(page, start, 2);
   const header = await page.locator('.app-header').first().boundingBox();
   // The gap before the alerts is larger on phones. Keep some of it in the
   // square so the footer's brand stays below the crop.
   const subjectTop = Math.max(top + (view.size === 'square' ? 38 : 6), (header?.height ?? 0) + 4);
-  const scroll = await scrollSubject(page, '#since-label', subjectTop, 1);
+  const scroll = await scrollSubject(page, '#since-label', subjectTop, 2);
   assert.ok(Math.abs(scroll.to - scroll.from) > 16, 'The dashboard did not scroll to its new alerts');
 
   const event = await browserTime(page);
