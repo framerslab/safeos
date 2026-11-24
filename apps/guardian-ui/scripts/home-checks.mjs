@@ -379,26 +379,44 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect(!seen.shown, `first visit, app still loading: "${NEEDS_SCRIPT}" shows to a visitor whose scripts run (app started: ${seen.started})`);
   });
 
+  function observePermissionRequests() {
+    window.homePermissionRequests = [];
+    if (navigator.mediaDevices) {
+      navigator.mediaDevices.getUserMedia = () => {
+        window.homePermissionRequests.push('camera or microphone');
+        return Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
+      };
+    }
+    if (window.Notification) {
+      Notification.requestPermission = () => {
+        window.homePermissionRequests.push('notifications');
+        return Promise.resolve('denied');
+      };
+    }
+  }
+
   // Nothing blocked: the line hides once the app has started; every request
   // stays on the site; no cookie; no card or sheet appears, however long the
   // visitor stays, before setup or after it.
   for (const setupDone of [false, true]) {
-    await open({ name: 'first visit, requests', width: setupDone ? 390 : 1280, height: setupDone ? 844 : 800 }, async (page) => {
+    await open({ name: 'first visit, requests', width: setupDone ? 390 : 1280, height: setupDone ? 844 : 800 }, async (page, context) => {
       const hosts = new Set();
-      page.on('request', (request) => {
+      context.on('request', (request) => {
         const url = new URL(request.url());
         if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'ws:' || url.protocol === 'wss:') hosts.add(url.origin);
       });
       await visit(page);
       await page.waitForTimeout(8_000);
       const elsewhere = [...hosts].filter((host) => host !== origin);
+      const permissionRequests = await page.evaluate(() => window.homePermissionRequests);
+      expect(permissionRequests.length === 0, `first visit requested permission: ${permissionRequests.join(', ')}`);
       expect(elsewhere.length === 0, `first visit: the page asked ${elsewhere.join(', ')}`);
       expect((await page.evaluate(() => document.cookie)) === '', 'first visit: the page set a cookie');
       expect(await page.locator('#home-needs-script').isHidden(), `first visit: "${NEEDS_SCRIPT}" still shows after the app started`);
       for (const words of ['Enable notifications', 'Install SafeOS', 'Install App']) {
         expect((await page.getByText(words).count()) === 0, `first visit: "${words}" shows on the home page${setupDone ? ' after setup' : ''}`);
       }
-    }, { setupDone });
+    }, { setupDone, script: observePermissionRequests });
   }
 
   // A saved server address: every request that leaves the site goes to it.

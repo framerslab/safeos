@@ -379,6 +379,7 @@ prints an error and carries on.
 | `ci.yml` | Web app alert walk | In Chromium, on the static build, with a test camera whose picture keeps changing and a tone on the microphone (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`): a continuing motion, pixel or sound event alerts again once the longer of its severity's cooldown and the Cooldown Period has passed, on its one card with "Repeated N times"; a rise to critical alerts at once; a picture that pauses for a moment now and then is one event; after Stop and Start, or with a detector turned off and on again, a new event alerts at once on a new card. The same spec run under Firefox skips |
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
+| `deploy-pages.yml` | Check the published home | After a master deployment, Chromium checks the live home at phone and desktop widths and compares its served HTML with the build's SHA-256 |
 | `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
 | `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the app's pages for the pull request's own build |
 | `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera (see below) |
@@ -481,15 +482,43 @@ are given by the script. A finding fails the run.
 Download the artifact from the run's summary page, or with
 `gh run download <run id> -n pictures`.
 
-For the pull request's own build the capture script also checks the home page
-in the browser, part by part (`apps/guardian-ui/scripts/home-checks.mjs`): the
-page with scripts off and with its main script blocked, the visitor header at
-every width from 320 px, the Menu, the look switch, the headline's lines, the
-start key before and after setup, the capture's crop at each width, the layout
-and the words of each part, the footer, the title and cards, sizes and
-contrast against the readable look's figures, and the page offline after one
-visit. It saves the page from top to bottom at 820 and 1920 pixels too. A
-finding fails the run.
+When the route list includes `/`, both builds capture the first visit at
+390 × 844 and 1440 × 900 in both looks at a device scale of 2. The proposed
+build also captures the HTML diagram, the expanded Lost and Found card, the
+device steps, the uses and the closing section.
+
+The walk in `apps/guardian-ui/scripts/home-checks.mjs` checks the supplied
+capture and its crop, the header and Menu, native disclosure grouping, QR,
+and the anchored sections before and after setup. Fresh browsers follow the
+lost-pet and wildlife links through six setup steps and open the chosen way
+without a camera. The first visit checks that requests stay on the site's
+origin and records any camera, microphone or notification permission
+requests. The starting page and disclosures also have offline and script-off
+coverage.
+
+The walk pairs the screenshot PNGs with CSS word ranges. The CI step runs
+`python3 -I scripts/contrast-sample.py` with Pillow to measure stroke
+contrast from the same 2× pixels and verify font sizes, glyphs and edges.
+The `pictures` artifact includes `home-readability.json` with the named
+ranges, measured ratios, sizes and any failures.
+
+The Pages build hashes `out/index.html`. After the master Pages deploy,
+`apps/guardian-ui/scripts/check-published-home.mjs` opens
+[the published home](https://safeos.sh/) with service workers blocked. It
+compares the HTML with the build hash and checks the lockup, the six
+disclosures, the technical deep link and the setup destinations at both widths.
+
+The control names below are reserved for a future measurement decision.
+The home loads no analytics library and sends no events.
+
+| Event | Properties |
+| --- | --- |
+| `how_card_opened` | `card` is `motion`, `sound`, `people_animals`, `lost_found`, `offline` or `storage` |
+| `use_start_clicked` | `use` is `baby_nap`, `pet_out`, `elderly_parent`, `lost_pet` or `wildlife` |
+| `start_setup_clicked`, `open_dashboard_clicked` | `placement` is the hero, header, Menu, closing or footer |
+| `setup_again_clicked`, `menu_opened` | No properties |
+| `look_switched` | `to` is `dark` or `light` |
+| `nav_link_clicked`, `footer_link_clicked`, `outbound_link_clicked` | `target` and `placement` describe the link and where it was pressed |
 
 It then walks what every public page shares
 (`apps/guardian-ui/scripts/public-chrome-checks.mjs`): the row's links at 820,
