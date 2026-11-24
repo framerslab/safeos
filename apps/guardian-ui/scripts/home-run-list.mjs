@@ -112,7 +112,10 @@ async function viewingTop(page, selector) {
 }
 
 export async function placeSubject(page, recipe, view) {
-  const top = await viewingTop(page, recipe.anchor);
+  const anchor = view.size === 'square' && view.width < 390 && recipe.narrowAnchor
+    ? recipe.narrowAnchor
+    : recipe.anchor;
+  const top = await viewingTop(page, anchor);
   const header = await page.locator('.app-header').first().boundingBox();
   const headerHeight = header?.height ?? 0;
   const offset = view.size === 'square' ? 6 : headerHeight + 4;
@@ -120,7 +123,7 @@ export async function placeSubject(page, recipe, view) {
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.max(0, top - offset));
     return 0;
   }
-  const box = await page.locator(recipe.anchor).first().boundingBox();
+  const box = await page.locator(anchor).first().boundingBox();
   const footer = await page.locator('.phone-bar').first().boundingBox();
   // The fixed phone navigation must not intersect the crop; scroll the
   // actual route to hold its subject above the bar when needed.
@@ -158,7 +161,7 @@ async function dashboard({ page, view, top, prepared, sample }) {
   const words = await sample();
   const shown = words.map(({ word }) => word).join(' ');
   for (const way of ['Motion and sound', 'Lost and Found', 'People', 'Wildlife']) {
-    assert.ok(shown.includes(way), `The Dashboard poster does not show ${way}`);
+    assert.ok(shown.includes(way), `The Dashboard poster does not show ${way} at ${view.width} px: ${shown}`);
   }
   await sleepUntil(page, start, 2.5);
   const header = await page.locator('.app-header').first().boundingBox();
@@ -285,6 +288,7 @@ export const recipes = [
     clip: 'home/sample-clip.mp4',
     seconds: 6,
     anchor: '#ways-label',
+    narrowAnchor: '.ways__list',
     description: 'The dashboard after a watch on the kitten clip: its new alerts since you last looked, and the four ways to watch.',
     longDescription: [
       '0–2 seconds. The dashboard shows the four ways to watch after a watch on the kitten clip.',
