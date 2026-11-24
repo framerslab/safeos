@@ -99,7 +99,7 @@ export async function spool(cdp, directory, view) {
     }
     if (!frames.length) console.log(`DevTools preroll: ${w}×${h} native pixels`);
     const filename = `frame-${String(frames.length).padStart(4, '0')}.png`;
-    frames.push({ filename, at });
+    frames.push({ filename, at, scrollY: metadata.scrollOffsetY });
     settleFirst();
     const write = writeFile(path.join(directory, filename), bytes);
     pending.add(write);
@@ -221,6 +221,11 @@ async function concatWindow(frames, cut, seconds, directory) {
   const first = frames.findLastIndex((frame) => frame.at <= cut.start);
   assert.ok(first >= 0, 'The screencast did not start before the first event');
   const segment = frames.slice(first).filter(({ at }) => at < last);
+  assert.ok(segment.length > 1, 'The screencast did not record a changing page');
+  if (cut.scroll) {
+    assert.ok(new Set(segment.map(({ scrollY }) => scrollY)).size > 1,
+      'The screencast did not record the scroll to the new alerts');
+  }
   const posterFrame = segment.findLast(({ at }) => at <= cut.poster);
   const list = ['ffconcat version 1.0'];
   for (let i = 0; i < segment.length; i += 1) {

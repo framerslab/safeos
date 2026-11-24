@@ -145,23 +145,40 @@ async function scrollSubject(page, selector, top, seconds, edge = 'start', frame
         const progress = Math.min(1, (now - began) / (seconds * 1000));
         window.scrollTo({ top: start + (target - start) * progress, behavior: 'instant' });
         if (progress < 1) requestAnimationFrame(tick);
-        else resolve();
+        else resolve({ from: start, to: scrollY, target });
       };
       requestAnimationFrame(tick);
     });
   }, { selector, top, seconds, edge, frameHeight });
 }
 
-async function dashboard({ page, top, prepared, sample }) {
+async function dashboard({ page, view, top, prepared, sample }) {
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
   const words = await sample();
   await sleepUntil(page, start, 2.5);
   const header = await page.locator('.app-header').first().boundingBox();
-  await scrollSubject(page, '#since-label', Math.max(top + 6, (header?.height ?? 0) + 4), 1);
+  const subjectTop = Math.max(top + 6, (header?.height ?? 0) + 4);
+  let scroll;
+  if (view.size === 'wide') {
+    const from = await page.evaluate(() => scrollY);
+    const target = await viewingTop(page, '#since-label') - subjectTop;
+    await page.mouse.move(1, Math.min(subjectTop + 20, view.height - 1));
+    await page.mouse.wheel(0, target - from);
+    await page.waitForFunction((from) => Math.abs(scrollY - from) > 16, from);
+    scroll = { from, to: await page.evaluate(() => scrollY), target };
+  } else {
+    scroll = await scrollSubject(page, '#since-label', subjectTop, 1);
+  }
+  assert.ok(Math.abs(scroll.to - scroll.from) > 16, 'The dashboard did not scroll to its new alerts');
+  const entry = await page.locator('.since__list li').first().boundingBox();
+  assert.ok(entry && entry.y >= subjectTop && entry.y < top + (view.size === 'square' ? view.width : view.height),
+    'The dashboard scroll did not bring a new alert into the recording');
+  console.log(`Dashboard scroll: ${JSON.stringify(scroll)}, newest alert starts at ${entry.y}`);
+  const event = await browserTime(page);
   await sleepUntil(page, start, 6);
   return {
-    start, poster: start + 1, event: start + 3.5, words,
+    start, poster: start + 1, event, words, scroll,
     notices: prepared.notices, watchEvents: prepared.events,
   };
 }
@@ -176,7 +193,7 @@ async function watching({ page, sample }) {
   const threshold = 100 - settings.globalSettings.audioSensitivity;
   let poster;
   let words;
-  let liveAt;
+  let lastBarkReading;
   while ((await browserTime(page)) - start < 9.8) {
     const reading = await page.evaluate(() => {
       const video = document.querySelector('.watch-frame__picture video');
@@ -188,18 +205,22 @@ async function watching({ page, sample }) {
         sound: level('Sound level'),
       };
     });
-    liveAt ??= reading.at - reading.clipAt;
     peaks.motion = Math.max(peaks.motion, reading.motion);
     peaks.sound = Math.max(peaks.sound, reading.sound);
-    if (!poster && reading.clipAt >= 6 && reading.clipAt <= 9 && reading.sound >= threshold) {
-      poster = reading.at;
-      words = await sample();
+    if (reading.clipAt >= 6 && reading.clipAt <= 9 && reading.sound >= threshold) {
+      lastBarkReading = reading.at;
+      if (!poster) {
+        poster = reading.at;
+        words = await sample();
+      }
     }
     await sleepUntil(page, reading.at, 0.08);
   }
   assert.ok(peaks.motion > 0, 'The Motion meter never rose');
   assert.ok(poster, `The Sound meter did not go over its line during the bark (peak ${peaks.sound}, line ${threshold})`);
-  assert.ok(start + 10 >= liveAt + 9.8, 'The watch did not include the hold after the bark');
+  const hold = start + 10 - lastBarkReading;
+  assert.ok(hold >= 1, `Only ${hold.toFixed(3)} s after the last above-line bark reading in the ten-second recording`);
+  console.log(`Last above-line bark reading after ${(lastBarkReading - start).toFixed(3)} s, then ${hold.toFixed(3)} s of hold`);
   const raised = await watchEvent(page, 'audio').count();
   const notices = await page.evaluate(() => window.homeRunNotifications);
   assert.ok(!raised || notices?.length, 'The watch saved a sound alert without a recorded notification');
