@@ -25,3 +25,22 @@ export function pictureSize(bytes: Buffer): { width: number; height: number } {
   }
   throw new Error('not a PNG, WebP or JPEG file');
 }
+
+/**
+ * Whether a JPEG file is whole: its segments lead to the start of the scan,
+ * and the file ends with the end-of-image marker after it. A file cut short
+ * after its size is read fails.
+ */
+export function jpegIsWhole(bytes: Buffer): boolean {
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return false;
+  let at = 2;
+  while (at + 4 <= bytes.length && bytes[at] === 0xff) {
+    const marker = bytes[at + 1];
+    if (marker === 0xda) {
+      const end = bytes.length;
+      return end > at + 4 && bytes[end - 2] === 0xff && bytes[end - 1] === 0xd9;
+    }
+    at += 2 + bytes.readUInt16BE(at + 2);
+  }
+  return false;
+}

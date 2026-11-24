@@ -105,7 +105,8 @@ export async function startWatch(page) {
 /**
  * What the watch kept, read from the browser's database, each store only
  * where it exists: `saved` from the frames it saved (the match_frame store)
- * and `sightings` from the alerts it kept as sightings (alert_cache records
+ * with whether the watch raised the alert for each (its `alerted` mark, where
+ * the build keeps one), and `sightings` from the alerts it kept as sightings (alert_cache records
  * of kind 'sighting'). Pictures are left out. A database that cannot be
  * opened, or a store that cannot be read, fails the read with its name, so a
  * failed read is never taken for a watch that kept nothing.
@@ -139,6 +140,7 @@ export async function readWatch(page) {
           edges: frame.details?.edgeMatch,
           size: frame.details?.sizeMatch,
           region: frame.region ?? null,
+          alerted: frame.alerted,
         })).sort((a, b) => a.at - b.at),
         sightings: alerts.filter((alert) => alert.kind === 'sighting').map((alert) => ({
           id: alert.id,

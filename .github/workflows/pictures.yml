@@ -232,6 +232,11 @@ jobs:
         env:
           CAPTURE_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          # A run started by hand on a commit from before the probe has nothing to run.
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ ! -f scripts/lost-found-probe.mjs ]; then
+            echo "probe: this commit has no Lost and Found probe"
+            exit 0
+          fi
           export CAPTURE_COMMIT="$(git rev-parse HEAD)"
           curl -sf http://127.0.0.1:4173/ >/dev/null || (python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &)
           for i in $(seq 1 30); do

@@ -13,16 +13,18 @@
 // the 28.2 s clip). It sets no Lost and Found setting: the ones it logs are
 // read from the device's storage.
 //
-// An alert is a saved frame whose score is at or over the alert line, or a
-// sighting the watch kept. The result goes to <out-dir>/lost-found-probe.json.
-// It exits 1 when the watch does not alert, when the camera does not start and
-// when any step fails, with a picture of the whole page,
+// An alert is a saved frame the watch raised the alert for (read by its score
+// against the alert line where the build keeps no mark), or a sighting the
+// watch kept, inside the 85 s (scripts/lost-found-verdict.mjs). The result goes to <out-dir>/lost-found-probe.json.
+// It exits 1 when the watch does not alert, when the camera does not start or
+// has stopped or paused by the end of the watch, and when any step fails, with a picture of the whole page,
 // failed-lost-found-probe.png.
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
+import { judgeWatch } from './lost-found-verdict.mjs';
 import { enrol, readWatch, seededContext, startWatch } from './lost-found-walk.mjs';
 
 const [baseUrl, outDir, videoFile, audioFile] = process.argv.slice(2);
@@ -82,18 +84,14 @@ try {
     watch = await readWatch(page);
   }
   if (await page.getByText('Camera Error').count() > 0) throw new Error('the camera stopped during the watch');
+  if (await page.getByText('Camera paused').count() > 0) throw new Error('the camera was paused at the end of the watch');
 
-  const { saved, sightings } = watch;
-  const overLine = saved.filter((frame) => frame.score >= alertLine);
-  const firstSaved = saved[0] ?? null;
-  const firstFrameAlert = overLine[0] ?? null;
-  const firstSighting = sightings[0] ?? null;
-  // The first alert is the earlier of the first frame over the line and the first sighting.
-  const firstAlert = firstFrameAlert && (!firstSighting || firstFrameAlert.at <= firstSighting.at)
-    ? { kind: 'saved frame', ...firstFrameAlert }
-    : firstSighting ? { kind: 'sighting', ...firstSighting } : null;
-  const best = saved.length > 0 ? saved.reduce((top, frame) => (frame.score > top.score ? frame : top)) : null;
-  const alerted = firstAlert !== null;
+  const { saved, sightings, overLine, alerting, firstSaved, firstAlert, best, alerted } = judgeWatch({
+    ...watch,
+    liveAt,
+    watchMs: WATCH_MS,
+    alertLine,
+  });
   const firstSaveSeconds = firstSaved ? seconds(firstSaved.at - liveAt) : null;
   const firstAlertSeconds = firstAlert ? seconds(firstAlert.at - liveAt) : null;
 
@@ -116,7 +114,7 @@ try {
   } else {
     console.log('probe: no best score, the watch saved no frame');
   }
-  console.log(`probe: ${saved.length} frames saved, ${overLine.length} at or over the alert line${sightings.length > 0 ? `; ${sightings.length} sightings kept` : ''}`);
+  console.log(`probe: ${saved.length} frames saved, ${overLine} at or over the alert line, ${alerting} alerted${sightings.length > 0 ? `; ${sightings.length} sightings kept` : ''}`);
   console.log(alerted ? 'probe: verdict: alerts' : `probe: verdict: no alert in ${WATCH_MS / 1000} s`);
 
   const result = {

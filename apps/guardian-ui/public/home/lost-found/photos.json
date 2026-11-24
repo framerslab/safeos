@@ -138,7 +138,14 @@
         "mainColours": 89,
         "edges": 94,
         "size": 99
-      }
+      },
+      "commit": "339ab5d1d3e906f321be6b7db3e6ec0fd741bf8c",
+      "photos": [
+        "f41e31cd553c30673e3488b16c675fb4bd326d7cc20662deb2b435d0c74e98fc",
+        "72db79986b7db9365c2bc5f2358e394bf8e411e6bc636f32c451990aa37e610f",
+        "ac2ba40a398be82f926d86bbd48c1730f376aeea15b3d3bca4470681e89bc5b9"
+      ],
+      "clip": "c0da07fcc37fb35fd843e1c7c8380ccd4342dd6a8f79eb0a5d41800f20796b5a"
     }
   ]
 }
