@@ -439,8 +439,12 @@ export default function MonitorPage() {
       useOnboardingStore.getState().setLostFoundChosen(lostFound);
       pendingStart.current = null;
       // On a device that has not answered the notice about alert pictures it opens first; Go
-      // back closes the camera the dashboard opened for this start.
-      startStream(dropStart);
+      // back closes the camera the dashboard opened for this start, and ends the pet's watch
+      // this start began.
+      startStream(() => {
+        dropStart();
+        if (lostFound) useLostFoundStore.getState().stopWatching();
+      });
     })();
     return () => {
       live = false;
