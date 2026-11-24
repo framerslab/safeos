@@ -4,10 +4,11 @@
 
 Saved by `apps/guardian-ui/scripts/alert-picture-captures.mjs` in the Pictures
 workflow's job "Capture the home page pictures" (Chromium, at 390 by 844 and
-1440 by 900 pixels, a device scale factor of 2, light and dark) and copied byte
-for byte from the `alert-pictures` artifact of
-[Pictures run 45377032897](https://github.com/framerslab/safeos/actions/runs/45377032897),
-which built commit 3dfeffa. Each file is `alert-<state>-<width>-<look>.png`,
+1440 by 900 pixels, a device scale factor of 2, light and dark). All 60 PNGs
+are copied byte for byte from the `alert-pictures` artifact of
+[Pictures run 45410471264](https://github.com/framerslab/safeos/actions/runs/45410471264),
+which built commit `8a1e3775ea27a99fbb86d28bfc6d6327760715aa`. Each file is
+`alert-<state>-<width>-<look>.png`,
 clipped to the state's own part of the page:
 
 - `card`: three Motion alerts on the watch; the newest card shows the camera's
