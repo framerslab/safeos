@@ -116,3 +116,22 @@ it('a sweep by an age deletes nothing when another tab saved Until I delete them
   expect(useAlertPicturesStore.getState().deleteAfterDays).toBe(1);
   expect((await getAlertPicture(id))?.state).toBe('kept');
 });
+
+it('the minute sweep goes by the age another tab saved, which this tab has not read yet', async () => {
+  const now = Date.now();
+  const at = now - 2 * DAY;
+  const id = `picture-${at}-other-age`;
+  expect(await saveAlertPicture({ id, state: 'kept', kind: 'motion', takenAt: at }, pictureStampNow()))
+    .toEqual({ result: 'saved', deleted: [] });
+  // This tab holds Until I delete them; another tab has since saved 1 day.
+  useAlertPicturesStore.getState().setDeleteAfterDays(null);
+  const mine = useAlertPicturesStore.getState();
+  localStorage.setItem(ALERT_PICTURES_KEY, JSON.stringify({
+    state: { keep: mine.keep, deleteAfterDays: 1, noticeAnswered: mine.noticeAnswered, inNotifications: mine.inNotifications, chosenAt: mine.chosenAt + 1_000 },
+    version: 0,
+  }));
+
+  await sweepPicturesByAge(now);
+  expect(useAlertPicturesStore.getState().deleteAfterDays).toBeNull();
+  expect((await getAlertPicture(id))?.state).toBe('gone');
+});

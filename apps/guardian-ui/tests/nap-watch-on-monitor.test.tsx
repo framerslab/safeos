@@ -369,3 +369,23 @@ it("asks before a nap's watch starts while another tab watches", async () => {
   expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
   expect(window.history.state.safeosNap).toMatchObject({ minutes: 30 });
 });
+
+it('Start watching on the notice after Nap Mode asks first when another tab started a watch while it stood open', async () => {
+  stillCamera();
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  // The device has not answered the notice about alert pictures; no tab watches at the arrival,
+  // and one starts while the notice stands open.
+  useAlertPicturesStore.setState({ noticeAnswered: false });
+  jest.mocked(askOtherTabs).mockReset()
+    .mockResolvedValueOnce({ watching: false })
+    .mockResolvedValue({ watching: true, way: 'monitor' });
+  arriveFromNap(30);
+  render(<MonitorPage />);
+  await act(async () => {});
+
+  const notice = screen.getByRole('dialog', { name: 'Each alert keeps a picture' });
+  fireEvent.click(within(notice).getByRole('button', { name: 'Start watching' }));
+  await act(async () => {});
+  expect(screen.getByRole('dialog', { name: QUESTION })).toBeTruthy();
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
+});

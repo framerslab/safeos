@@ -2097,6 +2097,7 @@ test.describe('The live box: one at a time, never for a sound, clear of the pict
     await watchWith(page, context, { settings: MOTION_ONLY, camera: TOP_BAND });
     const time = await timeOf(cards(page).first(), 'Motion');
     await expect(livePlate(page)).toHaveText(`Motion here at ${time}`);
+    await livePicture(page).scrollIntoViewIfNeeded();
     const view = (await livePicture(page).boundingBox())!;
     const box = (await liveBox(page).boundingBox())!;
     const plate = (await livePlate(page).boundingBox())!;
@@ -2109,8 +2110,10 @@ test.describe('The live box: one at a time, never for a sound, clear of the pict
     const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     expect(await page.evaluate(({ x, y }) => {
       const under = document.elementFromPoint(x, y);
-      return under ? Boolean(under.closest('.alert-live')) : true;
-    }, point), 'the box takes no press').toBe(false);
+      // The camera's own box, round the live box: the press lands in it, under the live box.
+      const camera = document.querySelector('.alert-live')?.parentElement ?? null;
+      return Boolean(under && camera && camera.contains(under) && !under.closest('.alert-live'));
+    }, point), 'the press reaches the camera picture, not the box').toBe(true);
     await page.mouse.click(point.x, point.y);
     await expect(page.getByRole('dialog')).toHaveCount(0);
 
@@ -3329,6 +3332,7 @@ test.describe('The notification’s picture in Settings: a browser that shows wo
     await timeOf(cards(page).first(), 'Motion');
     await page.waitForTimeout(1_500);
     expect(await notesOf(page)).toEqual([]);
+    expect(await page.evaluate(() => window.__notificationAsks), 'the watch asks the browser for nothing').toBe(0);
     await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
 
     await page.goto('/settings/notifications/', { waitUntil: 'networkidle' });
