@@ -3,7 +3,7 @@
  * The visitor header and footer as they are served
  *
  * Renders both to the HTML a browser gets before any script runs. The header
- * is a navigation named "Site" with the mark, five links,
+ * is a navigation named "Site" with the brand, five links,
  * the GitHub link and the start key as working links, and Menu as a link to
  * the footer's links; the look switch has only its place held.
  * The footer is six small groups of links in a navigation named
@@ -32,13 +32,12 @@ const header = (pathname = '/') => {
 };
 
 describe('visitor header, before script runs', () => {
-  it('is a navigation named "Site" whose items are the mark, five links, GitHub and the start key, in that order', () => {
+  it('is a navigation named "Site" whose controls are five links, GitHub, the start key and Menu, in that order', () => {
     const page = header();
     const nav = page.querySelector('nav');
     expect(nav?.getAttribute('aria-label')).toBe('Site');
     const bar = Array.from(page.querySelectorAll('.site-header__bar a, .site-header__bar button'));
     expect(bar.map((item) => `${item.getAttribute('aria-label') || words(item)} ${bare(item.getAttribute('href'))}`)).toEqual([
-      'SafeOS Guardian, home /',
       'How it works /#how-it-works',
       'Uses /#uses',
       'Guides /tutorials',
@@ -53,7 +52,9 @@ describe('visitor header, before script runs', () => {
   });
 
   it('serves the brand as a name on home and a working home link elsewhere', () => {
-    expect(header('/').querySelector('.site-header__brand[href]')).toBeNull();
+    const home = header('/');
+    expect(home.querySelector('.site-header__brand[href]')).toBeNull();
+    expect(home.querySelector('span.site-header__brand')?.getAttribute('aria-label')).toBe('SafeOS Guardian');
     expect(header('/privacy/').querySelector('.site-header__brand')?.getAttribute('href')).toBe('/');
   });
 
@@ -66,10 +67,10 @@ describe('visitor header, before script runs', () => {
     expect(brand?.querySelector('img')).toBeNull();
   });
 
-  it('marks the page being read: the mark on the home page, the link on Privacy and on the FAQ', () => {
+  it('marks the current link on Privacy and on the FAQ', () => {
     const current = (pathname: string) =>
       Array.from(header(pathname).querySelectorAll('.site-header__bar [aria-current="page"]')).map((item) => item.getAttribute('aria-label') || words(item));
-    expect(current('/')).toEqual(['SafeOS Guardian, home']);
+    expect(current('/')).toEqual([]);
     expect(current('/privacy/')).toEqual(['Privacy']);
     expect(current('/faq')).toEqual(['FAQ']);
     expect(current('/about/')).toEqual([]);

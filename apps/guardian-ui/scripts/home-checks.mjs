@@ -396,7 +396,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         return element.getAttribute('aria-label') || element.textContent.trim();
       }));
     }
-    const wanted = ['Skip to content', 'SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', GITHUB_NAME, 'Switch to the light look', 'Start setup'];
+    const wanted = ['Skip to content', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', GITHUB_NAME, 'Switch to the light look', 'Start setup'];
     expect(order.join(' > ') === wanted.join(' > '), `header: the Tab order is ${order.join(' > ')}`);
   });
 
@@ -655,9 +655,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
             if (box.left < -0.5 || box.right > screen + 0.5) out.push(`${name} runs off the screen`);
             if (box.height < 43.5) out.push(`${name} is ${Math.round(box.height)} px tall`);
           }
-          const want = phone ? ['SafeOS Guardian, home', 'Switch to the dark look|Switch to the light look', 'Menu']
-            : screen < 1024 ? ['SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Switch to the dark look|Switch to the light look', 'Start setup']
-              : ['SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', githubName, 'Switch to the dark look|Switch to the light look', 'Start setup'];
+          const want = phone ? ['Switch to the dark look|Switch to the light look', 'Menu']
+            : screen < 1024 ? ['How it works', 'Uses', 'Guides', 'FAQ', 'Switch to the dark look|Switch to the light look', 'Start setup']
+              : ['How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', githubName, 'Switch to the dark look|Switch to the light look', 'Start setup'];
           if (names.length !== want.length || names.some((name, i) => !want[i].split('|').includes(name))) out.push(`its items are ${names.join(', ')}`);
           if (nav.querySelector('[aria-label="Help"], [aria-label*="otification"]')) out.push('it holds a bell or a shortcuts key');
           if (nav.querySelector('svg path[d^="M12 2C6.477"]')) out.push('it holds the GitHub logo');

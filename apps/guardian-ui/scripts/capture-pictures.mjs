@@ -512,7 +512,8 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
           const box = el.getBoundingClientRect();
           return box.width > 0 && box.height > 0 && getComputedStyle(el).visibility !== 'hidden';
         });
-        if (controls.length < 3) out.push(`only ${controls.length} controls in the row`);
+        if (phone && !controls.some((el) => el.classList.contains('look-switch'))) out.push('the look switch is missing');
+        if (phone && !controls.some((el) => el.classList.contains('site-header__menu-key'))) out.push('Menu is missing');
         for (const el of controls) {
           const box = el.getBoundingClientRect();
           const name = el.getAttribute('aria-label') || el.textContent.trim() || el.tagName;
@@ -533,7 +534,7 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
           if (size < 16) out.push(`"${words}" is ${size} px`);
         }
         return out;
-      }, width < 1280);
+      }, width < 768);
       for (const p of found) problems.push(`header at ${width} px: ${p}`);
       console.log(`checked header at ${width} px`);
     } catch (err) {
