@@ -1,12 +1,10 @@
 # SafeOS Guardian home pictures
 
-The files are the original PNGs from the [Pictures run](https://github.com/framerslab/safeos/actions/runs/45313527300).
+The files are the original PNGs from the [Pictures run](https://github.com/framerslab/safeos/actions/runs/45317733356).
 The first screens use 390 × 844 and 1440 × 900 CSS viewports at 2× with a fresh browser in each look.
 
 - `before/` comes from the `pictures-before` artifact at base `6674c8698dec8e029a417f939cdaa76a88f12d34`.
-- `after/` comes from the `pictures` artifact at head `c520bf6fa0aee23a3c8c5b45e4ff56d46db3d421`.
-
-The use-card image shows the earlier Wildlife glyph. The current card and model disclosure use a bird.
+- `after/` comes from the `pictures` artifact at head `7b256cdeb46714a5ca3e233a0ab1eb577ae98a1a`.
 
 | Image | View | SHA-256 |
 | --- | --- | --- |
@@ -16,13 +14,13 @@ The use-card image shows the earlier Wildlife glyph. The current card and model 
 | [`before/home-first-1440-light.png`](before/home-first-1440-light.png) | Desktop, light look | `8e81ee737ef37b5d51b08faaa853d14adcea581aeda98c6b6b747359173be03e` |
 | [`after/home-first-390-dark.png`](after/home-first-390-dark.png) | Phone, dark look | `29cc795da29ae2b3640db39b5057492201055e604f224cadda4ebceca65cb175` |
 | [`after/home-first-390-light.png`](after/home-first-390-light.png) | Phone, light look | `b54f7622eb2b30a9f094182da8f39a93564075771e9930094be07c861f44dc84` |
-| [`after/home-first-1440-dark.png`](after/home-first-1440-dark.png) | Desktop, dark look | `4ef114561052297b874b782960ea3388bd9b459d7c81f317222645a47b012dc9` |
-| [`after/home-first-1440-light.png`](after/home-first-1440-light.png) | Desktop, light look | `2633d900182df527840f7317ea2059d8b75ab3ee2571a96bb707728f4124de1d` |
+| [`after/home-first-1440-dark.png`](after/home-first-1440-dark.png) | Desktop, dark look | `26e9933c5b6f60679524cbcb08210d235b777ace46aa1c302d3d8cbe61b943a2` |
+| [`after/home-first-1440-light.png`](after/home-first-1440-light.png) | Desktop, light look | `f1b3fbb997f3c8d78dc11b3b70a23254b20ed0e90966285855f57ca8512ace40` |
 | [`after/home-how-it-works-1440-dark.png`](after/home-how-it-works-1440-dark.png) | Desktop diagram with the inputs, checks and server band | `192ca29ebb078518ffab5440431f564c3c5a8f9af3c09612ff54c4a57b0a3080` |
 | [`after/home-how-it-works-390-light.png`](after/home-how-it-works-390-light.png) | Phone diagram with the stages stacked | `d7ce857ceabe8c0a7632b9fc005df15259dbc2cdb8b41d2a1fb7f30f00deb10f` |
 | [`after/home-lost-and-found-1440-dark.png`](after/home-lost-and-found-1440-dark.png) | The open Lost and Found explanation | `7bc8cccfd5024351a267763845ad3842999f974983250f04258d8851cbcc8b88` |
 | [`after/home-device-1440-dark.png`](after/home-device-1440-dark.png) | One-device setup, its QR code and the server options | `25246d5007b4420f55a91f1f6dfe9a30994207ec48a27ecdaa62665015dfb617` |
-| [`after/home-uses-1440-dark.png`](after/home-uses-1440-dark.png) | The five uses with their original Wildlife glyph | `8121259f379b12f8d0d066d63dc2595d3cb84c979858ed0c9e5565ee1a498e73` |
+| [`after/home-uses-1440-dark.png`](after/home-uses-1440-dark.png) | The five uses and their setup links | `edbc359c595aa0b7b5582af4598dc2898c92c57c7cc7838da571b8dcef9adf68` |
 | [`after/home-closing-1440-dark.png`](after/home-closing-1440-dark.png) | The closing setup link | `ef203d0195f661bc2e24cf75a7e65a396f6aaa8b588e45a71aaf9de9f585f32a` |
 
 ## Readability
