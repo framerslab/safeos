@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile, rm, writeFile } from 'node:fs/promises';
+import { expect } from '@playwright/test';
 
 export const RUNS_NAME = 'Recorded runs of SafeOS Guardian';
 const PLAYER = 'section[aria-label="Recorded runs of SafeOS Guardian"]';
@@ -100,10 +101,10 @@ function mediaLog(context, page) {
   return { document, worker };
 }
 
-const installedPosters = async (page, paths, cacheName) => page.waitForFunction(async ({ paths, cacheName }) => {
+const installedPosters = (page, paths, cacheName) => expect.poll(() => page.evaluate(async ({ paths, cacheName }) => {
   const store = cacheName ? await caches.open(cacheName) : caches;
   return (await Promise.all(paths.map((url) => store.match(url)))).every(Boolean);
-}, { paths, cacheName }, { timeout: 45000 });
+}, { paths, cacheName }), { timeout: 45000 }).toBe(true);
 
 export async function checkRunPolicies(browser, baseUrl, runs) {
   const issues = [];

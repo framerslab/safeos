@@ -86,8 +86,12 @@ async function prepareDashboard({ page, baseUrl }) {
   ), null, { timeout: 5 * SECOND }).catch(() => { throw Error('No recorded sound alert during the bark'); });
   const events = await page.evaluate(() => window.homeWatchEvents);
   const latestMotion = events.findLast(({ kind }) => kind === 'motion');
-  assert.ok(latestMotion && latestMotion.clipAt >= 22 && latestMotion.clipAt <= 25.25,
-    'The movement picture must come from the kitten’s turn before it passes the camera: ' + JSON.stringify(events));
+  // The kitten's face shows as it licks its paw and when it turns toward
+  // the camera. The saved alert must come from one of those moments.
+  const faceInView = [[14.75, 15.25], [22, 25.25]].some(
+    ([from, to]) => latestMotion && latestMotion.clipAt >= from && latestMotion.clipAt <= to,
+  );
+  assert.ok(faceInView, 'The kept movement picture must show the kitten’s face: ' + JSON.stringify(events));
   await pose(page, 'Stop watching').click();
   await pose(page, 'Start watching').waitFor();
   const notices = await page.evaluate(() => window.homeRunNotifications);
