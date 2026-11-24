@@ -2,7 +2,7 @@
  * Alerts keep coming while the activity goes on, on one card per event.
  *
  * Opens the monitor with a camera whose picture changes on every frame,
- * presses "Start Monitoring" and keeps the change going. The first alert
+ * presses "Start watching" and keeps the change going. The first alert
  * comes after the sustained-detection window; while the change goes on, the
  * next alert of that kind is due once the longer of its severity's cooldown
  * and the Cooldown Period has passed since the last one, and not before. It
@@ -81,7 +81,7 @@ interface Seed {
 const CUSTOM = {
   id: 'custom',
   name: 'Maximum Alert',
-  description: 'High sensitivity (80%), max volume, 5-second intervals.',
+  description: 'High sensitivity (80%) and max volume.',
   motionSensitivity: 80,
   audioSensitivity: 80,
   pixelThreshold: 20,
@@ -126,7 +126,10 @@ const cooldownPeriod = (seconds: number) => ({
   emergencyEscalationDelay: 300,
 });
 
-const LINES: Record<Kind, number> = { motion: 20, pixel: 50, audio: 5 };
+// Each meter's alert line on its 0 to 100 track: Motion at 20, Sound at 5,
+// and Picture change at 20, where its bar stands exactly when the check says
+// yes (its own line is 50 changed pixels).
+const LINES: Record<Kind, number> = { motion: 20, pixel: 20, audio: 5 };
 
 async function openMonitor(page: Page, seed: Seed): Promise<void> {
   await page.addInitScript((s: Seed) => {
@@ -185,7 +188,8 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
       ['pixel', /^Pixel movement detected/],
       ['audio', /^Audio detected: \d+%/],
     ];
-    const READOUTS: Array<[Kind, string]> = [['motion', 'Motion'], ['pixel', 'Pixel'], ['audio', 'Audio']];
+    // Each kind's meter under the live picture, read from its value.
+    const READOUTS: Array<[Kind, string]> = [['motion', 'Motion level'], ['pixel', 'Picture change level'], ['audio', 'Sound level']];
     const look = () => {
       const now = Date.now();
       const lines = Array.from(document.querySelectorAll('p'));
@@ -201,17 +205,19 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
         walk.cards[kind] = cards;
         while (walk.alerts[kind].length < alerts) walk.alerts[kind].push(now);
       }
-      const heads = Array.from(document.querySelectorAll('div.uppercase'));
       for (const [kind, label] of READOUTS) {
-        const head = heads.find((d) => d.textContent === label && d.nextElementSibling?.classList.contains('text-xl'));
-        if (!head) continue;
-        const value = parseFloat(head.nextElementSibling?.textContent || '');
+        const meter = document.querySelector(`[role="meter"][aria-label="${label}"]`);
+        if (!meter || !meter.hasAttribute('aria-valuetext')) continue;
+        const value = parseFloat(meter.getAttribute('aria-valuenow') || '');
         if (!Number.isFinite(value)) continue;
         const list = walk.readings[kind];
         if (list.length === 0 || list[list.length - 1][1] !== value) list.push([now, value]);
       }
     };
-    new MutationObserver(look).observe(document, { childList: true, subtree: true, characterData: true });
+    // A meter moves through its value attributes alone, so they are watched too.
+    new MutationObserver(look).observe(document, {
+      childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-valuenow', 'aria-valuetext'],
+    });
 
     const W = 320;
     const H = 240;
@@ -272,8 +278,8 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
 }
 
 async function startMonitoring(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-  await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
 }
 
 const walkOf = (page: Page) => page.evaluate(() => window.__walk!);
@@ -641,8 +647,8 @@ test.describe('Alerts repeat while the activity goes on', () => {
     });
     const first = await firstAlert(page, 'motion');
     await runUntil(page, first + 2_000);
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
-    await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Start watching', exact: true })).toBeVisible({ timeout: 10_000 });
     await startMonitoring(page);
     const restartedAt = await pageNow(page);
     await runUntil(page, restartedAt + 8_000);
@@ -667,6 +673,8 @@ test.describe('Alerts repeat while the activity goes on', () => {
     });
     const first = await firstAlert(page, 'pixel');
     await runUntil(page, first + 2_000);
+    // The switch is in the watch's settings, folded under Settings for this watch.
+    await page.getByRole('button', { name: 'Show settings', exact: true }).click();
     const pixelSwitch = page.getByRole('switch', { name: 'Toggle pixel detection' });
     await pixelSwitch.click();
     await expect(pixelSwitch).toHaveAttribute('aria-checked', 'false');

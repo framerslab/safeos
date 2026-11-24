@@ -208,12 +208,12 @@ it('writes the time each minute while it runs', async () => {
   expect(readWatchSession()).toMatchObject({ seenAt: startedAt! + 60_000, endedAt: null });
 });
 
-it('Stop Monitoring writes the end and tells the other tabs', async () => {
+it('Stop watching writes the end and tells the other tabs', async () => {
   render(<MonitorPage />);
   await act(async () => {});
   await startMonitoring();
   expect(mockEndAnnounce).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop watching' }));
   await act(async () => {});
   expect(readWatchSession()?.endedAt).toEqual(expect.any(Number));
   expect(mockEndAnnounce).toHaveBeenCalledTimes(1);
@@ -259,7 +259,7 @@ it('an alert the watch raises is named as this watch\'s, and a new watch forgets
   await startMonitoring();
   act(() => useMonitoringStore.getState().addAlert({ id: 'now', streamId: 'camera', severity: 'low', message: 'x', acknowledged: false }));
   expect(raisedByThisWatch('now')).toBe(true);
-  fireEvent.click(screen.getByRole('button', { name: 'Stop Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Stop watching' }));
   await act(async () => {});
   await startMonitoring();
   expect(raisedByThisWatch('now')).toBe(false);

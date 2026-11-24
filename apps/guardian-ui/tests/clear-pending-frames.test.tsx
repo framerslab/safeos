@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { fakeCaches } from './helpers/browser-data';
 import { BrowserTrack } from './helpers/camera-browser';
 import MonitorPage from '@/app/monitor/page';
-import SettingsPage from '@/app/settings/page';
+import DataPage from '@/app/settings/data/page';
 import { useLostFoundStore, DEFAULT_SETTINGS } from '@/stores/lost-found-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
@@ -49,14 +49,13 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   useLostFoundStore.setState({ activeSubject: subject, chosenPetId: subject.id, settings: { ...DEFAULT_SETTINGS, scanGridSize: 2, minConfidenceForRecord: 0, alertSound: false, alertNotification: false, adaptiveLighting: false, motionPriority: false } });
   const camera = render(<MonitorPage />);
   await screen.findByRole('radio', { name: 'Lost and Found', checked: true });
-  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
   await waitFor(() => expect(useLostFoundStore.getState().isWatching).toBe(true));
   await waitFor(() => expect(pending.length).toBeGreaterThan(0));
   expect(pending[0].onload).toBeTruthy();
-  render(<SettingsPage />);
-  jest.spyOn(window, 'confirm').mockReturnValue(true);
-  fireEvent.click(screen.getByRole('button', { name: 'Privacy' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Clear All Local Data' }));
+  render(<DataPage />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Clear all data on this device' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Clear all data' }));
   await waitFor(() => expect([...cached]).toEqual([]));
   camera.unmount();
   await act(async () => {

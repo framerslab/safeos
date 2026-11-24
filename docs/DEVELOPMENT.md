@@ -424,7 +424,12 @@ Pull-request picture runs also capture the base commit with the same routes,
 widths and looks. The `pictures` artifact contains the proposed change and
 `pictures-before` contains the base, so visible changes can be compared without
 a separate manual workflow run. Camera-dependent and authenticated states still
-need to be identified separately in the pull request.
+need to be identified separately in the pull request. A route the base commit's
+build answers 404 for, and whose page the base commit lacks (a page the pull
+request adds), is logged as `not in the base build: <route>` and skipped in the
+base capture, not failed (`apps/guardian-ui/scripts/base-routes.mjs`). A 404 for
+a page the base commit holds fails, as does any 404 in the pull request's own
+capture or in a run without `PICTURE_VERSION`.
 
 When `/setup/` is among the routes, both versions also capture setup's camera
 step after a refused camera request (`setup-camera-refused-<width>-<look>.png`).
@@ -449,14 +454,24 @@ script held, the dashboard in each state (before setup, the camera blocked or
 in use, notifications blocked or not asked, a second tab, alerts new, the
 stores held, a private window) at every width with its first screen counted,
 sizes and contrast against the readable look's figures, the old addresses and
-the offline page. The camera in these walks is a stand-in that draws a
+the offline page, and Settings: the list of settings pages with each row's
+value and axe on the settings parts, its first screen counted with each of its
+rows whole above the phone bar, Lost and Found's pet, quiet hours read by the
+page's clock, a server's rows and Your own server's page, the alert volume's
+knob, filled track and edged empty track read from its pixels on the page's own
+ground, a browser that
+refuses storage, the focus order clear of the app's header and the phone bar,
+larger text, the list's values offline, every control
+of `apps/guardian-ui/scripts/settings-inventory.json` changed and read back from
+its store, and the clears pressed on Data on this device. A settings walk fails
+on any browser confirm box. The camera in these walks is a stand-in that draws a
 changing picture, and the browser's answers for the camera and notifications
 are given by the script. A finding fails the run.
 
 - On a pull request: add the label `pictures`. It runs on the labelling and on
   every later push to that pull request, for the routes in `DEFAULT_ROUTES`
-  (home, monitoring, setup, dashboard, history, settings, notifications, models, nap,
-  admin, privacy, FAQ and help).
+  (home, monitoring, setup, dashboard, history, settings, Data on this device,
+  Alert sounds, notifications, models, nap, admin, privacy, FAQ and help).
 - By hand: Actions, Pictures, Run workflow. Give a branch, tag or commit and the
   routes separated by spaces (for example `/ /about/ /faq/`).
 - The capture script is `apps/guardian-ui/scripts/capture-pictures.mjs`; with
@@ -508,14 +523,15 @@ pictures" makes it:
    path.
 3. For each look it seeds a finished setup and the Custom preset in
    `scripts/home-capture-settings.json` (the default preset with pixel
-   detection off), opens `/monitor/`, presses "Start Monitoring" and waits
-   until the alert list holds a motion alert.
+   detection off), opens `/monitor/`, presses "Start watching" and waits
+   until the alert list holds a motion alert and the Motion meter reads
+   "Over the line".
 4. It saves the three crops in both looks (`capture-phone-*`,
    `capture-portrait-*`, `capture-landscape-*`, each a `.png` and a `.webp`;
-   the portrait crop is the 390 px monitor's camera view with two whole rows
-   of readout tiles, at its own ratio, near 4:5, and the job fails a frame
-   that cuts a tile; the home page gives each crop's box the ratio of its
-   file),
+   the portrait crop is the 390 px watch's camera frame with its live
+   picture and the meters under it, at its own ratio, and the job fails a
+   frame that cuts a meter; the home page gives each crop's box the ratio of
+   its file),
    `screenshots/dashboard.png` and `screenshots/monitoring.png` (the two the
    web app manifest names), the shared-link card `home/card.jpg` (from
    `scripts/home-card.html`, a page the site does not serve) and

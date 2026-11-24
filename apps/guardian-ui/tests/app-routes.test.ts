@@ -77,9 +77,23 @@ it('names the pages whose whole body is built in the readable look', () => {
   for (const pathname of ['/dashboard/', '/tutorial/', '/analytics', '/profiles/']) {
     expect([pathname, isLookBuiltRoute(pathname)]).toEqual([pathname, true]);
   }
-  for (const pathname of ['/history/', '/monitor/', '/settings/', '/help/', '/setup/', '/nap/']) {
+  for (const pathname of ['/history/', '/help/', '/setup/', '/nap/']) {
     expect([pathname, isLookBuiltRoute(pathname)]).toEqual([pathname, false]);
   }
+});
+
+it('builds the settings list, Data on this device and Your own server in the look', () => {
+  for (const pathname of ['/settings/', '/settings', '/settings/data/', '/settings/server/']) {
+    expect([pathname, isLookBuiltRoute(pathname)]).toEqual([pathname, true]);
+  }
+  // A settings page still on its old layout keeps it.
+  for (const pathname of ['/settings/detection/', '/settings/sounds/', '/settings/data/extra/']) {
+    expect([pathname, isLookBuiltRoute(pathname)]).toEqual([pathname, false]);
+  }
+});
+
+it('builds the watch in the look', () => {
+  for (const path of ['/monitor', '/monitor/', '/monitor/?way=lost-found']) expect(isLookBuiltRoute(path)).toBe(true);
 });
 
 it('gives the destination a page sits under', () => {

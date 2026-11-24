@@ -64,7 +64,7 @@ browser contexts.
 
 - **The watch (motion and sound).** `/monitor/` with motion and sound on and
   pixel detection off (`apps/guardian-ui/scripts/home-capture-settings.json`),
-  started with its own Start Monitoring button and watched for 60 s from its
+  started with its own Start watching key and watched for 60 s from its
   first camera read. A script added before the page's own scripts times
   each tick of the page's interval timers, inside the page. A tick that reads
   the camera's pixels (`getImageData`) is one analysed frame, except the
@@ -77,7 +77,7 @@ browser contexts.
   most), and the per-frame analysis time as a median and 95th percentile: the tick itself, in which the frame is drawn, its pixels
   are read and compared with the last frame, and the alert check runs. The
   same figure with the microtasks the tick queued is kept beside it. The
-  watch also records the time from pressing Start Monitoring to the first
+  watch also records the time from pressing Start watching to the first
   alert card on the page, and to the first motion and the first sound card
   apart. That time depends on when the clip first moves or sounds over the
   line as much as on the device. It records the JS heap in use after the 60 s
@@ -114,7 +114,7 @@ browser contexts.
   and the run goes on to Lost & Found.
 - **Lost & Found.** One pet is enrolled through Lost & Found's own form from
   one frame of the clip (at 1 s). That page's Start Monitoring opens the watch
-  with Lost and Found chosen and the pet, and the watch's Start Monitoring
+  with Lost and Found chosen and the pet, and the watch's Start watching
   starts it. The matching timer's ticks (every 500 ms) are timed the same way
   for 30 s: the per-frame matching time as a median and 95th percentile, and
   the frames matched per second.

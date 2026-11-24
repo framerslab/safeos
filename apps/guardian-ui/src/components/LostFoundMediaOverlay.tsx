@@ -1,7 +1,9 @@
 /**
  * Lost & Found Media Overlay
  *
- * Full-screen overlay that displays images when a Lost & Found match is detected.
+ * Full-screen overlay that shows the pet's photos when a Lost & Found alert
+ * sounds. It names the pet's colours, as the alert list does: no score and no
+ * claim that the pet was found.
  * Integrates with CustomMediaPlayer for audio, TTS, and image cycling.
  *
  * @module components/LostFoundMediaOverlay
@@ -32,8 +34,6 @@ export interface LostFoundMediaOverlayProps {
   onClose: () => void;
   /** Subject name for display */
   subjectName: string;
-  /** Confidence percentage of the match */
-  confidence: number;
   /** Images to display (from referenceImages or custom) */
   images: string[];
   /** Optional custom audio files (base64) */
@@ -48,7 +48,6 @@ export function LostFoundMediaOverlay({
   isOpen,
   onClose,
   subjectName,
-  confidence,
   images,
   audioFiles = [],
 }: LostFoundMediaOverlayProps) {
@@ -220,7 +219,7 @@ export function LostFoundMediaOverlay({
       className="fixed inset-0 z-[9999] bg-black flex flex-col"
       role="alertdialog"
       aria-modal="true"
-      aria-label={`Lost and Found Alert: ${subjectName} detected`}
+      aria-label={`Lost and Found alert: colours like ${subjectName}’s`}
     >
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
@@ -229,10 +228,10 @@ export function LostFoundMediaOverlay({
             <IconAlertCircle size={32} className="text-red-500 animate-pulse" />
             <div>
               <h2 className="text-white text-xl font-bold">
-                Match Detected!
+                Lost and Found alert
               </h2>
               <p className="text-white/80 text-sm">
-                {subjectName} - {confidence}% confidence
+                {`Colours like ${subjectName}’s`}
               </p>
             </div>
           </div>

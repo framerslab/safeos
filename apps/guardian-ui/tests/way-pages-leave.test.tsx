@@ -225,7 +225,7 @@ it("leaving Motion and sound's page ends a Lost and Found check with its watch",
   useLostFoundStore.setState({ isWatching: true, activeSubject: pet('pet-1') });
   const view = render(<MonitorPage />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
   await act(async () => {});
   expect(useMonitoringStore.getState().isStreaming).toBe(true);
   view.unmount();
@@ -241,7 +241,7 @@ it("leaving Motion and sound's page stops the saved sounds its alerts played, a 
   });
   const view = render(<MonitorPage />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
   await act(async () => {});
   expect(useMonitoringStore.getState().isStreaming).toBe(true);
   // A saved sound set to loop that a motion alert played, and one that a

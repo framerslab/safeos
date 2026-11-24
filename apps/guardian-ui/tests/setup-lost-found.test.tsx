@@ -72,7 +72,7 @@ it('says where to start the comparison: Start Monitoring on the Lost & Found pag
   fireEvent.click(screen.getByRole('button', { name: /Lost & Found/ }));
   await toTheLastStep();
   await screen.findByRole('button', { name: 'Open Lost and Found' });
-  expect(screen.getByText(/add photos of your pet on the Lost & Found page, then press Start Monitoring there\. On the Motion and sound page, press Start Monitoring to start the camera/)).toBeTruthy();
+  expect(screen.getByText(/add photos of your pet on the Lost & Found page, then press Start Monitoring there\. On the Motion and sound page, press Start watching to start the camera/)).toBeTruthy();
   // No watch is on while the Lost & Found page is open, so its other key is never named.
   expect(screen.queryByText(/Go to Monitor/)).toBeNull();
 });

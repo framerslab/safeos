@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { guardedStorage } from '../lib/storage-full';
 
 // =============================================================================
 // Types
@@ -309,7 +310,7 @@ export const DEFAULT_PRESETS: Record<PresetId, SecurityPreset> = {
   night: {
     id: 'night',
     name: 'Night Mode',
-    description: 'Reduced sensitivity, lower volume (50%), longer intervals for sleeping.',
+    description: 'Reduced sensitivity and lower volume (50%) for sleeping.',
     motionSensitivity: 40,
     audioSensitivity: 60,
     pixelThreshold: 40,
@@ -327,7 +328,7 @@ export const DEFAULT_PRESETS: Record<PresetId, SecurityPreset> = {
   maximum: {
     id: 'maximum',
     name: 'Maximum Alert',
-    description: 'High sensitivity (80%), max volume, 5-second intervals.',
+    description: 'High sensitivity (80%) and max volume.',
     motionSensitivity: 80,
     audioSensitivity: 80,
     pixelThreshold: 20,
@@ -345,7 +346,7 @@ export const DEFAULT_PRESETS: Record<PresetId, SecurityPreset> = {
   ultimate: {
     id: 'ultimate',
     name: 'Ultimate Secure',
-    description: 'Emergency mode ON, max everything (100%), 2-second intervals, all detection enabled.',
+    description: 'Emergency mode ON, max everything (100%), all detection enabled.',
     motionSensitivity: 100,
     audioSensitivity: 100,
     pixelThreshold: 10,
@@ -1036,7 +1037,9 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'safeos-settings',
-      storage: createJSONStorage(() => localStorage),
+      // A browser that refuses storage keeps the change for the visit; the
+      // settings pages say it was not saved, and nothing throws.
+      storage: createJSONStorage(() => guardedStorage),
       partialize: (state) => ({
         settingsSourceId: state.settingsSourceId,
         activePresetId: state.activePresetId,
