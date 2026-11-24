@@ -1,8 +1,117 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { WayGlyph } from '@/components/dashboard/WaysToWatch';
-import { IconBell, IconCamera, IconDatabase, IconMail, IconMic, IconServer } from '@/components/icons';
+import { IconBell, IconCamera, IconDatabase, IconDownload, IconMail, IconMic, IconServer, IconVolume2 } from '@/components/icons';
 import { Num } from '@/components/visitor/Num';
+import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
+import { MAX_PET_PHOTOS, MIN_PET_PHOTOS } from '@/lib/pet-photo-limits';
+import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
 import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
+
+const modelSize = <><Num>{MODEL_SIZE_MB}</Num>{' '}MB</>;
+const animals = new Intl.ListFormat('en-GB', { type: 'conjunction' }).format(COCO_ANIMAL_CLASSES);
+
+interface DetectionCard {
+  id: string;
+  title: string;
+  tags: readonly [ReactNode, ReactNode];
+  glyph: ReactNode;
+  summary: ReactNode;
+  details: readonly ReactNode[];
+  link?: { href: string; label: string };
+}
+
+const cards: DetectionCard[] = [
+  {
+    id: 'motion',
+    title: 'Motion and stillness',
+    tags: ['Frame comparison', 'No model'],
+    glyph: <WayGlyph way="monitor" />,
+    summary: 'The monitor compares each camera frame with the one before, five times a second, and alerts when the change passes the amount you set.',
+    details: [
+      <>It can also alert when nothing has moved for a time you set, from <Num>{STILLNESS_ALERT_MIN_MINUTES}</Num> to <Num>{STILLNESS_ALERT_MAX_MINUTES}</Num> minutes.</>,
+    ],
+  },
+  {
+    id: 'sound',
+    title: 'Sound alerts',
+    tags: ['Web Audio API', 'No model'],
+    glyph: <IconVolume2 />,
+    summary: 'The browser reads the microphone’s level ten times a second and alerts when it stays above the level you set.',
+    details: [
+      'An alert nobody acknowledges climbs five levels, each louder; the top level repeats until each alert at it is acknowledged.',
+      'The five alert sounds are tones the browser makes, so they need no file and play offline.',
+    ],
+  },
+  {
+    id: 'people-animals',
+    title: 'People and animals',
+    tags: ['COCO-SSD on TensorFlow.js', <>{modelSize}, after you agree</>],
+    glyph: <WayGlyph way="wildlife" />,
+    summary: 'The People and Wildlife pages run an object-detection model in your browser, on the graphics chip.',
+    details: [
+      <>It finds people and <Num>{COCO_ANIMAL_CLASSES.length}</Num> kinds of animal: {animals}.</>,
+      'People checks up to twice a second and Wildlife once a second at most, each after its own motion check.',
+      'The model downloads from Google’s storage only after you agree, and Google sees your IP address when it does. Your browser then keeps it, and both pages load it from there.',
+    ],
+  },
+  {
+    id: 'lost-found',
+    title: 'Lost and Found',
+    tags: ['Colour and outline', 'No model'],
+    glyph: <WayGlyph way="lost-found" />,
+    summary: <>Add <Num>{MIN_PET_PHOTOS}</Num> to <Num>{MAX_PET_PHOTOS}</Num> photos of your pet. The browser reads each photo’s colours, its <Num>5</Num> main colours, its outline on an <Num>8</Num> by <Num>8</Num> grid and its size, and compares parts of the camera’s picture with them twice a second.</>,
+    details: [
+      'It alerts when a part of the picture has colours and shape like your pet’s photos, so you can look and compare.',
+      'Another animal, or something of a similar colour, can raise it too.',
+    ],
+  },
+  {
+    id: 'offline',
+    title: 'Works offline once saved',
+    tags: ['Installable web app', 'Service worker'],
+    glyph: <IconDownload />,
+    summary: 'Open safeos.sh once online and the browser saves the app’s files.',
+    details: [
+      'Motion and sound alerts then work with no connection, and People and Wildlife once their model is saved.',
+      'Clearing the browser’s storage removes the saved copy; the next visit online saves it again.',
+    ],
+  },
+  {
+    id: 'storage',
+    title: 'What stays on your device',
+    tags: ['IndexedDB', 'localStorage'],
+    glyph: <IconDatabase />,
+    summary: 'Frames are compared in your browser. Settings, alerts, your pet’s photos and the frames a page saves stay in this browser’s storage.',
+    details: [
+      'Settings sit in localStorage; alerts, saved frames and your pet’s photos in IndexedDB; the model in Cache Storage.',
+    ],
+    link: { href: '/privacy/', label: 'Read the privacy page' },
+  },
+];
+
+function DetectionCards() {
+  const group = { name: 'home-detection' } as Record<string, string>;
+  return (
+    <div className="home-detection__cards">
+      {cards.map(({ id, title, tags, glyph, summary, details, link }) => (
+        <details key={id} className="home-detection__card" data-card={id} {...group}>
+          <summary aria-labelledby={`detection-card-${id}`}>
+            <span className="home-detection__glyph" aria-hidden="true">{glyph}</span>
+            <h3 id={`detection-card-${id}`} className="home-h3">{title}</h3>
+            <span className="home-detection__tags">{tags[0]} · {tags[1]}</span>
+            <span className="home-p home-detection__summary">{summary}</span>
+            <span className="home-q__mark" aria-hidden="true" />
+          </summary>
+          <div className="home-detection__body">
+            {details.map((line, i) => <p className="home-p" key={i}>{line}</p>)}
+            {link && <Link className="link-row" href={link.href}>{link.label}</Link>}
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
 
 interface DiagramNode {
   id: string;
@@ -44,7 +153,7 @@ const checks: DiagramNode[] = [
   },
   {
     id: 'people-wildlife',
-    label: <>People and Wildlife: COCO-SSD on TensorFlow.js, run on the graphics chip, <Num>{MODEL_SIZE_MB}</Num> MB, saved after you agree</>,
+    label: <>People and Wildlife: COCO-SSD on TensorFlow.js, run on the graphics chip, {modelSize}, saved after you agree</>,
     glyph: <WayGlyph way="wildlife" />,
     sources: ['camera'],
   },
@@ -144,6 +253,12 @@ export function HomeDetection() {
           Open a card to see how each part works.
         </p>
         <DetectionDiagram />
+        <DetectionCards />
+        <div className="home-detection__code">
+          <a className="link-row" href="https://github.com/framerslab/safeos/tree/master/apps/guardian-ui/src/lib">
+            Read the detection code on GitHub
+          </a>
+        </div>
       </div>
     </section>
   );

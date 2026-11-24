@@ -14,7 +14,7 @@ import type { Metadata } from 'next';
 import { HomeCapture, type CaptureCrop } from '@/components/home/HomeCapture';
 import { HomeDetection } from '@/components/home/HomeDetection';
 import { HomeStart } from '@/components/home/HomeStart';
-import { HomeBenefits, HomeUses, HomeHow, HomeAlerts, HomeFree, HomeQuestions, HomeClosing } from '@/components/home/HomeSections';
+import { HomeBenefits, HomeUses, HomeHow, HomeFree, HomeClosing } from '@/components/home/HomeSections';
 import { Brand } from '@/components/home/Brand';
 import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, pageMetadata, socialImage } from '@/lib/page-metadata';
 import { HOME_LAST_CHANGED } from '@/lib/page-last-changed';
@@ -165,17 +165,15 @@ export default function HomePage() {
       </div>
       <HomeBenefits />
       <HomeDetection />
-      <HomeUses />
       <div className="home-wrap">
         <div className="tick-rule" aria-hidden="true" />
       </div>
       <HomeHow siteAddress={`${SITE_URL}/`} />
+      <HomeUses />
       <div className="home-wrap">
         <div className="tick-rule" aria-hidden="true" />
       </div>
-      <HomeAlerts />
       <HomeFree />
-      <HomeQuestions />
       <HomeClosing />
     </main>
   );
