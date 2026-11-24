@@ -9,7 +9,7 @@
 
 import {
   getLocalDataGeneration, isCurrentLocalData, learnClearGeneration, newClearValue, readLocalClearMarker,
-  picturesMarkerHolds, readPicturesClearMarker, restorePicturesClearMarker, writeAccountClearMarker, writeLocalClearMarker, writePicturesClearMarker,
+  picturesMarkerHolds, writeAccountClearMarker, writeLocalClearMarker, writePicturesClearMarker,
   type ClearStamp, type PictureStamp,
 } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
@@ -104,7 +104,7 @@ interface SafeOSDB extends DBSchema {
       'by-producer-retention': [string, string, number, string];
     };
   };
-  /** One record under the key 'current': a value that names the last clear of this browser's data. */
+  /** 'current' names the last clear of browser data. 'pictures' names the last committed Delete all pictures. */
   clear_generation: { key: string; value: string };
   /**
    * Each alert's picture set: the frame of the moment, the box round what set the alert off and its
@@ -1063,11 +1063,13 @@ export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureSta
       const write = db.transaction(['alert_picture', 'clear_generation'], 'readwrite');
       tx = write;
       // A clear writes the clear generation too, so it runs wholly before or wholly after this.
-      const generation = (await write.objectStore('clear_generation').get('current')) ?? '';
+      const generations = write.objectStore('clear_generation');
+      const generation = (await generations.get('current')) ?? '';
       const current = stamp.clearGeneration !== null
         ? generation === stamp.clearGeneration
         : readLocalClearMarker() === stamp.clearMarker;
-      if (!current || !picturesMarkerHolds(stamp.picturesMarker, readPicturesClearMarker())) {
+      const picturesGeneration = (await generations.get('pictures')) ?? '';
+      if (!current || !picturesMarkerHolds(stamp.picturesMarker, picturesGeneration)) {
         await write.done;
         return { result: 'dropped' };
       }
@@ -1158,19 +1160,20 @@ export async function goneAlertPicture(
 }
 
 /**
- * Delete all pictures: every kept set leaves its row that says the person deleted it, and the
- * pictures marker is written before the transaction commits, so a save that waits in any tab is
- * not written afterwards. A marker local storage refuses aborts it, and nothing is deleted. A
- * transaction that does not commit puts the marker back, so a waiting save is written.
+ * Delete all pictures leaves a deleted row for each kept set and commits the pictures
+ * generation in the same transaction. A waiting save reads that generation, so an abort
+ * leaves its stamp valid even while the pending marker is visible in other tabs.
  */
 export async function goneAllAlertPictures(): Promise<{ result: 'deleted'; ids: string[] } | { result: 'failed' }> {
   let tx: Abandonable | undefined;
-  let marker: { written: string; before: string } | null = null;
   try {
     const db = await getDB();
-    const write = db.transaction(['alert_picture'], 'readwrite');
+    const write = db.transaction(['alert_picture', 'clear_generation'], 'readwrite');
     tx = write;
     const pictures = write.objectStore('alert_picture');
+    const generations = write.objectStore('clear_generation');
+    const before = (await generations.get('pictures')) ?? '';
+    const pending = newClearValue();
     const ids: string[] = [];
     let cursor = await pictures.index('by-state-taken').openCursor(KEPT_RANGE());
     while (cursor) {
@@ -1178,12 +1181,12 @@ export async function goneAllAlertPictures(): Promise<{ result: 'deleted'; ids: 
       await cursor.update(goneRow(cursor.value, 'person'));
       cursor = await cursor.continue();
     }
-    marker = writePicturesClearMarker();
+    await generations.put(pending, 'pictures');
+    writePicturesClearMarker(pending, before);
     await tx.done;
     return { result: 'deleted', ids };
   } catch {
     await abandonTransaction(tx);
-    if (marker) restorePicturesClearMarker(marker);
     return { result: 'failed' };
   }
 }

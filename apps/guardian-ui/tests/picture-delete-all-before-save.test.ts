@@ -4,9 +4,9 @@ import { getAlertPicture, goneAllAlertPictures, saveAlertPicture } from '@/lib/c
 import { pictureStampNow, PICTURES_CLEAR_MARKER_KEY } from '@/lib/local-data-generation';
 
 it.each([
-  { aborts: true, deletion: 'failed', save: { result: 'saved', deleted: [] }, stored: 'kept' },
-  { aborts: false, deletion: 'deleted', save: { result: 'dropped' }, stored: undefined },
-])('a save waiting when Delete all pictures finishes with $deletion reads the transaction outcome', async ({ aborts, deletion, save, stored }) => {
+  { outcome: 'aborts', deletion: 'failed', save: { result: 'saved', deleted: [] }, stored: 'kept' },
+  { outcome: 'commits', deletion: 'deleted', save: { result: 'dropped' }, stored: undefined },
+])('a waiting save reads the outcome when Delete all pictures $outcome', async ({ outcome, deletion, save, stored }) => {
   await getAlertPicture('waiting');
   localStorage.removeItem(PICTURES_CLEAR_MARKER_KEY);
   const stamp = pictureStampNow();
@@ -15,10 +15,10 @@ it.each([
   let saving: ReturnType<typeof saveAlertPicture> | undefined;
   const transaction = IDBDatabase.prototype.transaction;
   const watchTransaction = jest.spyOn(IDBDatabase.prototype, 'transaction').mockImplementation(function (
-    this: IDBDatabase, names: string | string[], mode?: IDBTransactionMode, options?: IDBTransactionOptions,
+    this: IDBDatabase, names: string | Iterable<string>, mode?: IDBTransactionMode, options?: IDBTransactionOptions,
   ) {
     const tx = transaction.call(this, names, mode, options);
-    if (mode === 'readwrite' && names.includes('alert_picture')) deleting ??= tx;
+    if (mode === 'readwrite' && tx.objectStoreNames.contains('alert_picture')) deleting ??= tx;
     return tx;
   });
 
@@ -32,7 +32,7 @@ it.each([
     if (saving) return;
     setItem.call(this, key, value);
     saving = saveAlertPicture(picture, stamp);
-    if (aborts) deleting!.abort();
+    if (outcome === 'aborts') deleting!.abort();
   });
 
   try {

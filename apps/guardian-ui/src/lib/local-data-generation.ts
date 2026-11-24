@@ -46,67 +46,39 @@ export function pendingClearStamp(marker: string): ClearStamp {
   return { marker, generation: knownClear !== null && knownClear.marker === marker ? knownClear.generation : null };
 }
 
-/**
- * The pictures marker: in local storage, shared by every tab, and written by Delete all pictures
- * inside its transaction. A picture save that waits in any tab reads it, so a set taken before the
- * deletion is never written after it.
- */
+/** A pending deletion and the last one that committed when it began. */
+type PicturesClearMarker = { pending: string; before: string };
+
+/** Delete all pictures publishes this marker so a picture can take its stamp synchronously. */
 export const PICTURES_CLEAR_MARKER_KEY = 'safeos_alert_pictures_cleared';
-export function readPicturesClearMarker(): string {
-  try { return localStorage.getItem(PICTURES_CLEAR_MARKER_KEY) ?? ''; } catch { return ''; }
-}
-/**
- * Writes a new pictures marker and answers it with the one it replaced ('' for none). Throws when
- * local storage refuses the write; the caller then aborts its deletion.
- */
-export function writePicturesClearMarker(): { written: string; before: string } {
-  const before = readPicturesClearMarker();
-  const written = newClearValue();
-  localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, written);
-  return { written, before };
-}
-/**
- * A deletion that did not commit leaves a marker that names the last deletion that did and every
- * marker written since by deletions that did not, so a save stamped under any of them is written
- * as if those deletions never came. A marker another deletion wrote since stays.
- */
-const ABORTED = 'aborted:';
-function readAborted(marker: string): { committed: string; aborted: string[] } | null {
-  if (!marker.startsWith(ABORTED)) return null;
+function readPicturesClearMarker(): PicturesClearMarker | null {
   try {
-    const read = JSON.parse(marker.slice(ABORTED.length)) as { committed?: unknown; aborted?: unknown };
-    if (typeof read.committed !== 'string' || !Array.isArray(read.aborted)) return null;
-    return { committed: read.committed, aborted: read.aborted.filter((one): one is string => typeof one === 'string') };
+    const stored = localStorage.getItem(PICTURES_CLEAR_MARKER_KEY);
+    const marker = stored ? JSON.parse(stored) as Partial<PicturesClearMarker> : null;
+    return typeof marker?.pending === 'string' && typeof marker.before === 'string'
+      ? { pending: marker.pending, before: marker.before }
+      : null;
   } catch {
     return null;
   }
 }
-export function restorePicturesClearMarker({ written, before }: { written: string; before: string }): void {
-  try {
-    if (localStorage.getItem(PICTURES_CLEAR_MARKER_KEY) !== written) return;
-    const earlier = readAborted(before);
-    const committed = earlier ? earlier.committed : before;
-    const aborted = [...(earlier ? earlier.aborted : []), written];
-    localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, `${ABORTED}${JSON.stringify({ committed, aborted })}`);
-  } catch {
-    // The new marker stays: a save that waits is then not written, as after a deletion.
-  }
+
+/** Throws when local storage refuses the marker, so the caller aborts the deletion. */
+export function writePicturesClearMarker(pending: string, before: string): void {
+  localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, JSON.stringify({ pending, before }));
 }
-/**
- * Whether a save stamped under the pictures marker `stamped` may be written now that it reads
- * `now`: no deletion has committed since the stamp. A marker written by a deletion that then did
- * not commit counts as the last committed one.
- */
-export function picturesMarkerHolds(stamped: string, now: string): boolean {
-  if (stamped === now) return true;
-  const after = readAborted(now);
-  if (!after) return false;
-  const before = readAborted(stamped);
-  return (before ? before.committed : stamped) === after.committed || after.aborted.includes(stamped);
+
+/** The database says whether the stamped deletion committed or left the previous one in place. */
+export function picturesMarkerHolds(stamped: PicturesClearMarker | null, committed: string): boolean {
+  return stamped ? committed === stamped.pending || committed === stamped.before : committed === '';
 }
 
 /** What a picture save carries from its alert: the clear boundary and the pictures marker then. */
-export type PictureStamp = { clearMarker: string; clearGeneration: string | null; picturesMarker: string };
+export type PictureStamp = {
+  clearMarker: string;
+  clearGeneration: string | null;
+  picturesMarker: PicturesClearMarker | null;
+};
 export function pictureStampNow(): PictureStamp {
   const clearMarker = readLocalClearMarker();
   return { clearMarker, clearGeneration: pendingClearStamp(clearMarker).generation, picturesMarker: readPicturesClearMarker() };
