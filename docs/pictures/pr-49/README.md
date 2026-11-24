@@ -6,8 +6,8 @@ Saved by `apps/guardian-ui/scripts/alert-picture-captures.mjs` in the Pictures
 workflow's job "Capture the home page pictures" (Chromium, at 390 by 844 and
 1440 by 900 pixels, a device scale factor of 2, light and dark) and copied byte
 for byte from the `alert-pictures` artifact of
-[Pictures run 45079552958](https://github.com/framerslab/safeos/actions/runs/45079552958),
-which built commit c29fe22. Each file is `alert-<state>-<width>-<look>.png`,
+[Pictures run 45301570664](https://github.com/framerslab/safeos/actions/runs/45301570664),
+which built commit 2d3e0cf. Each file is `alert-<state>-<width>-<look>.png`,
 clipped to the state's own part of the page:
 
 - `card`: three Motion alerts on the watch; the newest card shows the camera's
@@ -28,6 +28,9 @@ clipped to the state's own part of the page:
 - `watch-group`: the group **Alert pictures** in the watch's settings, its
   heading row included.
 - `settings-group`: the same group on Settings > Detection.
+- `data-count`: the top of Settings > Data on this device in the same visit,
+  after the three alerts: "3 alerts, 3 saved pictures, 0 pets, 0 sounds", the
+  alerts' pictures among the saved pictures.
 - `notice`: the notice "Each alert keeps a picture", which opens before a
   device's first watch.
 - `setup-choice`: the same choice in setup's camera step, on a first visit
@@ -52,22 +55,30 @@ where it plays on, so the middle part is what changes. The sound card plays the
 clip as it is. The sighting's camera plays a striped clip the script writes,
 and Stripes is enrolled from a striped photo on the Lost & Found page.
 
+## after/
+
+`privacy-<width>-<look>.png`: the privacy page at this pull request's commit
+2d3e0cf, copied byte for byte from the `pictures` artifact of the same
+[Pictures run 45301570664](https://github.com/framerslab/safeos/actions/runs/45301570664),
+at 390 by 844 and 1280 by 800 pixels, light and dark.
+
 ## before/
 
-Master at c59795d, the base of this pull request, for the pages this pull
+Master at 6674c86, the base of this pull request, for the pages this pull
 request changes:
 
 - `monitor-<width>-<look>.png`, `history-<width>-<look>.png`,
-  `settings-notifications-<width>-<look>.png`,
+  `settings-notifications-<width>-<look>.png`, `settings-data-<width>-<look>.png`
+  (Data on this device), `privacy-<width>-<look>.png`,
   `dashboard-setup-<width>-<look>.png` (the dashboard once setup is done) and
   `setup-camera-refused-<width>-<look>.png` (setup's camera step after a
   refused camera request), copied byte for byte from the `pictures-before`
-  artifact of the same
-  [Pictures run 45009536251](https://github.com/framerslab/safeos/actions/runs/45009536251).
+  artifact of
+  [Pictures run 45296755900](https://github.com/framerslab/safeos/actions/runs/45296755900).
 - `settings-detection-<width>-<look>.png`, copied byte for byte from the
   `pictures` artifact of
-  [Pictures run 45012090084](https://github.com/framerslab/safeos/actions/runs/45012090084),
-  started by hand on master at c59795d with the route `/settings/detection/`.
+  [Pictures run 45297603165](https://github.com/framerslab/safeos/actions/runs/45297603165),
+  started by hand on master at 6674c86 with the route `/settings/detection/`.
 
 Each is the page at 390 by 844 and 1280 by 800 pixels, light and dark, from
 `apps/guardian-ui/scripts/capture-pictures.mjs`. Master's alert card before
