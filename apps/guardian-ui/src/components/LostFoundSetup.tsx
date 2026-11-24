@@ -9,6 +9,7 @@
 
 'use client';
 
+import { MAX_PET_PHOTOS, MIN_PET_PHOTOS } from '@/lib/pet-photo-limits';
 import { useState, useRef, useCallback } from 'react';
 import { 
   IconUpload, 
@@ -109,7 +110,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
               src: preview,
               file,
             },
-          ].slice(0, 5)); // Max 5 images
+          ].slice(0, MAX_PET_PHOTOS));
         })().catch(() => {
           setImages(prev => [
             ...prev,
@@ -118,7 +119,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
               src,
               file,
             },
-          ].slice(0, 5));
+          ].slice(0, MAX_PET_PHOTOS));
         });
       };
       reader.readAsDataURL(file);
@@ -137,7 +138,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
 
   // Process images and create subject
   const processAndCreate = useCallback(async () => {
-    if (images.length === 0 || !name.trim()) {
+    if (images.length < MIN_PET_PHOTOS || !name.trim()) {
       setError('Please provide a name and at least one image');
       return;
     }
@@ -314,13 +315,13 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
                   Click to upload photos
                 </p>
                 <p className="text-sm text-[var(--color-steel-500)] mt-1">
-                  PNG, JPG up to 10MB (max 5 images)
+                  PNG, JPG up to 10MB (max {MAX_PET_PHOTOS} images)
                 </p>
               </div>
             </div>
             
             {/* Image previews */}
-            {images.length > 0 && (
+            {images.length >= MIN_PET_PHOTOS && (
               <div className="grid grid-cols-5 gap-3">
                 {images.map((img) => (
                   <div key={img.id} className="relative group">
@@ -353,7 +354,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
               </button>
               <button
                 onClick={() => setStep('configure')}
-                disabled={images.length === 0 || !name.trim()}
+                disabled={images.length < MIN_PET_PHOTOS || !name.trim()}
                 className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-[var(--color-steel-700)] disabled:text-[var(--color-steel-500)] text-white rounded-lg transition-colors"
               >
                 Continue
