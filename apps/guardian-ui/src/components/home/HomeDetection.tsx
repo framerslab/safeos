@@ -170,7 +170,7 @@ const outputs: DiagramNode[] = [
   {
     id: 'alert',
     name: 'The alert',
-    detail: 'a sound, a notification and a line in History',
+    detail: 'a sound, a notification if the browser allows it, and a line in History',
     glyph: <IconBell />,
     sources: checks.map(({ id }) => id),
   },
