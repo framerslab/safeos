@@ -125,3 +125,28 @@ describe('the probe counts an alert only where the watch raised one, inside the 
     expect(verdict).toMatchObject({ alerted: true, firstAlert: { kind: 'sighting', id: 's1' }, firstSaved: { id: 'f0' }, best: { id: 'f1' } });
   });
 });
+
+// What the probe says of the pet the walk saved, given the subject_profile
+// record readPet returned and the number of photos the walk added.
+function petCheck(pet: object | null, photoCount = 3): string | null {
+  const program = `
+    const { savedPetProblem } = await import(${JSON.stringify(VERDICT)});
+    console.log(JSON.stringify(savedPetProblem(${JSON.stringify(pet)}, ${photoCount})));
+  `;
+  return JSON.parse(runModule(program));
+}
+
+describe('the probe holds the pet to what the walk added before it watches', () => {
+  it('fails when the pet was not saved, though the page shows it', () => {
+    expect(petCheck(null)).toBe('the pet was not saved on the device');
+  });
+
+  it('fails when the saved pet holds fewer photos than were added', () => {
+    expect(petCheck({ name: 'Toffee', referenceImages: ['a', 'b'] })).toBe('the saved pet holds 2 photos, not 3');
+    expect(petCheck({ name: 'Toffee' })).toBe('the saved pet holds 0 photos, not 3');
+  });
+
+  it('passes a pet saved with every photo', () => {
+    expect(petCheck({ name: 'Toffee', referenceImages: ['a', 'b', 'c'] })).toBeNull();
+  });
+});
