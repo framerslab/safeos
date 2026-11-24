@@ -80,6 +80,15 @@ test.skip(
   'the alert pictures walk runs in desktop Chromium',
 );
 
+function describeInBothLooks(title: string, defineTests: () => void) {
+  for (const look of ['dark', 'light'] as const) {
+    test.describe(`${title}, ${look}`, () => {
+      test.use({ colorScheme: look });
+      defineTests();
+    });
+  }
+}
+
 /** The database, or null while the page holds it mid-reload. */
 async function databaseNow(page: Page): Promise<DatabaseReading | null> {
   try {
@@ -172,21 +181,25 @@ test.describe('The picture store and the alert record', () => {
     expect(reading.pictures).toEqual([]);
   });
 
-  test('Clear all data on this device leaves no alert picture', async ({ page, context }) => {
-    await seedDevice(context, { pictures: { noticeAnswered: true } });
-    const at = Date.now() - 60_000;
-    await seedPictureRows(page, [
-      { alert: savedAlert('motion-1-aaaaaaa', at, { pictureId: 'picture-1-aaaaaaa', kind: 'motion' }), picture: keptPicture('picture-1-aaaaaaa', at) },
-      { alert: savedAlert('motion-2-bbbbbbb', at + 1_000, { pictureId: 'picture-2-bbbbbbb', kind: 'motion' }), picture: keptPicture('picture-2-bbbbbbb', at + 1_000) },
-    ]);
-    expect((await readDatabase(page)).pictures).toHaveLength(2);
+  describeInBothLooks('Clearing data with kept pictures, 1280 px', () => {
+    test.use({ viewport: { width: 1280, height: 900 } });
 
-    await clearAllDataOnThisDevice(page);
+    test('Clear all data on this device leaves no alert picture', async ({ page, context }) => {
+      await seedDevice(context, { pictures: { noticeAnswered: true } });
+      const at = Date.now() - 60_000;
+      await seedPictureRows(page, [
+        { alert: savedAlert('motion-1-aaaaaaa', at, { pictureId: 'picture-1-aaaaaaa', kind: 'motion' }), picture: keptPicture('picture-1-aaaaaaa', at) },
+        { alert: savedAlert('motion-2-bbbbbbb', at + 1_000, { pictureId: 'picture-2-bbbbbbb', kind: 'motion' }), picture: keptPicture('picture-2-bbbbbbb', at + 1_000) },
+      ]);
+      expect((await readDatabase(page)).pictures).toHaveLength(2);
 
-    await expect.poll(async () => {
-      const reading = await databaseNow(page);
-      return reading ? { pictures: reading.pictures.length, alerts: monitoringAlerts(reading).length } : null;
-    }, { timeout: 15_000 }).toEqual({ pictures: 0, alerts: 0 });
+      await clearAllDataOnThisDevice(page);
+
+      await expect.poll(async () => {
+        const reading = await databaseNow(page);
+        return reading ? { pictures: reading.pictures.length, alerts: monitoringAlerts(reading).length } : null;
+      }, { timeout: 15_000 }).toEqual({ pictures: 0, alerts: 0 });
+    });
   });
 
   test('the 101st alert takes the oldest alert\'s picture with it', async ({ page, context }) => {
@@ -401,6 +414,8 @@ for (const look of ['dark', 'light'] as const) {
         await expect(card.getByText('What the camera saw when the sound came.', { exact: true })).toBeVisible();
         await expect(card.locator('.alert-picture__box')).toHaveCount(0);
         await expect(card.getByRole('img', { name: /^Close-up/ })).toHaveCount(0);
+        await expect(liveBox(page)).toHaveCount(0);
+        await expect(livePlate(page)).toHaveCount(0);
       });
     });
   }
@@ -602,7 +617,7 @@ for (const look of ['light', 'dark'] as const) {
   });
 }
 
-test.describe('The card for an alert of another kind or one saved before pictures', () => {
+describeInBothLooks('The card for an alert of another kind or one saved before pictures', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   test('an inactivity alert keeps its message line and shows no picture', async ({ page, context }) => {
@@ -764,7 +779,7 @@ for (const look of ['dark', 'light'] as const) {
 }
 
 for (const reduced of [true, false]) {
-  test.describe(`The fourth level's bar${reduced ? ' under reduced motion' : ''}`, () => {
+  describeInBothLooks(`The fourth level's bar${reduced ? ' under reduced motion' : ''}`, () => {
     test.use({ viewport: { width: 1280, height: 900 }, contextOptions: { reducedMotion: reduced ? 'reduce' : 'no-preference' } });
 
     test(`a card's fourth-level bar holds its colour with no pulse under reduced motion${reduced ? '' : ': without it, it pulses until Acknowledge'}`, async ({ page, context }) => {
@@ -859,7 +874,7 @@ async function seedKept(page: Page, count: number): Promise<string[]> {
 }
 
 for (const width of [390, 1280]) {
-  test.describe(`The notice before the first watch, ${width} px`, () => {
+  describeInBothLooks(`The notice before the first watch, ${width} px`, () => {
     test.use({ viewport: { width, height: 900 } });
 
     test(`the first start opens the notice and nothing is kept before it is answered, ${width} px`, async ({ page, context }) => {
@@ -1245,8 +1260,26 @@ for (const look of ['dark', 'light'] as const) {
   });
 }
 
+describeInBothLooks('An expired picture on the watch, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('a card keeps its words after its picture expires', async ({ page, context }) => {
+    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+    await canvasCamera(page, { ...LEFT_THIRD, moving: { ...LEFT_THIRD.moving, width: 0 } });
+    const [pictureId] = await seedKept(page, 1);
+    await redatePicture(page, pictureId, Date.now() - 4 * DAY);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    await startWatching(page);
+    const card = cards(page).first();
+    await expect(card.getByText(kindLine('Motion'))).toBeVisible();
+    await expect(card.getByText('Its picture was deleted after 3 days.', { exact: true })).toBeVisible();
+    await expect(openKey(card)).toHaveCount(0);
+    expect(await keptCount(page)).toBe(0);
+  });
+});
+
 for (const width of [390, 1280]) {
-  test.describe(`The group "Alert pictures", ${width} px`, () => {
+  describeInBothLooks(`The group "Alert pictures", ${width} px`, () => {
     test.use({ viewport: { width, height: 900 } });
 
     test(`the group counts the kept pictures, and Delete all pictures empties the store, ${width} px`, async ({ page, context }) => {
@@ -1297,34 +1330,36 @@ for (const width of [390, 1280]) {
 test.describe('Keeping pictures, 1280 px', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test('a picture past its age is deleted while the watch runs, and the card says after how long', async ({ page, context }) => {
-    test.setTimeout(300_000);
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, deleteAfterDays: 1 } });
-    const card = cards(page).first();
-    await timeOf(card, 'Motion');
-    // The picture holds still from here, so the event ends and no repeat puts a newer picture on the card.
-    await page.evaluate(() => { window.__camera!.moving.width = 0; });
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
-    const [first] = keptRows(await readDatabase(page));
-    await redatePicture(page, first.id, Date.now() - 2 * DAY);
-    await expect(card.getByText('Its picture was deleted after 1 day.', { exact: true })).toBeVisible({ timeout: 90_000 });
-    await expect(card.getByText(kindLine('Motion'))).toBeVisible();
-    const gone = (await readDatabase(page)).pictures.find((row) => row.id === first.id)!;
-    expect(gone).toMatchObject({ state: 'gone', gone: 'age', goneAfterDays: 1 });
-    expect(gone.frame).toBeUndefined();
-    expect(gone.closeUp).toBeUndefined();
+  describeInBothLooks('Changing the picture age', () => {
+    test('a picture past its age is deleted while the watch runs, and the card says after how long', async ({ page, context }) => {
+      test.setTimeout(300_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, deleteAfterDays: 1 } });
+      const card = cards(page).first();
+      await timeOf(card, 'Motion');
+      // The picture holds still from here, so the event ends and no repeat puts a newer picture on the card.
+      await page.evaluate(() => { window.__camera!.moving.width = 0; });
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+      const [first] = keptRows(await readDatabase(page));
+      await redatePicture(page, first.id, Date.now() - 2 * DAY);
+      await expect(card.getByText('Its picture was deleted after 1 day.', { exact: true })).toBeVisible({ timeout: 90_000 });
+      await expect(card.getByText(kindLine('Motion'))).toBeVisible();
+      const gone = (await readDatabase(page)).pictures.find((row) => row.id === first.id)!;
+      expect(gone).toMatchObject({ state: 'gone', gone: 'age', goneAfterDays: 1 });
+      expect(gone.frame).toBeUndefined();
+      expect(gone.closeUp).toBeUndefined();
 
-    // Until I delete them: nothing is deleted at any age.
-    const found = await openWatchGroup(page);
-    await afterSelect(found).selectOption({ label: 'Until I delete them' });
-    await raiseEvents(page, 2, 2);
-    await page.evaluate(() => { window.__camera!.moving.width = 0; });
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
-    const [second] = keptRows(await readDatabase(page));
-    await redatePicture(page, second.id, Date.now() - 400 * DAY);
-    await page.waitForTimeout(75_000);
-    expect(keptRows(await readDatabase(page)).map((row) => row.id)).toEqual([second.id]);
-    await expect(cards(page).first().locator('.alert-picture img').first()).toBeVisible();
+      // Until I delete them: nothing is deleted at any age.
+      const found = await openWatchGroup(page);
+      await afterSelect(found).selectOption({ label: 'Until I delete them' });
+      await raiseEvents(page, 2, 2);
+      await page.evaluate(() => { window.__camera!.moving.width = 0; });
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+      const [second] = keptRows(await readDatabase(page));
+      await redatePicture(page, second.id, Date.now() - 400 * DAY);
+      await page.waitForTimeout(75_000);
+      expect(keptRows(await readDatabase(page)).map((row) => row.id)).toEqual([second.id]);
+      await expect(cards(page).first().locator('.alert-picture img').first()).toBeVisible();
+    });
   });
 
   test('a repeat leaves one picture set in the store for its card', async ({ page, context }) => {
@@ -1344,27 +1379,29 @@ test.describe('Keeping pictures, 1280 px', () => {
     expect((await readDatabase(page)).pictures.map((row) => row.id)).not.toContain(first.id);
   });
 
-  test('a second tab shows the kept pictures and another profile shows none', async ({ page, context, browser }) => {
-    test.setTimeout(150_000);
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
-    const time = await timeOf(cards(page).first(), 'Motion');
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+  describeInBothLooks('Keeping pictures in other tabs and profiles', () => {
+    test('a second tab shows the kept pictures and another profile shows none', async ({ page, context, browser, colorScheme }) => {
+      test.setTimeout(150_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+      const time = await timeOf(cards(page).first(), 'Motion');
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
 
-    const second = await context.newPage();
-    await second.goto('/monitor/', { waitUntil: 'networkidle' });
-    const shown = cards(second).first();
-    await expect(shown.getByText(`Motion at ${time}`, { exact: true })).toBeVisible();
-    await expect(shown.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
-    await second.close();
+      const second = await context.newPage();
+      await second.goto('/monitor/', { waitUntil: 'networkidle' });
+      const shown = cards(second).first();
+      await expect(shown.getByText(`Motion at ${time}`, { exact: true })).toBeVisible();
+      await expect(shown.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+      await second.close();
 
-    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    await seedDevice(other, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
-    const stranger = await other.newPage();
-    await stranger.goto('/monitor/', { waitUntil: 'networkidle' });
-    await expect(startKey(stranger)).toBeVisible();
-    await expect(cards(stranger)).toHaveCount(0);
-    expect((await readDatabase(stranger)).pictures).toEqual([]);
-    await other.close();
+      const other = await browser.newContext({ colorScheme, viewport: { width: 1280, height: 900 } });
+      await seedDevice(other, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+      const stranger = await other.newPage();
+      await stranger.goto('/monitor/', { waitUntil: 'networkidle' });
+      await expect(startKey(stranger)).toBeVisible();
+      await expect(cards(stranger)).toHaveCount(0);
+      expect((await readDatabase(stranger)).pictures).toEqual([]);
+      await other.close();
+    });
   });
 
   test('turning keeping off in a second tab stops the next save in the first', async ({ page, context }) => {
@@ -1416,70 +1453,72 @@ test.describe('Keeping pictures, 1280 px', () => {
 
   // A save is running from the alert until its picture is written. A delete
   // or a clear that comes in between, in any tab, leaves it unwritten.
-  for (const way of ['Delete all pictures', 'Clear all data on this device', 'Clear all'] as const) {
-    test(`a save running when ${way} comes in another tab is never written`, async ({ page, context }) => {
-      test.setTimeout(180_000);
-      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
-      await canvasCamera(page, LEFT_THIRD);
-      await faultPictureStore(page);
-      await page.goto('/monitor/', { waitUntil: 'networkidle' });
-      await startWatching(page);
-      await timeOf(cards(page).first(), 'Motion');
-      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+  describeInBothLooks('Clearing a picture while it is being saved', () => {
+    for (const way of ['Delete all pictures', 'Clear all data on this device', 'Clear all'] as const) {
+      test(`a save running when ${way} comes in another tab is never written`, async ({ page, context }) => {
+        test.setTimeout(180_000);
+        await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+        await canvasCamera(page, LEFT_THIRD);
+        await faultPictureStore(page);
+        await page.goto('/monitor/', { waitUntil: 'networkidle' });
+        await startWatching(page);
+        await timeOf(cards(page).first(), 'Motion');
+        await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
 
-      const other = await context.newPage();
-      if (way === 'Delete all pictures') await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
-      else if (way === 'Clear all data on this device') await other.goto('/settings/data/', { waitUntil: 'networkidle' });
-      else await other.goto('/settings/test-alerts/', { waitUntil: 'networkidle' });
+        const other = await context.newPage();
+        if (way === 'Delete all pictures') await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
+        else if (way === 'Clear all data on this device') await other.goto('/settings/data/', { waitUntil: 'networkidle' });
+        else await other.goto('/settings/test-alerts/', { waitUntil: 'networkidle' });
 
-      // The next alert's picture is handed back 30 seconds after it is drawn: its save waits.
-      const HOLD_MS = 30_000;
-      await setFault(page, { holdDrawMs: HOLD_MS });
-      await raiseEvents(page, 2, 2);
-      const held = cards(page).first();
-      await expect(held.locator('.alert-picture__wait')).toBeVisible();
-      const heldSince = Date.now();
-      // The picture holds still: the event ends with no repeat, and no later alert comes.
-      await page.evaluate(() => { window.__camera!.moving.width = 0; });
+        // The next alert's picture is handed back 30 seconds after it is drawn: its save waits.
+        const HOLD_MS = 30_000;
+        await setFault(page, { holdDrawMs: HOLD_MS });
+        await raiseEvents(page, 2, 2);
+        const held = cards(page).first();
+        await expect(held.locator('.alert-picture__wait')).toBeVisible();
+        const heldSince = Date.now();
+        // The picture holds still: the event ends with no repeat, and no later alert comes.
+        await page.evaluate(() => { window.__camera!.moving.width = 0; });
 
-      if (way === 'Delete all pictures') {
-        await deleteAll(group(other)).click();
-        await other.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
-        await expect(countLine(group(other))).toHaveText('No pictures kept on this device');
-      } else if (way === 'Clear all data on this device') {
-        await other.getByRole('button', { name: 'Clear all data on this device', exact: true }).click();
-        await other.getByRole('button', { name: 'Clear all data', exact: true }).click();
-        await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
-      } else {
-        // The alert list's own clear, on Settings' test alerts.
-        await other.getByRole('button', { name: 'Clear All', exact: true }).click();
-        await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
-      }
-      // The clear came while the save still waited. A clear of the alerts empties this tab's list
-      // too, so the time tells it there.
-      if (way === 'Delete all pictures') {
-        await expect(held.locator('.alert-picture__wait'), 'the save waits until after the clear').toBeVisible();
-      } else {
-        const draws = await heldDraws(page);
-        expect(draws.held, 'the save’s picture is held').toBeGreaterThan(0);
-        expect(draws.handed, 'the clear came while the save still waited').toBe(0);
-        await expect(cards(page)).toHaveCount(0);
-      }
+        if (way === 'Delete all pictures') {
+          await deleteAll(group(other)).click();
+          await other.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+          await expect(countLine(group(other))).toHaveText('No pictures kept on this device');
+        } else if (way === 'Clear all data on this device') {
+          await other.getByRole('button', { name: 'Clear all data on this device', exact: true }).click();
+          await other.getByRole('button', { name: 'Clear all data', exact: true }).click();
+          await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
+        } else {
+          // The alert list's own clear, on Settings' test alerts.
+          await other.getByRole('button', { name: 'Clear All', exact: true }).click();
+          await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
+        }
+        // The clear came while the save still waited. A clear of the alerts empties this tab's list
+        // too, so the time tells it there.
+        if (way === 'Delete all pictures') {
+          await expect(held.locator('.alert-picture__wait'), 'the save waits until after the clear').toBeVisible();
+        } else {
+          const draws = await heldDraws(page);
+          expect(draws.held, 'the save’s picture is held').toBeGreaterThan(0);
+          expect(draws.handed, 'the clear came while the save still waited').toBe(0);
+          await expect(cards(page)).toHaveCount(0);
+        }
 
-      // The held save goes on now, and writes nothing.
-      await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - heldSince)) + 5_000);
-      const reading = await readDatabase(page);
-      expect(keptRows(reading)).toEqual([]);
-      if (way === 'Delete all pictures') {
-        await expect(held.getByText('You deleted its picture.', { exact: true })).toBeVisible();
-        await expect(cards(page).last().getByText('You deleted its picture.', { exact: true })).toBeVisible();
-      } else {
-        expect(reading.pictures).toEqual([]);
-        expect(monitoringAlerts(reading)).toEqual([]);
-      }
-      await other.close();
-    });
-  }
+        // The held save goes on now, and writes nothing.
+        await page.waitForTimeout(Math.max(0, HOLD_MS - (Date.now() - heldSince)) + 5_000);
+        const reading = await readDatabase(page);
+        expect(keptRows(reading)).toEqual([]);
+        if (way === 'Delete all pictures') {
+          await expect(held.getByText('You deleted its picture.', { exact: true })).toBeVisible();
+          await expect(cards(page).last().getByText('You deleted its picture.', { exact: true })).toBeVisible();
+        } else {
+          expect(reading.pictures).toEqual([]);
+          expect(monitoringAlerts(reading)).toEqual([]);
+        }
+        await other.close();
+      });
+    }
+  });
 
   test('a save running when Delete all pictures fails in another tab is written', async ({ page, context }) => {
     test.setTimeout(180_000);
@@ -1605,128 +1644,134 @@ test.describe('Keeping pictures, 1280 px', () => {
     await other.close();
   });
 
-  test('a connected server receives its frames and no kept picture, box or close-up', async ({ page, context }) => {
-    test.setTimeout(150_000);
-    const wsUrl = 'ws://127.0.0.1:4174/ws';
-    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true }, backend: { wsUrl } });
-    await canvasCamera(page, LEFT_THIRD);
-    // The walk's own server: it gives the page a session, answers every request and takes the socket.
-    const server = await routedServer(page, /^ws:\/\/127\.0\.0\.1:4174\//);
-    const bodies: string[] = [];
-    await page.route('http://127.0.0.1:4174/**', (route) => {
-      const session = route.request().url().endsWith('/api/auth/session');
-      return route.fulfill({ json: {
-        success: true,
-        data: session
-          ? { sessionId: 'walk-session', token: 'walk-token', isGuest: true, profile: null, expiresAt: new Date(Date.now() + DAY).toISOString() }
-          : null,
-      } });
-    });
-    page.on('request', (request) => { bodies.push(`${request.method()} ${request.url()} ${request.postData() ?? ''}`); });
-    // The device holds a session with that server, as a person who signed in to it does.
-    await context.addInitScript(() => {
-      localStorage.setItem('safeos-auth', JSON.stringify({ state: {
-        sessionToken: 'walk-token', sessionId: 'walk-session', deviceId: 'walk-device', isGuest: true,
-      }, version: 0 }));
-    });
-    await page.goto('/monitor/', { waitUntil: 'networkidle' });
-    await startWatching(page);
-    await timeOf(cards(page).first(), 'Motion');
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
-    const frames = () => server.messages.filter((message) => /"type":\s*"frame"/.test(message)).length;
-    await expect.poll(frames, { timeout: 60_000 }).toBeGreaterThanOrEqual(1).catch(() => {
-      // What the server did hear, so a missing frame says why.
-      throw new Error(`the page's ordinary frames did not reach the server; it heard ${server.messages.length} messages: `
-        + `${server.messages.map((message) => message.slice(0, 60)).join(' | ').slice(0, 600)}; requests: `
-        + `${bodies.map((body) => body.slice(0, 90)).join(' | ').slice(0, 1200)}`);
-    });
+  describeInBothLooks('Keeping pictures with a server connected', () => {
+    test('a connected server receives its frames and no kept picture, box or close-up', async ({ page, context }) => {
+      test.setTimeout(150_000);
+      const wsUrl = 'ws://127.0.0.1:4174/ws';
+      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true }, backend: { wsUrl } });
+      await canvasCamera(page, LEFT_THIRD);
+      // The walk's own server: it gives the page a session, answers every request and takes the socket.
+      const server = await routedServer(page, /^ws:\/\/127\.0\.0\.1:4174\//);
+      const bodies: string[] = [];
+      await page.route('http://127.0.0.1:4174/**', (route) => {
+        const session = route.request().url().endsWith('/api/auth/session');
+        return route.fulfill({ json: {
+          success: true,
+          data: session
+            ? { sessionId: 'walk-session', token: 'walk-token', isGuest: true, profile: null, expiresAt: new Date(Date.now() + DAY).toISOString() }
+            : null,
+        } });
+      });
+      page.on('request', (request) => { bodies.push(`${request.method()} ${request.url()} ${request.postData() ?? ''}`); });
+      // The device holds a session with that server, as a person who signed in to it does.
+      await context.addInitScript(() => {
+        localStorage.setItem('safeos-auth', JSON.stringify({ state: {
+          sessionToken: 'walk-token', sessionId: 'walk-session', deviceId: 'walk-device', isGuest: true,
+        }, version: 0 }));
+      });
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startWatching(page);
+      await timeOf(cards(page).first(), 'Motion');
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+      const frames = () => server.messages.filter((message) => /"type":\s*"frame"/.test(message)).length;
+      await expect.poll(frames, { timeout: 60_000 }).toBeGreaterThanOrEqual(1).catch(() => {
+        // What the server did hear, so a missing frame says why.
+        throw new Error(`the page's ordinary frames did not reach the server; it heard ${server.messages.length} messages: `
+          + `${server.messages.map((message) => message.slice(0, 60)).join(' | ').slice(0, 600)}; requests: `
+          + `${bodies.map((body) => body.slice(0, 90)).join(' | ').slice(0, 1200)}`);
+      });
 
-    // The kept picture's bytes, its id and its box, as the page holds them.
-    const kept = await page.evaluate(() => new Promise<{ id: string; frame: string; closeUp: string; box: string }>((resolve, reject) => {
-      const base64 = async (blob: Blob) => {
-        const bytes = new Uint8Array(await blob.arrayBuffer());
-        let text = '';
-        for (const byte of bytes) text += String.fromCharCode(byte);
-        return btoa(text);
-      };
-      const open = indexedDB.open('safeos-guardian');
-      open.onerror = () => reject(open.error);
-      open.onsuccess = () => {
-        const db = open.result;
-        const read = db.transaction('alert_picture', 'readonly').objectStore('alert_picture').getAll();
-        read.onerror = () => { db.close(); reject(read.error); };
-        read.onsuccess = () => {
-          db.close();
-          const row = read.result.find((picture) => picture.state === 'kept');
-          void (async () => resolve({
-            id: row.id,
-            frame: await base64(row.frame),
-            closeUp: row.closeUp ? await base64(row.closeUp) : '',
-            box: JSON.stringify(row.box),
-          }))().catch(reject);
+      // The kept picture's bytes, its id and its box, as the page holds them.
+      const kept = await page.evaluate(() => new Promise<{ id: string; frame: string; closeUp: string; box: string }>((resolve, reject) => {
+        const base64 = async (blob: Blob) => {
+          const bytes = new Uint8Array(await blob.arrayBuffer());
+          let text = '';
+          for (const byte of bytes) text += String.fromCharCode(byte);
+          return btoa(text);
         };
-      };
-    }));
-    const sent = [...server.messages, ...bodies].join('\n');
-    expect(sent).not.toContain(kept.id);
-    // A JPEG opens with its encoder's header, the same in every file this browser writes, so the
-    // kept picture is told by its own data: a stretch from its middle and its end.
-    const own = (file: string) => [file.slice(Math.floor(file.length / 2), Math.floor(file.length / 2) + 400), file.slice(-400)];
-    for (const stretch of own(kept.frame)) expect(sent.includes(stretch), 'no stretch of the kept frame reaches the server').toBe(false);
-    if (kept.closeUp) {
-      for (const stretch of own(kept.closeUp)) expect(sent.includes(stretch), 'no stretch of the close-up reaches the server').toBe(false);
-    }
-    expect(sent).not.toContain(kept.box);
-    expect(sent).not.toMatch(/pictureId|sourceBox|closeUp|alert_picture/);
+        const open = indexedDB.open('safeos-guardian');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const read = db.transaction('alert_picture', 'readonly').objectStore('alert_picture').getAll();
+          read.onerror = () => { db.close(); reject(read.error); };
+          read.onsuccess = () => {
+            db.close();
+            const row = read.result.find((picture) => picture.state === 'kept');
+            void (async () => resolve({
+              id: row.id,
+              frame: await base64(row.frame),
+              closeUp: row.closeUp ? await base64(row.closeUp) : '',
+              box: JSON.stringify(row.box),
+            }))().catch(reject);
+          };
+        };
+      }));
+      const sent = [...server.messages, ...bodies].join('\n');
+      expect(sent).not.toContain(kept.id);
+      // A JPEG opens with its encoder's header, the same in every file this browser writes, so the
+      // kept picture is told by its own data: a stretch from its middle and its end.
+      const own = (file: string) => [file.slice(Math.floor(file.length / 2), Math.floor(file.length / 2) + 400), file.slice(-400)];
+      for (const stretch of own(kept.frame)) expect(sent.includes(stretch), 'no stretch of the kept frame reaches the server').toBe(false);
+      if (kept.closeUp) {
+        for (const stretch of own(kept.closeUp)) expect(sent.includes(stretch), 'no stretch of the close-up reaches the server').toBe(false);
+      }
+      expect(sent).not.toContain(kept.box);
+      expect(sent).not.toMatch(/pictureId|sourceBox|closeUp|alert_picture/);
+    });
   });
 });
 
 test.describe('The group and the notice: order, sizes and faults', () => {
-  test('the group and the notice in keyboard order', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await seedDevice(context, { settings: MOTION_ONLY });
-    await canvasCamera(page, LEFT_THIRD);
-    await seedKept(page, 2);
-    await page.goto('/monitor/', { waitUntil: 'networkidle' });
-    await startKey(page).click();
-    const dialog = notice(page);
-    await expect(dialog).toBeVisible();
-    // Focus starts on the dialog's panel and stays inside it.
-    await expect(dialog).toBeFocused();
-    const order = [
-      keepSwitch(dialog),
-      afterSelect(dialog),
-      dialog.getByRole('link', { name: ICO_LINK }),
-      dialog.getByRole('button', { name: 'Go back', exact: true }),
-      dialog.getByRole('button', { name: 'Start watching', exact: true }),
-    ];
-    for (const stop of order) {
-      await page.keyboard.press('Tab');
-      await expect(stop).toBeFocused();
-      const ring = await stop.evaluate((el) => getComputedStyle(el).outlineStyle);
-      expect(ring, 'each stop shows its ring').not.toBe('none');
-    }
-    await page.keyboard.press('Tab');
-    await expect(order[0]).toBeFocused();
-    // Escape is Go back: the dialog closes and the watch has not started.
-    await page.keyboard.press('Escape');
-    await expect(dialog).toHaveCount(0);
-    await expect(live(page)).toHaveCount(0);
-    await expect(startKey(page)).toBeFocused();
+  describeInBothLooks('Picture settings and notice keyboard order, 1280 px', () => {
+    test.use({ viewport: { width: 1280, height: 900 } });
 
-    const found = await openWatchGroup(page);
-    await keepSwitch(found).focus();
-    for (const stop of [afterSelect(found), deleteAll(found), found.getByRole('link', { name: ICO_LINK })]) {
+    test('the group and the notice in keyboard order', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await seedDevice(context, { settings: MOTION_ONLY });
+      await canvasCamera(page, LEFT_THIRD);
+      await seedKept(page, 2);
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startKey(page).click();
+      const dialog = notice(page);
+      await expect(dialog).toBeVisible();
+      // Focus starts on the dialog's panel and stays inside it.
+      await expect(dialog).toBeFocused();
+      const order = [
+        keepSwitch(dialog),
+        afterSelect(dialog),
+        dialog.getByRole('link', { name: ICO_LINK }),
+        dialog.getByRole('button', { name: 'Go back', exact: true }),
+        dialog.getByRole('button', { name: 'Start watching', exact: true }),
+      ];
+      for (const stop of order) {
+        await page.keyboard.press('Tab');
+        await expect(stop).toBeFocused();
+        const ring = await stop.evaluate((el) => getComputedStyle(el).outlineStyle);
+        expect(ring, 'each stop shows its ring').not.toBe('none');
+      }
       await page.keyboard.press('Tab');
-      await expect(stop).toBeFocused();
-    }
-    // The delete question starts on Keep them and gives focus back to Delete all pictures.
-    await deleteAll(found).click();
-    const question = page.getByRole('alertdialog');
-    await expect(question.getByRole('button', { name: 'Keep them', exact: true })).toBeFocused();
-    await question.getByRole('button', { name: 'Keep them', exact: true }).click();
-    await expect(deleteAll(found)).toBeFocused();
-    expect(await keptCount(page)).toBe(2);
+      await expect(order[0]).toBeFocused();
+      // Escape is Go back: the dialog closes and the watch has not started.
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(live(page)).toHaveCount(0);
+      await expect(startKey(page)).toBeFocused();
+
+      const found = await openWatchGroup(page);
+      await keepSwitch(found).focus();
+      for (const stop of [afterSelect(found), deleteAll(found), found.getByRole('link', { name: ICO_LINK })]) {
+        await page.keyboard.press('Tab');
+        await expect(stop).toBeFocused();
+      }
+      // The delete question starts on Keep them and gives focus back to Delete all pictures.
+      await deleteAll(found).click();
+      const question = page.getByRole('alertdialog');
+      await expect(question.getByRole('button', { name: 'Keep them', exact: true })).toBeFocused();
+      await question.getByRole('button', { name: 'Keep them', exact: true }).click();
+      await expect(deleteAll(found)).toBeFocused();
+      expect(await keptCount(page)).toBe(2);
+    });
   });
 
   for (const look of ['dark', 'light'] as const) {
@@ -1865,46 +1910,50 @@ test.describe('The group and the notice: order, sizes and faults', () => {
     });
   }
 
-  test('the count loads in place', async ({ page, context }) => {
-    test.setTimeout(60_000);
-    await seedDevice(context, { pictures: { noticeAnswered: true } });
-    await seedKept(page, 3);
-    await faultPictureStore(page, { holdReadMs: 3_000 });
-    await page.goto('/settings/detection/', { waitUntil: 'domcontentloaded' });
-    const found = group(page);
-    await expect(found).toBeVisible();
-    // A track-coloured bar stands in the count's place until the store is read.
-    const bar = found.locator('.alert-pictures-group__count-wait');
-    await expect(bar).toBeVisible();
-    await expect(bar).toHaveAttribute('aria-hidden', 'true');
-    await expect(countLine(found)).toHaveCount(0);
-    await expect(countLine(found)).toHaveText('3 pictures kept on this device', { timeout: 15_000 });
-    await expect(bar).toHaveCount(0);
-  });
+  describeInBothLooks('Picture count and deletion failure, 390 px', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
 
-  test('a failed Delete all pictures says so and keeps the count', async ({ page, context }) => {
-    test.setTimeout(60_000);
-    await seedDevice(context, { pictures: { noticeAnswered: true } });
-    await seedKept(page, 3);
-    await faultPictureStore(page, { deletes: 'error' });
-    await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
-    const found = group(page);
-    await expect(countLine(found)).toHaveText('3 pictures kept on this device');
-    await deleteAll(found).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
-    const failed = found.getByText(DELETE_FAILED_LINE, { exact: true });
-    await expect(failed).toBeVisible();
-    await expect(found.locator('.alert-picture__problem')).toHaveCount(1);
-    await expect(countLine(found)).toHaveText('3 pictures kept on this device');
-    expect(await keptCount(page)).toBe(3);
+    test('the count loads in place', async ({ page, context }) => {
+      test.setTimeout(60_000);
+      await seedDevice(context, { pictures: { noticeAnswered: true } });
+      await seedKept(page, 3);
+      await faultPictureStore(page, { holdReadMs: 3_000 });
+      await page.goto('/settings/detection/', { waitUntil: 'domcontentloaded' });
+      const found = group(page);
+      await expect(found).toBeVisible();
+      // A track-coloured bar stands in the count's place until the store is read.
+      const bar = found.locator('.alert-pictures-group__count-wait');
+      await expect(bar).toBeVisible();
+      await expect(bar).toHaveAttribute('aria-hidden', 'true');
+      await expect(countLine(found)).toHaveCount(0);
+      await expect(countLine(found)).toHaveText('3 pictures kept on this device', { timeout: 15_000 });
+      await expect(bar).toHaveCount(0);
+    });
 
-    // With the store restored the same key deletes them.
-    await setFault(page, {});
-    await deleteAll(found).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
-    await expect(countLine(found)).toHaveText('No pictures kept on this device');
-    await expect(failed).toHaveCount(0);
-    expect(await keptCount(page)).toBe(0);
+    test('a failed Delete all pictures says so and keeps the count', async ({ page, context }) => {
+      test.setTimeout(60_000);
+      await seedDevice(context, { pictures: { noticeAnswered: true } });
+      await seedKept(page, 3);
+      await faultPictureStore(page, { deletes: 'error' });
+      await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
+      const found = group(page);
+      await expect(countLine(found)).toHaveText('3 pictures kept on this device');
+      await deleteAll(found).click();
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+      const failed = found.getByText(DELETE_FAILED_LINE, { exact: true });
+      await expect(failed).toBeVisible();
+      await expect(found.locator('.alert-picture__problem')).toHaveCount(1);
+      await expect(countLine(found)).toHaveText('3 pictures kept on this device');
+      expect(await keptCount(page)).toBe(3);
+
+      // With the store restored the same key deletes them.
+      await setFault(page, {});
+      await deleteAll(found).click();
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+      await expect(countLine(found)).toHaveText('No pictures kept on this device');
+      await expect(failed).toHaveCount(0);
+      expect(await keptCount(page)).toBe(0);
+    });
   });
 
   test('focus moved to another setting while Delete all pictures runs stays there when it is done', async ({ page, context }) => {
@@ -1939,59 +1988,65 @@ test.describe('The group and the notice: order, sizes and faults', () => {
     await expect.poll(() => afterSelect(found).evaluate((el) => el === document.activeElement)).toBe(true);
   });
 
-  test('another profile keeps its own choice and notice', async ({ page, context, browser }) => {
-    test.setTimeout(120_000);
-    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
-    await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
-    const found = group(page);
-    await keepSwitch(found).click();
-    await afterSelect(found).selectOption({ label: '30 days' });
-    await expect(keepSwitch(found)).toHaveAttribute('aria-checked', 'false');
-    await page.reload({ waitUntil: 'networkidle' });
-    await expect(keepSwitch(group(page))).toHaveAttribute('aria-checked', 'false');
-    await expect(afterSelect(group(page)).locator('option:checked')).toHaveText('30 days');
+  describeInBothLooks('Picture settings in another profile, 1280 px', () => {
+    test.use({ viewport: { width: 1280, height: 900 } });
 
-    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    await seedDevice(other, { settings: MOTION_ONLY });
-    const stranger = await other.newPage();
-    await canvasCamera(stranger, LEFT_THIRD);
-    await stranger.goto('/settings/detection/', { waitUntil: 'networkidle' });
-    await expect(keepSwitch(group(stranger))).toHaveAttribute('aria-checked', 'true');
-    await expect(afterSelect(group(stranger)).locator('option:checked')).toHaveText('3 days');
-    await stranger.goto('/monitor/', { waitUntil: 'networkidle' });
-    await startKey(stranger).click();
-    await expect(notice(stranger)).toBeVisible();
-    await other.close();
+    test('another profile keeps its own choice and notice', async ({ page, context, browser, colorScheme }) => {
+      test.setTimeout(120_000);
+      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+      await page.goto('/settings/detection/', { waitUntil: 'networkidle' });
+      const found = group(page);
+      await keepSwitch(found).click();
+      await afterSelect(found).selectOption({ label: '30 days' });
+      await expect(keepSwitch(found)).toHaveAttribute('aria-checked', 'false');
+      await page.reload({ waitUntil: 'networkidle' });
+      await expect(keepSwitch(group(page))).toHaveAttribute('aria-checked', 'false');
+      await expect(afterSelect(group(page)).locator('option:checked')).toHaveText('30 days');
+
+      const other = await browser.newContext({ colorScheme, viewport: { width: 1280, height: 900 } });
+      await seedDevice(other, { settings: MOTION_ONLY });
+      const stranger = await other.newPage();
+      await canvasCamera(stranger, LEFT_THIRD);
+      await stranger.goto('/settings/detection/', { waitUntil: 'networkidle' });
+      await expect(keepSwitch(group(stranger))).toHaveAttribute('aria-checked', 'true');
+      await expect(afterSelect(group(stranger)).locator('option:checked')).toHaveText('3 days');
+      await stranger.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startKey(stranger).click();
+      await expect(notice(stranger)).toBeVisible();
+      await other.close();
+    });
   });
 
-  for (const width of [768, 1024, 1440]) {
-    test(`the group at ${width} px`, async ({ page, context }) => {
-      test.setTimeout(60_000);
-      await page.setViewportSize({ width, height: 900 });
-      await seedDevice(context, { pictures: { noticeAnswered: true } });
-      await seedKept(page, 2);
-      await page.goto('/monitor/', { waitUntil: 'networkidle' });
-      const found = await openWatchGroup(page);
-      await expect(countLine(found)).toHaveText('2 pictures kept on this device');
-      const keep = (await keepSwitch(found).boundingBox())!;
-      const select = (await afterSelect(found).boundingBox())!;
-      const line = (await found.getByText(STAY_LINE, { exact: true }).boundingBox())!;
-      const lines = found.locator('.alert-pictures-group__lines');
-      const controls = found.locator('.alert-pictures-group__controls');
-      const [left, right] = [(await lines.boundingBox())!, (await controls.boundingBox())!];
-      if (width === 768) {
-        expect(keep.y < select.y + select.height && select.y < keep.y + keep.height, 'the switch and the select on one row').toBe(true);
-      } else {
-        expect(right.x, 'the controls’ column stands beside the lines').toBeGreaterThanOrEqual(left.x + left.width);
-        expect(line.width, 'the lines are held to 640 px').toBeLessThanOrEqual(width === 1024 ? 640 : 900);
-      }
-      if (width === 1440) {
-        expect(Math.abs(left.width / right.width - 7 / 5), 'the lines and the controls stand 7 to 5').toBeLessThanOrEqual(0.2);
-        expect(await found.getByText(STAY_LINE, { exact: true }).evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
-      }
-      expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
-    });
-  }
+  describeInBothLooks('Picture settings on wider screens', () => {
+    for (const width of [768, 1024, 1440]) {
+      test(`the group at ${width} px`, async ({ page, context }) => {
+        test.setTimeout(60_000);
+        await page.setViewportSize({ width, height: 900 });
+        await seedDevice(context, { pictures: { noticeAnswered: true } });
+        await seedKept(page, 2);
+        await page.goto('/monitor/', { waitUntil: 'networkidle' });
+        const found = await openWatchGroup(page);
+        await expect(countLine(found)).toHaveText('2 pictures kept on this device');
+        const keep = (await keepSwitch(found).boundingBox())!;
+        const select = (await afterSelect(found).boundingBox())!;
+        const line = (await found.getByText(STAY_LINE, { exact: true }).boundingBox())!;
+        const lines = found.locator('.alert-pictures-group__lines');
+        const controls = found.locator('.alert-pictures-group__controls');
+        const [left, right] = [(await lines.boundingBox())!, (await controls.boundingBox())!];
+        if (width === 768) {
+          expect(keep.y < select.y + select.height && select.y < keep.y + keep.height, 'the switch and the select on one row').toBe(true);
+        } else {
+          expect(right.x, 'the controls’ column stands beside the lines').toBeGreaterThanOrEqual(left.x + left.width);
+          expect(line.width, 'the lines are held to 640 px').toBeLessThanOrEqual(width === 1024 ? 640 : 900);
+        }
+        if (width === 1440) {
+          expect(Math.abs(left.width / right.width - 7 / 5), 'the lines and the controls stand 7 to 5').toBeLessThanOrEqual(0.2);
+          expect(await found.getByText(STAY_LINE, { exact: true }).evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
+        }
+        expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
+      });
+    }
+  });
 });
 
 // =============================================================================
@@ -2073,7 +2128,7 @@ for (const look of ['dark', 'light'] as const) {
 }
 
 for (const reduced of [false, true]) {
-  test.describe(`The live box's 10 seconds${reduced ? ' under reduced motion' : ''}`, () => {
+  describeInBothLooks(`The live box's 10 seconds${reduced ? ' under reduced motion' : ''}`, () => {
     test.use({ viewport: { width: 390, height: 900 }, contextOptions: { reducedMotion: reduced ? 'reduce' : 'no-preference' } });
 
     test(`the box and its plate stand for 10 seconds from the alert and leave, with no slide and no fade${reduced ? ', under reduced motion' : ''}`, async ({ page, context }) => {
@@ -2101,7 +2156,7 @@ for (const reduced of [false, true]) {
   });
 }
 
-test.describe('The live box: one at a time, never for a sound, clear of the picture’s top', () => {
+describeInBothLooks('The live box: one at a time, never for a sound, clear of the picture’s top', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   test('a second alert inside the 10 seconds replaces the box', async ({ page, context }) => {
@@ -2151,58 +2206,64 @@ test.describe('The live box: one at a time, never for a sound, clear of the pict
     await expect(livePlate(page)).toHaveCount(0);
   });
 
-  test('a box touching the picture’s top puts its plate under it; a press reaches the picture; neither is read', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: TOP_BAND });
-    const time = await timeOf(cards(page).first(), 'Motion');
-    await expect(livePlate(page)).toHaveText(`Motion here at ${time}`);
-    await livePicture(page).scrollIntoViewIfNeeded();
-    const view = (await livePicture(page).boundingBox())!;
-    const box = (await liveBox(page).boundingBox())!;
-    const plate = (await livePlate(page).boundingBox())!;
-    expect(Math.abs(box.y - view.y), 'the box touches the picture’s top').toBeLessThanOrEqual(1);
-    expect(plate.y, 'the plate stands under the box').toBeGreaterThanOrEqual(box.y + box.height);
-    expect(Math.abs(plate.x - Math.max(box.x, view.x + 8)), 'at the box’s bottom left').toBeLessThanOrEqual(12);
-    expect(inside(plate, view), 'the plate stands inside the picture').toBe(true);
+  for (const width of [390, 1280]) {
+    test(`a box touching the picture’s top puts its plate under it; a press reaches the picture; neither is read, ${width} px`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 900 });
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: TOP_BAND });
+      const time = await timeOf(cards(page).first(), 'Motion');
+      await expect(livePlate(page)).toHaveText(`Motion here at ${time}`);
+      await livePicture(page).scrollIntoViewIfNeeded();
+      const view = (await livePicture(page).boundingBox())!;
+      const box = (await liveBox(page).boundingBox())!;
+      const plate = (await livePlate(page).boundingBox())!;
+      expect(Math.abs(box.y - view.y), 'the box touches the picture’s top').toBeLessThanOrEqual(1);
+      expect(plate.y, 'the plate stands under the box').toBeGreaterThanOrEqual(box.y + box.height);
+      expect(Math.abs(plate.x - Math.max(box.x, view.x + 8)), 'at the box’s bottom left').toBeLessThanOrEqual(12);
+      expect(inside(plate, view), 'the plate stands inside the picture').toBe(true);
 
-    // A press on the box reaches the picture under it, and nothing opens.
-    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-    expect(await page.evaluate(({ x, y }) => {
-      const under = document.elementFromPoint(x, y);
-      // The camera's own box, round the live box: the press lands in it, under the live box.
-      const camera = document.querySelector('.alert-live')?.parentElement ?? null;
-      return Boolean(under && camera && camera.contains(under) && !under.closest('.alert-live'));
-    }, point), 'the press reaches the camera picture, not the box').toBe(true);
-    await page.mouse.click(point.x, point.y);
-    await expect(page.getByRole('dialog')).toHaveCount(0);
+      // A press on the box reaches the picture under it, and nothing opens.
+      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      expect(await page.evaluate(({ x, y }) => {
+        const under = document.elementFromPoint(x, y);
+        // The camera's own box, round the live box: the press lands in it, under the live box.
+        const camera = document.querySelector('.alert-live')?.parentElement ?? null;
+        return Boolean(under && camera && camera.contains(under) && !under.closest('.alert-live'));
+      }, point), 'the press reaches the camera picture, not the box').toBe(true);
+      await page.mouse.click(point.x, point.y);
+      await expect(page.getByRole('dialog')).toHaveCount(0);
 
-    // Neither is read: the alert is read once from the list's status.
-    await expect(livePicture(page)).toHaveAttribute('aria-hidden', 'true');
-    await expect(page.getByRole('status').filter({ hasText: new RegExp(`^New alert: Motion, (Low|Medium|High|Critical), at ${timePattern(time)}\\.`) })).toHaveCount(1);
-  });
-
-  test('a change along the top of a 4:3 camera outside the live picture draws nothing there and the card’s picture keeps its box', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    // One zone over the top tenth of a 640 by 480 frame: the 16:9 live picture cuts the frame's top eighth.
-    await watchWith(page, context, {
-      settings: { ...MOTION_ONLY, detectionZones: [{ id: 'top', name: 'Top', enabled: true, x: 0, y: 0, width: 100, height: 10 }] },
-      camera: { width: 640, height: 480, background: 128, moving: { x: 0, y: 0, width: 1, height: 0.1 }, levels: [0, 85, 170, 255] },
+      // Neither is read: the alert is read once from the list's status.
+      await expect(livePicture(page)).toHaveAttribute('aria-hidden', 'true');
+      await expect(page.getByRole('status').filter({ hasText: new RegExp(`^New alert: Motion, (Low|Medium|High|Critical), at ${timePattern(time)}\\.`) })).toHaveCount(1);
     });
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
-    await expect(card.locator('.alert-picture__box')).toHaveCount(1);
-    await expect(card.getByText('in Top', { exact: true })).toBeVisible();
-    await expect(liveBox(page)).toHaveCount(0);
-    await expect(livePlate(page)).toHaveCount(0);
-  });
+  }
 
-  test('another profile’s live picture carries no box', async ({ page, context, browser }) => {
+  for (const width of [390, 1280]) {
+    test(`a change along the top of a 4:3 camera outside the live picture draws nothing there and the card’s picture keeps its box, ${width} px`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 900 });
+      test.setTimeout(120_000);
+      // One zone over the top tenth of a 640 by 480 frame: the 16:9 live picture cuts the frame's top eighth.
+      await watchWith(page, context, {
+        settings: { ...MOTION_ONLY, detectionZones: [{ id: 'top', name: 'Top', enabled: true, x: 0, y: 0, width: 100, height: 10 }] },
+        camera: { width: 640, height: 480, background: 128, moving: { x: 0, y: 0, width: 1, height: 0.1 }, levels: [0, 85, 170, 255] },
+      });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+      await expect(card.locator('.alert-picture__box')).toHaveCount(1);
+      await expect(card.getByText('in Top', { exact: true })).toBeVisible();
+      await expect(liveBox(page)).toHaveCount(0);
+      await expect(livePlate(page)).toHaveCount(0);
+    });
+  }
+
+  test('another profile’s live picture carries no box', async ({ page, context, browser, colorScheme }) => {
     test.setTimeout(120_000);
     await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
     await timeOf(cards(page).first(), 'Motion');
     await expect(liveBox(page)).toHaveCount(1);
-    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const other = await browser.newContext({ colorScheme, viewport: { width: 1280, height: 900 } });
     await seedDevice(other, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
     const stranger = await other.newPage();
     await canvasCamera(stranger, { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0, height: 0 } });
@@ -2256,7 +2317,7 @@ for (const look of ['dark', 'light'] as const) {
   });
 }
 
-test.describe('The live box offline and on wider pictures', () => {
+describeInBothLooks('The live box offline and on wider pictures', () => {
   test('the live box offline', async ({ page, context }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 390, height: 900 });
@@ -2476,7 +2537,7 @@ for (const look of ['dark', 'light'] as const) {
   });
 }
 
-test.describe('The opened picture on the watch, 390 px', () => {
+describeInBothLooks('The opened picture on the watch, 390 px', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test('a new alert leaves the opened picture open; Show the box hides and shows the box at once; Delete picture asks first, then deletes the frame, the box and the close-up', async ({ page, context }) => {
@@ -2640,7 +2701,7 @@ test.describe('The opened picture on the watch, 390 px', () => {
   });
 });
 
-test.describe('The opened picture on the watch, 1280 px', () => {
+describeInBothLooks('The opened picture on the watch, 1280 px', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   test('Save picture saves the picture as it shows; Escape and a press outside close it and focus returns to Open picture', async ({ page, context }) => {
@@ -2715,12 +2776,12 @@ test.describe('The opened picture on the watch, 1280 px', () => {
     expect(await keptCount(page)).toBe(1);
   });
 
-  test('another profile can open no picture of this one', async ({ page, context, browser }) => {
+  test('another profile can open no picture of this one', async ({ page, context, browser, colorScheme }) => {
     await seedDevice(context, { pictures: { noticeAnswered: true } });
     await seedOne(page);
     const { dialog } = await openSaved(page);
     await expect(dialog.getByRole('img')).toHaveCount(2);
-    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const other = await browser.newContext({ colorScheme, viewport: { width: 1280, height: 900 } });
     await seedDevice(other, { pictures: { noticeAnswered: true } });
     const stranger = await other.newPage();
     await stranger.goto('/monitor/', { waitUntil: 'networkidle' });
@@ -2732,7 +2793,7 @@ test.describe('The opened picture on the watch, 1280 px', () => {
   });
 });
 
-test.describe('The opened picture of a saved alert, 390 px', () => {
+describeInBothLooks('The opened picture of a saved alert, 390 px', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test('a held read shows a tile and inactive keys, then the picture', async ({ page, context }) => {
@@ -2907,7 +2968,7 @@ test.describe('The opened picture of a saved alert, 390 px', () => {
   });
 });
 
-test.describe('The opened picture at each width', () => {
+describeInBothLooks('The opened picture at each width', () => {
   for (const width of [320, 768, 1024, 1440]) {
     test(`the dialog at ${width} px`, async ({ page, context }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -3073,8 +3134,8 @@ for (const look of ['dark', 'light'] as const) {
   }
 }
 
-test.describe('History’s rows of saved alerts, 390 px', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
+describeInBothLooks('Deleting a picture from History, 1280 px', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
 
   test('an earlier day’s picture opens titled with its date, and a picture deleted in the dialog leaves its row', async ({ page, context }) => {
     await seedDevice(context, { pictures: { noticeAnswered: true, deleteAfterDays: 7 } });
@@ -3097,6 +3158,10 @@ test.describe('History’s rows of saved alerts, 390 px', () => {
     await expect(row.getByText('Motion', { exact: true })).toBeVisible();
     expect((await readDatabase(page)).pictures.find((picture) => picture.id === pictureId)).toMatchObject({ state: 'gone', gone: 'person' });
   });
+});
+
+describeInBothLooks('History’s rows of saved alerts, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
 
   test('a picture past its age is deleted before History shows its row', async ({ page, context }) => {
     await seedDevice(context, { pictures: { noticeAnswered: true } });
@@ -3192,7 +3257,7 @@ test.describe('History’s rows of saved alerts, 390 px', () => {
   });
 });
 
-test.describe('History’s rows at each width, in keyboard order and in another profile', () => {
+describeInBothLooks('History’s rows at each width, in keyboard order and in another profile', () => {
   for (const width of [320, 768, 1024, 1440]) {
     test(`History at ${width} px`, async ({ page, context }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -3264,13 +3329,13 @@ test.describe('History’s rows at each width, in keyboard order and in another 
     expect(await second.evaluate((el) => getComputedStyle(el).outlineStyle)).not.toBe('none');
   });
 
-  test('another profile’s History shows none of these', async ({ page, context, browser }) => {
+  test('another profile’s History shows none of these', async ({ page, context, browser, colorScheme }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await seedDevice(context, { pictures: { noticeAnswered: true } });
     await seedHistory(page, 2);
     await page.goto('/history/', { waitUntil: 'networkidle' });
     await expect(historyRows(page)).toHaveCount(2);
-    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const other = await browser.newContext({ colorScheme, viewport: { width: 1280, height: 900 } });
     await seedDevice(other, { pictures: { noticeAnswered: true } });
     const stranger = await other.newPage();
     await stranger.goto('/history/', { waitUntil: 'networkidle' });
@@ -3378,68 +3443,69 @@ test.describe('The notification’s picture in Settings: a browser that shows wo
     expect((await storedPictures(page)).inNotifications).toBe(false);
   });
 
-  test('with notifications not allowed the switch waits beside Allow notifications, and an alert sends none', async ({ page, context }) => {
-    test.setTimeout(150_000);
-    await page.setViewportSize({ width: 390, height: 844 });
-    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true, inNotifications: true } });
-    await recordNotifications(context, { permission: 'default' });
-    await canvasCamera(page, LEFT_THIRD);
+  describeInBothLooks('Notification permissions, 390 px', () => {
+    test.use({ viewport: { width: 390, height: 844 } });
 
-    // An alert on the watch asks the browser for nothing.
-    await page.goto('/monitor/', { waitUntil: 'networkidle' });
-    await startWatching(page);
-    await timeOf(cards(page).first(), 'Motion');
-    await page.waitForTimeout(1_500);
-    expect(await notesOf(page)).toEqual([]);
-    expect(await page.evaluate(() => window.__notificationAsks), 'the watch asks the browser for nothing').toBe(0);
-    await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+    test('with notifications not allowed the switch waits beside Allow notifications, and an alert sends none', async ({ page, context }) => {
+      test.setTimeout(150_000);
+      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true, inNotifications: true } });
+      await recordNotifications(context, { permission: 'default' });
+      await canvasCamera(page, LEFT_THIRD);
 
-    await page.goto('/settings/notifications/', { waitUntil: 'networkidle' });
-    const found = pictureSwitch(page);
-    await expect(found).toHaveAttribute('aria-disabled', 'true');
-    const allow = allowKey(page);
-    await expect(allow).toBeVisible();
-    expect((await allow.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-    expect(await page.evaluate(() => window.__notificationAsks)).toBe(0);
-    // A press on the inactive switch changes nothing. It is sent to the switch itself: the page
-    // scrolls smoothly, so a forced press at the switch's place can land on whatever passes there.
-    await found.dispatchEvent('click');
-    await expect(found).toHaveAttribute('aria-checked', 'true');
-    // The key asks the browser; once allowed, the switch is active and the key has gone.
-    await allow.click();
-    await expect.poll(() => page.evaluate(() => window.__notificationAsks)).toBe(1);
-    await expect(found).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(allow).toHaveCount(0);
-    await found.click();
-    await expect(found).toHaveAttribute('aria-checked', 'false');
-  });
+      // An alert on the watch asks the browser for nothing.
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startWatching(page);
+      await timeOf(cards(page).first(), 'Motion');
+      await page.waitForTimeout(1_500);
+      expect(await notesOf(page)).toEqual([]);
+      expect(await page.evaluate(() => window.__notificationAsks), 'the watch asks the browser for nothing').toBe(0);
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
 
-  test('notifications allowed in the site settings make the switch usable with no reload', async ({ page, context }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await openNotificationSettings(page, context, { permission: 'denied' });
-    const found = pictureSwitch(page);
-    await expect(found).toHaveAttribute('aria-disabled', 'true');
-    // The person allows notifications in the site settings and comes back to the page.
-    await page.evaluate(() => {
-      window.__setNotificationPermission!('granted');
-      window.dispatchEvent(new Event('focus'));
+      await page.goto('/settings/notifications/', { waitUntil: 'networkidle' });
+      const found = pictureSwitch(page);
+      await expect(found).toHaveAttribute('aria-disabled', 'true');
+      const allow = allowKey(page);
+      await expect(allow).toBeVisible();
+      expect((await allow.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      expect(await page.evaluate(() => window.__notificationAsks)).toBe(0);
+      // A press on the inactive switch changes nothing. It is sent to the switch itself: the page
+      // scrolls smoothly, so a forced press at the switch's place can land on whatever passes there.
+      await found.dispatchEvent('click');
+      await expect(found).toHaveAttribute('aria-checked', 'true');
+      // The key asks the browser; once allowed, the switch is active and the key has gone.
+      await allow.click();
+      await expect.poll(() => page.evaluate(() => window.__notificationAsks)).toBe(1);
+      await expect(found).not.toHaveAttribute('aria-disabled', 'true');
+      await expect(allow).toHaveCount(0);
+      await found.click();
+      await expect(found).toHaveAttribute('aria-checked', 'false');
     });
-    await expect(pictureRow(page).getByText(BLOCKED_LINE, { exact: true })).toHaveCount(0);
-    await expect(found).not.toHaveAttribute('aria-disabled', 'true');
-    await found.click();
-    await expect(found).toHaveAttribute('aria-checked', 'true');
-  });
 
-  test('blocked notifications say how to allow them', async ({ page, context }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await openNotificationSettings(page, context, { permission: 'denied' });
-    const found = pictureSwitch(page);
-    await expect(found).toHaveAttribute('aria-disabled', 'true');
-    const how = pictureRow(page).getByText(BLOCKED_LINE, { exact: true });
-    await expect(how).toBeVisible();
-    expect(((await found.getAttribute('aria-describedby')) ?? '').split(/\s+/)).toContain(await how.getAttribute('id'));
-    expect((await how.boundingBox())!.y, 'the line stands under the switch').toBeGreaterThan((await found.boundingBox())!.y);
-    await expect(allowKey(page)).toHaveCount(0);
+    test('notifications allowed in the site settings make the switch usable with no reload', async ({ page, context }) => {
+      await openNotificationSettings(page, context, { permission: 'denied' });
+      const found = pictureSwitch(page);
+      await expect(found).toHaveAttribute('aria-disabled', 'true');
+      // The person allows notifications in the site settings and comes back to the page.
+      await page.evaluate(() => {
+        window.__setNotificationPermission!('granted');
+        window.dispatchEvent(new Event('focus'));
+      });
+      await expect(pictureRow(page).getByText(BLOCKED_LINE, { exact: true })).toHaveCount(0);
+      await expect(found).not.toHaveAttribute('aria-disabled', 'true');
+      await found.click();
+      await expect(found).toHaveAttribute('aria-checked', 'true');
+    });
+
+    test('blocked notifications say how to allow them', async ({ page, context }) => {
+      await openNotificationSettings(page, context, { permission: 'denied' });
+      const found = pictureSwitch(page);
+      await expect(found).toHaveAttribute('aria-disabled', 'true');
+      const how = pictureRow(page).getByText(BLOCKED_LINE, { exact: true });
+      await expect(how).toBeVisible();
+      expect(((await found.getAttribute('aria-describedby')) ?? '').split(/\s+/)).toContain(await how.getAttribute('id'));
+      expect((await how.boundingBox())!.y, 'the line stands under the switch').toBeGreaterThan((await found.boundingBox())!.y);
+      await expect(allowKey(page)).toHaveCount(0);
+    });
   });
 
   for (const look of ['dark', 'light'] as const) {
@@ -3464,38 +3530,40 @@ test.describe('The notification’s picture in Settings: a browser that shows wo
     });
   }
 
-  for (const width of [768, 1440]) {
-    test(`the row at ${width} px`, async ({ page, context }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await openNotificationSettings(page, context);
-      const row = pictureRow(page);
-      const label = row.getByText(PICTURE_SWITCH, { exact: true });
-      const line = row.getByText(LOCK_SCREEN_LINE, { exact: true });
-      const [labelBox, lineBox, switchBox, rowBox] = [(await label.boundingBox())!, (await line.boundingBox())!, (await pictureSwitch(page).boundingBox())!, (await row.boundingBox())!];
-      // The switch at the row's right end, beside the label's first line.
-      expect(rowBox.x + rowBox.width - (switchBox.x + switchBox.width)).toBeLessThanOrEqual(24);
-      expect(Math.abs(switchBox.y + switchBox.height / 2 - (labelBox.y + 14))).toBeLessThanOrEqual(22);
-      expect(lineBox.x + lineBox.width, 'the line keeps to the label’s side').toBeLessThanOrEqual(switchBox.x);
-      expect(lineBox.width).toBeLessThanOrEqual(width === 768 ? 520 : 640);
-      if (width === 1440) expect(await line.evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
-      expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
-    });
-  }
+  describeInBothLooks('Notification picture layout and profile isolation', () => {
+    for (const width of [768, 1440]) {
+      test(`the row at ${width} px`, async ({ page, context }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await openNotificationSettings(page, context);
+        const row = pictureRow(page);
+        const label = row.getByText(PICTURE_SWITCH, { exact: true });
+        const line = row.getByText(LOCK_SCREEN_LINE, { exact: true });
+        const [labelBox, lineBox, switchBox, rowBox] = [(await label.boundingBox())!, (await line.boundingBox())!, (await pictureSwitch(page).boundingBox())!, (await row.boundingBox())!];
+        // The switch at the row's right end, beside the label's first line.
+        expect(rowBox.x + rowBox.width - (switchBox.x + switchBox.width)).toBeLessThanOrEqual(24);
+        expect(Math.abs(switchBox.y + switchBox.height / 2 - (labelBox.y + 14))).toBeLessThanOrEqual(22);
+        expect(lineBox.x + lineBox.width, 'the line keeps to the label’s side').toBeLessThanOrEqual(switchBox.x);
+        expect(lineBox.width).toBeLessThanOrEqual(width === 768 ? 520 : 640);
+        if (width === 1440) expect(await line.evaluate((el) => getComputedStyle(el).fontSize)).toBe('20px');
+        expect(await scrollsSideways(page), await sidewaysParts(page)).toBe(false);
+      });
+    }
 
-  test('another profile’s switch is off', async ({ page, context, browser }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await openNotificationSettings(page, context);
-    await pictureSwitch(page).click();
-    await expect(pictureSwitch(page)).toHaveAttribute('aria-checked', 'true');
-    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } });
-    const stranger = await other.newPage();
-    await openNotificationSettings(stranger, other);
-    await expect(pictureSwitch(stranger)).toHaveAttribute('aria-checked', 'false');
-    await other.close();
+    test('another profile’s switch is off', async ({ page, context, browser, colorScheme }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await openNotificationSettings(page, context);
+      await pictureSwitch(page).click();
+      await expect(pictureSwitch(page)).toHaveAttribute('aria-checked', 'true');
+      const other = await browser.newContext({ colorScheme, viewport: { width: 1280, height: 900 } });
+      const stranger = await other.newPage();
+      await openNotificationSettings(stranger, other);
+      await expect(pictureSwitch(stranger)).toHaveAttribute('aria-checked', 'false');
+      await other.close();
+    });
   });
 });
 
-test.describe('A watch alert’s notification, 1280 px', () => {
+describeInBothLooks('A watch alert’s notification, 1280 px', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   test('a Motion alert’s notification names the kind, the level and the time, with no picture while the switch is off', async ({ page, context }) => {
@@ -3763,7 +3831,9 @@ test.describe('A watch alert’s notification, 1280 px', () => {
 // The privacy page and the third-party notices
 // =============================================================================
 
-test.describe('The privacy page and the notices', () => {
+describeInBothLooks('The privacy page and the notices, 1280 px', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
   test('the privacy page names what an alert keeps, and the notices list the bundled packages', async ({ page }) => {
     await page.goto('/privacy/', { waitUntil: 'networkidle' });
     const words = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
