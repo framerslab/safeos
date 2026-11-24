@@ -18,7 +18,7 @@ import { HomeBenefits, HomeUses, HomeHow, HomeFree, HomeClosing } from '@/compon
 import { Brand, HomeLockup } from '@/components/home/Brand';
 import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, pageMetadata, socialImage } from '@/lib/page-metadata';
 import { HOME_LAST_CHANGED } from '@/lib/page-last-changed';
-import { dashboardPreloadScript, dashboardPreloads } from '@/lib/capture-preload';
+import { dashboardPreloadScript } from '@/lib/capture-preload';
 import type { HomeRunManifest } from '@/lib/home-runs';
 import recording from '../../public/home/runs/runs.json';
 import appPackage from '../../package.json';
@@ -33,9 +33,6 @@ export const metadata: Metadata = pageMetadata({
 });
 
 const RECORD = recording as unknown as HomeRunManifest;
-
-// React's own name for this attribute differs between versions; the HTML name works in all.
-const HIGH_PRIORITY = { fetchpriority: 'high' } as Record<string, string>;
 
 // The line for a page whose script did not start. This script running proves
 // scripts are on, so it hides the line at once; if the app has not marked
@@ -100,17 +97,7 @@ export default function HomePage() {
       ))}
       <script dangerouslySetInnerHTML={{ __html: dashboardPreloadScript(RECORD.runs[0]) }} />
       <noscript>
-        {dashboardPreloads(RECORD.runs[0]).map(({ size, look, media, href }) => (
-          <link
-            key={`${size}-${look}`}
-            rel="preload"
-            as="image"
-            type="image/webp"
-            href={href}
-            media={media}
-            {...HIGH_PRIORITY}
-          />
-        ))}
+        <style>{'.home-run__first-poster { background-image: var(--run-poster); }'}</style>
       </noscript>
 
       <section className="home-first" aria-labelledby="home-headline">

@@ -103,7 +103,7 @@ export function measureText(root) {
     out.push({
       words: words.slice(0, 40),
       tag: element.tagName.toLowerCase(),
-      body: !!element.closest('main') && !!element.closest('h1, h2, h3, p, summary') && !element.closest('a, figcaption, .home-detection__tags'),
+      body: !!element.closest('main') && !!element.closest('h1, h2, h3, p, summary') && !element.closest('a, figcaption, [data-run-caption], .home-detection__tags'),
       size: parseFloat(style.fontSize),
       face: style.fontFamily,
       weight: style.fontWeight,
@@ -300,7 +300,7 @@ function pageWordBoxes(disclosure) {
     const style = getComputedStyle(element);
     if (!element.getClientRects().length || style.visibility === 'hidden' || style.clipPath === 'inset(50%)') continue;
     const body = element.closest('main :is(h1,h2,h3,p,.home-detection__summary,.home-diagram__node,.home-server__list)')
-      && !element.closest('a, button, figcaption, .home-detection__tags, .home-diagram__inputs');
+      && !element.closest('a, button, figcaption, [data-run-caption], .home-detection__tags, .home-diagram__inputs');
     const range = document.createRange();
     canvas.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     for (const word of node.textContent.matchAll(/\S+/g)) {
@@ -961,7 +961,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       expect(await key.evaluate((element) => element === document.activeElement), 'header: after Escape, focus is not on the Menu key');
       await key.click();
       await menu.waitFor({ timeout: 5_000 });
-      await page.mouse.click(195, 760);
+      await page.mouse.click(8, 760);
       expect(await menu.isHidden(), 'header: a press outside leaves the Menu open');
       expect(await key.evaluate((element) => element === document.activeElement), 'header: after a press outside, focus is not on the Menu key');
     });

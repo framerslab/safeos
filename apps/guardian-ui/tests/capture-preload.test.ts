@@ -12,6 +12,7 @@ afterEach(() => {
   document.head.innerHTML = '';
   document.documentElement.className = '';
   delete document.documentElement.dataset.homeOffline;
+  delete document.documentElement.dataset.homePoster;
   jest.restoreAllMocks();
 });
 
@@ -35,6 +36,7 @@ it.each<[number, boolean, string, string]>([
 ])('preloads one poster at %d px with OS dark=%s and site look %s', (width, dark, look, variant) => {
   document.documentElement.className = look;
   expect(asked(width, dark)).toEqual([['/home/runs/dashboard-' + variant + '.webp', 'image/webp', 'high']]);
+  expect(document.documentElement.dataset.homePoster).toBe('true');
 });
 
 it('preloads the square of the selected look offline at desktop width', () => {

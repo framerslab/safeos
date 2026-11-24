@@ -1419,7 +1419,13 @@ html.light .home-run__frame {
 .home-run__first-poster {
   position: absolute;
   inset: 0;
-  background: var(--run-poster) center / contain no-repeat;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+html[data-home-poster] .home-run__first-poster {
+  background-image: var(--run-poster);
 }
 
 .home-run__poster,

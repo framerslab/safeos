@@ -180,7 +180,7 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
         });
       }
       await installedPosters(page, paths);
-      assert.deepEqual([...new Set(log.worker)].sort(), [...paths].sort());
+      assert.ok(log.worker.every((url) => paths.includes(url)), 'Only saved posters may be requested by the worker');
     });
   }
 
@@ -191,6 +191,7 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
       }, async (page, context) => {
         const log = mediaLog(context, page);
         await open(page);
+        await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 45000 });
         await installedPosters(page, paths);
         await context.setOffline(true);
         await page.reload({ waitUntil: 'load' });

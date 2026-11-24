@@ -378,16 +378,9 @@ describe('recorded app runs', () => {
   it('preloads the first picture using the same URLs as first paint', () => {
     expect(html).toContain(dashboardPreloadScript(first));
     const box = region?.querySelector('.home-run__frame')?.getAttribute('style');
-    const requests = all('link[rel="preload"][as="image"]');
-    expect(requests.map((link) => [link.getAttribute('href'), link.getAttribute('media')]))
-      .toEqual(dashboardPreloads(first).map(({ href, media }) => {
-        expect(box).toContain(href);
-        return [href, media];
-      }));
-    for (const link of requests) {
-      expect(link.closest('noscript')).not.toBeNull();
-      expect(link.getAttribute('fetchpriority')).toBe('high');
-    }
+    expect(all('link[rel="preload"][as="image"]')).toHaveLength(0);
+    for (const { href } of dashboardPreloads(first)) expect(box).toContain(href);
+    expect(one('noscript style')?.textContent).toContain('var(--run-poster)');
   });
 });
 

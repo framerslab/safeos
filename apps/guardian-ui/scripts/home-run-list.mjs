@@ -209,7 +209,7 @@ async function dashboard({ page, view, top, prepared, sample }) {
   };
 }
 
-async function watching({ page, view, sample }) {
+async function watching({ page, view, top, sample }) {
   await page.evaluate(() => {
     const frame = document.querySelector('.watch-frame');
     if (!frame) throw Error('The watch has no camera frame');
@@ -226,6 +226,16 @@ async function watching({ page, view, sample }) {
   await stop.waitFor({ timeout: 4 * SECOND });
   const camera = page.locator('.watch-frame__picture video').first();
   await camera.waitFor({ state: 'visible', timeout: 4 * SECOND });
+  // Starting the live camera changes the page's height and moves keyboard
+  // focus. Reframe by scrolling the actual page within the fixed crop.
+  const header = await page.locator('.app-header').first().boundingBox();
+  const target = Math.max(top + 6, (header?.height ?? 0) + 4);
+  const cameraTop = await viewingTop(page, '.watch-frame__screen');
+  await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), Math.max(0, cameraTop - target));
+  const framed = await camera.boundingBox();
+  const bottom = top + (view.size === 'wide' ? view.height : view.width);
+  assert.ok(framed && framed.y >= top - 0.5 && framed.y + framed.height <= bottom + 0.5,
+    'The Watching crop must contain the whole camera image');
   const peaks = { motion: 0, sound: 0 };
   const threshold = 100 - settings.globalSettings.audioSensitivity;
   let poster;
@@ -250,8 +260,15 @@ async function watching({ page, view, sample }) {
     if (reading.clipAt >= 6 && reading.clipAt <= 9 && reading.sound >= threshold) {
       lastBarkReading = reading.at;
       if (!poster) {
-        poster = reading.at;
-        words = await sample();
+        // The meter's text and the compositor frame must show the same
+        // sound. Wait for it to paint, then sample while it still reads high.
+        await page.evaluate(() => new Promise((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(resolve))));
+        const painted = await page.getByRole('meter', { name: 'Sound level', exact: true }).getAttribute('aria-valuenow');
+        if (Number(painted) >= threshold) {
+          words = await sample();
+          poster = await browserTime(page);
+        }
       }
     }
     if (lastBarkReading) end = Math.max(nominalEnd, lastBarkReading + 1);
