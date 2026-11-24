@@ -42,13 +42,15 @@ On a phone the camera menu moves from under the alert list to under the frame, s
 focus on it moves to the frame's key too. **Picture change** reads on the scale its check uses: the
 changed pixels against the pixel count, or, where the setting checks a share of the
 picture, the changed share against the check's 1 per cent.
-A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";
-a change of state is not announced. Under reduced motion a meter's shown reading
-changes at most once a second. While Lost and Found compares, the pet's meter names
-the pet and reads "Comparing with {name}'s photos", with no bar and no number. On a
-phone each meter is one row; from a tablet they stand side by side, and from
-1024 px each meter's name and state word keep one line over its bar, a longer
-state word widening its column.
+For Motion, Sound and Picture change, a screen reader reads "{n} per cent,
+line at {line}, {state}". Under reduced motion their readings change at most
+once a second. On a phone the meters stack. From a tablet they stand side by side.
+From 1024 px, a longer state word widens its column so the name and state can
+share one line over the bar.
+
+While Lost and Found compares, the pet’s meter reads "Comparing with {name}’s
+photos". Next to its bar, "Colours and shape" reads "Quiet" or "Over the line".
+The meter counts checks in a row like the pet’s photos.
 
 ## Settings for this watch
 
@@ -138,10 +140,12 @@ until a reload. The pets and their photos are this device's, so Watch for and th
 comparison work offline. A long name with no spaces breaks inside the line that
 names the pet, at every width from 320 px.
 
-While the watch compares, the pet's meter under the live picture names the pet.
-Photos are added to a pet on the Lost & Found page, and the frames the comparison
-saves stay in its match history. Another pet chosen while the watch compares
-starts with none of the first pet's matches, with no restart of the camera.
+Add photos on the Lost and Found page. Setup’s **Alert line** sets the point
+where the comparison raises an alert. While the watch compares, the full pet
+card lists **Recent possible sightings**, with their times and whether they were
+over or under the line. **Saved pictures** opens the gallery. Open a picture to
+see what the camera saw and "Could this be {name}?". Changing pets clears the
+earlier pet’s readings while the camera keeps running.
 
 When another tab of this browser clears all local data (**Clear all data on this
 device**, or a sign-out), the open watch drops the pets it had read and ends the
@@ -228,12 +232,15 @@ that has a named setting.
 
 A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
 **Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
-sound is on. Its browser notification reads "Lost and Found alert" with "Colours
-like {name}'s", and the full-screen media reads "Lost and Found alert" and "Colours
-like {name}'s", as the alert list does, with no score. With Lost & Found's custom
-media on, the full-screen media takes the built-in sound's place: the saved sounds play and the built-in alert sound does not. A saved sound that still plays is not started again by the next
-matching frame, and it stops when the watch stops, when Lost & Found stops
-watching or its pet changes, and when the page closes. A start on its way when
+sound is on. Its browser notification and full-screen pictures ask "Could this
+be {name}?" and say "Colours and shape like {name}’s photos." The notification
+includes the time with seconds. The pictures speak "Colours like your pet’s
+photos are in view." by default. A line you saved yourself stays.
+
+When the full-screen pictures are on, the saved alert sounds play and the overlay
+takes the place of the built-in tone. Another check leaves a saved sound playing
+through. It stops when the watch stops, when Lost & Found stops watching or its
+pet changes, and when the page closes. A start on its way when
 the watch stops plays nothing, a sound set to repeat starts no further pass once
 it has stopped, and a loop that a motion or sound alert plays too keeps playing
 while monitoring goes on and stops when the watch stops, also when **Watch for**
