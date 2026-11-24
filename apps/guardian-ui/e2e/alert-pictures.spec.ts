@@ -679,12 +679,14 @@ for (const look of ['dark', 'light'] as const) {
           const largeText = await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
           const overflowing = cards(page).locator('.alert-pictures-keys[data-overflows]');
           await expect(overflowing).toHaveCount(3);
-          await largeText.evaluate((style) => style.remove());
+          await largeText.evaluate((style) => {
+            style.parentNode?.removeChild(style);
+          });
           await expect(overflowing, 'the arrows leave when the keys fit again').toHaveCount(0);
           for (const keyRow of await keys.all()) {
-            const acknowledge = keyRow.getByRole('button', { name: 'Acknowledge', exact: true });
-            await acknowledge.scrollIntoViewIfNeeded();
-            await expect(acknowledge).toBeInViewport({ ratio: 1 });
+            await keyRow.scrollIntoViewIfNeeded();
+            await expect(openKey(keyRow)).toBeInViewport({ ratio: 1 });
+            await expect(keyRow.getByRole('button', { name: 'Acknowledge', exact: true })).toBeInViewport({ ratio: 1 });
           }
         }
         if (width === 1280) {

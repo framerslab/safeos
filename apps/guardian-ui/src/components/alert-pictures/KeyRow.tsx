@@ -20,13 +20,18 @@ interface KeyRowProps {
 }
 
 export function KeyRow({ className = '', children }: KeyRowProps) {
+  const frame = useRef<HTMLDivElement>(null);
   const row = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState({ overflows: false, atStart: true, atEnd: true });
 
   const measure = useCallback(() => {
     const el = row.current;
-    if (!el) return;
-    const overflows = el.scrollWidth > el.clientWidth + 1;
+    const outer = frame.current;
+    if (!el || !outer) return;
+    // Arrows take space inside the frame. Use its full content width for the fit decision.
+    const { paddingLeft, paddingRight } = getComputedStyle(outer);
+    const available = outer.clientWidth - parseFloat(paddingLeft) - parseFloat(paddingRight);
+    const overflows = el.scrollWidth > available + 1;
     const next = {
       overflows,
       atStart: el.scrollLeft <= 1,
@@ -38,8 +43,10 @@ export function KeyRow({ className = '', children }: KeyRowProps) {
   useEffect(() => {
     measure();
     const el = row.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
+    const outer = frame.current;
+    if (!el || !outer || typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(measure);
+    observer.observe(outer);
     observer.observe(el);
     for (const child of Array.from(el.children)) observer.observe(child);
     return () => observer.disconnect();
@@ -54,7 +61,7 @@ export function KeyRow({ className = '', children }: KeyRowProps) {
   };
 
   return (
-    <div className={`alert-pictures-keys ${className}`.trim()} data-overflows={fit.overflows ? '' : undefined}>
+    <div ref={frame} className={`alert-pictures-keys ${className}`.trim()} data-overflows={fit.overflows ? '' : undefined}>
       {fit.overflows && (
         <button type="button" className="alert-pictures-keys__arrow" aria-label={PREVIOUS_KEYS} disabled={fit.atStart} onClick={() => move(-1)}>
           <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true" focusable="false">

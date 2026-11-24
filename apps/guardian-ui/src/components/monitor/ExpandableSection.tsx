@@ -12,6 +12,7 @@ import React, { useState, useRef, useEffect } from 'react';
 interface ExpandableSectionProps {
   id: string;
   title: string;
+  titleClassName?: string;
   icon?: React.ReactNode;
   summary: React.ReactNode;
   summaryClassName?: string;
@@ -25,9 +26,10 @@ interface ExpandableSectionProps {
 export function ExpandableSection({
   id,
   title,
+  titleClassName = 'text-sm',
   icon,
   summary,
-  summaryClassName = 'text-xs truncate',
+  summaryClassName = 'text-xs text-slate-400 truncate',
   defaultExpanded = false,
   open,
   children,
@@ -72,9 +74,9 @@ export function ExpandableSection({
             <span className="text-slate-400 flex-shrink-0">{icon}</span>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-white">{title}</div>
+            <div className={`font-medium text-white ${titleClassName}`}>{title}</div>
             {!isExpanded && (
-              <div className={`mt-0.5 text-slate-400 ${summaryClassName}`}>
+              <div className={`mt-0.5 ${summaryClassName}`}>
                 {summary}
               </div>
             )}
