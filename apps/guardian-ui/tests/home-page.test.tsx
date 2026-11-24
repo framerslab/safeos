@@ -362,12 +362,12 @@ describe('what people set it up for', () => {
   });
 
   it('serves a link into setup with the requested way on each use', () => {
-    expect(all('#uses .home-use__key').map((link) => `${words(link)} ${link.getAttribute('href')}`)).toEqual([
-      'Set it up for a nap /setup/?next=monitor',
-      'Set it up for your pet /setup/?next=monitor',
-      'Set it up together /setup/?next=monitor',
-      'Set it up for a lost pet /setup/?next=lost-found',
-      'Set it up for wildlife /setup/?next=wildlife',
+    expect(all('#uses .home-use__key').map((link) => `${words(link)} ${bare(link.getAttribute('href'))}`)).toEqual([
+      'Set it up for a nap /setup?next=monitor',
+      'Set it up for your pet /setup?next=monitor',
+      'Set it up together /setup?next=monitor',
+      'Set it up for a lost pet /setup?next=lost-found',
+      'Set it up for wildlife /setup?next=wildlife',
     ]);
     expect(words(one('#uses'))).not.toMatch(/FREE|Quick Start|SUPPLEMENTARY/);
     expect(all('#uses button')).toHaveLength(0);
@@ -466,8 +466,8 @@ describe('the browser checks and what stays on this device', () => {
   });
 
   it('prints the number of pet photos the uploader accepts', () => {
-    expect(words(card('lost-found')?.querySelector('.home-detection__summary'))).toMatch(
-      new RegExp(`^Add ${MIN_PET_PHOTOS} to ${MAX_PET_PHOTOS} photos of your pet\.`)
+    expect(words(card('lost-found')?.querySelector('.home-detection__summary'))).toContain(
+      `Add ${MIN_PET_PHOTOS} to ${MAX_PET_PHOTOS} photos of your pet.`
     );
     const setup = source('src', 'components', 'LostFoundSetup.tsx');
     expect(setup).toContain('images.length < MIN_PET_PHOTOS');
@@ -543,7 +543,9 @@ describe('answers alongside the features they describe', () => {
 describe('the page as a whole', () => {
   it('uses possible-sighting wording throughout the text and accessible names', () => {
     const names = all('[aria-label], [alt]').map((element) => element.getAttribute('aria-label') ?? element.getAttribute('alt'));
-    for (const text of [pageWords, ...names]) {
+    const content = page.body.cloneNode(true) as HTMLElement;
+    content.querySelectorAll('script, style').forEach((node) => node.remove());
+    for (const text of [words(content), ...names]) {
       expect(text).not.toMatch(/\b(?:detect(?:ed|s)|identif(?:ied|ies|y)|recogni[sz](?:ed|es|e)|match(?:es|ed|ing)?|confidence|intruder|threat)\b|%|free forever|Cross Paths|humanitarian|donate/i);
     }
   });

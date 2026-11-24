@@ -15,7 +15,7 @@ import { HomeCapture, type CaptureCrop } from '@/components/home/HomeCapture';
 import { HomeDetection } from '@/components/home/HomeDetection';
 import { HomeStart } from '@/components/home/HomeStart';
 import { HomeBenefits, HomeUses, HomeHow, HomeFree, HomeClosing } from '@/components/home/HomeSections';
-import { Brand } from '@/components/home/Brand';
+import { Brand, HomeLockup } from '@/components/home/Brand';
 import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, pageMetadata, socialImage } from '@/lib/page-metadata';
 import { HOME_LAST_CHANGED } from '@/lib/page-last-changed';
 import { captureSizes } from '@/lib/home-captures';
@@ -128,13 +128,10 @@ export default function HomePage() {
       <section className="home-first" aria-labelledby="home-headline">
         <div className="home-wrap home-first__grid">
           <div className="home-first__text">
+            <HomeLockup />
             <h1 id="home-headline" className="home-headline">
               {HOME_TITLE}
             </h1>
-            <p className="home-lead">
-              <Brand>SafeOS Guardian</Brand> runs in your browser. The device watching the room sounds the alert when
-              something moves or gets loud.
-            </p>
           </div>
 
           <HomeCapture
