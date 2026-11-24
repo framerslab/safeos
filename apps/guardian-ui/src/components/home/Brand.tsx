@@ -29,6 +29,17 @@ export function HomeLockup() {
   );
 }
 
+export function HomeBirdGlyph() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+      <path d="M2 15c5 0 7-2 10-6l2-3a4 4 0 0 1 7 2l2 1-2 1c-1 5-5 8-10 8-4 0-7-1-9-3Z" />
+      <path d="M11 18v3m4-4v4m-6 0h8M8 14c3 1 6 0 8-2" />
+      <circle cx="18" cy="8" r=".5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 export function Brand({ children }: { children: React.ReactNode }) {
   return <span translate="no">{children}</span>;
 }

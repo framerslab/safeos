@@ -7,7 +7,7 @@ import { StartLink } from '@/components/visitor/StartLink';
 import { shortCount, starCount, starWord } from '@/lib/github-stars';
 import { SETUP_CAMERA_STEP, SETUP_STEP_COUNT } from '@/lib/setup-steps';
 import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
-import { Brand } from './Brand';
+import { Brand, HomeBirdGlyph } from './Brand';
 import { UseStartLink } from './UseStartLink';
 import { WayGlyph } from '@/components/dashboard/WaysToWatch';
 import { Num } from '@/components/visitor/Num';
@@ -135,7 +135,7 @@ export function HomeUses() {
           </li>
           <li className="home-use">
             <h3 id="wildlife" className="home-h3">
-              <span aria-hidden="true"><WayGlyph way="wildlife" /></span>
+              <span aria-hidden="true"><HomeBirdGlyph /></span>
               Backyard wildlife
             </h3>
             <p className="home-p">

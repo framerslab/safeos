@@ -7,6 +7,7 @@ import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
 import { MAX_PET_PHOTOS, MIN_PET_PHOTOS } from '@/lib/pet-photo-limits';
 import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
 import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
+import { HomeBirdGlyph } from './Brand';
 
 const modelSize = <><Num>{MODEL_SIZE_MB}</Num>{' '}MB</>;
 const animals = new Intl.ListFormat('en-GB', { type: 'conjunction' }).format(COCO_ANIMAL_CLASSES);
@@ -47,7 +48,7 @@ const cards: DetectionCard[] = [
     id: 'people-animals',
     title: 'People and animals',
     tags: ['COCO-SSD on TensorFlow.js', <>{modelSize}, after you agree</>],
-    glyph: <WayGlyph way="wildlife" />,
+    glyph: <HomeBirdGlyph />,
     summary: 'The People and Wildlife pages run an object-detection model in your browser, on the graphics chip.',
     details: [
       <>It finds people and <Num>{COCO_ANIMAL_CLASSES.length}</Num> kinds of animal: {animals}.</>,
