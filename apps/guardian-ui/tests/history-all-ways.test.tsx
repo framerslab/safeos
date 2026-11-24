@@ -211,6 +211,22 @@ it('lists a Wildlife sighting with its picture and its time', async () => {
   expect(timeOf(entry)).not.toBe('');
 });
 
+it('lists a saved Lost and Found picture as a question, with no score in the list or its details', async () => {
+  const m = await app();
+  await act(async () => {
+    await m.save.pet('mittens', 'Mittens');
+    await m.save.frame('match-1', 'mittens');
+  });
+
+  m.openHistory();
+
+  const entry = await waitFor(() => entryOf('Could this be Mittens?'), SLOW);
+  expect(within(entry).getByText('Colours and shape like Mittens’s photos.')).toBeTruthy();
+  fireEvent.click(within(entry).getByRole('button', { name: 'Details' }));
+  expect(within(entry).getByRole('button', { name: 'Hide' })).toBeTruthy();
+  expect(entry.textContent).not.toMatch(/%|\bmatch|confidence|80/i);
+});
+
 it('opens on Local Timeline when the device holds new alerts, and marks them seen there', async () => {
   const m = await app();
   await m.firstRun();
