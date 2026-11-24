@@ -411,6 +411,21 @@ it('names no processing on the preset card and shows Interval only while this de
   expect(screen.getByText('Interval')).toBeTruthy();
 });
 
+it('shows Fine-Tune\'s Analysis Interval only while this device has its own server', async () => {
+  localStorage.setItem('safeos-watch-view', 'settings');
+  const first = render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Fine-Tune Settings/ }));
+  expect(screen.getByRole('button', { name: /Hide Fine-Tuning/ })).toBeTruthy();
+  expect(screen.queryByText('Analysis Interval')).toBeNull();
+  first.unmount();
+  mockConnected = true;
+  render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Fine-Tune Settings/ }));
+  expect(screen.getByText('Analysis Interval')).toBeTruthy();
+});
+
 it('floats no quick settings over the page', async () => {
   render(<MonitorPage />);
   await act(async () => {});
