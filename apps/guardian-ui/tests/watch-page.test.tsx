@@ -551,6 +551,9 @@ it("starts a new watch's Motion meter from nothing, not from the last watch's zo
     browser.readFrame.mockImplementation(() => new ImageData(new Uint8ClampedArray(16 * 16 * 4).fill(128), 16, 16));
     await startMonitoring();
     expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
+    // The new camera's first readings, of a still scene.
+    act(() => { jest.advanceTimersByTime(1000); });
+    expect(valueText('Motion')).toMatch(/ per cent, line at 60, /);
     expect(valueText('Motion')).not.toMatch(/^25 per cent/);
   } finally {
     useSettingsStore.setState({ detectionZones: zones });

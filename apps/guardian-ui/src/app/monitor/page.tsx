@@ -145,6 +145,17 @@ export default function MonitorPage() {
   // Which of Motion and Sound has given a reading since the watch started or
   // its camera changed; a meter stands empty until its first one.
   const [heard, setHeard] = useState({ motion: false, sound: false });
+  // A reading the camera feed hands the page marks its meter as heard (a
+  // measured zero included); so does any other change of the level in the
+  // monitoring store.
+  useEffect(() => useMonitoringStore.subscribe((state, before) => {
+    const motion = state.motionScore !== before.motionScore;
+    const sound = state.audioLevel !== before.audioLevel;
+    if (!motion && !sound) return;
+    setHeard((was) => ((was.motion || !motion) && (was.sound || !sound)
+      ? was
+      : { motion: was.motion || motion, sound: was.sound || sound }));
+  }), []);
   // What the camera's frame shows when no picture is live: the failure of
   // the last start, or when a camera that was watching stopped.
   const [cameraFailure, setCameraFailure] = useState<CameraFailure | null>(null);
