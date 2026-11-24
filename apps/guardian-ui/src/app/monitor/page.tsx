@@ -1567,7 +1567,21 @@ export default function MonitorPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <main className={`watch look-part watch-grid${cameraAfterList ? ' watch-grid--camera-after' : ''}`}>
+    <main
+      className={`watch look-part watch-grid${cameraAfterList ? ' watch-grid--camera-after' : ''}`}
+      onFocus={(event) => {
+        const control = event.target;
+        if (!phone || !event.currentTarget.contains(control) || control.closest('dialog, [role="dialog"], [role="alertdialog"]')) return;
+        // Let the browser scroll on focus before clearing the fixed phone bar.
+        requestAnimationFrame(() => {
+          if (document.activeElement !== control) return;
+          const bar = document.querySelector('nav.phone-bar');
+          if (!bar) return;
+          const overlap = control.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
+          if (overlap >= 0) window.scrollBy({ top: overlap + 8, behavior: 'instant' });
+        });
+      }}
+    >
       <h1 className="sr-only">Motion and sound</h1>
 
       <div className="watch-grid__bar">
@@ -1673,20 +1687,7 @@ export default function MonitorPage() {
       </div>
 
       {cameraAfterList && (
-        <div
-          className="watch-grid__camera"
-          onFocus={(event) => {
-            const picker = event.target;
-            // The browser scrolls on focus. Check its position after that scroll.
-            requestAnimationFrame(() => {
-              if (document.activeElement !== picker) return;
-              const bar = document.querySelector('nav.phone-bar');
-              if (!bar) return;
-              const overlap = picker.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
-              if (overlap >= 0) window.scrollBy({ top: overlap + 8, behavior: 'instant' });
-            });
-          }}
-        >
+        <div className="watch-grid__camera">
           <CameraPicker refreshKey={isStreaming} className="watch-camera" />
         </div>
       )}
