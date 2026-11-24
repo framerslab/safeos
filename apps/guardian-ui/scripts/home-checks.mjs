@@ -225,6 +225,7 @@ function pageWordBoxes() {
       for (const rect of rects) {
         if (rect.width < 1 || rect.height < 1) continue;
         boxes.push({
+          disclosure: element.closest('.home-detection__body')?.parentElement.dataset.card,
           name: label, type: meaningful ? body ? 'body' : 'label' : 'glyph',
           size: parseFloat(style.fontSize),
           expectedInkHeight: rects.length === 1 ? metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : null,
@@ -245,6 +246,25 @@ function pageWordBoxes() {
       width: rect.width / 2, height: 4 });
   }
   return { scale: window.devicePixelRatio, width: document.documentElement.clientWidth, height: document.documentElement.scrollHeight, boxes };
+}
+
+// Measure the words themselves so inline link boxes cannot hide uneven line spacing.
+function readLines(selector) {
+  const root = document.querySelector(selector);
+  const lines = new Map();
+  const range = document.createRange();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    for (let i = 0; i < node.length; i += 1) {
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      const rect = range.getBoundingClientRect();
+      if (rect.width === 0) continue;
+      const top = Math.round(rect.top * 2) / 2;
+      lines.set(top, (lines.get(top) || '') + node.data[i]);
+    }
+  }
+  return [...lines].sort(([a], [b]) => a - b).map(([top, text]) => ({ top, text: text.trim() }));
 }
 
 export async function checkHomePage(browser, baseUrl, outDir) {
@@ -480,6 +500,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         await visit(page);
         expect((await sidewaysScroll(page)) <= 0, `first visit at ${width} px, ${look}: the page scrolls sideways`);
         if (width === 820 || width === 1920) {
+          expect(await page.locator('.home-qr img').evaluate((image) => image.complete && image.naturalWidth > 0),
+            `full page at ${width} px, ${look}: the QR has not loaded`);
           await page.screenshot({ path: path.join(outDir, `home-${width}-${look}.png`), fullPage: true });
         }
         if (![390, 820, 1280, 1440, 1920].includes(width)) return;
@@ -525,11 +547,21 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       await open({ name: 'readability pictures', width, height, look, deviceScaleFactor: 2 }, async (page) => {
         await visit(page);
         await page.evaluate(() => document.fonts.ready);
+        expect(await page.locator('.home-qr img').evaluate((image) => image.complete && image.naturalWidth > 0),
+          `readability at ${width} px, ${look}: the QR has not loaded`);
         const file = `home-readability-${width}-${look}.png`;
         const sample = await page.evaluate(pageWordBoxes);
         expect(sample.boxes.length > 100, `readability ${file}: only ${sample.boxes.length} ranges`);
         await page.screenshot({ path: path.join(outDir, file), fullPage: true, scale: 'device', caret: 'hide' });
         readability.push({ file, ...sample });
+        const disclosureIds = await page.locator('.home-detection__card').evaluateAll((cards) => cards.map((card) => card.dataset.card));
+        const measured = new Set(readability.filter((entry) => entry.file.endsWith(`-${width}-${look}.png`))
+          .flatMap((entry) => entry.boxes.map((box) => box.disclosure).filter(Boolean)));
+        expect(disclosureIds.length === 6 && disclosureIds.every((id) => measured.has(id)),
+          `readability at ${width} px, ${look}: missing open disclosure words for ${disclosureIds.filter((id) => !measured.has(id)).join(', ')}`);
+        expect(readability.some((entry) => entry.file.endsWith(`-${width}-${look}.png`) &&
+          entry.boxes.some((box) => box.disclosure === 'storage' && box.name === 'privacy' && box.type === 'label')),
+        `readability at ${width} px, ${look}: missing the open privacy link`);
       });
     }
   }
@@ -553,6 +585,11 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       await page.waitForTimeout(500);
       expect((await sidewaysScroll(page)) <= 0, `larger text at ${width} px: the page scrolls sideways`);
       const row = await page.evaluate(() => {
+        const stacked = (group) => {
+          const children = [...group.children].map((child) => child.getBoundingClientRect());
+          return children.every((box, index) => index === 0 ||
+            (Math.abs(box.left - children[0].left) < 1 && box.top >= children[index - 1].bottom - 0.5));
+        };
         const bar = document.querySelector('nav[aria-label="Site"] .site-header__bar');
         const tops = [...bar.querySelectorAll('a, button')].filter((element) => element.getBoundingClientRect().width > 0)
           .map((element) => { const box = element.getBoundingClientRect(); return Math.round(box.top + box.height / 2); });
@@ -563,7 +600,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           over: bar.scrollWidth > bar.clientWidth + 1,
           menu: !!document.querySelector('.site-header__menu-key')?.getBoundingClientRect().width,
           cut,
-          diagramStacks: [...document.querySelectorAll('.home-diagram__band')].every((band) => getComputedStyle(band).display === 'flex'),
+          diagramStacks: [...document.querySelectorAll('.home-diagram__band')].every(stacked),
+          cardsStack: stacked(document.querySelector('.home-detection__cards')),
           wordmark: !!wordmark && wordmark.getBoundingClientRect().width > 0 && getComputedStyle(wordmark).visibility !== 'hidden',
         };
       });
@@ -574,6 +612,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       if (width >= 390) expect(row.wordmark, `header, larger text at ${width} px: the wordmark left the row`);
       else console.log(`header, larger text at ${width} px: the wordmark is ${row.wordmark ? 'in' : 'out of'} the row`);
       expect(row.diagramStacks, `larger text at ${width} px: diagram has not stacked`);
+      expect(row.cardsStack, `larger text at ${width} px: the six cards have not stacked`);
       if (width === 820) expect(row.menu, 'header, larger text at 820 px: the links did not move into the Menu');
       expect(row.cut.length === 0, `larger text at ${width} px: cut labels: ${row.cut.join(', ')}`);
       await page.screenshot({ path: path.join(outDir, `home-larger-text-${width}-light.png`) });
@@ -1136,10 +1175,25 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         const seen = await page.evaluate(() => {
           const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
           const fill = (selector) => getComputedStyle(document.querySelector(selector)).backgroundColor;
+          const deviceWrap = document.querySelector('#one-device .home-wrap');
+          const deviceWrapStyle = getComputedStyle(deviceWrap);
           return {
+            deviceWidth: deviceWrap.clientWidth - parseFloat(deviceWrapStyle.paddingLeft) - parseFloat(deviceWrapStyle.paddingRight),
             qr: rect('.home-qr img'),
             qrBox: rect('.home-qr'),
             steps: rect('.home-steps'),
+            centeredCode: (() => {
+              const range = document.createRange();
+              range.selectNodeContents(document.querySelector('.home-detection__code a'));
+              const text = range.getBoundingClientRect();
+              const cards = rect('.home-detection__cards');
+              return Math.abs(text.left + text.width / 2 - cards.left - cards.width / 2) < 1;
+            })(),
+            panel: rect('.home-how'),
+            panelFill: fill('.home-how'),
+            panelBorder: parseFloat(getComputedStyle(document.querySelector('.home-how')).borderTopWidth),
+            server: rect('.home-how__note'),
+            serverRule: parseFloat(getComputedStyle(document.querySelector('.home-how__note')).borderTopWidth),
             panelFills: ['#free', '.home-closing', 'footer'].map((selector) => {
               return selector === '.home-closing' ? getComputedStyle(document.querySelector(selector).closest('section')).backgroundColor : fill(selector);
             }),
@@ -1157,10 +1211,52 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         expect(Math.abs(seen.qr.width - 200) < 0.5, `device ${at}: the QR code is ${seen.qr.width} px wide`);
         expect(width < 768 ? seen.qrBox.top >= seen.steps.bottom : seen.qrBox.left >= seen.steps.right,
           `device ${at}: the QR placement is wrong`);
+        expect(seen.centeredCode, `detection code ${at}: the link is not centred under the cards`);
+        if (width === 390) {
+          expect(Math.abs(seen.qr.left + seen.qr.width / 2 - width / 2) < 1, `device ${at}: the QR is off-centre`);
+        }
+        if (width >= 1280) {
+          const columnGap = width >= 1440 ? 32 : 24;
+          expect(Math.abs(seen.panel.width - (seen.deviceWidth * 2 - columnGap) / 3) < 1 &&
+            Math.abs(seen.panel.left + seen.panel.width / 2 - width / 2) < 1,
+          `device ${at}: expected eight centred columns, got ${seen.panel.width}px`);
+          expect(seen.panelFill === PANEL_COLOURS[look] && seen.panelBorder > 0 && seen.serverRule > 0 &&
+            seen.server.top >= Math.max(seen.qrBox.bottom, seen.steps.bottom) &&
+            seen.server.left > seen.panel.left && seen.server.right < seen.panel.right && seen.server.bottom < seen.panel.bottom,
+          `device ${at}: the steps, QR and server rule should share the panel`);
+        }
         expect(seen.panelFills.every((fill) => fill === PANEL_COLOURS[look]), `bands ${at}: wrong surface colours`);
         expect(seen.benefits.length === 3 && seen.benefits.every(({ fill, edge }) => fill === PANEL_COLOURS[look] && edge === '0px'),
           `benefits ${at}: expected three unoutlined tinted panels`);
         for (const key of seen.controls) expect(key.height >= key.minimum - 0.5, `${at}: "${key.name}" is ${key.height} px tall, expected ${key.minimum}`);
+        for (const selector of ['.home-use:has(#lost-pet) p', '.home-free__words p:first-child']) {
+          const lines = await page.evaluate(readLines, selector);
+          const leading = await page.locator(selector).evaluate((p) => parseFloat(getComputedStyle(p).fontSize) * 1.55);
+          const gaps = lines.slice(1).map(({ top }, index) => top - lines[index].top);
+          expect(gaps.length > 0 && gaps.every((gap) => Math.abs(gap - leading) <= 1),
+            `paragraph leading ${at}, ${selector}: ${gaps.join(', ')} px, expected ${leading.toFixed(1)} px`);
+        }
+        if (width >= 1280) {
+          const lines = await page.evaluate(readLines, '.home-detection__lead');
+          expect(lines.length > 0 && lines.every(({ text }) => text.length <= 64),
+            `detection lead ${at}: line lengths ${lines.map(({ text }) => text.length).join(', ')} exceed 64 characters`);
+        }
+        if (width === 390) {
+          const checkLinks = async () => {
+            const links = await page.locator('.visitor-shell a[href]:visible').evaluateAll((anchors) => anchors.map((anchor) => ({
+              name: anchor.getAttribute('aria-label') || anchor.textContent.trim(),
+              fragments: [...anchor.getClientRects()].map((rect) => rect.height),
+            })));
+            for (const { name, fragments } of links) {
+              expect(fragments.length > 0 && fragments.every((height) => height >= 43.5),
+                `phone link ${at}: "${name}" has targets of ${fragments.join(', ')} px, expected 44 px`);
+            }
+          };
+          await page.locator('[data-card="storage"] > summary').press('Space');
+          await checkLinks();
+          await page.locator('.site-header__menu-key').click();
+          await checkLinks();
+        }
       });
     }
   }

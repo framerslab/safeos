@@ -15,6 +15,7 @@ import path from 'path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import HomePage from '@/app/page';
+import { SiteShell } from '@/components/layout/SiteShell';
 import clip from '../public/home/sample-clip.json';
 import { SETUP_CAMERA_STEP, SETUP_STEPS, SETUP_STEP_COUNT } from '@/lib/setup-steps';
 import { MAX_PET_PHOTOS, MIN_PET_PHOTOS } from '@/lib/pet-photo-limits';
@@ -29,6 +30,15 @@ import { bare, served, words } from './helpers/served-html';
 jest.mock('next/navigation', () => ({
   usePathname: () => '/',
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+}));
+
+jest.mock('@/contexts/BackendStatusContext', () => ({
+  useBackendStatus: () => ({
+    status: { api: 'disconnected', ollama: 'disconnected' },
+    isLocalOnly: true,
+    retry: jest.fn(),
+    config: { apiUrl: '', wsUrl: '' },
+  }),
 }));
 
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -589,14 +599,48 @@ describe('answers alongside the features they describe', () => {
   });
 });
 
+const barredWording = /\b(?:detect(?:ed|s)|identif(?:ied|ies|y)|recogni[sz](?:ed|es|e)|match(?:es|ed|ing)?|confidence|intruder|threat)\b|%|free forever|Cross Paths|humanitarian|donate/i;
+
+function homeWordingInputs(root: HTMLElement): string[] {
+  const names = Array.from(root.querySelectorAll('[aria-label], [alt]'), (element) =>
+    element.getAttribute('aria-label') ?? element.getAttribute('alt') ?? '');
+  const content = root.cloneNode(true) as HTMLElement;
+  content.querySelectorAll('script, style').forEach((node) => node.remove());
+  return [words(content), ...names];
+}
+
 describe('the page as a whole', () => {
-  it('uses possible-sighting wording throughout the text and accessible names', () => {
-    const names = all('[aria-label], [alt]').map((element) => element.getAttribute('aria-label') ?? element.getAttribute('alt'));
-    const content = page.body.cloneNode(true) as HTMLElement;
-    content.querySelectorAll('script, style').forEach((node) => node.remove());
-    for (const text of [words(content), ...names]) {
-      expect(text).not.toMatch(/\b(?:detect(?:ed|s)|identif(?:ied|ies|y)|recogni[sz](?:ed|es|e)|match(?:es|ed|ing)?|confidence|intruder|threat)\b|%|free forever|Cross Paths|humanitarian|donate/i);
-    }
+  const renderShell = () => served(renderToStaticMarkup(<SiteShell><HomePage /></SiteShell>));
+
+  it('uses possible-sighting wording throughout the home, including the visitor shell', () => {
+    for (const text of homeWordingInputs(renderShell().body)) expect(text).not.toMatch(barredWording);
+  });
+
+  it.each(['keeps intruders out', 'lists threats', 'detecting', 'identifying', 'recognising', '50 percent'])(
+    'bars phrasing and its inflections in "%s"',
+    (text) => expect(text).toMatch(barredWording)
+  );
+
+  it.each([
+    ['nav .site-header__brand', 'aria-label', 'keeps intruders out'],
+    ['nav .site-header__brand', 'aria-description', 'lists threats'],
+    ['footer a', 'title', 'identifies threats'],
+    ['footer img', 'alt', 'recognises threats'],
+  ])('checks %s accessible copy from %s', (selector, attribute, text) => {
+    const shell = renderShell();
+    const element = shell.querySelector(selector);
+    expect(element).not.toBeNull();
+    element?.setAttribute(attribute, text);
+    expect(homeWordingInputs(shell.body)).toContain(text);
+  });
+
+  it('points readers to the explanation and the two places to start setup', () => {
+    const readme = source('..', '..', 'README.md');
+    const paragraph = readme.split('\n').find((line) => line.startsWith('The [SafeOS Guardian home page]'));
+    expect(paragraph).toContain('https://safeos.sh/#how-it-works)');
+    expect(paragraph).toContain('https://safeos.sh/#uses)');
+    expect(paragraph).toContain('https://safeos.sh/#one-device)');
+    for (const id of ['how-it-works', 'uses', 'one-device']) expect(page.getElementById(id)).not.toBeNull();
   });
 
   it('plays nothing: it holds no video, no sound and no key that plays one', () => {
