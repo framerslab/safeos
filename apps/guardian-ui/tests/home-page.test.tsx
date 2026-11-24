@@ -76,6 +76,14 @@ describe('the page reads before any script runs and asks for nothing', () => {
     expect(all('#how-it-works details')).toHaveLength(6);
   });
 
+  it('serves a working dashboard demonstration on home', () => {
+    const region = one('section[aria-label="Recorded runs of SafeOS Guardian"]');
+    expect(region).not.toBeNull();
+    const keys = Array.from(region!.querySelectorAll('button[data-run]')).map(words);
+    expect(keys.filter(key => ['Dashboard', 'Watching', 'Settings'].includes(key)))
+      .toEqual(['Dashboard', 'Watching', 'Settings']);
+  });
+
   it('shows the line for a page whose script did not start, under the statement, until the app marks itself started', () => {
     const line = one('#home-needs-script');
     expect(words(line)).toBe('Setup needs JavaScript. The rest of this page reads without it.');
@@ -210,6 +218,12 @@ describe('how camera frames, sound and photos reach the alert', () => {
     }
   });
 
+  it('says that the browser must allow the alert notification', () => {
+    expect(words(one('[data-node="alert"]'))).toContain(
+      'a sound, a notification if the browser allows it, and a line in History'
+    );
+  });
+
   it('uses the same bird glyph in the diagram, the model card and the wildlife use', () => {
     const bird = one('[data-card="people-animals"] summary svg');
     expect(bird).not.toBeNull();
@@ -248,7 +262,7 @@ describe('headline and benefits', () => {
     ]);
     expect(all('.home-benefits p').map(words)).toEqual([
       'Uses the camera and microphone of a phone, tablet or laptop you already own. Point it at any spot, indoors or out.',
-      'When something moves or gets loud, the device that watches plays an alert sound, shows a notification and lists the alert in History.',
+      'When something moves or gets loud, the device that watches plays an alert sound, shows a notification if the browser allows it, and lists the alert in History.',
       'Monitoring runs in the browser on the device that watches. Pictures and alerts stay in its storage, and go to a server only if you connect one you run.',
     ]);
   });
@@ -440,7 +454,7 @@ describe('watching and alerting on one device', () => {
       ],
       [
         'Stay within earshot.',
-        'When something moves or gets loud, the device plays an alert sound, shows a notification and lists the alert in History.',
+        'When something moves or gets loud, the device plays an alert sound, shows a notification if the browser allows it, and lists the alert in History.',
       ],
     ]);
     const section = words(one('#one-device'));
