@@ -28,13 +28,13 @@ SafeOS Guardian is a **supplemental experimental tool**. It adds an alert and do
 
 ## What it is
 
-The [SafeOS Guardian home page](https://safeos.sh/) shows the app watching a kitten clip. The diagram and six expandable explanations in [How it works](https://safeos.sh/#how-it-works) explain the camera and microphone checks. [Uses](https://safeos.sh/#uses) links to setup for each use, and [One device](https://safeos.sh/#one-device) walks through the steps and explains what a server adds.
+The [SafeOS Guardian home page](https://safeos.sh/) opens with three recorded runs. Dashboard shows the result of a watch on the kitten clip. Watching shows the camera and meters starting. Settings shows the list as it scrolls. The diagram and six expandable explanations in [How it works](https://safeos.sh/#how-it-works) explain the camera and microphone checks. [Uses](https://safeos.sh/#uses) links to setup for each use, and [One device](https://safeos.sh/#one-device) walks through the steps and explains what a server adds.
 
 SafeOS Guardian is a Progressive Web App that turns any device with a camera and microphone into a monitoring station. It compares video frames and sound levels in the browser, runs the [TensorFlow.js](https://www.tensorflow.org/js) COCO-SSD model on-device in its People and Wildlife modes, and raises severity-tiered alerts. In the browser-only setup no frames leave the device, the app loads no analytics or tracking script, and no account is needed.
 
 Choose a camera on Setup or Monitor; the choice is remembered in this browser. Monitor requests capture only when you start it, releases capture when you stop, and reports camera failures. Local processing sends no camera frames to a connected server. Monitor alerts persist in IndexedDB and reload in History. See [Camera monitoring](docs/MONITORING.md).
 
-After the service worker finishes installing, the exported pages and their scripts are available offline, including pages not yet opened. Complete setup and choose **Download detection model** on People, Wildlife, or Settings → Models to save COCO-SSD for offline use. Initial installation and model download need a connection; clearing or evicting browser storage removes those copies.
+After the service worker finishes installing, the exported pages and their scripts are available offline, including pages not yet opened. Complete setup and choose **Download detection model** on People, Wildlife, or Settings → Models to save COCO-SSD for offline use. The home also saves the square pictures for both looks after an eligible first visit. Initial installation, recording playback and model download need a connection. Clearing or evicting browser storage removes the saved copies.
 
 ## Quickstart
 

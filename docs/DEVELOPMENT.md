@@ -402,10 +402,12 @@ prints an error and carries on.
 | `ci.yml` | Web app alert walk | In Chromium, on the static build, with a test camera whose picture keeps changing and a tone on the microphone (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`): a continuing motion, pixel or sound event alerts again once the longer of its severity's cooldown and the Cooldown Period has passed, on its one card with "Repeated N times"; a rise to critical alerts at once; a picture that pauses for a moment now and then is one event; after Stop and Start, or with a detector turned off and on again, a new event alerts at once on a new card. Then, from the sample clip on Chromium's fake camera (its `.y4m` and `.wav` made with ffmpeg in the job) and from canvas cameras, with two workers, and its notification walks after them with one (`apps/guardian-ui/e2e/alert-pictures.spec.ts`): each alert's picture, box and close-up on its card, the live box, the opened picture with Show the box, Save picture and Delete picture, History's rows, Keep alert pictures with its notice, ages and Delete all pictures, the room rule, other tabs and profiles, the notification's picture, the privacy page's sentences and `/third-party-notices.txt`, and setup's camera step carrying the notice's choice. Both specs skip under Firefox; the same step then checks Settings > Notifications in Firefox itself (`apps/guardian-ui/e2e/notification-picture-firefox.spec.ts`), where the notification's picture switch is inactive because Firefox shows a notification's words alone |
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
-| `deploy-pages.yml` | Check the published home | After a master deployment, Chromium checks the live home at phone and desktop widths and compares its served HTML with the build's SHA-256 |
+| `deploy-pages.yml` | Check the published home | After a master deployment, Chromium checks the live home at phone and desktop widths and compares served HTML and the recording inventory with the build, and plays every run |
 | `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
 | `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the app's pages for the pull request's own build |
-| `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera, then captures each alert picture state (see below) |
+| `pictures.yml` | Capture the home page pictures | Makes stills from the sample clip through Chromium's fake camera, the sharing card and install pictures, and captures each alert picture state |
+| `pictures.yml` | Record the home page runs | Records the app on the branch being built and publishes the complete `home-runs` artifact |
+| `pictures.yml` | Check the committed home runs | Checks files, recording inputs, source ancestry and available producer bytes |
 
 `measure.yml` (Measure) is apart from these: it runs on each push to
 `master` and by hand, never on a pull request. It records how fast the watch,
@@ -514,8 +516,8 @@ wait for the QR image to decode and check the resulting pixels for the QR code
 in both looks; the base build and the local command above take the page as it
 stands.
 
-The walk in `apps/guardian-ui/scripts/home-checks.mjs` checks the supplied
-capture and its crop, the header and Menu, native disclosure grouping, QR,
+The walk in `apps/guardian-ui/scripts/home-checks.mjs` checks the playable hero,
+poster placement and the header and Menu, native disclosure grouping, QR,
 and the anchored sections before and after setup. Fresh browsers follow the
 lost-pet and wildlife links through six setup steps and open the chosen way
 without a camera. The first visit checks that requests stay on the site's
@@ -529,15 +531,18 @@ requires the ranges whenever the route list includes `/`. It runs
 `python3 -I scripts/contrast-sample.py` with Pillow to measure stroke
 contrast from the same 2× pixels and verify font sizes, glyphs and edges.
 The `pictures` artifact includes `home-readability.json` with the named
-ranges, measured ratios, sizes and any failures.
+ranges, measured ratios, sizes and any failures. For the runs, the walk
+projects each recorded word onto the visible poster and samples both looks
+at 320, 390, 768, 1024, 1280 and 1440 px. A poster word must display at
+least 14 CSS px with 7:1 contrast on the captured page.
 
 The Pages build hashes `out/index.html`. After the master Pages deploy,
 `apps/guardian-ui/scripts/check-published-home.mjs` opens
 [the published home](https://safeos.sh/) with service workers blocked. It
-compares the HTML with the build hash and checks the lockup, the six
-disclosures, the technical deep link and the setup destinations at both widths.
-It retries navigation failures and stale responses using a fresh browser
-context for each attempt.
+compares the HTML with the build hash and the manifest with the checkout.
+It checks delivered sizes and hashes for every file, plays every run at
+phone and desktop widths, then follows the technical link and opens setup.
+It retries stale responses using a fresh context for each attempt.
 
 The control names below are reserved for a future measurement decision.
 The home loads no analytics library and sends no events.
@@ -548,6 +553,9 @@ The home loads no analytics library and sends no events.
 | `use_start_clicked` | `use` is `baby_nap`, `pet_out`, `elderly_parent`, `lost_pet` or `wildlife` |
 | `start_setup_clicked`, `open_dashboard_clicked` | `placement` is the hero, header, Menu, closing or footer |
 | `setup_again_clicked`, `menu_opened` | No properties |
+| `demo_run_viewed` | `run` and `state` from the manifest |
+| `demo_runs_paused`, `demo_runs_played` | No properties |
+| `demo_run_stepped` | `direction` is `previous`, `next` or `step` |
 | `look_switched` | `to` is `dark` or `light` |
 | `nav_link_clicked`, `footer_link_clicked`, `outbound_link_clicked` | `target` and `placement` describe the link and where it was pressed |
 
@@ -567,11 +575,56 @@ public header and footer on their own (`site-header-<width>-<look>.png`,
 (`site-menu-390-<look>.png`) and About's part
 (`about-builders-<width>-<look>.png`), so the two read side by side.
 
+#### Recordings on the home page
+
+The Pictures job **Record the home page runs** builds the app and runs
+`apps/guardian-ui/scripts/home-runs.mjs`. Dashboard uses the real alerts
+from a watch on the sample clip. Watching records the start key, camera and
+meters. Settings records a scroll of the actual settings list. The producer
+captures native frames and encodes silent MP4s and WebP posters, with AVIF
+alternatives when available. It records the source commit, run URL, clip
+credits, visible words, recording positions and file hashes in `runs.json`.
+
+The page uses square media below 1280 px and wide media from 1280 px. The
+square crop starts at a 390 px source view. Given its smallest label size
+`s` in CSS px, recapture at `floor(288 * s / 14)` when the 288 px home
+box would display any label under 14 px. The source viewport must remain at
+least 320 px. This preserves readable labels when the home is 320 px wide.
+
+| Limit | Square | Wide |
+| --- | ---: | ---: |
+| An MP4 | 400,000 bytes | 1,200,000 bytes |
+| A poster | 60,000 bytes | 120,000 bytes |
+| Dashboard and its poster | 460,000 bytes | 1,300,000 bytes |
+| Complete set in one look | 2,300,000 bytes | 6,600,000 bytes |
+
+The first poster is the matching WebP. The player holds the poster for
+reduced motion and data saving until Play. Once the service worker has
+saved the app, an eligible visit saves both looks' square WebP posters as
+an optional batch. Visitors can step through the saved pictures offline.
+Save-Data, 2g, slow-2g and reduced motion defer the poster batch. The
+player fetches each recording separately, and the worker leaves video
+and range requests to the network.
+
+When a change reaches a recorded route or one of its inputs, its pull
+request refreshes the complete set on the integrated branch. Use the green
+producer job on that source and import its manifest and all files together:
+
+```bash
+gh run download <run id> -n home-runs -D /tmp/home-runs
+cp /tmp/home-runs/* apps/guardian-ui/public/home/runs/
+```
+
+**Check the committed home runs** checks the content digest and the producer
+record. It compares the available artifact with every committed byte.
+A source change requires a new recording. Evidence and documentation edits
+are outside the recording inputs. Pages checks the exported media before
+uploading a deployable build.
+
 #### The home page's own pictures
 
-The home page's first screen shows a capture of the monitor, and nothing on it
-is drawn by hand or made by an image model. The job "Capture the home page
-pictures" makes it:
+The job "Capture the home page pictures" makes monitor stills, the install
+screenshots and the sharing card:
 
 1. It builds the same commit and converts the committed sample clip,
    `apps/guardian-ui/public/home/sample-clip.mp4`, to a `.y4m` and a `.wav`
@@ -590,8 +643,7 @@ pictures" makes it:
    `capture-portrait-*`, `capture-landscape-*`, each a `.png` and a `.webp`;
    the portrait crop is the 390 px watch's camera frame with its live
    picture and the meters under it, at its own ratio, and the job fails a
-   frame that cuts a meter; the home page gives each crop's box the ratio of
-   its file),
+   frame that cuts a meter),
    `screenshots/dashboard.png` and `screenshots/monitoring.png` (the two the
    web app manifest names), the shared-link card `home/card.jpg` (from
    `scripts/home-card.html`, a page the site does not serve) and
