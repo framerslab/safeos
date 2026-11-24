@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { WayGlyph } from '@/components/dashboard/WaysToWatch';
+import { WayGlyph } from '@/components/icons/WayGlyph';
 import { IconBell, IconCamera, IconDatabase, IconDownload, IconMail, IconMic, IconServer, IconVolume2 } from '@/components/icons';
 import { Num } from '@/components/visitor/Num';
 import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
@@ -97,9 +97,9 @@ function DetectionCards() {
     <div className="home-detection__cards">
       {cards.map(({ id, title, tags, glyph, summary, details, link }) => (
         <details key={id} className="home-detection__card" data-card={id} {...group}>
-          <summary aria-labelledby={`detection-card-${id}`}>
+          <summary>
             <span className="home-detection__glyph" aria-hidden="true">{glyph}</span>
-            <h3 id={`detection-card-${id}`} className="home-h3">{title}</h3>
+            <h3 className="home-h3">{title}</h3>
             <span className="home-detection__tags">{tags[0]} · {tags[1]}</span>
             <span className="home-p home-detection__summary">{summary}</span>
             <span className="home-q__mark" aria-hidden="true" />
@@ -116,46 +116,52 @@ function DetectionCards() {
 
 interface DiagramNode {
   id: string;
-  label: ReactNode;
+  name: string;
+  detail?: ReactNode;
   glyph: ReactNode;
   sources?: readonly string[];
 }
 
 const inputs: DiagramNode[] = [
-  { id: 'camera', label: 'Camera', glyph: <IconCamera /> },
-  { id: 'microphone', label: 'Microphone', glyph: <IconMic /> },
-  { id: 'pet-photos', label: 'Your pet’s photos', glyph: <WayGlyph way="lost-found" /> },
+  { id: 'camera', name: 'Camera', glyph: <IconCamera /> },
+  { id: 'microphone', name: 'Microphone', glyph: <IconMic /> },
+  { id: 'pet-photos', name: 'Your pet’s photos', glyph: <WayGlyph way="lost-found" /> },
 ];
 
 const checks: DiagramNode[] = [
   {
     id: 'motion',
-    label: <>Motion: frames compared <Num>5</Num> times a second</>,
+    name: 'Motion',
+    detail: <>frames compared <Num>5</Num> times a second</>,
     glyph: <WayGlyph way="monitor" />,
     sources: ['camera'],
   },
   {
     id: 'picture-change',
-    label: <>Picture change: changed pixels counted <Num>5</Num> times a second</>,
+    name: 'Picture change',
+    detail: <>changed pixels counted <Num>5</Num> times a second</>,
     glyph: <IconCamera />,
     sources: ['camera'],
   },
   {
     id: 'sound',
-    label: <>Sound level: read <Num>10</Num> times a second</>,
+    name: 'Sound level',
+    detail: <>read <Num>10</Num> times a second</>,
     glyph: <IconMic />,
     sources: ['microphone'],
   },
   {
     id: 'lost-found',
-    label: 'Lost and Found: colours and outline compared twice a second',
+    name: 'Lost and Found',
+    detail: 'colours and outline compared twice a second',
     glyph: <WayGlyph way="lost-found" />,
     sources: ['camera', 'pet-photos'],
   },
   {
     id: 'people-wildlife',
-    label: <>People and Wildlife: COCO-SSD on TensorFlow.js, run on the graphics chip, {modelSize}, saved after you agree</>,
-    glyph: <WayGlyph way="wildlife" />,
+    name: 'People and Wildlife',
+    detail: <>COCO-SSD on TensorFlow.js, run on the graphics chip, {modelSize}, saved after you agree</>,
+    glyph: <HomeBirdGlyph />,
     sources: ['camera'],
   },
 ];
@@ -163,35 +169,36 @@ const checks: DiagramNode[] = [
 const outputs: DiagramNode[] = [
   {
     id: 'alert',
-    label: 'The alert: a sound, a notification and a line in History',
+    name: 'The alert',
+    detail: 'a sound, a notification and a line in History',
     glyph: <IconBell />,
     sources: checks.map(({ id }) => id),
   },
   {
     id: 'storage',
-    label: 'Kept in this browser: settings, alerts, saved frames, your pet’s photos and the model',
+    name: 'Kept in this browser',
+    detail: 'settings, alerts, saved frames, your pet’s photos and the model',
     glyph: <IconDatabase />,
   },
 ];
 
 const server: DiagramNode[] = [
-  { id: 'server-frames', label: 'Frames from the Motion and sound page', glyph: <IconCamera /> },
-  { id: 'server-alerts', label: 'Email, text and Telegram alerts from the server’s own look at the frames', glyph: <IconMail /> },
-  { id: 'server-model', label: 'A model on your server, or a hosted one when you give it a key', glyph: <IconServer /> },
+  { id: 'server-frames', name: 'Frames from the Motion and sound page', glyph: <IconCamera /> },
+  { id: 'server-alerts', name: 'Email, text and Telegram alerts from the server’s own look at the frames', glyph: <IconMail /> },
+  { id: 'server-model', name: 'A model on your server, or a hosted one when you give it a key', glyph: <IconServer /> },
 ];
-
-const labelId = (id: string) => `home-diagram-${id}`;
 
 function DiagramBand({ nodes, from = [] }: { nodes: DiagramNode[]; from?: DiagramNode[] }) {
   return (
     <ul className="home-diagram__band" role="list" style={{ gridTemplateColumns: `repeat(${nodes.length}, minmax(0, 1fr))` }}>
-      {nodes.map(({ id, label, glyph, sources }) => (
-        <li key={id} className="home-diagram__node" data-node={id} aria-describedby={sources?.map(labelId).join(' ')}>
+      {nodes.map(({ id, name, detail, glyph, sources }) => (
+        <li key={id} className="home-diagram__node" data-node={id}>
           <span className="home-diagram__glyph" aria-hidden="true">{glyph}</span>
-          <span id={labelId(id)}>{label}</span>
-          {sources && from === inputs && (
-            <span className="home-diagram__inputs" aria-hidden="true">
-              {sources.map((source) => inputs.find(({ id }) => id === source)?.label).join(' · ')}
+          <span className="home-diagram__node-label">{name}{detail && <>: {detail}</>}</span>
+          {sources && (
+            <span className={from === checks ? 'home-diagram__inputs sr-only' : 'home-diagram__inputs'}>
+              <span className="sr-only">From </span>
+              {sources.map((source) => from.find((node) => node.id === source)?.name).join(' · ')}
             </span>
           )}
         </li>
@@ -233,7 +240,7 @@ function DetectionDiagram() {
           <DiagramBand nodes={checks} from={inputs} />
           <DiagramWires from={checks} to={outputs} />
         </li>
-        <li><DiagramBand nodes={outputs} /></li>
+        <li><DiagramBand nodes={outputs} from={checks} /></li>
         <li className="home-diagram__server">
           <p className="home-diagram__label" data-band="server">Only with a server you run</p>
           <DiagramBand nodes={server} />

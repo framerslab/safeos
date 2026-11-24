@@ -9,7 +9,7 @@ import { SETUP_CAMERA_STEP, SETUP_STEP_COUNT } from '@/lib/setup-steps';
 import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
 import { Brand, HomeBirdGlyph } from './Brand';
 import { UseStartLink } from './UseStartLink';
-import { WayGlyph } from '@/components/dashboard/WaysToWatch';
+import { WayGlyph } from '@/components/icons/WayGlyph';
 import { Num } from '@/components/visitor/Num';
 
 function LaptopGlyph() {
@@ -45,7 +45,7 @@ export function HomeBenefits() {
     <section className="home-part" aria-labelledby="benefits-title">
       <div className="home-wrap">
         <h2 id="benefits-title" className="sr-only">What SafeOS is</h2>
-        <ul className="home-benefits">
+        <ul className="home-benefits" role="list">
           {BENEFITS.map(({ title, text, Glyph }) => (
             <li key={title} className="home-benefit">
               <h3 className="home-h3"><span aria-hidden="true"><Glyph /></span>{title}</h3>
@@ -221,7 +221,7 @@ export function HomeHow({ siteAddress }: { siteAddress: string }) {
             <p className="home-p">
               safeos.sh shows the camera and sounds the alert only on the device that is watching. A server you run adds:
             </p>
-            <ul className="home-server__list">
+            <ul className="home-server__list" role="list">
               <li><span aria-hidden="true"><IconMail /></span>Email, text and Telegram alerts, from the server’s own look at the frames</li>
               <li><span aria-hidden="true"><IconServer /></span>Descriptions of frames by a model on the server, or a hosted model when you give it a key</li>
             </ul>

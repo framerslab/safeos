@@ -77,7 +77,7 @@ function structuredData() {
       'Stillness alerts after a time you set',
       'An alert sound, a notification and a History entry on the device that watches',
       'Motion and sound alerts with no connection, once the browser has saved the app',
-      'An object-detection model for people and animals on the Security and Wildlife pages',
+      'An object-detection model for people and animals on the People and Wildlife pages',
     ],
     offers: {
       '@type': 'Offer',

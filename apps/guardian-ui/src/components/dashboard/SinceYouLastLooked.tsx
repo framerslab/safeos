@@ -23,7 +23,7 @@ import { WAYS } from '@/lib/app-routes';
 import { clockTime } from '@/lib/clock-time';
 import { useDeviceAlerts } from '@/lib/device-alerts';
 import { CameraFrame, LevelLine, ProblemMark } from './Drawn';
-import { WayGlyph } from './WaysToWatch';
+import { WayGlyph } from '@/components/icons/WayGlyph';
 
 const TABLET = '(min-width: 48em)';
 const DESKTOP = '(min-width: 64em)';

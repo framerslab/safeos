@@ -90,7 +90,7 @@ export function measureText(root) {
     if (element.closest('details:not([open])') && !element.closest('summary')) continue;
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
-    if (box.width === 0 || box.height === 0 || style.visibility === 'hidden') continue;
+    if (box.width === 0 || box.height === 0 || style.visibility === 'hidden' || style.clipPath === 'inset(50%)') continue;
     seen.add(element);
     const background = backgroundOf(element);
     const text = over(parse(style.color), background);
@@ -209,7 +209,7 @@ function pageWordBoxes() {
     if (element.closest('script, style, [hidden], .sr-only, .skip-link, #site-menu, svg')) continue;
     if (element.closest('details:not([open])') && !element.closest('summary')) continue;
     const style = getComputedStyle(element);
-    if (!element.getClientRects().length || style.visibility === 'hidden') continue;
+    if (!element.getClientRects().length || style.visibility === 'hidden' || style.clipPath === 'inset(50%)') continue;
     const body = element.closest('main :is(h1,h2,h3,p,.home-detection__summary,.home-diagram__node,.home-server__list)')
       && !element.closest('a, button, figcaption, .home-detection__tags, .home-diagram__inputs');
     const range = document.createRange();
