@@ -161,16 +161,11 @@ try {
     channel: 'chromium', args: ['--force-device-scale-factor=2.5'],
   });
   const runs = [];
-  const failures = [];
+  // Start with Dashboard's real watch and saved picture. If its source
+  // prerequisite fails, stop before capturing the rest of the set.
   for (const recipe of recipes) {
-    try {
-      runs.push(await recordSet(recipe.clip ? sample : withoutClip, recipe, avif));
-    } catch (error) {
-      failures.push(error);
-      console.error(error.message);
-    }
+    runs.push(await recordSet(recipe.clip ? sample : withoutClip, recipe, avif));
   }
-  if (failures.length) throw new AggregateError(failures, 'The recording set is incomplete');
   for (const size of ['square', 'wide']) {
     for (const look of looks) {
       const total = runs.reduce((bytes, { variants }) => {
