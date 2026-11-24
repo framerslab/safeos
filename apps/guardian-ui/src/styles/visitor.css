@@ -1910,8 +1910,7 @@ html.light .capture__pic--light {
   margin-top: 8px;
 }
 
-.home-free__words a,
-.home .link-row {
+.home-free__words a {
   color: var(--color-steel-50);
   text-decoration: underline;
   text-underline-offset: 0.18em;

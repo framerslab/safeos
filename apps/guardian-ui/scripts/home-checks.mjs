@@ -1216,6 +1216,10 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         const sorted = (list) => list.every((value, i) => i === 0 || value >= list[i - 1]);
         if (width < 768) {
           expect(sorted(seen.order), `headline ${at}: the first screen's order is not headline, capture, key, statement`);
+          // Each block ends at or above the top of the one below it.
+          for (let i = 0; i + 1 < seen.order.length; i += 1) {
+            expect(seen.bottoms[i] <= seen.order[i + 1], `headline ${at}: block ${i + 1} ends at ${seen.bottoms[i]} px, below the top of block ${i + 2} at ${seen.order[i + 1]} px`);
+          }
         } else if (width < 1024) {
           expect(seen.lefts.textRight - seen.lefts.text <= 640.5, `headline ${at}: the text block is ${Math.round(seen.lefts.textRight - seen.lefts.text)} px wide`);
           expect(seen.order[1] > seen.order[3], `capture ${at}: the capture is not under the text block`);

@@ -85,7 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The footer links Privacy and Terms on every page. The Privacy page says how the site treats Do Not Track and Global Privacy Control, that GitHub Pages logs visitors' IP addresses, and who operates safeos.sh.
 - The sitemap lists the integration guides and leaves out the old support address and `/tutorial`.
 - The header menu scrolls inside itself on a short screen, Escape closes it, and focus goes back to the Menu button when it closes.
-- The home page's Security card opens the Security page, and the other quick-start links name only presets that exist.
+- The quick-start links name only presets that exist.
 - Lost & Found offers a pet or an item; subjects saved with the person type keep showing. The processing choice that only slowed the same matcher is gone.
 
 ### Removed

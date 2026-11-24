@@ -486,8 +486,10 @@ When the route list includes `/`, both builds capture the first visit at
 390 × 844 and 1440 × 900 in both looks at a device scale of 2. The proposed
 build also captures the HTML diagram, the expanded Lost and Found card, the
 device steps, the uses and the closing section. The device pictures include
-the full server section. Full-page home captures wait for the QR image to
-decode. The capture checks the resulting pixels for the QR code in both looks.
+the full server section. On the proposed build only, full-page home captures
+wait for the QR image to decode and check the resulting pixels for the QR code
+in both looks; the base build and the local command above take the page as it
+stands.
 
 The walk in `apps/guardian-ui/scripts/home-checks.mjs` checks the supplied
 capture and its crop, the header and Menu, native disclosure grouping, QR,
