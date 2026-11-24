@@ -179,13 +179,53 @@ describe('how camera frames, sound and photos reach the alert', () => {
       return `${edge.getAttribute('data-from')}:${edge.getAttribute('data-to')}`;
     });
     expect(edges.sort()).toEqual(Object.entries(connections).flatMap(([to, from]) => from.map((source) => `${source}:${to}`)).sort());
-    for (const [to, from] of Object.entries(connections)) {
-      const node = figure?.querySelector(`[data-node="${to}"]`);
-      const inputs = node?.getAttribute('aria-describedby')?.split(' ');
-      expect(inputs).toEqual(from.map((id) => `home-diagram-${id}`));
-      for (const id of inputs ?? []) expect(figure?.querySelector(`[id="${id}"]`)).not.toBeNull();
+  });
+
+  it('names the inputs of each check and the alert in reading order', () => {
+    const sources: Record<string, string> = {
+      motion: 'From Camera',
+      'picture-change': 'From Camera',
+      sound: 'From Microphone',
+      'lost-found': "From Camera · Your pet's photos",
+      'people-wildlife': 'From Camera',
+      alert: 'From Motion · Picture change · Sound level · Lost and Found · People and Wildlife',
+    };
+    for (const [id, label] of Object.entries(sources)) {
+      const node = one(`[data-node="${id}"]`);
+      const text = node?.querySelector('.home-diagram__inputs');
+      expect(text?.closest('[aria-hidden="true"], [hidden]')).toBeNull();
+      expect(words(text)).toBe(label);
+      expect(node?.hasAttribute('aria-describedby')).toBe(false);
     }
   });
+
+  it('uses the same bird glyph in the diagram, the model card and the wildlife use', () => {
+    const bird = one('[data-card="people-animals"] summary svg');
+    expect(bird).not.toBeNull();
+    expect(one('[data-node="people-wildlife"] svg')?.outerHTML).toBe(bird?.outerHTML);
+    expect(one('#wildlife svg')?.outerHTML).toBe(bird?.outerHTML);
+  });
+});
+
+it('keeps home components independent of the dashboard', () => {
+  const directory = path.join('src', 'components', 'home');
+  for (const file of fs.readdirSync(path.join(APP_ROOT, directory)).filter((name) => /\.tsx?$/.test(name))) {
+    expect(source(directory, file)).not.toMatch(/from\s+['"](?:@\/components\/|(?:\.\.\/)+)dashboard(?:['"/])/);
+  }
+});
+
+it.each(['.home-benefits', '.home-server__list'])('preserves list semantics for %s', (selector) => {
+  expect(one(selector)?.getAttribute('role')).toBe('list');
+});
+
+it('publishes the People and Wildlife name in the home structured data', () => {
+  expect(one('script[type="application/ld+json"]')?.textContent).toContain(
+    'An object-detection model for people and animals on the People and Wildlife pages'
+  );
+});
+
+it('publishes the November 24 home update date', () => {
+  expect(one('script[type="application/ld+json"]')?.textContent).toContain('"dateModified":"2026-11-24"');
 });
 
 describe('headline and benefits', () => {
@@ -434,6 +474,15 @@ describe('the browser checks and what stays on this device', () => {
       expect(entry.getAttribute('name')).toBe('home-detection');
       expect(entry.hasAttribute('open')).toBe(false);
       expect(words(entry.querySelector('.home-detection__summary'))).not.toBe('');
+    }
+  });
+
+  it('lets the title, tags and closed sentence name each disclosure', () => {
+    const summaries = all('#how-it-works details > summary');
+    expect(summaries).toHaveLength(6);
+    for (const summary of summaries) {
+      expect(summary.hasAttribute('aria-labelledby')).toBe(false);
+      expect(summary.hasAttribute('aria-label')).toBe(false);
     }
   });
 
