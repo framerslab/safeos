@@ -31,3 +31,12 @@ export function judgeWatch({ saved, sightings, liveAt, watchMs, alertLine }) {
     alerted: firstAlert !== null,
   };
 }
+
+// Why the pet the walk enrolled is not what it added, or null when it is. The
+// page shows the pet from memory even when its save failed, so the probe reads
+// the saved record (readPet) and holds it to the photos the walk added.
+export function savedPetProblem(pet, photoCount) {
+  if (!pet) return 'the pet was not saved on the device';
+  const held = Array.isArray(pet.referenceImages) ? pet.referenceImages.length : 0;
+  return held === photoCount ? null : `the saved pet holds ${held} photos, not ${photoCount}`;
+}

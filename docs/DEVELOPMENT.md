@@ -562,9 +562,10 @@ After the captures, the job's step "Probe Lost and Found on the sample clip"
 runs `apps/guardian-ui/scripts/lost-found-probe.mjs` on the same build and the
 same fake camera files. It enrols "Toffee" through `/lost-found/` with the
 three photos under `apps/guardian-ui/public/home/lost-found/`, as a person
-would, starts the watch on the sample clip at the app's default Lost and Found
+would, checks that the pet was saved on the device with all three photos,
+starts the watch on the sample clip at the app's default Lost and Found
 settings and reads what the watch keeps every 2 s for 85 s, three plays of the
-clip. Its log gives the alert and save lines, the first frame saved, the first
+clip, and once more 3 s after, for a frame still being saved. Its log gives the alert and save lines, the first frame saved, the first
 alert with its score, its four parts and its region, the best score and the
 verdict. A saved frame counts as an alert when the watch raised the alert for
 it, and only what the watch kept inside the 85 s counts. The step fails when

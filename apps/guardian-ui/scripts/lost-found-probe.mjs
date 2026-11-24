@@ -24,8 +24,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
-import { judgeWatch } from './lost-found-verdict.mjs';
-import { enrol, readWatch, seededContext, startWatch } from './lost-found-walk.mjs';
+import { judgeWatch, savedPetProblem } from './lost-found-verdict.mjs';
+import { enrol, readPet, readWatch, seededContext, startWatch } from './lost-found-walk.mjs';
 
 const [baseUrl, outDir, videoFile, audioFile] = process.argv.slice(2);
 if (!baseUrl || !outDir || !videoFile || !audioFile) {
@@ -38,6 +38,9 @@ const PUBLIC = path.join(APP_ROOT, 'public');
 const NAME = 'Toffee';
 const WATCH_MS = 85_000;
 const READ_EVERY_MS = 2_000;
+// The watch saves a frame after it makes the frame's thumbnail, so a frame
+// from the last moments of the watch is read once more after this wait.
+const SETTLE_MS = 3_000;
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const seconds = (ms) => Math.round(ms / 100) / 10;
@@ -68,6 +71,8 @@ try {
   page = await context.newPage();
 
   await enrol(page, baseUrl, { name: NAME, photos });
+  const petProblem = savedPetProblem(await readPet(page, NAME), photos.length);
+  if (petProblem) throw new Error(petProblem);
   console.log(`probe: enrolled ${NAME} with ${photos.length} photos`);
 
   const liveAt = await startWatch(page);
@@ -83,6 +88,8 @@ try {
     await sleep(READ_EVERY_MS);
     watch = await readWatch(page);
   }
+  await sleep(SETTLE_MS);
+  watch = await readWatch(page);
   if (await page.getByText('Camera Error').count() > 0) throw new Error('the camera stopped during the watch');
   if (await page.getByText('Camera paused').count() > 0) throw new Error('the camera was paused at the end of the watch');
 
