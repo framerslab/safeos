@@ -6,6 +6,7 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { savedPetProblem } from './lost-found-verdict.mjs';
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -45,7 +46,8 @@ export async function seededContext(browser, options) {
  * through the file input, Continue and "Start Watching". Where setup shows the
  * photos' fingerprints with a Done key first, `atFingerprints` is awaited on
  * that step before Done is pressed. Returns once the page shows the pet under
- * "Currently Watching".
+ * "Currently Watching" and the device holds the saved pet with the photos
+ * setup showed, in their order; throws when it does not.
  */
 export async function enrol(page, baseUrl, { name, photos, atFingerprints }) {
   await page.goto(new URL('/lost-found/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
@@ -65,6 +67,7 @@ export async function enrol(page, baseUrl, { name, photos, atFingerprints }) {
   }
   const shown = await previews.count();
   if (shown !== photos.length) throw new Error(`setup shows ${shown} photos, not ${photos.length}`);
+  const shownPictures = await previews.evaluateAll((pictures) => pictures.map((picture) => picture.getAttribute('src')));
 
   await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
@@ -82,6 +85,8 @@ export async function enrol(page, baseUrl, { name, photos, atFingerprints }) {
   }
   await watching.waitFor({ timeout: 60_000 });
   await page.getByText(name, { exact: true }).first().waitFor({ timeout: 30_000 });
+  const problem = savedPetProblem(await readPet(page, name), photos.length, shownPictures);
+  if (problem) throw new Error(problem);
   return { sawFingerprints };
 }
 

@@ -24,8 +24,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
-import { judgeWatch, savedPetProblem } from './lost-found-verdict.mjs';
-import { enrol, readPet, readWatch, seededContext, startWatch, watchPhase } from './lost-found-walk.mjs';
+import { judgeWatch } from './lost-found-verdict.mjs';
+import { enrol, readWatch, seededContext, startWatch, watchPhase } from './lost-found-walk.mjs';
 
 const [baseUrl, outDir, videoFile, audioFile] = process.argv.slice(2);
 if (!baseUrl || !outDir || !videoFile || !audioFile) {
@@ -71,8 +71,6 @@ try {
   page = await context.newPage();
 
   await enrol(page, baseUrl, { name: NAME, photos });
-  const petProblem = savedPetProblem(await readPet(page, NAME), photos.length);
-  if (petProblem) throw new Error(petProblem);
   console.log(`probe: enrolled ${NAME} with ${photos.length} photos`);
 
   const liveAt = await startWatch(page);

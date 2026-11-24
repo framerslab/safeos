@@ -562,24 +562,25 @@ After the captures, the job's step "Probe Lost and Found on the sample clip"
 runs `apps/guardian-ui/scripts/lost-found-probe.mjs` on the same build and the
 same fake camera files. It enrols "Toffee" through `/lost-found/` with the
 three photos under `apps/guardian-ui/public/home/lost-found/`, as a person
-would, checks that the pet was saved on the device with all three photos,
-starts the watch on the sample clip at the app's default Lost and Found
-settings and reads what the watch keeps every 2 s for 85 s, three plays of the
-clip, and once more 3 s after, for a frame still being saved. Its log gives the alert and save lines, the first frame saved, the first
-alert with its score, its four parts and its region, the best score and the
-verdict. A saved frame counts as an alert when the watch raised the alert for
-it, and only what the watch kept inside the 85 s counts. The step fails when
-the watch does not alert, when the camera does not start or shows an error or
-a pause at the end, and when any step of the walk or of the database reads
-fails, with a picture of the page,
+would, checks that the pet was saved on the device with all three photos in
+the order it added them, starts the watch on the sample clip at the app's
+default Lost and Found settings and reads what the watch keeps every 2 s for
+85 s, three plays of the clip, and once more 3 s after, for a frame still
+being saved. Its log gives the alert and save lines, the first frame saved,
+the first alert with its score, its four parts and its region, the best score
+and the verdict. A saved frame counts as an alert when the watch raised the
+alert for it, and only what the watch kept inside the 85 s counts. The step
+fails when the watch does not alert, when the camera does not start or its
+picture is not live at the end, and when any step of the walk or of the
+database reads fails, with a picture of the page,
 `failed-lost-found-probe.png`. Its result, `lost-found-probe.json`, is in the
 run's `home-pictures` artifact beside `home/`. Each set of photos the probe
 tries is copied into the `tried` list of `public/home/lost-found/photos.json`,
 the sets that did not alert as well as the one that did, and the last set
-listed is the one that alerted, with the digests of the photos and the clip
-it ran on. The list is held by `tests/home-lost-found-photos.test.ts`, with
-each photo's size, digest, source, crop box and licence, so a photo or the
-clip changed without a new probe fails the test.
+listed is the one that alerted, with the digests of the photos and the clip it
+ran on. The list is held by `tests/home-lost-found-photos.test.ts`, with each
+photo's size, digest, source, crop box and licence, so a photo or the clip
+changed without a new probe fails the test.
 
 ---
 
