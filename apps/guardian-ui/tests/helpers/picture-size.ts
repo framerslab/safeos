@@ -28,7 +28,8 @@ export function pictureSize(bytes: Buffer): { width: number; height: number } {
 
 /**
  * Whether a JPEG file is whole: its segments lead to the start of the scan,
- * and the file ends with the end-of-image marker after it. A file cut short
+ * the scan's header is all there, and the file ends with the end-of-image
+ * marker after it. A file cut short
  * after its size is read fails.
  */
 export function jpegIsWhole(bytes: Buffer): boolean {
@@ -37,8 +38,10 @@ export function jpegIsWhole(bytes: Buffer): boolean {
   while (at + 4 <= bytes.length && bytes[at] === 0xff) {
     const marker = bytes[at + 1];
     if (marker === 0xda) {
+      // The whole scan header, then at least the end-of-image marker.
       const end = bytes.length;
-      return end > at + 4 && bytes[end - 2] === 0xff && bytes[end - 1] === 0xd9;
+      const scanFrom = at + 2 + bytes.readUInt16BE(at + 2);
+      return scanFrom + 2 <= end && bytes[end - 2] === 0xff && bytes[end - 1] === 0xd9;
     }
     at += 2 + bytes.readUInt16BE(at + 2);
   }
