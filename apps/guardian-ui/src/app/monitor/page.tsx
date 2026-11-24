@@ -499,7 +499,8 @@ export default function MonitorPage() {
   // A failed start is named in the frame with its fix; a camera that was
   // watching and is lost says when it stopped.
   const handleCameraError = (error: Error & { cause?: unknown }) => {
-    const lost = error.name === 'CameraLostError';
+    // A camera lost before its first picture never watched: its start failed.
+    const lost = error.name === 'CameraLostError' && videoSeen;
     stopStream();
     if (lost) {
       setCameraFailure(null);

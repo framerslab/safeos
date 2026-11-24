@@ -64,7 +64,10 @@ function useSteppedReading(reading: MeterReading): MeterReading {
     return () => window.clearInterval(interval);
   }, [still]);
 
-  return still ? shown : reading;
+  // A reading cleared (a new watch, another camera) empties the meter at
+  // once; a held one is never the last camera's.
+  if (reading.state === 'loading' && shown.state !== 'loading') setShown(reading);
+  return still && reading.state !== 'loading' ? shown : reading;
 }
 
 function Meter({ kind, reading: newest }: MeterRow) {

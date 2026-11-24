@@ -118,9 +118,10 @@ export const savedMatchFrames = (page: Page): Promise<number> =>
   });
 
 /**
- * How many saved frames raised the alert (`alerted: true`): the frames whose
- * alert went down the sound path. A close look under the alert's threshold is
- * saved too, and is not counted here.
+ * How many saved frames raised the alert (`alerted: true`). A frame is marked
+ * before the sound path runs, so this counts alerts raised, not sounds
+ * started: quiet hours can silence an alert that is counted here. A close
+ * look under the alert's threshold is saved too, and is not counted here.
  */
 export const alertedMatchFrames = (page: Page): Promise<number> =>
   page.evaluate(async () => {

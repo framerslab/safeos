@@ -922,7 +922,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   // meters under it, so its ratio is its file's own; its box takes that ratio.
   const captureRecord = await (await fetch(new URL('/home/provenance.json', baseUrl))).json();
   const portraitFile = captureRecord.files.find((entry) => entry.path === 'home/capture-portrait-dark.webp');
-  const RATIOS = { phone: 16 / 9, landscape: 16 / 10, portrait: portraitFile ? portraitFile.width / portraitFile.height : 4 / 5 };
+  // With no record of the file, the size the page itself falls back to
+  // (EXPECTED_SIZES in src/lib/home-captures.ts).
+  const RATIOS = { phone: 16 / 9, landscape: 16 / 10, portrait: portraitFile ? portraitFile.width / portraitFile.height : 1309 / 1173 };
   expect(RATIOS.portrait > 0.6 && RATIOS.portrait < 1.6, `capture: the portrait crop's file is ${RATIOS.portrait.toFixed(3)} wide for its height, outside 0.6 to 1.6`);
   for (const width of Object.keys(H1_LINES).map(Number)) {
     for (const look of LOOKS) {

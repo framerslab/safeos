@@ -175,7 +175,8 @@ camera while monitoring releases the old feed before requesting the selected one
 
 An ended video track (camera unplugged, switched off or taken away by the system)
 stops watching, and the frame says "The camera stopped at {time}. Press Start
-watching to start again." with **Start watching** under it. A muted video track (the
+watching to start again." with **Start watching** under it. A video track that ends
+before the first picture is a failed start: the frame names it with **Try again**. A muted video track (the
 device stops sending video for a while) pauses frame analysis, and the frame says
 "The camera is not sending a picture. Watching resumes when the picture returns."
 with **Stop watching** under it, as it does while another camera chosen during a
