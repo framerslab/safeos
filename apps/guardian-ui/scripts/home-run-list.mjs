@@ -120,9 +120,13 @@ export async function placeSubject(page, recipe, view) {
   const header = await page.locator('.app-header').first().boundingBox();
   const headerHeight = header?.height ?? 0;
   const offset = view.size === 'square' ? 6 : headerHeight + 4;
-  if (view.size === 'wide') {
-    await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.max(0, top - offset));
-    return 0;
+  if (view.size === 'wide' || recipe.id === 'watching') {
+    // The live frame moves higher than the start panel. Leave room to scroll
+    // it under the header instead of fixing the crop at the start panel's top.
+    const cropTop = view.size === 'wide' ? 0 : Math.ceil(headerHeight);
+    const target = Math.max(headerHeight + 4, cropTop + offset);
+    await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.max(0, top - target));
+    return cropTop;
   }
   const box = await page.locator(anchor).first().boundingBox();
   const footer = await page.locator('.phone-bar').first().boundingBox();
