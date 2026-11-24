@@ -159,7 +159,7 @@ export function HomeUses() {
 
 export function HomeHow({ siteAddress }: { siteAddress: string }) {
   return (
-    <section id="how-it-works" className="home-part" aria-labelledby="how-title">
+    <section id="one-device" className="home-part" aria-labelledby="how-title">
       <div className="home-wrap">
         <h2 id="how-title" className="home-h2">
           One device does the watching and the alerting

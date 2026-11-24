@@ -12,6 +12,7 @@
  */
 import type { Metadata } from 'next';
 import { HomeCapture, type CaptureCrop } from '@/components/home/HomeCapture';
+import { HomeDetection } from '@/components/home/HomeDetection';
 import { HomeStart } from '@/components/home/HomeStart';
 import { HomeBenefits, HomeUses, HomeHow, HomeAlerts, HomeFree, HomeQuestions, HomeClosing } from '@/components/home/HomeSections';
 import { Brand } from '@/components/home/Brand';
@@ -163,6 +164,7 @@ export default function HomePage() {
         <div className="tick-rule" aria-hidden="true" />
       </div>
       <HomeBenefits />
+      <HomeDetection />
       <HomeUses />
       <div className="home-wrap">
         <div className="tick-rule" aria-hidden="true" />
