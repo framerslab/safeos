@@ -214,13 +214,22 @@ export function checkNotifications(notices = []) {
   }
 }
 
+// Only a measured camera startup wait can be removed. The remaining
+// timestamps preserve the browser's elapsed time through every visible event.
+export function outputTime(at, { start, trim }) {
+  const removed = trim ? Math.max(0, Math.min(at, trim.end) - trim.start) : 0;
+  return at - start - removed;
+}
+
 async function concatWindow(frames, cut, seconds, directory) {
-  const last = cut.start + seconds;
+  const last = cut.end ?? cut.start + seconds;
+  assert.ok(Math.abs(outputTime(last, cut) - seconds) < 0.001, 'The chosen recording window has the wrong duration');
   assert.ok(cut.poster >= cut.start && cut.poster < last, 'The observed poster falls outside the recording');
   assert.ok(cut.event >= cut.start && cut.event <= last, 'The observed event falls outside the recording');
   const first = frames.findLastIndex((frame) => frame.at <= cut.start);
   assert.ok(first >= 0, 'The screencast did not start before the first event');
-  const segment = frames.slice(first).filter(({ at }) => at < last);
+  const segment = frames.slice(first).filter(({ at }) => at < last
+    && (!cut.trim || at < cut.trim.start || at >= cut.trim.end));
   assert.ok(segment.length > 1, 'The screencast did not record a changing page');
   if (cut.scroll) {
     assert.ok(new Set(segment.map(({ scrollY }) => scrollY)).size > 1,
@@ -234,7 +243,7 @@ async function concatWindow(frames, cut, seconds, directory) {
   for (let i = 0; i < segment.length; i += 1) {
     const next = segment[i + 1]?.at ?? last;
     const at = i === 0 ? cut.start : segment[i].at;
-    const duration = next - at;
+    const duration = outputTime(next, cut) - outputTime(at, cut);
     assert.ok(duration > 0, 'An ffconcat frame has no duration');
     list.push(`file '${segment[i].filename}'`, 'option framerate 1000', `duration ${duration.toFixed(6)}`);
   }

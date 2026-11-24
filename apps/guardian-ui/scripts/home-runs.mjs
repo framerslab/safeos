@@ -6,7 +6,7 @@ import path from 'node:path';
 import { chromium } from '@playwright/test';
 import {
   captureNotifications, checkNotifications, emulatedSurface, encodeVariant, limits,
-  readRecordingWords, sha256, spool, testPosterEncoders,
+  outputTime, readRecordingWords, sha256, spool, testPosterEncoders,
 } from './home-run-frames.mjs';
 import { recordingInputs } from './home-run-inputs.mjs';
 import { omittedRuns, placeSubject, recipes } from './home-run-list.mjs';
@@ -97,10 +97,15 @@ async function recordVariant(browser, recipe, view, avif) {
       viewport: { width: view.width, height: view.height },
       crop,
       scale: view.scale,
-      eventAt: cut.event - cut.start,
-      posterAt: cut.poster - cut.start,
+      eventAt: outputTime(cut.event, cut),
+      posterAt: outputTime(cut.poster, cut),
       words: cut.words,
-      ...(cut.peaks ? { meterPeaks: cut.peaks } : {}),
+      ...(cut.peaks ? {
+        meterPeaks: cut.peaks,
+        barkEndedAt: outputTime(cut.lastBarkReading, cut),
+        sourceSeconds: cut.end - cut.start,
+        ...(cut.trim ? { startupTrimSeconds: cut.trim.end - cut.trim.start } : {}),
+      } : {}),
       ...(cut.watchEvents ? { watchEvents: cut.watchEvents } : {}),
       ...(cut.notices?.length ? { notifications: cut.notices } : {}),
     };

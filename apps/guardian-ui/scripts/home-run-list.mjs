@@ -195,7 +195,18 @@ async function dashboard({ page, view, top, prepared, sample }) {
   };
 }
 
-async function watching({ page, sample }) {
+async function watching({ page, view, sample }) {
+  await page.evaluate(() => {
+    const frame = document.querySelector('.watch-frame');
+    if (!frame) throw Error('The watch has no camera frame');
+    const observer = new MutationObserver(() => {
+      if (frame.dataset.phase === 'live') {
+        window.homeCameraLiveAt = (performance.timeOrigin + performance.now()) / 1000;
+        observer.disconnect();
+      }
+    });
+    observer.observe(frame, { attributes: true, attributeFilter: ['data-phase'] });
+  });
   const start = await markStart(page);
   const stop = pose(page, 'Stop watching');
   await stop.waitFor({ timeout: 4 * SECOND });
@@ -206,7 +217,10 @@ async function watching({ page, sample }) {
   let poster;
   let words;
   let lastBarkReading;
-  while ((await browserTime(page)) - start < 9.8) {
+  const nominalEnd = start + view.seconds;
+  let end = nominalEnd;
+  let reachedEnd = false;
+  while ((await browserTime(page)) < nominalEnd + 1.5) {
     const reading = await page.evaluate(() => {
       const video = document.querySelector('.watch-frame__picture video');
       const level = (name) => Number(document.querySelector(`[role="meter"][aria-label="${name}"]`)?.getAttribute('aria-valuenow') ?? 0);
@@ -226,18 +240,29 @@ async function watching({ page, sample }) {
         words = await sample();
       }
     }
+    if (lastBarkReading) end = Math.max(nominalEnd, lastBarkReading + 1);
+    if (reading.clipAt > 9 && reading.at >= end) {
+      reachedEnd = true;
+      break;
+    }
     await sleepUntil(page, reading.at, 0.08);
   }
   assert.ok(peaks.motion > 0, 'The Motion meter never rose');
   assert.ok(poster, `The Sound meter did not go over its line during the bark (peak ${peaks.sound}, line ${threshold})`);
-  const hold = start + 10 - lastBarkReading;
-  assert.ok(hold >= 1, `Only ${hold.toFixed(3)} s after the last above-line bark reading in the ten-second recording`);
-  console.log(`Last above-line bark reading after ${(lastBarkReading - start).toFixed(3)} s, then ${hold.toFixed(3)} s of hold`);
+  assert.ok(reachedEnd, 'The watch did not hold through the second after the bark');
+  const trimSeconds = end - nominalEnd;
+  let trim;
+  if (trimSeconds > 0) {
+    const liveAt = await page.evaluate(() => window.homeCameraLiveAt);
+    const trimStart = liveAt - trimSeconds;
+    assert.ok(trimStart - start >= 1 / 15, `The ${(liveAt - start).toFixed(3)} s camera-start wait cannot accommodate a ${trimSeconds.toFixed(3)} s trim`);
+    trim = { start: trimStart, end: liveAt };
+  }
+  console.log(`Last above-line bark reading after ${(lastBarkReading - start).toFixed(3)} s, then ${(end - lastBarkReading).toFixed(3)} s of hold; trimmed ${trimSeconds.toFixed(3)} s before the camera went live`);
   const raised = await watchEvent(page, 'audio').count();
   const notices = await page.evaluate(() => window.homeRunNotifications);
   assert.ok(!raised || notices?.length, 'The watch saved a sound alert without a recorded notification');
-  await sleepUntil(page, start, 10);
-  return { start, poster, words, event: poster, peaks, notices };
+  return { start, end, poster, words, event: poster, peaks, notices, trim, lastBarkReading };
 }
 
 async function siteSettings({ page, view, top, sample }) {
