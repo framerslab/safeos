@@ -5,10 +5,11 @@ import { chromium } from '@playwright/test';
 
 export const settings = JSON.parse(await readFile(new URL('./home-capture-settings.json', import.meta.url), 'utf8'));
 
-export function launchSampleDevice(video, audio, channel) {
+export function launchSampleDevice(video, audio, channel, scale) {
   return chromium.launch({
     channel,
     args: [
+      ...(scale ? [`--force-device-scale-factor=${scale}`] : []),
       '--use-fake-device-for-media-stream',
       '--use-fake-ui-for-media-stream',
       `--use-file-for-fake-video-capture=${path.resolve(video)}`,

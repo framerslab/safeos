@@ -121,13 +121,13 @@ async function recordVariant(browser, recipe, view, avif) {
   }
 }
 
-async function recordSet(browser, recipe, avif) {
+async function recordSet(browsers, recipe, avif) {
   const variants = { square: {}, wide: {} };
   let width = 390;
   while (true) {
     let narrower = width;
     for (const look of looks) {
-      const result = await recordVariant(browser, recipe, { size: 'square', look, width, height: 844, scale: 3, seconds: recipe.seconds }, avif);
+      const result = await recordVariant(browsers.square, recipe, { size: 'square', look, width, height: 844, scale: 3, seconds: recipe.seconds }, avif);
       if (result.narrower) narrower = Math.min(narrower, result.narrower);
       else variants.square[look] = result;
     }
@@ -135,7 +135,7 @@ async function recordSet(browser, recipe, avif) {
     width = narrower;
   }
   for (const look of looks) {
-    variants.wide[look] = await recordVariant(browser, recipe, {
+    variants.wide[look] = await recordVariant(browsers.wide, recipe, {
       size: 'wide', look, width: 768, height: 480, scale: 2.5, seconds: recipe.seconds,
     }, avif);
   }
@@ -148,14 +148,18 @@ async function recordSet(browser, recipe, avif) {
   };
 }
 
-let sample;
-let withoutClip;
+const sample = {};
+const withoutClip = {};
 try {
   await mkdir(outDir, { recursive: true });
   const avif = await testPosterEncoders(workspace);
   console.log(`Poster formats: WebP${avif ? ' and AVIF' : ''}`);
-  sample = await launchSampleDevice(video, audio, 'chromium');
-  withoutClip = await chromium.launch({ channel: 'chromium' });
+  sample.square = await launchSampleDevice(video, audio, 'chromium');
+  sample.wide = await launchSampleDevice(video, audio, 'chromium', 2.5);
+  withoutClip.square = await chromium.launch({ channel: 'chromium' });
+  withoutClip.wide = await chromium.launch({
+    channel: 'chromium', args: ['--force-device-scale-factor=2.5'],
+  });
   const runs = [];
   const failures = [];
   for (const recipe of recipes) {
@@ -179,7 +183,7 @@ try {
   const encoder = execFileSync('ffmpeg', ['-version'], { encoding: 'utf8' }).split('\n')[0];
   const manifest = {
     schemaVersion: 1, commit, run, ...source,
-    browser: sample.version(), encoder,
+    browser: sample.square.version(), encoder,
     clips: [{ path: clip, sha256: actualHash, tracks: sampleClip.tracks, credit: sampleClip.credit.long, sources: sampleClip.sources }],
     omitted: omittedRuns,
     runs,
@@ -187,6 +191,6 @@ try {
   await writeFile(path.join(outDir, 'runs.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log(`Saved ${runs.length} runs, each in four variants, from ${commit}`);
 } finally {
-  await Promise.allSettled([sample?.close(), withoutClip?.close()]);
+  await Promise.allSettled([...Object.values(sample), ...Object.values(withoutClip)].map((browser) => browser.close()));
   await rm(workspace, { recursive: true, force: true });
 }

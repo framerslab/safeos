@@ -36,6 +36,8 @@ export async function testPosterEncoders(directory) {
 
 export async function emulatedSurface(page, view) {
   const cdp = await page.context().newCDPSession(page);
+  // The wide Chromium process already renders at its native device scale.
+  if (view.size === 'wide') return cdp;
   // Without a compositor viewport override, deviceScaleFactor affects the
   // page but Chromium still sends the CSS-size surface to the screencast.
   // The viewport keeps its CSS size and makes the compositor rasterize it
