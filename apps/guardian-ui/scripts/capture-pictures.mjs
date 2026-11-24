@@ -218,6 +218,7 @@ try {
     // request's own build.
     const { checkHomePage } = await import('./home-checks.mjs');
     failures += await checkHomePage(browser, baseUrl, outDir);
+    failures += await checkHomeUseSetup(browser, baseUrl);
   }
   // The app's own pages, for the pull request's own build. The base build
   // has no such file, so it is loaded only here.
@@ -1002,12 +1003,59 @@ function setupStep(page) {
 // choice, to the camera step.
 async function openCameraStep(page, baseUrl) {
   await page.goto(new URL('/setup/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+  await reachCameraStep(page);
+}
+
+async function reachCameraStep(page) {
   const step = setupStep(page);
   await step.getByRole('button', { name: /Begin Setup/ }).click();
   await step.getByRole('checkbox').check();
   await step.getByRole('button', { name: /Accept & Continue/ }).click();
   await step.getByRole('button', { name: /Pet Monitoring/ }).click();
   await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 });
+}
+
+async function reachSetupComplete(step) {
+  await step.getByRole('heading', { name: /Notification Settings/ }).waitFor({ timeout: 10_000 });
+  await step.getByRole('button', { name: /Enable & Continue/ }).click();
+  await step.getByRole('heading', { name: /Setup Complete/ }).waitFor({ timeout: 10_000 });
+}
+
+async function checkHomeUseSetup(browser, baseUrl) {
+  let failures = 0;
+  for (const [start, finish, way] of [
+    ['Set it up for a lost pet', 'Open Lost and Found', 'lost-found'],
+    ['Set it up for wildlife', 'Open Wildlife', 'wildlife'],
+  ]) {
+    const context = await cameraContext(browser, {
+      viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light',
+    }, 'NotFoundError');
+    try {
+      const page = await context.newPage();
+      await page.goto(new URL('/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+      const key = page.locator('#uses').getByRole('link', { name: start, exact: true });
+      if (!(await key.isVisible())) throw new Error(`${start} missing`);
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === '/setup/' && url.searchParams.get('next') === way, { timeout: 10_000 }),
+        key.click(),
+      ]);
+      await reachCameraStep(page);
+      const step = setupStep(page);
+      await step.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
+      await reachSetupComplete(step);
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === `/${way}/`, { timeout: 20_000 }),
+        step.getByRole('button', { name: finish, exact: true }).click({ timeout: 10_000 }),
+      ]);
+      console.log(`checked home setup: ${start} led to ${finish} at /${way}/`);
+    } catch (err) {
+      failures += 1;
+      console.error(`failed home setup: ${err.message}`);
+    } finally {
+      await context.close();
+    }
+  }
+  return failures;
 }
 
 // A full-page picture is taken from the top of the page (the fixed header is
@@ -1183,9 +1231,7 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
         await skip.click();
       }
 
-      await step.getByRole('heading', { name: /Notification Settings/ }).waitFor({ timeout: 10_000 });
-      await step.getByRole('button', { name: /Enable & Continue/ }).click();
-      await step.getByRole('heading', { name: /Setup Complete/ }).waitFor({ timeout: 10_000 });
+      await reachSetupComplete(step);
       await Promise.all([
         page.waitForURL((url) => /^\/dashboard\/?$/.test(url.pathname), { timeout: 20_000 }),
         step.getByRole('button', { name: 'Open dashboard', exact: true }).click(),

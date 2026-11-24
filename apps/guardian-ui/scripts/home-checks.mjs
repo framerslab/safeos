@@ -232,6 +232,18 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   const visit = (page, address = home) => page.goto(address, { waitUntil: 'networkidle', timeout: 60_000 });
   const sidewaysScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
+  await open({ name: 'home explanation', width: 390 }, async (page) => {
+    await visit(page);
+    const section = page.locator('#how-it-works');
+    const heading = section.getByRole('heading', { name: 'Deep learning, in your browser.', exact: true });
+    if (!(await heading.isVisible())) throw new Error('How it works: Deep learning, in your browser. missing');
+    const cards = section.locator('details');
+    if (await cards.count() !== 6) throw new Error('How it works must have six disclosures');
+    const first = cards.first();
+    await first.locator('summary').press('Space');
+    if (!(await first.evaluate((card) => card.open))) throw new Error('Space did not open the first disclosure');
+  });
+
   // ---------------------------------------------------------------------------
   // The page reads before any script runs and asks for nothing
   // ---------------------------------------------------------------------------
