@@ -128,10 +128,10 @@ describe('the probe counts an alert only where the watch raised one, inside the 
 
 // What the probe says of the pet the walk saved, given the subject_profile
 // record readPet returned and the number of photos the walk added.
-function petCheck(pet: object | null, photoCount = 3): string | null {
+function petCheck(pet: object | null, photoCount = 3, shown?: string[]): string | null {
   const program = `
     const { savedPetProblem } = await import(${JSON.stringify(VERDICT)});
-    console.log(JSON.stringify(savedPetProblem(${JSON.stringify(pet)}, ${photoCount})));
+    console.log(JSON.stringify(savedPetProblem(${JSON.stringify(pet)}, ${photoCount}, ${JSON.stringify(shown ?? null)} ?? undefined)));
   `;
   return JSON.parse(runModule(program));
 }
@@ -144,6 +144,13 @@ describe('the probe holds the pet to what the walk added before it watches', () 
   it('fails when the saved pet holds fewer photos than were added', () => {
     expect(petCheck({ name: 'Toffee', referenceImages: ['a', 'b'] })).toBe('the saved pet holds 2 photos, not 3');
     expect(petCheck({ name: 'Toffee' })).toBe('the saved pet holds 0 photos, not 3');
+  });
+
+  it('fails when the saved pet holds the photos in another order than setup showed them', () => {
+    expect(petCheck({ name: 'Toffee', referenceImages: ['b', 'a', 'c'] }, 3, ['a', 'b', 'c'])).toBe(
+      'the saved pet holds the photos in another order than setup showed them',
+    );
+    expect(petCheck({ name: 'Toffee', referenceImages: ['a', 'b', 'c'] }, 3, ['a', 'b', 'c'])).toBeNull();
   });
 
   it('passes a pet saved with every photo', () => {
