@@ -3205,13 +3205,20 @@ export async function checkApp(browser, baseUrl, outDir) {
       sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
     };
   });
+  // A meter stands empty until its own first reading (Motion's needs two
+  // pictures to compare), so the walks wait until every meter has its state
+  // word or its problem line.
+  const everyMeterRead = (page) => page.waitForFunction(() => {
+    const meters = [...document.querySelectorAll('.watch-meter:not(.watch-meter--pet)')];
+    return meters.length > 0 && meters.every((meter) => meter.querySelector('.watch-meter__state, .watch-meter__problem'));
+  }, null, { timeout: 10_000 }).catch(() => {});
   for (const look of LOOKS) {
     for (const width of [320, 390, 820, 1024, 1280, 1920]) {
       await open({ name: 'watch, the meters', width, look }, async (page, context, check) => {
         await visit(page, '/monitor/');
         await page.getByRole('button', { name: 'Start watching', exact: true }).click();
         await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
-        await page.locator('.watch-meter__state').first().waitFor({ timeout: 10_000 }).catch(() => {});
+        await everyMeterRead(page);
         const read = await meterReading(page);
         check(read.meters.length > 0, `at ${width} px the live picture shows no meter`);
         const names = read.meters.map((meter) => meter.name);
@@ -3378,7 +3385,7 @@ export async function checkApp(browser, baseUrl, outDir) {
           if (watching) {
             await page.getByRole('button', { name: 'Start watching', exact: true }).click();
             await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
-            await page.locator('.watch-meter__state').first().waitFor({ timeout: 10_000 }).catch(() => {});
+            await everyMeterRead(page);
           }
           const watch = await page.$('main.watch');
           if (!watch) throw new Error('the page has no main.watch');
