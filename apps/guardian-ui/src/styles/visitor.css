@@ -940,7 +940,7 @@ html.light .maker-mark__image--light {
   margin: 0;
   color: var(--color-steel-50);
   font-size: var(--type-body-size);
-  line-height: var(--type-body-line);
+  line-height: 1.55;
   font-weight: var(--weight-regular);
   text-wrap: pretty;
 }
@@ -999,7 +999,7 @@ html.light .maker-mark__image--light {
 }
 
 .home-detection__lead {
-  max-width: 58ch;
+  max-width: 48ch;
   margin-inline: auto;
 }
 
@@ -1166,6 +1166,8 @@ html.light .maker-mark__image--light {
 }
 
 .home-detection__code {
+  display: flex;
+  justify-content: center;
   margin-top: 16px;
   text-align: center;
 }
@@ -1696,7 +1698,7 @@ html.light .capture__pic--light {
   margin: 0;
   color: var(--color-steel-50);
   font-size: var(--type-body-size);
-  line-height: var(--type-body-line);
+  line-height: 1.55;
 }
 
 .home-use p a {
@@ -1752,6 +1754,11 @@ html.light .capture__pic--light {
 /* =============================================================================
    Home page: how it works
    ============================================================================= */
+
+#one-device .home-wrap {
+  --home-column-gap: 24px;
+  container-type: inline-size;
+}
 
 .home-how {
   display: grid;
@@ -1843,7 +1850,7 @@ html.light .capture__pic--light {
   color: var(--look-accent);
 }
 
-@media (min-width: 48em) {
+@container (min-width: 44rem) {
   .home-how {
     grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
     grid-template-areas: 'steps qr' 'note note';
@@ -1853,6 +1860,29 @@ html.light .capture__pic--light {
     align-self: start;
     justify-self: center;
     max-width: 28ch;
+  }
+}
+
+@media (min-width: 90em) {
+  #one-device .home-wrap {
+    --home-column-gap: 32px;
+  }
+}
+
+@container (min-width: 60rem) {
+  .home-how {
+    --color-steel-50: var(--visitor-panel-ink);
+    width: calc((200% - var(--home-column-gap)) / 3);
+    margin-inline: auto;
+    padding: 32px;
+    border: 1px solid var(--color-steel-300);
+    border-radius: 12px;
+    background: var(--color-steel-900);
+  }
+
+  .home-qr {
+    padding: 0;
+    background: transparent;
   }
 }
 
@@ -1992,10 +2022,13 @@ html.light .capture__pic--light {
 
 .home-use p a,
 .home-free__words p a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  max-width: 100%;
+  /* Give every line fragment a touch target without changing the paragraph's leading. */
+  --inline-link-padding: max(0px, calc((44px - 1em) / 2));
+  display: inline;
+  padding-block: var(--inline-link-padding);
+  margin-block: calc(-1 * var(--inline-link-padding));
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
 @container (width < 44rem) {

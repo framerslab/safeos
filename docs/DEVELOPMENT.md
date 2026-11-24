@@ -485,7 +485,9 @@ Download the artifact from the run's summary page, or with
 When the route list includes `/`, both builds capture the first visit at
 390 × 844 and 1440 × 900 in both looks at a device scale of 2. The proposed
 build also captures the HTML diagram, the expanded Lost and Found card, the
-device steps, the uses and the closing section.
+device steps, the uses and the closing section. The device pictures include
+the full server section. Full-page home captures wait for the QR image to
+decode, and the phone captures show it in both looks.
 
 The walk in `apps/guardian-ui/scripts/home-checks.mjs` checks the supplied
 capture and its crop, the header and Menu, native disclosure grouping, QR,
@@ -496,7 +498,9 @@ origin and records any camera, microphone or notification permission
 requests. The starting page and disclosures also have offline and script-off
 coverage.
 
-The walk pairs the screenshot PNGs with CSS word ranges. The CI step runs
+The walk pairs the screenshot PNGs with CSS word ranges. It opens each
+disclosure in turn to measure its text and the privacy link. The CI step
+requires the ranges whenever the route list includes `/`. It runs
 `python3 -I scripts/contrast-sample.py` with Pillow to measure stroke
 contrast from the same 2× pixels and verify font sizes, glyphs and edges.
 The `pictures` artifact includes `home-readability.json` with the named
@@ -507,6 +511,8 @@ The Pages build hashes `out/index.html`. After the master Pages deploy,
 [the published home](https://safeos.sh/) with service workers blocked. It
 compares the HTML with the build hash and checks the lockup, the six
 disclosures, the technical deep link and the setup destinations at both widths.
+It retries navigation failures and stale responses using a fresh browser
+context for each attempt.
 
 The control names below are reserved for a future measurement decision.
 The home loads no analytics library and sends no events.

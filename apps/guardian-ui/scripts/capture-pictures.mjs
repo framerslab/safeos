@@ -94,7 +94,10 @@ await mkdir(outDir, { recursive: true });
 const browser = await chromium.launch();
 let failures = 0;
 try {
-  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir);
+  const homeChecks = process.env.PICTURE_VERSION === 'after' && routes.includes('/')
+    ? await import('./home-checks.mjs')
+    : null;
+  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks?.loadHomeQr);
   for (const route of routes) {
     for (const size of WIDTHS) {
       for (const look of LOOKS) {
@@ -172,6 +175,7 @@ try {
           } else if (route === '/privacy/') {
             await page.locator('#main-content').screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
           } else {
+            if (route === '/' && homeChecks) await homeChecks.loadHomeQr(page);
             await page.screenshot({ path: file, fullPage: true });
           }
           console.log(`captured ${file}`);
@@ -213,12 +217,8 @@ try {
       }
     }
   }
-  if (process.env.PICTURE_VERSION === 'after' && routes.includes('/')) {
-    failures += await checkFirstVisit(browser, baseUrl, outDir);
-    // The base build has no such file, so it is loaded only for the pull
-    // request's own build.
-    const { checkHomePage } = await import('./home-checks.mjs');
-    failures += await checkHomePage(browser, baseUrl, outDir);
+  if (homeChecks) {
+    failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
     failures += await checkHomeUseSetup(browser, baseUrl);
   }
   // The app's own pages, for the pull request's own build. The base build
@@ -486,7 +486,7 @@ function contrastOf(locator) {
   });
 }
 
-async function captureHomeFirst(browser, baseUrl, outDir) {
+async function captureHomeFirst(browser, baseUrl, outDir, loadHomeQr) {
   let failures = 0;
   for (const [width, height] of [[390, 844], [1440, 900]]) {
     for (const look of LOOKS) {
@@ -502,11 +502,25 @@ async function captureHomeFirst(browser, baseUrl, outDir) {
         await page.screenshot({ path: path.join(outDir, first), scale: 'device', caret: 'hide' });
         console.log(`captured ${first}`);
 
-        if (process.env.PICTURE_VERSION !== 'after') continue;
+        if (!loadHomeQr) continue;
         const hideBar = 'nav[aria-label="Site"] { visibility: hidden !important; }';
         const picture = async (locator, name) => {
           const file = `home-${name}-${width}-${look}.png`;
-          await locator.screenshot({ path: path.join(outDir, file), scale: 'device', style: hideBar, timeout: 15_000 });
+          // Use document coordinates so a section can extend below the viewport.
+          const clip = await locator.evaluate((section) => {
+            const rect = section.getBoundingClientRect();
+            const x = Math.floor(rect.left + window.scrollX);
+            const y = Math.floor(rect.top + window.scrollY);
+            return {
+              x, y,
+              width: Math.ceil(rect.right + window.scrollX) - x,
+              height: Math.ceil(rect.bottom + window.scrollY) - y,
+            };
+          });
+          await page.screenshot({
+            path: path.join(outDir, file), clip, fullPage: true, scale: 'device',
+            style: hideBar, caret: 'hide', timeout: 15_000,
+          });
           console.log(`captured ${file}`);
         };
         if ((width === 390 && look === 'light') || (width === 1440 && look === 'dark')) {
@@ -516,10 +530,12 @@ async function captureHomeFirst(browser, baseUrl, outDir) {
           const lostAndFound = page.locator('[data-card="lost-found"]');
           await lostAndFound.locator('summary').press('Space');
           await picture(lostAndFound, 'lost-and-found');
-          const device = page.locator('#one-device');
-          await device.locator('img').scrollIntoViewIfNeeded();
-          await device.locator('img').evaluate((image) => image.decode());
-          await picture(device, 'device');
+        }
+        if (width === 390 || look === 'dark') {
+          await loadHomeQr(page);
+          await picture(page.locator('#one-device'), 'device');
+        }
+        if (width === 1440 && look === 'dark') {
           await picture(page.locator('#uses'), 'uses');
           await picture(page.locator('section:has(.home-closing)'), 'closing');
         }
@@ -922,25 +938,17 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 // -----------------------------------------------------------------------------
 
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
-// Both versions: the watch at 390 and 1280 px in both looks while its camera
-// starts, with a blocked camera, while watching, and with its settings open
-// (monitor-watch-<state>-<width>-<look>.png). The base build's start key reads
-// "Start Monitoring" and this build's "Start watching"; the base build has no
-// Show settings, so its settings picture is the page as it stands, scrolled
-// to its settings. Each picture waits for its state to show (this build's
-// Starting the camera…, Try again and Hide settings; the base build's Cancel
-// Starting, Camera Error and Mode Selection), and a state that does not show
-// fails that picture alone. A canvas stands in for the camera.
+// Capture both versions of the watch while its camera starts, with a blocked
+// camera, while watching and with its settings open. The fixture supports
+// the older watch with always-visible settings and the watch with a fold.
 async function captureWatchStates(browser, baseUrl, outDir) {
   let failed = 0;
   const after = process.env.PICTURE_VERSION === 'after';
   const startKey = (page) => page.getByRole('button', { name: /^(Start watching|Start Monitoring)$/ }).first();
   const stopKey = (page) => page.getByRole('button', { name: /^(Stop watching|Stop Monitoring)$/ }).first();
-  // What each version shows once the state stands: this build's key and Try
-  // again; the base build's Cancel Starting and its camera's error.
-  const shownFor = (page, state) => (state === 'starting'
-    ? page.getByRole('button', { name: after ? 'Starting the camera…' : 'Cancel Starting', exact: true })
-    : after
+  const shownFor = (page, state, hasSettingsFold) => (state === 'starting'
+    ? page.getByRole('button', { name: hasSettingsFold ? 'Starting the camera…' : 'Cancel Starting', exact: true })
+    : hasSettingsFold
       ? page.getByRole('button', { name: 'Try again', exact: true })
       : page.getByText('Camera Error', { exact: true })).first();
   for (const state of ['starting', 'blocked', 'watching', 'settings']) {
@@ -986,8 +994,9 @@ async function captureWatchStates(browser, baseUrl, outDir) {
           }, state === 'starting' ? 'held' : state === 'blocked' ? 'blocked' : 'ok');
           const page = await context.newPage();
           await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+          const hasSettingsFold = after || await page.locator('.watch-fold').count() > 0;
           if (state === 'settings') {
-            if (after) {
+            if (hasSettingsFold) {
               await page.getByRole('button', { name: 'Show settings', exact: true }).click({ timeout: 30_000 });
               await page.getByRole('button', { name: 'Hide settings', exact: true }).waitFor({ timeout: 10_000 });
               await page.locator('.watch-fold').scrollIntoViewIfNeeded();
@@ -1000,9 +1009,9 @@ async function captureWatchStates(browser, baseUrl, outDir) {
               await stopKey(page).waitFor({ timeout: 30_000 });
               await page.waitForTimeout(2_000);
               // Stop watching shows while paused too; the picture is taken live.
-              if (after) await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 10_000 });
+              if (hasSettingsFold) await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 10_000 });
             } else {
-              await shownFor(page, state).waitFor({ timeout: 30_000 });
+              await shownFor(page, state, hasSettingsFold).waitFor({ timeout: 30_000 });
             }
             await page.evaluate(() => window.scrollTo(0, 0));
           }

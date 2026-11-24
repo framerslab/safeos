@@ -11,6 +11,7 @@ from PIL import Image
 
 
 FLOORS = {"body": (12, 18), "label": (7, 16), "glyph": (4.5, 0), "edge": (4.5, 0)}
+DISCLOSURES = ("motion", "sound", "people-animals", "lost-found", "offline", "storage")
 
 
 def linear(channel):
@@ -95,10 +96,23 @@ def main():
     sources = json.loads((args.directory / "home-readability-boxes.json").read_text())
     reports = []
     errors = []
-    if len(sources) != 4:
-        errors.append(f"expected four home pictures, found {len(sources)}")
+    expected = {
+        f"home-readability{('-' + card) if card else ''}-{width}-{look}.png": card
+        for width in (390, 1440)
+        for look in ("dark", "light")
+        for card in ("", *DISCLOSURES)
+    }
+    files = [source["file"] for source in sources]
+    missing = expected.keys() - set(files)
+    unexpected = set(files) - expected.keys()
+    if missing or unexpected or len(files) != len(set(files)):
+        errors.append(f"invalid home picture set: missing {sorted(missing)}, unexpected {sorted(unexpected)}"
+                      f", {len(files) - len(set(files))} duplicates")
     for source in sources:
         file = source["file"]
+        card = expected.get(file)
+        if card is None:
+            continue
         scale = source["scale"]
         with Image.open(args.directory / file) as original:
             image = original.convert("RGB")
@@ -113,7 +127,10 @@ def main():
             results.append(result)
             errors.extend(f"{file}: {box['name']!r} {message}" for message in result["errors"])
         minima = {}
-        for kind in FLOORS:
+        kinds = ["body"] if card else list(FLOORS)
+        if card == "storage":
+            kinds.append("label")
+        for kind in kinds:
             measured = [box for box in results if box["type"] == kind and "strokes" in box]
             if not measured:
                 errors.append(f"{file}: no sampled {kind} boxes")

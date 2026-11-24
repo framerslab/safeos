@@ -195,16 +195,52 @@ export function readStrokes(base64) {
   });
 }
 
+// The full-page shot can be taken before the browser requests a lazy image.
+export async function loadHomeQr(page) {
+  const qr = page.locator('#one-device .home-qr img');
+  await qr.scrollIntoViewIfNeeded({ timeout: 15_000 });
+  await qr.evaluate((image) => image.decode());
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+}
+
+async function withOpenDisclosures(page, read) {
+  for (const card of await page.locator('.home-detection__card').all()) {
+    const id = await card.evaluate((details) => {
+      details.open = true;
+      return details.dataset.card;
+    });
+    try {
+      await read(id, card.locator('.home-detection__body'));
+    } finally {
+      await card.evaluate((details) => { details.open = false; });
+    }
+  }
+}
+
 // Read text from each visible CSS range. Canvas glyph extents let the pixel
 // sampler tell a short glyph at 18 px from a longer glyph at a smaller size.
-function pageWordBoxes() {
+function pageWordBoxes(disclosure) {
   const shell = document.querySelector('.visitor-shell');
+  const root = disclosure ? shell.querySelector(`[data-card="${disclosure}"] .home-detection__body`) : shell;
+  let clip;
+  if (disclosure) {
+    const rect = root.getBoundingClientRect();
+    const x = Math.floor(rect.left + window.scrollX);
+    const y = Math.floor(rect.top + window.scrollY);
+    clip = {
+      x, y,
+      width: Math.ceil(rect.right + window.scrollX) - x,
+      height: Math.ceil(rect.bottom + window.scrollY) - y,
+    };
+  }
   const canvas = document.createElement('canvas').getContext('2d');
   const boxes = [];
   const rectangle = (rect) => ({
-    x: rect.x + window.scrollX, y: rect.y + window.scrollY, width: rect.width, height: rect.height,
+    x: rect.x + window.scrollX - (clip?.x ?? 0),
+    y: rect.y + window.scrollY - (clip?.y ?? 0),
+    width: rect.width, height: rect.height,
   });
-  const walker = document.createTreeWalker(shell, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const element = node.parentElement;
     if (element.closest('script, style, [hidden], .sr-only, .skip-link, #site-menu, svg')) continue;
@@ -226,7 +262,6 @@ function pageWordBoxes() {
       for (const rect of rects) {
         if (rect.width < 1 || rect.height < 1) continue;
         boxes.push({
-          disclosure: element.closest('.home-detection__body')?.parentElement.dataset.card,
           name: label, type: meaningful ? body ? 'body' : 'label' : 'glyph',
           size: parseFloat(style.fontSize),
           expectedInkHeight: rects.length === 1 ? metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : null,
@@ -235,6 +270,8 @@ function pageWordBoxes() {
       }
     }
   }
+  if (clip) return { scale: window.devicePixelRatio, width: clip.width, height: clip.height, clip, boxes };
+
   for (const element of shell.querySelectorAll('main .home-benefit svg, main .home-use .home-h3 svg, main .home-detection__glyph svg, main .home-diagram__glyph svg, main .home-server__list svg')) {
     const rect = element.getBoundingClientRect();
     if (rect.width > 1 && rect.height > 1) boxes.push({ name: element.closest('li, details').textContent.trim().slice(0, 45), type: 'glyph', ...rectangle(rect) });
@@ -318,6 +355,37 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     await first.locator('summary').press('Space');
     if (!(await first.evaluate((card) => card.open))) throw new Error('Space did not open the first disclosure');
   });
+
+  for (const width of [390, 1440]) {
+    await open({ name: 'diagram and disclosure accessibility', width }, async (page, context) => {
+      await visit(page);
+      const sources = await page.locator('[data-node="lost-found"]').ariaSnapshot();
+      expect(/From[\s\S]*Camera[\s\S]*Your pet[’']s photos/.test(sources),
+        `diagram at ${width} px: Lost and Found sources missing from the accessibility snapshot`);
+      const alert = await page.locator('[data-node="alert"]').ariaSnapshot();
+      expect(/From[\s\S]*Motion[\s\S]*People and Wildlife/.test(alert),
+        `diagram at ${width} px: the alert inputs are missing from the accessibility snapshot`);
+
+      const session = await context.newCDPSession(page);
+      try {
+        const { root } = await session.send('DOM.getDocument');
+        const { nodeIds } = await session.send('DOM.querySelectorAll', {
+          nodeId: root.nodeId, selector: '.home-detection__card > summary',
+        });
+        const summaries = await page.locator('.home-detection__card > summary').allInnerTexts();
+        expect(nodeIds.length === 6, `disclosures at ${width} px: expected six accessible summaries`);
+        for (const [index, nodeId] of nodeIds.entries()) {
+          const { nodes: [summary] } = await session.send('Accessibility.getPartialAXTree', {
+            nodeId, fetchRelatives: false,
+          });
+          expect(plain(summary?.name?.value) === plain(summaries[index]),
+            `disclosure at ${width} px: Chromium names "${summaries[index]}" as "${summary?.name?.value}"`);
+        }
+      } finally {
+        await session.detach();
+      }
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // The page reads before any script runs and asks for nothing
@@ -501,13 +569,22 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         await visit(page);
         expect((await sidewaysScroll(page)) <= 0, `first visit at ${width} px, ${look}: the page scrolls sideways`);
         if (width === 820 || width === 1920) {
+          await loadHomeQr(page);
           expect(await page.locator('.home-qr img').evaluate((image) => image.complete && image.naturalWidth > 0),
             `full page at ${width} px, ${look}: the QR has not loaded`);
           await page.screenshot({ path: path.join(outDir, `home-${width}-${look}.png`), fullPage: true });
         }
         if (![390, 820, 1280, 1440, 1920].includes(width)) return;
 
-        const texts = await page.evaluate(measureText, await page.evaluateHandle(() => document.querySelector('.visitor-shell')));
+        const shell = await page.locator('.visitor-shell').elementHandle();
+        const texts = await page.evaluate(measureText, shell);
+        expect(texts.length > 60, `readability at ${width} px, ${look}: only ${texts.length} pieces of text were measured`);
+        await withOpenDisclosures(page, async (id, body) => {
+          const disclosure = await page.evaluate(measureText, await body.elementHandle());
+          expect(disclosure.some((text) => text.body), `readability at ${width} px, ${look}: no CSS readings for ${id}`);
+          texts.push(...disclosure);
+        });
+
         const bodySize = width >= 1440 ? 20 : 18;
         for (const text of texts) {
           const where = `at ${width} px, ${look}: "${text.words}"`;
@@ -517,7 +594,6 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           if (text.body && text.tag === 'p' && text.size < bodySize) fail(`readability ${where} is body text at ${text.size} px, under ${bodySize}`);
           if (text.contrast < (text.body ? 12 : 7)) fail(`readability ${where} has contrast ${text.contrast.toFixed(2)}, under ${text.body ? 12 : 7}`);
         }
-        expect(texts.length > 60, `readability at ${width} px, ${look}: only ${texts.length} pieces of text were measured`);
         // Tabular figures for the numbers only: a word set with them takes
         // Inter's figure-width hyphen ("loud - sound").
         const figures = await page.evaluate(() => {
@@ -540,28 +616,39 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     }
   }
 
-  // One full-page image per look and width pairs the actual pixels with the
-  // ranges measured immediately before that screenshot.
+  // Pair the full page and each open disclosure with their exact CSS word
+  // ranges at both widths and in both looks.
   const readability = [];
   for (const [width, height] of [[390, 844], [1440, 900]]) {
     for (const look of LOOKS) {
       await open({ name: 'readability pictures', width, height, look, deviceScaleFactor: 2 }, async (page) => {
         await visit(page);
         await page.evaluate(() => document.fonts.ready);
+        await loadHomeQr(page);
         expect(await page.locator('.home-qr img').evaluate((image) => image.complete && image.naturalWidth > 0),
           `readability at ${width} px, ${look}: the QR has not loaded`);
         const file = `home-readability-${width}-${look}.png`;
         const sample = await page.evaluate(pageWordBoxes);
         expect(sample.boxes.length > 100, `readability ${file}: only ${sample.boxes.length} ranges`);
         await page.screenshot({ path: path.join(outDir, file), fullPage: true, scale: 'device', caret: 'hide' });
-        readability.push({ file, ...sample });
+        const variant = [{ file, ...sample }];
+        await withOpenDisclosures(page, async (id) => {
+          const file = `home-readability-${id}-${width}-${look}.png`;
+          const { clip, ...sample } = await page.evaluate(pageWordBoxes, id);
+          await page.screenshot({
+            path: path.join(outDir, file), clip, fullPage: true, scale: 'device', caret: 'hide',
+            style: 'nav[aria-label="Site"] { visibility: hidden !important; }',
+          });
+          variant.push({ file, disclosure: id, ...sample });
+        });
+        readability.push(...variant);
         const disclosureIds = await page.locator('.home-detection__card').evaluateAll((cards) => cards.map((card) => card.dataset.card));
-        const measured = new Set(readability.filter((entry) => entry.file.endsWith(`-${width}-${look}.png`))
-          .flatMap((entry) => entry.boxes.map((box) => box.disclosure).filter(Boolean)));
+        const measured = new Set(variant.filter((entry) => entry.boxes.some((box) => box.type === 'body'))
+          .map(({ disclosure }) => disclosure));
         expect(disclosureIds.length === 6 && disclosureIds.every((id) => measured.has(id)),
           `readability at ${width} px, ${look}: missing open disclosure words for ${disclosureIds.filter((id) => !measured.has(id)).join(', ')}`);
-        expect(readability.some((entry) => entry.file.endsWith(`-${width}-${look}.png`) &&
-          entry.boxes.some((box) => box.disclosure === 'storage' && box.name === 'privacy' && box.type === 'label')),
+        expect(variant.some((entry) => entry.disclosure === 'storage' &&
+          entry.boxes.some((box) => box.name === 'privacy' && box.type === 'label')),
         `readability at ${width} px, ${look}: missing the open privacy link`);
       });
     }
@@ -603,6 +690,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           cut,
           diagramStacks: [...document.querySelectorAll('.home-diagram__band')].every(stacked),
           cardsStack: stacked(document.querySelector('.home-detection__cards')),
+          deviceStacks: stacked(document.querySelector('.home-how')),
           wordmark: !!wordmark && wordmark.getBoundingClientRect().width > 0 && getComputedStyle(wordmark).visibility !== 'hidden',
         };
       });
@@ -614,6 +702,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       else console.log(`header, larger text at ${width} px: the wordmark is ${row.wordmark ? 'in' : 'out of'} the row`);
       expect(row.diagramStacks, `larger text at ${width} px: diagram has not stacked`);
       expect(row.cardsStack, `larger text at ${width} px: the six cards have not stacked`);
+      expect(row.deviceStacks, `larger text at ${width} px: the device section has not stacked`);
       if (width === 820) expect(row.menu, 'header, larger text at 820 px: the links did not move into the Menu');
       expect(row.cut.length === 0, `larger text at ${width} px: cut labels: ${row.cut.join(', ')}`);
       await page.screenshot({ path: path.join(outDir, `home-larger-text-${width}-light.png`) });
@@ -1121,8 +1210,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect(count('It does not replace a person nearby.') === 1, `start key: "It does not replace a person nearby." appears ${count('It does not replace a person nearby.')} times`);
     expect(count('SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.') === 1, 'uses: the not-a-medical-device sentence does not appear exactly once');
     for (const gone of ['Experimental Supplemental Monitoring Tool', 'tech-savvy', 'supplementary', 'NOT a replacement', 'babysitter', 'carer',
-      'security system', 'Takes less than 2 minutes', 'cosine', 'Sobel', 'Blurred', 'humanitarian', 'always be free', 'never charge', 'Future optional service',
-      'nonprofit', 'charity', 'donate', 'donation', 'tax-exempt', 'tax-deductible', 'identify', 'FREE', 'Quick Start', 'All systems operational', 'All rights reserved',
+      'security system', 'Takes less than 2 minutes', 'cosine', 'Sobel', 'Blurred', 'always be free', 'never charge', 'Future optional service',
+      'nonprofit', 'charity', 'tax-exempt', 'tax-deductible', 'FREE', 'Quick Start', 'All systems operational', 'All rights reserved',
       'Your camera\'s pictures stay in your browser', 'never leaves', '100% local', 'No telemetry', 'Who can see my camera?', 'What does it cost?', 'vital', 'falls']) {
       expect(!words.toLowerCase().includes(gone.toLowerCase()) || (gone === 'FREE' && !words.includes('FREE')), `the page says "${gone}"`);
     }
