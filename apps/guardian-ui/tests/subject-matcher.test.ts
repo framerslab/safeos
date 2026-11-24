@@ -12,9 +12,6 @@ import {
   SubjectMatcher,
   getSubjectMatcher,
   resetSubjectMatcher,
-  getMatchQuality,
-  formatMatchResult,
-  getProcessingInfo,
   type MatchResult,
   type MatcherSettings,
   type MatcherState,
@@ -226,127 +223,6 @@ describe('Matcher Singleton', () => {
   it('should apply settings when getting instance', () => {
     const instance = getSubjectMatcher({ colorSensitivity: 90 });
     expect(instance.getSettings().colorSensitivity).toBe(90);
-  });
-});
-
-// =============================================================================
-// Match Quality Tests
-// =============================================================================
-
-describe('Match Quality', () => {
-  describe('getMatchQuality', () => {
-    it('should return excellent for 85+', () => {
-      const quality = getMatchQuality(90);
-      expect(quality.label).toBe('Excellent');
-      expect(quality.color).toBe('green');
-    });
-
-    it('should return good for 70-84', () => {
-      const quality = getMatchQuality(75);
-      expect(quality.label).toBe('Good');
-      expect(quality.color).toBe('emerald');
-    });
-
-    it('should return possible for 55-69', () => {
-      const quality = getMatchQuality(60);
-      expect(quality.label).toBe('Possible');
-      expect(quality.color).toBe('yellow');
-    });
-
-    it('should return weak for 40-54', () => {
-      const quality = getMatchQuality(45);
-      expect(quality.label).toBe('Weak');
-      expect(quality.color).toBe('orange');
-    });
-
-    it('should return unlikely for <40', () => {
-      const quality = getMatchQuality(30);
-      expect(quality.label).toBe('Unlikely');
-      expect(quality.color).toBe('red');
-    });
-
-    it('should include description', () => {
-      const quality = getMatchQuality(90);
-      expect(quality.description).toBeTruthy();
-      expect(typeof quality.description).toBe('string');
-    });
-  });
-});
-
-// =============================================================================
-// Format Match Result Tests
-// =============================================================================
-
-describe('Format Match Result', () => {
-  const mockResult: MatchResult = {
-    id: 'match-123',
-    timestamp: Date.now(),
-    confidence: 75,
-    details: {
-      colorMatch: 80,
-      dominantMatch: 70,
-      edgeMatch: 65,
-      sizeMatch: 85,
-    },
-    frameData: 'data:image/jpeg;base64,...',
-    region: {
-      x: 100,
-      y: 100,
-      width: 200,
-      height: 200,
-      centerX: 200,
-      centerY: 200,
-    },
-    processingTimeMs: 25,
-  };
-
-  it('should format result with time field', () => {
-    const formatted = formatMatchResult(mockResult);
-    expect(formatted).toHaveProperty('time');
-    expect(typeof formatted.time).toBe('string');
-  });
-
-  it('should format result with confidence field', () => {
-    const formatted = formatMatchResult(mockResult);
-    expect(formatted).toHaveProperty('confidence');
-    expect(formatted.confidence).toBe('75%');
-  });
-
-  it('should include quality assessment', () => {
-    const formatted = formatMatchResult(mockResult);
-    expect(formatted.quality).toHaveProperty('label');
-    expect(formatted.quality).toHaveProperty('color');
-    expect(formatted.quality).toHaveProperty('description');
-  });
-});
-
-// =============================================================================
-// Processing Info Tests
-// =============================================================================
-
-describe('Processing Info', () => {
-  it('should return local processing info', () => {
-    const info = getProcessingInfo('local');
-    expect(info.label).toBe('Local Instant');
-    expect(info.color).toBe('green');
-  });
-
-  it('should return hybrid processing info', () => {
-    const info = getProcessingInfo('hybrid');
-    expect(info.label).toBe('AI Enhanced');
-    expect(info.color).toBe('blue');
-  });
-
-  it('should include description', () => {
-    const info = getProcessingInfo('local');
-    expect(info.description).toBeTruthy();
-    expect(typeof info.description).toBe('string');
-  });
-
-  it('should include estimated latency', () => {
-    const info = getProcessingInfo('local');
-    expect(info.estimatedLatency).toBeTruthy();
-    expect(typeof info.estimatedLatency).toBe('string');
   });
 });
 

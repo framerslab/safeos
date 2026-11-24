@@ -27,10 +27,10 @@ export default function GalleryPage() {
           </Link>
           
           <h1 className="text-2xl font-bold text-white mb-2">
-            Match Gallery
+            Possible sightings
           </h1>
           <p className="text-[var(--color-steel-400)]">
-            Browse and manage all captured potential matches
+            The pictures the watch saved when what it saw was like your pet’s photos.
           </p>
         </div>
 

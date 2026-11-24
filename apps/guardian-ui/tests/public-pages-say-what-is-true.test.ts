@@ -27,6 +27,10 @@
  * the money words and the health entries only: a caption that says a dog
  * barks is no claim that SafeOS recognises a bark, and no page says it does.
  *
+ * Lost and Found's screens are read for score words too: the comparison is
+ * of colours and coarse shape, so a sighting is a question the person
+ * checks, never a match, a confidence or a quality.
+ *
  * It also checks that every page naming babies carries the not-a-medical-
  * device sentence (the home page is read with the components it renders),
  * that each file describing the motion gate names the five-second check
@@ -290,6 +294,28 @@ const UNBACKED_CLAIMS: Phrase[] = [
   { pattern: /nothing about you is collected|We collect nothing/i, why: 'the host logs each visitor\'s IP address' },
 ];
 
+// Lost and Found's screens: setup, the pet's cards, the gallery, the
+// full-screen pictures, the Lost & Found page and its gallery, the watch (the
+// notification and the link to the saved pictures) and the store (the spoken
+// line).
+const LOST_FOUND_SCREENS = [
+  component('LostFoundSetup.tsx'),
+  component('SubjectPreview.tsx'),
+  component('MatchGallery.tsx'),
+  component('LostFoundMediaOverlay.tsx'),
+  app('src', 'app', 'lost-found', 'page.tsx'),
+  app('src', 'app', 'lost-found', 'gallery', 'page.tsx'),
+  app('src', 'app', 'monitor', 'page.tsx'),
+  app('src', 'stores', 'lost-found-store.ts'),
+];
+
+const LOST_FOUND_SCORE_WORDS: Phrase[] = [
+  {
+    pattern: /Match Detected|Potential Match|potential matches|matches found|consecutive match|Recent Matches|Match History|View Matches|High(est)? Confidence|Current Match Confidence|>\s*Confidence\s*<|% confidence|Fewer, accurate|likelihood of match|has been detected|when detected|colours match|can match too|better matching|improves matching/,
+    why: 'Lost and Found compares colours and coarse shape: a sighting is a question the person checks, with no score, percentage or quality word',
+  },
+];
+
 type Hit = string;
 
 /** Blanks code comments (keeping line breaks) in a TypeScript source. */
@@ -517,6 +543,11 @@ describe('the public pages say what the software does', () => {
 
   it('no page uses a money word or asks for money', () => {
     expect(findPhrases(MONEY_WORDS)).toEqual([]);
+  });
+
+  it('no Lost and Found screen shows a score word', () => {
+    expect(LOST_FOUND_SCREENS.filter((f) => !fs.existsSync(f)).map(rel)).toEqual([]);
+    expect(findPhrases(LOST_FOUND_SCORE_WORDS, LOST_FOUND_SCREENS)).toEqual([]);
   });
 
   it('no page makes a claim the code does not back', () => {

@@ -1,27 +1,92 @@
 /**
  * Subject Preview Component
  * 
- * Displays the active subject being watched with
- * real-time confidence meter and match indicators.
+ * Displays the active subject being watched, with the comparison's reading
+ * against the alert line and the checks in a row like the pet's photos.
  * 
  * @module components/SubjectPreview
  */
 
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { IconPaw, IconUser, IconSearch, IconX, IconCheck } from './icons';
 import { useLostFoundStore } from '../stores/lost-found-store';
-import { getMatchQuality } from '../lib/subject-matcher';
+import { LINE_WORDS, checksInARow, lineState, savedSightings } from '../lib/lost-found-words';
 import { addReferencePhotos, generateFingerprint } from '../lib/visual-fingerprint';
 import { MAX_PET_PHOTOS } from '../lib/pet-photo-limits';
 import { createThumbnailFromSource, readFileAsDataUrl } from '../lib/image-utils';
 import { saveSubjectProfile, type SubjectProfileDB } from '../lib/client-db';
 import { readAccountClearMarker } from '../lib/local-data-generation';
+import type { MatchResult } from '../lib/subject-matcher';
 
 // =============================================================================
 // Types
 // =============================================================================
+
+interface SightingReadingProps {
+  score: number;
+  alertLine: number;
+  full?: boolean;
+}
+
+export function SightingReading({ score, alertLine, full = false }: SightingReadingProps) {
+  const state = lineState(score, alertLine);
+  const over = state === 'over';
+  const bar = over ? 'bg-orange-400' : 'bg-emerald-500';
+
+  return (
+    <div className="space-y-1">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 text-sm">
+        <span className="text-[var(--color-steel-300)]">
+          {full ? 'Colours and shape now' : 'Colours and shape'}
+        </span>
+        <span className="font-medium text-[var(--color-steel-50)]">{LINE_WORDS[state]}</span>
+      </div>
+      <div aria-hidden="true" className="h-1.5 bg-[var(--color-steel-700)] rounded-full overflow-hidden">
+        <div
+          className={`h-full transition-all duration-300 motion-reduce:transition-none ${bar}`}
+          style={{ width: `${Math.max(score, 0)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+interface RecentSightingsProps {
+  sightings: MatchResult[];
+  alertLine: number;
+}
+
+export function RecentSightings({ sightings, alertLine }: RecentSightingsProps) {
+  if (sightings.length === 0) return null;
+
+  return (
+    <div>
+      <h4 className="text-sm font-medium text-[var(--color-steel-300)] mb-3">
+        Recent possible sightings
+      </h4>
+      <div className="space-y-2">
+        {sightings.slice(0, 5).map((sighting) => {
+          const over = lineState(sighting.confidence, alertLine) === 'over';
+          return (
+            <div
+              key={sighting.id}
+              className="flex flex-wrap items-center justify-between gap-x-2 p-2 bg-[var(--color-steel-800)] rounded-lg"
+            >
+              <span className="text-sm text-[var(--color-steel-300)]">
+                {new Date(sighting.timestamp).toLocaleTimeString()}
+              </span>
+              <span className="text-sm font-medium text-[var(--color-steel-50)]">
+                {over ? 'Over the line' : 'Under the line'}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 interface SubjectPreviewProps {
   /** Display mode: 'compact' for overlay, 'full' for standalone */
@@ -40,6 +105,8 @@ interface SubjectPreviewProps {
    * the marker read as the photos are picked counts.
    */
   savedUnder?: () => string;
+  /** How many pictures this device keeps for the subject, when the caller read them. */
+  savedPictures?: number;
 }
 
 // =============================================================================
@@ -53,6 +120,7 @@ export function SubjectPreview({
   onClick,
   onPhotosSaved,
   savedUnder,
+  savedPictures,
 }: SubjectPreviewProps) {
   const {
     activeSubject,
@@ -62,15 +130,14 @@ export function SubjectPreview({
     recentMatches,
     stopWatching,
     updateSubject,
+    settings,
   } = useLostFoundStore();
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUpdatingReferences, setIsUpdatingReferences] = useState(false);
   const [referenceError, setReferenceError] = useState<string | null>(null);
 
-  const quality = useMemo(() => {
-    return currentConfidence > 0 ? getMatchQuality(currentConfidence) : null;
-  }, [currentConfidence]);
+  const alertLine = settings.minConfidenceForAlert;
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -166,6 +233,7 @@ export function SubjectPreview({
   if (mode === 'compact') {
     return (
       <div
+        data-lost-found-card="picture"
         className={`
           bg-[var(--color-steel-900)]/95 backdrop-blur-sm
           border border-[var(--color-steel-700)] rounded-xl
@@ -223,40 +291,17 @@ export function SubjectPreview({
           )}
         </div>
         
-        {/* Confidence meter */}
+        {/* The reading against the alert line */}
         {isWatching && (
           <div className="space-y-1">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-[var(--color-steel-400)]">Confidence</span>
-              <span className={quality ? `text-${quality.color}-400` : 'text-[var(--color-steel-500)]'}>
-                {currentConfidence > 0 ? `${currentConfidence}%` : 'Scanning...'}
-              </span>
-            </div>
-            <div className="h-1.5 bg-[var(--color-steel-700)] rounded-full overflow-hidden">
-              <div
-                className={`h-full transition-all duration-300 ${
-                  quality
-                    ? quality.color === 'green'
-                      ? 'bg-green-500'
-                      : quality.color === 'emerald'
-                        ? 'bg-emerald-500'
-                        : quality.color === 'yellow'
-                          ? 'bg-yellow-500'
-                          : quality.color === 'orange'
-                            ? 'bg-orange-500'
-                            : 'bg-red-500'
-                    : 'bg-[var(--color-steel-600)]'
-                }`}
-                style={{ width: `${Math.max(currentConfidence, 0)}%` }}
-              />
-            </div>
-            
-            {/* Match indicator */}
+            <SightingReading score={currentConfidence} alertLine={alertLine} />
+
+            {/* Checks in a row like the pet's photos */}
             {consecutiveMatches > 0 && (
               <div className="flex items-center gap-1 mt-2">
                 <IconCheck size={12} className="text-emerald-400" />
                 <span className="text-xs text-emerald-400">
-                  {consecutiveMatches} consecutive match{consecutiveMatches !== 1 ? 'es' : ''}
+                  {checksInARow(consecutiveMatches, activeSubject.name)}
                 </span>
               </div>
             )}
@@ -268,7 +313,7 @@ export function SubjectPreview({
 
   // Full mode
   return (
-    <div className="bg-[var(--color-steel-900)] border border-[var(--color-steel-700)] rounded-xl p-6">
+    <div data-lost-found-card="full" className="bg-[var(--color-steel-900)] border border-[var(--color-steel-700)] rounded-xl p-6">
       {/* Header */}
       <div className="flex items-start gap-4 mb-6">
         {/* Subject image */}
@@ -301,8 +346,12 @@ export function SubjectPreview({
           
           <div className="flex items-center gap-2 text-sm text-[var(--color-steel-400)]">
             <span className="capitalize">{activeSubject.type}</span>
-            <span>•</span>
-            <span>{activeSubject.matchCount} matches found</span>
+            {savedPictures !== undefined && (
+              <>
+                <span>•</span>
+                <span>{savedSightings(savedPictures)}</span>
+              </>
+            )}
           </div>
           
           {activeSubject.description && (
@@ -327,84 +376,14 @@ export function SubjectPreview({
         )}
       </div>
       
-      {/* Confidence display */}
       {isWatching && (
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-[var(--color-steel-300)]">
-              Current Match Confidence
-            </span>
-            <span className={`text-2xl font-bold ${
-              quality
-                ? quality.color === 'green'
-                  ? 'text-green-400'
-                  : quality.color === 'emerald'
-                    ? 'text-emerald-400'
-                    : quality.color === 'yellow'
-                      ? 'text-yellow-400'
-                      : quality.color === 'orange'
-                        ? 'text-orange-400'
-                        : 'text-red-400'
-                : 'text-[var(--color-steel-500)]'
-            }`}>
-              {currentConfidence > 0 ? `${currentConfidence}%` : '—'}
-            </span>
-          </div>
-          
-          <div className="h-3 bg-[var(--color-steel-700)] rounded-full overflow-hidden">
-            <div
-              className={`h-full transition-all duration-300 ${
-                quality
-                  ? quality.color === 'green'
-                    ? 'bg-green-500'
-                    : quality.color === 'emerald'
-                      ? 'bg-emerald-500'
-                      : quality.color === 'yellow'
-                        ? 'bg-yellow-500'
-                        : quality.color === 'orange'
-                          ? 'bg-orange-500'
-                          : 'bg-red-500'
-                  : 'bg-[var(--color-steel-600)]'
-              }`}
-              style={{ width: `${Math.max(currentConfidence, 0)}%` }}
-            />
-          </div>
-          
-          {quality && (
-            <p className="text-sm text-[var(--color-steel-400)] mt-2">
-              {quality.description}
-            </p>
-          )}
+          <SightingReading score={currentConfidence} alertLine={alertLine} full />
         </div>
       )}
-      
-      {/* Recent matches */}
-      {recentMatches.length > 0 && (
-        <div>
-          <h4 className="text-sm font-medium text-[var(--color-steel-300)] mb-3">
-            Recent Matches
-          </h4>
-          <div className="space-y-2">
-            {recentMatches.slice(0, 5).map((match) => {
-              const matchQuality = getMatchQuality(match.confidence);
-              return (
-                <div
-                  key={match.id}
-                  className="flex items-center justify-between p-2 bg-[var(--color-steel-800)] rounded-lg"
-                >
-                  <span className="text-sm text-[var(--color-steel-300)]">
-                    {new Date(match.timestamp).toLocaleTimeString()}
-                  </span>
-                  <span className={`text-sm font-medium text-${matchQuality.color}-400`}>
-                    {match.confidence}%
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-      
+
+      <RecentSightings sightings={recentMatches} alertLine={alertLine} />
+
       {/* Reference images */}
       {activeSubject.referenceImages.length > 0 && (
         <div className="mt-6">
@@ -414,7 +393,7 @@ export function SubjectPreview({
                 Reference Images
               </h4>
               <p className="text-xs text-[var(--color-steel-500)] mt-1">
-                Add up to 5 photos (different angles/lighting improves matching).
+                Add up to 5 photos, each cropped close.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -472,8 +451,8 @@ export function SubjectPreview({
 // =============================================================================
 
 /**
- * The watched pet over the camera's picture: its photo, its name and how well
- * the picture matches. It has no key of its own: on the watch, Watch for is
+ * The watched pet over the camera's picture: its photo, its name and where the
+ * comparison's reading sits against the alert line. It has no key of its own: on the watch, Watch for is
  * where the comparison starts and stops, so the two never disagree.
  */
 export function SubjectPreviewOverlay() {
