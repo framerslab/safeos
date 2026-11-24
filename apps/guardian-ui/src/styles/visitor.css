@@ -1979,9 +1979,9 @@ html.light .capture__pic--light {
   background: var(--color-steel-900);
 }
 
-.home-first .key--start,
-.home-closing .key--start {
-  min-height: 56px;
+.home-first,
+.home-closing {
+  --start-key-height: 56px;
 }
 
 .home-use p a,

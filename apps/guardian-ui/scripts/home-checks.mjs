@@ -1153,7 +1153,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         h2s: [...document.querySelectorAll('main h2')].map(text),
         benefits: [...document.querySelectorAll('.home-benefit h3')].map(text),
         model: text(document.querySelector('[data-card="people-animals"] .home-detection__tags')),
-        useLinks: [...document.querySelectorAll('.home-use__key')].map((link) => link.getAttribute('href')),
+        useLinks: [...document.querySelectorAll('#uses .home-use__key')].map((link) => link.getAttribute('href')),
         noteLink: document.querySelector('.home-how__note a').href,
         codeLink: document.querySelector('.home-detection__code a').href,
         qr: document.querySelector('.home-qr img').alt,
@@ -1202,7 +1202,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
 
   await open({ name: 'returning use links', width: 390 }, async (page) => {
     await visit(page);
-    const keys = await page.locator('.home-use__key').evaluateAll((links) => links.map((link) => [link.textContent.trim(), link.pathname]));
+    const keys = await page.locator('#uses .home-use__key').evaluateAll((links) => links.map((link) => [link.textContent.trim(), link.pathname]));
     const want = ['Motion and sound', 'Motion and sound', 'Motion and sound', 'Lost and Found', 'Wildlife']
       .map((name, i) => [`Open ${name}`, `/${['monitor', 'monitor', 'monitor', 'lost-found', 'wildlife'][i]}/`]);
     expect(JSON.stringify(keys) === JSON.stringify(want), `returning use destinations: ${JSON.stringify(keys)}`);
@@ -1213,7 +1213,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     ['/', 'Uses', '#uses', '#uses-title'],
     ['/', 'How it works', '#how-it-works', '#detection-title'],
     ...[
-      ["A baby's nap", 'baby-nap'],
+      ['A baby’s nap', 'baby-nap'],
       ['A pet while you are out', 'pet-out'],
       ['An elderly parent', 'elderly-parent'],
       ['A lost pet near home', 'lost-pet'],

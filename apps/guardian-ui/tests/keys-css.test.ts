@@ -126,8 +126,9 @@ describe('the keys\' stylesheet', () => {
     // The look switch carries its own class and takes the icon key's box.
     const icon = keys.find((r) => r.selectors.includes('.key--icon') && r.selectors.includes('.look-switch'));
     expect([icon?.declarations.width, icon?.declarations.height]).toEqual(['44px', '44px']);
-    // The start key of a first screen: 52 px, and 56 px in the wide layout.
-    expect(rule(keys, '.key--start')[0].declarations['min-height']).toBe('52px');
+    // A shared start key is 52 px by default and 56 px in the wide layout or on home.
+    expect(rule(keys, '.key--start')[0].declarations['min-height']).toBe('var(--start-key-height, 52px)');
+    expect(rule(visitor, '.home-first').some((r) => r.declarations['--start-key-height'] === '56px')).toBe(true);
     expect(keys.find((r) => r.media.includes('90em') && r.selectors.includes('.key--start'))?.declarations['min-height']).toBe('56px');
     // An outlined key's label is the regular weight and its edge the line colour at rest.
     const outline = rule(keys, '.key--outline')[0].declarations;

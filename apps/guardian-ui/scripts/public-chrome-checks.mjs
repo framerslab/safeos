@@ -682,7 +682,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
             if (!/\bkey--solid\b/.test(key.classes)) continue;
             expect(key.fill === tone.accent && key.colour === tone.onAccent && key.weight === '700' && inter(key.face), `${at}: the solid key "${key.words}" is ${key.colour} on ${key.fill} in ${key.face} ${key.weight}`);
             if (route === '/' && key.inHeader) expect(Math.abs(key.height - 44) < 0.5, `${at}: the header's start key is ${key.height} px tall`);
-            if (route === '/' && key.first) expect(Math.abs(key.height - 52) < 0.5, `${at}: the first screen's start key is ${key.height} px tall`);
+            if (route === '/' && key.first) expect(Math.abs(key.height - 56) < 0.5, `${at}: the first screen's start key is ${key.height} px tall`);
           }
         }
       });

@@ -144,12 +144,19 @@ jobs:
           # shellcheck disable=SC2086
           node scripts/capture-pictures.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/pictures" $ROUTES
 
+      - name: Set up Python for the home pixel sampler
+        if: always() && matrix.version == 'after'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Measure home readability from the captured pixels
         if: always() && matrix.version == 'after'
         run: |
           if [ -f "$RUNNER_TEMP/pictures/home-readability-boxes.json" ]; then
-            python3 -m pip install --quiet Pillow==11.3.0
-            python3 -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures"
+            python3 -m venv "$RUNNER_TEMP/home-pixels"
+            "$RUNNER_TEMP/home-pixels/bin/python3" -m pip install --quiet Pillow==11.3.0
+            "$RUNNER_TEMP/home-pixels/bin/python3" -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures"
           fi
 
       - name: Upload pictures
