@@ -16,7 +16,7 @@ import path from 'node:path';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
 import { BARRED, readWords } from './helpers/lost-found-words';
-import { enrolPet } from './helpers/own-sound';
+import { enrolPet, savedMatchFrames } from './helpers/own-sound';
 import { OWN_SETTING, setUpDevice } from './helpers/seeded-device';
 import { CAMERA_FILE, HEIGHT, WIDTH, stripedPhoto } from './helpers/striped-subject';
 
@@ -238,7 +238,7 @@ test('setup and the Lost & Found page say what the watch compares', async ({ pag
   await expect(savedPetCard(page)).toBeVisible({ timeout: 30_000 });
 });
 
-test('the watch says Quiet or Over the line and counts checks', async ({ page, context }, testInfo) => {
+test('the watch names the pet it compares with no score, bar or count', async ({ page, context }, testInfo) => {
   test.setTimeout(240_000);
   await seed(context);
 
@@ -246,20 +246,22 @@ test('the watch says Quiet or Over the line and counts checks', async ({ page, c
   await enrolPet(page, NAME, await stripedPhoto(page));
   await openWatch(page);
 
-  const onPicture = page.locator('[data-lost-found-card="picture"]');
-  await expect(onPicture.getByText('Colours and shape', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(onPicture.getByText('Over the line', { exact: true })).toBeVisible({ timeout: 60_000 });
-  await expect(onPicture.getByText(/checks? (in a row )?like Stripes’s photos/)).toBeVisible({ timeout: 60_000 });
+  // The pet's meter at the foot of the live picture names the pet and what
+  // it compares. It draws no bar and says no number, even once the
+  // comparison has saved a picture over the alert line.
+  const petMeter = page.locator('.watch-meter--pet');
+  await expect(petMeter.getByText('Comparing with Stripes’s photos', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => savedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(0);
+  const meterWords = await readWords(page, '.watch-meter--pet');
+  expect(meterWords).not.toMatch(/\d|%|Quiet|Over the line|Colours and shape|checks? (in a row )?like/);
+  await expect(petMeter.locator('[style*="width"]')).toHaveCount(0);
 
-  const full = page.locator('[data-lost-found-card="full"]');
-  await expect(full.getByText('Colours and shape now', { exact: true })).toBeVisible();
-  const recent = full.getByRole('heading', { name: 'Recent possible sightings', exact: true });
-  await expect(recent).toBeVisible({ timeout: 30_000 });
-  const rows = recent.locator('xpath=following-sibling::div[1]/div');
-  await expect(rows.filter({ hasText: /Over the line$/ }).first()).toBeVisible({ timeout: 30_000 });
-
-  expect(await readWords(page, '[data-lost-found-card="picture"]')).not.toContain('%');
-  expect(await readWords(page, '[data-lost-found-card="full"]')).not.toContain('%');
+  // The pet's card beside the picture keeps its photos and limits, and adds
+  // no reading, list of sightings or link.
+  const card = page.locator('.watch-pet--card');
+  await expect(card).toBeVisible();
+  const cardWords = await readWords(page, '.watch-pet--card');
+  expect(cardWords).not.toMatch(/%|Quiet|Over the line|Colours and shape now|Recent possible sightings|Saved pictures/);
   await page.screenshot({ path: testInfo.outputPath('lost-found-watch-words-1280.png'), fullPage: true });
 });
 
@@ -367,9 +369,11 @@ test('no Lost and Found screen says match, detected, confidence, accurate or lik
   await holdsNoBarredWord('the Lost & Found page with a saved pet');
 
   await openWatch(page);
-  await expect(page.locator('[data-lost-found-card="picture"]').getByText('Over the line', { exact: true })).toBeVisible({ timeout: 60_000 });
-  await expect(page.locator('[data-lost-found-card="full"]')).toBeVisible();
-  await holdsNoBarredWord('the pet’s cards on the watch', '[data-lost-found-card]');
+  await expect(page.locator('.watch-meter--pet').getByText('Comparing with Stripes’s photos', { exact: true }))
+    .toBeVisible({ timeout: 60_000 });
+  await expect(page.locator('.watch-pet--card')).toBeVisible();
+  await holdsNoBarredWord('the pet’s meter on the watch', '.watch-meter--pet');
+  await holdsNoBarredWord('the pet’s card on the watch', '.watch-pet--card');
   const dialog = page.getByRole('alertdialog', { name: QUESTION });
   await expect(dialog).toBeVisible({ timeout: 60_000 });
   await holdsNoBarredWord('the full-screen pictures', '[role="alertdialog"]');
