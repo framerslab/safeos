@@ -180,6 +180,23 @@ it('asks before a second watch on Try again while another tab watches', async ()
   expect(browser.getUserMedia.mock.calls.length).toBe(asked);
 });
 
+it('names a camera lost before its first picture as a failed start, with Try again', async () => {
+  // The camera's video track has already ended when the browser hands it over.
+  const tracks = [new BrowserTrack('video'), new BrowserTrack('audio')];
+  tracks[0].readyState = 'ended';
+  browser.getUserMedia.mockResolvedValueOnce({
+    getTracks: () => [...tracks],
+    getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+    getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+    removeTrack: (track: BrowserTrack) => { tracks.splice(tracks.indexOf(track), 1); },
+  } as unknown as MediaStream);
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  expect(screen.queryByText(/^The camera stopped at/)).toBeNull();
+  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+});
+
 it('says when a camera that was watching stopped, and gives Start watching back', async () => {
   render(<MonitorPage />);
   await act(async () => {});
@@ -695,6 +712,43 @@ it('leaves focus on a key outside the frame when the camera stops, and gives it 
   fireEvent.click(stop);
   await act(async () => {});
   expect(document.activeElement?.textContent).toBe('Start watching');
+});
+
+it('shows no held reading from the last camera under reduced motion once another camera is chosen', async () => {
+  reducedMotion(true);
+  seedMotionOnly();
+  const zones = useSettingsStore.getState().detectionZones;
+  useSettingsStore.setState({
+    detectionZones: [{ id: 'full', name: 'Full Screen', enabled: true, x: 0, y: 0, width: 100, height: 100, sensitivityOverride: { motion: 40 } }],
+  });
+  browser.readFrame.mockImplementation(() => {
+    const data = new Uint8ClampedArray(16 * 16 * 4).fill(128);
+    data.fill(Math.floor(Date.now() / 200) % 2 ? 0 : 255, 0, 16 * 4 * 4);
+    return new ImageData(data, 16, 16);
+  });
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    await startMonitoring();
+    act(() => { jest.advanceTimersByTime(2000); });
+    expect(valueText('Motion')).toMatch(/^25 per cent/);
+    const tracks = [new BrowserTrack('video'), new BrowserTrack('audio')];
+    browser.getUserMedia.mockResolvedValueOnce({
+      getTracks: () => [...tracks],
+      getVideoTracks: () => tracks.filter((track) => track.kind === 'video'),
+      getAudioTracks: () => tracks.filter((track) => track.kind === 'audio'),
+      removeTrack: (track: BrowserTrack) => { tracks.splice(tracks.indexOf(track), 1); },
+    } as unknown as MediaStream);
+    act(() => useCameraStore.getState().setDeviceId('usb'));
+    await act(async () => {});
+    await act(async () => {});
+    expect(document.querySelector('.watch-frame')?.getAttribute('data-phase')).toBe('live');
+    expect(valueText('Motion')).toBeNull();
+  } finally {
+    reducedMotion(false);
+    useSettingsStore.setState({ detectionZones: zones });
+    useCameraStore.getState().setDeviceId('');
+  }
 });
 
 it('says alerts cannot be saved on this device when the saved ones could not be read', async () => {
