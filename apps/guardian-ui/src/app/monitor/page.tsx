@@ -1601,24 +1601,26 @@ export default function MonitorPage() {
                     />
                   </div>
 
-                  {/* Analysis Interval Slider */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-400">Analysis Interval</span>
-                      <span className="text-amber-400 font-medium">{currentPreset.analysisInterval}s</span>
+                  {/* How often frames go to this device's own server: shown only while one is connected. */}
+                  {serverConnected && (
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-400">Analysis Interval</span>
+                        <span className="text-amber-400 font-medium">{currentPreset.analysisInterval}s</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={60}
+                        value={currentPreset.analysisInterval}
+                        onChange={(e) => tuneWatch({ analysisInterval: Number(e.target.value) })}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
+                                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
+                                   [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-amber-500
+                                   [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min={1}
-                      max={60}
-                      value={currentPreset.analysisInterval}
-                      onChange={(e) => tuneWatch({ analysisInterval: Number(e.target.value) })}
-                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
-                                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
-                                 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-amber-500
-                                 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
-                    />
-                  </div>
+                  )}
 
                   {/* Reset to Preset Defaults */}
                   <button
@@ -1633,7 +1635,7 @@ export default function MonitorPage() {
             </div>
           </div>
 
-          <InlineSettingsPanel defaultExpanded={['detection']} />
+          <InlineSettingsPanel defaultExpanded={['detection']} serverConnected={serverConnected} />
         </SettingsFold>
       </div>
 

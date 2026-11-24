@@ -53,8 +53,9 @@ them in place and the key reads **Hide settings**. The choice is kept on this
 device (`safeos-watch-view`, cleared by **Clear all data on this device**). Open, they hold the
 link **Nap Mode**, the preset card (its name, description, Pixel Threshold, Motion
 and Audio, **Calibrate Baseline**, Fine-Tune) and the detection settings, whose mode keys
-include **Deep sleep** (Deep Sleep Ultra-Sensitive). The preset card shows
-**Interval** only while this device's own server is connected.
+include **Deep sleep** (Deep Sleep Ultra-Sensitive). The preset card's **Interval**
+and the **Analysis Interval** sliders (Fine-Tune and Sensitivity) show only while
+this device's own server is connected: they set how often frames go to that server.
 
 ## The alert list
 

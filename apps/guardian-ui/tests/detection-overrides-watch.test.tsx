@@ -18,8 +18,9 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), replace: jest.fn() }),
 }));
+let mockConnected = false;
 jest.mock('@/contexts/BackendStatusContext', () => ({
-  useBackendStatus: () => ({ config: { wsUrl: '' } }),
+  useBackendStatus: () => ({ config: { wsUrl: '' }, isConnected: mockConnected }),
 }));
 
 type Analyser = { getByteFrequencyData: (data: Uint8Array) => void };
@@ -75,6 +76,7 @@ async function watch() {
 }
 
 beforeEach(() => {
+  mockConnected = false;
   jest.useFakeTimers();
   localStorage.clear();
   // The watch's settings open, as a person who pressed Show settings left them.
@@ -115,7 +117,7 @@ async function loadSaved(scenarioOverrides: Record<string, unknown>) {
   await useSettingsStore.persist.rehydrate();
 }
 
-/** Opens Fine-Tune on the Monitor page and returns its Motion, Audio, Pixel and Interval sliders. */
+/** Opens Fine-Tune on the Monitor page and returns its Motion, Audio and Pixel sliders, and Interval while a server is connected. */
 function openFineTune() {
   const toggle = screen.getByRole('button', { name: /Fine-Tune Settings/ });
   fireEvent.click(toggle);
@@ -186,6 +188,8 @@ const cardPixelThreshold = () => screen.getAllByText('Pixel Threshold')
 
 it('runs at the preset\'s pixel threshold and interval, which the Sensitivity and Fine-Tune sliders move, whatever a saved override holds', async () => {
   await loadSaved({ baby: { absolutePixelThreshold: 20, analysisInterval: 5 } });
+  // Fine-Tune shows Analysis Interval only while this device's own server is connected.
+  mockConnected = true;
   render(<MonitorPage />);
   await act(async () => {});
   expect(cardPixelThreshold()).toBe(`${preset.absolutePixelThreshold}px`);
