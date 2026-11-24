@@ -9,6 +9,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { EARLIER_SPOKEN_DEFAULT, SPOKEN_DEFAULT } from '../lib/lost-found-words';
 import type { VisualFingerprint } from '../lib/visual-fingerprint';
 import type { MatchResult, MatcherSettings } from '../lib/subject-matcher';
 
@@ -193,8 +194,35 @@ export const DEFAULT_SETTINGS: LostFoundSettings = {
   customMediaTimerMs: 60000,
   customMediaImageIntervalMs: 3000,
   customMediaTTSEnabled: true,
-  customMediaTTSMessages: ['Attention! Your lost subject has been detected.'],
+  customMediaTTSMessages: [SPOKEN_DEFAULT],
 };
+
+/** Update the factory spoken line on devices that saved it before. */
+export function migrateLostFound(persisted: unknown, version: number): unknown {
+  if (version !== 0 || !persisted || typeof persisted !== 'object' || !('settings' in persisted)) {
+    return persisted;
+  }
+
+  const { settings } = persisted;
+  if (!settings || typeof settings !== 'object' || !('customMediaTTSMessages' in settings)) {
+    return persisted;
+  }
+
+  const { customMediaTTSMessages } = settings;
+  if (!Array.isArray(customMediaTTSMessages) || !customMediaTTSMessages.includes(EARLIER_SPOKEN_DEFAULT)) {
+    return persisted;
+  }
+
+  return {
+    ...persisted,
+    settings: {
+      ...settings,
+      customMediaTTSMessages: customMediaTTSMessages.map((line) =>
+        line === EARLIER_SPOKEN_DEFAULT ? SPOKEN_DEFAULT : line
+      ),
+    },
+  };
+}
 
 // =============================================================================
 // Store
@@ -406,6 +434,8 @@ export const useLostFoundStore = create<LostFoundState>()(
     }),
     {
       name: 'safeos-lost-found',
+      version: 1,
+      migrate: migrateLostFound,
       partialize: (state) => ({
         subjects: state.subjects,
         settings: state.settings,

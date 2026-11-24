@@ -154,7 +154,7 @@ test.describe('Match Gallery', () => {
   });
 
   test('should display gallery page', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: /match gallery/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /possible sightings/i })).toBeVisible();
   });
 
   test('should show back link to lost & found', async ({ page }) => {
@@ -165,15 +165,14 @@ test.describe('Match Gallery', () => {
     await expect(page).toHaveURL(/\/lost-found$/);
   });
 
-  test('should show empty state when no matches', async ({ page }) => {
-    // Depending on state, this might show "No matches found"
-    const noMatchesText = page.getByText(/no matches found/i);
+  test('should show the gallery’s empty state', async ({ page }) => {
+    const noPictures = page.getByText(/no pictures saved/i);
     const galleryGrid = page.locator('[class*="grid"]');
     
     // Either show empty state or have some content
     const hasContent = await galleryGrid.locator('> div').count() > 0;
     if (!hasContent) {
-      await expect(noMatchesText).toBeVisible();
+      await expect(noPictures).toBeVisible();
     }
   });
 
@@ -312,7 +311,7 @@ test.describe('Responsive Design', () => {
     await navigateToGallery(page);
     
     // Should still show essential controls
-    await expect(page.getByRole('heading', { name: /match gallery/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /possible sightings/i })).toBeVisible();
   });
 });
 
@@ -367,7 +366,7 @@ test.describe('Error Handling', () => {
     await navigateToGallery(page);
     
     // Should show empty state or handle gracefully
-    await expect(page.getByRole('heading', { name: /match gallery/i })).toBeVisible();
+    await expect(page.getByRole('heading', { name: /possible sightings/i })).toBeVisible();
   });
 });
 

@@ -139,9 +139,12 @@ comparison work offline. A long name with no spaces breaks inside the line that
 names the pet, at every width from 320 px.
 
 While the watch compares, the meter under the live picture names the pet.
-Add photos on the Lost & Found page. The watch links to **Open in History**,
-which opens History on its Local Timeline, also on a device that uses a server.
-Choosing another pet starts a new comparison without restarting the camera.
+Add photos on the Lost & Found page. Setup’s **Alert line** sets the point where
+the comparison raises an alert. **Saved pictures** on the Lost & Found page opens
+the frames earlier versions saved; an opened one asks "Could this be {name}?".
+The watch links to **Open in History**, which opens History on its Local Timeline,
+also on a device that uses a server. Choosing another pet starts a new comparison
+without restarting the camera.
 
 When another tab of this browser clears all local data (**Clear all data on this
 device**, or a sign-out), the open watch drops the pets it had read and ends the
@@ -227,7 +230,10 @@ that has a named setting.
 
 A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
 **Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
-sound is on. With Lost & Found's custom media on, the full-screen media takes the
+sound is on. The full-screen pictures ask "Could this be {name}?" and say
+"Colours and shape like {name}’s photos." They speak "Colours like your pet’s
+photos are in view." unless you saved a line of your own. With Lost & Found's
+custom media on, the full-screen media takes the
 built-in sound's place: the saved sounds play and the built-in alert sound does not. The
 sounds come with each of a sighting's alerts (see **A Lost and Found sighting** below), never
 with every check. A saved sound that still plays is not started again by the sighting's next
