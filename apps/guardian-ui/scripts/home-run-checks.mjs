@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 
 export const RUNS_NAME = 'Recorded runs of SafeOS Guardian';
 const PLAYER = 'section[aria-label="Recorded runs of SafeOS Guardian"]';
@@ -99,9 +100,10 @@ function mediaLog(context, page) {
   return { document, worker };
 }
 
-const installedPosters = async (page, paths) => page.waitForFunction(async (paths) => (
-  await Promise.all(paths.map((url) => caches.match(url)))
-).every(Boolean), paths, { timeout: 45000 });
+const installedPosters = async (page, paths, cacheName) => page.waitForFunction(async ({ paths, cacheName }) => {
+  const store = cacheName ? await caches.open(cacheName) : caches;
+  return (await Promise.all(paths.map((url) => store.match(url)))).every(Boolean);
+}, { paths, cacheName }, { timeout: 45000 });
 
 export async function checkRunPolicies(browser, baseUrl, runs) {
   const issues = [];
@@ -223,24 +225,32 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     }
   }
 
-  await inContext('a new service worker saves posters for the open home', {}, async (page, context) => {
-    await open(page);
-    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 45000 });
-    await installedPosters(page, paths);
-    await page.evaluate(async (paths) => {
-      for (const name of await caches.keys()) {
-        const cache = await caches.open(name);
-        await Promise.all(paths.map((url) => cache.delete(url)));
-      }
-      await navigator.serviceWorker.register('/sw.js?rollover', { scope: '/' });
-    }, paths);
-    await page.waitForFunction(() => navigator.serviceWorker.controller?.scriptURL.endsWith('/sw.js?rollover'),
-      null, { timeout: 45000 });
-    await installedPosters(page, paths).catch(() => { throw Error('The new worker did not save posters on taking control'); });
-    await context.setOffline(true);
-    await page.reload({ waitUntil: 'load' });
-    await waitForPoster(page, ids[0], 'square', 'dark');
-  });
+  const nextVersion = 'home-poster-rollover';
+  const exportWorker = new URL('../out/sw.js', import.meta.url);
+  const nextWorker = new URL('sw-rollover.js', exportWorker);
+  const nextPath = '/' + nextWorker.pathname.split('/').at(-1);
+  const worker = await readFile(exportWorker, 'utf8');
+  const marker = 'const manifest = self.__SAFEOS_PRECACHE;';
+  assert.ok(worker.includes(marker), 'The exported worker has no precache manifest');
+  await writeFile(nextWorker, worker.replace(marker, `self.__SAFEOS_PRECACHE.version = '${nextVersion}';\n${marker}`));
+  try {
+    await inContext('a new service worker saves posters for the open home', {}, async (page, context) => {
+      await open(page);
+      await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 45000 });
+      await installedPosters(page, paths);
+      await page.evaluate((path) => navigator.serviceWorker.register(path, { scope: '/' }).then(() => {}), nextPath);
+      await page.waitForFunction((path) => navigator.serviceWorker.controller?.scriptURL.endsWith(path),
+        nextPath, { timeout: 45000 });
+      await installedPosters(page, paths, 'safeos-shell-' + nextVersion).catch(() => {
+        throw Error('The new build did not save posters in its own cache on taking control');
+      });
+      await context.setOffline(true);
+      await page.reload({ waitUntil: 'load' });
+      await waitForPoster(page, ids[0], 'square', 'dark');
+    });
+  } finally {
+    await rm(nextWorker, { force: true });
+  }
 
   await inContext('hover, keyboard focus, viewport and document visibility suspend playback', {
     serviceWorkers: 'block',

@@ -213,10 +213,11 @@ async function watching({ page, view, top, sample, nextFrameAfter }) {
   const target = Math.max(top + (view.size === 'square' ? 14 : 6), (header?.height ?? 0) + 4);
   const cameraTop = await viewingTop(page, '.watch-frame__screen');
   await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), Math.max(0, cameraTop - target));
-  const framed = await page.locator('.watch-frame').boundingBox();
   const bottom = top + (view.size === 'wide' ? view.height : view.width);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const framed = await page.locator('.watch-frame').boundingBox();
   assert.ok(framed && framed.y >= top - 0.5 && framed.y + framed.height <= bottom + 0.5,
-    'The Watching crop must contain the whole camera image and both meters');
+    `The Watching crop ${top}–${bottom} must contain the whole camera and both meters: ${JSON.stringify(framed)}`);
   const peaks = { motion: 0, sound: 0 };
   const threshold = 100 - settings.globalSettings.audioSensitivity;
   const readMeters = () => page.evaluate(() => {
