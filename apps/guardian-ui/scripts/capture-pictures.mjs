@@ -225,6 +225,8 @@ try {
   if (homeChecks) {
     failures += await checkFirstVisit(browser, baseUrl, outDir);
     failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
+    const { checkHomeRuns } = await import('./home-run-checks.mjs');
+    failures += await checkHomeRuns(browser, baseUrl);
     failures += await checkHomeUseSetup(browser, baseUrl);
   }
   // The app's own pages, for the pull request's own build. The base build
