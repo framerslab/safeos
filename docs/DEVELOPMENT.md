@@ -659,8 +659,9 @@ screenshots and the sharing card:
    granted, so the unchanged monitor reads the clip through its real camera
    path.
 3. For each look it seeds a finished setup and the Custom preset in
-   `scripts/home-capture-settings.json` (the default preset with pixel
-   detection off), opens `/monitor/`, presses "Start watching" and waits
+   `scripts/home-capture-settings.json` (with pixel detection off and the
+   motion sensitivity set to keep a picture before the kitten leaves the
+   camera), opens `/monitor/`, presses "Start watching" and waits
    until the alert list holds a motion alert and the Motion meter reads
    "Over the line".
 4. It saves the three crops in both looks (`capture-phone-*`,

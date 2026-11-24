@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 import {
-  captureNotifications, checkNotifications, emulatedSurface, encodeVariant, limits,
+  captureNotifications, checkNotifications, encodeVariant, limits,
   outputTime, readRecordingWords, sha256, spool, testPosterEncoders,
 } from './home-run-frames.mjs';
 import { recordingInputs } from './home-run-inputs.mjs';
@@ -60,7 +60,7 @@ async function recordVariant(browser, recipe, view, avif) {
   const page = await context.newPage();
   try {
     await captureNotifications(context);
-    const cdp = await emulatedSurface(page, view);
+    const cdp = await context.newCDPSession(page);
     const prepared = await recipe.prepare({ page, baseUrl });
     const actualLook = await page.evaluate(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light');
     assert.equal(actualLook, view.look, 'The site look differs from the browser');
@@ -158,9 +158,11 @@ try {
   await mkdir(outDir, { recursive: true });
   const avif = await testPosterEncoders(workspace);
   console.log(`Poster formats: WebP${avif ? ' and AVIF' : ''}`);
-  sample.square = await launchSampleDevice(video, audio, 'chromium');
+  sample.square = await launchSampleDevice(video, audio, 'chromium', 3);
   sample.wide = await launchSampleDevice(video, audio, 'chromium', 2.5);
-  withoutClip.square = await chromium.launch({ channel: 'chromium' });
+  withoutClip.square = await chromium.launch({
+    channel: 'chromium', args: ['--force-device-scale-factor=3'],
+  });
   withoutClip.wide = await chromium.launch({
     channel: 'chromium', args: ['--force-device-scale-factor=2.5'],
   });

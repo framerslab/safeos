@@ -84,10 +84,10 @@ async function prepareDashboard({ page, baseUrl }) {
   await page.waitForFunction(() => window.homeWatchEvents.some(
     ({ kind, clipAt }) => kind === 'sound' && clipAt >= 5.5 && clipAt <= 10,
   ), null, { timeout: 5 * SECOND }).catch(() => { throw Error('No recorded sound alert during the bark'); });
-  await page.waitForFunction(() => window.homeWatchEvents.some(
-    ({ kind, clipAt }) => kind === 'motion' && clipAt >= 24 && clipAt <= 28.5,
-  ), null, { timeout: 32 * SECOND }).catch(() => { throw Error('No recorded motion alert as the kitten passed the camera'); });
   const events = await page.evaluate(() => window.homeWatchEvents);
+  const latestMotion = events.findLast(({ kind }) => kind === 'motion');
+  assert.ok(latestMotion && latestMotion.clipAt >= 22 && latestMotion.clipAt <= 25.25,
+    'The movement picture must come from the kitten’s turn before it passes the camera: ' + JSON.stringify(events));
   await pose(page, 'Stop watching').click();
   await pose(page, 'Start watching').waitFor();
   const notices = await page.evaluate(() => window.homeRunNotifications);

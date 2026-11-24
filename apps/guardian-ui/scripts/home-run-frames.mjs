@@ -34,26 +34,6 @@ export async function testPosterEncoders(directory) {
   return null;
 }
 
-export async function emulatedSurface(page, view) {
-  const cdp = await page.context().newCDPSession(page);
-  // The wide Chromium process already renders at its native device scale.
-  if (view.size === 'wide') return cdp;
-  // Without a compositor viewport override, deviceScaleFactor affects the
-  // page but Chromium still sends the CSS-size surface to the screencast.
-  // The viewport keeps its CSS size and makes the compositor rasterize it
-  // at the device scale. The frame header is still checked below.
-  await cdp.send('Emulation.setDeviceMetricsOverride', {
-    width: view.width,
-    height: view.height,
-    screenWidth: view.width,
-    screenHeight: view.height,
-    deviceScaleFactor: view.scale,
-    mobile: view.size === 'square',
-    viewport: { x: 0, y: 0, width: view.width, height: view.height, scale: 1 },
-  });
-  return cdp;
-}
-
 export async function spool(cdp, directory, view) {
   const frames = [];
   const pending = new Set();
