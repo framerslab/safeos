@@ -28,10 +28,14 @@ try {
       });
       try {
         const page = await context.newPage();
-        const response = await page.goto(address, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-        served = response?.ok()
-          ? createHash('sha256').update(await response.body()).digest('hex')
-          : `HTTP ${response?.status() ?? 'no response'}`;
+        try {
+          const response = await page.goto(address, { waitUntil: 'domcontentloaded', timeout: 20_000 });
+          served = response?.ok()
+            ? createHash('sha256').update(await response.body()).digest('hex')
+            : `HTTP ${response?.status() ?? 'no response'}`;
+        } catch (error) {
+          served = `navigation failed: ${String(error).split('\n')[0]}`;
+        }
         if (served === expected) {
           const lockup = page.locator('.home-lockup[role="img"][aria-label="SafeOS Guardian"]');
           assert.equal(await lockup.count(), 1, 'Published home must serve the Guardian lockup');

@@ -25,6 +25,7 @@ import { MODEL_BYTES, MODEL_MANIFEST_BYTES, MODEL_SIZE_MB, MODEL_URL, MODEL_WEIG
 import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
 import { captureSizes, type CaptureCropName } from '@/lib/home-captures';
 import { CAPTURE_PRELOAD_SCRIPT } from '@/lib/capture-preload';
+import { barredWording, homeWordingInputs } from '../scripts/home-wording.cjs';
 import { bare, served, words } from './helpers/served-html';
 
 jest.mock('next/navigation', () => ({
@@ -599,16 +600,6 @@ describe('answers alongside the features they describe', () => {
   });
 });
 
-const barredWording = /\b(?:detect(?:ed|s)|identif(?:ied|ies|y)|recogni[sz](?:ed|es|e)|match(?:es|ed|ing)?|confidence|intruder|threat)\b|%|free forever|Cross Paths|humanitarian|donate/i;
-
-function homeWordingInputs(root: HTMLElement): string[] {
-  const names = Array.from(root.querySelectorAll('[aria-label], [alt]'), (element) =>
-    element.getAttribute('aria-label') ?? element.getAttribute('alt') ?? '');
-  const content = root.cloneNode(true) as HTMLElement;
-  content.querySelectorAll('script, style').forEach((node) => node.remove());
-  return [words(content), ...names];
-}
-
 describe('the page as a whole', () => {
   const renderShell = () => served(renderToStaticMarkup(<SiteShell><HomePage /></SiteShell>));
 
@@ -616,7 +607,7 @@ describe('the page as a whole', () => {
     for (const text of homeWordingInputs(renderShell().body)) expect(text).not.toMatch(barredWording);
   });
 
-  it.each(['keeps intruders out', 'lists threats', 'detecting', 'identifying', 'recognising', '50 percent'])(
+  it.each(['keeps intruders out', 'lists threats', 'detecting', 'identifying', 'recognising', 'recognises', 'detects', 'identifies', 'matched', 'matching', '50 percent'])(
     'bars phrasing and its inflections in "%s"',
     (text) => expect(text).toMatch(barredWording)
   );

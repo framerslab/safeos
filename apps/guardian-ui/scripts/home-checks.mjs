@@ -10,6 +10,7 @@
 // printed, and the count of findings is returned; any finding fails the run.
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { barredWording, homeWordingInputs } from './home-wording.cjs';
 import { checkPublicChrome, starsHanded } from './public-chrome-checks.mjs';
 
 const LOOKS = ['light', 'dark'];
@@ -1115,11 +1116,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   // The start key opens setup; the words that left the page are gone.
   await open({ name: 'words', width: 1280, height: 800 }, async (page) => {
     await visit(page);
-    const words = plain(await page.evaluate(() => {
-      const shell = document.querySelector('.visitor-shell').cloneNode(true);
-      shell.querySelectorAll('script, style').forEach((node) => node.remove());
-      return shell.textContent;
-    }));
+    const [words, ...names] = (await page.locator('.visitor-shell').evaluate(homeWordingInputs)).map(plain);
     const count = (needle) => words.split(needle).length - 1;
     expect(count('It does not replace a person nearby.') === 1, `start key: "It does not replace a person nearby." appears ${count('It does not replace a person nearby.')} times`);
     expect(count('SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.') === 1, 'uses: the not-a-medical-device sentence does not appear exactly once');
@@ -1132,7 +1129,10 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect(!/\bAI\b/.test(words), 'alerts: the page says "AI"');
     for (const health of ['medical', 'breathing', 'SIDS']) expect(count(health) === 1, `uses: "${health}" appears ${count(health)} times`);
     expect(count('No account') === 1, 'free: expected one no-account line');
-    expect(!/\b(?:detected|identified|recogni[sz]ed|matches?|confidence|intruder|threat)\b|%|free forever|Cross Paths/i.test(words), 'home wording: barred words appear');
+    for (const text of [words, ...names]) {
+      const barred = text.match(barredWording)?.[0];
+      expect(!barred, `home wording: barred word "${barred}"`);
+    }
     await Promise.all([
       page.waitForURL((url) => /^\/setup\/?$/.test(url.pathname), { timeout: 15_000 }),
       page.locator('.home-first a.key--start').click(),

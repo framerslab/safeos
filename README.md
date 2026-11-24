@@ -28,7 +28,7 @@ SafeOS Guardian is a **supplemental experimental tool**. It adds an alert and do
 
 ## What it is
 
-The [SafeOS Guardian home page](https://safeos.sh/) shows the app watching a kitten clip, explains the camera and microphone checks, and links to setup for each use. The diagram, six expandable explanations, and setup paths are on [How it works](https://safeos.sh/#how-it-works).
+The [SafeOS Guardian home page](https://safeos.sh/) shows the app watching a kitten clip. The diagram and six expandable explanations in [How it works](https://safeos.sh/#how-it-works) explain the camera and microphone checks. [Uses](https://safeos.sh/#uses) links to setup for each use, and [One device](https://safeos.sh/#one-device) walks through the steps and explains what a server adds.
 
 SafeOS Guardian is a Progressive Web App that turns any device with a camera and microphone into a monitoring station. It compares video frames and sound levels in the browser, runs the [TensorFlow.js](https://www.tensorflow.org/js) COCO-SSD model on-device in its People and Wildlife modes, and raises severity-tiered alerts. In the browser-only setup no frames leave the device, the app loads no analytics or tracking script, and no account is needed.
 

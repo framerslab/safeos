@@ -152,12 +152,21 @@ jobs:
 
       - name: Measure home readability from the captured pixels
         if: always() && matrix.version == 'after'
+        env:
+          ROUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.routes || env.DEFAULT_ROUTES }}
         run: |
-          if [ -f "$RUNNER_TEMP/pictures/home-readability-boxes.json" ]; then
+          set -f
+          for route in $ROUTES; do
+            [ "$route" = / ] || continue
+            if [ ! -s "$RUNNER_TEMP/pictures/home-readability-boxes.json" ]; then
+              echo "::error::Missing home-readability-boxes.json for the home route" >&2
+              exit 1
+            fi
             python3 -m venv "$RUNNER_TEMP/home-pixels"
             "$RUNNER_TEMP/home-pixels/bin/python3" -m pip install --quiet Pillow==11.3.0
             "$RUNNER_TEMP/home-pixels/bin/python3" -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures"
-          fi
+            break
+          done
 
       - name: Upload pictures
         if: always()
