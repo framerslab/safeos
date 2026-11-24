@@ -52,3 +52,11 @@ it('polls again after a transient navigation failure and reports the last HTTP r
   expect(close).toHaveBeenCalledTimes(6);
   expect(wait).toHaveBeenCalledTimes(5);
 });
+
+it('runs every check the Pictures script defines', () => {
+  const script = readFileSync(path.join(app, 'scripts/capture-pictures.mjs'), 'utf8');
+  const defined = [...script.matchAll(/^async function (check\w+)\(/gm)].map((m) => m[1]);
+  expect(defined).toContain('checkFirstVisit');
+  const uncalled = defined.filter((name) => !new RegExp(`await ${name}\\(`).test(script));
+  expect(uncalled).toEqual([]);
+});

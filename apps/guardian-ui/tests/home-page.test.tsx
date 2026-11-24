@@ -533,6 +533,12 @@ describe('the browser checks and what stays on this device', () => {
     expect(setup).toContain('images.length < MIN_PET_PHOTOS');
     expect(setup).toContain('.slice(0, MAX_PET_PHOTOS)');
     expect(source('src', 'lib', 'visual-fingerprint.ts')).toContain('allImages.slice(0, MAX_PET_PHOTOS)');
+    // The photos already added show from the first one; the minimum only holds back Continue.
+    expect(setup).toContain('{images.length > 0 && (');
+    // Adding photos later on the Lost and Found page keeps the same cap.
+    const later = source('src', 'components', 'SubjectPreview.tsx');
+    expect(later).toContain("import { MAX_PET_PHOTOS } from '../lib/pet-photo-limits';");
+    expect(later).not.toMatch(/maxImages\s*=\s*\d/);
   });
 
   it('links the detection code below the cards', () => {
