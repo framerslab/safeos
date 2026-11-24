@@ -15,19 +15,31 @@ import path from 'path';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import HomePage from '@/app/page';
+import { SiteShell } from '@/components/layout/SiteShell';
 import clip from '../public/home/sample-clip.json';
 import { SETUP_CAMERA_STEP, SETUP_STEPS, SETUP_STEP_COUNT } from '@/lib/setup-steps';
+import { MAX_PET_PHOTOS, MIN_PET_PHOTOS } from '@/lib/pet-photo-limits';
 import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
 import * as detector from '@/lib/animal-detection';
 import { MODEL_BYTES, MODEL_MANIFEST_BYTES, MODEL_SIZE_MB, MODEL_URL, MODEL_WEIGHTS_BYTES } from '@/lib/detection-model-facts';
 import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
 import { captureSizes, type CaptureCropName } from '@/lib/home-captures';
 import { CAPTURE_PRELOAD_SCRIPT } from '@/lib/capture-preload';
+import { barredWording, homeWordingInputs } from '../scripts/home-wording.cjs';
 import { bare, served, words } from './helpers/served-html';
 
 jest.mock('next/navigation', () => ({
   usePathname: () => '/',
   useRouter: () => ({ push: jest.fn(), replace: jest.fn() }),
+}));
+
+jest.mock('@/contexts/BackendStatusContext', () => ({
+  useBackendStatus: () => ({
+    status: { api: 'disconnected', ollama: 'disconnected' },
+    isLocalOnly: true,
+    retry: jest.fn(),
+    config: { apiUrl: '', wsUrl: '' },
+  }),
 }));
 
 const APP_ROOT = path.resolve(__dirname, '..');
@@ -44,14 +56,24 @@ describe('the page reads before any script runs and asks for nothing', () => {
   it('has one main landmark and one H1, with every part\'s heading in the served HTML', () => {
     expect(all('main')).toHaveLength(1);
     expect(all('h1')).toHaveLength(1);
-    expect(all('main h2').map(words)).toEqual([
-      'What people set it up for',
+    expect(all('main h1, main h2').map(words)).toEqual([
+      'Free motion and sound alerts from an old phone or laptop',
+      'What SafeOS is',
+      'Deep learning, in your browser.',
       'One device does the watching and the alerting',
-      'Four things set off an alert',
+      'What people set it up for',
       'Free on safeos.sh, with the code in the open',
-      'Questions people ask first',
       'Start with the device you have',
     ]);
+    for (const id of ['home-headline', 'how-it-works', 'uses', 'baby-nap', 'pet-out', 'elderly-parent', 'lost-pet', 'wildlife']) {
+      expect(all(`[id="${id}"]`)).toHaveLength(1);
+    }
+  });
+
+  it('serves the Guardian lockup and the detection explanation on home', () => {
+    expect(one('.home-first [role="img"][aria-label="SafeOS Guardian"]')).not.toBeNull();
+    expect(words(one('#how-it-works h2'))).toBe('Deep learning, in your browser.');
+    expect(all('#how-it-works details')).toHaveLength(6);
   });
 
   it('shows the line for a page whose script did not start, under the statement, until the app marks itself started', () => {
@@ -138,21 +160,102 @@ describe('the page reads before any script runs and asks for nothing', () => {
   });
 });
 
-describe('headline and lead', () => {
-  it('says what a visitor gets in one H1 and one lead', () => {
-    expect(words(one('h1'))).toBe('Free motion and sound alerts from an old phone or laptop');
-    expect(words(one('.home-lead'))).toBe(
-      'SafeOS Guardian runs in your browser. The device watching the room sounds the alert when something moves or gets loud.'
+describe('how camera frames, sound and photos reach the alert', () => {
+  it('serves the diagram as stages with only the connections each check uses', () => {
+    const figure = one('#how-it-works figure.home-diagram');
+    expect(figure).not.toBeNull();
+    expect(words(figure?.querySelector('figcaption'))).toBe(
+      'How SafeOS reads the camera and microphone, what it keeps and what a server adds'
     );
-    // The H1 comes first in the main content.
-    expect(one('main h1, main h2, main h3')).toBe(one('h1'));
+    const stages = Array.from(figure?.querySelectorAll('ol > li') ?? []);
+    expect(stages.map((stage) => Array.from(stage.querySelectorAll('[data-node]'), (node) => node.getAttribute('data-node')))).toEqual([
+      ['camera', 'microphone', 'pet-photos'],
+      ['motion', 'picture-change', 'sound', 'lost-found', 'people-wildlife'],
+      ['alert', 'storage'],
+      ['server-frames', 'server-alerts', 'server-model'],
+    ]);
+    expect(words(figure?.querySelector('[data-band="browser"]'))).toBe('In your browser, on the device that watches');
+    expect(words(figure?.querySelector('[data-band="server"]'))).toBe('Only with a server you run');
+
+    const connections: Record<string, string[]> = {
+      motion: ['camera'],
+      'picture-change': ['camera'],
+      sound: ['microphone'],
+      'lost-found': ['camera', 'pet-photos'],
+      'people-wildlife': ['camera'],
+      alert: ['motion', 'picture-change', 'sound', 'lost-found', 'people-wildlife'],
+    };
+    const edges = Array.from(figure?.querySelectorAll('[data-from], [data-to]') ?? [], (edge) => {
+      expect(edge.getAttribute('aria-hidden')).toBe('true');
+      return `${edge.getAttribute('data-from')}:${edge.getAttribute('data-to')}`;
+    });
+    expect(edges.sort()).toEqual(Object.entries(connections).flatMap(([to, from]) => from.map((source) => `${source}:${to}`)).sort());
   });
 
-  it('leads with no absence claim and none of the old page\'s words', () => {
-    for (const text of [words(one('h1')), words(one('.home-lead'))]) {
-      expect(text).not.toMatch(/no account|nothing|never|private|stays/i);
+  it('names the inputs of each check and the alert in reading order', () => {
+    const sources: Record<string, string> = {
+      motion: 'From Camera',
+      'picture-change': 'From Camera',
+      sound: 'From Microphone',
+      'lost-found': "From Camera · Your pet's photos",
+      'people-wildlife': 'From Camera',
+      alert: 'From Motion · Picture change · Sound level · Lost and Found · People and Wildlife',
+    };
+    for (const [id, label] of Object.entries(sources)) {
+      const node = one(`[data-node="${id}"]`);
+      const text = node?.querySelector('.home-diagram__inputs');
+      expect(text?.closest('[aria-hidden="true"], [hidden]')).toBeNull();
+      expect(words(text)).toBe(label);
+      expect(node?.hasAttribute('aria-describedby')).toBe(false);
     }
-    for (const gone of ['Experimental Supplemental Monitoring Tool', 'lo-tech', 'tech-savvy']) expect(pageWords).not.toContain(gone);
+  });
+
+  it('uses the same bird glyph in the diagram, the model card and the wildlife use', () => {
+    const bird = one('[data-card="people-animals"] summary svg');
+    expect(bird).not.toBeNull();
+    expect(one('[data-node="people-wildlife"] svg')?.outerHTML).toBe(bird?.outerHTML);
+    expect(one('#wildlife svg')?.outerHTML).toBe(bird?.outerHTML);
+  });
+});
+
+it('keeps home components independent of the dashboard', () => {
+  const directory = path.join('src', 'components', 'home');
+  for (const file of fs.readdirSync(path.join(APP_ROOT, directory)).filter((name) => /\.tsx?$/.test(name))) {
+    expect(source(directory, file)).not.toMatch(/from\s+['"](?:@\/components\/|(?:\.\.\/)+)dashboard(?:['"/])/);
+  }
+});
+
+it.each(['.home-benefits', '.home-server__list'])('preserves list semantics for %s', (selector) => {
+  expect(one(selector)?.getAttribute('role')).toBe('list');
+});
+
+it('publishes the People and Wildlife name in the home structured data', () => {
+  expect(one('script[type="application/ld+json"]')?.textContent).toContain(
+    'An object-detection model for people and animals on the People and Wildlife pages'
+  );
+});
+
+it('publishes the November 24 home update date', () => {
+  expect(one('script[type="application/ld+json"]')?.textContent).toContain('"dateModified":"2026-11-24"');
+});
+
+describe('headline and benefits', () => {
+  it('says what a visitor gets in the H1 and three benefits', () => {
+    expect(words(one('h1'))).toBe('Free motion and sound alerts from an old phone or laptop');
+    expect(one('main h1, main h2, main h3')).toBe(one('h1'));
+    expect(all('.home-benefits h3').map(words)).toEqual([
+      'Lo-tech and portable', 'Supplemental alerts', 'Privacy first',
+    ]);
+    expect(all('.home-benefits p').map(words)).toEqual([
+      'Uses the camera and microphone of a phone, tablet or laptop you already own. Point it at any spot, indoors or out.',
+      'When something moves or gets loud, the device that watches plays an alert sound, shows a notification and lists the alert in History.',
+      'Monitoring runs in the browser on the device that watches. Pictures and alerts stay in its storage, and go to a server only if you connect one you run.',
+    ]);
+  });
+
+  it('leads with the offer and keeps the old promotional wording off the page', () => {
+    expect(words(one('h1'))).not.toMatch(/no account|nothing|never|private|stays/i);
+    for (const gone of ['Experimental Supplemental Monitoring Tool', 'tech-savvy']) expect(pageWords).not.toContain(gone);
   });
 });
 
@@ -172,7 +275,7 @@ describe('start action and the limit statement', () => {
     );
     expect(one('.home-statement')?.parentElement).toBe(one('.home-first a.key')?.closest('.home-first__start'));
     expect(count('It does not replace a person nearby.')).toBe(1);
-    for (const gone of ['supplemental', 'supplementary', 'NOT a replacement', 'babysitter', 'carer', 'security system', 'Takes less than 2 minutes']) {
+    for (const gone of ['supplementary', 'NOT a replacement', 'babysitter', 'carer', 'security system', 'Takes less than 2 minutes']) {
       expect(pageWords.toLowerCase()).not.toContain(gone.toLowerCase());
     }
   });
@@ -280,7 +383,7 @@ describe('what people set it up for', () => {
       'Set it up together, with their agreement. It alerts in the room on motion, a loud sound or a set time of stillness. It cannot tell why nothing has moved or whether someone needs help. Reaching your own phone takes a server you run.',
     ]);
     expect(body(3)).toEqual([
-      "Point a camera at the yard or the porch. SafeOS compares what it sees with the colours in your pet's photos and alerts on a likely match. It cannot tell your pet from a look-alike, so post an alert on PawBoost or Petco Love Lost too.",
+      "Point a camera at the yard or the porch. SafeOS compares what it sees with the colours and shape in your pet's photos and alerts on a possible sighting. It cannot tell your pet from a look-alike, so post an alert on PawBoost or Petco Love Lost too.",
     ]);
     expect(body(4)).toEqual([
       `The Wildlife page uses an object-detection model to spot ${COCO_ANIMAL_CLASSES.length} kinds of animal, birds, cats and dogs among them. It saves a picture of each sighting in your browser.`,
@@ -300,30 +403,32 @@ describe('what people set it up for', () => {
     expect(all('a[target]')).toHaveLength(1);
   });
 
-  it('links PawBoost and Petco Love Lost by name, each on its own row, with no logo', () => {
-    const links = Array.from(entries[3].querySelectorAll('a'));
+  it('links PawBoost and Petco Love Lost in the lost pet paragraph', () => {
+    const links = Array.from(entries[3].querySelectorAll('p a'));
     expect(links.map((link) => `${words(link)} ${link.getAttribute('href')}`)).toEqual([
       'PawBoost https://www.pawboost.com/',
       'Petco Love Lost https://lost.petcolove.org/',
     ]);
-    for (const link of links) {
-      expect(link.className).toContain('link-row');
-      expect(link.querySelector('img, svg')).toBeNull();
-      expect(link.closest('p')).toBeNull();
-    }
+    for (const link of links) expect(link.querySelector('img, svg')).toBeNull();
   });
 
-  it('carries no badge, no line in capitals and no quick-start key', () => {
-    const section = words(one('#uses'));
-    expect(section).not.toMatch(/FREE|Quick Start|SUPPLEMENTARY/);
+  it('serves a link into setup with the requested way on each use', () => {
+    expect(all('#uses .home-use__key').map((link) => `${words(link)} ${bare(link.getAttribute('href'))}`)).toEqual([
+      'Set it up for a nap /setup?next=monitor',
+      'Set it up for your pet /setup?next=monitor',
+      'Set it up together /setup?next=monitor',
+      'Set it up for a lost pet /setup?next=lost-found',
+      'Set it up for wildlife /setup?next=wildlife',
+    ]);
+    expect(words(one('#uses'))).not.toMatch(/FREE|Quick Start|SUPPLEMENTARY/);
     expect(all('#uses button')).toHaveLength(0);
   });
 });
 
-describe('how it works', () => {
+describe('watching and alerting on one device', () => {
   it('gives three numbered steps, with the step count and the camera step read from setup\'s list', () => {
-    expect(words(one('#how-it-works h2'))).toBe('One device does the watching and the alerting');
-    const steps = all('#how-it-works ol.home-steps > li');
+    expect(words(one('#one-device h2'))).toBe('One device does the watching and the alerting');
+    const steps = all('#one-device ol.home-steps > li');
     expect(steps.map((step) => [words(step.querySelector('h3')), words(step.querySelector('p'))])).toEqual([
       [
         'Open safeos.sh on the device that will watch.',
@@ -338,21 +443,26 @@ describe('how it works', () => {
         'When something moves or gets loud, the device plays an alert sound, shows a notification and lists the alert in History.',
       ],
     ]);
-    const section = words(one('#how-it-works'));
+    const section = words(one('#one-device'));
     for (const device of ['phone', 'tablet', 'laptop']) expect(section).toContain(device);
   });
 
   it('shows a QR code of the site\'s address that loads as it nears the screen, with its caption', () => {
-    const code = one('#how-it-works .home-qr img');
+    const code = one('#one-device .home-qr img');
     expect(code?.getAttribute('alt')).toBe('QR code for https://safeos.sh/');
     expect(code?.getAttribute('loading')).toBe('lazy');
-    expect(words(one('#how-it-works .home-qr figcaption'))).toBe('Scan to open safeos.sh on the phone or tablet that will watch.');
+    expect(words(one('#one-device .home-qr figcaption'))).toBe('Scan to open safeos.sh on the phone or tablet that will watch.');
   });
 
   it('says what a visitor\'s own server adds and links the server guide', () => {
+    expect(words(one('.home-how__note h3'))).toBe('What a server you run adds');
     expect(words(one('.home-how__note p'))).toBe(
-      'Want the alert on another phone? Email, text and Telegram alerts need a server you run yourself.'
+      'safeos.sh shows the camera and sounds the alert only on the device that is watching. A server you run adds:'
     );
+    expect(all('.home-server__list li').map(words)).toEqual([
+      "Email, text and Telegram alerts, from the server's own look at the frames",
+      'Descriptions of frames by a model on the server, or a hosted model when you give it a key',
+    ]);
     const link = one('.home-how__note a');
     expect(words(link)).toBe('Read the server guide on GitHub');
     expect(link?.getAttribute('href')).toBe(
@@ -361,58 +471,82 @@ describe('how it works', () => {
   });
 });
 
-describe('what sets off an alert', () => {
-  const entries = all('#alerts .home-alerts__list > li');
+describe('the browser checks and what stays on this device', () => {
+  const card = (id: string) => one(`#how-it-works details[data-card="${id}"]`);
+  const paragraphs = (id: string) => Array.from(card(id)?.querySelectorAll('.home-detection__body p') ?? [], words);
 
-  it('names four things in plain words, always shown', () => {
-    expect(words(one('#alerts h2'))).toBe('Four things set off an alert');
-    expect(entries.map((entry) => words(entry.querySelector('h3')))).toEqual(['Motion', 'A loud sound', 'Stillness', 'A person or an animal']);
-    expect(words(entries[0].querySelector('p'))).toBe('The camera picture changes by more than the amount you set.');
-    expect(words(entries[1].querySelector('p'))).toBe('The microphone level stays above the level you set.');
-    expect(all('#alerts details, #alerts button')).toHaveLength(0);
+  it('serves six closed disclosures in one native group', () => {
+    const cards = all('#how-it-works details');
+    expect(cards.map((entry) => words(entry.querySelector('summary h3')))).toEqual([
+      'Motion and stillness', 'Sound alerts', 'People and animals', 'Lost and Found',
+      'Works offline once saved', 'What stays on your device',
+    ]);
+    for (const entry of cards) {
+      expect(entry.getAttribute('name')).toBe('home-detection');
+      expect(entry.hasAttribute('open')).toBe(false);
+      expect(words(entry.querySelector('.home-detection__summary'))).not.toBe('');
+    }
   });
 
-  it('reads the stillness range from the setting\'s own bounds', () => {
-    expect(words(entries[2].querySelector('p'))).toBe(
-      `Nothing has moved for a time you set, from ${STILLNESS_ALERT_MIN_MINUTES} to ${STILLNESS_ALERT_MAX_MINUTES} minutes.`
-    );
+  it('lets the title, tags and closed sentence name each disclosure', () => {
+    const summaries = all('#how-it-works details > summary');
+    expect(summaries).toHaveLength(6);
+    for (const summary of summaries) {
+      expect(summary.hasAttribute('aria-labelledby')).toBe(false);
+      expect(summary.hasAttribute('aria-label')).toBe(false);
+    }
+  });
+
+  it('reads the stillness range from the setting’s own bounds', () => {
+    expect(paragraphs('motion')).toEqual([
+      `It can also alert when nothing has moved for a time you set, from ${STILLNESS_ALERT_MIN_MINUTES} to ${STILLNESS_ALERT_MAX_MINUTES} minutes.`,
+    ]);
     expect([STILLNESS_ALERT_MIN_MINUTES, STILLNESS_ALERT_MAX_MINUTES]).toEqual([1, 60]);
     const panel = source('src', 'components', 'monitor', 'InlineSettingsPanel.tsx');
     expect(panel).toContain('min={STILLNESS_ALERT_MIN_MINUTES}');
     expect(panel).toContain('max={STILLNESS_ALERT_MAX_MINUTES}');
   });
 
-  it('prints the animal kinds from the detector\'s own list', () => {
+  it('prints the animal kinds from the detector’s own list', () => {
     expect(detector.COCO_ANIMAL_CLASSES).toBe(COCO_ANIMAL_CLASSES);
     expect(COCO_ANIMAL_CLASSES).toEqual(['dog', 'cat', 'bird', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe']);
-    expect(Array.from(entries[3].querySelectorAll('p')).map(words)[0]).toBe(
-      'The Security and Wildlife pages run an object-detection model in your browser. It finds people and 10 kinds of animal: dog, cat, bird, horse, sheep, cow, elephant, bear, zebra and giraffe.'
-    );
+    const animals = new Intl.ListFormat('en-GB', { type: 'conjunction' }).format(COCO_ANIMAL_CLASSES);
+    expect(paragraphs('people-animals')[0]).toBe(`It finds people and ${COCO_ANIMAL_CLASSES.length} kinds of animal: ${animals}.`);
   });
 
-  it('prints the model\'s size from the one constant kept beside its address', () => {
+  it('prints the model size from the constant kept beside its address', () => {
     expect(MODEL_URL).toBe('https://storage.googleapis.com/tfjs-models/savedmodel/ssdlite_mobilenet_v2/model.json');
     expect([MODEL_MANIFEST_BYTES, MODEL_WEIGHTS_BYTES, MODEL_BYTES]).toEqual([527_315, 18_034_528, 18_561_843]);
     expect(MODEL_SIZE_MB).toBe('18.6');
-    expect(Array.from(entries[3].querySelectorAll('p')).map(words)[1]).toBe(
-      "That model is 18.6 MB, downloaded from Google's storage. The download starts only after you agree, and Google sees your IP address when it does."
-    );
-    // A number and its unit are not parted at a line's end.
-    expect(entries[3].textContent).toContain('18.6 MB');
-    // No other size for the model appears on the page, and the loader fetches the same address.
-    expect(pageWords.match(/\d+(\.\d+)? MB/g)).toEqual(['18.6 MB']);
+    const tags = card('people-animals')?.querySelector('.home-detection__tags');
+    expect(words(tags)).toBe(`COCO-SSD on TensorFlow.js · ${MODEL_SIZE_MB} MB, after you agree`);
+    expect(tags?.textContent).toContain(`${MODEL_SIZE_MB} MB`);
+    expect(words(one('[data-node="people-wildlife"]'))).toContain(`${MODEL_SIZE_MB} MB, saved after you agree`);
     expect(source('src', 'lib', 'detection-model.ts')).toContain("import { MODEL_URL } from './detection-model-facts';");
   });
 
-  it('says what the everyday monitor does and links the detection code', () => {
-    expect(words(one('.home-alerts__aside p'))).toBe(
-      'The everyday monitor compares each camera frame with the one before and measures how loud the room is.'
+  it('prints the number of pet photos the uploader accepts', () => {
+    expect(words(card('lost-found')?.querySelector('.home-detection__summary'))).toContain(
+      `Add ${MIN_PET_PHOTOS} to ${MAX_PET_PHOTOS} photos of your pet.`
     );
-    const link = one('.home-alerts__aside a');
+    const setup = source('src', 'components', 'LostFoundSetup.tsx');
+    expect(setup).toContain('images.length < MIN_PET_PHOTOS');
+    expect(setup).toContain('.slice(0, MAX_PET_PHOTOS)');
+    expect(source('src', 'lib', 'visual-fingerprint.ts')).toContain('allImages.slice(0, MAX_PET_PHOTOS)');
+    // The photos already added show from the first one; the minimum only holds back Continue.
+    expect(setup).toContain('{images.length > 0 && (');
+    // Adding photos later on the Lost and Found page keeps the same cap.
+    const later = source('src', 'components', 'SubjectPreview.tsx');
+    expect(later).toContain("import { MAX_PET_PHOTOS } from '../lib/pet-photo-limits';");
+    expect(later).not.toMatch(/maxImages\s*=\s*\d/);
+  });
+
+  it('links the detection code below the cards', () => {
+    const link = one('.home-detection__code a');
     expect(words(link)).toBe('Read the detection code on GitHub');
     expect(link?.getAttribute('href')).toBe('https://github.com/framerslab/safeos/tree/master/apps/guardian-ui/src/lib');
     expect(pageWords).not.toMatch(/\bAI\b/);
-    for (const gone of ['Deep learning', 'cosine', 'Sobel', 'Blurred', 'COCO-SSD']) expect(pageWords).not.toContain(gone);
+    for (const gone of ['cosine', 'Sobel', 'Blurred']) expect(pageWords).not.toContain(gone);
   });
 });
 
@@ -423,15 +557,20 @@ describe('free and open source', () => {
       'SafeOS at safeos.sh is free, and this site has no paid tier or subscription. Frame builds SafeOS and pays for it.',
       'The code is MIT-licensed, so anyone can read it, change it and run it.',
       'SafeOS is experimental software, provided as is.',
+      'No account: open safeos.sh on the device that will watch and go through setup.',
+      'Frame also makes AgentOS and Paracosm.',
     ]);
   });
 
-  it('gives four links to check each of those, as a list', () => {
+  it('gives a repository key and four links for reading further', () => {
+    const github = one('#free .home-free__key');
+    expect(github?.getAttribute('href')).toBe('https://github.com/framerslab/safeos');
+    expect(words(github)).toMatch(/^View on GitHub.*MIT License$/);
     expect(all('#free ul.home-free__links > li > a').map((link) => `${words(link)} ${bare(link.getAttribute('href'))}`)).toEqual([
-      'Read the code on GitHub https://github.com/framerslab/safeos',
       'The MIT License https://github.com/framerslab/safeos/blob/master/LICENSE',
       'The offline check that runs before each deploy https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/scripts/check-offline-start.mjs',
       'How SafeOS works, in detail /blog/how-safeos-guardian-works',
+      'All questions and answers /faq',
     ]);
     for (const target of ['LICENSE', path.join('apps', 'guardian-ui', 'scripts', 'check-offline-start.mjs')]) {
       expect(fs.existsSync(path.join(APP_ROOT, '..', '..', target))).toBe(true);
@@ -441,49 +580,21 @@ describe('free and open source', () => {
   it('makes no promise it cannot stand behind and asks for no money', () => {
     for (const gone of ['humanitarian', 'always be free', 'never charge', 'Ever.', 'Future optional service']) expect(pageWords).not.toContain(gone);
     expect(pageWords).not.toMatch(/non-?profit|charit|donat|tax-exempt|tax-deductible|sponsor/i);
-    // No count of stars, users or downloads, and no testimonial.
-    expect(pageWords).not.toMatch(/\bstars?\b|\busers\b|downloads\b|testimonial/i);
+    expect(words(one('#free .home-free__words'))).not.toMatch(/\bstars?\b|\busers\b|downloads\b|testimonial/i);
   });
 });
 
-describe('questions people ask first', () => {
-  const questions = all('#questions details');
-
-  it('asks six questions, all closed at the start, built on the browser\'s own details element', () => {
-    expect(words(one('#questions h2'))).toBe('Questions people ask first');
-    expect(questions.map((question) => words(question.querySelector('summary')))).toEqual([
-      'Can an old phone be the camera?',
-      'Where does the alert go?',
-      'Can I see the camera from another device?',
-      'Does it work without internet?',
-      'Do I need an account?',
-      'Where are my pictures kept?',
-    ]);
-    for (const question of questions) expect(question.hasAttribute('open')).toBe(false);
-  });
-
-  it('answers each in a few true sentences', () => {
-    expect(questions.map((question) => words(question.querySelector('.home-q__answer p')))).toEqual([
-      'Yes. SafeOS runs in the browser on phones, tablets and computers. Plug the device in and set its screen to stay on, because a device that sleeps stops watching. The FAQ lists the browsers.',
-      'To the device that is watching. It plays a sound, shows a notification and lists the alert in History. Email, text and Telegram alerts need a server you run yourself.',
-      'No. safeos.sh shows the camera only on the device that is watching.',
-      "Yes, after your browser has saved the app's files on a visit online. Motion and sound alerts then work with no connection. The Security and Wildlife pages also need their model saved first.",
-      'No. Open safeos.sh on the device that will watch and go through setup.',
-      'In the browser on the device that watches. Saved frames, photos and alerts are kept in its storage, and they go to a server only if you connect one of your own.',
-    ]);
-  });
-
-  it('links the browser list, the privacy page and the full FAQ', () => {
+describe('answers alongside the features they describe', () => {
+  it('describes offline use and storage and links the privacy page and browser list', () => {
+    expect(words(one('[data-card="offline"]'))).toContain('Motion and sound alerts then work with no connection, and People and Wildlife once their model is saved.');
+    expect(words(one('[data-card="storage"]'))).toContain("Settings sit in localStorage; alerts, saved frames and your pet's photos in IndexedDB; the model in Cache Storage.");
     const link = (element: Element | null) => `${words(element)} ${bare(element?.getAttribute('href'))}`;
-    expect(link(questions[0].querySelector('a'))).toBe('See the browser list in the FAQ /faq');
-    expect(link(questions[5].querySelector('a'))).toBe('Read the privacy page /privacy');
-    expect(link(one('#questions a.home-questions__all'))).toBe('All questions and answers /faq');
-    // The link to the full FAQ comes after the questions in reading order.
-    expect(all('#questions a').pop()).toBe(one('#questions a.home-questions__all'));
+    expect(link(one('#one-device .home-steps a'))).toBe('See the browser list in the FAQ /faq');
+    expect(link(one('[data-card="storage"] a'))).toBe('Read the privacy page /privacy');
   });
 
-  it('says once that no account is needed, and carries none of the claims that left the page', () => {
-    expect(count('account')).toBe(1);
+  it('says once that no account is needed, and carries none of the retired claims', () => {
+    expect(count('No account')).toBe(1);
     for (const gone of ["Your camera's pictures stay in your browser", 'never leaves', '100% local', 'No telemetry', 'Who can see my camera?', 'What does it cost?']) {
       expect(pageWords).not.toContain(gone);
     }
@@ -496,6 +607,46 @@ describe('questions people ask first', () => {
 });
 
 describe('the page as a whole', () => {
+  const renderShell = () => served(renderToStaticMarkup(<SiteShell><HomePage /></SiteShell>));
+
+  it('uses possible-sighting wording throughout the home, including the visitor shell', () => {
+    for (const text of homeWordingInputs(renderShell().body)) expect(text).not.toMatch(barredWording);
+  });
+
+  it.each(['keeps intruders out', 'lists threats', 'detecting', 'identifying', 'recognising', 'recognises', 'detects', 'identifies', 'matched', 'matching', '50 percent'])(
+    'bars phrasing and its inflections in "%s"',
+    (text) => expect(text).toMatch(barredWording)
+  );
+
+  it('reads two blocks with no space between them as two words', () => {
+    const root = served('<p>Keep watch</p><p>Intruders trigger an alert.</p><p>Read <a href="/">the</a><span>ory</span></p>').body;
+    const [text] = homeWordingInputs(root);
+    expect(text).toMatch(barredWording);
+    expect(text).toBe('Keep watch Intruders trigger an alert. Read theory');
+  });
+
+  it.each([
+    ['nav .site-header__brand', 'aria-label', 'keeps intruders out'],
+    ['nav .site-header__brand', 'aria-description', 'lists threats'],
+    ['footer a', 'title', 'identifies threats'],
+    ['footer img', 'alt', 'recognises threats'],
+  ])('checks %s accessible copy from %s', (selector, attribute, text) => {
+    const shell = renderShell();
+    const element = shell.querySelector(selector);
+    expect(element).not.toBeNull();
+    element?.setAttribute(attribute, text);
+    expect(homeWordingInputs(shell.body)).toContain(text);
+  });
+
+  it('points readers to the explanation and the two places to start setup', () => {
+    const readme = source('..', '..', 'README.md');
+    const paragraph = readme.split('\n').find((line) => line.startsWith('The [SafeOS Guardian home page]'));
+    expect(paragraph).toContain('https://safeos.sh/#how-it-works)');
+    expect(paragraph).toContain('https://safeos.sh/#uses)');
+    expect(paragraph).toContain('https://safeos.sh/#one-device)');
+    for (const id of ['how-it-works', 'uses', 'one-device']) expect(page.getElementById(id)).not.toBeNull();
+  });
+
   it('plays nothing: it holds no video, no sound and no key that plays one', () => {
     expect(pageWords).not.toMatch(/sample clip|Try it on|Play the/i);
     expect(all('video, audio')).toHaveLength(0);
