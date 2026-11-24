@@ -658,6 +658,20 @@ for (const look of ['dark', 'light'] as const) {
           expect(Math.round(tile.height)).toBe(84);
           await expect(card.getByText(kindLine('Motion'))).toBeVisible();
         }
+        if (width === 390) {
+          const keys = cards(page).locator('.alert-pictures-keys');
+          await expect(keys).toHaveCount(3);
+          const largeText = await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+          const overflowing = cards(page).locator('.alert-pictures-keys[data-overflows]');
+          await expect(overflowing).toHaveCount(3);
+          await largeText.evaluate((style) => style.remove());
+          await expect(overflowing, 'the arrows leave when the keys fit again').toHaveCount(0);
+          for (const keyRow of await keys.all()) {
+            const acknowledge = keyRow.getByRole('button', { name: 'Acknowledge', exact: true });
+            await acknowledge.scrollIntoViewIfNeeded();
+            await expect(acknowledge).toBeInViewport({ ratio: 1 });
+          }
+        }
         if (width === 1280) {
           const top = (await cards(page).first().boundingBox())!.y;
           const last = (await cards(page).last().boundingBox())!;
@@ -1822,7 +1836,7 @@ test.describe('The group and the notice: order, sizes and faults', () => {
     test.describe(`Collapsed Alert pictures, ${look}`, () => {
       test.use({ colorScheme: look });
       for (const width of [390, 1440]) {
-        test(`the collapsed Alert pictures row shows its full summary at 15 px or more, ${width} px, ${look}`, async ({ page, context }) => {
+        test(`the collapsed Alert pictures row shows readable words and its full summary, ${width} px, ${look}`, async ({ page, context }) => {
           await page.setViewportSize({ width, height: 900 });
           await seedDevice(context, { pictures: { noticeAnswered: true } });
           await seedKept(page, 3);
@@ -1830,21 +1844,21 @@ test.describe('The group and the notice: order, sizes and faults', () => {
           await page.getByRole('button', { name: 'Show settings', exact: true }).click();
           const head = page.getByRole('button', { name: /^Alert pictures/ });
           await expect(head).toHaveAttribute('aria-expanded', 'false');
+          const title = head.getByText('Alert pictures', { exact: true });
+          await expect(title).toBeVisible();
+          expect.soft(await readable(title, { ...BLOCK_READABILITY, other: 15 }), 'the title’s size and contrast').toEqual([]);
           const summary = head.getByText('Kept on this device · 3 pictures kept on this device', { exact: true });
           await expect(summary).toBeVisible();
-          const { size, fits } = await summary.evaluate((element) => {
+          expect.soft(await readable(summary, BLOCK_READABILITY), 'the summary’s size and contrast').toEqual([]);
+          const fits = await summary.evaluate((element) => {
             const row = element.closest('button')!;
             const range = document.createRange();
             range.selectNodeContents(element);
             const text = range.getBoundingClientRect();
             const bounds = row.getBoundingClientRect();
             const container = element.parentElement!;
-            return {
-              size: parseFloat(getComputedStyle(element).fontSize),
-              fits: container.scrollWidth <= container.clientWidth + 1 && text.right <= bounds.right && text.bottom <= bounds.bottom,
-            };
+            return container.scrollWidth <= container.clientWidth + 1 && text.right <= bounds.right && text.bottom <= bounds.bottom;
           });
-          expect(size, 'the summary’s font size').toBeGreaterThanOrEqual(15);
           expect(fits, 'the full summary fits in the collapsed row').toBe(true);
         });
       }
