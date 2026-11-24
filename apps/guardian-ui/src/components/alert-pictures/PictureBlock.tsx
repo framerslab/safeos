@@ -96,10 +96,12 @@ interface MomentProps {
   boxed?: boolean;
   /** A pointer press on the picture: the same action as Open picture. */
   onPress?: () => void;
+  /** The browser cannot draw the picture's file. */
+  onUnreadable?: () => void;
 }
 
 /** The picture of the moment at its own shape, with its box drawn over it. */
-export function Moment({ set, url, at, className, boxed = Boolean(set.box), onPress }: MomentProps) {
+export function Moment({ set, url, at, className, boxed = Boolean(set.box), onPress, onUnreadable }: MomentProps) {
   const box = boxed ? set.box : null;
   return (
     <div className={className} data-tall={isTall(set) ? '' : undefined} data-press={onPress ? '' : undefined} onClick={onPress}>
@@ -111,6 +113,7 @@ export function Moment({ set, url, at, className, boxed = Boolean(set.box), onPr
           width={set.frameWidth}
           height={set.frameHeight}
           draggable={false}
+          onError={onUnreadable}
         />
         {box && <span className="alert-picture__box" style={boxStyle(box, set)} aria-hidden="true" />}
       </div>

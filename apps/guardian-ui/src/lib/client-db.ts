@@ -1042,8 +1042,8 @@ function goneRow(row: AlertPictureDB, gone: 'age' | 'person', days?: number): Al
  * marker when this tab had read none), and not Delete all pictures (the pictures marker); and not
  * over the row that says the set was deleted, which another tab writes for a set it cannot read. Out of
  * room, the oldest kept sets make way one at a time, each try its own transaction that deletes
- * them and writes the new set together; when every older set would have to go, nothing is deleted
- * and the answer is `out-of-room`, which is noted for the visit so the dashboard says the device is
+ * them and writes the new set together; when the new set finds no room even with every older set
+ * gone, nothing is deleted and the answer is `out-of-room`, which is noted for the visit so the dashboard says the device is
  * out of room (lib/storage-full). A save that made room by deleting older sets notes nothing.
  */
 export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureStamp): Promise<

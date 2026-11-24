@@ -47,7 +47,8 @@ import { LOCAL_TIMELINE_HREF } from '../../lib/app-routes';
 import { OPEN_IN_HISTORY, notificationBody, notificationTitle, plateLine, sightingNotificationBody, sightingPlate, sightingQuestion } from '../../lib/alert-pictures/words';
 import type { LiveAlertBox } from '../../components/alert-pictures/LiveBox';
 import { capturePictureSet, newPictureId, notificationCopy, showsNotificationPictures, type PictureSet } from '../../lib/alert-pictures/capture';
-import { holdPicture, picturesInNotifications, startPictureWatch, stopPictureWatch } from '../../lib/alert-pictures/keeper';
+import { holdPicture, noticeAnswered, picturesInNotifications, startPictureWatch, stopPictureWatch } from '../../lib/alert-pictures/keeper';
+import { readAccountClearMarker } from '../../lib/local-data-generation';
 import { useNoticeGate } from '../../components/alert-pictures/PicturesNotice';
 import { getNotificationManager } from '../../lib/notification-manager';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -384,7 +385,10 @@ export default function MonitorPage() {
   const startStream = (onBack?: () => void) => {
     // A click here turns the sound on in a browser that keeps it off until a tap.
     getSoundManager().unlockAudio();
-    askBeforeStart(beginCapture, onBack);
+    // Start watching on the notice asks the other tabs again: one may have started a watch while
+    // the notice stood open, and this tab then asks whether to watch here.
+    const asksFirst = !noticeAnswered();
+    askBeforeStart(asksFirst ? () => { void guard(beginCapture); } : beginCapture, onBack);
   };
 
   const stopStream = () => {
@@ -869,12 +873,15 @@ export default function MonitorPage() {
       if (!wantsPicture()) image = undefined;
     }
 
+    const picture = image;
     // An event's notifications go to the browser one after another, in the order they are ready:
     // one a newer alert of the event asked for while this one waited does not go, so the newer
     // one stands, and a slower answer from the browser never puts an earlier one over a later one.
     await showInTurn(noteTurns.current, notesAsked.current, tag, note.at, () => getNotificationManager().show(title, {
-      // The person may have turned the picture off while this waited its turn: the words go alone.
-      image: image && wantsPicture() ? image : undefined,
+      // The person may have turned the picture off while this waited its turn, or while the
+      // browser finds the service worker that shows it: the words go alone. The picture is asked
+      // for as the browser takes the notification.
+      image: picture ? () => (wantsPicture() ? picture : undefined) : undefined,
       body,
       tag,
       // A repeat replaces the earlier notification with the same tag; renotify
@@ -1023,10 +1030,13 @@ export default function MonitorPage() {
   // frame of that check, before any JPEG is made of it, with the region as its box; a region
   // that is missing, empty or outside the frame leaves the picture alone. The entry, the live
   // box, the pet's sound, the notification and the overlay come with each of the run's alerts,
-  // never with every check, and nothing is kept for a check under the alert line.
+  // never with every check, and nothing is kept for a check under the alert line. A pet that a
+  // clear of all local data in another tab took away, before this tab heard of it, raises nothing:
+  // the watch read it under the account marker that clear replaced.
   raiseSightingRef.current = (result: MatchResult, now: number, repeat: boolean) => {
     const subject = activeSubject;
     if (!subject) return;
+    if (readAccountClearMarker() !== petsMarker()) return;
     const event = sightingEventRef.current;
     const canvas = matcherRef.current.frameCanvas();
     const [width, height] = canvas ? [canvas.width, canvas.height] : [0, 0];

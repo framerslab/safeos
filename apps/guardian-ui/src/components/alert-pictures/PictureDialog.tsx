@@ -153,8 +153,9 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
   useEffect(() => {
     shownId.current = alert.pictureId;
   }, [alert.pictureId]);
-  // The picture Save picture could not read. A read failure belongs to the picture it was read
-  // for, even when it comes back after a repeat put a newer picture in the panel.
+  // The picture Save picture, or the panel's own picture, could not read. A read failure belongs
+  // to the picture it was read for, even when it comes back after a repeat put a newer picture in
+  // the panel.
   const [unreadId, setUnreadId] = useState<string | null>(null);
   const busy = useRef(false);
   // Save picture's file while it is made: a delete confirmed meanwhile waits for it.
@@ -358,12 +359,14 @@ function PictureDialog({ alert, onClose }: { alert: Alert; onClose: () => void }
               {loading && <div className="alert-picture-dialog__wait" aria-hidden="true" />}
               {shown && set && view.status === 'shown' && (
                 <>
+                  {/* A kept file the browser cannot draw is unreadable: Save picture would hand back the same file. */}
                   <Moment
                     set={set}
                     url={brightened?.frame ?? view.frameUrl}
                     at={at}
                     boxed={boxed && showBox}
                     className="alert-picture__frame"
+                    onUnreadable={() => setUnreadId(set.id)}
                   />
                   {brightened && <p className="alert-picture-dialog__plate">{BRIGHTENED_VIEW}</p>}
                 </>

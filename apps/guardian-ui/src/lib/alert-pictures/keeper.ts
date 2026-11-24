@@ -30,12 +30,12 @@ import {
   sweepUnheldAlertPictures,
   type AlertPictureDB,
 } from '../client-db';
-import { ACCOUNT_CLEAR_MARKER_KEY, pictureStampNow } from '../local-data-generation';
+import { ACCOUNT_CLEAR_MARKER_KEY, LOCAL_CLEAR_MARKER_KEY, pictureStampNow } from '../local-data-generation';
 import { useMonitoringStore } from '../../stores/monitoring-store';
-import { heardChoiceAt, useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
+import { ALERT_PICTURES_KEY, heardChoiceAt, useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 import type { PictureSet } from './capture';
 import { onPictureNews, postPictureNews, type PictureNews } from './channel';
-import { closePicture } from './opened';
+import { closePicture, openedNow } from './opened';
 import { scaleBox, type AlertKind } from './rules';
 
 type Kept = 'memory' | 'saving' | 'saved' | 'failed';
@@ -64,6 +64,8 @@ interface Entry {
   /** When no alert of the watch named it any more, or null while one does. */
   unnamedSince: number | null;
   release: ReturnType<typeof setTimeout> | null;
+  /** Moves on with each read of the row and each delete: a read that answers after either shows nothing. */
+  turn: number;
 }
 
 const LOADING: PictureView = { status: 'loading' };
@@ -198,14 +200,16 @@ function viewOfRow(entry: Entry, row: AlertPictureDB | null): void {
 
 function read(entry: Entry): void {
   const since = forgets;
+  const turn = ++entry.turn;
+  const stale = () => since !== forgets || entries.get(entry.id) !== entry || entry.memory || entry.turn !== turn;
   void getAlertPicture(entry.id).then(
     (row) => {
-      if (since !== forgets || entries.get(entry.id) !== entry || entry.memory) return;
+      if (stale()) return;
       viewOfRow(entry, row);
       tell();
     },
     () => {
-      if (since !== forgets || entries.get(entry.id) !== entry || entry.memory) return;
+      if (stale()) return;
       settle(entry, UNREADABLE);
       tell();
     },
@@ -245,6 +249,8 @@ function gone(ids: readonly string[], reason: 'person' | 'age' | 'with-alert', d
     const entry = entries.get(id);
     if (!entry) continue;
     entry.memory = false;
+    // A read of the row from before the delete shows nothing when it answers.
+    entry.turn += 1;
     // A view no card shows is dropped: the next card to show it reads the row, which says why it went.
     if (entry.holders === 0) drop(entry);
     else settle(entry, reason === 'person' ? GONE_PERSON : reason === 'age' && days ? { status: 'gone-age', days } : NONE);
@@ -266,7 +272,7 @@ function gone(ids: readonly string[], reason: 'person' | 'age' | 'with-alert', d
 export function holdPicture(promise: Promise<PictureSet>, id: string): void {
   const before = entries.get(id);
   if (before) drop(before);
-  const entry: Entry = { id, view: LOADING, memory: true, holders: 0, unnamedSince: null, release: null };
+  const entry: Entry = { id, view: LOADING, memory: true, holders: 0, unnamedSince: null, release: null, turn: 0 };
   entries.set(id, entry);
   forgetUnnamed(Date.now());
 
@@ -449,6 +455,25 @@ export function forgetAllPictures(): void {
   closePicture();
 }
 
+/**
+ * Lets go of the pictures this tab read from the database, after Clear all in another tab deleted
+ * them with their alerts: a card that still stands says no picture was kept, a read from before
+ * shows nothing, and their open picture closes. The pictures of this tab's own watch, held in its
+ * memory, stay with the alerts it shows.
+ */
+function forgetStoredPictures(): void {
+  const open = openedNow();
+  const openStored = open !== null && !(open.alert.pictureId && entries.get(open.alert.pictureId)?.memory);
+  for (const entry of [...entries.values()]) {
+    if (entry.memory) continue;
+    entry.turn += 1;
+    if (entry.holders === 0) drop(entry);
+    else settle(entry, NONE);
+  }
+  tell();
+  if (openStored) closePicture();
+}
+
 /** Reads the count of kept pictures again, once a clear of all local data is done. */
 export function recountPictures(): Promise<void> {
   return readCount();
@@ -538,10 +563,32 @@ export function picturesInNotifications(): boolean {
 /** Delete pictures after as another tab chose it, with when; null till one is heard. */
 let heardAge: { at: number; days: DeleteAfterDays } | null = null;
 
-/** The newest Delete pictures after this tab knows of: its own choice, or one another tab made later. */
+/**
+ * The newest Delete pictures after this tab knows of: its own choice, one another tab made later
+ * and told it of, or one another tab saved later that this tab's store has not read yet.
+ */
 function newestAge(): DeleteAfterDays {
   const choice = useAlertPicturesStore.getState();
-  return heardAge && heardAge.at > choice.chosenAt ? heardAge.days : choice.deleteAfterDays;
+  let newest: { at: number; days: DeleteAfterDays } = { at: choice.chosenAt, days: choice.deleteAfterDays };
+  if (heardAge && heardAge.at > newest.at) newest = heardAge;
+  const saved = savedAge();
+  if (saved && saved.at > newest.at) newest = saved;
+  return newest.days;
+}
+
+/** Delete pictures after as the browser holds it for every tab, with when it was chosen; null when it cannot be read. */
+function savedAge(): { at: number; days: DeleteAfterDays } | null {
+  try {
+    const raw = localStorage.getItem(ALERT_PICTURES_KEY);
+    if (!raw) return null;
+    const state = (JSON.parse(raw) as { state?: { deleteAfterDays?: unknown; chosenAt?: unknown } } | null)?.state;
+    if (!state || typeof state.chosenAt !== 'number') return null;
+    const days = state.deleteAfterDays;
+    if (days !== null && typeof days !== 'number') return null;
+    return { at: state.chosenAt, days: days as DeleteAfterDays };
+  } catch {
+    return null;
+  }
 }
 
 let listening = false;
@@ -556,9 +603,14 @@ function listenToOtherTabs(): void {
   // Clear all data on this device or a sign-out in another tab writes the account marker as its clear
   // commits: this tab lets go of every picture it shows, and counts again after that clear.
   window.addEventListener('storage', (event: StorageEvent) => {
-    if (event.key !== ACCOUNT_CLEAR_MARKER_KEY) return;
-    forgetAllPictures();
-    void readCount();
+    if (event.key === ACCOUNT_CLEAR_MARKER_KEY) {
+      forgetAllPictures();
+      void readCount();
+    } else if (event.key === LOCAL_CLEAR_MARKER_KEY) {
+      // Clear all in another tab deleted every watch alert and every stored picture.
+      forgetStoredPictures();
+      void readCount();
+    }
   });
 }
 
@@ -571,7 +623,7 @@ function hold(id: string, listener: () => void): () => void {
   listenToOtherTabs();
   let entry = entries.get(id);
   if (!entry) {
-    entry = { id, view: LOADING, memory: false, holders: 0, unnamedSince: null, release: null };
+    entry = { id, view: LOADING, memory: false, holders: 0, unnamedSince: null, release: null, turn: 0 };
     entries.set(id, entry);
     read(entry);
   }

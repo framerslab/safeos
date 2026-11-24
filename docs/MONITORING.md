@@ -329,8 +329,9 @@ a picture read or drawn from before the clear shows nothing; the count of pictur
 once the clear is done.
 
 When the device runs out of room, the oldest pictures make way for the newest, and the alert
-list says so once; when every older picture would have to go, the new one is not kept, the
-list says the device is out of room, and so does the dashboard for the rest of the visit. A
+list says so once; when the new one finds no room even with every older picture gone, nothing
+is deleted, the new one is not kept, the list says the device is out of room, and so does the
+dashboard for the rest of the visit. A
 window that keeps no data says once that it keeps no
 pictures. A tab whose database waits for a reload shows its alerts' pictures from memory.
 Another tab that shows an alert before its picture is saved shows the picture once it is.
