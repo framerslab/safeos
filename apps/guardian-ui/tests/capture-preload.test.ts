@@ -1,10 +1,10 @@
 /** @jest-environment jsdom */
 
-import { dashboardPreloadScript } from '@/lib/capture-preload';
+import { homeRunPreloadScript } from '@/lib/capture-preload';
 import type { HomeRun } from '@/lib/home-runs';
 import recording from '../public/home/runs/runs.json';
 
-const script = dashboardPreloadScript(recording.runs[0] as unknown as HomeRun);
+const script = homeRunPreloadScript(recording.runs.find(({ id }) => id === 'dashboard') as unknown as HomeRun);
 const original = window.matchMedia;
 
 afterEach(() => {

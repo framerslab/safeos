@@ -100,7 +100,8 @@ async function prepareDashboard({ page, baseUrl }) {
   const since = page.getByRole('region', { name: 'Since you last looked' });
   const motion = since.getByRole('link', { name: /Movement at/ }).first();
   await motion.waitFor();
-  await motion.locator('img').waitFor({ state: 'attached' });
+  await motion.locator('img').evaluate((image) => image.decode());
+  assert.match(await motion.locator('img').getAttribute('src'), /^blob:/, 'The newest movement alert must show its own kept picture');
   await since.getByRole('link', { name: /Sound at/ }).first().waitFor();
   return { notices, events };
 }
@@ -114,9 +115,7 @@ async function viewingTop(page, selector) {
 }
 
 export async function placeSubject(page, recipe, view) {
-  const anchor = view.size === 'square' && view.width < 390 && recipe.narrowAnchor
-    ? recipe.narrowAnchor
-    : recipe.anchor;
+  const anchor = recipe.anchor;
   const top = await viewingTop(page, anchor);
   const header = await page.locator('.app-header').first().boundingBox();
   const headerHeight = header?.height ?? 0;
@@ -143,7 +142,8 @@ async function scrollSubject(page, selector, top, seconds, edge = 'start', frame
     if (!subject) throw Error(`Missing scroll destination ${selector}`);
     const box = subject.getBoundingClientRect();
     const start = scrollY;
-    const target = edge === 'end' ? start + box.bottom - top - frameHeight : start + box.top - top;
+    const desired = edge === 'end' ? start + box.bottom - top - frameHeight : start + box.top - top;
+    const target = Math.min(document.scrollingElement.scrollHeight - innerHeight, Math.max(0, desired));
     return new Promise((resolve) => {
       const began = performance.now();
       const tick = (now) => {
@@ -160,46 +160,27 @@ async function scrollSubject(page, selector, top, seconds, edge = 'start', frame
 async function dashboard({ page, view, top, prepared, sample }) {
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
-  const initial = await sample();
-  const shown = initial.map(({ word }) => word).join(' ');
-  for (const way of ['Motion and sound', 'Lost and Found', 'People', 'Wildlife']) {
-    assert.ok(shown.includes(way), `The Dashboard poster does not show ${way} at ${view.width} px: ${shown}`);
-  }
+  const ways = page.getByRole('region', { name: 'Ways to watch' });
+  const first = await ways.getByRole('link').first().boundingBox();
+  const end = top + (view.size === 'square' ? view.width : view.height);
+  assert.ok(first && first.y >= top && first.y + first.height <= end, 'The Dashboard must start with a complete way to watch');
+
   await sleepUntil(page, start, 2.5);
   const header = await page.locator('.app-header').first().boundingBox();
   const subjectTop = Math.max(top + 6, (header?.height ?? 0) + 4);
-  let scroll;
-  if (view.size === 'wide') {
-    const from = await page.evaluate(() => scrollY);
-    const target = await viewingTop(page, '#since-label') - subjectTop;
-    await page.mouse.move(1, Math.min(subjectTop + 20, view.height - 1));
-    const wheelStart = await browserTime(page);
-    let previous = from;
-    // One steady wheel gesture, with time for the compositor to paint it.
-    for (let step = 1; step <= 12; step += 1) {
-      const at = Math.round(from + (target - from) * step / 12);
-      await page.mouse.wheel(0, at - previous);
-      previous = at;
-      await sleepUntil(page, wheelStart, step / 12);
-    }
-    await page.waitForFunction((target) => Math.abs(scrollY - target) <= 3, target, { timeout: 1000 });
-    scroll = { from, to: await page.evaluate(() => scrollY), target };
-  } else {
-    scroll = await scrollSubject(page, '#since-label', subjectTop, 1);
-  }
+  const scroll = await scrollSubject(page, '#since-label', subjectTop, 1);
   assert.ok(Math.abs(scroll.to - scroll.from) > 16, 'The dashboard did not scroll to its new alerts');
-  const entry = await page.locator('.since__list li').first().boundingBox();
-  assert.ok(entry && entry.y >= subjectTop && entry.y < top + (view.size === 'square' ? view.width : view.height),
-    'The dashboard scroll did not bring a new alert into the recording');
-  console.log(`Dashboard scroll: ${JSON.stringify(scroll)}, newest alert starts at ${entry.y}`);
+
   const event = await browserTime(page);
-  const image = page.getByRole('region', { name: 'Since you last looked' })
-    .getByRole('link', { name: /Movement at/ }).first().locator('img');
+  const since = page.getByRole('region', { name: 'Since you last looked' });
+  const motion = since.getByRole('link', { name: /Movement at/ }).first();
+  const sound = since.getByRole('link', { name: /Sound at/ }).first();
   await sleepUntil(page, start, 5);
-  const picture = await image.boundingBox();
-  const decoded = await image.evaluate((element) => element.complete && element.naturalWidth > 0);
-  assert.ok(decoded && picture && picture.y >= top && picture.y + picture.height <= top
-    + (view.size === 'square' ? view.width : view.height), 'The newest motion picture is outside the Dashboard poster');
+  for (const subject of [since.getByRole('heading'), motion, motion.locator('img'), sound]) {
+    const box = await subject.boundingBox();
+    assert.ok(box && box.y >= top && box.y + box.height <= end,
+      'The Dashboard poster must hold the alerts, the kept movement picture and their heading whole: ' + subject);
+  }
   const words = await sample();
   const poster = await browserTime(page);
   await sleepUntil(page, start, 6);
@@ -209,7 +190,7 @@ async function dashboard({ page, view, top, prepared, sample }) {
   };
 }
 
-async function watching({ page, view, top, sample }) {
+async function watching({ page, view, top, sample, nextFrameAfter }) {
   await page.evaluate(() => {
     const frame = document.querySelector('.watch-frame');
     if (!frame) throw Error('The watch has no camera frame');
@@ -229,45 +210,53 @@ async function watching({ page, view, top, sample }) {
   // Starting the live camera changes the page's height and moves keyboard
   // focus. Reframe by scrolling the actual page within the fixed crop.
   const header = await page.locator('.app-header').first().boundingBox();
-  const target = Math.max(top + 6, (header?.height ?? 0) + 4);
+  const target = Math.max(top + (view.size === 'square' ? 14 : 6), (header?.height ?? 0) + 4);
   const cameraTop = await viewingTop(page, '.watch-frame__screen');
   await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), Math.max(0, cameraTop - target));
-  const framed = await camera.boundingBox();
+  const framed = await page.locator('.watch-frame').boundingBox();
   const bottom = top + (view.size === 'wide' ? view.height : view.width);
   assert.ok(framed && framed.y >= top - 0.5 && framed.y + framed.height <= bottom + 0.5,
-    'The Watching crop must contain the whole camera image');
+    'The Watching crop must contain the whole camera image and both meters');
   const peaks = { motion: 0, sound: 0 };
   const threshold = 100 - settings.globalSettings.audioSensitivity;
+  const readMeters = () => page.evaluate(() => {
+    const video = document.querySelector('.watch-frame__picture video');
+    const level = (name) => Number(document.querySelector(`[role="meter"][aria-label="${name}"]`)?.getAttribute('aria-valuenow') ?? 0);
+    return {
+      at: (performance.timeOrigin + performance.now()) / 1000,
+      clipAt: video.currentTime,
+      motion: level('Motion level'),
+      sound: level('Sound level'),
+    };
+  });
+  const aboveDuringBark = (reading) => reading.clipAt >= 6 && reading.clipAt <= 9 && reading.sound > threshold;
   let poster;
+  let posterReading;
   let words;
   let lastBarkReading;
   const nominalEnd = start + view.seconds;
   let end = nominalEnd;
   let reachedEnd = false;
   while ((await browserTime(page)) < nominalEnd + 1.5) {
-    const reading = await page.evaluate(() => {
-      const video = document.querySelector('.watch-frame__picture video');
-      const level = (name) => Number(document.querySelector(`[role="meter"][aria-label="${name}"]`)?.getAttribute('aria-valuenow') ?? 0);
-      return {
-        at: (performance.timeOrigin + performance.now()) / 1000,
-        clipAt: video.currentTime,
-        motion: level('Motion level'),
-        sound: level('Sound level'),
-      };
-    });
+    const reading = await readMeters();
     peaks.motion = Math.max(peaks.motion, reading.motion);
     peaks.sound = Math.max(peaks.sound, reading.sound);
-    if (reading.clipAt >= 6 && reading.clipAt <= 9 && reading.sound >= threshold) {
-      lastBarkReading = reading.at;
-      if (!poster) {
-        // The meter's text and the compositor frame must show the same
-        // sound. Wait for it to paint, then sample while it still reads high.
-        await page.evaluate(() => new Promise((resolve) =>
-          requestAnimationFrame(() => requestAnimationFrame(resolve))));
-        const painted = await page.getByRole('meter', { name: 'Sound level', exact: true }).getAttribute('aria-valuenow');
-        if (Number(painted) >= threshold) {
-          words = await sample();
-          poster = await browserTime(page);
+    if (aboveDuringBark(reading)) lastBarkReading = reading.at;
+    if (!poster && aboveDuringBark(reading) && reading.clipAt >= 8.3) {
+      // The kitten turns into profile near the end of the bark. Select a
+      // compositor frame bracketed by live, above-line readings.
+      const at = await nextFrameAfter(reading.at);
+      const painted = await readMeters();
+      if (at !== undefined && at <= painted.at && aboveDuringBark(painted)) {
+        const candidate = await sample();
+        if (candidate.map(({ word }) => word).join(' ').includes('Sound Over the line')) {
+          poster = at;
+          words = candidate;
+          posterReading = {
+            clipAt: reading.clipAt + (painted.clipAt - reading.clipAt) * (at - reading.at) / (painted.at - reading.at),
+            sound: Math.min(reading.sound, painted.sound),
+            threshold,
+          };
         }
       }
     }
@@ -276,10 +265,10 @@ async function watching({ page, view, top, sample }) {
       reachedEnd = true;
       break;
     }
-    await sleepUntil(page, reading.at, 0.08);
+    await sleepUntil(page, reading.at, 0.04);
   }
   assert.ok(peaks.motion > 0, 'The Motion meter never rose');
-  assert.ok(poster, `The Sound meter did not go over its line during the bark (peak ${peaks.sound}, line ${threshold})`);
+  assert.ok(poster, `No above-line Sound frame showed the kitten’s face during the bark (peak ${peaks.sound}, line ${threshold})`);
   assert.ok(reachedEnd, 'The watch did not hold through the second after the bark');
   const trimSeconds = end - nominalEnd;
   let trim;
@@ -293,7 +282,7 @@ async function watching({ page, view, top, sample }) {
   const raised = await watchEvent(page, 'sound').count();
   const notices = await page.evaluate(() => window.homeRunNotifications);
   assert.ok(!raised || notices?.length, 'The watch saved a sound alert without a recorded notification');
-  return { start, end, poster, words, event: poster, peaks, notices, trim, lastBarkReading };
+  return { start, end, poster, posterFrame: poster, posterReading, words, event: poster, peaks, notices, trim, lastBarkReading };
 }
 
 async function siteSettings({ page, view, top, sample }) {
@@ -309,24 +298,6 @@ async function siteSettings({ page, view, top, sample }) {
 
 export const recipes = [
   {
-    id: 'dashboard',
-    key: 'Dashboard',
-    route: '/dashboard/',
-    state: 'B',
-    clip: 'home/sample-clip.mp4',
-    seconds: 6,
-    anchor: '#ways-label',
-    narrowAnchor: '.ways__list',
-    description: 'The dashboard after a watch on the kitten clip: its new alerts since you last looked, and the four ways to watch.',
-    longDescription: [
-      '0–2 seconds. The dashboard shows the four ways to watch after a watch on the kitten clip.',
-      '2–4 seconds. The page scrolls to Since you last looked.',
-      '4–6 seconds. The new movement and sound alerts remain on screen.',
-    ],
-    prepare: prepareDashboard,
-    record: dashboard,
-  },
-  {
     id: 'watching',
     key: 'Watching',
     route: WATCH,
@@ -334,7 +305,7 @@ export const recipes = [
     clip: 'home/sample-clip.mp4',
     seconds: 10,
     anchor: '.watch-frame__screen',
-    description: 'A watch starting on the kitten clip: the Motion and Sound meters rise as a dog barks.',
+    description: 'The kitten moves and a bark raises the Sound meter.',
     longDescription: [
       '0–2 seconds. Start watching opens the camera on a kitten on a grey carpet.',
       '2–6 seconds. The kitten grooms itself and its movement raises the Motion meter.',
@@ -345,6 +316,23 @@ export const recipes = [
     record: watching,
   },
   {
+    id: 'dashboard',
+    key: 'Dashboard',
+    route: '/dashboard/',
+    state: 'B',
+    clip: 'home/sample-clip.mp4',
+    seconds: 6,
+    anchor: '#ways-label',
+    description: 'New alerts from the kitten watch and four ways to watch.',
+    longDescription: [
+      '0–2 seconds. The dashboard shows the four ways to watch after a watch on the kitten clip.',
+      '2–4 seconds. The page scrolls to Since you last looked.',
+      '4–6 seconds. The new movement and sound alerts remain on screen.',
+    ],
+    prepare: prepareDashboard,
+    record: dashboard,
+  },
+  {
     id: 'settings',
     key: 'Settings',
     route: '/settings/',
@@ -352,7 +340,7 @@ export const recipes = [
     clip: null,
     seconds: 6,
     anchor: 'nav[aria-label="Settings pages"]',
-    description: 'Settings say how this device is set: what it watches for and what raises an alert.',
+    description: 'Settings control what the device watches and when it alerts.',
     longDescription: [
       '0–2 seconds. Settings shows Detection first, then the settings that follow it.',
       '2–5 seconds. The page scrolls through the list of settings.',

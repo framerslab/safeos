@@ -24,7 +24,7 @@ import * as detector from '@/lib/animal-detection';
 import { MODEL_BYTES, MODEL_MANIFEST_BYTES, MODEL_SIZE_MB, MODEL_URL, MODEL_WEIGHTS_BYTES } from '@/lib/detection-model-facts';
 import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
 import { mediaPath, type HomeRunManifest } from '@/lib/home-runs';
-import { dashboardPreloadScript, dashboardPreloads } from '@/lib/capture-preload';
+import { homeRunPreloadScript, homeRunPreloads } from '@/lib/capture-preload';
 import { barredWording, homeWordingInputs } from '../scripts/home-wording.cjs';
 import { bare, served, words } from './helpers/served-html';
 
@@ -77,7 +77,7 @@ describe('the page reads before any script runs and asks for nothing', () => {
     expect(all('#how-it-works details')).toHaveLength(6);
   });
 
-  it('serves a working dashboard demonstration on home', () => {
+  it('opens on Watching and offers Dashboard and Settings next', () => {
     const region = one('section[aria-label="Recorded runs of SafeOS Guardian"]');
     expect(region).not.toBeNull();
     const keys = Array.from(region!.querySelectorAll('button[data-run]')).map(words);
@@ -377,10 +377,10 @@ describe('recorded app runs', () => {
   });
 
   it('preloads the first picture using the same URLs as first paint', () => {
-    expect(html).toContain(dashboardPreloadScript(first));
+    expect(html).toContain(homeRunPreloadScript(first));
     const box = region?.querySelector('.home-run__frame')?.getAttribute('style');
     expect(all('link[rel="preload"][as="image"]')).toHaveLength(0);
-    for (const { href } of dashboardPreloads(first)) expect(box).toContain(href);
+    for (const { href } of homeRunPreloads(first)) expect(box).toContain(href);
     expect(one('noscript style')?.textContent).toContain('var(--run-poster)');
   });
 });

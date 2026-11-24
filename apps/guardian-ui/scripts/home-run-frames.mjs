@@ -57,6 +57,7 @@ export async function emulatedSurface(page, view) {
 export async function spool(cdp, directory, view) {
   const frames = [];
   const pending = new Set();
+  const frameListeners = new Set();
   const width = Math.round(view.width * view.scale);
   const height = Math.round(view.height * view.scale);
   let failure;
@@ -102,6 +103,7 @@ export async function spool(cdp, directory, view) {
     if (!frames.length) console.log(`DevTools preroll: ${w}×${h} native pixels`);
     const filename = `frame-${String(frames.length).padStart(4, '0')}.png`;
     frames.push({ filename, at, scrollY: metadata.scrollOffsetY });
+    for (const listen of frameListeners) listen(at);
     settleFirst();
     const write = writeFile(path.join(directory, filename), bytes);
     pending.add(write);
@@ -123,6 +125,20 @@ export async function spool(cdp, directory, view) {
     clearTimeout(initialTimeout);
   }
   return {
+    async nextFrameAfter(after) {
+      const held = frames.find(({ at }) => at >= after);
+      if (held) return held.at;
+      return new Promise((resolve) => {
+        const finish = (at) => {
+          clearTimeout(timer);
+          frameListeners.delete(listen);
+          resolve(at);
+        };
+        const listen = (at) => { if (at >= after) finish(at); };
+        const timer = setTimeout(finish, 200);
+        frameListeners.add(listen);
+      });
+    },
     async stop() {
       accepting = false;
       try {
@@ -149,16 +165,20 @@ export async function readRecordingWords(page, crop, { poster = false } = {}) {
     const clipped = [];
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const range = document.createRange();
+    const measure = document.createElement('canvas').getContext('2d');
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const parent = node.parentElement;
       if (!parent || parent.closest('script, style, [hidden], template, noscript, .sr-only')) continue;
       const style = getComputedStyle(parent);
       if (style.visibility !== 'visible' || style.opacity === '0') continue;
       const size = parseFloat(style.fontSize);
+      measure.font = style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily;
       for (const word of node.textContent.matchAll(/\S+/g)) {
         range.setStart(node, word.index);
         range.setEnd(node, word.index + word[0].length);
-        for (const rect of range.getClientRects()) {
+        const rects = range.getClientRects();
+        const ink = measure.measureText(word[0]);
+        for (const rect of rects) {
           if (!rect.width || !rect.height) continue;
           if (rect.left >= bounds.right || rect.right <= bounds.x || rect.top >= bounds.bottom || rect.bottom <= bounds.y) continue;
           const hit = document.elementFromPoint(
@@ -167,7 +187,10 @@ export async function readRecordingWords(page, crop, { poster = false } = {}) {
           );
           if (!hit || (!parent.contains(hit) && !hit.contains(parent))) continue;
           const box = { x: rect.left - crop.x, y: rect.top - crop.y, width: rect.width, height: rect.height };
-          const report = { word: word[0], size, ...box };
+          const report = {
+            word: word[0], size, ...box,
+            ...(rects.length === 1 ? { inkHeight: ink.actualBoundingBoxAscent + ink.actualBoundingBoxDescent } : {}),
+          };
           if (rect.left < bounds.x - 0.5 || rect.top < bounds.y - 0.5
             || rect.right > bounds.right + 0.5 || rect.bottom > bounds.bottom + 0.5) clipped.push(report);
           else words.push(report);
@@ -240,7 +263,10 @@ async function concatWindow(frames, cut, seconds, directory) {
     const lastFrame = await readFile(path.join(directory, segment.at(-1).filename));
     assert.ok(!firstFrame.equals(lastFrame), 'The screenshot pixels did not move with the Dashboard scroll');
   }
-  const posterFrame = segment.findLast(({ at }) => at <= cut.poster);
+  const posterFrame = cut.posterFrame === undefined
+    ? segment.findLast(({ at }) => at <= cut.poster)
+    : segment.find(({ at }) => at === cut.posterFrame);
+  assert.ok(posterFrame, 'The observed poster was not among the recorded frames');
   const list = ['ffconcat version 1.0'];
   for (let i = 0; i < segment.length; i += 1) {
     const next = segment[i + 1]?.at ?? last;

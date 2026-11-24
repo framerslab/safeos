@@ -18,7 +18,7 @@ import path from 'node:path';
 
 import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
-import { coverBox } from '../src/lib/alert-pictures/rules';
+import { mapLiveBox } from '../src/lib/alert-pictures/rules';
 import {
   BLOCK_READABILITY,
   CUSTOM_PRESET,
@@ -2103,7 +2103,7 @@ for (const look of ['dark', 'light'] as const) {
         expect(plate.ratio).toBeGreaterThanOrEqual(12);
       });
 
-      test(`the live box lands where the frame's numbers fall through the picture's crop, ${width} px, ${look}`, async ({ page, context }) => {
+      test(`the live box stays aligned on the full camera image, ${width} px, ${look}`, async ({ page, context }) => {
         test.setTimeout(120_000);
         await watchWith(page, context, { settings: MOTION_ONLY, camera: MIDDLE_BAND });
         await timeOf(cards(page).first(), 'Motion');
@@ -2114,16 +2114,15 @@ for (const look of ['dark', 'light'] as const) {
         await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
         const [row] = keptRows(await readDatabase(page));
         expect([row.sourceWidth, row.sourceHeight, row.box]).toEqual([640, 480, { x: 0, y: 120, width: 640, height: 240 }]);
-        const want = coverBox(row.box, 640, 480, view.width, view.height)!;
-        expect(want, 'the box falls inside the live picture’s crop').not.toBeNull();
+        const want = mapLiveBox(row.box, 640, 480, view.width, view.height, 'contain')!;
+        expect(want, 'the box falls inside the full camera image').not.toBeNull();
         for (const key of ['x', 'y'] as const) {
           expect(Math.abs(drawn[key] - (view[key] + want[key])), `the box's ${key} (${drawn[key]} against ${view[key] + want[key]})`).toBeLessThanOrEqual(2);
         }
         for (const key of ['width', 'height'] as const) {
           expect(Math.abs(drawn[key] - want[key]), `the box's ${key} (${drawn[key]} against ${want[key]})`).toBeLessThanOrEqual(2);
         }
-        // Not the per cents of the 16:9 box, where a quarter of the way down a 4:3 frame stands lower.
-        expect(Math.abs(drawn.y - (view.y + view.height * 0.25)), 'the box is not placed by per cents of the 16:9 box').toBeGreaterThan(4);
+        expect(drawn.x - view.x, 'the box starts at the camera image inside the 16:9 frame').toBeGreaterThan(4);
       });
     });
   }

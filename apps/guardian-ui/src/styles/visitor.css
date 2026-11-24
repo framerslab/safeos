@@ -1594,6 +1594,10 @@ html.reduce-motion .home-run__frame[data-loading='true']::after {
   line-height: var(--type-word-line);
 }
 
+.home-run__status:empty {
+  margin: 0;
+}
+
 .home-run__problem {
   position: absolute;
   inset: 0;

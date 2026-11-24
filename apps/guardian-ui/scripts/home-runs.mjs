@@ -73,7 +73,10 @@ async function recordVariant(browser, recipe, view, avif) {
     let cut;
     let frames;
     try {
-      cut = await recipe.record({ page, view, top, prepared, sample: () => readRecordingWords(page, crop, { poster: true }) });
+      cut = await recipe.record({
+        page, view, top, prepared, nextFrameAfter: recording.nextFrameAfter,
+        sample: () => readRecordingWords(page, crop, { poster: true }),
+      });
     } finally {
       try {
         frames = await recording.stop();
@@ -102,6 +105,7 @@ async function recordVariant(browser, recipe, view, avif) {
       words: cut.words,
       ...(cut.peaks ? {
         meterPeaks: cut.peaks,
+        posterReading: cut.posterReading,
         barkEndedAt: outputTime(cut.lastBarkReading, cut),
         sourceSeconds: cut.end - cut.start,
         ...(cut.trim ? { startupTrimSeconds: cut.trim.end - cut.trim.start } : {}),
@@ -161,8 +165,6 @@ try {
     channel: 'chromium', args: ['--force-device-scale-factor=2.5'],
   });
   const runs = [];
-  // Start with Dashboard's real watch and saved picture. If its source
-  // prerequisite fails, stop before capturing the rest of the set.
   for (const recipe of recipes) {
     runs.push(await recordSet(recipe.clip ? sample : withoutClip, recipe, avif));
   }

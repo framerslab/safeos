@@ -245,7 +245,13 @@ html:has(.watch) {
 }
 
 .watch-frame__picture video {
-  object-fit: cover;
+  object-fit: contain;
+}
+
+@media (min-width: 48em) and (max-height: 36em) {
+  .watch-frame[data-phase='live'] .watch-frame__screen {
+    max-height: max(10rem, calc(100svh - 11rem));
+  }
 }
 
 .watch-frame[data-phase='live'] .watch-frame__picture {

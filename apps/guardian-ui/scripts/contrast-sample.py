@@ -103,8 +103,11 @@ def main():
         for look in ("dark", "light")
         for card in ("", *DISCLOSURES)
     }
-    if args.runs:
-        runs = json.loads(args.runs.read_text())["runs"]
+    runs = json.loads(args.runs.read_text())["runs"] if args.runs else []
+    if runs:
+        expected.update({
+            f"home-readability-run-steps-390-{look}.png": "steps" for look in ("dark", "light")
+        })
         expected.update({
             f"home-readability-run-{run['id']}-{width}-{look}.png": "poster"
             for run in runs
@@ -117,6 +120,14 @@ def main():
     if missing or unexpected or len(files) != len(set(files)):
         errors.append(f"invalid home picture set: missing {sorted(missing)}, unexpected {sorted(unexpected)}"
                       f", {len(files) - len(set(files))} duplicates")
+    for width in (390, 1440):
+        for look in ("dark", "light"):
+            files = {f"home-readability-{width}-{look}.png", f"home-readability-run-steps-{width}-{look}.png"}
+            strip_views = [source["boxes"] for source in sources if source["file"] in files]
+            for run in runs:
+                if not any(" ".join(box["name"] for box in boxes if box.get("runStep") == run["id"]) == run["key"]
+                           for boxes in strip_views):
+                    errors.append(f"{width} px {look}: missing {run['key']} step pixels")
     for source in sources:
         file = source["file"]
         card = expected.get(file)
@@ -139,6 +150,8 @@ def main():
         kinds = ["body"] if card else [kind for kind in FLOORS if kind != "poster"]
         if card == "poster":
             kinds = ["poster"]
+        if card == "steps":
+            kinds = ["label"]
         if card == "storage":
             kinds.append("label")
         for kind in kinds:

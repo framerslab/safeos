@@ -10,7 +10,7 @@ export async function waitForPlaying(page, after = 0, timeout = 5000) {
   }, { selector: PLAYER, after }, { timeout });
 }
 
-export async function checkHomeRuns(browser, baseUrl) {
+export async function checkHomeRuns(browser, baseUrl, [opening, following]) {
   const context = await browser.newContext({
     viewport: { width: 1440, height: 900 },
     colorScheme: 'dark',
@@ -20,8 +20,9 @@ export async function checkHomeRuns(browser, baseUrl) {
   try {
     const page = await context.newPage();
     await page.mouse.move(0, 0);
-    const dashboard = '/home/runs/dashboard-wide-dark.mp4';
-    const requested = page.waitForResponse((response) => response.url() === new URL(dashboard, baseUrl).href
+    const firstVideo = new URL('/' + opening.variants.wide.dark.video.path, baseUrl).href;
+    const nextVideo = new URL('/' + following.variants.wide.dark.video.path, baseUrl).href;
+    const requested = page.waitForResponse((response) => response.url() === firstVideo
       && [200, 206].includes(response.status()), { timeout: 15000 });
     const response = await page.goto(new URL('/', baseUrl).href, { waitUntil: 'domcontentloaded' });
     assert.ok(response?.ok(), 'Home must serve the exported page');
@@ -32,8 +33,8 @@ export async function checkHomeRuns(browser, baseUrl) {
     const first = await region.locator('video').evaluate((movie) => ({
       time: movie.currentTime, width: movie.videoWidth, muted: movie.muted, source: movie.currentSrc,
     }));
-    assert.ok(first.muted && first.width > 0, 'Dashboard must have a decoded muted video');
-    assert.equal(first.source, new URL(dashboard, baseUrl).href);
+    assert.ok(first.muted && first.width > 0, opening.key + ' must have a decoded muted video');
+    assert.equal(first.source, firstVideo);
     await waitForPlaying(page, first.time);
     const video = region.locator('video');
     await region.getByRole('button', { name: 'Pause the recordings' }).click();
@@ -44,11 +45,11 @@ export async function checkHomeRuns(browser, baseUrl) {
     await page.mouse.move(0, 0);
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Pause the recordings');
     await waitForPlaying(page, held).catch(() => { throw Error('Play must continue when the pointer leaves the focused toggle'); });
-    await region.locator('[data-run="watching"][aria-current="step"]').waitFor({ timeout: 16000 });
+    await region.locator(`[data-run="${following.id}"][aria-current="step"]`).waitFor({ timeout: 16000 });
     await waitForPlaying(page);
-    assert.match(await video.evaluate((movie) => movie.currentSrc), /watching-wide-dark\.mp4$/);
+    assert.equal(await video.evaluate((movie) => movie.currentSrc), nextVideo);
 
-    console.log('The exported home plays muted Dashboard video, freezes on Pause, and advances to Watching');
+    console.log('The exported home pauses, resumes and advances its muted recordings');
     return 0;
   } catch (error) {
     console.error(`Home playback: ${error.message}`);
@@ -106,6 +107,8 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
   const issues = [];
   const home = new URL('/', baseUrl).href;
   const ids = runs.map((run) => run.id);
+  const opening = ids[0];
+  const openingFile = '/home/runs/' + opening;
   const paths = runs.flatMap(({ variants }) => ['dark', 'light'].map((look) => '/' + variants.square[look].poster.webp.path));
   const inContext = async (name, options, check) => {
     const context = await browser.newContext({
@@ -132,14 +135,14 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     })));
     const log = mediaLog(context, page);
     await open(page);
-    await waitForPoster(page, 'dashboard', 'square', 'light');
-    assert.deepEqual(log.document, ['/home/runs/dashboard-square-light.webp']);
+    await waitForPoster(page, opening, 'square', 'light');
+    assert.deepEqual(log.document, [openingFile + '-square-light.webp']);
     await page.setViewportSize({ width: 1280, height: 900 });
-    await waitForPoster(page, 'dashboard', 'wide', 'light');
+    await waitForPoster(page, opening, 'wide', 'light');
     await page.getByRole('button', { name: 'Switch to the dark look', exact: true }).click();
-    await waitForPoster(page, 'dashboard', 'wide', 'dark');
+    await waitForPoster(page, opening, 'wide', 'dark');
     assert.deepEqual(log.document, [
-      '/home/runs/dashboard-square-light.webp', '/home/runs/dashboard-wide-light.webp', '/home/runs/dashboard-wide-dark.webp',
+      openingFile + '-square-light.webp', openingFile + '-wide-light.webp', openingFile + '-wide-dark.webp',
     ]);
   });
 
@@ -159,18 +162,18 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
       const log = mediaLog(context, page);
       await open(page);
       await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 45000 });
-      await waitForPoster(page, 'dashboard', 'square', 'dark');
+      await waitForPoster(page, opening, 'square', 'dark');
       await button(page, 'Play the recordings').waitFor();
       if (restriction !== 'reduce') await player(page).getByText('Press Play to load this recording.', { exact: true }).waitFor();
-      assert.deepEqual(log.document, ['/home/runs/dashboard-square-dark.webp']);
+      assert.deepEqual(log.document, [openingFile + '-square-dark.webp']);
       assert.deepEqual(log.worker, []);
       await button(page, 'Play the recordings').click();
       await waitForPlaying(page);
       assert.deepEqual([...new Set(log.document)], [
-        '/home/runs/dashboard-square-dark.webp', '/home/runs/dashboard-square-dark.mp4',
+        openingFile + '-square-dark.webp', openingFile + '-square-dark.mp4',
       ]);
       assert.deepEqual(log.worker, []);
-      assert.equal(await page.evaluate(async () => Boolean(await caches.match('/home/runs/dashboard-square-dark.mp4'))), false);
+      assert.equal(await page.evaluate(async (movie) => Boolean(await caches.match(movie)), openingFile + '-square-dark.mp4'), false);
       if (restriction === 'reduce') {
         await page.emulateMedia({ reducedMotion: 'no-preference' });
       } else {
@@ -211,10 +214,10 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
           return keys.flat().some((request) => /\.mp4(?:$|\?)/.test(request.url));
         }), false);
         if (width === 1440) {
-          assert.equal(await page.evaluate(async (look) => {
-            const answer = await fetch('/home/runs/dashboard-wide-' + look + '.avif');
+          assert.equal(await page.evaluate(async (url) => {
+            const answer = await fetch(url);
             return answer.headers.get('Content-Type');
-          }, look), 'image/webp', 'Worker serves the saved square’s media type');
+          }, openingFile + '-wide-' + look + '.avif'), 'image/webp', 'Worker serves the saved square’s media type');
         }
       });
     }
@@ -323,19 +326,22 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     });
     assert.deepEqual(await page.evaluate(() => window.homeRunSelections), [...ids, ...ids, ids[0]]);
     assert.equal(await player(page).locator('[aria-live="polite"]').textContent(), '');
-    await button(page, 'Play the recordings').waitFor();
+    await button(page, 'Play the recordings').click();
+    await page.mouse.move(0, 0);
+    await waitForPlaying(page).catch(() => { throw Error('Play must resume the opening run after two passes'); });
+    assert.equal(await selector(page, ids[0]).getAttribute('aria-current'), 'step');
   });
 
   await inContext('delayed and failed video, then failed poster', { serviceWorkers: 'block' }, async (page, context) => {
     let release;
     const held = new Promise((resolve) => { release = resolve; });
-    await context.route('**/home/runs/dashboard-wide-dark.mp4', async (route) => {
+    await context.route('**' + openingFile + '-wide-dark.mp4', async (route) => {
       await held;
       await route.abort().catch(() => {});
     });
     try {
       await page.goto(home, { waitUntil: 'domcontentloaded' });
-      await waitForPoster(page, 'dashboard', 'wide', 'dark');
+      await waitForPoster(page, opening, 'wide', 'dark');
       const frame = player(page).locator('.home-run__frame');
       const before = await frame.boundingBox();
       await frame.and(page.locator('[data-loading="true"]')).waitFor();

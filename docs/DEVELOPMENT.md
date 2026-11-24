@@ -596,11 +596,13 @@ least 320 px. This preserves readable labels when the home is 320 px wide.
 | --- | ---: | ---: |
 | An MP4 | 400,000 bytes | 1,200,000 bytes |
 | A poster | 60,000 bytes | 120,000 bytes |
-| Dashboard and its poster | 460,000 bytes | 1,300,000 bytes |
+| Watching and its poster | 460,000 bytes | 1,300,000 bytes |
 | Complete set in one look | 2,300,000 bytes | 6,600,000 bytes |
 
-The first poster is the matching WebP. The player holds the poster for
-reduced motion and data saving until Play. Once the service worker has
+The first poster shows the kitten and the Motion and Sound meters when a dog
+barks. The player uses the matching Watching WebP. Dashboard follows with
+the movement and sound alerts and the movement alert’s kept picture. The
+player holds the poster for reduced motion and data saving until Play. Once the service worker has
 saved the app, an eligible visit saves both looks' square WebP posters as
 an optional batch. Visitors can step through the saved pictures offline.
 Save-Data, 2g, slow-2g and reduced motion defer the poster batch. The
@@ -612,10 +614,31 @@ request refreshes the complete set on the integrated branch. Use the green
 producer job on that source and import its manifest and all files together:
 
 ```bash
-gh run download <run id> -n home-runs -D /tmp/home-runs
-cp /tmp/home-runs/* apps/guardian-ui/public/home/runs/
+# Replace files named by the old manifest, including AVIFs the new run may omit.
+artifact_dir="$(mktemp -d)" &&
+gh run download <run id> -n home-runs -D "$artifact_dir" &&
+node --input-type=module - <<'JS' &&
+import { readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+
+const publicDir = 'apps/guardian-ui/public';
+const manifestFile = join(publicDir, 'home/runs/runs.json');
+const { runs } = JSON.parse(readFileSync(manifestFile, 'utf8'));
+for (const { variants } of runs) {
+  for (const looks of Object.values(variants)) {
+    for (const { video, poster } of Object.values(looks)) {
+      for (const { path } of [video, ...Object.values(poster)]) {
+        rmSync(join(publicDir, path), { force: true });
+      }
+    }
+  }
+}
+rmSync(manifestFile);
+JS
+cp "$artifact_dir"/* apps/guardian-ui/public/home/runs/
 ```
 
+This keeps the garden source files, which live beside the recorded outputs.
 **Check the committed home runs** checks the content digest and the producer
 record. It compares the available artifact with every committed byte.
 A source change requires a new recording. Evidence and documentation edits

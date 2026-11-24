@@ -4,15 +4,15 @@ const sizes = ['square', 'wide'] as const;
 const looks = ['dark', 'light'] as const;
 const media = (size: RunSize) => size === 'wide' ? HOME_RUN_WIDE : '(width < 1280px)';
 
-export function dashboardPreloads(dashboard: HomeRun) {
+export function homeRunPreloads(run: HomeRun) {
   return sizes.flatMap((size) => looks.map((look) => ({
     size, look, media: media(size) + ' and (prefers-color-scheme: ' + look + ')',
-    href: mediaPath(dashboard.variants[size][look].poster.webp),
+    href: mediaPath(run.variants[size][look].poster.webp),
   })));
 }
 
-export function dashboardPreloadScript(dashboard: HomeRun) {
-  const entries = dashboardPreloads(dashboard);
+export function homeRunPreloadScript(run: HomeRun) {
+  const entries = homeRunPreloads(run);
   const urls = JSON.stringify(Object.fromEntries(entries.map(({ size, look, href }) => [size + '-' + look, href])))
     .replace(/</g, '\\u003c');
   return "(function(){try{var root=document.documentElement;var look=root.classList.contains('light')?'light':"

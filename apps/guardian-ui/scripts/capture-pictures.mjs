@@ -98,6 +98,7 @@ try {
     ? await import('./home-checks.mjs')
     : null;
   if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks);
+  if (homeChecks) failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
   for (const route of routes) {
     for (const size of WIDTHS) {
       for (const look of LOOKS) {
@@ -225,11 +226,10 @@ try {
   if (homeChecks) {
     failures += await checkFirstVisit(browser, baseUrl, outDir);
     const { checkHomeRuns, checkRunPolicies } = await import('./home-run-checks.mjs');
-    failures += await checkHomeRuns(browser, baseUrl);
-    failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
     const response = await fetch(new URL('/home/runs/runs.json', baseUrl));
     if (!response.ok) throw Error('Missing exported home recordings');
     const { runs } = await response.json();
+    failures += await checkHomeRuns(browser, baseUrl, runs);
     failures += await checkRunPolicies(browser, baseUrl, runs);
     failures += await checkHomeUseSetup(browser, baseUrl);
   }
@@ -509,19 +509,15 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
       try {
         const page = await context.newPage();
         const home = new URL('/', baseUrl).href;
-        let release;
-        let watchingRelease;
+        const release = new Map();
         if (homeChecks) {
-          const held = new Promise((resolve) => { release = resolve; });
-          const watching = new Promise((resolve) => { watchingRelease = resolve; });
-          await context.route('**/home/runs/dashboard-*.mp4', async (route) => {
-            await held;
-            await route.continue().catch(() => {});
-          });
-          await context.route('**/home/runs/watching-*.mp4', async (route) => {
-            await watching;
-            await route.continue().catch(() => {});
-          });
+          for (const id of ['watching', 'dashboard']) {
+            const held = new Promise((resolve) => release.set(id, resolve));
+            await context.route('**/home/runs/' + id + '-*.mp4', async (route) => {
+              await held;
+              await route.continue().catch(() => {});
+            });
+          }
         }
         try {
           await page.mouse.move(0, 0);
@@ -543,26 +539,25 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
           console.log('captured ' + first);
           if (!homeChecks) continue;
 
-          if (width === 1440 && look === 'dark') {
-            const { waitForPlaying } = await import('./home-run-checks.mjs');
-            await save('home-dashboard-1440-dark.png');
-            release();
-            await waitForPlaying(page);
-            await save('home-dashboard-playing-1440-dark.png');
-            await page.locator('button[data-run="watching"]').click();
-            await page.waitForFunction(() => {
+          for (const id of ['watching', 'dashboard']) {
+            const key = page.locator('button[data-run="' + id + '"]');
+            if (await key.getAttribute('aria-current') !== 'step') await key.click();
+            await page.waitForFunction((id) => {
               const image = document.querySelector('.home-run__poster img');
-              return image?.currentSrc.includes('/watching-wide-dark.') && image.complete
+              return image?.currentSrc.includes('/' + id + '-') && image.complete
                 && image.naturalWidth > 0 && !image.closest('picture').hidden;
-            });
-            await save('home-watching-1440-dark.png');
-            watchingRelease();
-            await waitForPlaying(page, 6, 15000);
-            await save('home-watching-playing-1440-dark.png');
+            }, id, { timeout: 15000 });
+            await save('home-' + id + '-' + width + '-' + look + '.png');
+
+            if (width === 1440 && look === 'dark') {
+              const { waitForPlaying } = await import('./home-run-checks.mjs');
+              release.get(id)();
+              await waitForPlaying(page, id === 'watching' ? 8.3 : 4, 15000);
+              await save('home-' + id + '-playing-1440-dark.png');
+            }
           }
         } finally {
-          release?.();
-          watchingRelease?.();
+          for (const resume of release.values()) resume();
         }
 
         const hideBar = 'nav[aria-label="Site"] { visibility: hidden !important; }';

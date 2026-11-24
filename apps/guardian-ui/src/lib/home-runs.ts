@@ -15,6 +15,7 @@ export interface RunFile {
 export interface RunWord {
   word: string;
   size: number;
+  inkHeight?: number;
   x: number;
   y: number;
   width: number;
@@ -34,6 +35,7 @@ export interface RunVariant {
   posterAt: number;
   eventAt: number;
   meterPeaks?: { motion: number; sound: number };
+  posterReading?: { clipAt: number; sound: number; threshold: number };
 }
 
 export interface HomeRun {

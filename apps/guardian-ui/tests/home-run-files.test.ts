@@ -44,25 +44,25 @@ it('holds the committed ordered runs and each transferred file to the manifest',
 
 const cases: Array<[string, Parameters<typeof changed>[0], RegExp]> = [
   ['a changed byte', (manifest, directory) => {
-    const file = path.join(directory, manifest.runs[0].variants.square.dark.video.path);
+    const file = path.join(directory, manifest.runs.find(({ id }) => id === 'dashboard')!.variants.square.dark.video.path);
     const bytes = fs.readFileSync(file);
     bytes[bytes.length - 1] ^= 1;
     fs.writeFileSync(file, bytes);
   }, /dashboard-square-dark\.mp4: SHA-256 differs/],
   ['a missing WebP', (manifest, directory) => {
-    fs.unlinkSync(path.join(directory, manifest.runs[0].variants.square.dark.poster.webp.path));
+    fs.unlinkSync(path.join(directory, manifest.runs.find(({ id }) => id === 'dashboard')!.variants.square.dark.poster.webp.path));
   }, /dashboard-square-dark\.webp/],
   ['a duplicate ID', (manifest) => {
     manifest.runs[1].id = manifest.runs[0].id;
-  }, /Duplicate run ID: dashboard, dashboard/],
+  }, /Duplicate run ID: ([\w-]+), \1/],
   ['barred words', (manifest) => {
-    manifest.runs[0].visibleWords.push('identified');
+    manifest.runs.find(({ id }) => id === 'dashboard')!.visibleWords.push('identified');
   }, /dashboard: barred wording/],
   ['empty visible words', (manifest) => {
-    manifest.runs[0].variants.square.dark.words = [];
+    manifest.runs.find(({ id }) => id === 'dashboard')!.variants.square.dark.words = [];
   }, /dashboard-square-dark: missing visible words/],
   ['an over-budget wide pair', (manifest, directory) => {
-    const { video, poster } = manifest.runs[0].variants.wide.dark;
+    const { video, poster } = manifest.runs.find(({ id }) => id === 'dashboard')!.variants.wide.dark;
     const files: Array<[RunVariant['video'] | RunVariant['poster']['webp'], number]> = [
       [video, 1_200_000], [poster.webp, 120_000],
     ];

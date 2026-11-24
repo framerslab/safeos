@@ -18,7 +18,7 @@ import { HomeBenefits, HomeUses, HomeHow, HomeFree, HomeClosing } from '@/compon
 import { Brand, HomeLockup } from '@/components/home/Brand';
 import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, pageMetadata, socialImage } from '@/lib/page-metadata';
 import { HOME_LAST_CHANGED } from '@/lib/page-last-changed';
-import { dashboardPreloadScript } from '@/lib/capture-preload';
+import { homeRunPreloadScript } from '@/lib/capture-preload';
 import type { HomeRunManifest } from '@/lib/home-runs';
 import recording from '../../public/home/runs/runs.json';
 import appPackage from '../../package.json';
@@ -95,7 +95,7 @@ export default function HomePage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(block) }}
         />
       ))}
-      <script dangerouslySetInnerHTML={{ __html: dashboardPreloadScript(RECORD.runs[0]) }} />
+      <script dangerouslySetInnerHTML={{ __html: homeRunPreloadScript(RECORD.runs[0]) }} />
       <noscript>
         <style>{'.home-run__first-poster { background-image: var(--run-poster); }'}</style>
       </noscript>

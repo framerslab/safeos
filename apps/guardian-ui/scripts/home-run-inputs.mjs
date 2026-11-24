@@ -29,6 +29,7 @@ const common = [
   'next.config.mjs',
   'postcss.config.js',
   'postcss.config.mjs',
+  'tailwind.config.js',
   'tailwind.config.ts',
   'tsconfig.json',
   'scripts/generate-offline-manifest.mjs',
@@ -126,8 +127,8 @@ export function recordingInputs(ids) {
   return { inputDigest: hash.digest('hex'), inputs: Object.fromEntries(inputs) };
 }
 
-const ordered = ['dashboard', 'watching', 'alert', 'lost-found', 'settings'];
-const launch = ['dashboard', 'watching', 'settings'];
+const ordered = ['watching', 'dashboard', 'alert', 'lost-found', 'settings'];
+const launch = ['watching', 'dashboard', 'settings'];
 const sizes = ['square', 'wide'];
 const looks = ['dark', 'light'];
 const mediaPrefix = 'home/runs/';
@@ -194,7 +195,7 @@ export function verifyBundle(directory) {
     for (const size of sizes) {
       assert.deepEqual(Object.keys(variants[size]).sort(), looks, id + ': look variants');
       for (const look of looks) {
-        const { video, poster, crop, viewport, scale, words, posterAt } = variants[size][look];
+        const { video, poster, crop, viewport, scale, words, posterAt, posterReading } = variants[size][look];
         const label = id + '-' + size + '-' + look;
         const base = mediaPrefix + label;
         const budget = limits[size];
@@ -221,6 +222,10 @@ export function verifyBundle(directory) {
           assert.equal(poster[format].format, format, label + ': invalid poster format');
         }
         checkWords(words?.map(({ word }) => word), label);
+        if (id === 'watching') {
+          assert.ok(posterReading && posterReading.clipAt >= 8.3 && posterReading.clipAt <= 9
+            && posterReading.sound > posterReading.threshold, label + ': missing the above-line bark frame');
+        }
         for (const { word, x, y, width, height, size: font } of words) {
           assert.ok([x, y, width, height, font].every(Number.isFinite) && x >= -0.5 && y >= -0.5
             && width > 0 && height > 0 && font > 0 && x + width <= crop.width + 0.5 && y + height <= crop.height + 0.5,

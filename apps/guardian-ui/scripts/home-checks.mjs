@@ -273,7 +273,10 @@ async function withOpenDisclosures(page, read) {
 // sampler tell a short glyph at 18 px from a longer glyph at a smaller size.
 function pageWordBoxes(disclosure) {
   const shell = document.querySelector('.visitor-shell');
-  const root = disclosure ? shell.querySelector(`[data-card="${disclosure}"] .home-detection__body`) : shell;
+  const strip = shell.querySelector('.home-run__strip');
+  const root = disclosure === 'run-steps' ? strip
+    : disclosure ? shell.querySelector(`[data-card="${disclosure}"] .home-detection__body`) : shell;
+  const stripBounds = strip.getBoundingClientRect();
   let clip;
   if (disclosure) {
     const rect = root.getBoundingClientRect();
@@ -313,8 +316,11 @@ function pageWordBoxes(disclosure) {
       const meaningful = /[\p{L}\p{N}]/u.test(label);
       for (const rect of rects) {
         if (rect.width < 1 || rect.height < 1) continue;
+        const run = element.closest('button[data-run]')?.dataset.run;
+        if (run && (rect.left < stripBounds.left || rect.right > stripBounds.right)) continue;
         boxes.push({
           name: label, type: meaningful ? body ? 'body' : 'label' : 'glyph',
+          ...(run ? { runStep: run } : {}),
           size: parseFloat(style.fontSize),
           expectedInkHeight: rects.length === 1 ? metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : null,
           ...rectangle(rect),
@@ -487,7 +493,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       expect(seen.footerStart === 'Start setup', `footer, scripts off, ${look}: the footer's start link reads "${seen.footerStart}"`);
       expect(seen.background === PAGE_COLOURS[look], `first visit, scripts off, ${look}: the page is ${seen.background}, not ${PAGE_COLOURS[look]}`);
       expect(seen.opacity === 1, `first visit, scripts off, ${look}: the headline's opacity is ${seen.opacity}`);
-      expect(seen.poster.includes('/home/runs/dashboard-square-' + look + '.webp'), 'Scripts off: Dashboard poster for ' + look);
+      expect(seen.poster.includes(firstRun.variants.square[look].poster.webp.path), 'Scripts off: ' + firstRun.key + ' poster for ' + look);
       expect(seen.labels.join(',') === runRecord.runs.map(({ key }) => key).join(','), 'Scripts off: every run label is present');
       expect(runRecord.runs.slice(1).every(({ description }) => seen.captions?.includes(description)), 'Scripts off: every run caption is present');
       // A disclosure opens with scripts off.
@@ -683,7 +689,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   const readability = [];
   for (const [width, height] of [[390, 844], [1440, 900]]) {
     for (const look of LOOKS) {
-      await open({ name: 'readability pictures', width, height, look, deviceScaleFactor: 2 }, async (page) => {
+      await open({ name: 'readability pictures', width, height, look, deviceScaleFactor: 2, reducedMotion: 'reduce' }, async (page) => {
         await visit(page);
         await page.evaluate(() => document.fonts.ready);
         await loadHomeQr(page);
@@ -703,7 +709,17 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           });
           variant.push({ file, disclosure: id, ...sample });
         });
+        if (width === 390) {
+          await page.locator('.home-run__strip').evaluate((strip) => { strip.scrollLeft = strip.scrollWidth; });
+          await page.evaluate(paint);
+          const file = `home-readability-run-steps-${width}-${look}.png`;
+          const { clip, ...steps } = await page.evaluate(pageWordBoxes, 'run-steps');
+          await page.screenshot({ path: path.join(outDir, file), clip, fullPage: true, scale: 'device', caret: 'hide' });
+          variant.push({ file, ...steps });
+        }
         readability.push(...variant);
+        const stepIds = new Set(variant.flatMap(({ boxes }) => boxes.map(({ runStep }) => runStep)));
+        expect(runRecord.runs.every(({ id }) => stepIds.has(id)), `readability at ${width} px, ${look}: missing a run step's visible letters`);
         const disclosureIds = await page.locator('.home-detection__card').evaluateAll((cards) => cards.map((card) => card.dataset.card));
         const measured = new Set(variant.filter((entry) => entry.boxes.some((box) => box.type === 'body'))
           .map(({ disclosure }) => disclosure));
@@ -741,7 +757,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
             const image = document.querySelector('.home-run__poster img');
             return image?.complete && image.naturalWidth > 0 && new URL(image.currentSrc).pathname.startsWith(name);
           }, '/' + variant.poster.webp.path.replace(/\.webp$/, ''), { timeout: 15000 });
+          await poster.evaluate((image) => image.decode());
           await poster.scrollIntoViewIfNeeded();
+          await page.evaluate(paint);
           const frame = await poster.boundingBox();
           if (!frame || !variant.words.length) throw Error('No poster word ranges for ' + run.id);
           const media = variant.poster.webp;
@@ -751,6 +769,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           const factor = variant.scale * display;
           const boxes = variant.words.map((word) => ({
             name: word.word, type: 'poster', size: word.size * factor,
+            expectedInkHeight: word.inkHeight === undefined ? null : word.inkHeight * factor,
             x: startX + word.x * factor, y: startY + word.y * factor,
             width: word.width * factor, height: word.height * factor,
           }));
@@ -1242,7 +1261,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         expect(Math.abs(seen.key.height - 56) < 0.5, `start key ${at}: the start key is ${seen.key.height} px tall`);
         if (width < 768) expect(Math.abs(seen.key.width - seen.key.column) < 0.5, `start key ${at}: the start key is ${seen.key.width} px wide in a ${seen.key.column} px column`);
         else expect(seen.key.width < seen.key.column - 40, `start key ${at}: the start key is as wide as its column`);
-        expect(seen.caption === firstRun.description && seen.poster === firstRun.description, 'Dashboard needs its caption and poster description ' + at);
+        expect(seen.caption === firstRun.description && seen.poster === firstRun.description, firstRun.key + ' needs its caption and poster description ' + at);
         expect(seen.steps.join(',') === runRecord.runs.map(({ key }) => key).join(','), 'Run order ' + at + ': ' + seen.steps);
         expect(seen.playerFollowsSetup, 'The player must follow setup in the page ' + at);
         expect(seen.ticks === 4, 'Recording corner ticks ' + at + ': ' + seen.ticks);
@@ -1583,7 +1602,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       navigator.serviceWorker.ready,
       new Promise((_, reject) => setTimeout(() => reject(new Error('the installed copy was not ready within 60 seconds')), 60_000)),
     ]));
-    await page.waitForFunction(async () => Boolean(await caches.match('/home/runs/dashboard-square-dark.webp')));
+    await page.waitForFunction(async (url) => Boolean(await caches.match(url)), '/' + firstRun.variants.square.dark.poster.webp.path);
     await context.setOffline(true);
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => document.querySelector('.home-run__poster img')?.naturalWidth > 0);
@@ -1592,7 +1611,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       return { h1: document.querySelector('h1')?.textContent.trim(), capture: !!image && image.complete && image.naturalWidth > 0, steps: document.querySelectorAll('ol.home-steps > li').length };
     });
     expect(seen.h1 === HEADLINE && seen.steps === 3, 'offline: the page does not show from the installed copy');
-    expect(seen.capture, 'Offline: the Dashboard poster does not show from the installed copy');
+    expect(seen.capture, 'Offline: the first poster does not show from the installed copy');
     await page.locator('.home-detection__card > summary').nth(3).click();
     expect(await page.locator('.home-detection__card').nth(3).evaluate((details) => details.open), 'disclosures, offline: a card does not open');
     await page.getByRole('button', { name: /^Switch to the/ }).click();

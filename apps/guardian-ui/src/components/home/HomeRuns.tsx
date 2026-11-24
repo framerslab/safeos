@@ -140,6 +140,10 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   const messageId = 'home-run-description-' + run.id;
 
   useEffect(() => {
+    if (!hover && !focus) setExplicit(false);
+  }, [hover, focus]);
+
+  useEffect(() => {
     const box = region.current;
     if (!box) return;
     const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold: 0.25 });
@@ -281,7 +285,6 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   function toggle() {
     if (!environment?.online) {
       setPlayTriedOffline(true);
-      setMessage(offlineMessage);
       return;
     }
     if (toggleActive) {
@@ -309,13 +312,10 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
       aria-label="Recorded runs of SafeOS Guardian"
       data-paused={intent === 'pause' || intent === 'stop' || environment?.visible === false || undefined}
       onPointerEnter={(event) => { if (event.pointerType === 'mouse') setHover(true); }}
-      onPointerLeave={() => { setHover(false); setExplicit(false); }}
+      onPointerLeave={() => setHover(false)}
       onFocusCapture={() => setFocus(true)}
       onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          setFocus(false);
-          setExplicit(false);
-        }
+        if (!event.currentTarget.contains(event.relatedTarget)) setFocus(false);
       }}
     >
       <div className="home-run__frame" style={defaultPoster} data-enhanced={Boolean(environment)}
@@ -335,7 +335,7 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
           </picture>
         )}
         <video key={videoUrl ?? 'initial'} ref={movie} muted playsInline preload="none"
-          aria-describedby={messageId} hidden={!showFrame}
+          aria-label={run.description} aria-describedby={messageId} hidden={!showFrame}
           src={shownMovie ? videoUrl : undefined} loop={intent === 'loop'}
           onPlaying={() => {
             setFrame(videoUrl);
@@ -371,7 +371,9 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
           disabled={!environment || index === runs.length - 1} onClick={() => choose(index + 1)}><Arrow /></button>
       </div>
       <p className="home-run__caption" data-run-caption>{run.description}</p>
-      {status && <div className="home-run__status">{failed && <Trouble />}<span>{status}</span></div>}
+      <div className="home-run__status" role="status">
+        {status && <>{failed && <Trouble />}<span>{status}</span></>}
+      </div>
       <p className="sr-only" aria-live="polite">{message}</p>
       <noscript>
         <ul>
