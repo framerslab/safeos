@@ -730,7 +730,9 @@ it('shows no held reading from the last camera under reduced motion once another
     render(<MonitorPage />);
     await act(async () => {});
     await startMonitoring();
-    act(() => { jest.advanceTimersByTime(2000); });
+    // The page renders between the readings and the meter's one-second step.
+    act(() => { jest.advanceTimersByTime(400); });
+    act(() => { jest.advanceTimersByTime(600); });
     expect(valueText('Motion')).toMatch(/^25 per cent/);
     const tracks = [new BrowserTrack('video'), new BrowserTrack('audio')];
     browser.getUserMedia.mockResolvedValueOnce({
