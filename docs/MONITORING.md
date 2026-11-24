@@ -65,8 +65,8 @@ is chosen again, also when another pet is chosen before the photo is saved.
 Another pet chosen while the watch compares starts with none of the first pet's
 matches, with no restart of the camera.
 
-When another tab of this browser clears all local data (**Clear All Local Data**,
-or a sign-out), the open watch drops the pets it had read and ends the
+When another tab of this browser clears all local data (**Clear all data on this
+device**, or a sign-out), the open watch drops the pets it had read and ends the
 comparison: it says "Stopped comparing at {time}.", shows "No pet saved", and
 goes on watching for motion and sound. A read of the saved pets on its way at
 that moment shows none of them, and a photo being added then is not written
@@ -217,7 +217,7 @@ again each time the **Cooldown Period** has passed, with "Repeated N times". A r
 30 seconds with no sighting, and when the watch stops or its pet changes; the next sighting
 after that makes a new entry. Nothing is saved for a check: earlier versions saved the frames
 of checks in `match_frame`, and the frames they saved stay in the Lost & Found gallery and in
-History until their own delete controls or Clear All Local Data. The panel's recent readings,
+History until their own delete controls or **Clear all data on this device**. The panel's recent readings,
 the newest 20 checks that scored with their frames, stay in this tab's memory alone and go
 when the page closes. History lists such a frame with its own
 thumbnail and "Could this be {name}?", with no score.
@@ -311,17 +311,17 @@ A picture is deleted:
   the age just chosen; its card says "Its picture was deleted after {n} days.";
 - with its alert, when the alert leaves under the alert limits (see **Alert history**), in
   the same write, and when a repeat gives its card a newer picture or, with no frame to take,
-  none; a picture still being
+  none; a picture being
   drawn when its alert leaves is saved with no alert to hold it, and the sweep of pictures no
   alert holds deletes it when a watch starts, once it is 10 minutes old;
-- by **Delete picture**, by **Delete all pictures**, by **Clear All Local Data** and by
-  signing out.
+- by **Delete picture**, by **Delete all pictures**, by **Clear all data on this device** (on
+  Settings, Data on this device) and by signing out.
 
 A picture being saved when **Delete all pictures** comes, in any tab, is not saved. When
 the deletion fails, nothing is deleted and that picture is saved, as is a picture taken while the
 failing deletion was finishing. A picture another tab deletes
-before it is saved (a tab that could not read it) stays deleted. **Clear All Local Data** and
-signing out, in any tab, close the open picture in every tab and leave no picture on screen, and
+before it is saved (a tab that could not read it) stays deleted. **Clear all data on this device**
+and signing out, in any tab, close the open picture in every tab and leave no picture on screen, and
 a picture read or drawn from before the clear shows nothing; the count of pictures kept is read
 once the clear is done.
 
@@ -407,8 +407,8 @@ they are written, or wait for their retry. A repeat made after this tab's Clear 
 goes on a card of its own. An
 acknowledgement or a dismissal never creates a record: when the alert is no longer
 saved, because another tab cleared or dismissed it or a limit removed it, nothing is
-written, and an acknowledged alert leaves that tab's list. Clear All Local Data, a
-sign-out or Clear all, in any tab of this browser, cancels every tab's pending saves.
+written, and an acknowledged alert leaves that tab's list. Clear all data on this
+device, a sign-out or Clear all, in any tab of this browser, cancels every tab's pending saves.
 A failed acknowledgement of a saved alert is retried as an update with no clear
 comparison: it never creates a record, so it acknowledges an alert engine record that
 Clear all kept, and writes nothing once a clear has removed the record. Each clear
@@ -443,9 +443,9 @@ answers 401, that session has ended: the tab uses a newer token that another tab
 in local storage, or else makes a new session, kept in memory and local storage. A
 network failure or any other answer keeps the token, without a profile until the next
 load. After a reload with the database open, the session saved there is used. While a
-notice is shown, signing out and Clear All Local Data are refused until the reload,
+notice is shown, signing out and Clear all data on this device are refused until the reload,
 after which everything saved is shown as it was. Otherwise signing out, in any tab, and
-Clear All Local Data clear every local store for the whole browser. The notice is
+Clear all data on this device clear every local store for the whole browser. The notice is
 readable in the light and dark looks. Browser-only data is not included in server
 exports; use History's local export for that data.
 

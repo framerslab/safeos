@@ -1038,7 +1038,7 @@ function goneRow(row: AlertPictureDB, gone: 'age' | 'person', days?: number): Al
 
 /**
  * Saves an alert's picture set. It is written only while no clear came since `stamp` was taken at
- * the alert: not Clear all, Clear All Local Data or sign-out (the clear generation, or the clear
+ * the alert: not Clear all, Clear all data on this device or sign-out (the clear generation, or the clear
  * marker when this tab had read none), and not Delete all pictures (the pictures marker); and not
  * over the row that says the set was deleted, which another tab writes for a set it cannot read. Out of
  * room, the oldest kept sets make way one at a time, each try its own transaction that deletes
@@ -1474,6 +1474,28 @@ export async function getStorageStats(): Promise<{
   } catch {
     return { frames: 0, alerts: 0, syncPending: 0, subjects: 0, matchFrames: 0 };
   }
+}
+
+/**
+ * What this device keeps, counted for Settings, Data on this device: alerts
+ * (the alert records and the wildlife sightings), saved pictures (Lost and
+ * Found's and People's frames) and pets (every saved subject but a person).
+ * A read that fails throws.
+ */
+export async function countKeptRecords(): Promise<{ alerts: number; pictures: number; pets: number }> {
+  const db = await getDB();
+  const [alerts, sightings, matches, intrusions, subjects] = await Promise.all([
+    db.count('alert_cache'),
+    db.count('animal_detection'),
+    db.count('match_frame'),
+    db.count('intrusion_frame'),
+    db.getAll('subject_profile'),
+  ]);
+  return {
+    alerts: alerts + sightings,
+    pictures: matches + intrusions,
+    pets: subjects.filter((subject) => subject.type !== 'person').length,
+  };
 }
 
 // =============================================================================

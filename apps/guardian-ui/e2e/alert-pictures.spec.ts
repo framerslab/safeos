@@ -62,6 +62,7 @@ import {
   type NotificationStandIn,
   type PicturesSeed,
 } from './helpers/alert-pictures';
+import { clearAllDataOnThisDevice } from './helpers/clear-all-data';
 
 // One launch for the whole file (Playwright takes launch options at the top
 // of a file only): Chromium's fake camera and microphone play the sample
@@ -171,7 +172,7 @@ test.describe('The picture store and the alert record', () => {
     expect(reading.pictures).toEqual([]);
   });
 
-  test('Clear All Local Data leaves no alert picture', async ({ page, context }) => {
+  test('Clear all data on this device leaves no alert picture', async ({ page, context }) => {
     await seedDevice(context, { pictures: { noticeAnswered: true } });
     const at = Date.now() - 60_000;
     await seedPictureRows(page, [
@@ -180,10 +181,7 @@ test.describe('The picture store and the alert record', () => {
     ]);
     expect((await readDatabase(page)).pictures).toHaveLength(2);
 
-    await page.goto('/settings/', { waitUntil: 'networkidle' });
-    await page.getByRole('button', { name: 'Privacy' }).click();
-    page.once('dialog', (dialog) => void dialog.accept());
-    await page.getByRole('button', { name: 'Clear All Local Data' }).click();
+    await clearAllDataOnThisDevice(page);
 
     await expect.poll(async () => {
       const reading = await databaseNow(page);
@@ -1392,7 +1390,7 @@ test.describe('Keeping pictures, 1280 px', () => {
 
   // A save is running from the alert until its picture is written. A delete
   // or a clear that comes in between, in any tab, leaves it unwritten.
-  for (const way of ['Delete all pictures', 'Clear All Local Data', 'Clear all'] as const) {
+  for (const way of ['Delete all pictures', 'Clear all data on this device', 'Clear all'] as const) {
     test(`a save running when ${way} comes in another tab is never written`, async ({ page, context }) => {
       test.setTimeout(180_000);
       await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
@@ -1405,10 +1403,8 @@ test.describe('Keeping pictures, 1280 px', () => {
 
       const other = await context.newPage();
       if (way === 'Delete all pictures') await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
-      else if (way === 'Clear All Local Data') {
-        await other.goto('/settings/', { waitUntil: 'networkidle' });
-        await other.getByRole('button', { name: 'Privacy' }).click();
-      } else await other.goto('/settings/test-alerts/', { waitUntil: 'networkidle' });
+      else if (way === 'Clear all data on this device') await other.goto('/settings/data/', { waitUntil: 'networkidle' });
+      else await other.goto('/settings/test-alerts/', { waitUntil: 'networkidle' });
 
       // The next alert's picture is handed back 30 seconds after it is drawn: its save waits.
       const HOLD_MS = 30_000;
@@ -1424,9 +1420,9 @@ test.describe('Keeping pictures, 1280 px', () => {
         await deleteAll(group(other)).click();
         await other.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
         await expect(countLine(group(other))).toHaveText('No pictures kept on this device');
-      } else if (way === 'Clear All Local Data') {
-        other.once('dialog', (dialog) => void dialog.accept());
-        await other.getByRole('button', { name: 'Clear All Local Data' }).click();
+      } else if (way === 'Clear all data on this device') {
+        await other.getByRole('button', { name: 'Clear all data on this device', exact: true }).click();
+        await other.getByRole('button', { name: 'Clear all data', exact: true }).click();
         await expect.poll(() => savedAlertCount(other), { timeout: 15_000 }).toBe(0);
       } else {
         // The alert list's own clear, on Settings' test alerts.
@@ -2790,7 +2786,7 @@ test.describe('The opened picture of a saved alert, 390 px', () => {
     await expect(card.getByRole('img')).toHaveCount(0);
   });
 
-  test('Clear All Local Data in another tab closes the open picture and leaves no picture on the page', async ({ page, context }) => {
+  test('Clear all data on this device in another tab closes the open picture and leaves no picture on the page', async ({ page, context }) => {
     test.setTimeout(90_000);
     await seedDevice(context, { pictures: { noticeAnswered: true } });
     await seedOne(page);
@@ -2798,10 +2794,7 @@ test.describe('The opened picture of a saved alert, 390 px', () => {
     await expect(dialog.getByRole('img')).toHaveCount(2);
 
     const second = await context.newPage();
-    await second.goto('/settings/', { waitUntil: 'networkidle' });
-    await second.getByRole('button', { name: 'Privacy' }).click();
-    second.once('dialog', (ask) => void ask.accept());
-    await second.getByRole('button', { name: 'Clear All Local Data' }).click();
+    await clearAllDataOnThisDevice(second);
     await expect.poll(() => savedAlertCount(second), { timeout: 15_000 }).toBe(0);
     await second.close();
 
@@ -3097,7 +3090,7 @@ test.describe('History’s rows of saved alerts, 390 px', () => {
     }
   });
 
-  test('a picture read that answers after Clear All Local Data in another tab shows nothing', async ({ page, context }) => {
+  test('a picture read that answers after Clear all data on this device in another tab shows nothing', async ({ page, context }) => {
     test.setTimeout(90_000);
     await seedDevice(context, { pictures: { noticeAnswered: true } });
     await seedHistory(page, 2);
@@ -3111,10 +3104,7 @@ test.describe('History’s rows of saved alerts, 390 px', () => {
 
     // Another tab clears everything while the reads' answers wait.
     const second = await context.newPage();
-    await second.goto('/settings/', { waitUntil: 'networkidle' });
-    await second.getByRole('button', { name: 'Privacy' }).click();
-    second.once('dialog', (ask) => void ask.accept());
-    await second.getByRole('button', { name: 'Clear All Local Data' }).click();
+    await clearAllDataOnThisDevice(second);
     await expect.poll(() => savedAlertCount(second), { timeout: 15_000 }).toBe(0);
     await second.close();
     expect(Date.now() - readSince, 'the clear came while the answers waited').toBeLessThan(HOLD_MS);
@@ -3723,11 +3713,11 @@ test.describe('The privacy page and the notices', () => {
       'They are kept in this browser\'s IndexedDB on this device; Frame, which runs safeos.sh, never receives them.',
       'They are deleted after the time you choose under Keep alert pictures (3 days unless you choose 1, 7 or 30 days, or until you delete them); the alert\'s words stay in History.',
       'A picture is also deleted with its alert when the alert leaves under the limits above.',
-      'You can delete one picture or all of them; Clear All Local Data and signing out delete them too.',
+      'You can delete one picture or all of them; Clear all data on this device and signing out delete them too.',
       'SafeOS sends alert pictures to no server, a server you connect yourself included.',
       'Anyone who can open SafeOS in this browser can see the alerts and their pictures.',
       'Alerts are never removed because of their age; their pictures are, after the time you choose.',
-      'Clear All Local Data also removes recorded sounds, alert pictures and the offline cache.',
+      'Clear all data on this device, on Settings, Data on this device, also removes recorded sounds, alert pictures and the offline cache.',
       'clears the alerts and their pictures, frames, recordings and personal settings saved in this browser',
       'If you turn on Show the picture in alert notifications, the picture shows in the notification, and on some phones on the lock screen, to anyone who can see this device.',
       'Last updated: November 22, 2026',

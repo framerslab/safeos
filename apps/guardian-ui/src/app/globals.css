@@ -28,6 +28,9 @@
 /* Import the alert card and its picture block */
 @import '../styles/alert-pictures.css';
 
+/* Import the settings pages' list and rows */
+@import '../styles/settings.css';
+
 /* =============================================================================
    Additional Base Styles
    ============================================================================= */

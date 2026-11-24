@@ -15,7 +15,7 @@ jest.mock('@/lib/client-db', () => ({
 import { PictureBlock } from '@/components/alert-pictures/PictureBlock';
 import { forgetAllPictures } from '@/lib/alert-pictures/keeper';
 
-it('a picture read that answers after Clear All Local Data or a sign-out shows nothing of what it read', async () => {
+it('a picture read that answers after Clear all data on this device or a sign-out shows nothing of what it read', async () => {
   const at = Date.now() - 60_000;
   const alert = {
     id: `motion-${at}-held`, streamId: 'local', severity: 'medium', message: 'Motion', acknowledged: false,

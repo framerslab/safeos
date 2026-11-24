@@ -538,7 +538,7 @@ function listenToOtherTabs(): void {
     heardKeep = null;
     heardInNotifications = null;
   });
-  // Clear All Local Data or a sign-out in another tab writes the account marker as its clear
+  // Clear all data on this device or a sign-out in another tab writes the account marker as its clear
   // commits: this tab lets go of every picture it shows, and counts again after that clear.
   window.addEventListener('storage', (event: StorageEvent) => {
     if (event.key !== ACCOUNT_CLEAR_MARKER_KEY) return;

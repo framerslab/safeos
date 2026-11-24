@@ -867,7 +867,7 @@ declare global {
   }
 }
 
-/** The key the fault is kept under across reloads; Clear All Local Data leaves it (it is not a `safeos` key). */
+/** The key the fault is kept under across reloads; Clear all data on this device leaves it (it is not a `safeos` key). */
 const FAULT_KEY = 'walk-picture-fault';
 
 /**

@@ -62,6 +62,10 @@ const APP_SECTIONS = [
 // light or dark setting before any script runs.
 const LOOK_SECTIONS = ['/dashboard', '/tutorial', '/analytics', '/profiles'];
 
+// Single pages built in the readable look inside a section that is not: one
+// path each, so a page still on its old layout keeps it.
+const LOOK_PAGES = ['/settings', '/settings/data', '/settings/server'];
+
 /** A pathname without its query, fragment and closing slash; the root stays "/". */
 export function barePath(pathname: string | null | undefined): string {
   const bare = (pathname || '').split(/[?#]/)[0].replace(/\/+$/, '');
@@ -82,7 +86,8 @@ export function showsPhoneBar(pathname: string | null | undefined): boolean {
 }
 
 export function isLookBuiltRoute(pathname: string | null | undefined): boolean {
-  return under(barePath(pathname), LOOK_SECTIONS);
+  const path = barePath(pathname);
+  return under(path, LOOK_SECTIONS) || LOOK_PAGES.includes(path);
 }
 
 /** The destination whose page, or a page under it, is being read; null on any other page. */

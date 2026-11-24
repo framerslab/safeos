@@ -16,6 +16,9 @@ import React from 'react';
 import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 
+/** An address without its trailing slash: next/link drops it outside a build. */
+const bare = (address: string | null | undefined) => (address || '').replace(/(?<=[^/])\/(?=$|[?#])/, '');
+
 jest.mock('next/navigation', () => ({
   useRouter: () => ({ back: () => undefined, push: () => undefined }),
 }));
@@ -111,17 +114,19 @@ describe('notification settings test buttons', () => {
 });
 
 describe('authenticated notification status and server tests', () => {
-  it.each(['@/app/settings/page', '@/app/settings/notifications/page'])('loads status with the session from %s', async path => {
-    const Page = require(path).default;
+  it('loads status with the session from the Notifications page', async () => {
+    const Page = require('@/app/settings/notifications/page').default;
     render(<Page />);
     await waitFor(() => expect(calls.some(c => c.url.endsWith('/api/notifications/status'))).toBe(true));
     expect(sessionHeader('/api/notifications/status')).toBe('session-token-for-test');
-    if (path === '@/app/settings/page') {
-      expect(screen.getByRole('link', { name: /^notifications$/i }).getAttribute('href'))
-        .toBe('/settings/notifications');
-    } else {
-      expect(await screen.findByText(/Server has Twilio configured/)).toBeTruthy();
-    }
+    expect(await screen.findByText(/Server has Twilio configured/)).toBeTruthy();
+  });
+
+  it('links the Settings list to the Notifications page', async () => {
+    const Page = require('@/app/settings/page').default;
+    render(<Page />);
+    const link = await screen.findByRole('link', { name: /^notifications$/i });
+    expect(bare(link.getAttribute('href'))).toBe('/settings/notifications');
   });
 
   it('sends the current session from the server test button', async () => {
@@ -135,7 +140,7 @@ describe('authenticated notification status and server tests', () => {
 
 
 describe('quiet-hours profile saves', () => {
-  it.each(['@/app/settings/page', '@/app/settings/notifications/page'])('saves the browser zone and chosen days from %s', async path => {
+  it.each(['@/app/settings/notifications/page'])('saves the browser zone and chosen days from %s', async path => {
     const { useSettingsStore } = require('@/stores/settings-store');
     const { useAuthStore } = require('@/stores/auth-store');
     useSettingsStore.getState().resetToDefaults();
@@ -165,7 +170,7 @@ function renderNotificationGuidance(path: string): void {
   if (path === '@/app/settings/page') {
     // Settings links to the dedicated route; its old inline section is unreachable.
     const link = screen.getByRole('link', { name: /^notifications$/i });
-    expect(link.getAttribute('href')).toBe('/settings/notifications');
+    expect(bare(link.getAttribute('href'))).toBe('/settings/notifications');
     view.unmount();
     const NotificationsPage = require('@/app/settings/notifications/page').default;
     render(<NotificationsPage />);

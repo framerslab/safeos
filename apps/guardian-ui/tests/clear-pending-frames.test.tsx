@@ -4,7 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { fakeCaches } from './helpers/browser-data';
 import { BrowserTrack } from './helpers/camera-browser';
 import MonitorPage from '@/app/monitor/page';
-import SettingsPage from '@/app/settings/page';
+import DataPage from '@/app/settings/data/page';
 import { useLostFoundStore, DEFAULT_SETTINGS } from '@/stores/lost-found-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
@@ -53,10 +53,9 @@ it('a comparison keeps no frame of its own, in memory or in the store, also afte
   // A check that scores is reported; the watch keeps no frame for it. A sighting's picture is the alert's own.
   await waitFor(() => expect(useLostFoundStore.getState().recentMatches.length).toBeGreaterThan(0), { timeout: 4000 });
   expect(useLostFoundStore.getState().matchFrames).toEqual([]);
-  render(<SettingsPage />);
-  jest.spyOn(window, 'confirm').mockReturnValue(true);
-  fireEvent.click(screen.getByRole('button', { name: 'Privacy' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Clear All Local Data' }));
+  render(<DataPage />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Clear all data on this device' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Clear all data' }));
   await waitFor(() => expect([...cached]).toEqual([]));
   camera.unmount();
   await act(async () => {

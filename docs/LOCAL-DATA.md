@@ -6,7 +6,7 @@ other scripts running on the same site can read browser storage.
 
 ## Clearing and signing out
 
-**Settings → Privacy → Clear All Local Data** clears the records in both SafeOS
+**Settings → Data on this device → Clear all data on this device** clears the records in both SafeOS
 databases, including microphone recordings and uploaded sounds. It resets local
 monitoring state, schedules and appearance preferences and removes the SafeOS
 service-worker caches. It deletes alert pictures with the alerts, and a picture being
@@ -15,14 +15,25 @@ clearing. Every open tab closes the picture it has open and shows none of the de
 The page reloads only after clearing succeeds. A failed operation displays an
 error and can be retried.
 
-The worker stores the site again on the next load with a connection. When the
-browser reports the device offline, the key's confirmation adds "SafeOS will not
-open again until you are back online." and nothing is cleared until it is
-accepted.
+The key asks in place first: "Clear all data on this device? Alerts, pictures,
+pets, sounds and settings leave this device." with **Clear all data** and
+**Cancel**; Cancel clears nothing. The worker stores the site again on the next
+load with a connection. When the browser reports the device offline, the question
+adds "SafeOS will not open again until you are back online." and nothing is
+cleared until Clear all data is pressed. The question follows the connection
+while it is open; a connection lost before the page heard of it makes the first
+press show that sentence, and a second press clears.
+
+Data on this device also counts what this device keeps (alerts, Wildlife
+sightings among them, saved pictures, pets and sounds of your own) and exports
+the settings as a file, `safeos-settings-<yyyy-mm-dd>.json`, with the look and
+text (`look`) and the notification choices (`notifications`), never a key a
+server needs. When the device's databases cannot be read, the page says "Could
+not count what this device keeps." and its keys still work.
 
 **Log Out** and **Clear Session** clear personal data before completing
 sign-out. They retain the device's server connection so the next account can
-sign in to the same server. Clear All Local Data also removes that connection. Saved frames, history, subjects, sounds and settings do not carry over
+sign in to the same server. Clear all data on this device also removes that connection. Saved frames, history, subjects, sounds and settings do not carry over
 to the next person using that browser. Both actions also remove this device's
 setup record, so the next person goes through setup and its notice. Export
 anything you want to keep first.
@@ -56,14 +67,24 @@ stops neither.
 
 ## Saved preferences
 
-Save Changes on the main Settings page updates the settings store used by
-monitoring and sound playback. Motion sensitivity, audio sensitivity and alert
-volume use the same values as the monitor controls. A volume of zero stays zero.
+Settings has no Save Changes key. The alert volume, at the top of Settings →
+Alert sounds, saves to this device the moment it moves and the row says
+**Saved**; it sets the volume monitoring and sound playback use. A browser that
+refuses this site's storage keeps the change for the visit, the row says "Not
+saved. This browser is not keeping settings.", and Settings, and each page under
+it, says at its top that the browser is not keeping settings. A device too full
+to take the settings keeps the change for the visit too, and the row and the top
+of each settings page say the same. The line goes once a later write of the
+settings is kept. Motion sensitivity, audio sensitivity and
+alert volume use the same values as the monitor controls. A volume of zero stays
+zero.
 Emergency alarms retain their explicit full-volume behavior. Quiet hours are
-saved to the shared schedule settings from both Settings and Notification
-Settings. Earlier saved preferences are imported once per account, or once for
+saved to the shared schedule settings from both Settings → Quiet hours and
+Notification Settings. Earlier saved preferences are imported once per account, or once for
 the browser without an account. Values explicitly saved on this browser take
-precedence, including zero values. Account sensitivity and volume are imported
+precedence, including zero values, and are read by the first import only: a
+later account import keeps the values in effect where this browser saved one, so
+a change made since is not undone. Account sensitivity and volume are imported
 only when they differ from a new session's defaults; account quiet hours are
 imported only when both times are set. Creating a session therefore preserves
 the sensitivity, volume and quiet hours already in effect. While a set time's
@@ -110,7 +131,7 @@ Three keys in local storage hold what the dashboard says:
 - `safeos-watch-session`: when the last watch started, the last time it was known to run (written once a minute and when the page is hidden) and when it ended. A page closed without running its code writes no end, and the dashboard then says "The last watch ran until at least {time}."
 - `safeos-history-seen`: the ids of the alerts and frames this browser held, not marked as seen, the first time one of the app's pages opened in this version. They never count as new. The key is written once.
 
-An alert is new while none of its records is marked as seen; no clock time decides it. When the frame limit (500 Lost and Found frames, 100 of People's) removes the only frames of an alert marked as seen, the first frame it keeps of that alert is marked, so the alert stays seen. Each Lost and Found frame saved from this version carries `alerted`, true when the check that saved it raised the alert; a frame saved earlier is judged against the alert threshold as it is set. Open tabs tell each other of saved, marked and deleted alerts and of a running watch on the browser's BroadcastChannel, which reaches no server. A browser with no BroadcastChannel passes the same words through local storage under `safeos-tab-message`, written and removed at once, and the tab that watches or starts a watch keeps `safeos-tab-watch` there (the tab, its way and when it wrote the note) until its watch ends; Clear All Local Data removes both. Whether this window's storage ends when the window closes is checked once a visit and kept in session storage as `safeos-window-storage`. Clear All Local Data removes all four.
+An alert is new while none of its records is marked as seen; no clock time decides it. When the frame limit (500 Lost and Found frames, 100 of People's) removes the only frames of an alert marked as seen, the first frame it keeps of that alert is marked, so the alert stays seen. Each Lost and Found frame saved from this version carries `alerted`, true when the check that saved it raised the alert; a frame saved earlier is judged against the alert threshold as it is set. Open tabs tell each other of saved, marked and deleted alerts and of a running watch on the browser's BroadcastChannel, which reaches no server. A browser with no BroadcastChannel passes the same words through local storage under `safeos-tab-message`, written and removed at once, and the tab that watches or starts a watch keeps `safeos-tab-watch` there (the tab, its way and when it wrote the note) until its watch ends; Clear all data on this device removes both. Whether this window's storage ends when the window closes is checked once a visit and kept in session storage as `safeos-window-storage`. Clear all data on this device removes all four.
 
 Opening History marks as seen the alerts that were new when it opened, once for each opening and once its list has been read. An alert that arrives while History is open, or while its list is still being read, stays new, and a list that could not be read marks nothing. When History opens before the device's alerts have first been read, and another tab changes them before History marks, the opening marks nothing, since no clock tells which alert came later. Opened from another page of the app, whose alerts were read before, it marks as above.
 
@@ -136,7 +157,9 @@ installed models is shown as an empty list, not an offline server.
 Navigation displays a GitHub link without fetching a star count. Opening that
 link contacts GitHub. Model downloads remain separate network requests.
 
-Browser notifications use an existing service-worker registration when available,
+Browser notifications show only while **Send browser notifications** is on in
+Settings → Notifications (on until it is turned off), and the browser allows
+them. They use an existing service-worker registration when available,
 including on phones that reject the page Notification constructor. Desktop
 installations without a worker use a guarded constructor fallback. Delivery
 failure does not interrupt in-app alerts. Opening a local notification focuses an

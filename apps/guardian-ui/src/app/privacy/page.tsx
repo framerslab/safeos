@@ -151,10 +151,10 @@ export default function PrivacyPage() {
                 and 500 alerts overall in this browser. Acknowledged alerts are removed first, oldest first;
                 if all remaining alerts are unacknowledged, the oldest leave first. Alerts are never removed
                 because of their age; their pictures are, after the time you choose. Records on a configured
-                server are not deleted by clearing browser data or signing out. Clear All Local Data also
-                removes recorded sounds, alert pictures and the offline cache. Signing out, in any tab, clears
-                the alerts and their pictures, frames, recordings and personal settings saved in this
-                browser, for every tab; the server connection is kept. Another tab that is still open
+                server are not deleted by clearing browser data or signing out. Clear all data on this device,
+                on Settings, Data on this device, also removes recorded sounds, alert pictures and the offline
+                cache. Signing out, in any tab, clears the alerts and their pictures, frames, recordings and
+                personal settings saved in this browser, for every tab; the server connection is kept. Another tab that is still open
                 may go on showing its alerts until it is reloaded, and it stops receiving alerts from a
                 configured server until then.
               </p>
@@ -169,8 +169,8 @@ export default function PrivacyPage() {
                 runs safeos.sh, never receives them. They are deleted after the time you choose under Keep
                 alert pictures (3 days unless you choose 1, 7 or 30 days, or until you delete them); the
                 alert&apos;s words stay in History. A picture is also deleted with its alert when the alert
-                leaves under the limits above. You can delete one picture or all of them; Clear All Local
-                Data and signing out delete them too. SafeOS sends alert pictures to no server, a server you
+                leaves under the limits above. You can delete one picture or all of them; Clear all data on
+                this device and signing out delete them too. SafeOS sends alert pictures to no server, a server you
                 connect yourself included. Anyone who can open SafeOS in this browser can see the alerts and
                 their pictures. If the camera sees a street, a shared path or a neighbour&apos;s home, the
                 law where you live may treat its pictures as more than a private matter, and Keep alert

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { guardedStorage } from '../lib/storage-full';
 
 // =============================================================================
 // Types
@@ -1036,7 +1037,9 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'safeos-settings',
-      storage: createJSONStorage(() => localStorage),
+      // A browser that refuses storage keeps the change for the visit; the
+      // settings pages say it was not saved, and nothing throws.
+      storage: createJSONStorage(() => guardedStorage),
       partialize: (state) => ({
         settingsSourceId: state.settingsSourceId,
         activePresetId: state.activePresetId,
