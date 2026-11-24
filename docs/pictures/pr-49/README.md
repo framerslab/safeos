@@ -6,8 +6,8 @@ Saved by `apps/guardian-ui/scripts/alert-picture-captures.mjs` in the Pictures
 workflow's job "Capture the home page pictures" (Chromium, at 390 by 844 and
 1440 by 900 pixels, a device scale factor of 2, light and dark) and copied byte
 for byte from the `alert-pictures` artifact of
-[Pictures run 45301570664](https://github.com/framerslab/safeos/actions/runs/45301570664),
-which built commit 2d3e0cf. Each file is `alert-<state>-<width>-<look>.png`,
+[Pictures run 45377032897](https://github.com/framerslab/safeos/actions/runs/45377032897),
+which built commit 3dfeffa. Each file is `alert-<state>-<width>-<look>.png`,
 clipped to the state's own part of the page:
 
 - `card`: three Motion alerts on the watch; the newest card shows the camera's
@@ -26,7 +26,9 @@ clipped to the state's own part of the page:
 - `history`: History's rows of the same watch's alerts, each with its
   thumbnail, its kind and level, the date and time, and **Open picture**.
 - `watch-group`: the group **Alert pictures** in the watch's settings, its
-  heading row included.
+  heading row included, under **Settings for this watch**.
+- `watch-group-collapsed`: the collapsed **Alert pictures** row with the full
+  keeping status and picture count.
 - `settings-group`: the same group on Settings > Detection.
 - `data-count`: the top of Settings > Data on this device in the same visit,
   after the three alerts: "3 alerts, 3 saved pictures, 0 pets, 0 sounds", the
@@ -38,7 +40,7 @@ clipped to the state's own part of the page:
 - `notification-setting`: **Show the picture in alert notifications** on
   Settings > Notifications, in a browser that allows notifications.
 - `live-box`: the live picture with the box and "Motion here at {time}", in the
-  10 seconds after an alert.
+  watch frame, above its meters, in the 10 seconds after an alert.
 - `sighting`: a Lost and Found sighting of the pet "Stripes": the camera's
   picture with its box, the close-up and the pet's saved photo side by side,
   each with its label, "Could this be Stripes?", the time and the two lines.
@@ -58,14 +60,14 @@ and Stripes is enrolled from a striped photo on the Lost & Found page.
 ## after/
 
 `privacy-<width>-<look>.png`: the privacy page at this pull request's commit
-2d3e0cf, copied byte for byte from the `pictures` artifact of the same
-[Pictures run 45301570664](https://github.com/framerslab/safeos/actions/runs/45301570664),
+3dfeffa, copied byte for byte from the `pictures` artifact of the same
+[Pictures run 45377032897](https://github.com/framerslab/safeos/actions/runs/45377032897),
 at 390 by 844 and 1280 by 800 pixels, light and dark.
 
 ## before/
 
-Master at 6674c86, the base of this pull request, for the pages this pull
-request changes:
+The site before the watch redesign and alert pictures, captured from master
+at 6674c86:
 
 - `monitor-<width>-<look>.png`, `history-<width>-<look>.png`,
   `settings-notifications-<width>-<look>.png`, `settings-data-<width>-<look>.png`
