@@ -46,7 +46,7 @@ test('setup offers Lost & Found, and its last key opens the Lost & Found page', 
   const open = page.getByRole('button', { name: 'Open Lost and Found' });
   await expect(open).toBeVisible();
   // The Lost & Found page's key is Start Monitoring, then the Motion and sound page's.
-  await expect(page.getByText(/press Start Monitoring there\. On the Motion and sound page, press Start Monitoring/)).toBeVisible();
+  await expect(page.getByText(/press Start Monitoring there\. On the Motion and sound page, press Start watching/)).toBeVisible();
   await expect(page.getByText(/Go to Monitor/)).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('setup-last-step-1280.png'), fullPage: true });
   await open.click();

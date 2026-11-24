@@ -966,12 +966,14 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   const H1_LINES = { 320: [1, 4], 390: [1, 3], 768: [2, 2], 820: [2, 2], 1024: [3, 3], 1280: [3, 3], 1440: [3, 3], 1920: [3, 3] };
   const CROPS = { 320: 'phone', 390: 'phone', 768: 'landscape', 820: 'landscape', 1024: 'portrait', 1280: 'portrait', 1440: 'landscape', 1920: 'landscape' };
   const record = await (await fetch(new URL('/home/sample-clip.json', baseUrl))).json();
-  // The portrait crop holds the camera view and two whole rows of readout
-  // tiles, so its ratio is its file's own, near 4:5; its box takes that ratio.
+  // The portrait crop holds the camera's frame with its live picture and the
+  // meters under it, so its ratio is its file's own; its box takes that ratio.
   const captureRecord = await (await fetch(new URL('/home/provenance.json', baseUrl))).json();
   const portraitFile = captureRecord.files.find((entry) => entry.path === 'home/capture-portrait-dark.webp');
-  const RATIOS = { phone: 16 / 9, landscape: 16 / 10, portrait: portraitFile ? portraitFile.width / portraitFile.height : 4 / 5 };
-  expect(RATIOS.portrait > 0.78 && RATIOS.portrait < 0.9, `capture: the portrait crop's file is ${RATIOS.portrait.toFixed(3)} wide for its height, not near 4:5`);
+  // With no record of the file, the size the page itself falls back to
+  // (EXPECTED_SIZES in src/lib/home-captures.ts).
+  const RATIOS = { phone: 16 / 9, landscape: 16 / 10, portrait: portraitFile ? portraitFile.width / portraitFile.height : 1309 / 1173 };
+  expect(RATIOS.portrait > 0.6 && RATIOS.portrait < 1.6, `capture: the portrait crop's file is ${RATIOS.portrait.toFixed(3)} wide for its height, outside 0.6 to 1.6`);
   for (const width of Object.keys(H1_LINES).map(Number)) {
     for (const look of LOOKS) {
       const height = width === 1440 || width === 1920 ? 900 : width >= 768 ? 800 : 844;

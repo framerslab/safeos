@@ -90,15 +90,74 @@ export async function enrolPet(page: Page, name: string, photo: Buffer) {
   await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
 }
 
-/** Enrols the striped pet, opens the watch and waits for the comparison to match. */
+/** How many frames the comparison has saved in this browser's database, one for each close look. */
+export const savedMatchFrames = (page: Page): Promise<number> =>
+  page.evaluate(async () => {
+    if (!(await indexedDB.databases()).some((database) => database.name === 'safeos-guardian')) return 0;
+    return new Promise<number>((resolve) => {
+      const opening = indexedDB.open('safeos-guardian');
+      opening.onerror = () => resolve(0);
+      opening.onsuccess = () => {
+        const database = opening.result;
+        if (!database.objectStoreNames.contains('match_frame')) {
+          database.close();
+          resolve(0);
+          return;
+        }
+        const counting = database.transaction('match_frame').objectStore('match_frame').count();
+        counting.onsuccess = () => {
+          database.close();
+          resolve(counting.result);
+        };
+        counting.onerror = () => {
+          database.close();
+          resolve(0);
+        };
+      };
+    });
+  });
+
+/**
+ * How many saved frames raised the alert (`alerted: true`). A frame is marked
+ * before the sound path runs, so this counts alerts raised, not sounds
+ * started: quiet hours can silence an alert that is counted here. A close
+ * look under the alert's threshold is saved too, and is not counted here.
+ */
+export const alertedMatchFrames = (page: Page): Promise<number> =>
+  page.evaluate(async () => {
+    if (!(await indexedDB.databases()).some((database) => database.name === 'safeos-guardian')) return 0;
+    return new Promise<number>((resolve) => {
+      const opening = indexedDB.open('safeos-guardian');
+      opening.onerror = () => resolve(0);
+      opening.onsuccess = () => {
+        const database = opening.result;
+        if (!database.objectStoreNames.contains('match_frame')) {
+          database.close();
+          resolve(0);
+          return;
+        }
+        const reading = database.transaction('match_frame').objectStore('match_frame').getAll();
+        reading.onsuccess = () => {
+          database.close();
+          resolve((reading.result as Array<{ alerted?: boolean }>).filter((frame) => frame.alerted === true).length);
+        };
+        reading.onerror = () => {
+          database.close();
+          resolve(0);
+        };
+      };
+    });
+  });
+
+/** Enrols the striped pet, opens the watch and waits for the comparison to save a close look. */
 export async function watchStripes(page: Page) {
   await enrolPet(page, 'Stripes', await stripedPhoto(page));
 
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
-  await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click({ timeout: 60_000 });
-  await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/consecutive match/).first()).toBeVisible({ timeout: 60_000 });
+  await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => savedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(0);
 }
 
 /**

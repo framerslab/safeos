@@ -49,7 +49,7 @@ it('discards a thumbnail that finishes after Clear All', async () => {
   useLostFoundStore.setState({ activeSubject: subject, chosenPetId: subject.id, settings: { ...DEFAULT_SETTINGS, scanGridSize: 2, minConfidenceForRecord: 0, alertSound: false, alertNotification: false, adaptiveLighting: false, motionPriority: false } });
   const camera = render(<MonitorPage />);
   await screen.findByRole('radio', { name: 'Lost and Found', checked: true });
-  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
   await waitFor(() => expect(useLostFoundStore.getState().isWatching).toBe(true));
   await waitFor(() => expect(pending.length).toBeGreaterThan(0));
   expect(pending[0].onload).toBeTruthy();

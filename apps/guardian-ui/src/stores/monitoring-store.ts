@@ -78,6 +78,10 @@ export interface MonitoringState {
 
   // Alerts
   alerts: Alert[];
+  /** Whether the saved alerts have been read once, either way. Never saved. */
+  alertsRead: boolean;
+  /** Whether the last read of the saved alerts failed: the list is not known to be empty. Never saved. */
+  alertsReadFailed: boolean;
 
   // Settings
   settings: MonitoringSettings;
@@ -344,6 +348,8 @@ export const useMonitoringStore = create<MonitoringState>()(
       audioLevel: 0,
       hasCrying: false,
       alerts: [],
+      alertsRead: false,
+      alertsReadFailed: false,
       settings: DEFAULT_SETTINGS,
 
       // Session timer state
@@ -462,7 +468,7 @@ export const useMonitoringStore = create<MonitoringState>()(
         } catch (error) {
           // Unavailable storage is not an empty history. Keep the list on screen.
           console.warn('[Monitoring] Could not read alert history:', error);
-          set(state => ({ alerts: boundedAlerts(state.alerts) }));
+          set(state => ({ alerts: boundedAlerts(state.alerts), alertsRead: true, alertsReadFailed: true }));
           return;
         }
         if (revision !== alertRevision) return get().hydrateAlerts();
@@ -475,7 +481,7 @@ export const useMonitoringStore = create<MonitoringState>()(
           return card ? [{ ...card, ...entry.alert }] : [];
         });
         const pendingIds = new Set(pending.map(alert => alert.id));
-        set({ alerts: boundedAlerts([...pending, ...saved.filter(alert => !pendingIds.has(alert.id))]) });
+        set({ alerts: boundedAlerts([...pending, ...saved.filter(alert => !pendingIds.has(alert.id))]), alertsRead: true, alertsReadFailed: false });
       },
 
       addStream: (stream) =>
@@ -570,6 +576,7 @@ export const useMonitoringStore = create<MonitoringState>()(
           audioLevel: 0,
           hasCrying: false,
           alerts: [],
+          alertsReadFailed: false,
           settings: DEFAULT_SETTINGS,
           sessionExpiresAt: null,
           sessionDurationHours: 24,
