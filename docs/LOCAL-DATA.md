@@ -1,7 +1,7 @@
 # Local data and settings
 
-SafeOS keeps saved frames, reference photos, account records and custom sounds in
-IndexedDB. Preferences use localStorage. Neither storage is an account vault:
+SafeOS keeps saved frames, alert pictures, reference photos, account records and custom
+sounds in IndexedDB. Preferences use localStorage. Neither storage is an account vault:
 other scripts running on the same site can read browser storage.
 
 ## Clearing and signing out
@@ -9,8 +9,9 @@ other scripts running on the same site can read browser storage.
 **Settings → Data on this device → Clear all data on this device** clears the records in both SafeOS
 databases, including microphone recordings and uploaded sounds. It resets local
 monitoring state, schedules and appearance preferences and removes the SafeOS
-service-worker caches. Pending thumbnail work is invalidated before records are
-deleted, so it cannot restore an earlier match after clearing.
+service-worker caches. It deletes alert pictures with the alerts, and a picture being
+saved when the clear comes is not written, so it cannot restore an earlier picture after
+clearing. Every open tab closes the picture it has open and shows none of the deleted pictures.
 The page reloads only after clearing succeeds. A failed operation displays an
 error and can be retried.
 
@@ -24,7 +25,8 @@ while it is open; a connection lost before the page heard of it makes the first
 press show that sentence, and a second press clears.
 
 Data on this device also counts what this device keeps (alerts, Wildlife
-sightings among them, saved pictures, pets and sounds of your own) and exports
+sightings among them, saved pictures, the alert pictures kept among them, pets
+and sounds of your own) and exports
 the settings as a file, `safeos-settings-<yyyy-mm-dd>.json`, with the look and
 text (`look`) and the notification choices (`notifications`), never a key a
 server needs. When the device's databases cannot be read, the page says "Could

@@ -227,6 +227,16 @@ export function VisitorHeader() {
   // show that the row does not.
   const menuInUse = open && scriptArrived;
 
+  const brand = (
+    <>
+      <SiteMark />
+      <span className="wordmark" translate="no">
+        <span className="wordmark__first">SafeOS</span>
+        <span className="wordmark__second">Guardian</span>
+      </span>
+    </>
+  );
+
   return (
     <nav
       ref={navRef}
@@ -239,19 +249,11 @@ export function VisitorHeader() {
       data-scrolled={scrolled ? 'true' : undefined}
     >
       <div ref={barRef} className="site-header__bar">
-        <Link
-          href="/"
-          className="site-header__brand"
-          aria-label="SafeOS Guardian, home"
-          aria-current={isHome ? 'page' : undefined}
-          onClick={isHome ? () => window.scrollTo(0, 0) : undefined}
-        >
-          <SiteMark />
-          <span className="wordmark" translate="no">
-            <span className="wordmark__first">SafeOS</span>
-            <span className="wordmark__second">Guardian</span>
-          </span>
-        </Link>
+        {isHome ? (
+          <span className="site-header__brand" role="img" aria-label="SafeOS Guardian">{brand}</span>
+        ) : (
+          <Link href="/" className="site-header__brand" aria-label="SafeOS Guardian, home">{brand}</Link>
+        )}
 
         <div className="site-header__links">
           {LINKS.map((link) => (

@@ -7,6 +7,8 @@
  * @module lib/visual-fingerprint
  */
 
+import { MAX_PET_PHOTOS } from './pet-photo-limits';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -785,7 +787,7 @@ export function mergeFingerprints(
   
   // Collect all reference images
   const allImages = fingerprints.flatMap(fp => fp.referenceImages);
-  const keptImages = allImages.slice(0, 5); // Keep up to 5 reference images
+  const keptImages = allImages.slice(0, MAX_PET_PHOTOS);
   const edgePhotos = Math.min(edgeTotal, Math.max(1, keptImages.length));
   
   return {

@@ -20,6 +20,7 @@ import MonitorPage from '@/app/monitor/page';
 import { getSoundManager } from '@/lib/sound-manager';
 import { askOtherTabs, takeOverWatch } from '@/lib/tab-channel';
 import { useMonitoringStore } from '@/stores/monitoring-store';
+import { useAlertPicturesStore } from '@/stores/alert-pictures-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
@@ -90,6 +91,8 @@ beforeEach(() => {
   jest.useFakeTimers();
   localStorage.clear();
   sessionStorage.clear();
+  // The device has answered the notice about alert pictures, so a watch starts at its key.
+  useAlertPicturesStore.setState({ keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false });
   window.history.replaceState(null, '', '/monitor/');
   useMonitoringStore.getState().reset();
   useSettingsStore.getState().resetToDefaults();
@@ -370,4 +373,24 @@ it("asks before a nap's watch starts while another tab watches", async () => {
   expect(screen.getByRole('button', { name: 'End nap' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(window.history.state.safeosNap).toMatchObject({ minutes: 30 });
+});
+
+it('Start watching on the notice after Nap Mode asks first when another tab started a watch while it stood open', async () => {
+  stillCamera();
+  useSettingsStore.getState().activateSleepMode('infant_sleep');
+  // The device has not answered the notice about alert pictures; no tab watches at the arrival,
+  // and one starts while the notice stands open.
+  useAlertPicturesStore.setState({ noticeAnswered: false });
+  jest.mocked(askOtherTabs).mockReset()
+    .mockResolvedValueOnce({ watching: false })
+    .mockResolvedValue({ watching: true, way: 'monitor' });
+  arriveFromNap(30);
+  render(<MonitorPage />);
+  await act(async () => {});
+
+  const notice = screen.getByRole('dialog', { name: 'Each alert keeps a picture' });
+  fireEvent.click(within(notice).getByRole('button', { name: 'Start watching' }));
+  await act(async () => {});
+  expect(screen.getByRole('dialog', { name: QUESTION })).toBeTruthy();
+  expect(browser.getUserMedia).not.toHaveBeenCalled();
 });

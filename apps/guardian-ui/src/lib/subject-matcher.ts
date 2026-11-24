@@ -893,6 +893,16 @@ export class SubjectMatcher {
   }
 
   /**
+   * The canvas that holds the frame of the last `processFrame`, as the camera
+   * gave it and before any JPEG is made of it, until the next check draws
+   * over it. An alert's picture and close-up are cut from it in the check's
+   * own tick. Null before the first check.
+   */
+  frameCanvas(): HTMLCanvasElement | null {
+    return this.canvas && this.frameCount > 0 ? this.canvas : null;
+  }
+
+  /**
    * Check if current match exceeds alert threshold
    */
   shouldAlert(): boolean {
@@ -948,91 +958,4 @@ export function resetSubjectMatcher(): void {
     matcherInstance.reset();
   }
   matcherInstance = null;
-}
-
-// =============================================================================
-// Utility Functions
-// =============================================================================
-
-/**
- * Calculate match quality label
- */
-export function getMatchQuality(confidence: number): {
-  label: string;
-  color: string;
-  description: string;
-} {
-  if (confidence >= 85) {
-    return {
-      label: 'Excellent',
-      color: 'green',
-      description: 'Very high likelihood of match',
-    };
-  } else if (confidence >= 70) {
-    return {
-      label: 'Good',
-      color: 'emerald',
-      description: 'Strong potential match',
-    };
-  } else if (confidence >= 55) {
-    return {
-      label: 'Possible',
-      color: 'yellow',
-      description: 'Worth checking',
-    };
-  } else if (confidence >= 40) {
-    return {
-      label: 'Weak',
-      color: 'orange',
-      description: 'Low confidence, may be false positive',
-    };
-  } else {
-    return {
-      label: 'Unlikely',
-      color: 'red',
-      description: 'Probably not a match',
-    };
-  }
-}
-
-/**
- * Format match result for display
- */
-export function formatMatchResult(result: MatchResult): {
-  time: string;
-  confidence: string;
-  quality: ReturnType<typeof getMatchQuality>;
-} {
-  const date = new Date(result.timestamp);
-  const time = date.toLocaleTimeString();
-  const confidence = `${result.confidence}%`;
-  const quality = getMatchQuality(result.confidence);
-
-  return { time, confidence, quality };
-}
-
-/**
- * Estimate processing mode speed
- */
-export function getProcessingInfo(mode: 'local' | 'hybrid'): {
-  label: string;
-  description: string;
-  estimatedLatency: string;
-  color: string;
-} {
-  if (mode === 'local') {
-    return {
-      label: 'Local Instant',
-      description: 'All processing on-device, no internet required',
-      estimatedLatency: '< 50ms',
-      color: 'green',
-    };
-  } else {
-    return {
-      label: 'AI Enhanced',
-      description: 'Local + cloud AI for higher accuracy',
-      estimatedLatency: '1-5s',
-      color: 'blue',
-    };
-  }
 }

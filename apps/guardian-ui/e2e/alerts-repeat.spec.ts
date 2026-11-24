@@ -143,6 +143,10 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
     }
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+    // The device has answered the notice about alert pictures, so a watch starts at its key.
+    localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+      keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+    }, version: 0 }));
 
     const walk: Walk = {
       alerts: { motion: [], pixel: [], audio: [] },
@@ -180,13 +184,14 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
       }
     }
 
-    // An alert card's message line starts with its kind; the screen-reader
-    // summary starts "New ..." and is not counted. A card that counts its
-    // repeats says "Repeated N times" beside its level.
+    // An alert card's picture block names its kind and time ("Motion at
+    // 9:42:40 PM"); the screen-reader summary starts "New ..." and is not
+    // counted. A card that counts its repeats says "Repeated N times" beside
+    // its level.
     const KINDS: Array<[Kind, RegExp]> = [
-      ['motion', /^Motion detected: \d+%/],
-      ['pixel', /^Pixel movement detected/],
-      ['audio', /^Audio detected: \d+%/],
+      ['motion', /^Motion at /],
+      ['pixel', /^Picture change at /],
+      ['audio', /^Sound at /],
     ];
     // Each kind's meter under the live picture, read from its value.
     const READOUTS: Array<[Kind, string]> = [['motion', 'Motion level'], ['pixel', 'Picture change level'], ['audio', 'Sound level']];
@@ -199,7 +204,7 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
         for (const p of lines) {
           if (!pattern.test(p.textContent || '')) continue;
           cards += 1;
-          const repeats = /Repeated (\d+) times?/.exec(p.parentElement?.textContent || '');
+          const repeats = /Repeated (\d+) times?/.exec(p.closest('[data-alert-card]')?.textContent || '');
           alerts += 1 + (repeats ? Number(repeats[1]) : 0);
         }
         walk.cards[kind] = cards;
@@ -318,8 +323,45 @@ async function pictureOfAlerts(page: Page, testInfo: TestInfo, name: string): Pr
   await panel.screenshot({ path: testInfo.outputPath(`${name}.png`), timeout: 5_000 }).catch(() => undefined);
 }
 
-const cardsOf = (page: Page, pattern: RegExp) => page.locator('p', { hasText: pattern });
-const MOTION_CARD = /^Motion detected: \d+%/;
+/**
+ * The message of the newest saved alert whose message starts as `kind` does.
+ * A card shows its kind, time and picture; the reading and its line are kept
+ * in the alert's saved message.
+ */
+function savedMessage(page: Page, kind: RegExp): Promise<string> {
+  return page.evaluate((source) => new Promise<string>((resolve, reject) => {
+    const pattern = new RegExp(source);
+    const open = indexedDB.open('safeos-guardian');
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const db = open.result;
+      // A database the page has not set up yet holds no saved alert; the poll reads again.
+      if (!db.objectStoreNames.contains('alert_cache')) { db.close(); resolve(''); return; }
+      let read: IDBRequest<any[]>;
+      try {
+        read = db.transaction('alert_cache', 'readonly').objectStore('alert_cache').getAll();
+      } catch (error) {
+        db.close();
+        reject(error);
+        return;
+      }
+      read.onerror = () => { db.close(); reject(read.error); };
+      read.onsuccess = () => {
+        db.close();
+        const rows = read.result
+          .filter((row) => row.monitoring && pattern.test(row.message))
+          .sort((a, b) => Date.parse(b.timestamp || b.createdAt || '') - Date.parse(a.timestamp || a.createdAt || ''));
+        resolve(rows[0]?.message ?? '');
+      };
+    };
+  }), kind.source);
+}
+
+/** Waits until the newest saved alert of `kind` reads as `reading`. */
+const expectSavedMessage = (page: Page, kind: RegExp, reading: RegExp, soft = false) =>
+  expect.configure({ soft }).poll(() => savedMessage(page, kind), { timeout: 10_000 }).toMatch(reading);
+
+const MOTION_MESSAGE = /^Motion detected: \d+%/;
 
 /**
  * Checks one event that went on: its second alert came `periodMs` after the
@@ -357,7 +399,15 @@ function savedCards(page: Page): Promise<SavedCard[]> {
     open.onerror = () => reject(open.error);
     open.onsuccess = () => {
       const db = open.result;
-      const read = db.transaction('alert_cache', 'readonly').objectStore('alert_cache').getAll();
+      if (!db.objectStoreNames.contains('alert_cache')) { db.close(); resolve([]); return; }
+      let read: IDBRequest<any[]>;
+      try {
+        read = db.transaction('alert_cache', 'readonly').objectStore('alert_cache').getAll();
+      } catch (error) {
+        db.close();
+        reject(error);
+        return;
+      }
       read.onerror = () => { db.close(); reject(read.error); };
       read.onsuccess = () => {
         db.close();
@@ -425,7 +475,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
       camera: { changingWidth: 1 / 3 },
     });
     const first = await firstAlert(page, 'motion');
-    await expect(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
+    await expectSavedMessage(page, MOTION_MESSAGE, /^Motion detected: 2\d% \(threshold: 20%/);
     await expectRepeat(page, 'motion', first, 20_000, 'motion');
     await expect.soft(page.getByText('Repeated 1 time', { exact: true })).toBeVisible();
     await pictureOfAlerts(page, testInfo, 'low-motion-repeated');
@@ -442,13 +492,13 @@ test.describe('Alerts repeat while the activity goes on', () => {
       notify: true,
     });
     const first = await firstAlert(page, 'motion');
-    await expect(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: [6-9]\d% \(threshold: 20%/);
+    await expectSavedMessage(page, MOTION_MESSAGE, /^Motion detected: [6-9]\d% \(threshold: 20%/);
     await expectRepeat(page, 'motion', first, 10_000, 'motion');
     await expect.soft(page.getByText('Repeated 1 time', { exact: true })).toBeVisible();
     await pictureOfAlerts(page, testInfo, 'critical-motion-repeated');
 
     // The repeat replaces the first notification (same tag) and alerts again.
-    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     expect.soft(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect.soft(shown[1]?.tag).toBe(shown[0]?.tag);
     expect.soft(shown[1]?.renotify, 'the repeat notification sets renotify, so it alerts again').toBe(true);
@@ -476,7 +526,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
       camera: { changingWidth: 0, tone: true },
     });
     const first = await firstAlert(page, 'audio');
-    await expect(cardsOf(page, /^Audio detected: \d+%/).first()).toHaveText(/^Audio detected: (4[5-9]|[5-9]\d|100)% \(threshold: 5%/);
+    await expectSavedMessage(page, /^Audio detected: \d+%/, /^Audio detected: (4[5-9]|[5-9]\d|100)% \(threshold: 5%/);
     await expectRepeat(page, 'audio', first, 10_000, 'sound');
   });
 
@@ -524,7 +574,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
     // not after the Cooldown Period (30 s by default).
     await openMonitor(page, { settings: MOTION_ONLY, camera: { changingWidth: 1 / 3 }, notify: true });
     const first = await firstAlert(page, 'motion');
-    await expect(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
+    await expectSavedMessage(page, MOTION_MESSAGE, /^Motion detected: 2\d% \(threshold: 20%/);
     await runUntil(page, first + 3_000);
     const roseAt = await page.evaluate(() => {
       window.__walkCamera!.changingWidth = 1;
@@ -537,11 +587,11 @@ test.describe('Alerts repeat while the activity goes on', () => {
     expect.soft(afterRise[0], 'the critical alert came within 3 s of the rise').toBeLessThanOrEqual(3_000);
     expect.soft(lowestReading(walk, 'motion', first, roseAt + afterRise[0]), 'motion stayed over the line').toBeGreaterThanOrEqual(20);
     expect.soft(walk.cards.motion, 'the rise updated the event\'s card').toBe(1);
-    await expect.soft(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: [6-9]\d% \(threshold: 20%/);
+    await expectSavedMessage(page, MOTION_MESSAGE, /^Motion detected: [6-9]\d% \(threshold: 20%/, true);
 
     // The rise's notification keeps the event's tag, so it replaces the low
     // one in place of standing beside it.
-    const shown = walk.notifications.filter((n) => n.title === 'Motion Detected');
+    const shown = walk.notifications.filter((n) => n.title === 'Motion alert');
     expect.soft(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect.soft(shown[shown.length - 1]?.tag, `the rise keeps the notification tag (${JSON.stringify(shown)})`).toBe(shown[0]?.tag);
   });
@@ -560,13 +610,15 @@ test.describe('Alerts repeat while the activity goes on', () => {
     const first = await firstAlert(page, 'motion');
     await page.evaluate(() => { window.__walkCamera!.changingWidth = 1 / 3; });
     await runUntil(page, first + 10_000 + LATE_MS);
+    // The picture holds still from here: no later repeat writes over the first repeat's saved message.
+    await page.evaluate(() => { window.__walkCamera!.changingWidth = 0; });
 
-    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     expect(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect.soft(shown[0]?.requireInteraction, 'the critical notification stays up').toBe(true);
     expect.soft(shown[shown.length - 1]?.tag, 'the repeat replaces the event\'s notification').toBe(shown[0]?.tag);
     expect.soft(shown[shown.length - 1]?.requireInteraction, `the lower repeat keeps it up (${JSON.stringify(shown)})`).toBe(true);
-    await expect.soft(cardsOf(page, MOTION_CARD).first()).toHaveText(/^Motion detected: 2\d% \(threshold: 20%/);
+    await expectSavedMessage(page, MOTION_MESSAGE, /^Motion detected: 2\d% \(threshold: 20%/, true);
   });
 
   test('an event whose card is acknowledged keeps its notification tag on the new card it goes on', async ({ page }) => {
@@ -583,7 +635,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await page.getByRole('button', { name: 'Acknowledge', exact: true }).first().click();
     await runUntil(page, first + 10_000 + LATE_MS);
 
-    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    const shown = (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     expect(shown.length, `a notification for each alert (${JSON.stringify(shown)})`).toBeGreaterThanOrEqual(2);
     expect(shown[shown.length - 1]?.tag, `the event keeps its tag on its new card (${JSON.stringify(shown)})`).toBe(shown[0]?.tag);
   });
@@ -606,7 +658,7 @@ test.describe('Alerts repeat while the activity goes on', () => {
     await expect.poll(async () => (await walkOf(page)).cards.motion, { timeout: 40_000 }).toBe(2);
     // The second card shows before its notification is delivered: the notification
     // waits for the service worker's registration.
-    const motionNotifications = async () => (await walkOf(page)).notifications.filter((n) => n.title === 'Motion Detected');
+    const motionNotifications = async () => (await walkOf(page)).notifications.filter((n) => n.title === 'Motion alert');
     await expect.poll(async () => (await motionNotifications()).length, {
       message: 'a notification for each event', timeout: 15_000,
     }).toBeGreaterThanOrEqual(2);

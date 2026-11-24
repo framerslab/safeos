@@ -2,7 +2,8 @@
  * One tab tells the others
  *
  * Every open tab of this site shares one channel. A tab says when an alert
- * was saved, marked as seen or deleted, and when its watch starts and ends; a
+ * was saved, marked as seen or deleted, when an alert picture was saved or
+ * deleted or its settings changed, and when its watch starts and ends; a
  * tab that opens asks whether a watch runs, and a watching tab answers. So
  * the list of alerts, the count and the alert sound agree across tabs, and
  * the device holds one watch at a time. The channel is the browser's own
@@ -14,6 +15,7 @@
 
 import { useEffect, useState } from 'react';
 import type { WayId } from './app-routes';
+import type { PictureNews } from './alert-pictures/channel';
 
 export type TabMessage =
   | { type: 'alerts-changed' }
@@ -21,7 +23,9 @@ export type TabMessage =
   | { type: 'watch-ended' }
   | { type: 'watch-ask'; start?: Turn }
   | { type: 'watch-answer'; way?: WayId }
-  | { type: 'watch-stop' };
+  | { type: 'watch-stop' }
+  // News about alert pictures (lib/alert-pictures/channel).
+  | { type: 'pictures'; news: PictureNews };
 
 /** A start's place in line: when its tab asked, and that tab's id, which breaks a tie. */
 export interface Turn {

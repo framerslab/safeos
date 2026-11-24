@@ -393,3 +393,39 @@ describe('Store Actions', () => {
     });
   });
 });
+
+// =============================================================================
+// The spoken line a device saved
+// =============================================================================
+
+describe('The saved spoken line', () => {
+  beforeEach(() => {
+    localStorageMock.clear();
+    jest.clearAllMocks();
+    jest.resetModules();
+  });
+
+  it('a device that saved the earlier spoken line speaks the new one, and a line the person wrote stays', async () => {
+    const { migrateLostFound, DEFAULT_SETTINGS } = await import('../src/stores/lost-found-store');
+    const { EARLIER_SPOKEN_DEFAULT, SPOKEN_DEFAULT } = await import('../src/lib/lost-found-words');
+
+    const saved = { settings: { ...DEFAULT_SETTINGS, customMediaTTSMessages: [EARLIER_SPOKEN_DEFAULT, 'Come and look'] } };
+    const migrated = migrateLostFound(saved, 0) as typeof saved;
+    expect(migrated.settings.customMediaTTSMessages).toEqual([SPOKEN_DEFAULT, 'Come and look']);
+
+    const noSettings = { subjects: [], chosenPetId: null };
+    expect(migrateLostFound(noSettings, 0)).toEqual(noSettings);
+  });
+
+  it('a device that saved the earlier spoken line reads the new one when the store loads', async () => {
+    const { EARLIER_SPOKEN_DEFAULT, SPOKEN_DEFAULT } = await import('../src/lib/lost-found-words');
+    localStorageMock.setItem('safeos-lost-found', JSON.stringify({
+      state: { subjects: [], chosenPetId: null, settings: { customMediaTTSEnabled: true, customMediaTTSMessages: [EARLIER_SPOKEN_DEFAULT, 'Come and look'] } },
+      version: 0,
+    }));
+
+    const { useLostFoundStore } = await import('../src/stores/lost-found-store');
+
+    expect(useLostFoundStore.getState().settings.customMediaTTSMessages).toEqual([SPOKEN_DEFAULT, 'Come and look']);
+  });
+});

@@ -128,8 +128,7 @@ html.light .visitor-shell {
 }
 
 .home-band,
-.home-qr,
-.home-how__note {
+.home-qr {
   --color-steel-50: var(--visitor-panel-ink);
 }
 
@@ -941,7 +940,7 @@ html.light .maker-mark__image--light {
   margin: 0;
   color: var(--color-steel-50);
   font-size: var(--type-body-size);
-  line-height: var(--type-body-line);
+  line-height: 1.55;
   font-weight: var(--weight-regular);
   text-wrap: pretty;
 }
@@ -954,6 +953,235 @@ html.light .maker-mark__image--light {
   margin: 0;
   padding: 0;
   list-style: none;
+}
+
+.home-benefits {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-benefit {
+  min-width: 0;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--color-steel-900);
+  color: var(--visitor-panel-ink);
+}
+
+.home-benefit .home-h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.home-benefit .home-h3 span {
+  flex: none;
+  color: var(--look-accent);
+}
+
+.home-benefit :is(.home-h3, .home-p) {
+  color: inherit;
+}
+
+@media (min-width: 48em) {
+  .home-benefits {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.home-detection .home-h2,
+.home-detection__lead {
+  text-align: center;
+}
+
+.home-detection__lead {
+  max-width: 48ch;
+  margin-inline: auto;
+}
+
+.home-detection > .home-wrap {
+  container-type: inline-size;
+}
+
+.home-diagram {
+  margin: 32px 0 0;
+}
+
+.home-diagram__stages,
+.home-diagram__band {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-diagram__label {
+  margin: 0 0 16px;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  text-align: center;
+}
+
+.home-diagram__band {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.home-diagram__stages > li + li {
+  margin-top: 12px;
+}
+
+.home-diagram__node {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: start;
+  align-items: flex-start;
+  gap: 8px 12px;
+  padding: 16px;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 8px;
+  background: var(--color-steel-900);
+  color: var(--visitor-panel-ink);
+}
+
+.home-diagram__glyph {
+  flex: none;
+}
+
+.home-diagram__node-label {
+  flex: 1 1 12ch;
+}
+
+.home-diagram__inputs {
+  flex-basis: 100%;
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+.home-diagram__wires {
+  display: none;
+}
+
+.home-diagram__server {
+  padding: 16px;
+  border: 1px dashed var(--color-steel-300);
+  border-radius: 8px;
+}
+
+@container (min-width: 60rem) {
+  .home-diagram__band {
+    display: grid;
+    gap: 0;
+  }
+
+  .home-diagram__node {
+    margin-inline: 6px;
+  }
+
+  .home-diagram__stages > li + li:not(.home-diagram__server) {
+    margin-top: 0;
+  }
+
+  .home-diagram__inputs {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .home-diagram__wires {
+    display: block;
+    width: 100%;
+    height: 44px;
+    fill: none;
+    stroke: var(--color-steel-300);
+    stroke-width: 1.25px;
+  }
+}
+
+.home-detection__cards {
+  display: grid;
+  align-items: start;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.home-detection__card {
+  --color-steel-50: var(--visitor-panel-ink);
+  min-width: 0;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 12px;
+  background: var(--color-steel-900);
+}
+
+.home-detection__card summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 64px;
+  padding: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.home-detection__card summary::-webkit-details-marker {
+  display: none;
+}
+
+.home-detection__glyph {
+  color: var(--look-accent);
+}
+
+.home-detection__tags,
+.home-detection__summary {
+  grid-column: 1 / -1;
+}
+
+.home-detection__tags {
+  color: var(--color-steel-200);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+.home-detection__card .home-q__mark {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.home-detection__card[open] .home-q__mark::after {
+  transform: scaleY(0);
+}
+
+.home-detection__body {
+  padding: 0 16px 16px;
+}
+
+.home-detection__code {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+  text-align: center;
+}
+
+@media (min-width: 48em) {
+  .home-detection__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 90em) {
+  .home-detection__cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 /* A rule between two parts of the page: a 1 px line with one tick, 8 px tall
@@ -1038,12 +1266,63 @@ html.light .maker-mark__image--light {
   text-wrap: balance;
 }
 
-.home-lead {
-  margin: 12px 0 0;
-  color: var(--color-steel-50);
-  font-size: var(--type-body-size);
-  line-height: var(--type-body-line);
-  text-wrap: pretty;
+.home-lockup {
+  display: none;
+}
+
+@media (min-width: 48em) {
+  .home-lockup {
+    display: grid;
+    justify-items: start;
+    gap: 4px;
+    margin-bottom: 20px;
+    font-family: var(--font-display);
+  }
+
+  .home-lockup .site-mark {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 4px;
+  }
+
+  .home-lockup__name {
+    font-size: 3rem;
+    font-weight: var(--weight-bold);
+    line-height: 1;
+  }
+
+  .home-lockup__line {
+    color: var(--color-steel-200);
+    font-size: 1.125rem;
+    line-height: 1.5;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+  }
+}
+
+@media (min-width: 64em) {
+  .home-lockup__name {
+    font-size: 3.5rem;
+  }
+
+  .home-lockup__line {
+    font-size: 1.25rem;
+  }
+}
+
+@media (min-width: 48em) and (prefers-reduced-motion: no-preference) {
+  .home-lockup .site-mark__ring:first-of-type {
+    animation: home-shield-ring 3s ease-out both;
+  }
+
+  .home-lockup[data-page-hidden] .site-mark__ring:first-of-type {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes home-shield-ring {
+  from { opacity: 0.4; }
+  to { opacity: 1; }
 }
 
 .home-first__start {
@@ -1330,8 +1609,7 @@ html.light .capture__pic--light {
   }
 
   .home-statement,
-  .home-needs-script,
-  .home-lead {
+  .home-needs-script {
     max-width: 34em;
   }
 
@@ -1382,181 +1660,94 @@ html.light .capture__pic--light {
 
 .home-uses {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .home-use {
-  padding-block: 24px;
+  --color-steel-50: var(--visitor-panel-ink);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--color-steel-900);
 }
 
-.home-use:first-child {
-  padding-top: 0;
-}
-
-.home-use + .home-use {
-  border-top: 1px solid var(--color-steel-300);
-}
-
-.home-use .home-p,
-.home-use__medical {
-  margin-top: 8px;
-}
-
-/* The not-a-medical-device sentence, with its link on a row of its own. */
-.home-use__medical {
-  max-width: 35em;
-  color: var(--color-steel-50);
-  font-size: var(--type-body-size);
-  line-height: var(--type-body-line);
-  text-wrap: pretty;
-}
-
-.home-use__medical a {
+.home-use .home-h3 {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  margin-top: 4px;
+  gap: 12px;
+}
+
+.home-use .home-h3 span {
+  flex: none;
+  color: var(--look-accent);
+}
+
+.home-use .home-h3 svg {
+  width: 24px;
+  height: 24px;
+}
+
+.home-use__medical,
+.home-use__medical > :first-child {
+  margin: 0;
   color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: 1.55;
+}
+
+.home-use p a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.home-use__key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  margin-top: auto;
+  padding: 8px 12px;
+  border: 1px solid var(--color-steel-300);
+  border-radius: var(--key-radius);
+  color: var(--color-steel-50);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
   font-weight: var(--weight-bold);
-  text-decoration-line: underline;
-  text-decoration-color: var(--look-accent);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
+  text-align: center;
 }
 
-.home-use__medical a:hover {
-  text-decoration-thickness: 3px;
+.home-use__key:hover {
+  background: var(--color-steel-850);
 }
 
-.home-use .home-links {
-  margin-top: 4px;
-}
-
-/* Tablet: a ruled grid of two columns, the entries in rows of two, two and
-   one. */
-@media (min-width: 48em) and (max-width: 63.99em) {
+@media (min-width: 48em) {
   .home-uses {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .home-use,
-  .home-use:first-child {
-    padding: 24px 0;
-  }
-
-  .home-use + .home-use {
-    border-top: 0;
-  }
-
-  .home-use:nth-child(odd) {
-    padding-right: 24px;
-  }
-
-  .home-use:nth-child(even) {
-    padding-left: 24px;
-    border-left: 1px solid var(--color-steel-300);
-  }
-
-  .home-use:nth-child(n + 3) {
-    border-top: 1px solid var(--color-steel-300);
-  }
-
-  .home-use:nth-child(5) {
+  .home-use:last-child {
     grid-column: 1 / -1;
-    padding-right: 0;
-  }
-
-  .home-use:nth-child(-n + 2) {
-    padding-top: 0;
   }
 }
 
-/* Desktop: a ruled grid of six columns, two entries of three columns and
-   then three of two. */
-@media (min-width: 64em) and (max-width: 89.99em) {
+@media (min-width: 64em) {
   .home-uses {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 
-  .home-use,
-  .home-use:first-child {
+  .home-use {
     grid-column: span 2;
-    padding: 32px 24px;
-  }
-
-  .home-use + .home-use {
-    border-top: 0;
-  }
-
-  .home-use:nth-child(-n + 2) {
-    grid-column: span 3;
-    padding-top: 0;
-  }
-
-  .home-use:nth-child(1),
-  .home-use:nth-child(3) {
-    padding-left: 0;
-  }
-
-  .home-use:nth-child(2),
-  .home-use:nth-child(5) {
-    padding-right: 0;
-  }
-
-  .home-use:nth-child(2),
-  .home-use:nth-child(4),
-  .home-use:nth-child(5) {
-    border-left: 1px solid var(--color-steel-300);
-  }
-
-  .home-use:nth-child(n + 3) {
-    border-top: 1px solid var(--color-steel-300);
-  }
-}
-
-/* Wide: a ruled grid of twelve columns, three entries of four columns and
-   then two of six. */
-@media (min-width: 90em) {
-  .home-uses {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
-  }
-
-  .home-use,
-  .home-use:first-child {
-    grid-column: span 4;
-    padding: 32px;
-  }
-
-  .home-use + .home-use {
-    border-top: 0;
-  }
-
-  .home-use:nth-child(-n + 3) {
-    padding-top: 0;
   }
 
   .home-use:nth-child(n + 4) {
-    grid-column: span 6;
-    border-top: 1px solid var(--color-steel-300);
-  }
-
-  .home-use:nth-child(1),
-  .home-use:nth-child(4) {
-    padding-left: 0;
-  }
-
-  .home-use:nth-child(3),
-  .home-use:nth-child(5) {
-    padding-right: 0;
-  }
-
-  .home-use:nth-child(2),
-  .home-use:nth-child(3),
-  .home-use:nth-child(5) {
-    border-left: 1px solid var(--color-steel-300);
+    grid-column: span 3;
   }
 }
 
@@ -1564,13 +1755,16 @@ html.light .capture__pic--light {
    Home page: how it works
    ============================================================================= */
 
+#one-device .home-wrap {
+  --home-column-gap: 24px;
+  container-type: inline-size;
+}
+
 .home-how {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    'steps'
-    'note';
-  row-gap: 24px;
+  grid-template-areas: 'steps' 'qr' 'note';
+  gap: 24px;
 }
 
 .home-steps {
@@ -1584,21 +1778,17 @@ html.light .capture__pic--light {
 
 .home-step {
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr);
-  column-gap: 12px;
+  grid-template-columns: 2.75rem minmax(0, 1fr);
+  gap: 12px;
   align-items: start;
 }
 
 .home-step__numeral {
-  color: var(--color-steel-50);
+  color: var(--look-accent);
   font-family: var(--font-display);
   font-size: var(--type-numeral-size);
   line-height: var(--type-numeral-line);
   font-weight: var(--weight-bold);
-}
-
-.home-step .home-h3 {
-  padding-top: 3px;
 }
 
 .home-step .home-p {
@@ -1607,20 +1797,20 @@ html.light .capture__pic--light {
 
 .home-qr {
   grid-area: qr;
-  display: none;
   margin: 0;
-  padding: 24px;
+  padding: 20px;
+  border-radius: 12px;
   background: var(--color-steel-900);
+  text-align: center;
 }
 
 .home-qr img {
   display: block;
-  width: 160px;
-  height: 160px;
+  width: min(200px, 100%);
+  height: auto;
+  margin-inline: auto;
   background: #ffffff;
   color: #000000;
-  font-size: var(--type-word-size);
-  line-height: var(--type-word-line);
 }
 
 .home-qr figcaption {
@@ -1632,497 +1822,144 @@ html.light .capture__pic--light {
 
 .home-how__note {
   grid-area: note;
-}
-
-/* Tablet: the steps in the left five of eight columns, the QR panel in the
-   right three, the server note under the steps. */
-@media (min-width: 48em) {
-  .home-how {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
-    grid-template-areas:
-      'steps qr'
-      'note note';
-    column-gap: 24px;
-  }
-
-  .home-qr {
-    display: block;
-    align-self: start;
-  }
-}
-
-/* Desktop: the steps in the left seven of twelve columns; in the right five,
-   one panel that holds the QR code, its caption and the server note. */
-@media (min-width: 64em) {
-  .home-how {
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-      'steps qr'
-      'steps note';
-    row-gap: 0;
-  }
-
-  .home-step {
-    grid-template-columns: 3.5rem minmax(0, 1fr);
-  }
-
-  .home-step .home-h3 {
-    padding-top: 9px;
-  }
-
-  .home-qr {
-    align-self: stretch;
-    padding: 32px 32px 0;
-  }
-
-  .home-qr img {
-    width: 200px;
-    height: 200px;
-  }
-
-  .home-how__note {
-    padding: 24px 32px 32px;
-    background: var(--color-steel-900);
-  }
-}
-
-/* Wide: the steps in the left six columns, and two panels side by side in
-   the right six. */
-@media (min-width: 90em) {
-  .home-how {
-    grid-template-columns: minmax(0, 6fr) minmax(0, 3fr) minmax(0, 3fr);
-    grid-template-rows: auto;
-    grid-template-areas: 'steps qr note';
-    column-gap: 32px;
-  }
-
-  .home-qr {
-    padding: 32px;
-  }
-
-  .home-how__note {
-    padding: 32px;
-  }
-}
-
-/* =============================================================================
-   Home page: what sets off an alert
-   ============================================================================= */
-
-.home-alerts {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    'head'
-    'list'
-    'aside';
-}
-
-.home-alerts > .home-h2 {
-  grid-area: head;
-}
-
-.home-alerts__list {
-  grid-area: list;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.home-alert {
-  padding-block: 24px;
-}
-
-.home-alert:first-child {
-  padding-top: 0;
-}
-
-.home-alert + .home-alert {
-  border-top: 1px solid var(--color-steel-300);
-}
-
-.home-alert .home-p {
-  margin-top: 8px;
-}
-
-.home-alerts__aside {
-  grid-area: aside;
   padding-top: 24px;
   border-top: 1px solid var(--color-steel-300);
 }
 
-.home-alerts__aside .link-row {
-  margin-top: 8px;
+.home-how__note .home-h3 {
+  margin-bottom: 8px;
 }
 
-/* Tablet: a ruled grid of two by two, the everyday-monitor line and the code
-   link across the full width below. */
-@media (min-width: 48em) and (max-width: 63.99em) {
-  .home-alerts__list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .home-alert,
-  .home-alert:first-child {
-    padding: 24px 0;
-  }
-
-  .home-alert + .home-alert {
-    border-top: 0;
-  }
-
-  .home-alert:nth-child(odd) {
-    padding-right: 24px;
-  }
-
-  .home-alert:nth-child(even) {
-    padding-left: 24px;
-    border-left: 1px solid var(--color-steel-300);
-  }
-
-  .home-alert:nth-child(-n + 2) {
-    padding-top: 0;
-  }
-
-  .home-alert:nth-child(n + 3) {
-    border-top: 1px solid var(--color-steel-300);
-  }
-}
-
-/* Desktop: the heading, the everyday-monitor line and the code link in the
-   left four of twelve columns, the ruled grid of two by two in the right
-   eight. */
-@media (min-width: 64em) and (max-width: 89.99em) {
-  .home-alerts {
-    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-      'head list'
-      'aside list';
-    column-gap: 24px;
-  }
-
-  .home-alerts__list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .home-alert,
-  .home-alert:first-child {
-    padding: 24px;
-  }
-
-  .home-alert + .home-alert {
-    border-top: 0;
-  }
-
-  .home-alert:nth-child(odd) {
-    padding-left: 0;
-  }
-
-  .home-alert:nth-child(even) {
-    padding-right: 0;
-    border-left: 1px solid var(--color-steel-300);
-  }
-
-  .home-alert:nth-child(-n + 2) {
-    padding-top: 0;
-  }
-
-  .home-alert:nth-child(n + 3) {
-    border-top: 1px solid var(--color-steel-300);
-  }
-
-  .home-alerts__aside {
-    padding-top: 0;
-    border-top: 0;
-  }
-}
-
-/* Wide: the first three entries in a row of three under the heading, the
-   fourth across the full width with its sentence at the left and the model's
-   note at the right. */
-@media (min-width: 90em) {
-  .home-alerts__list {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .home-alert,
-  .home-alert:first-child {
-    padding: 0 32px 32px;
-  }
-
-  .home-alert + .home-alert {
-    border-top: 0;
-    border-left: 1px solid var(--color-steel-300);
-  }
-
-  .home-alert:nth-child(1) {
-    padding-left: 0;
-  }
-
-  .home-alert:nth-child(3) {
-    padding-right: 0;
-  }
-
-  .home-alert:nth-child(4) {
-    grid-column: 1 / -1;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 32px;
-    padding: 32px 0;
-    border-top: 1px solid var(--color-steel-300);
-    border-left: 0;
-  }
-
-  .home-alert:nth-child(4) .home-h3 {
-    grid-column: 1 / -1;
-  }
-
-  .home-alert:nth-child(4) .home-p + .home-p {
-    margin-top: 8px;
-  }
-}
-
-/* =============================================================================
-   Home page: free and open source
-   ============================================================================= */
-
-.home-free {
+.home-server__list {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    'head'
-    'words'
-    'links';
-}
-
-.home-free > .home-h2 {
-  grid-area: head;
-}
-
-.home-free__words {
-  grid-area: words;
-}
-
-.home-free__links {
-  grid-area: links;
-  margin-top: 16px;
-}
-
-/* Tablet: the heading and sentences in the left five of eight columns, the
-   four links as a list in the right three. */
-@media (min-width: 48em) and (max-width: 63.99em) {
-  .home-free {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
-    grid-template-areas:
-      'head links'
-      'words links';
-    column-gap: 24px;
-  }
-
-  .home-free__links {
-    margin-top: 0;
-  }
-}
-
-/* Desktop: the heading and sentences in the left seven columns, the four
-   links in a grid of two by two in the right five. */
-@media (min-width: 64em) and (max-width: 89.99em) {
-  .home-free {
-    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-      'head links'
-      'words links';
-    column-gap: 24px;
-  }
-
-  .home-free__links {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px 24px;
-    align-content: start;
-    margin-top: 0;
-  }
-}
-
-/* Wide: the heading in the left five columns, the sentences in the middle
-   four, the links stacked in the right three. */
-@media (min-width: 90em) {
-  .home-free {
-    grid-template-columns: minmax(0, 5fr) minmax(0, 4fr) minmax(0, 3fr);
-    grid-template-areas: 'head words links';
-    column-gap: 32px;
-  }
-
-  .home-free > .home-h2 {
-    margin-bottom: 0;
-  }
-
-  .home-free__links {
-    margin-top: 0;
-  }
-}
-
-/* =============================================================================
-   Home page: questions people ask first
-   ============================================================================= */
-
-.home-questions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-areas:
-    'head'
-    'first'
-    'second'
-    'all';
-}
-
-.home-questions > .home-h2 {
-  grid-area: head;
-}
-
-.home-questions__group--first {
-  grid-area: first;
-}
-
-.home-questions__group--second {
-  grid-area: second;
-  border-top: 1px solid var(--color-steel-300);
-}
-
-.home-questions__all {
-  grid-area: all;
-  margin-top: 16px;
-}
-
-.home-q + .home-q {
-  border-top: 1px solid var(--color-steel-300);
-}
-
-/* A question: its words in the ink with a plus or a minus at its right, in a
-   row at least 48 px tall. */
-.home-q > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 48px;
-  padding: 11px 0;
-  color: var(--color-steel-50);
-  font-family: var(--font-display);
-  font-size: var(--type-entry-size);
-  line-height: var(--type-entry-line);
-  font-weight: var(--weight-bold);
-  cursor: pointer;
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
   list-style: none;
 }
 
-.home-q > summary::-webkit-details-marker {
-  display: none;
+.home-server__list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  color: var(--color-steel-50);
 }
 
-.home-q > summary:hover {
-  background: var(--color-steel-900);
+.home-server__list li span {
+  color: var(--look-accent);
 }
 
+@container (min-width: 44rem) {
+  .home-how {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-areas: 'steps qr' 'note note';
+  }
+
+  .home-qr {
+    align-self: start;
+    justify-self: center;
+    max-width: 28ch;
+  }
+}
+
+@media (min-width: 90em) {
+  #one-device .home-wrap {
+    --home-column-gap: 32px;
+  }
+}
+
+@container (min-width: 60rem) {
+  .home-how {
+    --color-steel-50: var(--visitor-panel-ink);
+    width: calc((200% - var(--home-column-gap)) / 3);
+    margin-inline: auto;
+    padding: 32px;
+    border: 1px solid var(--color-steel-300);
+    border-radius: 12px;
+    background: var(--color-steel-900);
+  }
+
+  .home-qr {
+    padding: 0;
+    background: transparent;
+  }
+}
+
+/* The free block, with the key and its links in one column. */
+.home-free {
+  display: grid;
+  gap: 16px 32px;
+}
+
+.home-free > .home-h2 {
+  margin-bottom: 0;
+}
+
+.home-free__key {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 0;
+}
+
+.home-free__stars {
+  color: var(--color-steel-200);
+}
+
+.home-free__links {
+  margin-top: 8px;
+}
+
+.home-free__words a {
+  color: var(--color-steel-50);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+@media (min-width: 48em) {
+  .home-free {
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-areas: 'title actions' 'words actions';
+  }
+
+  .home-free > .home-h2 {
+    grid-area: title;
+  }
+
+  .home-free__words {
+    grid-area: words;
+  }
+
+  .home-free__actions {
+    grid-area: actions;
+  }
+}
+
+/* The plus becomes a minus when the browser opens the disclosure. */
 .home-q__mark {
   position: relative;
-  flex: none;
   width: 20px;
   height: 20px;
-  color: var(--color-steel-50);
+  color: var(--look-accent);
 }
 
 .home-q__mark::before,
 .home-q__mark::after {
-  content: '';
   position: absolute;
-  top: 9px;
-  left: 2px;
-  width: 16px;
+  inset: 9px 3px auto;
   height: 2px;
   background: currentColor;
+  content: '';
 }
 
 .home-q__mark::after {
-  transform: rotate(90deg);
+  rotate: 90deg;
+  transition: transform 150ms ease;
 }
 
-.home-q[open] .home-q__mark::after {
-  display: none;
-}
-
-.home-q__answer {
-  padding: 4px 0 20px;
-}
-
-.home-q__answer .link-row {
-  margin-top: 4px;
-}
-
-/* Tablet: the heading at the left and the FAQ link at the right of one line,
-   then two columns of three questions. */
-@media (min-width: 48em) and (max-width: 63.99em) {
-  .home-questions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      'head all'
-      'first second';
-    column-gap: 24px;
-  }
-
-  .home-questions__all {
-    justify-self: end;
-    margin-top: 0;
-  }
-
-  .home-questions__group--second {
-    border-top: 0;
-  }
-}
-
-/* Desktop: the heading and the FAQ link in the left four of twelve columns,
-   the six questions in one column in the right eight. */
-@media (min-width: 64em) and (max-width: 89.99em) {
-  .home-questions {
-    grid-template-columns: minmax(0, 4fr) minmax(0, 8fr);
-    grid-template-rows: auto auto 1fr;
-    grid-template-areas:
-      'head first'
-      'all first'
-      'all second';
-    column-gap: 24px;
-  }
-
-  .home-questions__all {
-    align-self: start;
-    margin-top: 0;
-  }
-}
-
-/* Wide: the heading and the FAQ link in the left three of twelve columns,
-   the questions in two columns of three in the right nine. */
-@media (min-width: 90em) {
-  .home-questions {
-    grid-template-columns: minmax(0, 3fr) minmax(0, 4.5fr) minmax(0, 4.5fr);
-    grid-template-rows: auto 1fr;
-    grid-template-areas:
-      'head first second'
-      'all first second';
-    column-gap: 32px;
-  }
-
-  .home-questions__all {
-    align-self: start;
-    margin-top: 0;
-  }
-
-  .home-questions__group--second {
-    border-top: 0;
+@media (prefers-reduced-motion: reduce) {
+  .home-q__mark::after {
+    transition: none;
   }
 }
 
@@ -2175,4 +2012,26 @@ html.light .capture__pic--light {
 
 .home-closing__rule {
   background: var(--color-steel-900);
+}
+
+.home-first,
+.home-closing {
+  --start-key-height: 56px;
+}
+
+.home-use p a,
+.home-free__words p a {
+  /* Give every line fragment a touch target without changing the paragraph's leading. */
+  --inline-link-padding: max(0px, calc((44px - 1em) / 2));
+  display: inline;
+  padding-block: var(--inline-link-padding);
+  margin-block: calc(-1 * var(--inline-link-padding));
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
+@container (width < 44rem) {
+  .home-detection__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

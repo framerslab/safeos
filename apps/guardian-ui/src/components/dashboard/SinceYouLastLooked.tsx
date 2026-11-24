@@ -22,8 +22,9 @@ import { alertLine, type DeviceAlert } from '@/lib/alert-groups';
 import { WAYS } from '@/lib/app-routes';
 import { clockTime } from '@/lib/clock-time';
 import { useDeviceAlerts } from '@/lib/device-alerts';
+import { usePicture } from '@/lib/alert-pictures/keeper';
 import { CameraFrame, LevelLine, ProblemMark } from './Drawn';
-import { WayGlyph } from './WaysToWatch';
+import { WayGlyph } from '@/components/icons/WayGlyph';
 
 const TABLET = '(min-width: 48em)';
 const DESKTOP = '(min-width: 64em)';
@@ -58,6 +59,18 @@ export function useRowLimit(): number {
 }
 
 const wayName = (alert: DeviceAlert) => WAYS.find((way) => way.id === alert.way)?.name ?? '';
+
+/**
+ * A sighting's picture as the watch kept it on this device: its close-up, else the camera's
+ * picture. While it is read, and when none is kept, the way's glyph.
+ */
+function KeptPicture({ pictureId, name, alert }: { pictureId: string; name: string; alert: DeviceAlert }) {
+  const view = usePicture(pictureId);
+  if (view.status !== 'shown') return <WayGlyph way={alert.way} />;
+  // A kept picture is a blob address on this device, which the image optimiser cannot serve.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={view.closeUpUrl ?? view.frameUrl} alt={name} width={64} height={48} />;
+}
 
 /** Words for a name read aloud, with each curly apostrophe written straight. */
 const plain = (text: string) => text.replace(/’/g, "'");
@@ -169,6 +182,8 @@ export function SinceYouLastLooked() {
                         // A saved picture is a data address on this device, which the image optimiser cannot serve.
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={alert.picture} alt={name} width={64} height={48} loading="lazy" />
+                      ) : alert.pictureId ? (
+                        <KeptPicture pictureId={alert.pictureId} name={name} alert={alert} />
                       ) : (
                         <WayGlyph way={alert.way} />
                       )}

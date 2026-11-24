@@ -2,8 +2,8 @@
 /**
  * Data on this device
  *
- * The page counts what this device keeps (alerts, saved pictures, pets and
- * sounds), exports the settings as a file and says so, and asks in place
+ * The page counts what this device keeps (alerts, saved pictures, the alert
+ * pictures among them, pets and sounds), exports the settings as a file and says so, and asks in place
  * before it clears all data: no browser confirm box, Cancel clears nothing
  * and gives focus back to the key, and while the device is offline the
  * question says SafeOS will not open again until it is back online.
@@ -11,7 +11,8 @@
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import './helpers/browser-data';
-import { cacheAlert, saveMatchFrame, saveSubjectProfile } from '@/lib/client-db';
+import { cacheAlert, goneAlertPicture, saveAlertPicture, saveMatchFrame, saveSubjectProfile } from '@/lib/client-db';
+import { pictureStampNow } from '@/lib/local-data-generation';
 import { countKept, keptOnDeviceWords } from '@/lib/kept-on-device';
 import DataPage from '@/app/settings/data/page';
 import { useAnimalAlertStore } from '@/stores/animal-alert-store';
@@ -244,4 +245,20 @@ it('counts a Wildlife sighting saved on this device', async () => {
   } finally {
     useAnimalAlertStore.getState().clearHistory();
   }
+});
+
+it('counts each alert picture this device keeps as a saved picture, and none that was deleted', async () => {
+  const before = await countKept();
+  const at = Date.now() - 60_000;
+  // Kept rows with no Blob in them: the test's stand-in for structuredClone cannot copy a Blob.
+  expect(await saveAlertPicture({ id: `picture-${at}-kept`, state: 'kept', kind: 'motion', takenAt: at }, pictureStampNow()))
+    .toEqual({ result: 'saved', deleted: [] });
+  expect(await saveAlertPicture({ id: `picture-${at + 1}-gone`, state: 'kept', kind: 'sound', takenAt: at + 1 }, pictureStampNow()))
+    .toEqual({ result: 'saved', deleted: [] });
+  // A picture the person deleted leaves a row that says it went: no picture is in it.
+  expect(await goneAlertPicture(`picture-${at + 1}-gone`, 'person')).toBe('deleted');
+  const after = { ...before, pictures: before.pictures + 1 };
+  expect(await countKept()).toEqual(after);
+  render(<DataPage />);
+  await screen.findByText(keptOnDeviceWords(after));
 });

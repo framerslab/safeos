@@ -25,8 +25,8 @@ it("names the pet's colours, with no score and no match", () => {
     <LostFoundMediaOverlay isOpen onClose={() => {}} subjectName="Mittens" images={['data:image/png;base64,x']} />,
   );
   const dialog = screen.getByRole('alertdialog');
-  expect(dialog.getAttribute('aria-label')).toBe('Lost and Found alert: colours like Mittens’s');
-  expect(screen.getByText('Colours like Mittens’s')).toBeTruthy();
+  expect(dialog.getAttribute('aria-label')).toBe('Could this be Mittens?');
+  expect(screen.getByText('Colours and shape like Mittens’s photos.')).toBeTruthy();
   const words = `${dialog.getAttribute('aria-label')} ${dialog.textContent}`;
   expect(words).not.toMatch(/detect|match|confidence|%/i);
 });

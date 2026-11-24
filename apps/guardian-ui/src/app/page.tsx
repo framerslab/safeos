@@ -12,9 +12,10 @@
  */
 import type { Metadata } from 'next';
 import { HomeCapture, type CaptureCrop } from '@/components/home/HomeCapture';
+import { HomeDetection } from '@/components/home/HomeDetection';
 import { HomeStart } from '@/components/home/HomeStart';
-import { HomeUses, HomeHow, HomeAlerts, HomeFree, HomeQuestions, HomeClosing } from '@/components/home/HomeSections';
-import { Brand } from '@/components/home/Brand';
+import { HomeBenefits, HomeUses, HomeHow, HomeFree, HomeClosing } from '@/components/home/HomeSections';
+import { Brand, HomeLockup } from '@/components/home/Brand';
 import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, pageMetadata, socialImage } from '@/lib/page-metadata';
 import { HOME_LAST_CHANGED } from '@/lib/page-last-changed';
 import { captureSizes } from '@/lib/home-captures';
@@ -76,7 +77,7 @@ function structuredData() {
       'Stillness alerts after a time you set',
       'An alert sound, a notification and a History entry on the device that watches',
       'Motion and sound alerts with no connection, once the browser has saved the app',
-      'An object-detection model for people and animals on the Security and Wildlife pages',
+      'An object-detection model for people and animals on the People and Wildlife pages',
     ],
     offers: {
       '@type': 'Offer',
@@ -127,13 +128,10 @@ export default function HomePage() {
       <section className="home-first" aria-labelledby="home-headline">
         <div className="home-wrap home-first__grid">
           <div className="home-first__text">
+            <HomeLockup />
             <h1 id="home-headline" className="home-headline">
               {HOME_TITLE}
             </h1>
-            <p className="home-lead">
-              <Brand>SafeOS Guardian</Brand> runs in your browser. The device watching the room sounds the alert when
-              something moves or gets loud.
-            </p>
           </div>
 
           <HomeCapture
@@ -162,17 +160,17 @@ export default function HomePage() {
       <div className="home-wrap">
         <div className="tick-rule" aria-hidden="true" />
       </div>
-      <HomeUses />
+      <HomeBenefits />
+      <HomeDetection />
       <div className="home-wrap">
         <div className="tick-rule" aria-hidden="true" />
       </div>
       <HomeHow siteAddress={`${SITE_URL}/`} />
+      <HomeUses />
       <div className="home-wrap">
         <div className="tick-rule" aria-hidden="true" />
       </div>
-      <HomeAlerts />
       <HomeFree />
-      <HomeQuestions />
       <HomeClosing />
     </main>
   );

@@ -9,6 +9,7 @@
 
 'use client';
 
+import { MAX_PET_PHOTOS, MIN_PET_PHOTOS } from '@/lib/pet-photo-limits';
 import { useState, useRef, useCallback } from 'react';
 import { 
   IconUpload, 
@@ -109,7 +110,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
               src: preview,
               file,
             },
-          ].slice(0, 5)); // Max 5 images
+          ].slice(0, MAX_PET_PHOTOS));
         })().catch(() => {
           setImages(prev => [
             ...prev,
@@ -118,7 +119,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
               src,
               file,
             },
-          ].slice(0, 5));
+          ].slice(0, MAX_PET_PHOTOS));
         });
       };
       reader.readAsDataURL(file);
@@ -137,7 +138,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
 
   // Process images and create subject
   const processAndCreate = useCallback(async () => {
-    if (images.length === 0 || !name.trim()) {
+    if (images.length < MIN_PET_PHOTOS || !name.trim()) {
       setError('Please provide a name and at least one image');
       return;
     }
@@ -262,7 +263,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
                 Upload Reference Photos
               </h2>
               <p className="text-sm text-[var(--color-steel-400)]">
-                Add clear photos from different angles for better matching
+                Add up to five photos, each cropped close: SafeOS reads the whole photo, background too.
               </p>
             </div>
             
@@ -314,7 +315,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
                   Click to upload photos
                 </p>
                 <p className="text-sm text-[var(--color-steel-500)] mt-1">
-                  PNG, JPG up to 10MB (max 5 images)
+                  PNG, JPG up to 10MB (max {MAX_PET_PHOTOS} images)
                 </p>
               </div>
             </div>
@@ -353,7 +354,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
               </button>
               <button
                 onClick={() => setStep('configure')}
-                disabled={images.length === 0 || !name.trim()}
+                disabled={images.length < MIN_PET_PHOTOS || !name.trim()}
                 className="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-[var(--color-steel-700)] disabled:text-[var(--color-steel-500)] text-white rounded-lg transition-colors"
               >
                 Continue
@@ -378,9 +379,9 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
             <div>
               <div className="flex justify-between mb-2">
                 <label className="text-sm font-medium text-[var(--color-steel-300)]">
-                  Color Sensitivity
+                  Colour sensitivity
                 </label>
-                <span className="text-sm text-emerald-400">{settings.colorSensitivity}%</span>
+                <span className="text-sm text-emerald-400">{settings.colorSensitivity}</span>
               </div>
               <input
                 type="range"
@@ -391,18 +392,18 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
                 className="w-full accent-emerald-500"
               />
               <div className="flex justify-between text-xs text-[var(--color-steel-500)] mt-1">
-                <span>More matches</span>
-                <span>Fewer, accurate</span>
+                <span>More alerts</span>
+                <span>Fewer, closer</span>
               </div>
             </div>
             
-            {/* Minimum confidence for alert */}
+            {/* The alert line */}
             <div>
               <div className="flex justify-between mb-2">
                 <label className="text-sm font-medium text-[var(--color-steel-300)]">
-                  Alert Threshold
+                  Alert line
                 </label>
-                <span className="text-sm text-emerald-400">{settings.minConfidenceForAlert}%</span>
+                <span className="text-sm text-emerald-400">{settings.minConfidenceForAlert}</span>
               </div>
               <input
                 type="range"
@@ -413,7 +414,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
                 className="w-full accent-emerald-500"
               />
               <p className="text-xs text-[var(--color-steel-500)] mt-1">
-                Minimum confidence to trigger sound/notification
+                The watch alerts when its comparison reaches this line.
               </p>
             </div>
             
@@ -452,7 +453,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
                     Image Flash Overlay
                   </label>
                   <p className="text-xs text-[var(--color-steel-500)] mt-0.5">
-                    Display uploaded photos when detected
+                    Shows your photos full screen when the watch alerts
                   </p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">

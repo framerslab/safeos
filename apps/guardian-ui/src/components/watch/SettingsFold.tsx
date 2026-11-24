@@ -10,13 +10,28 @@
  * @module components/watch/SettingsFold
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { KEEP_SWITCH_HASH, OPEN_GROUP_EVENT } from '../alert-pictures/AlertPicturesGroup';
 import { useWatchView } from '../../lib/watch-view';
 import { ChevronGlyph } from './Glyphs';
 
 export function SettingsFold({ children }: { children: ReactNode }) {
   const [view, setView] = useWatchView();
   const open = view === 'settings';
+
+  useEffect(() => {
+    const revealPictures = () => {
+      if (window.location.hash === KEEP_SWITCH_HASH) setView('settings');
+    };
+    revealPictures();
+    window.addEventListener('hashchange', revealPictures);
+    window.addEventListener(OPEN_GROUP_EVENT, revealPictures);
+    return () => {
+      window.removeEventListener('hashchange', revealPictures);
+      window.removeEventListener(OPEN_GROUP_EVENT, revealPictures);
+    };
+  }, [setView]);
+
   return (
     <section className="watch-fold" aria-labelledby="watch-settings-name">
       <div className="watch-disclosure" data-open={open}>

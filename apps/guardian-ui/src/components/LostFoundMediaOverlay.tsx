@@ -22,6 +22,7 @@ import {
   type CustomMediaConfig
 } from '@/lib/custom-media-player';
 import { useLostFoundStore } from '@/stores/lost-found-store';
+import { sightingLines, sightingQuestion } from '@/lib/lost-found-words';
 
 // =============================================================================
 // Types
@@ -219,7 +220,7 @@ export function LostFoundMediaOverlay({
       className="fixed inset-0 z-[9999] bg-black flex flex-col"
       role="alertdialog"
       aria-modal="true"
-      aria-label={`Lost and Found alert: colours like ${subjectName}’s`}
+      aria-label={sightingQuestion(subjectName)}
     >
       {/* Header */}
       <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
@@ -228,10 +229,10 @@ export function LostFoundMediaOverlay({
             <IconAlertCircle size={32} className="text-red-500 animate-pulse" />
             <div>
               <h2 className="text-white text-xl font-bold">
-                Lost and Found alert
+                {sightingQuestion(subjectName)}
               </h2>
               <p className="text-white/80 text-sm">
-                {`Colours like ${subjectName}’s`}
+                {sightingLines(subjectName)[0]}
               </p>
             </div>
           </div>

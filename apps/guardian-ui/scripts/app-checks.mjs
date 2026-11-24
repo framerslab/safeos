@@ -1314,7 +1314,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         };
       }));
       await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
-      await page.getByRole('button', { name: 'View match details', exact: true }).dispatchEvent('click');
+      await page.getByRole('button', { name: 'Open this picture', exact: true }).dispatchEvent('click');
       await checkOverlay(page.locator('.fixed.inset-0', { hasText: 'No image available' }), check, 'the match opened large');
     });
   }
@@ -2524,7 +2524,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     checkHistory(check, await historyReads(page, 390, 'History'), 'History');
     await visit(page, '/history/');
     await localTimeline(page);
-    const listed = await timelineHolds(page, 'Lost & Found Match: Mittens');
+    const listed = await timelineHolds(page, 'Could this be Mittens?');
     check(listed === 6, `History lists ${listed} of the six frames`);
     await visit(page, '/settings/');
     await seedAlerts(page, {
@@ -2548,7 +2548,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(!/Sam/.test(frame), 'the header or the phone bar names Sam');
       await visit(page, '/history/');
       await localTimeline(page);
-      const listed = await timelineHolds(page, 'Lost & Found Match: Sam');
+      const listed = await timelineHolds(page, 'Could this be Sam?');
       check(listed === 3, `History lists ${listed} of the three frames`);
     });
   }
@@ -3059,7 +3059,9 @@ export async function checkApp(browser, baseUrl, outDir) {
         check(rest.startInside, `at ${width} px Start watching is not inside the frame`);
         check(rest.pickerUnder, `at ${width} px the camera menu is not under the frame`);
 
-        await seedAlerts(page, { motion: [{ id: `motion-${Date.now()}-kept`, at: Date.now(), message: 'Seeded alert that stays after the watch stops' }] });
+        const savedAt = Date.now() - 60_000;
+        await seedAlerts(page, { motion: [{ id: `motion-${savedAt}-kept`, at: savedAt }] });
+        const savedTime = await page.evaluate((at) => new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(at), savedAt);
         await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
         // The request is held until both keys of the start are read.
         await page.evaluate(() => { window.__camera.held = new Promise((resolve) => { window.__camera.release = resolve; }); });
@@ -3076,7 +3078,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
         const back = await page.getByRole('button', { name: 'Start watching', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
         check(back, `at ${width} px Stop watching does not give Start watching back`);
-        const kept = await page.getByText('Seeded alert that stays after the watch stops').count();
+        const kept = await page.locator('[data-alert-card]').getByText(`Motion at ${savedTime}`, { exact: true }).count();
         check(kept > 0, `at ${width} px the saved alert leaves the list when the watch stops`);
 
         await context.addInitScript(CAMERA_ANSWER, 'denied');

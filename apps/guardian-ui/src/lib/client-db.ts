@@ -9,10 +9,12 @@
 
 import {
   getLocalDataGeneration, isCurrentLocalData, learnClearGeneration, newClearValue, readLocalClearMarker,
-  writeAccountClearMarker, writeLocalClearMarker, type ClearStamp,
+  picturesMarkerHolds, writeAccountClearMarker, writeLocalClearMarker, writePicturesClearMarker,
+  type ClearStamp, type PictureStamp,
 } from './local-data-generation';
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPObjectStore, type IDBPTransaction } from 'idb';
 import { isCurrentFingerprint } from './visual-fingerprint';
+import { expiredPictureIds, type AlertKind, type Box } from './alert-pictures/rules';
 import { alertsChanged } from './tab-channel';
 import { noteStorageFull } from './storage-full';
 import { seenAfterRemoval } from './alert-groups';
@@ -83,6 +85,16 @@ interface SafeOSDB extends DBSchema {
       syncedAt: string;
       /** How many times a monitor event alerted again after its card was made. */
       repeats?: number;
+      /** The kind of picture the alert keeps; alerts saved before pictures have none. */
+      kind?: AlertKind;
+      /** The id of the alert's picture set in alert_picture. */
+      pictureId?: string;
+      /** The name of the zone that set the alert off, where zones are set. */
+      zone?: string;
+      /** A Lost and Found sighting's pet. */
+      subjectId?: string;
+      subjectName?: string;
+      details?: AlertDetails;
     };
     indexes: {
       'by-stream': string;
@@ -92,8 +104,17 @@ interface SafeOSDB extends DBSchema {
       'by-producer-retention': [string, string, number, string];
     };
   };
-  /** One record under the key 'current': a value that names the last clear of this browser's data. */
+  /** 'current' names the last clear of browser data. 'pictures' names the last committed Delete all pictures. */
   clear_generation: { key: string; value: string };
+  /**
+   * Each alert's picture set: the frame of the moment, the box round what set the alert off and its
+   * close-up. A deleted set leaves a row with no pictures that says why it went.
+   */
+  alert_picture: {
+    key: string;
+    value: AlertPictureDB;
+    indexes: { 'by-state-taken': [string, number] };
+  };
   frame_cache: {
     key: string;
     value: {
@@ -249,12 +270,43 @@ interface SafeOSDB extends DBSchema {
   };
 }
 
+/** A Lost and Found sighting's four scores, kept as data. */
+export interface AlertDetails {
+  colorMatch: number;
+  dominantMatch: number;
+  edgeMatch: number;
+  sizeMatch: number;
+}
+
+/** An alert's picture set as the browser's database keeps it. */
+export interface AlertPictureDB {
+  id: string;
+  state: 'kept' | 'gone';
+  kind: AlertKind;
+  takenAt: number;
+  frame?: Blob;
+  frameWidth?: number;
+  frameHeight?: number;
+  /** The box in the kept frame's pixels. */
+  box?: Box | null;
+  /** The camera frame's own size, which the close-up was cut from. */
+  sourceWidth?: number;
+  sourceHeight?: number;
+  closeUp?: Blob | null;
+  closeUpWidth?: number;
+  closeUpHeight?: number;
+  dark?: boolean;
+  /** Why a set went: its age, or the person deleted it. */
+  gone?: 'age' | 'person';
+  goneAfterDays?: number;
+}
+
 // =============================================================================
 // Configuration
 // =============================================================================
 
 const DB_NAME = 'safeos-guardian';
-const DB_VERSION = 7; // Alerts belong to the browser: producer indexes and the clear generation
+const DB_VERSION = 8; // Each alert's picture set, in alert_picture
 
 const FRAME_BUFFER_MINUTES = 5;
 const MAX_CACHED_ALERTS = 500;
@@ -402,6 +454,12 @@ function getDB(): Promise<IDBPDatabase<SafeOSDB>> {
           animalStore.createIndex('by-danger', 'dangerLevel');
         }
 
+        // Version 8: each alert's picture set.
+        if (!db.objectStoreNames.contains('alert_picture')) {
+          const pictureStore = db.createObjectStore('alert_picture', { keyPath: 'id' });
+          pictureStore.createIndex('by-state-taken', ['state', 'takenAt']);
+        }
+
         try {
           // A browser that had no clear generation gets a new one, as a clear would write it.
           if (!db.objectStoreNames.contains('clear_generation')) {
@@ -497,8 +555,9 @@ async function cleanupOldFrames(): Promise<void> {
   }
 }
 
-type AlertStores = Array<'alert_cache' | 'clear_generation'>;
+type AlertStores = Array<'alert_cache' | 'clear_generation' | 'alert_picture'>;
 type AlertStore<Stores extends AlertStores> = IDBPObjectStore<SafeOSDB, Stores, 'alert_cache', 'readwrite'>;
+type PictureStore<Stores extends AlertStores> = IDBPObjectStore<SafeOSDB, Stores, 'alert_picture', 'readwrite'>;
 
 /** The monitoring store marks every alert it saves; the alert engine and the sync service share the rest. */
 function alertProducer(record: { monitoring?: boolean }): 'monitoring' | 'shared' {
@@ -509,38 +568,45 @@ function producerRange(producer: string): IDBKeyRange {
   return IDBKeyRange.bound([producer], [producer, []]);
 }
 
-/** Only alerts saved after the upgrade count; acknowledged ones leave first, oldest first. */
-async function pruneMonitoringAlerts<Stores extends AlertStores>(store: AlertStore<Stores>): Promise<void> {
+/**
+ * Only alerts saved after the upgrade count; acknowledged ones leave first, oldest first. Each alert
+ * that leaves takes its picture set with it, in the same transaction.
+ */
+async function pruneMonitoringAlerts<Stores extends AlertStores>(store: AlertStore<Stores>, pictures: PictureStore<Stores>): Promise<void> {
   const index = store.index('by-producer-retention');
   const range = IDBKeyRange.bound(['monitoring', 'new'], ['monitoring', 'new', []]);
   let excess = (await index.count(range)) - MAX_MONITORING_ALERTS;
   let cursor = excess > 0 ? await index.openCursor(range) : null;
   while (cursor && excess-- > 0) {
+    const pictureId = cursor.value.pictureId;
     await cursor.delete();
+    if (pictureId) await pictures.delete(pictureId);
     cursor = await cursor.continue();
   }
 }
 
-/** The limit over every producer's alerts saved after the upgrade, in the same order. */
-async function pruneNewAlerts<Stores extends AlertStores>(store: AlertStore<Stores>): Promise<void> {
+/** The limit over every producer's alerts saved after the upgrade, in the same order, with their pictures. */
+async function pruneNewAlerts<Stores extends AlertStores>(store: AlertStore<Stores>, pictures: PictureStore<Stores>): Promise<void> {
   const index = store.index('by-retention');
   const range = IDBKeyRange.bound(['new'], ['new', []]);
   let excess = (await index.count(range)) - MAX_CACHED_ALERTS;
   let cursor = excess > 0 ? await index.openCursor(range) : null;
   while (cursor && excess-- > 0) {
+    const pictureId = cursor.value.pictureId;
     await cursor.delete();
+    if (pictureId) await pictures.delete(pictureId);
     cursor = await cursor.continue();
   }
 }
 
 export async function cleanupCaches(): Promise<void> {
   await cleanupOldFrames();
-  let tx: IDBPTransaction<SafeOSDB, ['alert_cache'], 'readwrite'> | undefined;
+  let tx: IDBPTransaction<SafeOSDB, Array<'alert_cache' | 'alert_picture'>, 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    tx = db.transaction('alert_cache', 'readwrite');
-    await pruneMonitoringAlerts(tx.store);
-    await pruneNewAlerts(tx.store);
+    tx = db.transaction(['alert_cache', 'alert_picture'], 'readwrite');
+    await pruneMonitoringAlerts(tx.objectStore('alert_cache'), tx.objectStore('alert_picture'));
+    await pruneNewAlerts(tx.objectStore('alert_cache'), tx.objectStore('alert_picture'));
     await tx.done;
   } catch {
     // Ignore cleanup errors
@@ -739,8 +805,9 @@ async function writeAlert(
   let tx: IDBPTransaction<SafeOSDB, AlertStores, 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    tx = db.transaction(['alert_cache', 'clear_generation'], 'readwrite');
+    tx = db.transaction(['alert_cache', 'clear_generation', 'alert_picture'], 'readwrite');
     const alerts = tx.objectStore('alert_cache');
+    const pictures = tx.objectStore('alert_picture');
     // A clear writes both stores too, so it runs wholly before or wholly after this transaction.
     const generation = (await tx.objectStore('clear_generation').get('current')) ?? '';
     learnClearGeneration(generation);
@@ -779,6 +846,9 @@ async function writeAlert(
       const counted = previous?.repeats;
       merged.repeats = (typeof counted === 'number' ? counted : 0) + repeats;
       if (found) found.repeats = merged.repeats;
+      // A repeat names its own picture and zone, or none: the card's earlier ones go with it.
+      merged.pictureId = alert.pictureId;
+      merged.zone = alert.zone;
     }
     let createdAt: string;
     let originalCreatedAt = previous?.originalCreatedAt;
@@ -814,9 +884,17 @@ async function writeAlert(
       createdAt,
       syncedAt: new Date().toISOString(),
       ...(typeof merged.repeats === 'number' && merged.repeats > 0 ? { repeats: merged.repeats } : {}),
+      ...(merged.kind ? { kind: merged.kind } : {}),
+      ...(merged.pictureId ? { pictureId: merged.pictureId } : {}),
+      ...(merged.zone ? { zone: merged.zone } : {}),
+      ...(merged.subjectId ? { subjectId: merged.subjectId } : {}),
+      ...(merged.subjectName ? { subjectName: merged.subjectName } : {}),
+      ...(merged.details ? { details: merged.details } : {}),
     });
-    if (producer === 'monitoring') await pruneMonitoringAlerts(alerts);
-    await pruneNewAlerts(alerts);
+    // A card takes one picture set: a repeat's newer set replaces the one the card had.
+    if (previous?.pictureId && previous.pictureId !== merged.pictureId) await pictures.delete(previous.pictureId);
+    if (producer === 'monitoring') await pruneMonitoringAlerts(alerts, pictures);
+    await pruneNewAlerts(alerts, pictures);
     await tx.done;
     // Every tab of this device hears when an alert is saved, marked as seen or
     // deleted, and reads its alerts again.
@@ -902,9 +980,14 @@ export async function getCachedMonitoringAlerts(): Promise<any[]> {
 
 export async function deleteCachedMonitoringAlert(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction('alert_cache', 'readwrite');
-  const alert = await tx.store.get(id);
-  if (alert?.monitoring) await tx.store.delete(id);
+  const tx = db.transaction(['alert_cache', 'alert_picture'], 'readwrite');
+  const alerts = tx.objectStore('alert_cache');
+  const alert = await alerts.get(id);
+  if (alert?.monitoring) {
+    await alerts.delete(id);
+    // The alert's picture set goes with it.
+    if (alert.pictureId) await tx.objectStore('alert_picture').delete(alert.pictureId);
+  }
   await tx.done;
   alertsChanged();
 }
@@ -915,13 +998,15 @@ export async function deleteCachedMonitoringAlert(id: string): Promise<void> {
  */
 export async function clearCachedMonitoringAlerts(): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['alert_cache', 'clear_generation'], 'readwrite');
+  const tx = db.transaction(['alert_cache', 'clear_generation', 'alert_picture'], 'readwrite');
   try {
     let cursor = await tx.objectStore('alert_cache').index('by-producer-created').openCursor(producerRange('monitoring'));
     while (cursor) {
       await cursor.delete();
       cursor = await cursor.continue();
     }
+    // Every picture set belongs to a watch's alert: they go with the alerts.
+    await tx.objectStore('alert_picture').clear();
     await tx.objectStore('clear_generation').put(newClearValue(), 'current');
     writeLocalClearMarker();
   } catch (error) {
@@ -931,6 +1016,279 @@ export async function clearCachedMonitoringAlerts(): Promise<void> {
   }
   await tx.done;
   alertsChanged();
+}
+
+// =============================================================================
+// Alert pictures
+// =============================================================================
+
+const KEPT_RANGE = (): IDBKeyRange => IDBKeyRange.bound(['kept'], ['kept', []]);
+
+/** A transaction a failed write abandons. */
+type Abandonable = { abort(): void; done: Promise<void>; error: DOMException | null };
+
+function isQuotaError(error: unknown): boolean {
+  return (error as { name?: string } | null | undefined)?.name === 'QuotaExceededError';
+}
+
+/** The row a deleted picture set leaves: no pictures, and why it went. */
+function goneRow(row: AlertPictureDB, gone: 'age' | 'person', days?: number): AlertPictureDB {
+  return { id: row.id, state: 'gone', kind: row.kind, takenAt: row.takenAt, gone, ...(gone === 'age' ? { goneAfterDays: days } : {}) };
+}
+
+/**
+ * Saves an alert's picture set. It is written only while no clear came since `stamp` was taken at
+ * the alert: not Clear all, Clear all data on this device or sign-out (the clear generation, or the clear
+ * marker when this tab had read none), and not Delete all pictures (the pictures marker); and not
+ * over the row that says the set was deleted, which another tab writes for a set it cannot read. Out of
+ * room, the oldest kept sets make way one at a time, each try its own transaction that deletes
+ * them and writes the new set together; when the new set finds no room even with every older set
+ * gone, nothing is deleted and the answer is `out-of-room`, which is noted for the visit so the dashboard says the device is
+ * out of room (lib/storage-full). A save that made room by deleting older sets notes nothing.
+ */
+export async function saveAlertPicture(record: AlertPictureDB, stamp: PictureStamp): Promise<
+  { result: 'saved'; deleted: string[] } | { result: 'dropped' | 'out-of-room' | 'failed' }
+> {
+  let db: IDBPDatabase<SafeOSDB>;
+  try {
+    db = await getDB();
+  } catch {
+    return { result: 'failed' };
+  }
+  // The browser's last refusal for lack of room.
+  let refused: unknown = null;
+  for (let take = 0; ; take++) {
+    let tx: Abandonable | undefined;
+    try {
+      const write = db.transaction(['alert_picture', 'clear_generation'], 'readwrite');
+      tx = write;
+      // A clear writes the clear generation too, so it runs wholly before or wholly after this.
+      const generations = write.objectStore('clear_generation');
+      const generation = (await generations.get('current')) ?? '';
+      const current = stamp.clearGeneration !== null
+        ? generation === stamp.clearGeneration
+        : readLocalClearMarker() === stamp.clearMarker;
+      const picturesGeneration = (await generations.get('pictures')) ?? '';
+      if (!current || !picturesMarkerHolds(stamp.picturesMarker, picturesGeneration)) {
+        await write.done;
+        return { result: 'dropped' };
+      }
+      const pictures = write.objectStore('alert_picture');
+      // A tab that could not read the set deleted it before it was written: it stays deleted.
+      if ((await pictures.get(record.id))?.state === 'gone') {
+        await write.done;
+        return { result: 'dropped' };
+      }
+      const deleted: string[] = [];
+      if (take > 0) {
+        // The oldest kept sets taken before this one, never this one.
+        const older = IDBKeyRange.bound(['kept'], ['kept', record.takenAt], false, true);
+        let cursor = await pictures.index('by-state-taken').openCursor(older);
+        while (cursor && deleted.length < take) {
+          if (cursor.value.id !== record.id) {
+            deleted.push(cursor.value.id);
+            await cursor.delete();
+          }
+          cursor = await cursor.continue();
+        }
+        if (deleted.length < take) {
+          await abandonTransaction(write);
+          noteStorageFull(refused);
+          return { result: 'out-of-room' };
+        }
+      }
+      await pictures.put(record);
+      await write.done;
+      return { result: 'saved', deleted };
+    } catch (error) {
+      const quota = isQuotaError(error) ? error : isQuotaError(tx?.error) ? tx?.error : null;
+      await abandonTransaction(tx);
+      if (quota) {
+        refused = quota;
+        continue;
+      }
+      return { result: 'failed' };
+    }
+  }
+}
+
+/** An alert's picture set, or null when none is stored. It throws on a failed read, which is not "none". */
+export async function getAlertPicture(id: string): Promise<AlertPictureDB | null> {
+  const db = await getDB();
+  return (await db.get('alert_picture', id)) ?? null;
+}
+
+/**
+ * Deletes one kept picture set, leaving the row that says the person deleted it. A set that
+ * cannot be read is cleared without reading it, from what the alert itself says of it (`known`):
+ * the row that says it went takes its place.
+ */
+export async function goneAlertPicture(
+  id: string,
+  reason: 'person',
+  known?: { kind: AlertKind; takenAt: number },
+): Promise<'deleted' | 'failed'> {
+  let tx: Abandonable | undefined;
+  try {
+    const db = await getDB();
+    const write = db.transaction(['alert_picture'], 'readwrite');
+    tx = write;
+    const pictures = write.objectStore('alert_picture');
+    const row = await pictures.get(id);
+    if (row && row.state === 'kept') await pictures.put(goneRow(row, reason));
+    // A set whose save waits (for room, or behind another write) has no row yet: the row that
+    // says it was deleted stands in its place, so that save writes nothing.
+    else if (!row && known) await pictures.put(goneRow({ id, state: 'gone', kind: known.kind, takenAt: known.takenAt }, reason));
+    await tx.done;
+    return 'deleted';
+  } catch {
+    await abandonTransaction(tx);
+  }
+  if (!known) return 'failed';
+  let blind: Abandonable | undefined;
+  try {
+    const db = await getDB();
+    const write = db.transaction(['alert_picture'], 'readwrite');
+    blind = write;
+    await write.objectStore('alert_picture').put({ id, state: 'gone', kind: known.kind, takenAt: known.takenAt, gone: reason });
+    await blind.done;
+    return 'deleted';
+  } catch {
+    await abandonTransaction(blind);
+    return 'failed';
+  }
+}
+
+/**
+ * Delete all pictures leaves a deleted row for each kept set and commits the pictures
+ * generation in the same transaction. A waiting save reads that generation, so an abort
+ * leaves its stamp valid even while the pending marker is visible in other tabs.
+ */
+export async function goneAllAlertPictures(): Promise<{ result: 'deleted'; ids: string[] } | { result: 'failed' }> {
+  let tx: Abandonable | undefined;
+  try {
+    const db = await getDB();
+    const write = db.transaction(['alert_picture', 'clear_generation'], 'readwrite');
+    tx = write;
+    const pictures = write.objectStore('alert_picture');
+    const generations = write.objectStore('clear_generation');
+    const before = (await generations.get('pictures')) ?? '';
+    const pending = newClearValue();
+    const ids: string[] = [];
+    let cursor = await pictures.index('by-state-taken').openCursor(KEPT_RANGE());
+    while (cursor) {
+      ids.push(cursor.value.id);
+      await cursor.update(goneRow(cursor.value, 'person'));
+      cursor = await cursor.continue();
+    }
+    await generations.put(pending, 'pictures');
+    writePicturesClearMarker(pending, before);
+    await tx.done;
+    return { result: 'deleted', ids };
+  } catch {
+    await abandonTransaction(tx);
+    return { result: 'failed' };
+  }
+}
+
+/**
+ * Deletes the kept sets at or past `days` old, leaving rows that say after how long. Answers their
+ * ids. `stillChosen` is asked inside the transaction, once the kept sets are read and again once
+ * their rows are written, before it commits: false deletes nothing.
+ */
+export async function goneExpiredAlertPictures(days: number, now: number, stillChosen: () => boolean = () => true): Promise<string[]> {
+  let tx: Abandonable | undefined;
+  try {
+    const db = await getDB();
+    const write = db.transaction(['alert_picture'], 'readwrite');
+    tx = write;
+    const pictures = write.objectStore('alert_picture');
+    const kept: Array<{ id: string; takenAt: number }> = [];
+    let cursor = await pictures.index('by-state-taken').openCursor(KEPT_RANGE());
+    while (cursor) {
+      kept.push({ id: cursor.value.id, takenAt: cursor.value.takenAt });
+      cursor = await cursor.continue();
+    }
+    // The age may have changed while the sweep waited for the store: then it deletes nothing.
+    if (!stillChosen()) {
+      await abandonTransaction(tx);
+      return [];
+    }
+    const expired = expiredPictureIds(kept, now, days);
+    for (const id of expired) {
+      const row = await pictures.get(id);
+      if (row) await pictures.put(goneRow(row, 'age', days));
+    }
+    // Asked again once the rows are written, before the transaction commits: a longer age chosen
+    // while they were written undoes them.
+    if (expired.length > 0 && !stillChosen()) {
+      await abandonTransaction(tx);
+      return [];
+    }
+    await tx.done;
+    return expired;
+  } catch {
+    await abandonTransaction(tx);
+    return [];
+  }
+}
+
+/** How many picture sets are kept on this device. It throws on a failed read. */
+export async function countKeptAlertPictures(): Promise<number> {
+  const db = await getDB();
+  return db.countFromIndex('alert_picture', 'by-state-taken', KEPT_RANGE());
+}
+
+/**
+ * Deletes the rows no alert holds, taken before `olderThan`: a set whose card left before it was
+ * saved. The saved alerts are read in the same transaction, so a read that fails deletes nothing,
+ * and every saved alert's picture is held, whoever saved it; `held` adds the pictures this tab
+ * shows that are not saved.
+ */
+export async function sweepUnheldAlertPictures(held: ReadonlySet<string>, olderThan: number): Promise<void> {
+  let tx: Abandonable | undefined;
+  try {
+    const db = await getDB();
+    const write = db.transaction(['alert_cache', 'alert_picture'], 'readwrite');
+    tx = write;
+    const holding = new Set(held);
+    let saved = await write.objectStore('alert_cache').openCursor();
+    while (saved) {
+      const pictureId = (saved.value as { pictureId?: unknown }).pictureId;
+      if (typeof pictureId === 'string') holding.add(pictureId);
+      saved = await saved.continue();
+    }
+    let cursor = await write.objectStore('alert_picture').openCursor();
+    while (cursor) {
+      if (!holding.has(cursor.value.id) && cursor.value.takenAt < olderThan) await cursor.delete();
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  } catch {
+    await abandonTransaction(tx);
+  }
+}
+
+/**
+ * Whether this tab can keep pictures: `database-notice` while a reload notice holds the database,
+ * else a row written and deleted in one transaction says `usable`, and any failure `unusable`.
+ */
+export async function probeAlertPictureStore(): Promise<'usable' | 'unusable' | 'database-notice'> {
+  if (getDatabaseNotice()) return 'database-notice';
+  let tx: Abandonable | undefined;
+  try {
+    const db = await getDB();
+    const write = db.transaction(['alert_picture'], 'readwrite');
+    tx = write;
+    const pictures = write.objectStore('alert_picture');
+    await pictures.put({ id: 'probe', state: 'gone', kind: 'motion', takenAt: 0 });
+    await pictures.delete('probe');
+    await tx.done;
+    return 'usable';
+  } catch {
+    await abandonTransaction(tx);
+    return getDatabaseNotice() ? 'database-notice' : 'unusable';
+  }
 }
 
 // =============================================================================
@@ -1127,21 +1485,23 @@ export async function getStorageStats(): Promise<{
 /**
  * What this device keeps, counted for Settings, Data on this device: alerts
  * (the alert records and the wildlife sightings), saved pictures (Lost and
- * Found's and People's frames) and pets (every saved subject but a person).
- * A read that fails throws.
+ * Found's and People's frames, and the alert pictures kept, not the rows that
+ * say a picture went) and pets (every saved subject but a person). A read that
+ * fails throws.
  */
 export async function countKeptRecords(): Promise<{ alerts: number; pictures: number; pets: number }> {
   const db = await getDB();
-  const [alerts, sightings, matches, intrusions, subjects] = await Promise.all([
+  const [alerts, sightings, matches, intrusions, alertPictures, subjects] = await Promise.all([
     db.count('alert_cache'),
     db.count('animal_detection'),
     db.count('match_frame'),
     db.count('intrusion_frame'),
+    db.countFromIndex('alert_picture', 'by-state-taken', KEPT_RANGE()),
     db.getAll('subject_profile'),
   ]);
   return {
     alerts: alerts + sightings,
-    pictures: matches + intrusions,
+    pictures: matches + intrusions + alertPictures,
     pets: subjects.filter((subject) => subject.type !== 'person').length,
   };
 }
@@ -1391,6 +1751,24 @@ export async function getMatchFramesBySubject(subjectId: string): Promise<MatchF
     return frames.sort((a, b) => b.timestamp - a.timestamp);
   } catch {
     return [];
+  }
+}
+
+/**
+ * How many frames this device keeps for each of these subjects, by id, read
+ * from the frames themselves. A profile's matchCount goes up with each save
+ * and stays up when a frame is deleted, so it is not a count of what is kept.
+ * A read that fails gives null, so a screen shows no count it could not read.
+ */
+export async function countMatchFramesBySubject(subjectIds: string[]): Promise<Record<string, number> | null> {
+  try {
+    const db = await getDB();
+    const counts = await Promise.all(
+      subjectIds.map((id) => db.countFromIndex('match_frame', 'by-subject', id))
+    );
+    return Object.fromEntries(subjectIds.map((id, index) => [id, counts[index]]));
+  } catch {
+    return null;
   }
 }
 
