@@ -16,7 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import { createHash } from 'crypto';
 import clip from '../public/home/sample-clip.json';
-import { pictureSize } from './helpers/picture-size';
+import { jpegIsWhole, pictureSize } from './helpers/picture-size';
 
 const PUBLIC = path.resolve(__dirname, '..', 'public');
 const file = (relative: string) => path.join(PUBLIC, relative);
@@ -54,7 +54,17 @@ interface PhotosRecord {
   credit: string;
   command: string[];
   notChecked: string[];
-  tried: { set: string; run: string; alerted: boolean; saved: number; alertLine: number; firstAlertSeconds: number | null; best: unknown }[];
+  tried: {
+    set: string;
+    run: string;
+    alerted: boolean;
+    saved: number;
+    alertLine: number;
+    firstAlertSeconds: number | null;
+    best: unknown;
+    photos: string[];
+    clip: string;
+  }[];
 }
 
 const photos: PhotosRecord = JSON.parse(fs.readFileSync(file('home/lost-found/photos.json'), 'utf8'));
@@ -70,6 +80,9 @@ describe('the Lost and Found example photos and their record', () => {
       expect(record.file).toBe(relative);
       expect({ width: record.width, height: record.height }).toEqual({ width, height });
       expect(pictureSize(bytes)).toEqual({ width, height });
+      // A file cut short after its size is read still has the size; it lacks the scan's end.
+      expect(jpegIsWhole(bytes)).toBe(true);
+      expect(jpegIsWhole(bytes.subarray(0, bytes.length - 2))).toBe(false);
       expect(bytes.length).toBe(record.bytes);
       expect(sha256(bytes)).toBe(record.sha256);
     }
@@ -142,6 +155,10 @@ describe('the Lost and Found example photos and their record', () => {
       expect(typeof attempt.alerted).toBe('boolean');
       expect(attempt.alertLine).toBe(70);
     }
-    expect(photos.tried[photos.tried.length - 1].alerted).toBe(true);
+    const last = photos.tried[photos.tried.length - 1];
+    expect(last.alerted).toBe(true);
+    // The set that alerted is these files and this clip: a photo or the clip changed since needs a new probe.
+    expect(last.photos).toEqual(photos.photos.map((photo) => photo.sha256));
+    expect(last.clip).toBe(clip.sha256);
   });
 });
