@@ -72,6 +72,23 @@ function Arrow({ backward = false }: { backward?: boolean }) {
   );
 }
 
+const attribute = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+function posterTemplate(entry: HomeRun) {
+  // The parser gives a template's contents their own document fragment.
+  // Keep it inert and opaque to hydration while the player uses the record.
+  const sources = sizes.flatMap((size) => looks.flatMap((look) => {
+    const files = entry.variants[size][look].poster;
+    const media = (size === 'wide' ? HOME_RUN_WIDE : '(width < 1280px)') + ' and (prefers-color-scheme: ' + look + ')';
+    return Object.values(files).reverse().map((file) =>
+      '<source srcset="' + attribute(mediaPath(file)) + '" media="' + attribute(media)
+      + '" type="image/' + file.format + '" width="' + file.width + '" height="' + file.height + '">');
+  }));
+  const fallback = entry.variants.square.dark.poster.webp;
+  return '<picture>' + sources.join('') + '<img src="' + attribute(mediaPath(fallback)) + '" alt="'
+    + attribute(entry.description) + '" width="' + fallback.width + '" height="' + fallback.height + '"></picture>';
+}
+
 export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   const [index, setIndex] = useState(0);
   const [inView, setInView] = useState(false);
@@ -97,15 +114,20 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   const resume = useRef<'auto' | 'loop'>('auto');
   const scrolling = useRef<number>(0);
   const initialWebp = useRef(true);
+  const loadedPoster = useRef<{ id: string; size: RunSize; look: RunLook; avif: boolean }>();
   const run = runs[index];
   const defaultPoster = Object.fromEntries(sizes.flatMap((size) => looks.map((look) => [
     '--run-' + size + '-' + look, 'url("' + mediaPath(runs[0].variants[size][look].poster.webp) + '")',
   ]))) as CSSProperties;
   const variant = environment && run.variants[environment.size][environment.look];
-  const poster = environment && run.variants[environment.online ? environment.size : 'square'][environment.look].poster;
+  const retainedPoster = !environment?.online && loadedPoster.current?.id === run.id
+    && loadedPoster.current?.look === environment?.look ? loadedPoster.current : undefined;
+  const posterSize = retainedPoster?.size ?? (environment?.online ? environment.size : 'square');
+  const poster = environment && run.variants[posterSize][environment.look].poster;
   const videoUrl = variant && mediaPath(variant.video);
   const webp = poster && mediaPath(poster.webp);
-  const avif = poster?.avif && environment?.online && !initialWebp.current ? mediaPath(poster.avif) : undefined;
+  const avif = poster?.avif && (retainedPoster?.avif || (environment?.online && !initialWebp.current))
+    ? mediaPath(poster.avif) : undefined;
   const posterKey = avif ?? webp;
   const shownMovie = videoUrl && attached === videoUrl;
   const failed = Boolean(videoUrl && error === videoUrl);
@@ -139,6 +161,20 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
       cancelAnimationFrame(scrolling.current);
     };
   }, []);
+
+  useEffect(() => {
+    const element = movie.current;
+    setAttached(undefined);
+    setFrame(undefined);
+    setPlaying(false);
+    setError(undefined);
+    return () => {
+      if (element?.hasAttribute('src')) {
+        element.removeAttribute('src');
+        element.load();
+      }
+    };
+  }, [videoUrl]);
 
   useEffect(() => {
     if (allowed && videoUrl && !failed && (posterReady === posterKey || posterFailed)) setAttached(videoUrl);
@@ -245,6 +281,7 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   function toggle() {
     if (!environment?.online) {
       setPlayTriedOffline(true);
+      setMessage(offlineMessage);
       return;
     }
     if (toggleActive) {
@@ -264,7 +301,7 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   }
 
   const status = playTriedOffline && environment?.online === false ? offlineMessage
-    : failed ? failedMessage : environment?.limited && intent !== 'loop' && !explicit ? slowMessage : '';
+    : failed ? failedMessage : environment?.limited && intent !== 'loop' ? slowMessage : '';
   return (
     <section
       className="home-runs"
@@ -289,7 +326,12 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
             {avif && <source type="image/avif" srcSet={avif} />}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={webp} width={poster.webp.width} height={poster.webp.height} alt={run.description}
-              onLoad={() => setPosterReady(posterKey)} onError={() => setPosterError(posterKey)} />
+              onLoad={(event) => {
+                if (environment) loadedPoster.current = {
+                  id: run.id, size: posterSize, look: environment.look, avif: event.currentTarget.currentSrc.endsWith('.avif'),
+                };
+                setPosterReady(posterKey);
+              }} onError={() => setPosterError(posterKey)} />
           </picture>
         )}
         <video key={videoUrl ?? 'initial'} ref={movie} muted playsInline preload="none"
@@ -329,7 +371,7 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
           disabled={!environment || index === runs.length - 1} onClick={() => choose(index + 1)}><Arrow /></button>
       </div>
       <p className="home-run__caption" data-run-caption>{run.description}</p>
-      {status && <div className="home-run__status" role="status">{failed && <Trouble />}<span>{status}</span></div>}
+      {status && <div className="home-run__status">{failed && <Trouble />}<span>{status}</span></div>}
       <p className="sr-only" aria-live="polite">{message}</p>
       <noscript>
         <ul>
@@ -341,21 +383,7 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
           <ol id={'home-run-description-' + entry.id} hidden>
             {entry.longDescription.map((sentence) => <li key={sentence}>{sentence}</li>)}
           </ol>
-          <template data-run-poster={entry.id}>
-            <picture>
-              {sizes.flatMap((size) => looks.map((look) => {
-                const files = entry.variants[size][look].poster;
-                const media = (size === 'wide' ? HOME_RUN_WIDE : '(width < 1280px)') + ' and (prefers-color-scheme: ' + look + ')';
-                return Object.values(files).reverse().map((file) => (
-                  <source key={file.path} media={media} srcSet={mediaPath(file)}
-                    type={'image/' + file.format} width={file.width} height={file.height} />
-                ));
-              }))}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={mediaPath(entry.variants.square.dark.poster.webp)} alt={entry.description}
-                width={entry.variants.square.dark.poster.webp.width} height={entry.variants.square.dark.poster.webp.height} />
-            </picture>
-          </template>
+          <template data-run-poster={entry.id} dangerouslySetInnerHTML={{ __html: posterTemplate(entry) }} />
         </div>
       ))}
     </section>

@@ -117,12 +117,34 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+// Optional posters are saved after the full shell is ready. Keep the
+// core install and refill independent of a poster's connection or response.
+let savingPosters;
+self.addEventListener('message', (event) => {
+  if (UNBUILT || event.data?.type !== 'save-home-posters') return;
+  savingPosters ??= (async () => {
+    const cache = await caches.open(CACHE_NAME);
+    if (!await cache.match('/')) return;
+    await Promise.allSettled((manifest.posters || []).map(async (url) => {
+      if (!await cache.match(url)) await cache.add(url);
+    }));
+  })().finally(() => { savingPosters = null; });
+  event.waitUntil(savingPosters);
+});
+
+function squarePoster(url) {
+  const parts = url.pathname.match(/^\/home\/runs\/([a-z]+(?:-[a-z]+)*)-(?:wide|square)-(dark|light)\.(?:avif|webp)$/);
+  if (!parts) return undefined;
+  const candidate = '/home/runs/' + parts[1] + '-square-' + parts[2] + '.webp';
+  return candidate !== url.pathname && manifest.posters?.includes(candidate) ? candidate : undefined;
+}
+
 self.addEventListener('fetch', (event) => {
   if (UNBUILT) return;
   const { request } = event;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== location.origin) return;
-  if (url.pathname.startsWith('/api/') || request.headers.get('Range')) return;
+  if (url.pathname.startsWith('/api/') || url.pathname.endsWith('.mp4') || request.headers.has('Range')) return;
 
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME);
@@ -140,11 +162,17 @@ self.addEventListener('fetch', (event) => {
       // until the next build takes over.
       (request.mode !== 'navigate' && url.pathname.startsWith('/_next/') ? await caches.match(request) : undefined);
     if (cached) return cached;
+    const alternative = squarePoster(url);
     try {
       const answer = await fetch(request);
+      if (!answer.ok && alternative) return (await cache.match(alternative)) || answer;
       if (request.mode === 'navigate') event.waitUntil(refillIfEmpty(cache));
       return answer;
     } catch {
+      if (alternative) {
+        const poster = await cache.match(alternative);
+        if (poster) return poster;
+      }
       if (request.mode === 'navigate') {
         const fallback = await cache.match('/offline.html');
         if (fallback) return fallback;

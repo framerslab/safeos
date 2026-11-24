@@ -10,7 +10,7 @@ from statistics import median
 from PIL import Image
 
 
-FLOORS = {"body": (12, 18), "label": (7, 16), "glyph": (4.5, 0), "edge": (4.5, 0)}
+FLOORS = {"body": (12, 18), "label": (7, 16), "poster": (7, 14), "glyph": (4.5, 0), "edge": (4.5, 0)}
 DISCLOSURES = ("motion", "sound", "people-animals", "lost-found", "offline", "storage")
 
 
@@ -43,7 +43,7 @@ def sample_pixels(image, bounds, kind):
         (index, ratio) for index, ratio in enumerate(ratios)
         if ratio >= 1.5 and (light[index] >= ground) == (lighter >= darker)
     ]
-    if kind in {"body", "label"}:
+    if kind in {"body", "label", "poster"}:
         # A long run of nearly solid pixels at the bottom is an underline.
         rows = Counter(index // crop.width for index, _ in ink)
         ink = [
@@ -92,6 +92,7 @@ def measure(image, box, scale):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("directory", type=Path)
+    parser.add_argument("--runs", type=Path)
     args = parser.parse_args()
     sources = json.loads((args.directory / "home-readability-boxes.json").read_text())
     reports = []
@@ -102,6 +103,14 @@ def main():
         for look in ("dark", "light")
         for card in ("", *DISCLOSURES)
     }
+    if args.runs:
+        runs = json.loads(args.runs.read_text())["runs"]
+        expected.update({
+            f"home-readability-run-{run['id']}-{width}-{look}.png": "poster"
+            for run in runs
+            for width in (320, 390, 768, 1024, 1280, 1440)
+            for look in ("dark", "light")
+        })
     files = [source["file"] for source in sources]
     missing = expected.keys() - set(files)
     unexpected = set(files) - expected.keys()
@@ -127,7 +136,9 @@ def main():
             results.append(result)
             errors.extend(f"{file}: {box['name']!r} {message}" for message in result["errors"])
         minima = {}
-        kinds = ["body"] if card else list(FLOORS)
+        kinds = ["body"] if card else [kind for kind in FLOORS if kind != "poster"]
+        if card == "poster":
+            kinds = ["poster"]
         if card == "storage":
             kinds.append("label")
         for kind in kinds:

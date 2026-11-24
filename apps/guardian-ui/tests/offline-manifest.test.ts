@@ -41,29 +41,6 @@ it('installs the images the exported pages and notifications show', () => {
   expect(urls).not.toContain('/sw.js');
 });
 
-it('installs the home page capture the page shows, and not its PNG copies, the card or the install screenshots', () => {
-  const { urls } = generate({
-    'out/index.html': '<picture><source srcset="/home/capture-phone-light.webp"><img src="/home/capture-phone-light.png"></picture>',
-    'out/_next/static/chunks/main.js': '',
-    'out/home/capture-phone-light.webp': 'webp',
-    'out/home/capture-phone-dark.webp': 'webp',
-    'out/home/capture-portrait-light.png': 'png',
-    'out/home/capture-portrait-light.webp': 'webp',
-    'out/home/card.jpg': 'jpeg',
-    'out/screenshots/dashboard.png': 'png',
-    'out/screenshots/monitoring.png': 'png',
-  });
-  // Both looks' WebP crops: the page shows one and the look switch the other, offline too.
-  expect(urls).toEqual(expect.arrayContaining([
-    '/home/capture-phone-light.webp', '/home/capture-phone-dark.webp', '/home/capture-portrait-light.webp',
-  ]));
-  // A browser that shows WebP never asks for the PNG copies; the card is for
-  // a shared link and the screenshots for the install dialog, both online.
-  for (const url of ['/home/capture-portrait-light.png', '/home/card.jpg', '/screenshots/dashboard.png', '/screenshots/monitoring.png']) {
-    expect(urls).not.toContain(url);
-  }
-});
-
 it('assigns different cache versions to distinct exported file contents', () => {
   const shared = { 'out/_next/static/chunks/main.js': '' };
   const first = generate({ ...shared, 'out/index.html': '<html/>index.txt', 'out/index.txt': '' });
@@ -98,4 +75,14 @@ it('keeps both square WebP looks as optional offline pictures and excludes other
   const { urls, posters } = generate(files);
   expect(posters).toEqual(square.sort());
   expect(urls.filter((url) => /^\/(?:home\/(?:runs|capture-|card|sample-clip)|screenshots\/)/.test(url))).toEqual([]);
+});
+
+it('changes the cache version when an optional square poster changes', () => {
+  const shared = { 'out/index.html': '<html/>', 'out/_next/static/chunks/main.js': '' };
+  const file = 'out/home/runs/watching-square-light.webp';
+  const first = generate({ ...shared, [file]: 'first' });
+  const second = generate({ ...shared, [file]: 'second' });
+  expect(first.urls).toEqual(second.urls);
+  expect(first.posters).toEqual(second.posters);
+  expect(first.version).not.toBe(second.version);
 });

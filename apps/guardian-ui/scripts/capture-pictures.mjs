@@ -224,9 +224,13 @@ try {
   }
   if (homeChecks) {
     failures += await checkFirstVisit(browser, baseUrl, outDir);
-    const { checkHomeRuns } = await import('./home-run-checks.mjs');
+    const { checkHomeRuns, checkRunPolicies } = await import('./home-run-checks.mjs');
     failures += await checkHomeRuns(browser, baseUrl);
     failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
+    const response = await fetch(new URL('/home/runs/runs.json', baseUrl));
+    if (!response.ok) throw Error('Missing exported home recordings');
+    const { runs } = await response.json();
+    failures += await checkRunPolicies(browser, baseUrl, runs);
     failures += await checkHomeUseSetup(browser, baseUrl);
   }
   // The app's own pages, for the pull request's own build. The base build

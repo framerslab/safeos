@@ -3,7 +3,7 @@
 // scripts/capture-pictures.mjs runs it for the pull request's own build when
 // the home page is among the routes. Each block walks one part of the page as
 // a visitor would: the page before any script runs, the header, the look
-// switch, the headline, the start key, the capture, the five uses, how it
+// switch, the headline, the start key, the recorded runs, the five uses, how it
 // works, what stays on the device, the free part, the footer and
 // what a search result or a shared link shows. It also saves the page from
 // top to bottom at 820 and 1920 pixels in both looks. Every finding is
@@ -17,7 +17,6 @@ const LOOKS = ['light', 'dark'];
 const HEADLINE = 'Free motion and sound alerts from an old phone or laptop';
 const STATEMENT = 'SafeOS adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.';
 const NEEDS_SCRIPT = 'Setup needs JavaScript. The rest of this page reads without it.';
-const CAPTION = 'SafeOS watching a recorded clip of a kitten. Captured from the app while it ran.';
 const DESCRIPTION = 'Get motion and sound alerts from an old phone, tablet or laptop. SafeOS Guardian runs in your browser, free and open source under the MIT License.';
 const PAGE_COLOURS = { light: 'rgb(248, 249, 250)', dark: 'rgb(11, 19, 27)' };
 const PANEL_COLOURS = { light: 'rgb(241, 243, 244)', dark: 'rgb(16, 26, 36)' };
@@ -362,6 +361,10 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   const problems = [];
   const home = new URL('/', baseUrl).toString();
   const origin = new URL(baseUrl).origin;
+  const runResponse = await fetch(new URL('/home/runs/runs.json', baseUrl));
+  if (!runResponse.ok) throw Error('The exported home has no run manifest');
+  const runRecord = await runResponse.json();
+  const firstRun = runRecord.runs[0];
   const fail = (message) => problems.push(message);
   const expect = (ok, message) => { if (!ok) fail(message); };
 
@@ -469,6 +472,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           footerStart: document.querySelector('footer nav a')?.textContent.trim(),
           background: getComputedStyle(document.body).backgroundColor,
           opacity,
+          poster: getComputedStyle(document.querySelector('.home-run__first-poster')).backgroundImage,
+          labels: [...document.querySelectorAll('.home-runs button[data-run]')].map((key) => key.textContent.trim()),
+          captions: document.querySelector('.home-runs noscript')?.textContent.trim(),
         };
       }, NEEDS_SCRIPT);
       expect(seen.h1 && seen.benefits === 3 && seen.statement, `first visit, scripts off, ${look}: the headline, benefits or statement is missing`);
@@ -481,6 +487,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       expect(seen.footerStart === 'Start setup', `footer, scripts off, ${look}: the footer's start link reads "${seen.footerStart}"`);
       expect(seen.background === PAGE_COLOURS[look], `first visit, scripts off, ${look}: the page is ${seen.background}, not ${PAGE_COLOURS[look]}`);
       expect(seen.opacity === 1, `first visit, scripts off, ${look}: the headline's opacity is ${seen.opacity}`);
+      expect(seen.poster.includes('/home/runs/dashboard-square-' + look + '.webp'), 'Scripts off: Dashboard poster for ' + look);
+      expect(seen.labels.join(',') === runRecord.runs.map(({ key }) => key).join(','), 'Scripts off: every run label is present');
+      expect(runRecord.runs.slice(1).every(({ description }) => seen.captions?.includes(description)), 'Scripts off: every run caption is present');
       // A disclosure opens with scripts off.
       const question = page.locator('details.home-detection__card').nth(1);
       await question.locator('summary').click();
@@ -706,6 +715,43 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       });
     }
   }
+  // Each displayed recording uses the recorded crop-relative CSS rectangles.
+  // Project through native recorded pixels to the actual image's size on /.
+  for (const width of [320, 390, 768, 1024, 1280, 1440]) {
+    const height = width < 768 ? 844 : 900;
+    for (const look of LOOKS) {
+      await open({ name: 'recorded poster pixels', width, height, look, deviceScaleFactor: 2,
+        reducedMotion: 'reduce', serviceWorkers: 'block' }, async (page) => {
+        await visit(page);
+        await page.evaluate(() => document.fonts.ready);
+        for (const [index, run] of runRecord.runs.entries()) {
+          if (index) await page.locator('button[data-run="' + run.id + '"]').click();
+          const variant = run.variants[width < 1280 ? 'square' : 'wide'][look];
+          const poster = page.locator('.home-run__poster img');
+          await page.waitForFunction((name) => {
+            const image = document.querySelector('.home-run__poster img');
+            return image?.complete && image.naturalWidth > 0 && new URL(image.currentSrc).pathname.startsWith(name);
+          }, '/' + variant.poster.webp.path.replace(/\.webp$/, ''), { timeout: 15000 });
+          await poster.scrollIntoViewIfNeeded();
+          const frame = await poster.boundingBox();
+          if (!frame || !variant.words.length) throw Error('No poster word ranges for ' + run.id);
+          const media = variant.poster.webp;
+          const display = Math.min(frame.width / media.width, frame.height / media.height);
+          const startX = frame.x + (frame.width - media.width * display) / 2;
+          const startY = frame.y + (frame.height - media.height * display) / 2;
+          const factor = variant.scale * display;
+          const boxes = variant.words.map((word) => ({
+            name: word.word, type: 'poster', size: word.size * factor,
+            x: startX + word.x * factor, y: startY + word.y * factor,
+            width: word.width * factor, height: word.height * factor,
+          }));
+          const file = 'home-readability-run-' + run.id + '-' + width + '-' + look + '.png';
+          await page.screenshot({ path: path.join(outDir, file), scale: 'device', caret: 'hide' });
+          readability.push({ file, run: run.id, width, height, scale: 2, boxes });
+        }
+      });
+    }
+  }
   await writeFile(path.join(outDir, 'home-readability-boxes.json'), JSON.stringify(readability));
 
   await open({ name: 'narrow diagram', width: 320 }, async (page) => {
@@ -797,39 +843,6 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       expect(row.off.length === 0 && !row.over, `header, scripts off, larger text at ${width} px: ${row.off.join(', ') || 'the row'} runs off the screen`);
       expect(row.linksInside && row.linksScroll, `header, scripts off, larger text at ${width} px: the links do not stay inside the row (inside ${row.linksInside}, scroll ${row.linksScroll})`);
     });
-  }
-
-  // A visitor who chose the other look asks only for the capture in that look.
-  for (const [device, chosen, choose] of [
-    ['dark', 'light', () => localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: 'light', resolvedTheme: 'light', accessibility: {} }, version: 0 }))],
-    ['light', 'dark', () => localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: 'dark', resolvedTheme: 'dark', accessibility: {} }, version: 0 }))],
-  ]) {
-    await open({ name: 'capture, chosen look', width: 390, look: device }, async (page, context) => {
-      const asked = [];
-      const installed = [];
-      page.on('request', (request) => {
-        const address = new URL(request.url()).pathname;
-        if (address.startsWith('/home/capture-')) asked.push(address);
-      });
-      // The service worker's own requests: the installed copy it saves.
-      context.on('request', (request) => {
-        if (request.serviceWorker()) installed.push(new URL(request.url()).pathname);
-      });
-      await visit(page);
-      expect(asked.length > 0 && asked.every((address) => address.includes(`-${chosen}.`)),
-        `capture: on a ${device} device with the ${chosen} look chosen, the page asked for ${asked.join(', ') || 'no capture'}`);
-      await page.evaluate(() => Promise.race([
-        navigator.serviceWorker.ready,
-        new Promise((_, reject) => setTimeout(() => reject(new Error('the installed copy was not ready within 60 seconds')), 60_000)),
-      ]));
-      // The installed copy holds the WebP crops the page and the look switch
-      // show; a phone does not download the PNG copies, the card or the
-      // install screenshots with it.
-      const heavy = installed.filter((address) => /^\/home\/capture-.*\.png$|^\/home\/card\.jpg$|^\/screenshots\//.test(address));
-      expect(installed.some((address) => address.startsWith('/home/capture-') && address.endsWith('.webp')),
-        `capture: the installed copy asked for no capture (${installed.length} service worker requests seen)`);
-      expect(heavy.length === 0, `capture: the installed copy downloads ${heavy.join(', ')}`);
-    }, { script: choose });
   }
 
   // ---------------------------------------------------------------------------
@@ -1079,14 +1092,15 @@ export async function checkHomePage(browser, baseUrl, outDir) {
 
   for (const look of LOOKS) {
     const other = look === 'light' ? 'dark' : 'light';
-    await open({ name: 'look switch, look switch', width: 390, look }, async (page) => {
+    await open({ name: 'look switch, look switch', width: 390, look, reducedMotion: 'reduce' }, async (page) => {
       await visit(page);
+      await page.waitForFunction(() => document.querySelector('.home-run__poster img')?.complete);
       const state = () => page.evaluate(() => ({
         background: getComputedStyle(document.body).backgroundColor,
         scheme: document.documentElement.style.colorScheme,
         theme: [...document.querySelectorAll('meta[name="theme-color"]')].map((meta) => meta.getAttribute('content')).join(','),
         said: document.querySelector('.site-header [role="status"]')?.textContent.trim(),
-        capture: [...document.querySelectorAll('img[data-capture]')].filter((image) => image.offsetParent !== null).map((image) => image.dataset.capture).join(','),
+        poster: document.querySelector('.home-run__poster img')?.currentSrc,
       }));
       const before = await state();
       expect(before.background === PAGE_COLOURS[look], `look switch: with the device set to ${look} the page is ${before.background}`);
@@ -1097,7 +1111,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       // Every theme-color tag the page carries reads the chosen look's colour.
       expect(after.scheme === other && !!after.theme && after.theme.split(',').every((colour) => colour === THEME_COLOURS[other]),
         `look switch: after a press color-scheme is ${after.scheme} and theme-color ${after.theme}`);
-      if (after.capture) expect(after.capture.endsWith(`-${other}`), `capture: after a press the capture shown is ${after.capture}`);
+      await page.waitForFunction((look) => document.querySelector('.home-run__poster img')?.currentSrc.endsWith('-' + look + '.webp'), other);
       await page.screenshot({ path: path.join(outDir, `home-after-look-switch-390-${look}.png`) });
       // The choice is kept: a reload and another page are in the chosen look.
       await page.reload({ waitUntil: 'networkidle' });
@@ -1142,31 +1156,31 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   }
 
   // ---------------------------------------------------------------------------
-  // Headline and lead, the start key and the statement, the capture
+  // Headline, setup and first-screen player.
   // ---------------------------------------------------------------------------
 
-  const H1_LINES = { 320: [1, 4], 390: [1, 3], 768: [2, 2], 820: [2, 2], 1024: [3, 3], 1280: [3, 3], 1440: [3, 3], 1920: [3, 3] };
-  const CROPS = { 320: 'phone', 390: 'phone', 768: 'landscape', 820: 'landscape', 1024: 'portrait', 1280: 'portrait', 1440: 'landscape', 1920: 'landscape' };
-  const record = await (await fetch(new URL('/home/sample-clip.json', baseUrl))).json();
-  // The portrait crop holds the camera's frame with its live picture and the
-  // meters under it, so its ratio is its file's own; its box takes that ratio.
-  const captureRecord = await (await fetch(new URL('/home/provenance.json', baseUrl))).json();
-  const portraitFile = captureRecord.files.find((entry) => entry.path === 'home/capture-portrait-dark.webp');
-  // With no record of the file, the size the page itself falls back to
-  // (EXPECTED_SIZES in src/lib/home-captures.ts).
-  const RATIOS = { phone: 16 / 9, landscape: 16 / 10, portrait: portraitFile ? portraitFile.width / portraitFile.height : 1309 / 1173 };
-  expect(RATIOS.portrait > 0.6 && RATIOS.portrait < 1.6, `capture: the portrait crop's file is ${RATIOS.portrait.toFixed(3)} wide for its height, outside 0.6 to 1.6`);
+  const firstScreenBounds = [];
+  const H1_LINES = { 320: [4, 4], 390: [3, 3], 768: [2, 2], 820: [2, 2], 1024: [3, 4], 1280: [3, 3], 1440: [3, 3], 1920: [3, 3] };
   for (const width of Object.keys(H1_LINES).map(Number)) {
     for (const look of LOOKS) {
       const height = width === 1440 || width === 1920 ? 900 : width >= 768 ? 800 : 844;
-      await open({ name: 'first screen', width, height, look }, async (page) => {
+      await open({ name: 'first screen', width, height, look, reducedMotion: 'reduce' }, async (page) => {
         await visit(page);
+        const expectedPoster = '/' + firstRun.variants[width < 1280 ? 'square' : 'wide'][look].poster.webp.path;
+        await page.waitForFunction((url) => {
+          const image = document.querySelector('.home-run__poster img');
+          return image?.currentSrc.endsWith(url) && image.complete && image.naturalWidth > 0;
+        }, expectedPoster);
         const seen = await page.evaluate(() => {
           const h1 = document.querySelector('h1');
           const style = getComputedStyle(h1);
           const box = (selector) => document.querySelector(selector)?.getBoundingClientRect();
-          const image = [...document.querySelectorAll('img[data-capture]')].find((element) => element.offsetParent !== null);
-          const slot = [...document.querySelectorAll('.capture__slot')].find((element) => element.getBoundingClientRect().height > 0);
+          const image = document.querySelector('.home-run__poster img');
+          const frame = box('.home-run__frame');
+          const caption = document.querySelector('[data-run-caption]');
+          const captionHeight = caption.getBoundingClientRect().height;
+          const captionStyle = getComputedStyle(caption);
+          const order = ['h1', '.home-first a.key--start', '.home-statement', '.home-run__frame'];
           const key = document.querySelector('.home-first a.key--start');
           const keyStyle = getComputedStyle(key);
           return {
@@ -1179,22 +1193,32 @@ export async function checkHomePage(browser, baseUrl, outDir) {
             mark: box('.home-lockup .site-mark').width,
             lockupName: document.querySelector('.home-lockup').getAttribute('aria-label'),
             statement: document.querySelector('.home-statement').textContent.trim(),
-            caption: document.querySelector('.capture__caption').textContent.trim(),
-            order: ['h1', '.home-capture', '.home-first a.key--start', '.home-statement'].map((selector) => Math.round(box(selector).top)),
-            bottoms: ['h1', '.capture__frame', '.home-first a.key--start', '.home-statement'].map((selector) => Math.round(box(selector).bottom)),
-            lefts: { text: box('.home-first__text').left, textRight: box('.home-first__text').right, capture: box('.capture__frame').left, captureRight: box('.capture__frame').right, wrap: box('.home-first__grid').left, wrapRight: box('.home-first__grid').right },
-            tops: { text: box('.home-first__text').top, capture: box('.capture__frame').top },
-            keys: document.querySelectorAll('.home-first a.key, .home-first button').length,
+            caption: caption.textContent.trim(),
+            captionLines: Math.round(captionHeight / parseFloat(captionStyle.lineHeight)),
+            captionBottom: caption.getBoundingClientRect().bottom,
+            controlsBottom: box('.home-run__controls').bottom,
+            order: order.map((selector) => Math.round(box(selector).top)),
+            bottoms: order.map((selector) => Math.round(box(selector).bottom)),
+            lefts: { text: box('.home-first__text').left, textRight: box('.home-first__text').right, capture: frame.left, captureRight: frame.right, wrap: box('.home-first__grid').left, wrapRight: box('.home-first__grid').right },
+            tops: { text: box('.home-first__text').top, capture: frame.top },
+            keys: document.querySelectorAll('.home-first__start a, .home-first__start button').length,
+            steps: Array.from(document.querySelectorAll('.home-runs button[data-run]'), (key) => key.textContent.trim()),
+            playerFollowsSetup: Boolean(document.querySelector('.home-first__start').compareDocumentPosition(document.querySelector('.home-runs')) & Node.DOCUMENT_POSITION_FOLLOWING),
             key: { width: key.getBoundingClientRect().width, height: key.getBoundingClientRect().height, column: box('.home-first__start').width, colour: keyStyle.color, fill: keyStyle.backgroundColor, href: key.getAttribute('href') },
             statementSize: parseFloat(getComputedStyle(document.querySelector('.home-statement')).fontSize),
             statementInk: getComputedStyle(document.querySelector('.home-statement')).color,
-            capture: image ? { id: image.dataset.capture, alt: image.getAttribute('alt'), loaded: image.complete && image.naturalWidth > 0 } : null,
-            slot: slot ? { name: slot.className, ratio: slot.getBoundingClientRect().width / slot.getBoundingClientRect().height } : null,
-            ticks: document.querySelectorAll('.capture__frame .corner-ticks i').length,
+            poster: image?.getAttribute('alt'),
+            ratio: frame.width / frame.height,
+            width: frame.width,
+            height: frame.height,
+            ticks: document.querySelectorAll('.home-run__frame .corner-ticks i').length,
+            groups: ['nav .look-switch', 'nav .site-header__menu-key', '.home-first__start a.key', '.home-run__controls']
+              .filter((selector) => box(selector)?.width > 0).length,
             screen: window.innerHeight,
           };
         });
         const at = `at ${width} px, ${look}`;
+        firstScreenBounds.push({ width, look, ...seen });
         expect(seen.h1s === 1 && seen.headline === HEADLINE, `headline ${at}: ${seen.h1s} H1 reading "${seen.headline}"`);
         expect(seen.lockupName === 'SafeOS Guardian' && seen.lockup === (width >= 768), `headline ${at}: incorrect lockup visibility or name`);
         if (width >= 768) expect(seen.mark === 64, `headline ${at}: the shield is ${seen.mark} px wide`);
@@ -1209,55 +1233,36 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         expect(Math.abs(seen.key.height - 56) < 0.5, `start key ${at}: the start key is ${seen.key.height} px tall`);
         if (width < 768) expect(Math.abs(seen.key.width - seen.key.column) < 0.5, `start key ${at}: the start key is ${seen.key.width} px wide in a ${seen.key.column} px column`);
         else expect(seen.key.width < seen.key.column - 40, `start key ${at}: the start key is as wide as its column`);
-        expect(plain(seen.caption) === CAPTION, `capture ${at}: the caption reads "${seen.caption}"`);
-        expect(seen.ticks === 4, `capture ${at}: ${seen.ticks} corner ticks`);
-        const crop = CROPS[width];
-        expect(!!seen.slot && seen.slot.name.includes(`capture__slot--${crop}`) && Math.abs(seen.slot.ratio - RATIOS[crop]) < 0.02,
-          `capture ${at}: the capture's box is ${seen.slot ? `${seen.slot.name} at ${seen.slot.ratio.toFixed(3)}` : 'missing'}, not the ${crop} crop`);
-        expect(!!seen.capture && seen.capture.id === `${crop}-${look}` && seen.capture.loaded, `capture ${at}: the capture shown is ${seen.capture ? `${seen.capture.id}, loaded ${seen.capture.loaded}` : 'missing'}`);
-        if (seen.capture) expect(seen.capture.alt === record.words.captureAlt[crop], `capture ${at}: the capture's text equivalent is not the record's for the ${crop} crop`);
-        // The order and the layout of the first screen.
-        const sorted = (list) => list.every((value, i) => i === 0 || value >= list[i - 1]);
-        if (width < 768) {
-          expect(sorted(seen.order), `headline ${at}: the first screen's order is not headline, capture, key, statement`);
-          // Each block ends at or above the top of the one below it.
+        expect(seen.caption === firstRun.description && seen.poster === firstRun.description, 'Dashboard needs its caption and poster description ' + at);
+        expect(seen.steps.join(',') === runRecord.runs.map(({ key }) => key).join(','), 'Run order ' + at + ': ' + seen.steps);
+        expect(seen.playerFollowsSetup, 'The player must follow setup in the page ' + at);
+        expect(seen.ticks === 4, 'Recording corner ticks ' + at + ': ' + seen.ticks);
+        expect(Math.abs(seen.ratio - (width < 1280 ? 1 : 1.6)) < 0.005,
+          'Recording aspect ratio ' + at + ': ' + seen.ratio);
+        if (width < 1024) {
           for (let i = 0; i + 1 < seen.order.length; i += 1) {
-            expect(seen.bottoms[i] <= seen.order[i + 1], `headline ${at}: block ${i + 1} ends at ${seen.bottoms[i]} px, below the top of block ${i + 2} at ${seen.order[i + 1]} px`);
+            expect(seen.bottoms[i] <= seen.order[i + 1], 'First-screen blocks overlap ' + at + ' at ' + seen.bottoms[i] + ' and ' + seen.order[i + 1]);
           }
-        } else if (width < 1024) {
-          expect(seen.lefts.textRight - seen.lefts.text <= 640.5, `headline ${at}: the text block is ${Math.round(seen.lefts.textRight - seen.lefts.text)} px wide`);
-          expect(seen.order[1] > seen.order[3], `capture ${at}: the capture is not under the text block`);
-          expect(Math.abs((seen.lefts.captureRight - seen.lefts.capture) - (seen.lefts.wrapRight - seen.lefts.wrap - 64)) < 1, `capture ${at}: the capture is not as wide as the container`);
         } else {
-          const columns = width >= 1440 ? 6 : 7;
-          const gap = width >= 1440 ? 32 : 24;
-          const container = seen.lefts.wrapRight - seen.lefts.wrap - (width >= 1440 ? 128 : 64);
-          const column = (container - 11 * gap) / 12;
-          expect(Math.abs((seen.lefts.textRight - seen.lefts.text) - (columns * column + (columns - 1) * gap)) < 1, `headline ${at}: the words are not in the left ${columns} of twelve columns`);
-          expect(seen.lefts.capture > seen.lefts.textRight, `capture ${at}: the capture is not at the right of the words`);
-          expect(Math.abs(seen.tops.capture - seen.tops.text) <= 16, `capture ${at}: the capture's top is ${Math.round(seen.tops.capture - seen.tops.text)} px from the text column's`);
+          expect(seen.lefts.capture > seen.lefts.textRight, 'The recording must be beside the copy ' + at);
+          expect(Math.abs(seen.tops.capture - seen.tops.text) < 1, 'The recording and lockup must start level ' + at);
         }
-        if ((width === 390 && height === 844) || (width === 1440 && height === 900)) {
-          expect(seen.bottoms.every((bottom) => bottom <= seen.screen), `headline ${at}: the first screen does not hold the headline, capture, key and statement (bottoms ${seen.bottoms.join(', ')} of ${seen.screen})`);
+        if ([320, 390, 768, 1440, 1920].includes(width)) {
+          const wanted = { 320: 288, 390: 358, 768: 480, 1440: 730, 1920: 820 }[width];
+          expect(Math.abs(seen.width - wanted) < 1, 'Recording width ' + at + ': ' + seen.width + ' px, expected ' + wanted);
         }
+        if (width === 390) {
+          expect(seen.groups === 4 && seen.key.width === 358, 'First-screen controls ' + at + ': ' + seen.groups + ' groups, setup ' + seen.key.width + ' px');
+          expect(seen.controlsBottom <= 788 && seen.captionBottom <= 836 && seen.captionLines <= 2,
+            'First-screen bounds ' + at + ': controls end at ' + seen.controlsBottom + ', description ends at ' + seen.captionBottom + ' over ' + seen.captionLines + ' lines');
+        }
+        if (width >= 1280) expect(seen.captionLines === 1, 'Desktop caption lines ' + at + ': ' + seen.captionLines);
+        if (width === 320) expect((await sidewaysScroll(page)) <= 0, 'The first screen scrolls sideways ' + at);
       });
     }
   }
 
-  // The capture's file blocked: the box keeps its size and shows the text equivalent.
-  await open({ name: 'capture, file blocked', width: 390, look: 'dark' }, async (page, context) => {
-    await context.route('**/home/capture-*', (route) => route.abort());
-    await visit(page);
-    const error = page.locator('.capture__slot--phone .capture__pic--dark .capture__error');
-    await error.waitFor({ timeout: 10_000 });
-    const seen = await page.evaluate(() => {
-      const slot = document.querySelector('.capture__slot--phone').getBoundingClientRect();
-      return { ratio: slot.width / slot.height, words: document.querySelector('.capture__slot--phone .capture__pic--dark .capture__error p').textContent.trim(), caption: document.querySelector('.capture__caption').getBoundingClientRect().height > 0 };
-    });
-    expect(Math.abs(seen.ratio - 16 / 9) < 0.02, `capture, file blocked: the box is ${seen.ratio.toFixed(3)} wide for its height`);
-    expect(seen.words === record.words.captureAlt.phone && seen.caption, 'capture, file blocked: the box does not show the text equivalent with the caption under it');
-    await page.screenshot({ path: path.join(outDir, 'home-capture-blocked-390-dark.png') });
-  });
+  await writeFile(path.join(outDir, 'home-first-bounds.json'), JSON.stringify(firstScreenBounds, null, 2));
 
   // The start key opens setup; the words that left the page are gone.
   await open({ name: 'words', width: 1280, height: 800 }, async (page) => {
@@ -1553,14 +1558,16 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       navigator.serviceWorker.ready,
       new Promise((_, reject) => setTimeout(() => reject(new Error('the installed copy was not ready within 60 seconds')), 60_000)),
     ]));
+    await page.waitForFunction(async () => Boolean(await caches.match('/home/runs/dashboard-square-dark.webp')));
     await context.setOffline(true);
     await page.reload({ waitUntil: 'load' });
+    await page.waitForFunction(() => document.querySelector('.home-run__poster img')?.naturalWidth > 0);
     const seen = await page.evaluate(() => {
-      const image = [...document.querySelectorAll('img[data-capture]')].find((element) => element.offsetParent !== null);
+      const image = document.querySelector('.home-run__poster img');
       return { h1: document.querySelector('h1')?.textContent.trim(), capture: !!image && image.complete && image.naturalWidth > 0, steps: document.querySelectorAll('ol.home-steps > li').length };
     });
     expect(seen.h1 === HEADLINE && seen.steps === 3, 'offline: the page does not show from the installed copy');
-    expect(seen.capture, 'capture, offline: the capture does not show from the installed copy');
+    expect(seen.capture, 'Offline: the Dashboard poster does not show from the installed copy');
     await page.locator('.home-detection__card > summary').nth(3).click();
     expect(await page.locator('.home-detection__card').nth(3).evaluate((details) => details.open), 'disclosures, offline: a card does not open');
     await page.getByRole('button', { name: /^Switch to the/ }).click();

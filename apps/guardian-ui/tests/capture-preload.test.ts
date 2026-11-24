@@ -25,7 +25,7 @@ function asked(width: number, dark: boolean) {
   ]);
 }
 
-it.each([
+it.each<[number, boolean, string, string]>([
   [1279, true, '', 'square-dark'],
   [1279, false, '', 'square-light'],
   [1280, true, '', 'wide-dark'],

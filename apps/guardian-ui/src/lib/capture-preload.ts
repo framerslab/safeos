@@ -19,6 +19,6 @@ export function dashboardPreloadScript(dashboard: HomeRun) {
     + "root.classList.contains('dark')||matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';"
     + "var offline=navigator.onLine===false;if(offline)root.dataset.homeOffline='true';"
     + "var size=!offline&&matchMedia(" + JSON.stringify(HOME_RUN_WIDE) + ").matches?'wide':'square';"
-    + "var link=document.createElement('link');link.rel='preload';link.as='image';link.type='image/webp';"
-    + "link.href=" + urls + "[size+'-'+look];link.setAttribute('fetchpriority','high');document.head.appendChild(link)}catch(e){}})();";
+    + "var link=document.createElement('link');link.setAttribute('rel','preload');link.setAttribute('as','image');link.setAttribute('type','image/webp');"
+    + "link.setAttribute('href'," + urls + "[size+'-'+look]);link.setAttribute('fetchpriority','high');document.head.appendChild(link)}catch(e){}})();";
 }

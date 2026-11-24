@@ -164,7 +164,7 @@ jobs:
             fi
             python3 -m venv "$RUNNER_TEMP/home-pixels"
             "$RUNNER_TEMP/home-pixels/bin/python3" -m pip install --quiet Pillow==11.3.0
-            "$RUNNER_TEMP/home-pixels/bin/python3" -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures"
+            "$RUNNER_TEMP/home-pixels/bin/python3" -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures" --runs out/home/runs/runs.json
             break
           done
 
@@ -176,6 +176,7 @@ jobs:
           path: |
             ${{ runner.temp }}/pictures/*.png
             ${{ runner.temp }}/pictures/home-readability.json
+            ${{ runner.temp }}/pictures/home-first-bounds.json
           if-no-files-found: error
           retention-days: 14
 
