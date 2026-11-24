@@ -88,6 +88,13 @@ describe('the Lost and Found example photos and their record', () => {
     }
   });
 
+  it('takes a JPEG whose scan header is cut short for a file that is not whole', () => {
+    const start = Buffer.from([0xff, 0xd8]);
+    const frame = Buffer.from([0xff, 0xc0, 0x00, 0x11, 0x08, 0x03, 0x84, 0x04, 0xb0, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01]);
+    // The scan header says 12 bytes, and the end-of-image marker follows its length field.
+    expect(jpegIsWhole(Buffer.concat([start, frame, Buffer.from([0xff, 0xda, 0x00, 0x0c, 0xff, 0xd9])]))).toBe(false);
+  });
+
   it('photo 1 is the Commons photo and photos 2 and 3 are stills from the part of the recording the clip leaves out', () => {
     const [one, two, three] = photos.photos;
     expect(one.source.page).toBe('https://commons.wikimedia.org/wiki/File:Female_Champagne_Burmese_Kitten.jpg');
