@@ -18,7 +18,7 @@
         "bytes": 74923,
         "sha256": "dbefb2acad288e0ae4c2a61b7e23eac51bebba223e7d780de1173791846d9cb1",
         "width": 600,
-        "height": 450
+        "height": 999
       },
       "source": {
         "title": "Female Champagne Burmese Kitten",
@@ -42,8 +42,8 @@
       "height": 900,
       "alt": "Photo 2 of 3: a kitten sitting on a grey carpet, licking a paw",
       "crop": {
-        "x": 852,
-        "y": 72,
+        "x": -100,
+        "y": -50,
         "width": 2784,
         "height": 2088
       },

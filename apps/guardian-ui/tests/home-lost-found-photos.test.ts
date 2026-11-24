@@ -68,6 +68,7 @@ describe('the Lost and Found example photos and their record', () => {
     ] as const) {
       const bytes = fs.readFileSync(file(relative));
       expect(record.file).toBe(relative);
+      expect({ width: record.width, height: record.height }).toEqual({ width, height });
       expect(pictureSize(bytes)).toEqual({ width, height });
       expect(bytes.length).toBe(record.bytes);
       expect(sha256(bytes)).toBe(record.sha256);
@@ -101,6 +102,8 @@ describe('the Lost and Found example photos and their record', () => {
       expect(photo.alt).toBe(alts[i]);
       const { x, y, width, height } = photo.crop;
       for (const value of [x, y, width, height]) expect(Number.isInteger(value)).toBe(true);
+      expect(x).toBeGreaterThanOrEqual(0);
+      expect(y).toBeGreaterThanOrEqual(0);
       expect(Math.abs(width * 3 - height * 4)).toBeLessThanOrEqual(3);
       expect(width).toBeGreaterThanOrEqual(1200);
       expect(x + width).toBeLessThanOrEqual(photo.source.width);
@@ -112,6 +115,24 @@ describe('the Lost and Found example photos and their record', () => {
     expect(photos.credit).toBe('Photos: Alistair Findlay (Psypherium), CC0 1.0, cropped; two are stills from the recording the clip comes from.');
     expect(photos.command.join('\n')).toContain('photo-3-600.jpg');
     expect(photos.notChecked.join(' ')).toContain('same kitten');
+  });
+
+  it('each photo was cut with the crop box its record states, from the source and moment it names', () => {
+    photos.photos.forEach((photo, i) => {
+      const n = i + 1;
+      const { x, y, width, height } = photo.crop;
+      for (const cut of [photo, photo.copy600]) {
+        const name = path.basename(cut.file);
+        const lines = photos.command.filter((line) => line.endsWith(` ${name}`));
+        expect(lines).toHaveLength(1);
+        const [line] = lines;
+        expect(line).toContain(`crop=${width}:${height}:${x}:${y},scale=${cut.width}:${cut.height}:`);
+        expect(line).toContain(`-i ${decodeURIComponent(path.basename(photo.source.file))}`);
+        if (photo.source.atSeconds === undefined) expect(line).not.toContain(' -ss ');
+        else expect(line).toContain(` -ss ${photo.source.atSeconds.toFixed(1)} `);
+      }
+      expect(photo.file).toBe(`home/lost-found/photo-${n}.jpg`);
+    });
   });
 
   it('lists every set of media tried, and the last one alerted', () => {
