@@ -1434,6 +1434,24 @@ export default function MonitorPage() {
         {!cameraAfterList && <CameraPicker refreshKey={isStreaming} className="watch-camera" />}
       </div>
 
+      {/* The list, on a phone the camera menu while watching, and the
+          statement come before the settings in the page, as they stand on
+          screen, so Tab reaches them in that order. */}
+      <div className="watch-grid__side">
+        {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
+        <AlertPanel showMute={false} />
+      </div>
+
+      {cameraAfterList && (
+        <div className="watch-grid__camera">
+          <CameraPicker refreshKey={isStreaming} className="watch-camera" />
+        </div>
+      )}
+
+      <p className="watch-grid__statement watch-statement">
+        <Brand>SafeOS</Brand> adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.
+      </p>
+
       <div className="watch-grid__settings">
         <SettingsFold>
           <Link href="/nap/" className="link-row">Nap Mode</Link>
@@ -1618,21 +1636,6 @@ export default function MonitorPage() {
           <InlineSettingsPanel defaultExpanded={['detection']} />
         </SettingsFold>
       </div>
-
-      <div className="watch-grid__side">
-        {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
-        <AlertPanel showMute={false} />
-      </div>
-
-      {cameraAfterList && (
-        <div className="watch-grid__camera">
-          <CameraPicker refreshKey={isStreaming} className="watch-camera" />
-        </div>
-      )}
-
-      <p className="watch-grid__statement watch-statement">
-        <Brand>SafeOS</Brand> adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.
-      </p>
 
       {/* Preset Initializer - handles URL params */}
       <Suspense fallback={null}>
