@@ -15,7 +15,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
 import monitorSettings from '../scripts/home-capture-settings.json';
-import { petOverTheLine } from './helpers/own-sound';
 import { CAMERA_FILE, stripedPhoto } from './helpers/striped-subject';
 
 // =============================================================================
@@ -132,10 +131,9 @@ test('a frame or sighting saved from a striped camera picture keeps an edge scor
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
   await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
 
-  // Start the camera and wait for the comparison to reach the alert line.
+  // Start the camera and wait for the comparison to save what it saw.
   await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(petOverTheLine(page)).toBeVisible({ timeout: 60_000 });
 
   await expect.poll(async () => {
     const scores = (await savedScores(page, 'Stripes')).find((comparison) => comparison.edgeMatch > 0);

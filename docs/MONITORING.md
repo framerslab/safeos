@@ -42,15 +42,13 @@ On a phone the camera menu moves from under the alert list to under the frame, s
 focus on it moves to the frame's key too. **Picture change** reads on the scale its check uses: the
 changed pixels against the pixel count, or, where the setting checks a share of the
 picture, the changed share against the check's 1 per cent.
-For Motion, Sound and Picture change, a screen reader reads "{n} per cent,
-line at {line}, {state}". Under reduced motion their readings change at most
-once a second. On a phone the meters stack. From a tablet they stand side by side.
-From 1024 px, a longer state word widens its column so the name and state can
-share one line over the bar.
-
-While Lost and Found compares, the pet’s meter reads "Comparing with {name}’s
-photos". Next to its bar, "Colours and shape" reads "Quiet" or "Over the line".
-The meter counts checks in a row like the pet’s photos.
+A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";
+a change of state is not announced. Under reduced motion a meter's shown reading
+changes at most once a second. While Lost and Found compares, the pet's meter names
+the pet and reads "Comparing with {name}'s photos", with no bar and no number. On a
+phone each meter is one row; from a tablet they stand side by side, and from
+1024 px each meter's name and state word keep one line over its bar, a longer
+state word widening its column.
 
 ## Settings for this watch
 
@@ -140,12 +138,12 @@ until a reload. The pets and their photos are this device's, so Watch for and th
 comparison work offline. A long name with no spaces breaks inside the line that
 names the pet, at every width from 320 px.
 
-Add photos on the Lost and Found page. Setup’s **Alert line** sets the point
-where the comparison raises an alert. While the watch compares, the full pet
-card lists **Recent possible sightings**, with their times and whether they were
-over or under the line. **Saved pictures** opens the gallery. Open a picture to
-see what the camera saw and "Could this be {name}?". Changing pets clears the
-earlier pet’s readings while the camera keeps running.
+While the watch compares, the pet’s meter under the live picture names the pet.
+Add photos on the Lost & Found page. Setup’s **Alert line** sets the point where
+the comparison raises an alert. **Saved pictures** on the Lost & Found page opens
+the pictures the comparison saved. Open a picture to see what the camera saw and
+"Could this be {name}?". Another pet chosen while the watch compares starts with
+none of the first pet’s saved pictures, with no restart of the camera.
 
 When another tab of this browser clears all local data (**Clear all data on this
 device**, or a sign-out), the open watch drops the pets it had read and ends the

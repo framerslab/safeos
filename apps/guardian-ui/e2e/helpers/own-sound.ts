@@ -149,9 +149,6 @@ export const alertedMatchFrames = (page: Page): Promise<number> =>
     });
   });
 
-export const petOverTheLine = (page: Page) =>
-  page.locator('[data-lost-found-card="picture"]').getByText('Over the line', { exact: true });
-
 /** Enrols the striped pet, opens the watch and waits for the comparison to save a close look. */
 export async function watchStripes(page: Page) {
   await enrolPet(page, 'Stripes', await stripedPhoto(page));
@@ -160,7 +157,6 @@ export async function watchStripes(page: Page) {
   await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
   await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(petOverTheLine(page)).toBeVisible({ timeout: 60_000 });
   await expect.poll(() => savedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(0);
 }
 

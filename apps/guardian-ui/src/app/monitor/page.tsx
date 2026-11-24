@@ -137,8 +137,6 @@ export default function MonitorPage() {
     activeSubject,
     isWatching: isLostFoundWatching,
     settings: lostFoundSettings,
-    currentConfidence,
-    consecutiveMatches,
     updateCurrentConfidence,
     updateConsecutiveMatches,
     addMatchFrame: addMatchFrameToStore,
@@ -1360,15 +1358,8 @@ export default function MonitorPage() {
     currentPreset.pixelDetectionEnabled,
   );
   if (pictureChange) meterRows.push({ kind: 'picture-change', reading: pictureChange });
-  const readingBelongsToPet = activeSubject?.id === watchFor.pet?.id;
   const meterPet = watchFor.comparing && watchFor.pet
-    ? {
-        name: watchFor.pet.name,
-        photo: watchFor.pet.referenceImages?.[0] ?? null,
-        score: readingBelongsToPet ? currentConfidence : 0,
-        alertLine: lostFoundSettings.minConfidenceForAlert,
-        checks: readingBelongsToPet ? consecutiveMatches : 0,
-      }
+    ? { name: watchFor.pet.name, photo: watchFor.pet.referenceImages?.[0] ?? null }
     : null;
 
   // ---------------------------------------------------------------------------

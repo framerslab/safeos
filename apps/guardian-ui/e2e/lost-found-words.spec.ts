@@ -12,7 +12,6 @@
  * @module e2e/lost-found-words.spec
  */
 
-import path from 'node:path';
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
 import { BARRED, readWords } from './helpers/lost-found-words';
@@ -388,42 +387,3 @@ test('no Lost and Found screen says match, detected, confidence, accurate or lik
   await holdsNoBarredWord('an opened picture');
   await page.screenshot({ path: testInfo.outputPath('lost-found-words-read-1280.png') });
 });
-
-// The Pictures workflow runs these walks on the base build. The same pet,
-// camera and controls put each before picture at the matching stop.
-const beforePictures = process.env.LOST_FOUND_BEFORE_PICTURES;
-if (beforePictures) {
-  const output = beforePictures;
-  test('captures the earlier setup and full-screen pictures', async ({ page, context }) => {
-    test.setTimeout(180_000);
-    await seed(context);
-    await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
-    await openSetup(page);
-    await addStripesPhoto(page);
-    await switchOnOverlay(page);
-    await page.screenshot({ path: path.join(output, 'lost-found-setup-words-1280.png'), fullPage: true });
-
-    await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
-    await openWatch(page);
-    await expect(page.getByRole('alertdialog')).toBeVisible({ timeout: 60_000 });
-    await page.screenshot({ path: path.join(output, 'lost-found-overlay-words-1280.png') });
-  });
-
-  test('captures the earlier watch and an opened saved picture', async ({ page, context }) => {
-    test.setTimeout(180_000);
-    await seed(context);
-    await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
-    await enrolPet(page, NAME, await stripedPhoto(page));
-    await openWatch(page);
-    await expect(page.locator('.watch-meter--pet').getByText('Comparing with Stripes’s photos', { exact: true }))
-      .toBeVisible({ timeout: 60_000 });
-    await page.screenshot({ path: path.join(output, 'lost-found-watch-words-1280.png'), fullPage: true });
-
-    await savePicture(page);
-    await page.goto('/lost-found/gallery/', { waitUntil: 'networkidle', timeout: 60_000 });
-    await page.getByRole('button', { name: 'Filter', exact: true }).click();
-    await page.getByRole('button', { name: /^(View match details|Open this picture)$/ }).first().click();
-    await expect(page.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
-    await page.screenshot({ path: path.join(output, 'lost-found-gallery-words-1280.png') });
-  });
-}

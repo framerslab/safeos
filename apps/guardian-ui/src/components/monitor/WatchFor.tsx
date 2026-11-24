@@ -25,7 +25,6 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { KeyRow } from '../KeyRow';
-import { RecentSightings, SightingReading } from '../SubjectPreview';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { DEFAULT_SETTINGS, useLostFoundStore, type SubjectProfile } from '../../stores/lost-found-store';
 import { readSavedPets, type SubjectProfileDB } from '../../lib/client-db';
@@ -518,11 +517,7 @@ interface PetProps {
  * pet; or "Loading saved pets…" while they are read.
  */
 export function WatchForPet({ watchFor, layout }: PetProps) {
-  const { pet, pets, petsRead, choosePet, comparing } = watchFor;
-  const subjectId = useLostFoundStore((state) => state.activeSubject?.id);
-  const score = useLostFoundStore((state) => state.currentConfidence);
-  const sightings = useLostFoundStore((state) => state.recentMatches);
-  const alertLine = useLostFoundStore((state) => state.settings.minConfidenceForAlert);
+  const { pet, pets, petsRead, choosePet } = watchFor;
   const [choosing, setChoosing] = useState(false);
   const changeRef = useRef<HTMLButtonElement | null>(null);
   const className = `watch-pet watch-pet--${layout}`;
@@ -562,9 +557,8 @@ export function WatchForPet({ watchFor, layout }: PetProps) {
   }
 
   const photos = pet.referenceImages;
-  const showReading = layout === 'card' && comparing && subjectId === pet.id;
   return (
-    <div className={className} data-lost-found-card={layout === 'card' ? 'full' : undefined}>
+    <div className={className}>
       <div className="watch-pet__main">
         {photos[0] ? (
           <img className="watch-pet__photo" src={photos[0]} alt={`${possessive(pet.name)} first saved photo`} />
@@ -594,13 +588,6 @@ export function WatchForPet({ watchFor, layout }: PetProps) {
         </div>
       )}
       <p className="watch-pet__limits">{LIMITS_LINE}</p>
-      {showReading && (
-        <div className="mt-3 space-y-3">
-          <SightingReading score={score} alertLine={alertLine} full />
-          <RecentSightings sightings={sightings} alertLine={alertLine} />
-          <Link href="/lost-found/gallery/" className="watch-key">Saved pictures</Link>
-        </div>
-      )}
       {choosing && (
         <ChoosePet pets={pets} chosenId={pet.id} onChoose={choosePet} onClose={close} />
       )}

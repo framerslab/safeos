@@ -83,19 +83,14 @@ jobs:
         with:
           ref: ${{ matrix.version == 'before' && github.event.pull_request.base.sha || (github.event_name == 'workflow_dispatch' && inputs.ref || '') }}
 
-      # Both versions use the pull request's capture code.
+      # Both versions use the same session fixture and capture script.
       - name: Use the pull request capture script
         if: github.event_name == 'pull_request'
         env:
           CAPTURE_REF: ${{ github.event.pull_request.head.sha }}
-          PICTURE_VERSION: ${{ matrix.version }}
         run: |
           git fetch origin "$CAPTURE_REF"
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/capture-pictures.mjs" > scripts/capture-pictures.mjs
-          if [ "$PICTURE_VERSION" = before ]; then
-            git show "$CAPTURE_REF:apps/guardian-ui/e2e/lost-found-words.spec.ts" > e2e/lost-found-words.spec.ts
-            git show "$CAPTURE_REF:apps/guardian-ui/e2e/helpers/lost-found-words.ts" > e2e/helpers/lost-found-words.ts
-          fi
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/base-routes.mjs" > scripts/base-routes.mjs
 
       - name: Setup Node.js
@@ -148,10 +143,6 @@ jobs:
           set -f
           # shellcheck disable=SC2086
           node scripts/capture-pictures.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/pictures" $ROUTES
-          if [ "$PICTURE_VERSION" = before ]; then
-            PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 LOST_FOUND_BEFORE_PICTURES="$RUNNER_TEMP/pictures" \
-              npx playwright test e2e/lost-found-words.spec.ts --project=chromium --grep 'captures the earlier'
-          fi
 
       - name: Set up Python for the home pixel sampler
         if: always() && matrix.version == 'after'
