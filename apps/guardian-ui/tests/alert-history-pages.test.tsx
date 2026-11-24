@@ -249,7 +249,7 @@ it('behind an older tab, a tab with no token makes a session as before, and the 
     view.unmount();
     old.close();
     closed = true;
-    await waitFor(async () => expect(await storedVersion()).toBe(7), SLOW);
+    await waitFor(async () => expect(await storedVersion()).toBe(8), SLOW);
     reachable = false;
     jest.resetModules();
     const next = await app();
@@ -286,7 +286,7 @@ it('shows all saved history, with what the older tab saved meanwhile, once it cl
       message: 'old-tab-new', acknowledged: false, createdAt: now, syncedAt: now });
     old.close();
     closed = true;
-    await waitFor(async () => expect(await storedVersion()).toBe(7), SLOW);
+    await waitFor(async () => expect(await storedVersion()).toBe(8), SLOW);
     reachable = false;
     jest.resetModules();
     const next = await app();
@@ -572,5 +572,5 @@ it('says so and changes nothing when an upgrade cannot finish', async () => {
   render(<next.Providers><next.StatusBanner /><next.Monitor /></next.Providers>);
   for (const id of ids) expect(await screen.findByText(id)).toBeTruthy();
   expect(listed(next.monitoring)).toEqual([...ids].sort());
-  expect(await storedVersion()).toBe(7);
+  expect(await storedVersion()).toBe(8);
 });

@@ -37,6 +37,9 @@ export async function seededContext(browser, options) {
     localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: look, resolvedTheme: look }, version: 0 }));
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+    localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+      keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+    }, version: 0 }));
     localStorage.setItem('safeos-capture-seeded', 'true');
   }, { settings, look: options.colorScheme });
   return context;

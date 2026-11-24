@@ -12,9 +12,13 @@ import React, { useState, useRef, useEffect } from 'react';
 interface ExpandableSectionProps {
   id: string;
   title: string;
+  titleClassName?: string;
   icon?: React.ReactNode;
   summary: React.ReactNode;
+  summaryClassName?: string;
   defaultExpanded?: boolean;
+  /** Expands the section when it turns true; the header still closes it. */
+  open?: boolean;
   children: React.ReactNode;
   onToggle?: (expanded: boolean) => void;
 }
@@ -22,13 +26,19 @@ interface ExpandableSectionProps {
 export function ExpandableSection({
   id,
   title,
+  titleClassName = 'text-sm',
   icon,
   summary,
+  summaryClassName = 'text-xs text-slate-400 truncate',
   defaultExpanded = false,
+  open,
   children,
   onToggle,
 }: ExpandableSectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  useEffect(() => {
+    if (open) setIsExpanded(true);
+  }, [open]);
   const contentRef = useRef<HTMLDivElement>(null);
   const [contentHeight, setContentHeight] = useState(0);
 
@@ -64,9 +74,9 @@ export function ExpandableSection({
             <span className="text-slate-400 flex-shrink-0">{icon}</span>
           )}
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium text-white">{title}</div>
+            <div className={`font-medium text-white ${titleClassName}`}>{title}</div>
             {!isExpanded && (
-              <div className="text-xs text-slate-400 truncate mt-0.5">
+              <div className={`mt-0.5 ${summaryClassName}`}>
                 {summary}
               </div>
             )}

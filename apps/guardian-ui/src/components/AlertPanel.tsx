@@ -15,7 +15,13 @@ import { useSettingsStore } from '../stores/settings-store';
 import { getSoundManager, type SoundType } from '../lib/sound-manager';
 import { raisedByThisWatch } from '../lib/watch-sound';
 import { cardTime } from '../lib/alert-event';
-import { watchAlertAnnouncement, watchAlertKind, watchAlertLine } from '../lib/watch-alert-words';
+import { kindOfAlert } from '../lib/alert-pictures/rules';
+import { announceAlert, announceSighting, levelWords } from '../lib/alert-pictures/words';
+import { petNameOf } from '../lib/alert-pictures/pet-photo';
+import { OpenPictureKey, PictureBlock, alertMoment } from './alert-pictures/PictureBlock';
+import { PictureDialogHost } from './alert-pictures/PictureDialog';
+import { ListLine } from './alert-pictures/ListLine';
+import { KeyRow } from './alert-pictures/KeyRow';
 import { ProblemMark } from './dashboard/Drawn';
 import { Num } from './visitor/Num';
 import { BellGlyph } from './watch/Glyphs';
@@ -48,17 +54,6 @@ interface AlertPanelProps {
 // =============================================================================
 // Constants
 // =============================================================================
-
-const SEVERITY_COLORS: Record<
-  Alert['severity'],
-  { bg: string; border: string; text: string }
-> = {
-  info: { bg: 'bg-blue-500/20', border: 'border-blue-500/50', text: 'text-blue-400' },
-  low: { bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', text: 'text-emerald-400' },
-  medium: { bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', text: 'text-yellow-400' },
-  high: { bg: 'bg-orange-500/20', border: 'border-orange-500/50', text: 'text-orange-400' },
-  critical: { bg: 'bg-red-500/20', border: 'border-red-500/50', text: 'text-red-400' },
-};
 
 const SEVERITY_ICONS: Record<Alert['severity'], React.ComponentType<{ size?: number; className?: string }>> = {
   info: IconInfo,
@@ -144,8 +139,12 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
     const tick = () => {
       const now = Date.now();
       // Only the alerts of the running watch sound or grow louder. One left
-      // unseen from an earlier watch stays in the list, silent.
-      const unacknowledged = alerts.filter((a) => !a.acknowledged && raisedByThisWatch(a.id));
+      // unseen from an earlier watch stays in the list, silent. A Lost and
+      // Found sighting sounds the pet's own alert at each of its alerts and
+      // takes no part in the list's escalation.
+      const unacknowledged = alerts.filter(
+        (a) => !a.acknowledged && kindOfAlert(a) !== 'sighting' && raisedByThisWatch(a.id),
+      );
 
       const nextLevels = new Map<string, number>();
 
@@ -270,7 +269,8 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
 
   // Get the most recent unacknowledged alert for screen reader announcement
   const latestAlert = unacknowledgedAlerts[0];
-  const latestKind = latestAlert && watchAlertKind(latestAlert.id, latestAlert.message);
+  // A Motion, Sound or Picture change alert is read by its kind, level and time, not by its numbers.
+  const latestKind = latestAlert ? kindOfAlert(latestAlert) : null;
 
   return (
     <section className="watch-list" aria-labelledby="watch-list-name">
@@ -283,9 +283,11 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
       >
         {latestAlert && (
           <span>
-            {latestKind
-              ? watchAlertAnnouncement(latestKind, latestAlert.severity, cardTime(latestAlert))
-              : `New ${latestAlert.severity} alert: ${latestAlert.message}.`}
+            {latestKind === 'sighting'
+              ? announceSighting(petNameOf(latestAlert), alertMoment(latestAlert))
+              : latestKind
+                ? announceAlert(latestKind, latestAlert.severity, alertMoment(latestAlert))
+                : `New ${latestAlert.severity} alert: ${latestAlert.message}.`}
             {/* A repeat often keeps the reading and severity; its count changes the words, so it is read. */}
             {(latestAlert.repeats ?? 0) > 0 &&
               ` Repeated ${latestAlert.repeats} ${latestAlert.repeats === 1 ? 'time' : 'times'}.`}
@@ -323,6 +325,12 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
         </button>}
       </div>
 
+      {/* An alert's picture, opened large over the watch */}
+      <PictureDialogHost />
+
+      {/* Said once: a device that ran out of room for pictures, or a window that keeps none */}
+      <ListLine />
+
       {/* Storage this device refused: the list goes on in memory under the line. */}
       {readFailed && (
         <p className="watch-list__problem" role="status">
@@ -336,12 +344,13 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
         {alerts.length === 0 ? (
           alertsRead ? <EmptyState /> : <ListWaits />
         ) : (
-          <div className="divide-y divide-slate-700/50">
-            {/* Unacknowledged alerts */}
-            {unacknowledgedAlerts.map((alert) => (
+          <div className="alert-card-list">
+            {/* Unacknowledged alerts: the newest shows its pictures large, the others a thumbnail */}
+            {unacknowledgedAlerts.map((alert, index) => (
               <AlertCard
                 key={alert.id}
                 alert={alert}
+                form={index === 0 ? 'large' : 'small'}
                 escalationLevel={escalationLevels.get(alert.id) || 1}
                 onAcknowledge={handleAcknowledge}
               />
@@ -364,84 +373,75 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true 
 
 interface AlertCardProps {
   alert: Alert;
+  /** The picture block's form: large for the newest card, small for the others. */
+  form: 'large' | 'small';
   escalationLevel: number;
   onAcknowledge: (id: string) => void;
 }
 
-function AlertCard({ alert, escalationLevel, onAcknowledge }: AlertCardProps) {
-  const colors = SEVERITY_COLORS[alert.severity];
+/** The level's icon and word, and how long ago the card's newest alert came. */
+function CardHead({ alert }: { alert: Alert }) {
   const IconComponent = SEVERITY_ICONS[alert.severity];
   // A card that counts repeats shows the time of its newest alert.
-  const repeats = alert.repeats ?? 0;
-  const at = cardTime(alert);
-  const kind = watchAlertKind(alert.id, alert.message);
-  const timeAgo = getTimeAgo(at || new Date().toISOString());
+  const timeAgo = getTimeAgo(cardTime(alert) || new Date().toISOString());
+  return (
+    <div className="alert-card__head">
+      {kindOfAlert(alert) !== 'sighting' && (
+        <span className="alert-card__level">
+          {/* The level's word carries the meaning; its icon is not read. */}
+          <span className="alert-card__icon" aria-hidden="true"><IconComponent size={18} /></span>
+          <span>{levelWords(alert.severity)}</span>
+        </span>
+      )}
+      <span className="alert-card__ago">{timeAgo}</span>
+    </div>
+  );
+}
 
-  // Escalation indicator
-  const escalationColor =
-    escalationLevel >= 4
-      ? 'bg-red-500 animate-pulse'
-      : escalationLevel >= 3
-        ? 'bg-orange-500'
-        : escalationLevel >= 2
-          ? 'bg-yellow-500'
-          : 'bg-emerald-500';
+function AlertCard({ alert, form, escalationLevel, onAcknowledge }: AlertCardProps) {
+  const repeats = alert.repeats ?? 0;
+  // A Motion, Sound or Picture change alert shows its picture block in place of its message line.
+  const kind = kindOfAlert(alert);
+
+  // A Lost and Found sighting asks about the pet and has no level and no escalation.
+  const sighting = kind === 'sighting';
 
   return (
-    <div className={`p-4 ${colors.bg} relative`} data-alert-kind={kind} data-alert-at={at}>
-      {/* Escalation indicator */}
-      <div
-        className={`absolute left-0 top-0 bottom-0 w-1 ${escalationColor}`}
-      />
+    <div className="alert-card" data-alert-card="" data-form={kind ? form : undefined} data-kind={kind ?? undefined} data-alert-at={alertMoment(alert)} data-severity={alert.severity}>
+      {/* Escalation indicator: the fourth level pulses until the card is acknowledged */}
+      {!sighting && (
+        <div
+          className="alert-card__bar"
+          data-escalation-bar=""
+          data-level={Math.min(4, Math.max(1, escalationLevel))}
+        />
+      )}
 
-      <div className="flex gap-3">
-        {/* Thumbnail */}
-        {alert.thumbnailUrl && (
-          <div className="w-16 h-16 rounded-lg bg-slate-700 overflow-hidden flex-shrink-0">
-            <img
-              src={alert.thumbnailUrl}
-              alt="Alert thumbnail"
-              className="w-full h-full object-cover"
-            />
-          </div>
-        )}
+      <CardHead alert={alert} />
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <IconComponent size={16} className={colors.text} aria-hidden="true" />
-              <span className={`text-sm font-medium ${colors.text} capitalize`}>
-                {alert.severity}
-              </span>
-            </div>
-            <span className="text-xs text-slate-500">{timeAgo}</span>
-          </div>
-
-          <p data-alert-line className="text-sm text-white mt-1 line-clamp-2">
-            {kind ? watchAlertLine(kind, at) : alert.message}
-          </p>
-
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-slate-500">
-              Level {escalationLevel}
-              {repeats > 0 && (
-                <>
-                  {' · '}
-                  <span>Repeated {repeats} {repeats === 1 ? 'time' : 'times'}</span>
-                </>
-              )}
-            </span>
-            <button
-              onClick={() => onAcknowledge(alert.id)}
-              className="px-4 py-2.5 min-h-[44px] bg-emerald-500/20 text-emerald-400 rounded-lg text-sm font-medium
-                         hover:bg-emerald-500/30 active:bg-emerald-500/40 transition-colors
-                         flex items-center justify-center"
-            >
-              Acknowledge
-            </button>
-          </div>
+      {kind ? (
+        <PictureBlock alert={alert} form={form} />
+      ) : (
+        <div className="alert-card__picture">
+          {alert.thumbnailUrl && (
+            <img src={alert.thumbnailUrl} alt="Alert thumbnail" className="alert-card__thumbnail" />
+          )}
+          <p className="alert-card__message line-clamp-2">{alert.message}</p>
         </div>
+      )}
+
+      <div className="alert-card__foot">
+        <span className="alert-card__counts">
+          {!sighting && <span>Level {escalationLevel}</span>}
+          {repeats > 0 && <span>Repeated {repeats} {repeats === 1 ? 'time' : 'times'}</span>}
+        </span>
+        {/* The card's keys keep one row; where they do not fit, the row scrolls inside itself. */}
+        <KeyRow className="alert-card__keys">
+          {kind && <OpenPictureKey alert={alert} />}
+          <button type="button" onClick={() => onAcknowledge(alert.id)} className="alert-card__acknowledge">
+            Acknowledge
+          </button>
+        </KeyRow>
       </div>
     </div>
   );
@@ -474,24 +474,31 @@ function AcknowledgedSection({ alerts }: AcknowledgedSectionProps) {
 
       {expanded && (
         <div className="divide-y divide-slate-700/30">
-          {alerts.slice(0, 5).map((alert) => {
-            const Icon = SEVERITY_ICONS[alert.severity];
-            const kind = watchAlertKind(alert.id, alert.message);
-            const at = cardTime(alert);
-            return (
-              <div key={alert.id} className="p-3 opacity-60">
-                <div className="flex items-center gap-2 text-sm">
-                  <Icon size={14} className="text-slate-400 flex-shrink-0" aria-hidden="true" />
-                  <span className="text-slate-300 truncate">
-                    {kind ? watchAlertLine(kind, at) : alert.message}
-                  </span>
-                  <span className="text-xs text-slate-500 ml-auto">
-                    {getTimeAgo(at || new Date().toISOString())}
-                  </span>
-                </div>
+          {/* An acknowledged card of a kind that keeps a picture shows it, at full strength */}
+          {alerts.slice(0, 5).map((alert) => kindOfAlert(alert) ? (
+            <div key={alert.id} className="alert-card" data-alert-card="" data-acknowledged="" data-form="small">
+              <CardHead alert={alert} />
+              <PictureBlock alert={alert} form="small" />
+              <div className="alert-card__foot">
+                <KeyRow className="alert-card__keys">
+                  <OpenPictureKey alert={alert} />
+                </KeyRow>
               </div>
-            );
-          })}
+            </div>
+          ) : (
+            <div key={alert.id} className="p-3 opacity-60" data-alert-card="" data-acknowledged="">
+              <div className="flex items-center gap-2 text-sm">
+                {(() => {
+                  const Icon = SEVERITY_ICONS[alert.severity];
+                  return <Icon size={14} className="text-slate-400 flex-shrink-0" aria-hidden="true" />;
+                })()}
+                <span className="text-slate-300 truncate">{alert.message}</span>
+                <span className="text-xs text-slate-500 ml-auto">
+                  {getTimeAgo(cardTime(alert) || new Date().toISOString())}
+                </span>
+              </div>
+            </div>
+          ))}
           {alerts.length > 5 && (
             <div className="p-3 text-center text-xs text-slate-500">
               + {alerts.length - 5} more

@@ -47,7 +47,9 @@ const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const CLIP = path.join(APP_ROOT, 'public', 'home', 'sample-clip.mp4');
 const LOOKS = ['light', 'dark'];
 
-const alertRows = (page, kind) => page.locator(`.watch-list__body [data-alert-kind="${kind}"]`);
+// An alert card names its kind and time: "Motion at 9:42:40 PM".
+const MOTION_ALERT = /Motion at \d/;
+const SOUND_ALERT = /Sound at \d/;
 
 const files = [];
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -79,10 +81,10 @@ async function watchUntilMotionAlert(page, name) {
     throw new Error(shown ? `the camera did not start: ${shown.replace(/\s+/g, ' ').trim()}` : err.message);
   });
   const started = Date.now();
-  await alertRows(page, 'motion').first().waitFor({ timeout: 120_000 });
+  await page.getByText(MOTION_ALERT).first().waitFor({ timeout: 120_000 });
   const motionAt = ((Date.now() - started) / 1000).toFixed(1);
   console.log(`${name}: the alert list holds a motion alert ${motionAt} s after the camera went live`);
-  console.log(`${name}: motion alert reads "${(await alertRows(page, 'motion').first().locator('[data-alert-line]').textContent()).trim()}"`);
+  console.log(`${name}: motion alert reads "${(await page.getByText(MOTION_ALERT).first().textContent()).trim()}"`);
   // The Motion meter reads "Over the line" while the reading is at or over
   // its line, its bar past the line in the alert colour; the capture is saved
   // while it does.
@@ -188,6 +190,8 @@ async function saveCrop(page, relative, clip, details) {
 await mkdir(path.join(outDir, 'home'), { recursive: true });
 await mkdir(path.join(outDir, 'screenshots'), { recursive: true });
 
+// The headless browser has no prompt to answer a camera request and refuses
+// it ("Not supported") unless the request is granted by the fake prompt.
 const browser = await launchSampleDevice(videoFile, audioFile);
 let failures = 0;
 const portraitForCard = {};
@@ -242,9 +246,9 @@ try {
       try {
         const { indicator } = await watchUntilMotionAlert(page, name);
         // The landscape crop shows the alert list, which also holds a sound alert.
-        await alertRows(page, 'audio').first().waitFor({ timeout: 120_000 })
+        await page.getByText(SOUND_ALERT).first().waitFor({ timeout: 120_000 })
           .catch(() => { throw new Error(`${name}: the alert list holds no sound alert`); });
-        const sound = await alertRows(page, 'audio').count();
+        const sound = await page.getByText(SOUND_ALERT).count();
         console.log(`${name}: the alert list holds ${sound} sound alert${sound === 1 ? '' : 's'}`);
         await overTheLine(page, 60_000);
         // The crop starts 8 px over the camera's frame, across the watch's

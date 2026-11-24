@@ -2,3 +2,5 @@
 out
 playwright-report
 test-results
+# Written by scripts/generate-notices.mjs before each build
+public/third-party-notices.txt

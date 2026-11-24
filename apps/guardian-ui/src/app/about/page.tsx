@@ -473,6 +473,12 @@ export default function AboutPage() {
             <p className="text-sm text-slate-400">
               Using it needs no account. The code is MIT-licensed, so anyone can run it.
             </p>
+            <p className="text-sm text-slate-400 mt-2">
+              The packages it is built with keep their own licences:{' '}
+              <a href="/third-party-notices.txt" className="text-emerald-400 hover:text-emerald-300">
+                Third-party notices
+              </a>
+            </p>
           </div>
         </section>
 

@@ -203,6 +203,29 @@ it('Mark all as seen marks every record of every way in its own store', async ()
   expect(other.heard).toContainEqual({ type: 'alerts-changed' });
 });
 
+it("lists a sighting the watch saved as Lost and Found's, and Mark all as seen marks it in the watch's alert list", async () => {
+  const m = await app();
+  m.showProbe();
+  await ready();
+  await act(async () => {
+    await m.save.pet('mittens', 'Mittens');
+    m.monitoring.getState().addAlert({
+      id: 'sighting-1-a', streamId: 'local', severity: 'info', message: 'Could this be Mittens?',
+      acknowledged: false, createdAt: new Date(next()).toISOString(),
+      kind: 'sighting', subjectId: 'mittens', subjectName: 'Mittens',
+    });
+    // This read waits for the store's queued writes.
+    await m.monitoring.getState().hydrateAlerts();
+  });
+  await waitFor(() => expect(lines()).toEqual(['Colours like Mittens’s at T']), SLOW);
+
+  press('mark');
+  await waitFor(() => expect(lines()).toEqual([]), SLOW);
+  expect((await stored('alert_cache')).find((row) => row.id === 'sighting-1-a')?.acknowledged).toBe(true);
+  expect(m.monitoring.getState().alerts.find((alert) => alert.id === 'sighting-1-a')?.acknowledged).toBe(true);
+  expect(await stored('match_frame')).toEqual([]);
+});
+
 it('an alert marked as seen in the alert panel is not new', async () => {
   const m = await app();
   m.showProbe();

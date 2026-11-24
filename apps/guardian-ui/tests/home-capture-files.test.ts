@@ -140,10 +140,15 @@ describe('the capture job', () => {
       '--use-file-for-fake-video-capture=',
       '--use-file-for-fake-audio-capture=',
       "permissions: ['camera', 'microphone', 'notifications']",
+      'noticeAnswered: true',
     ]) expect(seed).toContain(part);
-    expect(script).toContain("name: 'Start watching'");
-    expect(script).toContain("alertRows(page, 'motion').first().waitFor");
-    expect(script).toContain('[data-alert-kind=');
+    for (const part of [
+      "name: 'Start watching'",
+      'Motion at \\d',
+      'Sound at \\d',
+    ]) {
+      expect(script).toContain(part);
+    }
   });
 });
 

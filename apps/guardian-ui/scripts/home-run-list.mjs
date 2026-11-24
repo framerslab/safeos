@@ -50,7 +50,7 @@ async function markStart(page) {
 }
 
 function watchEvent(page, kind) {
-  return page.locator(`.watch-list__body [data-alert-kind="${kind}"]`).first();
+  return page.locator(`.watch-list__body [data-alert-card][data-kind="${kind}"]`).first();
 }
 
 function trackWatchAlerts(page) {
@@ -62,8 +62,8 @@ function trackWatchAlerts(page) {
     const observer = new MutationObserver(() => {
       const clipAt = document.querySelector('.watch-frame__picture video')?.currentTime;
       if (!Number.isFinite(clipAt)) return;
-      for (const card of watch.querySelectorAll('[data-alert-kind][data-alert-at]')) {
-        const { alertKind: kind, alertAt: at } = card.dataset;
+      for (const card of watch.querySelectorAll('[data-alert-card][data-kind][data-alert-at]')) {
+        const { kind, alertAt: at } = card.dataset;
         const identity = kind + ':' + at;
         if (seen.has(identity)) continue;
         seen.add(identity);
@@ -79,10 +79,10 @@ async function prepareDashboard({ page, baseUrl }) {
   await trackWatchAlerts(page);
   await markStart(page);
   await pose(page, 'Stop watching').waitFor({ timeout: 15 * SECOND });
-  await watchEvent(page, 'audio').waitFor({ timeout: 20 * SECOND });
+  await watchEvent(page, 'sound').waitFor({ timeout: 20 * SECOND });
   await watchEvent(page, 'motion').waitFor({ timeout: 35 * SECOND });
   await page.waitForFunction(() => window.homeWatchEvents.some(
-    ({ kind, clipAt }) => kind === 'audio' && clipAt >= 5.5 && clipAt <= 10,
+    ({ kind, clipAt }) => kind === 'sound' && clipAt >= 5.5 && clipAt <= 10,
   ), null, { timeout: 5 * SECOND }).catch(() => { throw Error('No recorded sound alert during the bark'); });
   await page.waitForFunction(() => window.homeWatchEvents.some(
     ({ kind, clipAt }) => kind === 'motion' && clipAt >= 24 && clipAt <= 28.5,
@@ -98,7 +98,9 @@ async function prepareDashboard({ page, baseUrl }) {
   const ways = page.getByRole('region', { name: 'Ways to watch' });
   assert.equal(await ways.getByRole('link').count(), 4, 'Expected all four ways to watch');
   const since = page.getByRole('region', { name: 'Since you last looked' });
-  await since.getByRole('link', { name: /Movement at/ }).first().waitFor();
+  const motion = since.getByRole('link', { name: /Movement at/ }).first();
+  await motion.waitFor();
+  await motion.locator('img').waitFor({ state: 'attached' });
   await since.getByRole('link', { name: /Sound at/ }).first().waitFor();
   return { notices, events };
 }
@@ -158,8 +160,8 @@ async function scrollSubject(page, selector, top, seconds, edge = 'start', frame
 async function dashboard({ page, view, top, prepared, sample }) {
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
-  const words = await sample();
-  const shown = words.map(({ word }) => word).join(' ');
+  const initial = await sample();
+  const shown = initial.map(({ word }) => word).join(' ');
   for (const way of ['Motion and sound', 'Lost and Found', 'People', 'Wildlife']) {
     assert.ok(shown.includes(way), `The Dashboard poster does not show ${way} at ${view.width} px: ${shown}`);
   }
@@ -191,9 +193,18 @@ async function dashboard({ page, view, top, prepared, sample }) {
     'The dashboard scroll did not bring a new alert into the recording');
   console.log(`Dashboard scroll: ${JSON.stringify(scroll)}, newest alert starts at ${entry.y}`);
   const event = await browserTime(page);
+  const image = page.getByRole('region', { name: 'Since you last looked' })
+    .getByRole('link', { name: /Movement at/ }).first().locator('img');
+  await sleepUntil(page, start, 5);
+  const picture = await image.boundingBox();
+  const decoded = await image.evaluate((element) => element.complete && element.naturalWidth > 0);
+  assert.ok(decoded && picture && picture.y >= top && picture.y + picture.height <= top
+    + (view.size === 'square' ? view.width : view.height), 'The newest motion picture is outside the Dashboard poster');
+  const words = await sample();
+  const poster = await browserTime(page);
   await sleepUntil(page, start, 6);
   return {
-    start, poster: start + 1, event, words, scroll,
+    start, poster, event, words, scroll,
     notices: prepared.notices, watchEvents: prepared.events,
   };
 }
@@ -262,7 +273,7 @@ async function watching({ page, view, sample }) {
     trim = { start: trimStart, end: liveAt };
   }
   console.log(`Last above-line bark reading after ${(lastBarkReading - start).toFixed(3)} s, then ${(end - lastBarkReading).toFixed(3)} s of hold; trimmed ${trimSeconds.toFixed(3)} s before the camera went live`);
-  const raised = await watchEvent(page, 'audio').count();
+  const raised = await watchEvent(page, 'sound').count();
   const notices = await page.evaluate(() => window.homeRunNotifications);
   assert.ok(!raised || notices?.length, 'The watch saved a sound alert without a recorded notification');
   return { start, end, poster, words, event: poster, peaks, notices, trim, lastBarkReading };

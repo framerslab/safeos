@@ -2,13 +2,17 @@
  * What one alert is, and what is new
  *
  * Motion and sound saves one record each time it raises an alert, so each
- * record is one alert. The other three ways save a frame at every check while
- * something stays in view, so for them one alert is one run of frames: frames
- * of one way, for one pet or one kind of animal, that follow each other with
- * no gap longer than 30 seconds. A Lost and Found frame that did not raise
- * the alert is a recording History keeps, never an alert or part of one, and
- * nothing matched to a saved person is ever an alert here. The grouping is
- * made when the stores are read and changes no saved record.
+ * record is one alert. A Lost and Found sighting the watch raises is one such
+ * record of the watch's list, of kind `sighting`: it is Lost and Found's
+ * alert of its pet, never Motion and sound's, and carries the id of its kept
+ * picture. People and Wildlife save a frame at every check while something
+ * stays in view, as Lost and Found did in earlier versions, so for those
+ * frames one alert is one run: frames of one way, for one pet or one kind of
+ * animal, that follow each other with no gap longer than 30 seconds. A Lost
+ * and Found frame that did not raise the alert is a recording History keeps,
+ * never an alert or part of one, and nothing matched to a saved person is
+ * ever an alert here. The grouping is made when the stores are read and
+ * changes no saved record.
  *
  * An alert is seen once any of its records is marked as seen. What is new is
  * an alert not seen, none of whose records this device held unseen when this
@@ -19,6 +23,7 @@
  */
 
 import { cardTime } from './alert-event';
+import { kindOfAlert } from './alert-pictures/rules';
 import type { WayId } from './app-routes';
 import type { IntrusionFrameDB, MatchFrameDB, SubjectProfileDB } from './client-db';
 import type { DetectionHistoryEntry } from '../stores/animal-alert-store';
@@ -28,8 +33,11 @@ export const RUN_GAP_MS = 30_000;
 
 /** What this device holds, as its four stores keep it. */
 export interface SavedRecords {
-  /** Motion and sound's records. */
-  alerts: Array<{ id: string; message: string; acknowledged: boolean; createdAt?: string; timestamp?: string; repeats?: number }>;
+  /** Motion and sound's records, a Lost and Found sighting the watch raised among them (kind `sighting`). */
+  alerts: Array<{
+    id: string; message: string; acknowledged: boolean; createdAt?: string; timestamp?: string; repeats?: number;
+    kind?: string; subjectId?: string; subjectName?: string; pictureId?: string;
+  }>;
   matchFrames: MatchFrameDB[];
   intrusionFrames: IntrusionFrameDB[];
   sightings: DetectionHistoryEntry[];
@@ -54,6 +62,10 @@ export interface DeviceAlert {
   what: string;
   /** The first frame's saved picture, for the ways that keep one. */
   picture?: string;
+  /** A sighting the watch raised: the id of its picture in the picture store, when it kept one. */
+  pictureId?: string;
+  /** True for a record of the watch's alert list that is not Motion and sound's (a sighting): it is marked there. */
+  inAlertList?: boolean;
 }
 
 /** A time a record holds: a number, or a date that parses. */
@@ -189,8 +201,27 @@ const animalWord = (type: unknown) => (type === 'unknown_animal' || typeof type 
 /** Every alert the records hold, seen or not, newest first. Changes no record. */
 export function groupAlerts(records: SavedRecords): DeviceAlert[] {
   const alerts: DeviceAlert[] = [];
+  // A Lost and Found alert counts when its subject is saved and is a pet or another thing.
+  const subjects = new Map(records.subjects.filter((s) => s.type === 'pet' || s.type === 'other').map((s) => [s.id, s]));
 
   for (const record of records.alerts) {
+    // A sighting the watch raised is its pet's Lost and Found alert, named by the saved pet; a
+    // person, or a pet no longer saved, is never named. Never Motion and sound's.
+    if (kindOfAlert(record) === 'sighting') {
+      const subject = record.subjectId ? subjects.get(record.subjectId) : undefined;
+      if (!subject) continue;
+      alerts.push({
+        id: record.id,
+        way: 'lost-found',
+        at: motionTime(record),
+        recordIds: [record.id],
+        seen: record.acknowledged === true,
+        what: `Colours like ${subject.name}’s`,
+        inAlertList: true,
+        ...(record.pictureId ? { pictureId: record.pictureId } : {}),
+      });
+      continue;
+    }
     alerts.push({
       id: record.id,
       way: 'monitor',
@@ -201,10 +232,10 @@ export function groupAlerts(records: SavedRecords): DeviceAlert[] {
     });
   }
 
-  // A Lost and Found frame counts when its subject is saved, is a pet or
-  // another thing, and the frame raised the alert. A frame saved before the
-  // `alerted` field is judged by the threshold as it is set now.
-  const subjects = new Map(records.subjects.filter((s) => s.type === 'pet' || s.type === 'other').map((s) => [s.id, s]));
+  // A Lost and Found frame an earlier version saved counts when its subject
+  // is saved, is a pet or another thing, and the frame raised the alert. A
+  // frame saved before the `alerted` field is judged by the threshold as it
+  // is set now.
   const counted = records.matchFrames.filter((frame) => {
     if (!subjects.has(frame.subjectId)) return false;
     if (typeof frame.alerted === 'boolean') return frame.alerted;
