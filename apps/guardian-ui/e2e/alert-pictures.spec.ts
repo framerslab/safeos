@@ -4072,9 +4072,10 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await other.goto('/settings/detection/', { waitUntil: 'networkidle' });
     await keepSwitch(group(other)).click();
     await expect(keepSwitch(group(other))).toHaveAttribute('aria-checked', 'false');
-    // The next alert comes well before this tab reads the choice from the browser.
-    await page.evaluate(() => { window.__camera!.moving.width = 1 / 3; });
-    await expect(cards(page)).toHaveCount(2, { timeout: 20_000 });
+    // The next alert comes well before this tab reads the choice from the browser. The picture holds
+    // still long enough to end the first event first, however quickly the other tab opened, so the
+    // next alert is a new event's, on a card of its own.
+    await raiseEvents(page, 2, 2);
     await expect(cards(page).first().getByText(NOT_KEPT_LINE, { exact: true })).toBeVisible();
     await page.waitForTimeout(3_000);
     expect(await keptCount(page), 'the new alert’s picture is not kept').toBe(1);
