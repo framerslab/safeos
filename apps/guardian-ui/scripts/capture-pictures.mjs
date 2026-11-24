@@ -321,6 +321,7 @@ try {
       }
     }
     failures += await captureLostAndFoundWatch(browser, baseUrl, outDir);
+    failures += await captureWatchStates(browser, baseUrl, outDir);
   }
   // A profile save of a server session that the server does not take, and one of a browser-only
   // session that this browser cannot write. The base build shows its own words for the same saves;
@@ -870,6 +871,111 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 // -----------------------------------------------------------------------------
 
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
+// Both versions: the watch at 390 and 1280 px in both looks while its camera
+// starts, with a blocked camera, while watching, and with its settings open
+// (monitor-watch-<state>-<width>-<look>.png). The base build's start key reads
+// "Start Monitoring" and this build's "Start watching"; the base build has no
+// Show settings, so its settings picture is the page as it stands, scrolled
+// to its settings. Each picture waits for its state to show (this build's
+// Starting the camera…, Try again and Hide settings; the base build's Cancel
+// Starting, Camera Error and Mode Selection), and a state that does not show
+// fails that picture alone. A canvas stands in for the camera.
+async function captureWatchStates(browser, baseUrl, outDir) {
+  let failed = 0;
+  const after = process.env.PICTURE_VERSION === 'after';
+  const startKey = (page) => page.getByRole('button', { name: /^(Start watching|Start Monitoring)$/ }).first();
+  const stopKey = (page) => page.getByRole('button', { name: /^(Stop watching|Stop Monitoring)$/ }).first();
+  // What each version shows once the state stands: this build's key and Try
+  // again; the base build's Cancel Starting and its camera's error.
+  const shownFor = (page, state) => (state === 'starting'
+    ? page.getByRole('button', { name: after ? 'Starting the camera…' : 'Cancel Starting', exact: true })
+    : after
+      ? page.getByRole('button', { name: 'Try again', exact: true })
+      : page.getByText('Camera Error', { exact: true })).first();
+  for (const state of ['starting', 'blocked', 'watching', 'settings']) {
+    for (const size of WIDTHS.filter((each) => each.width === 390 || each.width === 1280)) {
+      for (const look of LOOKS) {
+        const file = path.join(outDir, `monitor-watch-${state}-${size.width}-${look}.png`);
+        let context = null;
+        let failedHere = false;
+        try {
+          context = await finishedSetupContext(browser, {
+            viewport: { width: size.width, height: size.height },
+            isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look,
+          });
+          await context.addInitScript((answer) => {
+            localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
+            localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+            const media = navigator.mediaDevices;
+            if (!media) return;
+            media.getUserMedia = async (constraints) => {
+              if (answer === 'held') return new Promise(() => {});
+              if (answer === 'blocked') throw new DOMException('Permission denied', 'NotAllowedError');
+              const canvas = document.createElement('canvas');
+              canvas.width = 640;
+              canvas.height = 360;
+              const pen = canvas.getContext('2d');
+              let tick = 0;
+              setInterval(() => {
+                tick += 1;
+                pen.fillStyle = '#3b4a57';
+                pen.fillRect(0, 0, 640, 360);
+                pen.fillStyle = '#c9b48a';
+                pen.fillRect(120 + ((tick * 12) % 360), 140, 140, 120);
+              }, 150);
+              const stream = canvas.captureStream(10);
+              if (constraints && constraints.audio) {
+                const audio = new AudioContext();
+                const out = audio.createMediaStreamDestination();
+                audio.createOscillator().connect(out);
+                out.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
+              }
+              return stream;
+            };
+          }, state === 'starting' ? 'held' : state === 'blocked' ? 'blocked' : 'ok');
+          const page = await context.newPage();
+          await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+          if (state === 'settings') {
+            if (after) {
+              await page.getByRole('button', { name: 'Show settings', exact: true }).click({ timeout: 30_000 });
+              await page.getByRole('button', { name: 'Hide settings', exact: true }).waitFor({ timeout: 10_000 });
+              await page.locator('.watch-fold').scrollIntoViewIfNeeded();
+            } else {
+              await page.getByRole('heading', { name: 'Mode Selection', exact: true }).scrollIntoViewIfNeeded({ timeout: 30_000 });
+            }
+          } else {
+            await startKey(page).click({ timeout: 30_000 });
+            if (state === 'watching') {
+              await stopKey(page).waitFor({ timeout: 30_000 });
+              await page.waitForTimeout(2_000);
+              // Stop watching shows while paused too; the picture is taken live.
+              if (after) await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 10_000 });
+            } else {
+              await shownFor(page, state).waitFor({ timeout: 30_000 });
+            }
+            await page.evaluate(() => window.scrollTo(0, 0));
+          }
+          await page.waitForTimeout(400);
+          await page.screenshot({ path: file, animations: 'disabled', caret: 'hide' });
+          console.log(`captured ${file}`);
+        } catch (err) {
+          failed += 1;
+          failedHere = true;
+          console.error(`failed monitor ${state} at ${size.width} ${look}: ${err.message}`);
+        } finally {
+          // A context that will not close fails its picture, once, and the
+          // pictures after it are still taken.
+          await context?.close().catch((err) => {
+            if (!failedHere) failed += 1;
+            console.error(`failed monitor ${state} at ${size.width} ${look}: the browser context did not close: ${err.message}`);
+          });
+        }
+      }
+    }
+  }
+  return failed;
+}
+
 async function finishedSetupContext(browser, options) {
   const context = await browser.newContext(options);
   await context.addInitScript(OWN_WINDOW);

@@ -27,6 +27,8 @@ import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 
 interface InlineSettingsPanelProps {
   defaultExpanded?: string[];
+  /** Whether this device's own server is connected; Analysis Interval shows only then. */
+  serverConnected?: boolean;
 }
 
 const PRESET_BUTTONS: { id: PresetId; label: string; icon: React.ReactNode; color: string }[] = [
@@ -53,6 +55,17 @@ const PRESET_BUTTONS: { id: PresetId; label: string; icon: React.ReactNode; colo
       </svg>
     ),
     color: 'bg-amber-500/20 text-amber-400 border-amber-500/50',
+  },
+  {
+    id: 'deep_sleep_minimal',
+    label: 'Deep sleep',
+    icon: (
+      <svg className="w-4 h-4 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <path d="M4 6h6l-6 8h6" />
+        <path d="M14 12h6l-6 8h6" />
+      </svg>
+    ),
+    color: 'bg-indigo-500/20 text-indigo-400 border-indigo-500/50',
   },
   {
     id: 'silent',
@@ -108,7 +121,7 @@ const SEVERITY_OPTIONS: { value: AlertSeverity; label: string; color: string }[]
   { value: 'critical', label: 'Crit', color: 'bg-red-500/20 text-red-400' },
 ];
 
-export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineSettingsPanelProps) {
+export function InlineSettingsPanel({ defaultExpanded = ['detection'], serverConnected = false }: InlineSettingsPanelProps) {
   const [mounted, setMounted] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(defaultExpanded));
 
@@ -408,15 +421,18 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'] }: InlineS
         <div className="text-[10px] text-slate-500 -mt-2">
           Lower = more sensitive (fewer pixels needed to trigger)
         </div>
-        <SettingsSlider
-          label="Analysis Interval"
-          value={watchSettings.analysisInterval}
-          onChange={(v) => tuneWatch({ analysisInterval: v })}
-          min={1}
-          max={60}
-          unit="s"
-          color="amber"
-        />
+        {/* How often frames go to this device's own server: shown only while one is connected. */}
+        {serverConnected && (
+          <SettingsSlider
+            label="Analysis Interval"
+            value={watchSettings.analysisInterval}
+            onChange={(v) => tuneWatch({ analysisInterval: v })}
+            min={1}
+            max={60}
+            unit="s"
+            color="amber"
+          />
+        )}
       </ExpandableSection>
 
       {/* Audio Settings */}

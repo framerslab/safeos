@@ -208,13 +208,13 @@ async function seededContext(browser, { size, look, settings, answered = true, b
   return context;
 }
 
-const startKey = (page) => page.getByRole('button', { name: 'Start Monitoring', exact: true });
-const stopKey = (page) => page.getByRole('button', { name: 'Stop Monitoring', exact: true });
+const startKey = (page) => page.getByRole('button', { name: 'Start watching', exact: true });
+const stopKey = (page) => page.getByRole('button', { name: 'Stop watching', exact: true });
 const cards = (page) => page.locator('[data-alert-card]');
 
 async function startWatch(page) {
   await startKey(page).click({ timeout: 60_000 });
-  await page.getByText('LIVE', { exact: true }).waitFor({ timeout: 30_000 });
+  await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 30_000 });
 }
 
 /** Waits until `count` cards hold a picture whose lead line matches `lead`. */
@@ -350,6 +350,7 @@ async function motionStates(browser, size, look) {
       await page.keyboard.press('Escape');
       await dialog.waitFor({ state: 'detached', timeout: 10_000 });
 
+      await page.getByRole('button', { name: 'Show settings', exact: true }).click();
       const head = page.getByRole('button', { name: /^Alert pictures/ });
       if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
       await page.getByRole('group', { name: 'Alert pictures', exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
@@ -512,7 +513,7 @@ async function sightingState(browser, size, look) {
       await next.click();
       await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
       await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
-      await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
+      await page.waitForURL(/\/monitor\/?(\?.*)?$/, { timeout: 60_000 });
       await startWatch(page);
       const card = cards(page).filter({ hasText: QUESTION }).first();
       await card.waitFor({ timeout: 120_000 });

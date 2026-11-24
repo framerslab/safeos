@@ -458,10 +458,10 @@ export const LEFT_THIRD: CanvasCamera = {
   levels: [0, 85, 170, 255],
 };
 
-/** Presses Start Monitoring and waits for the live picture. */
+/** Presses Start watching and waits for the live picture. */
 export async function startWatching(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-  await page.getByText('LIVE', { exact: true }).waitFor({ state: 'visible', timeout: 30_000 });
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+  await page.locator('.watch-frame[data-phase="live"]').waitFor({ state: 'visible', timeout: 30_000 });
 }
 
 // =============================================================================

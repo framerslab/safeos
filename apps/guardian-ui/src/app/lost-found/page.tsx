@@ -97,7 +97,7 @@ export default function LostFoundPage() {
     if (!current || current.id !== petId || current.type === 'person') return false;
     setLostFoundChosen(true);
     startWatching();
-    router.push('/monitor');
+    router.push(`/monitor/?way=lost-found&pet=${encodeURIComponent(petId)}`);
   };
 
   // Setup complete handler

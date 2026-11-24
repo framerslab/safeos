@@ -428,171 +428,179 @@ for (const look of ['dark', 'light'] as const) {
   });
 }
 
-test.describe('The card on a canvas camera, 1280 px', () => {
-  test.use({ viewport: { width: 1280, height: 900 } });
+for (const look of ['light', 'dark'] as const) {
+  test.describe(`The card on a canvas camera, 1280 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 1280, height: 900 } });
 
-  test('a repeat puts the newest picture and time on the card and keeps focus', async ({ page, context }) => {
-    test.setTimeout(150_000);
-    await watchWith(page, context, { settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(20) }, camera: LEFT_THIRD });
-    const card = cards(page).first();
-    const first = await timeOf(card, 'Motion');
-    const picture = card.getByRole('img', { name: pictureName(first, true), exact: true });
-    await expect(picture).toBeVisible();
-    const firstSrc = await picture.getAttribute('src');
-    const mute = page.getByRole('button', { name: /^(Mute|Unmute) alerts$/ });
-    await mute.focus();
-    await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 60_000 });
-    await expect(cards(page)).toHaveCount(1);
-    const later = await timeOf(card, 'Motion');
-    expect(later).not.toBe(first);
-    const newer = card.getByRole('img', { name: pictureName(later, true), exact: true });
-    await expect(newer).toBeVisible();
-    expect(await newer.getAttribute('src')).not.toBe(firstSrc);
-    expect(await mute.evaluate((el) => el === document.activeElement), 'a repeat never moves focus').toBe(true);
-  });
-
-  test('Stop right after an alert keeps that alert\'s own picture', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
-    const card = cards(page).first();
-    await expect(card).toBeVisible({ timeout: 60_000 });
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
-    const time = await timeOf(card, 'Motion');
-    const picture = card.getByRole('img', { name: pictureName(time, true), exact: true });
-    await expect(picture).toBeVisible();
-    const size = await naturalSize(picture);
-    const src = (await picture.getAttribute('src'))!;
-    // The left third is redrawn at grey levels 0 to 255 every 40 ms; the rest is a flat 128.
-    const left = Array.from({ length: 24 }, (_, i) => [((i % 6) + 0.5) * size.width / 18, (Math.floor(i / 6) + 0.5) * size.height / 4] as [number, number]);
-    const right = Array.from({ length: 6 }, (_, i) => [size.width * (0.6 + i * 0.06), size.height / 2] as [number, number]);
-    const leftGreys = (await pixelsAt(page, src, left)).map(([r]) => r);
-    const rightGreys = (await pixelsAt(page, src, right)).map(([r]) => r);
-    const spread = Math.max(...leftGreys) - Math.min(...leftGreys);
-    expect(spread, `the moving third shows its changing greys (${leftGreys})`).toBeGreaterThan(60);
-    for (const grey of rightGreys) expect(Math.abs(grey - 128), `the still part is its flat grey (${rightGreys})`).toBeLessThanOrEqual(16);
-  });
-
-  test('an acknowledged card keeps its picture', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    await card.getByRole('button', { name: 'Acknowledge', exact: true }).click();
-    await page.getByRole('button', { name: /^Expand 1 acknowledged alert$/ }).click();
-    const acknowledged = page.locator('[data-alert-card][data-acknowledged]').first();
-    await expect(acknowledged.getByRole('img', { name: new RegExp(`^(${escape(closeUpName(time))}|${escape(pictureName(time, true))})$`) })).toBeVisible();
-    await expect(acknowledged.getByText(kindLine('Motion'))).toBeVisible();
-  });
-
-  test('a repeat acknowledged in a second tab goes on a fresh card with its own picture', async ({ page, context }) => {
-    test.setTimeout(150_000);
-    await watchWith(page, context, {
-      settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
-      camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 1, height: 1 } },
+    test('a repeat puts the newest picture and time on the card and keeps focus', async ({ page, context }) => {
+      test.setTimeout(150_000);
+      await watchWith(page, context, { settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(20) }, camera: LEFT_THIRD });
+      const card = cards(page).first();
+      const first = await timeOf(card, 'Motion');
+      const picture = card.getByRole('img', { name: pictureName(first, true), exact: true });
+      await expect(picture).toBeVisible();
+      const firstSrc = await picture.getAttribute('src');
+      const mute = page.getByRole('button', { name: /^(Mute|Unmute) alerts$/ });
+      await mute.focus();
+      await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 60_000 });
+      await expect(cards(page)).toHaveCount(1);
+      const later = await timeOf(card, 'Motion');
+      expect(later).not.toBe(first);
+      const newer = card.getByRole('img', { name: pictureName(later, true), exact: true });
+      await expect(newer).toBeVisible();
+      expect(await newer.getAttribute('src')).not.toBe(firstSrc);
+      expect(await mute.evaluate((el) => el === document.activeElement), 'a repeat never moves focus').toBe(true);
     });
-    const card = cards(page).first();
-    const first = await timeOf(card, 'Motion');
-    const other = await context.newPage();
-    await other.goto('/about/', { waitUntil: 'domcontentloaded' });
-    await expect.poll(async () => monitoringAlerts(await databaseNow(other)).length, { timeout: 15_000 }).toBe(1);
-    const [saved] = monitoringAlerts(await readDatabase(other));
-    await other.evaluate((id) => new Promise<void>((resolve, reject) => {
-      const open = indexedDB.open('safeos-guardian');
-      open.onsuccess = () => {
-        const db = open.result;
-        const tx = db.transaction('alert_cache', 'readwrite');
-        const store = tx.objectStore('alert_cache');
-        const read = store.get(id);
-        read.onsuccess = () => { store.put({ ...read.result, acknowledged: true, acknowledgementOrder: 0 }); };
-        tx.oncomplete = () => { db.close(); resolve(); };
-        tx.onerror = () => { db.close(); reject(tx.error); };
-      };
-      open.onerror = () => reject(open.error);
-    }), saved.id as string);
-    // The event's next alert finds its card acknowledged and goes on a fresh card.
-    await expect.poll(async () => monitoringAlerts(await databaseNow(other)).length, { timeout: 40_000 }).toBe(2);
-    await other.close();
-    const fresh = page.locator('[data-alert-card]:not([data-acknowledged])').first();
-    const later = await timeOf(fresh, 'Motion');
-    await expect(fresh.getByRole('img', { name: pictureName(later, true), exact: true })).toBeVisible();
-    await page.getByRole('button', { name: /^Expand \d+ acknowledged alerts?$/ }).click();
-    const kept = page.locator('[data-alert-card][data-acknowledged]').first();
-    await expect(kept.getByText(`Motion at ${first}`, { exact: true })).toBeVisible();
-    await expect(kept.getByRole('img', { name: new RegExp(`at ${escape(first)}`) })).toBeVisible();
-  });
 
-  test('a Picture change alert in instant mode shows the picture alone', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await watchWith(page, context, { settings: { activePresetId: 'infant_sleep' }, camera: LEFT_THIRD });
-    const card = cards(page).filter({ has: page.getByText(kindLine('Picture change')) }).first();
-    const time = await timeOf(card, 'Picture change');
-    await expect(card.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
-    await expect(card.locator('.alert-picture__box')).toHaveCount(0);
-    await expect(card.getByRole('img', { name: /^Close-up/ })).toHaveCount(0);
-  });
-
-  test('a Picture change close-up with no reading says light or a shadow can set it off', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await watchWith(page, context, {
-      settings: { activePresetId: 'custom', globalSettings: { ...CUSTOM_PRESET, pixelDetectionEnabled: true, motionDetectionEnabled: false } },
-      camera: LEFT_THIRD,
+    test('Stop right after an alert keeps that alert\'s own picture', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+      const card = cards(page).first();
+      await expect(card).toBeVisible({ timeout: 60_000 });
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+      const time = await timeOf(card, 'Motion');
+      const picture = card.getByRole('img', { name: pictureName(time, true), exact: true });
+      await expect(picture).toBeVisible();
+      const size = await naturalSize(picture);
+      const src = (await picture.getAttribute('src'))!;
+      // The left third is redrawn at grey levels 0 to 255 every 40 ms; the rest is a flat 128.
+      const left = Array.from({ length: 24 }, (_, i) => [((i % 6) + 0.5) * size.width / 18, (Math.floor(i / 6) + 0.5) * size.height / 4] as [number, number]);
+      const right = Array.from({ length: 6 }, (_, i) => [size.width * (0.6 + i * 0.06), size.height / 2] as [number, number]);
+      const leftGreys = (await pixelsAt(page, src, left)).map(([r]) => r);
+      const rightGreys = (await pixelsAt(page, src, right)).map(([r]) => r);
+      const spread = Math.max(...leftGreys) - Math.min(...leftGreys);
+      expect(spread, `the moving third shows its changing greys (${leftGreys})`).toBeGreaterThan(60);
+      for (const grey of rightGreys) expect(Math.abs(grey - 128), `the still part is its flat grey (${rightGreys})`).toBeLessThanOrEqual(16);
     });
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Picture change');
-    await expect(card.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
-    const line = card.getByText('Light or a shadow can set off a Picture change alert.', { exact: true });
-    await expect(line).toBeVisible();
-    expect(await line.evaluate((el) => el.classList.contains('alert-picture__quiet'))).toBe(true);
-  });
 
-  test('a portrait camera\'s picture stands whole in a 4:3 tile with its box on the change', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    // The moving part is five whole rows of the motion check's 16 by 12 grid (cells 45 by 106 px),
-    // across the picture: two fifths of the frame, over the watch's line and under half.
-    const moving = { x: 0, y: 318 / 1280, width: 1, height: 530 / 1280 };
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: { width: 720, height: 1280, background: 128, moving, levels: [0, 85, 170, 255] } });
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    const picture = card.getByRole('img', { name: pictureName(time, true), exact: true });
-    await expect(picture).toBeVisible();
-    const frame = card.locator('.alert-picture__frame').first();
-    const tile = (await frame.boundingBox())!;
-    expect(Math.abs(tile.width / tile.height - 4 / 3), 'the tile is 4:3').toBeLessThanOrEqual(0.02);
-    expect(await picture.evaluate((img) => getComputedStyle(img).objectFit)).toBe('contain');
-    // The picture stands whole: its height fills the tile and its width is 720/1280 of that.
-    const shownWidth = tile.height * 720 / 1280;
-    const left = tile.x + (tile.width - shownWidth) / 2;
-    const scale = tile.height / 1280;
-    const want = { x: left, y: tile.y + 318 * scale, width: 720 * scale, height: 530 * scale };
-    const drawn = (await frame.locator('.alert-picture__box').boundingBox())!;
-    for (const key of ['x', 'y', 'width', 'height'] as const) {
-      expect(Math.abs(drawn[key] - want[key]), `the box's ${key} (${drawn[key]} against ${want[key]})`).toBeLessThanOrEqual(2);
-    }
-  });
+    test('an acknowledged card keeps its picture', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await card.getByRole('button', { name: 'Acknowledge', exact: true }).click();
+      await page.getByRole('button', { name: /^Expand 1 acknowledged alert$/ }).click();
+      const acknowledged = page.locator('[data-alert-card][data-acknowledged]').first();
+      await expect(acknowledged.getByRole('img', { name: new RegExp(`^(${escape(closeUpName(time))}|${escape(pictureName(time, true))})$`) })).toBeVisible();
+      await expect(acknowledged.getByText(kindLine('Motion'))).toBeVisible();
+    });
 
-  test('a box over half of the frame has no close-up', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0.75, height: 1 } } });
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
-    await expect(card.locator('.alert-picture__box')).toHaveCount(1);
-    await expect(card.getByRole('img', { name: /^Close-up/ })).toHaveCount(0);
-    await expect(card.getByText('Close-up', { exact: true })).toHaveCount(0);
-  });
+    test('a repeat acknowledged in a second tab goes on a fresh card with its own picture', async ({ page, context }) => {
+      test.setTimeout(150_000);
+      await watchWith(page, context, {
+        settings: { ...MOTION_ONLY, timingSettings: cooldownPeriod(10) },
+        camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 1, height: 1 } },
+      });
+      const card = cards(page).first();
+      const first = await timeOf(card, 'Motion');
+      const other = await context.newPage();
+      await other.goto('/about/', { waitUntil: 'domcontentloaded' });
+      await expect.poll(async () => monitoringAlerts(await databaseNow(other)).length, { timeout: 15_000 }).toBe(1);
+      const [saved] = monitoringAlerts(await readDatabase(other));
+      await other.evaluate((id) => new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('safeos-guardian');
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction('alert_cache', 'readwrite');
+          const store = tx.objectStore('alert_cache');
+          const read = store.get(id);
+          read.onsuccess = () => { store.put({ ...read.result, acknowledged: true, acknowledgementOrder: 0 }); };
+          tx.oncomplete = () => { db.close(); resolve(); };
+          tx.onerror = () => { db.close(); reject(tx.error); };
+        };
+        open.onerror = () => reject(open.error);
+      }), saved.id as string);
+      // The event's next alert finds its card acknowledged and goes on a fresh card.
+      await expect.poll(async () => monitoringAlerts(await databaseNow(other)).length, { timeout: 40_000 }).toBe(2);
+      await other.close();
+      const fresh = page.locator('[data-alert-card]:not([data-acknowledged])').first();
+      const later = await timeOf(fresh, 'Motion');
+      await expect(fresh.getByRole('img', { name: pictureName(later, true), exact: true })).toBeVisible();
+      await page.getByRole('button', { name: /^Expand \d+ acknowledged alerts?$/ }).click();
+      const kept = page.locator('[data-alert-card][data-acknowledged]').first();
+      await expect(kept.getByText(`Motion at ${first}`, { exact: true })).toBeVisible();
+      await expect(kept.getByRole('img', { name: new RegExp(`at ${escape(first)}`) })).toBeVisible();
+    });
 
-  test('a dark picture carries the night light line', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await watchWith(page, context, { settings: MOTION_ONLY, camera: { ...LEFT_THIRD, background: 10, levels: [0, 40, 80] } });
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
-    await expect(card.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
-    const line = card.getByText('This picture is too dark to show much. With a night light in the room, the camera shows more.', { exact: true });
-    await expect(line).toBeVisible();
-    expect(await line.evaluate((el) => el.classList.contains('alert-picture__quiet'))).toBe(true);
+    test('a Picture change alert in instant mode shows the picture alone', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: { activePresetId: 'infant_sleep' }, camera: LEFT_THIRD });
+      const card = cards(page).filter({ has: page.getByText(kindLine('Picture change')) }).first();
+      const time = await timeOf(card, 'Picture change');
+      await expect(card.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
+      await expect(card.locator('.alert-picture__box')).toHaveCount(0);
+      await expect(card.getByRole('img', { name: /^Close-up/ })).toHaveCount(0);
+    });
   });
-});
+}
+
+for (const look of ['light', 'dark'] as const) {
+  test.describe(`The card on a canvas camera, 390 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 390, height: 900 } });
+
+    test('a Picture change close-up with no reading says light or a shadow can set it off', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await watchWith(page, context, {
+        settings: { activePresetId: 'custom', globalSettings: { ...CUSTOM_PRESET, pixelDetectionEnabled: true, motionDetectionEnabled: false } },
+        camera: LEFT_THIRD,
+      });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Picture change');
+      await expect(card.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
+      const line = card.getByText('Light or a shadow can set off a Picture change alert.', { exact: true });
+      await expect(line).toBeVisible();
+      expect(await line.evaluate((el) => el.classList.contains('alert-picture__quiet'))).toBe(true);
+    });
+
+    test('a portrait camera\'s picture stands whole in a 4:3 tile with its box on the change', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      // The moving part is five whole rows of the motion check's 16 by 12 grid (cells 45 by 106 px),
+      // across the picture: two fifths of the frame, over the watch's line and under half.
+      const moving = { x: 0, y: 318 / 1280, width: 1, height: 530 / 1280 };
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: { width: 720, height: 1280, background: 128, moving, levels: [0, 85, 170, 255] } });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      const picture = card.getByRole('img', { name: pictureName(time, true), exact: true });
+      await expect(picture).toBeVisible();
+      const frame = card.locator('.alert-picture__frame').first();
+      const tile = (await frame.boundingBox())!;
+      expect(Math.abs(tile.width / tile.height - 4 / 3), 'the tile is 4:3').toBeLessThanOrEqual(0.02);
+      expect(await picture.evaluate((img) => getComputedStyle(img).objectFit)).toBe('contain');
+      // The picture stands whole: its height fills the tile and its width is 720/1280 of that.
+      const shownWidth = tile.height * 720 / 1280;
+      const left = tile.x + (tile.width - shownWidth) / 2;
+      const scale = tile.height / 1280;
+      const want = { x: left, y: tile.y + 318 * scale, width: 720 * scale, height: 530 * scale };
+      const drawn = (await frame.locator('.alert-picture__box').boundingBox())!;
+      for (const key of ['x', 'y', 'width', 'height'] as const) {
+        expect(Math.abs(drawn[key] - want[key]), `the box's ${key} (${drawn[key]} against ${want[key]})`).toBeLessThanOrEqual(2);
+      }
+    });
+
+    test('a box over half of the frame has no close-up', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0.75, height: 1 } } });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+      await expect(card.locator('.alert-picture__box')).toHaveCount(1);
+      await expect(card.getByRole('img', { name: /^Close-up/ })).toHaveCount(0);
+      await expect(card.getByText('Close-up', { exact: true })).toHaveCount(0);
+    });
+
+    test('a dark picture carries the night light line', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: MOTION_ONLY, camera: { ...LEFT_THIRD, background: 10, levels: [0, 40, 80] } });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+      await expect(card.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
+      const line = card.getByText('This picture is too dark to show much. With a night light in the room, the camera shows more.', { exact: true });
+      await expect(line).toBeVisible();
+      expect(await line.evaluate((el) => el.classList.contains('alert-picture__quiet'))).toBe(true);
+    });
+  });
+}
 
 test.describe('The card for an alert of another kind or one saved before pictures', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
@@ -799,8 +807,8 @@ const keepSwitch = (root: Page | Locator) => root.getByRole('switch', { name: 'K
 const afterSelect = (root: Page | Locator) => root.getByLabel('Delete pictures after', { exact: true });
 const countLine = (root: Page | Locator) => root.getByRole('status').filter({ hasText: /kept on this device$/ });
 const deleteAll = (root: Page | Locator) => root.getByRole('button', { name: 'Delete all pictures', exact: true });
-const startKey = (page: Page) => page.getByRole('button', { name: 'Start Monitoring', exact: true });
-const live = (page: Page) => page.getByText('LIVE', { exact: true });
+const startKey = (page: Page) => page.locator('.watch-frame').getByRole('button', { name: 'Start watching', exact: true });
+const live = (page: Page) => page.locator('.watch-frame[data-phase="live"]');
 const listLine = (page: Page, line: string) => page.locator('.alert-list-line').filter({ hasText: line });
 
 const keptRows = (reading: DatabaseReading | null) => (reading?.pictures ?? []).filter((row) => row.state === 'kept');
@@ -812,6 +820,8 @@ const keptCount = async (page: Page) => {
 
 /** Opens the watch's settings group "Alert pictures" and answers it. */
 async function openWatchGroup(page: Page): Promise<Locator> {
+  const settings = page.getByRole('button', { name: 'Show settings', exact: true });
+  if (await settings.isVisible()) await settings.click();
   const head = page.getByRole('button', { name: /^Alert pictures/ });
   if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
   const found = group(page);
@@ -1016,172 +1026,174 @@ test.describe('Setup’s age for pictures, 390 px', () => {
   });
 });
 
-test.describe('Keeping pictures, 390 px', () => {
-  test.use({ viewport: { width: 390, height: 900 } });
+for (const look of ['light', 'dark'] as const) {
+  test.describe(`Keeping pictures, 390 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 390, height: 900 } });
 
-  test('keeping off writes nothing, and after a reload the card has no picture', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await seedDevice(context, { settings: MOTION_ONLY });
-    await canvasCamera(page, LEFT_THIRD);
-    await page.goto('/monitor/', { waitUntil: 'networkidle' });
-    await startKey(page).click();
-    await keepSwitch(notice(page)).click();
-    await expect(keepSwitch(notice(page))).toHaveAttribute('aria-checked', 'false');
-    await notice(page).getByRole('button', { name: 'Start watching', exact: true }).click();
+    test('keeping off writes nothing, and after a reload the card has no picture', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await seedDevice(context, { settings: MOTION_ONLY });
+      await canvasCamera(page, LEFT_THIRD);
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startKey(page).click();
+      await keepSwitch(notice(page)).click();
+      await expect(keepSwitch(notice(page))).toHaveAttribute('aria-checked', 'false');
+      await notice(page).getByRole('button', { name: 'Start watching', exact: true }).click();
 
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
-    await expect(card.getByText(NOT_KEPT_LINE, { exact: true })).toBeVisible();
-    expect((await readDatabase(page)).pictures).toEqual([]);
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+      await expect(card.getByText(NOT_KEPT_LINE, { exact: true })).toBeVisible();
+      expect((await readDatabase(page)).pictures).toEqual([]);
 
-    // The link opens the watch's group at its switch.
-    await card.getByRole('link', { name: 'Keep alert pictures', exact: true }).click();
-    const keep = page.locator('#keep-alert-pictures');
-    await expect(keep).toBeVisible();
-    await expect(keep).toBeFocused();
-    await expect(keep).toHaveAttribute('aria-checked', 'false');
-    await expect(group(page).getByText(OFF_LINE, { exact: true })).toBeVisible();
-    expect((await readDatabase(page)).pictures).toEqual([]);
+      // The link opens the watch's group at its switch.
+      await card.getByRole('link', { name: 'Keep alert pictures', exact: true }).click();
+      const keep = page.locator('#keep-alert-pictures');
+      await expect(keep).toBeVisible();
+      await expect(keep).toBeFocused();
+      await expect(keep).toHaveAttribute('aria-checked', 'false');
+      await expect(group(page).getByText(OFF_LINE, { exact: true })).toBeVisible();
+      expect((await readDatabase(page)).pictures).toEqual([]);
 
-    await page.reload({ waitUntil: 'networkidle' });
-    const saved = cards(page).first();
-    await expect(saved.getByText(kindLine('Motion'))).toBeVisible();
-    await expect(saved.getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
-    await expect(saved.getByRole('button', { name: /^Open picture/ })).toHaveCount(0);
+      await page.reload({ waitUntil: 'networkidle' });
+      const saved = cards(page).first();
+      await expect(saved.getByText(kindLine('Motion'))).toBeVisible();
+      await expect(saved.getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
+      await expect(saved.getByRole('button', { name: /^Open picture/ })).toHaveCount(0);
+    });
+
+    test('a held save shows a tile in each picture’s place, then the pictures; a failed save shows the picture with its error line, and no picture after a reload', async ({ page, context }) => {
+      test.setTimeout(150_000);
+      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+      await canvasCamera(page, LEFT_THIRD);
+      await faultPictureStore(page, { holdSaveMs: 3_000 });
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startWatching(page);
+
+      // The card and its words come at once, with a tile where the picture goes.
+      const card = cards(page).first();
+      await timeOf(card, 'Motion');
+      await expect(card.locator('.alert-picture__wait')).toBeVisible();
+      await expect(card.getByRole('img')).toHaveCount(0);
+      await expect(card.locator('.alert-picture__wait')).toHaveAttribute('aria-hidden', 'true');
+      await expect(card.locator('.alert-picture__frame img')).toBeVisible({ timeout: 15_000 });
+      await expect(card.locator('.alert-picture__wait')).toHaveCount(0);
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+
+      // From here every save fails: the next alert's picture shows from memory with its error line.
+      await setFault(page, { writes: 'error' });
+      await raiseEvents(page, 2, 2);
+      const failed = cards(page).first();
+      await expect(failed.locator('.alert-picture__frame img')).toBeVisible({ timeout: 15_000 });
+      const line = failed.getByText(SAVE_FAILED_LINE, { exact: true });
+      await expect(line).toBeVisible();
+      await expect(failed.locator('.alert-picture__problem')).toHaveCount(1);
+      expect(await keptCount(page)).toBe(1);
+
+      // A newer alert, saved, moves it down the list to the small form: its line goes with it.
+      await setFault(page, {});
+      await raiseEvents(page, 3, 3);
+      const moved = cards(page).nth(1);
+      await expect(moved.locator('.alert-picture').first()).toHaveAttribute('data-form', 'small');
+      await expect(moved.locator('.alert-picture img').first()).toBeVisible();
+      await expect(moved.getByText(SAVE_FAILED_LINE, { exact: true })).toBeVisible();
+      await expect(moved.locator('.alert-picture__problem')).toHaveCount(1);
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(2);
+
+      await page.reload({ waitUntil: 'networkidle' });
+      await expect(cards(page)).toHaveCount(3);
+      await expect(cards(page).nth(1).getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
+      await expect(cards(page).first().locator('.alert-picture img').first()).toBeVisible();
+      await expect(cards(page).nth(2).locator('.alert-picture img').first()).toBeVisible();
+    });
+
+    test('out of room: the oldest picture goes with the new one’s save, or nothing goes', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+      await canvasCamera(page, LEFT_THIRD);
+      await faultPictureStore(page);
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startWatching(page);
+      await raiseEvents(page, 3);
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(3);
+      const before = keptRows(await readDatabase(page)).sort((a, b) => a.takenAt - b.takenAt).map((row) => row.id as string);
+
+      // The next write fails for lack of room until its transaction has deleted one picture.
+      await setFault(page, { quotaUntilDeletes: 1 });
+      await raiseEvents(page, 4, 4);
+      // A read that fails proves nothing: it answers neither yes nor no.
+      await expect.poll(async () => {
+        const reading = await databaseNow(page);
+        return reading ? keptRows(reading).map((row) => row.id).includes(before[0]) : 'unread';
+      }, { timeout: 15_000 }).toBe(false);
+      const after = keptRows(await readDatabase(page)).map((row) => row.id as string);
+      expect(after).toHaveLength(3);
+      expect(after).toEqual(expect.arrayContaining([before[1], before[2]]));
+      await expect(cards(page).first().locator('.alert-picture__frame img')).toBeVisible();
+      await expect(cards(page).last().getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
+      await expect(listLine(page, RAN_OUT_LINE)).toHaveCount(1);
+      await expect(page.getByRole('status').filter({ hasText: RAN_OUT_LINE })).toHaveCount(1);
+
+      // Every write fails for lack of room: nothing kept is deleted, and the new picture shows from memory.
+      await setFault(page, { writes: 'quota' });
+      await raiseEvents(page, 5, 5);
+      const newest = cards(page).first();
+      await expect(newest.locator('.alert-picture__frame img')).toBeVisible({ timeout: 15_000 });
+      await expect(newest.getByText(SAVE_FAILED_LINE, { exact: true })).toBeVisible();
+      expect(keptRows(await readDatabase(page)).map((row) => row.id as string).sort()).toEqual([...after].sort());
+      const outOfRoom = listLine(page, OUT_OF_ROOM_LINE);
+      await expect(outOfRoom).toHaveCount(1);
+      await expect(outOfRoom.locator('.alert-picture__problem')).toHaveCount(1);
+      await expect(outOfRoom.getByRole('link')).toHaveCount(0);
+
+      // Out of room for this visit: the dashboard says so, as it does for an alert the device refused.
+      await page.locator('nav[aria-label="App"]:visible').getByRole('link', { name: 'Dashboard', exact: true }).click();
+      await page.waitForURL(/\/dashboard\/?$/, { timeout: 60_000 });
+      await expect(page.getByRole('status').filter({ hasText: 'This device is out of room, so new alerts and pictures cannot be saved.' }))
+        .toBeVisible({ timeout: 15_000 });
+    });
+
+    test('a window that keeps nothing says so once and shows each picture', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+      await canvasCamera(page, LEFT_THIRD);
+      await faultPictureStore(page, { writes: 'error' });
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startWatching(page);
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+      // The list says it once, with no problem glyph; the card carries no line of its own.
+      const line = listLine(page, WINDOW_LINE);
+      await expect(line).toHaveCount(1);
+      await expect(line.locator('.alert-picture__problem')).toHaveCount(0);
+      await expect(card.getByText(SAVE_FAILED_LINE, { exact: true })).toHaveCount(0);
+      await expect(card.getByText(NOT_KEPT_LINE, { exact: true })).toHaveCount(0);
+      const found = await openWatchGroup(page);
+      await expect(found.getByText(WINDOW_LINE, { exact: true })).toBeVisible();
+      expect(await keptCount(page)).toBe(0);
+    });
+
+    test('the pictures and their store work offline', async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
+      await canvasCamera(page, LEFT_THIRD);
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await context.setOffline(true);
+      await startWatching(page);
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Motion');
+      await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
+      await expect(card.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
+      await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
+      // The group and the notice's link row say what the link needs.
+      const found = await openWatchGroup(page);
+      await expect(found.getByText('Opens ico.org.uk', { exact: true })).toBeVisible();
+      await expect(countLine(found)).toHaveText('1 picture kept on this device');
+      await context.setOffline(false);
+    });
   });
-
-  test('a held save shows a tile in each picture’s place, then the pictures; a failed save shows the picture with its error line, and no picture after a reload', async ({ page, context }) => {
-    test.setTimeout(150_000);
-    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
-    await canvasCamera(page, LEFT_THIRD);
-    await faultPictureStore(page, { holdSaveMs: 3_000 });
-    await page.goto('/monitor/', { waitUntil: 'networkidle' });
-    await startWatching(page);
-
-    // The card and its words come at once, with a tile where the picture goes.
-    const card = cards(page).first();
-    await timeOf(card, 'Motion');
-    await expect(card.locator('.alert-picture__wait')).toBeVisible();
-    await expect(card.getByRole('img')).toHaveCount(0);
-    await expect(card.locator('.alert-picture__wait')).toHaveAttribute('aria-hidden', 'true');
-    await expect(card.locator('.alert-picture__frame img')).toBeVisible({ timeout: 15_000 });
-    await expect(card.locator('.alert-picture__wait')).toHaveCount(0);
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
-
-    // From here every save fails: the next alert's picture shows from memory with its error line.
-    await setFault(page, { writes: 'error' });
-    await raiseEvents(page, 2, 2);
-    const failed = cards(page).first();
-    await expect(failed.locator('.alert-picture__frame img')).toBeVisible({ timeout: 15_000 });
-    const line = failed.getByText(SAVE_FAILED_LINE, { exact: true });
-    await expect(line).toBeVisible();
-    await expect(failed.locator('.alert-picture__problem')).toHaveCount(1);
-    expect(await keptCount(page)).toBe(1);
-
-    // A newer alert, saved, moves it down the list to the small form: its line goes with it.
-    await setFault(page, {});
-    await raiseEvents(page, 3, 3);
-    const moved = cards(page).nth(1);
-    await expect(moved.locator('.alert-picture').first()).toHaveAttribute('data-form', 'small');
-    await expect(moved.locator('.alert-picture img').first()).toBeVisible();
-    await expect(moved.getByText(SAVE_FAILED_LINE, { exact: true })).toBeVisible();
-    await expect(moved.locator('.alert-picture__problem')).toHaveCount(1);
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(2);
-
-    await page.reload({ waitUntil: 'networkidle' });
-    await expect(cards(page)).toHaveCount(3);
-    await expect(cards(page).nth(1).getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
-    await expect(cards(page).first().locator('.alert-picture img').first()).toBeVisible();
-    await expect(cards(page).nth(2).locator('.alert-picture img').first()).toBeVisible();
-  });
-
-  test('out of room: the oldest picture goes with the new one’s save, or nothing goes', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
-    await canvasCamera(page, LEFT_THIRD);
-    await faultPictureStore(page);
-    await page.goto('/monitor/', { waitUntil: 'networkidle' });
-    await startWatching(page);
-    await raiseEvents(page, 3);
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(3);
-    const before = keptRows(await readDatabase(page)).sort((a, b) => a.takenAt - b.takenAt).map((row) => row.id as string);
-
-    // The next write fails for lack of room until its transaction has deleted one picture.
-    await setFault(page, { quotaUntilDeletes: 1 });
-    await raiseEvents(page, 4, 4);
-    // A read that fails proves nothing: it answers neither yes nor no.
-    await expect.poll(async () => {
-      const reading = await databaseNow(page);
-      return reading ? keptRows(reading).map((row) => row.id).includes(before[0]) : 'unread';
-    }, { timeout: 15_000 }).toBe(false);
-    const after = keptRows(await readDatabase(page)).map((row) => row.id as string);
-    expect(after).toHaveLength(3);
-    expect(after).toEqual(expect.arrayContaining([before[1], before[2]]));
-    await expect(cards(page).first().locator('.alert-picture__frame img')).toBeVisible();
-    await expect(cards(page).last().getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
-    await expect(listLine(page, RAN_OUT_LINE)).toHaveCount(1);
-    await expect(page.getByRole('status').filter({ hasText: RAN_OUT_LINE })).toHaveCount(1);
-
-    // Every write fails for lack of room: nothing kept is deleted, and the new picture shows from memory.
-    await setFault(page, { writes: 'quota' });
-    await raiseEvents(page, 5, 5);
-    const newest = cards(page).first();
-    await expect(newest.locator('.alert-picture__frame img')).toBeVisible({ timeout: 15_000 });
-    await expect(newest.getByText(SAVE_FAILED_LINE, { exact: true })).toBeVisible();
-    expect(keptRows(await readDatabase(page)).map((row) => row.id as string).sort()).toEqual([...after].sort());
-    const outOfRoom = listLine(page, OUT_OF_ROOM_LINE);
-    await expect(outOfRoom).toHaveCount(1);
-    await expect(outOfRoom.locator('.alert-picture__problem')).toHaveCount(1);
-    await expect(outOfRoom.getByRole('link')).toHaveCount(0);
-
-    // Out of room for this visit: the dashboard says so, as it does for an alert the device refused.
-    await page.locator('nav[aria-label="App"]:visible').getByRole('link', { name: 'Dashboard', exact: true }).click();
-    await page.waitForURL(/\/dashboard\/?$/, { timeout: 60_000 });
-    await expect(page.getByRole('status').filter({ hasText: 'This device is out of room, so new alerts and pictures cannot be saved.' }))
-      .toBeVisible({ timeout: 15_000 });
-  });
-
-  test('a window that keeps nothing says so once and shows each picture', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
-    await canvasCamera(page, LEFT_THIRD);
-    await faultPictureStore(page, { writes: 'error' });
-    await page.goto('/monitor/', { waitUntil: 'networkidle' });
-    await startWatching(page);
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
-    // The list says it once, with no problem glyph; the card carries no line of its own.
-    const line = listLine(page, WINDOW_LINE);
-    await expect(line).toHaveCount(1);
-    await expect(line.locator('.alert-picture__problem')).toHaveCount(0);
-    await expect(card.getByText(SAVE_FAILED_LINE, { exact: true })).toHaveCount(0);
-    await expect(card.getByText(NOT_KEPT_LINE, { exact: true })).toHaveCount(0);
-    const found = await openWatchGroup(page);
-    await expect(found.getByText(WINDOW_LINE, { exact: true })).toBeVisible();
-    expect(await keptCount(page)).toBe(0);
-  });
-
-  test('the pictures and their store work offline', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await seedDevice(context, { settings: MOTION_ONLY, pictures: { noticeAnswered: true } });
-    await canvasCamera(page, LEFT_THIRD);
-    await page.goto('/monitor/', { waitUntil: 'networkidle' });
-    await context.setOffline(true);
-    await startWatching(page);
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Motion');
-    await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
-    await expect(card.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
-    await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
-    // The group and the notice's link row say what the link needs.
-    const found = await openWatchGroup(page);
-    await expect(found.getByText('Opens ico.org.uk', { exact: true })).toBeVisible();
-    await expect(countLine(found)).toHaveText('1 picture kept on this device');
-    await context.setOffline(false);
-  });
-});
+}
 
 for (const look of ['dark', 'light'] as const) {
   test.describe(`The kept files, 390 px, ${look}`, () => {
@@ -1806,6 +1818,39 @@ test.describe('The group and the notice: order, sizes and faults', () => {
     });
   }
 
+  for (const look of ['light', 'dark'] as const) {
+    test.describe(`Collapsed Alert pictures, ${look}`, () => {
+      test.use({ colorScheme: look });
+      for (const width of [390, 1440]) {
+        test(`the collapsed Alert pictures row shows its full summary at 15 px or more, ${width} px, ${look}`, async ({ page, context }) => {
+          await page.setViewportSize({ width, height: 900 });
+          await seedDevice(context, { pictures: { noticeAnswered: true } });
+          await seedKept(page, 3);
+          await page.goto('/monitor/', { waitUntil: 'networkidle' });
+          await page.getByRole('button', { name: 'Show settings', exact: true }).click();
+          const head = page.getByRole('button', { name: /^Alert pictures/ });
+          await expect(head).toHaveAttribute('aria-expanded', 'false');
+          const summary = head.getByText('Kept on this device · 3 pictures kept on this device', { exact: true });
+          await expect(summary).toBeVisible();
+          const { size, fits } = await summary.evaluate((element) => {
+            const row = element.closest('button')!;
+            const range = document.createRange();
+            range.selectNodeContents(element);
+            const text = range.getBoundingClientRect();
+            const bounds = row.getBoundingClientRect();
+            const container = element.parentElement!;
+            return {
+              size: parseFloat(getComputedStyle(element).fontSize),
+              fits: container.scrollWidth <= container.clientWidth + 1 && text.right <= bounds.right && text.bottom <= bounds.bottom,
+            };
+          });
+          expect(size, 'the summary’s font size').toBeGreaterThanOrEqual(15);
+          expect(fits, 'the full summary fits in the collapsed row').toBe(true);
+        });
+      }
+    });
+  }
+
   test('the count loads in place', async ({ page, context }) => {
     test.setTimeout(60_000);
     await seedDevice(context, { pictures: { noticeAnswered: true } });
@@ -1939,9 +1984,9 @@ test.describe('The group and the notice: order, sizes and faults', () => {
 // The box on the live picture
 // =============================================================================
 
-const liveBox = (page: Page) => page.locator('.alert-live__box');
-const livePlate = (page: Page) => page.locator('.alert-live__plate');
-const livePicture = (page: Page) => page.locator('.alert-live');
+const liveBox = (page: Page) => page.locator('.watch-frame__picture .alert-live__box');
+const livePlate = (page: Page) => page.locator('.watch-frame__picture .alert-live__plate');
+const livePicture = (page: Page) => page.locator('.watch-frame__picture .alert-live');
 
 /** The browser lists two cameras, and each one the page asks for is the walk's camera. */
 async function twoCameras(page: Page): Promise<void> {
@@ -2075,7 +2120,7 @@ test.describe('The live box: one at a time, never for a sound, clear of the pict
     await page.getByRole('combobox', { name: 'Camera', exact: true }).selectOption({ label: 'Walk camera 2' });
     await expect(page.getByRole('combobox', { name: 'Camera', exact: true })).toHaveValue('walk-camera-2');
     // The second camera shows, inside the first box's 10 seconds, with no box over it.
-    await expect(page.locator('[data-live-mark]').first()).toBeVisible({ timeout: 5_000 });
+    await expect(live(page)).toBeVisible({ timeout: 5_000 });
     await page.waitForTimeout(800);
     expect(Date.now() - seen, 'the first box’s 10 seconds have not run out').toBeLessThan(8_000);
     await expect(liveBox(page)).toHaveCount(0);
@@ -2948,7 +2993,7 @@ for (const look of ['dark', 'light'] as const) {
         const motionTime = await timeOf(cards(page).filter({ hasText: new RegExp(`Motion at ${TIME}`) }).first(), 'Motion');
         const soundTime = await timeOf(cards(page).filter({ hasText: new RegExp(`Sound at ${TIME}`) }).first(), 'Sound');
         await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBeGreaterThanOrEqual(2);
-        await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+        await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
         const kept = keptRows(await readDatabase(page));
         const motionAt = kept.find((row) => row.kind === 'motion')!.takenAt as number;
 
@@ -3333,7 +3378,7 @@ test.describe('The notification’s picture in Settings: a browser that shows wo
     await page.waitForTimeout(1_500);
     expect(await notesOf(page)).toEqual([]);
     expect(await page.evaluate(() => window.__notificationAsks), 'the watch asks the browser for nothing').toBe(0);
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
 
     await page.goto('/settings/notifications/', { waitUntil: 'networkidle' });
     const found = pictureSwitch(page);
@@ -3724,7 +3769,7 @@ test.describe('The privacy page and the notices', () => {
       'Clear all data on this device, on Settings, Data on this device, also removes recorded sounds, alert pictures and the offline cache.',
       'clears the alerts and their pictures, frames, recordings and personal settings saved in this browser',
       'If you turn on Show the picture in alert notifications, the picture shows in the notification, and on some phones on the lock screen, to anyone who can see this device.',
-      'Last updated: November 22, 2026',
+      'Last updated: November 24, 2026',
     ]) {
       expect(words, `the privacy page says: ${sentence}`).toContain(sentence);
     }
@@ -3869,11 +3914,11 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
     await watchWith(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD });
     await expect(cards(page).first()).toBeVisible({ timeout: 60_000 });
     await holdStill(page);
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
     await startWatching(page);
     // The camera holds still, so the new watch raises no alert of its own and shows no box.
     await page.waitForTimeout(4_000);
-    await expect(page.locator('.alert-live__box'), 'the earlier watch’s box').toHaveCount(0);
+    await expect(page.locator('.watch-frame__picture .alert-live__box'), 'the earlier watch’s box').toHaveCount(0);
   });
 
   test('the delete question fits a short screen at 200 per cent text', async ({ page, context }) => {
@@ -3904,7 +3949,7 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
 
   test('Stop pressed while the notification’s picture is drawn keeps the event’s own tag', async ({ page, context }) => {
     test.setTimeout(120_000);
-    // The picture's JPEG comes back 250 ms after it is drawn; Stop Monitoring is pressed 50 ms in.
+    // The picture's JPEG comes back 250 ms after it is drawn; Stop watching is pressed 50 ms in.
     await faultPictureStore(page, { holdDrawMs: 250 });
     await page.addInitScript(() => {
       const toBlob = HTMLCanvasElement.prototype.toBlob;
@@ -3913,7 +3958,7 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
         if (!pressed && type === 'image/jpeg') {
           pressed = true;
           setTimeout(() => {
-            const stop = Array.from(document.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === 'Stop Monitoring');
+            const stop = Array.from(document.querySelectorAll('button')).find((b) => (b.textContent ?? '').trim() === 'Stop watching');
             stop?.click();
           }, 50);
         }
@@ -3921,7 +3966,7 @@ test.describe('Edges of the save, the sweeps and the notification, 1280 px', () 
       } as typeof toBlob;
     });
     await watchWithNotes(page, context, { settings: MOTION_ONLY, camera: LEFT_THIRD, pictures: { noticeAnswered: true, inNotifications: true } });
-    await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 30_000 });
+    await expect(page.locator('.watch-frame[data-phase="live"]')).toBeHidden({ timeout: 30_000 });
     await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
     const [note] = await notesOf(page);
     expect(note.title).toBe('Motion alert');

@@ -22,7 +22,7 @@ it('states who sees saved alerts, the limits, what a clear and a sign-out reach 
   expect(screen.getByText(/One case differs: a session that ran out on this device just as the notice came is kept, and alerts from a configured server pause in that tab until it is reloaded\./)).toBeTruthy();
   expect(screen.getByText(/Everything already saved comes back as it was after you reload\. If an update of your saved history cannot finish, the page says so; nothing is deleted, and a reload tries again\./)).toBeTruthy();
   expect(container.textContent).not.toContain('Clear All Local Data');
-  expect(screen.getByText(/November 22, 2026/)).toBeTruthy();
+  expect(screen.getByText(/November 24, 2026/)).toBeTruthy();
 });
 
 it('says what an alert keeps, where, for how long and how to delete it', () => {

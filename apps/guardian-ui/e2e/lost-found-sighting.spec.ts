@@ -172,9 +172,9 @@ async function watchForStripes(page: Page): Promise<void> {
   await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
   await enrolPet(page, 'Stripes', await stripedPhoto(page));
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
-  await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click({ timeout: 60_000 });
-  await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.waitForURL(/\/monitor\/?(\?.*)?$/, { timeout: 60_000 });
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
+  await expect(page.locator('.watch-frame[data-phase="live"]')).toBeVisible({ timeout: 30_000 });
 }
 
 /** The words a card, a dialog or a row shows and names: its text, its pictures' names and its keys' names. */
@@ -300,275 +300,280 @@ test.describe('A sighting at 320 px and 200 per cent text', () => {
   });
 });
 
-test.describe('A sighting on the watch, 390 px', () => {
-  test.use({ viewport: { width: 390, height: 1000 } });
+for (const look of ['light', 'dark'] as const) {
+  test.describe(`A sighting on the watch, 390 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 390, height: 1000 } });
 
-  test('keeping off keeps no sighting picture', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await setUp(context, { pictures: { keep: false } });
-    await stripedCamera(page);
-    await watchForStripes(page);
-    const card = sightings(page).first();
-    const time = await timeOf(card);
-    await expect(card.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
-    await expect(card.getByText('This picture is not kept. It goes when you reload or close the page.', { exact: true })).toBeVisible();
-    expect((await readDatabase(page)).pictures).toEqual([]);
-    await page.reload({ waitUntil: 'networkidle' });
-    const after = sightings(page).first();
-    await expect(after.getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
-    await expect(after.getByText(QUESTION, { exact: true })).toBeVisible();
-    await expect(after.getByRole('img', { name: /^What the camera saw/ })).toHaveCount(0);
-    await expect(after.getByRole('button', { name: /^Open picture: / })).toHaveCount(0);
-    expect((await readDatabase(page)).pictures).toEqual([]);
-  });
-
-  test('Delete all pictures deletes a sighting’s kept picture', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await setUp(context);
-    await stripedCamera(page);
-    await watchForStripes(page);
-    const card = sightings(page).first();
-    const time = await timeOf(card);
-    await expect(card.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-    // The stripes leave, so no repeat keeps a newer picture after the delete.
-    await page.evaluate(() => { window.__stripes!.hidden = true; });
-    const head = page.getByRole('button', { name: /^Alert pictures/ });
-    if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
-    const group = page.getByRole('group', { name: 'Alert pictures', exact: true });
-    await group.getByRole('button', { name: 'Delete all pictures', exact: true }).click();
-    await page.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
-    await expect(group.getByText('No pictures kept on this device', { exact: true })).toBeVisible();
-    await expect(card.getByText('You deleted its picture.', { exact: true })).toBeVisible();
-    await expect(card.getByText(QUESTION, { exact: true })).toBeVisible();
-    expect(keptRows(await readDatabase(page))).toEqual([]);
-  });
-
-  test('the dashboard lists the sighting as Lost and Found’s, with its kept picture, and Mark all as seen marks it', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await setUp(context);
-    await stripedCamera(page);
-    await watchForStripes(page);
-    const card = sightings(page).first();
-    const time = await timeOf(card);
-    await expect(card.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-    await page.evaluate(() => { window.__stripes!.hidden = true; });
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
-
-    // The phone bar's Dashboard, in the same visit.
-    await page.locator('nav[aria-label="App"]:visible').getByRole('link', { name: 'Dashboard', exact: true }).click();
-    await page.waitForURL(/\/dashboard\/?$/, { timeout: 60_000 });
-    // The row's name is said with a plain apostrophe.
-    const row = page.getByRole('link', { name: /^Colours like Stripes['’]s at .+, from Lost and Found$/ });
-    await expect(row).toHaveCount(1, { timeout: 30_000 });
-    await expect(page.getByRole('link', { name: /, from Motion and sound$/ })).toHaveCount(0);
-    // Its picture is the sighting's kept picture, read from this device.
-    const picture = row.locator('img');
-    await expect(picture).toBeVisible({ timeout: 15_000 });
-    expect(await picture.getAttribute('src')).toMatch(/^blob:/);
-    expect(await picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
-
-    await page.getByRole('button', { name: 'Mark all as seen', exact: true }).click();
-    await expect(row).toHaveCount(0, { timeout: 15_000 });
-    const [alert] = (await readDatabase(page)).alerts.filter((row) => String(row.id).startsWith('sighting-'));
-    expect(alert.acknowledged).toBe(true);
-    expect((await readDatabase(page)).matchFrames).toEqual([]);
-  });
-});
-
-test.describe('A sighting on the watch, 1280 px', () => {
-  test.use({ viewport: { width: 1280, height: 1000 } });
-
-  test('a sighting that goes on repeats on its entry after the Cooldown Period, with its sound once an alert', async ({ page, context }) => {
-    test.setTimeout(360_000);
-    await setUp(context, {
-      settings: { ...SIGHTINGS_ONLY, timingSettings: { cooldownPeriod: 30, minimumMotionDuration: 500, emergencyEscalationDelay: 300 } },
+    test('keeping off keeps no sighting picture', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context, { pictures: { keep: false } });
+      await stripedCamera(page);
+      await watchForStripes(page);
+      const card = sightings(page).first();
+      const time = await timeOf(card);
+      await expect(card.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+      await expect(card.getByText('This picture is not kept. It goes when you reload or close the page.', { exact: true })).toBeVisible();
+      expect((await readDatabase(page)).pictures).toEqual([]);
+      await page.reload({ waitUntil: 'networkidle' });
+      const after = sightings(page).first();
+      await expect(after.getByText('No picture was kept for this alert.', { exact: true })).toBeVisible();
+      await expect(after.getByText(QUESTION, { exact: true })).toBeVisible();
+      await expect(after.getByRole('img', { name: /^What the camera saw/ })).toHaveCount(0);
+      await expect(after.getByRole('button', { name: /^Open picture: / })).toHaveCount(0);
+      expect((await readDatabase(page)).pictures).toEqual([]);
     });
-    await stripedCamera(page);
-    await countOwnSoundPasses(page);
-    await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
-    // A short sound of the person's own for Lost Item Found, played once a start.
-    await saveOwnSound(page);
-    await watchForStripes(page);
 
-    const card = sightings(page).first();
-    const first = await timeOf(card);
-    const firstSeen = Date.now();
-    const firstSrc = await card.getByRole('img', { name: pictureName(first), exact: true }).getAttribute('src');
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-    const [firstRow] = keptRows(await readDatabase(page));
-    await expect.poll(async () => (await ownSoundCounts(page)).passes, { timeout: 15_000 }).toBe(1);
-    // Between alerts the checks go on twice a second and start no sound.
-    await page.waitForTimeout(10_000);
-    expect((await ownSoundCounts(page)).passes, 'the sound plays once an alert, not once a check').toBe(1);
-
-    // Each repeat comes a Cooldown Period (30 seconds) after the alert before it, not sooner.
-    await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 60_000 });
-    const firstRepeat = Date.now();
-    expect(firstRepeat - firstSeen, 'the first repeat waits the Cooldown Period').toBeGreaterThanOrEqual(27_000);
-    await expect(card.getByText('Repeated 2 times', { exact: true })).toBeVisible({ timeout: 90_000 });
-    expect(Date.now() - firstRepeat, 'the second repeat waits the Cooldown Period').toBeGreaterThanOrEqual(27_000);
-    await expect(sightings(page)).toHaveCount(1);
-    const newest = await timeOf(card);
-    expect(newest).not.toBe(first);
-    const newestPicture = card.getByRole('img', { name: pictureName(newest), exact: true });
-    await expect(newestPicture).toBeVisible();
-    expect(await newestPicture.getAttribute('src')).not.toBe(firstSrc);
-    await expect.poll(async () => (await ownSoundCounts(page)).passes, { timeout: 15_000 }).toBe(3);
-    // The store holds one set for the entry: the newest, which the entry's alert names.
-    await expect.poll(async () => {
-      const reading = await readDatabase(page);
-      const kept = keptRows(reading);
-      const alert = reading.alerts.find((saved) => saved.kind === 'sighting');
-      return kept.length === 1 && kept[0].id !== firstRow.id && alert?.pictureId === kept[0].id;
-    }, { timeout: 15_000 }).toBe(true);
-    expect((await readDatabase(page)).matchFrames).toEqual([]);
-  });
-
-  test('the stripes gone for 10 seconds keep the run: the next alert repeats on the same entry', async ({ page, context }) => {
-    test.setTimeout(300_000);
-    await setUp(context);
-    await stripedCamera(page);
-    await watchForStripes(page);
-    const card = sightings(page).first();
-    await timeOf(card);
-    // The comparison's reading stands while the stripes are seen.
-    const scanning = page.getByText('Scanning...', { exact: true });
-    await expect(scanning).toHaveCount(0, { timeout: 10_000 });
-    const hid = Date.now();
-    await page.evaluate(() => { window.__stripes!.hidden = true; });
-    // A check of a picture with no stripes in it comes while they are gone: the reading drops.
-    await expect(scanning.first()).toBeVisible({ timeout: 8_000 });
-    await page.waitForTimeout(Math.max(0, 10_000 - (Date.now() - hid)));
-    await page.evaluate(() => { window.__stripes!.hidden = false; });
-    await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 90_000 });
-    await expect(sightings(page)).toHaveCount(1);
-  });
-
-  test('the stripes gone for 40 seconds make the next sighting a new entry', async ({ page, context }) => {
-    test.setTimeout(300_000);
-    await setUp(context);
-    await stripedCamera(page);
-    await watchForStripes(page);
-    await expect(sightings(page)).toHaveCount(1, { timeout: 90_000 });
-    await page.evaluate(() => { window.__stripes!.hidden = true; });
-    await page.waitForTimeout(40_000);
-    await expect(sightings(page)).toHaveCount(1);
-    await page.evaluate(() => { window.__stripes!.hidden = false; });
-    await expect(sightings(page)).toHaveCount(2, { timeout: 60_000 });
-    await expect(sightings(page).first().getByText(/^Repeated /)).toHaveCount(0);
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(2);
-  });
-
-  test('Stop and a new start make the next sighting a new entry, with no wait for the Cooldown Period', async ({ page, context }) => {
-    test.setTimeout(300_000);
-    await setUp(context, {
-      settings: { ...SIGHTINGS_ONLY, timingSettings: { cooldownPeriod: 120, minimumMotionDuration: 500, emergencyEscalationDelay: 300 } },
+    test('Delete all pictures deletes a sighting’s kept picture', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context);
+      await stripedCamera(page);
+      await watchForStripes(page);
+      const card = sightings(page).first();
+      const time = await timeOf(card);
+      await expect(card.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      // The stripes leave, so no repeat keeps a newer picture after the delete.
+      await page.evaluate(() => { window.__stripes!.hidden = true; });
+      await page.getByRole('button', { name: 'Show settings', exact: true }).click();
+      const head = page.getByRole('button', { name: /^Alert pictures/ });
+      if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
+      const group = page.getByRole('group', { name: 'Alert pictures', exact: true });
+      await group.getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Delete all pictures', exact: true }).click();
+      await expect(group.getByText('No pictures kept on this device', { exact: true })).toBeVisible();
+      await expect(card.getByText('You deleted its picture.', { exact: true })).toBeVisible();
+      await expect(card.getByText(QUESTION, { exact: true })).toBeVisible();
+      expect(keptRows(await readDatabase(page))).toEqual([]);
     });
-    await stripedCamera(page);
-    await watchForStripes(page);
-    await expect(sightings(page)).toHaveCount(1, { timeout: 90_000 });
-    await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
-    await expect(page.getByText('LIVE', { exact: true })).toBeHidden({ timeout: 30_000 });
-    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-    await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
-    // The stripes are in view again: the new watch's first sighting is an entry of its own, long
-    // before the earlier entry's 120-second Cooldown Period has passed.
-    await expect(sightings(page)).toHaveCount(2, { timeout: 45_000 });
-    await expect(sightings(page).first().getByText(/^Repeated /)).toHaveCount(0);
-    await expect(sightings(page).last().getByText(/^Repeated /)).toHaveCount(0);
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(2);
-  });
 
-  test('the sighting opens with the pet’s photo, and Save picture saves the camera’s picture', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await setUp(context);
-    await stripedCamera(page);
-    await watchForStripes(page);
-    const card = sightings(page).first();
-    const time = await timeOf(card);
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-    const [row] = keptRows(await readDatabase(page));
-    await card.getByRole('button', { name: /^Open picture: / }).click();
-    const dialog = page.getByRole('dialog', { name: QUESTION, exact: true });
-    await expect(dialog).toBeVisible();
-    await expect(dialog.getByText(new RegExp(`^${timePattern(time)}$`))).toBeVisible();
-    await expect(dialog.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
-    await expect(dialog.locator('.alert-picture__box')).toHaveCount(1);
-    const closeUp = dialog.getByRole('img', { name: closeUpName(time), exact: true });
-    const petPhoto = dialog.getByRole('img', { name: PET_PHOTO, exact: true });
-    await expect(closeUp).toBeVisible();
-    await expect(petPhoto).toBeVisible();
-    await expect(dialog.getByText(PET_PHOTO, { exact: true })).toBeVisible();
-    expect((await petPhoto.boundingBox())!.y, 'the pet’s photo stands after the close-up').toBeGreaterThanOrEqual((await closeUp.boundingBox())!.y);
+    test('the dashboard lists the sighting as Lost and Found’s, with its kept picture, and Mark all as seen marks it', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context);
+      await stripedCamera(page);
+      await watchForStripes(page);
+      const card = sightings(page).first();
+      const time = await timeOf(card);
+      await expect(card.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      await page.evaluate(() => { window.__stripes!.hidden = true; });
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
 
-    // Save picture saves the camera's picture alone, with its box drawn in while the box shows.
-    const [saved] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Save picture', exact: true }).click()]);
-    expect(saved.suggestedFilename()).toMatch(/^safeos-lost-and-found-\d{4}-\d{2}-\d{2}-\d{6}\.jpg$/);
-    const bytes = await readFile((await saved.path())!);
-    const size = await page.evaluate((url) => new Promise<[number, number]>((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
-      image.onerror = () => reject(new Error('the saved picture did not load'));
-      image.src = url;
-    }), `data:image/jpeg;base64,${bytes.toString('base64')}`);
-    expect(size, 'the camera’s whole picture, not the two side by side').toEqual([row.frameWidth, row.frameHeight]);
-    // The box's green line is the two pixels inside its right edge, as the file draws it, even where
-    // the region reaches the frame's right side.
-    const edge = Math.round(row.box.x) + Math.max(4, Math.round(row.box.width));
-    const middle = Math.round(row.box.y + row.box.height / 2);
-    expect(edge, 'the region’s box stands inside the frame').toBeLessThanOrEqual(row.frameWidth);
-    const across = await pixelsAt(page, `data:image/jpeg;base64,${bytes.toString('base64')}`, [[edge - 2, middle], [edge - 1, middle]]);
-    expect(across.some((rgb) => near(rgb, '#4ade80', 60)), `the region’s box is drawn in (${JSON.stringify(across)})`).toBe(true);
-  });
+      // The phone bar's Dashboard, in the same visit.
+      await page.locator('nav[aria-label="App"]:visible').getByRole('link', { name: 'Dashboard', exact: true }).click();
+      await page.waitForURL(/\/dashboard\/?$/, { timeout: 60_000 });
+      // The row's name is said with a plain apostrophe.
+      const row = page.getByRole('link', { name: /^Colours like Stripes['’]s at .+, from Lost and Found$/ });
+      await expect(row).toHaveCount(1, { timeout: 30_000 });
+      await expect(page.getByRole('link', { name: /, from Motion and sound$/ })).toHaveCount(0);
+      // Its picture is the sighting's kept picture, read from this device.
+      const picture = row.locator('img');
+      await expect(picture).toBeVisible({ timeout: 15_000 });
+      expect(await picture.getAttribute('src')).toMatch(/^blob:/);
+      expect(await picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
 
-  test('the sighting’s notification carries its words and no pet photo', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await setUp(context, { notifications: {} });
-    await stripedCamera(page);
-    await watchForStripes(page);
-    const card = sightings(page).first();
-    const time = await timeOf(card);
-    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
-    const [note] = await notesOf(page);
-    expect(note.title).toBe(QUESTION);
-    expect((note.body ?? '').replace(/\s+/g, ' ')).toBe(`Colours and shape like Stripes’s photos, ${time}.`);
-    expect(note.image ?? null, 'no picture while the switch is off').toBeNull();
-    expect(note.icon ?? '', 'the pet’s photo is never the notification’s icon').not.toMatch(/^(data|blob):/);
-    expect(`${note.title} ${note.body ?? ''}`).not.toMatch(FORBIDDEN);
-    // No word of the entry says match, detected, found, recognise, identify, confidence or a percentage.
-    expect(await wordsOf(card)).not.toMatch(FORBIDDEN);
-    await expect(page.getByRole('link', { name: 'Open in History', exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Mark all as seen', exact: true }).click();
+      await expect(row).toHaveCount(0, { timeout: 15_000 });
+      const [alert] = (await readDatabase(page)).alerts.filter((row) => String(row.id).startsWith('sighting-'));
+      expect(alert.acknowledged).toBe(true);
+      expect((await readDatabase(page)).matchFrames).toEqual([]);
+    });
   });
+}
 
-  test('with the switch on, the sighting’s notification carries the camera’s picture and no pet photo', async ({ page, context }) => {
-    test.setTimeout(240_000);
-    await setUp(context, { pictures: { inNotifications: true }, notifications: {} });
-    await stripedCamera(page);
-    await watchForStripes(page);
-    await expect(sightings(page).first()).toBeVisible({ timeout: 90_000 });
-    await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
-    const [note] = await notesOf(page);
-    expect(note.title).toBe(QUESTION);
-    expect(note.image).toMatch(/^data:image\/jpeg;base64,/);
-    expect(note.icon ?? '').not.toMatch(/^(data|blob):/);
-    const size = await page.evaluate((url) => new Promise<[number, number]>((resolve, reject) => {
-      const image = new Image();
-      image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
-      image.onerror = () => reject(new Error('the notification’s picture did not load'));
-      image.src = url;
-    }), note.image!);
-    expect(size, 'the camera’s picture at 640 px on its long edge').toEqual([WIDTH, HEIGHT]);
-    // The region's box is drawn in: its green line stands at the box's left edge.
-    await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-    const [row] = keptRows(await readDatabase(page));
-    const middle = Math.round(row.box.y + row.box.height / 2);
-    const left = Math.round(row.box.x);
-    const across = await pixelsAt(page, note.image!, [[left, middle], [left + 1, middle], [left + 2, middle], [left + 3, middle]]);
-    expect(across.filter((rgb) => near(rgb, '#4ade80', 60)).length, `the region’s box is drawn in (${JSON.stringify(across)})`).toBeGreaterThanOrEqual(2);
+for (const look of ['light', 'dark'] as const) {
+  test.describe(`A sighting on the watch, 1280 px, ${look}`, () => {
+    test.use({ colorScheme: look, viewport: { width: 1280, height: 1000 } });
+
+    test('a sighting that goes on repeats on its entry after the Cooldown Period, with its sound once an alert', async ({ page, context }) => {
+      test.setTimeout(360_000);
+      await setUp(context, {
+        settings: { ...SIGHTINGS_ONLY, timingSettings: { cooldownPeriod: 30, minimumMotionDuration: 500, emergencyEscalationDelay: 300 } },
+      });
+      await stripedCamera(page);
+      await countOwnSoundPasses(page);
+      await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+      // A short sound of the person's own for Lost Item Found, played once a start.
+      await saveOwnSound(page);
+      await watchForStripes(page);
+
+      const card = sightings(page).first();
+      const first = await timeOf(card);
+      const firstSeen = Date.now();
+      const firstSrc = await card.getByRole('img', { name: pictureName(first), exact: true }).getAttribute('src');
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      const [firstRow] = keptRows(await readDatabase(page));
+      await expect.poll(async () => (await ownSoundCounts(page)).passes, { timeout: 15_000 }).toBe(1);
+      // Between alerts the checks go on twice a second and start no sound.
+      await page.waitForTimeout(10_000);
+      expect((await ownSoundCounts(page)).passes, 'the sound plays once an alert, not once a check').toBe(1);
+
+      // Each repeat comes a Cooldown Period (30 seconds) after the alert before it, not sooner.
+      await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 60_000 });
+      const firstRepeat = Date.now();
+      expect(firstRepeat - firstSeen, 'the first repeat waits the Cooldown Period').toBeGreaterThanOrEqual(27_000);
+      await expect(card.getByText('Repeated 2 times', { exact: true })).toBeVisible({ timeout: 90_000 });
+      expect(Date.now() - firstRepeat, 'the second repeat waits the Cooldown Period').toBeGreaterThanOrEqual(27_000);
+      await expect(sightings(page)).toHaveCount(1);
+      const newest = await timeOf(card);
+      expect(newest).not.toBe(first);
+      const newestPicture = card.getByRole('img', { name: pictureName(newest), exact: true });
+      await expect(newestPicture).toBeVisible();
+      expect(await newestPicture.getAttribute('src')).not.toBe(firstSrc);
+      await expect.poll(async () => (await ownSoundCounts(page)).passes, { timeout: 15_000 }).toBe(3);
+      // The store holds one set for the entry: the newest, which the entry's alert names.
+      await expect.poll(async () => {
+        const reading = await readDatabase(page);
+        const kept = keptRows(reading);
+        const alert = reading.alerts.find((saved) => saved.kind === 'sighting');
+        return kept.length === 1 && kept[0].id !== firstRow.id && alert?.pictureId === kept[0].id;
+      }, { timeout: 15_000 }).toBe(true);
+      expect((await readDatabase(page)).matchFrames).toEqual([]);
+    });
+
+    test('the stripes gone for 10 seconds keep the run: the next alert repeats on the same entry', async ({ page, context }) => {
+      test.setTimeout(300_000);
+      await setUp(context);
+      await stripedCamera(page);
+      await watchForStripes(page);
+      const card = sightings(page).first();
+      await timeOf(card);
+      // The comparison's reading stands while the stripes are seen.
+      const scanning = page.getByText('Scanning...', { exact: true });
+      await expect(scanning).toHaveCount(0, { timeout: 10_000 });
+      const hid = Date.now();
+      await page.evaluate(() => { window.__stripes!.hidden = true; });
+      // A check of a picture with no stripes in it comes while they are gone: the reading drops.
+      await expect(scanning.first()).toBeVisible({ timeout: 8_000 });
+      await page.waitForTimeout(Math.max(0, 10_000 - (Date.now() - hid)));
+      await page.evaluate(() => { window.__stripes!.hidden = false; });
+      await expect(card.getByText('Repeated 1 time', { exact: true })).toBeVisible({ timeout: 90_000 });
+      await expect(sightings(page)).toHaveCount(1);
+    });
+
+    test('the stripes gone for 40 seconds make the next sighting a new entry', async ({ page, context }) => {
+      test.setTimeout(300_000);
+      await setUp(context);
+      await stripedCamera(page);
+      await watchForStripes(page);
+      await expect(sightings(page)).toHaveCount(1, { timeout: 90_000 });
+      await page.evaluate(() => { window.__stripes!.hidden = true; });
+      await page.waitForTimeout(40_000);
+      await expect(sightings(page)).toHaveCount(1);
+      await page.evaluate(() => { window.__stripes!.hidden = false; });
+      await expect(sightings(page)).toHaveCount(2, { timeout: 60_000 });
+      await expect(sightings(page).first().getByText(/^Repeated /)).toHaveCount(0);
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(2);
+    });
+
+    test('Stop and a new start make the next sighting a new entry, with no wait for the Cooldown Period', async ({ page, context }) => {
+      test.setTimeout(300_000);
+      await setUp(context, {
+        settings: { ...SIGHTINGS_ONLY, timingSettings: { cooldownPeriod: 120, minimumMotionDuration: 500, emergencyEscalationDelay: 300 } },
+      });
+      await stripedCamera(page);
+      await watchForStripes(page);
+      await expect(sightings(page)).toHaveCount(1, { timeout: 90_000 });
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+      await expect(page.locator('.watch-frame[data-phase="live"]')).toBeHidden({ timeout: 30_000 });
+      await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+      await expect(page.locator('.watch-frame[data-phase="live"]')).toBeVisible({ timeout: 30_000 });
+      // The stripes are in view again: the new watch's first sighting is an entry of its own, long
+      // before the earlier entry's 120-second Cooldown Period has passed.
+      await expect(sightings(page)).toHaveCount(2, { timeout: 45_000 });
+      await expect(sightings(page).first().getByText(/^Repeated /)).toHaveCount(0);
+      await expect(sightings(page).last().getByText(/^Repeated /)).toHaveCount(0);
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(2);
+    });
+
+    test('the sighting opens with the pet’s photo, and Save picture saves the camera’s picture', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context);
+      await stripedCamera(page);
+      await watchForStripes(page);
+      const card = sightings(page).first();
+      const time = await timeOf(card);
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      const [row] = keptRows(await readDatabase(page));
+      await card.getByRole('button', { name: /^Open picture: / }).click();
+      const dialog = page.getByRole('dialog', { name: QUESTION, exact: true });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByText(new RegExp(`^${timePattern(time)}$`))).toBeVisible();
+      await expect(dialog.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+      await expect(dialog.locator('.alert-picture__box')).toHaveCount(1);
+      const closeUp = dialog.getByRole('img', { name: closeUpName(time), exact: true });
+      const petPhoto = dialog.getByRole('img', { name: PET_PHOTO, exact: true });
+      await expect(closeUp).toBeVisible();
+      await expect(petPhoto).toBeVisible();
+      await expect(dialog.getByText(PET_PHOTO, { exact: true })).toBeVisible();
+      expect((await petPhoto.boundingBox())!.y, 'the pet’s photo stands after the close-up').toBeGreaterThanOrEqual((await closeUp.boundingBox())!.y);
+
+      // Save picture saves the camera's picture alone, with its box drawn in while the box shows.
+      const [saved] = await Promise.all([page.waitForEvent('download'), dialog.getByRole('button', { name: 'Save picture', exact: true }).click()]);
+      expect(saved.suggestedFilename()).toMatch(/^safeos-lost-and-found-\d{4}-\d{2}-\d{2}-\d{6}\.jpg$/);
+      const bytes = await readFile((await saved.path())!);
+      const size = await page.evaluate((url) => new Promise<[number, number]>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
+        image.onerror = () => reject(new Error('the saved picture did not load'));
+        image.src = url;
+      }), `data:image/jpeg;base64,${bytes.toString('base64')}`);
+      expect(size, 'the camera’s whole picture, not the two side by side').toEqual([row.frameWidth, row.frameHeight]);
+      // The box's green line is the two pixels inside its right edge, as the file draws it, even where
+      // the region reaches the frame's right side.
+      const edge = Math.round(row.box.x) + Math.max(4, Math.round(row.box.width));
+      const middle = Math.round(row.box.y + row.box.height / 2);
+      expect(edge, 'the region’s box stands inside the frame').toBeLessThanOrEqual(row.frameWidth);
+      const across = await pixelsAt(page, `data:image/jpeg;base64,${bytes.toString('base64')}`, [[edge - 2, middle], [edge - 1, middle]]);
+      expect(across.some((rgb) => near(rgb, '#4ade80', 60)), `the region’s box is drawn in (${JSON.stringify(across)})`).toBe(true);
+    });
+
+    test('the sighting’s notification carries its words and no pet photo', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context, { notifications: {} });
+      await stripedCamera(page);
+      await watchForStripes(page);
+      const card = sightings(page).first();
+      const time = await timeOf(card);
+      await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+      const [note] = await notesOf(page);
+      expect(note.title).toBe(QUESTION);
+      expect((note.body ?? '').replace(/\s+/g, ' ')).toBe(`Colours and shape like Stripes’s photos, ${time}.`);
+      expect(note.image ?? null, 'no picture while the switch is off').toBeNull();
+      expect(note.icon ?? '', 'the pet’s photo is never the notification’s icon').not.toMatch(/^(data|blob):/);
+      expect(`${note.title} ${note.body ?? ''}`).not.toMatch(FORBIDDEN);
+      // No word of the entry says match, detected, found, recognise, identify, confidence or a percentage.
+      expect(await wordsOf(card)).not.toMatch(FORBIDDEN);
+      await expect(page.getByRole('link', { name: 'Open in History', exact: true })).toBeVisible();
+    });
+
+    test('with the switch on, the sighting’s notification carries the camera’s picture and no pet photo', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context, { pictures: { inNotifications: true }, notifications: {} });
+      await stripedCamera(page);
+      await watchForStripes(page);
+      await expect(sightings(page).first()).toBeVisible({ timeout: 90_000 });
+      await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+      const [note] = await notesOf(page);
+      expect(note.title).toBe(QUESTION);
+      expect(note.image).toMatch(/^data:image\/jpeg;base64,/);
+      expect(note.icon ?? '').not.toMatch(/^(data|blob):/);
+      const size = await page.evaluate((url) => new Promise<[number, number]>((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
+        image.onerror = () => reject(new Error('the notification’s picture did not load'));
+        image.src = url;
+      }), note.image!);
+      expect(size, 'the camera’s picture at 640 px on its long edge').toEqual([WIDTH, HEIGHT]);
+      // The region's box is drawn in: its green line stands at the box's left edge.
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      const [row] = keptRows(await readDatabase(page));
+      const middle = Math.round(row.box.y + row.box.height / 2);
+      const left = Math.round(row.box.x);
+      const across = await pixelsAt(page, note.image!, [[left, middle], [left + 1, middle], [left + 2, middle], [left + 3, middle]]);
+      expect(across.filter((rgb) => near(rgb, '#4ade80', 60)).length, `the region’s box is drawn in (${JSON.stringify(across)})`).toBeGreaterThanOrEqual(2);
+    });
   });
-});
+}
 
 for (const look of ['dark', 'light'] as const) {
   test.describe(`A sighting on the live picture, 390 px, ${look}`, () => {

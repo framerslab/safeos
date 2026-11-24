@@ -23,7 +23,8 @@
  */
 
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
+import { KeyRow } from '../KeyRow';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { DEFAULT_SETTINGS, useLostFoundStore, type SubjectProfile } from '../../stores/lost-found-store';
 import { readSavedPets, type SubjectProfileDB } from '../../lib/client-db';
@@ -247,17 +248,87 @@ export function useWatchFor(watching: boolean): WatchFor {
     };
   }, [way]);
 
+  // Set by a choice the person makes on Watch for; one made before the
+  // address is read stands over what the address names.
+  const choseRef = useRef(false);
+  // Counts the choices made on Watch for, so a choice that leaves the way and
+  // the pet as they stand is still written where the address names otherwise.
+  const [choices, setChoices] = useState(0);
   const chooseWay = useCallback(
-    (next: WatchWay) => setLostFoundChosen(next === 'lost_found'),
+    (next: WatchWay) => {
+      choseRef.current = true;
+      setChoices((count) => count + 1);
+      setLostFoundChosen(next === 'lost_found');
+    },
     [setLostFoundChosen]
   );
   const choosePet = useCallback(
     (id: string) => {
       const chosen = pets.find((saved) => saved.id === id);
-      if (chosen) setActiveSubject(toSubject(chosen));
+      if (!chosen) return;
+      choseRef.current = true;
+      setChoices((count) => count + 1);
+      setActiveSubject(toSubject(chosen));
     },
     [pets, setActiveSubject]
   );
+
+  // The address names the way and the pet (`?way=lost-found&pet=<id>` or
+  // `?way=monitor`), so a bookmark or a reload opens the same watch. It is
+  // read once, after the saved pets are read: a pet it names is chosen when
+  // it is a saved pet, and no way named keeps the stored choice. A choice
+  // made on Watch for while the pets were read stands, and is written to the
+  // address in place of what it named.
+  const [addressRead, setAddressRead] = useState(false);
+  const writtenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (addressRead || petsRead === 'loading') return;
+    const params = new URLSearchParams(window.location.search);
+    const named = params.get('way');
+    if (choseRef.current) {
+      // What the address names, or nothing a choice can equal, so the choice
+      // is written either way.
+      if (named === 'lost-found') writtenRef.current = `lost-found:${params.get('pet') ?? ''}`;
+      else if (named === 'monitor') writtenRef.current = 'monitor';
+      else writtenRef.current = '';
+    } else if (named === 'lost-found') {
+      setLostFoundChosen(true);
+      const petId = params.get('pet');
+      const saved = petId ? pets.find((held) => held.id === petId) : undefined;
+      if (saved) setActiveSubject(toSubject(saved));
+    } else if (named === 'monitor') {
+      setLostFoundChosen(false);
+    }
+    setAddressRead(true);
+  }, [addressRead, petsRead, pets, setLostFoundChosen, setActiveSubject]);
+
+  // Each change of way or pet afterwards writes the address in place, other
+  // parameters kept, and so does a choice on Watch for that differs from
+  // what the address names (Motion and sound chosen while Lost and Found,
+  // named there, cannot run because the pets could not be read).
+  const petId = pet?.id ?? null;
+  const choicesSeenRef = useRef(0);
+  useEffect(() => {
+    if (!addressRead) return;
+    const named = way === 'lost_found' ? `lost-found:${petId ?? ''}` : 'monitor';
+    const chose = choices !== choicesSeenRef.current;
+    choicesSeenRef.current = choices;
+    const params = new URLSearchParams(window.location.search);
+    const inAddress = params.get('way') === 'lost-found'
+      ? `lost-found:${params.get('pet') ?? ''}`
+      : params.get('way') === 'monitor' ? 'monitor' : null;
+    const unchanged = writtenRef.current === null || writtenRef.current === named;
+    if (unchanged && !(chose && inAddress !== null && inAddress !== named)) {
+      writtenRef.current = named;
+      return;
+    }
+    writtenRef.current = named;
+    params.delete('way');
+    params.delete('pet');
+    params.set('way', way === 'lost_found' ? 'lost-found' : 'monitor');
+    if (way === 'lost_found' && petId) params.set('pet', petId);
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params.toString()}${window.location.hash}`);
+  }, [addressRead, way, petId, choices]);
 
   const photosSaved = useCallback((saved: SubjectProfileDB) => {
     setPets((held) => held.map((record) => (record.id === saved.id ? saved : record)));
@@ -269,6 +340,22 @@ export function useWatchFor(watching: boolean): WatchFor {
 }
 
 const WIDE = '(min-width: 1024px)';
+const PHONE = '(max-width: 47.99em)';
+
+function useWatchWidth(media: string): boolean {
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(media).matches
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const query = window.matchMedia(media);
+    const update = () => setMatches(query.matches);
+    update();
+    query.addEventListener('change', update);
+    return () => query.removeEventListener('change', update);
+  }, [media]);
+  return matches;
+}
 
 /**
  * True from 1024 px, where the pet card heads the right column. Read at once
@@ -276,18 +363,16 @@ const WIDE = '(min-width: 1024px)';
  * choice, so the first render matches the built page either way.
  */
 export function useWideWatch(): boolean {
-  const [wide, setWide] = useState(
-    () => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(WIDE).matches
-  );
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return;
-    const query = window.matchMedia(WIDE);
-    const update = () => setWide(query.matches);
-    update();
-    query.addEventListener('change', update);
-    return () => query.removeEventListener('change', update);
-  }, []);
-  return wide;
+  return useWatchWidth(WIDE);
+}
+
+/**
+ * True under 48em, the phone's one column, where the camera menu steps under
+ * the alert list while the watch runs. No watch runs on the first render, so
+ * it matches the built page either way.
+ */
+export function usePhoneWatch(): boolean {
+  return useWatchWidth(PHONE);
 }
 
 // =============================================================================
@@ -342,6 +427,10 @@ interface ChooserProps {
   watching: boolean;
   /** From 1024 px the pet card heads the right column instead of the pet row. */
   wide: boolean;
+  /** The keys at the end of the bar's row (the watch's Mute alerts). */
+  end?: ReactNode;
+  /** What stands under the bar's row, outside it (the muted line). */
+  afterBar?: ReactNode;
 }
 
 /**
@@ -349,14 +438,16 @@ interface ChooserProps {
  * below 1024 px, the pet row. Its polite status reads the comparison's start
  * and stop.
  */
-export function WatchForChooser({ watchFor, watching, wide }: ChooserProps) {
+export function WatchForChooser({ watchFor, watching, wide, end, afterBar }: ChooserProps) {
   const { way, chooseWay, pet, petsRead, lostFoundChosen, status } = watchFor;
   const line = way === 'motion_sound' ? MOTION_LINE : pet ? comparesLine(pet.name) : null;
+  // The built page has the options under the row; they move into it from
+  // 1024 px once the page runs, so the first render matches the built page.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const inRow = wide && mounted;
 
-  return (
-    <section aria-labelledby="watch-for-heading" className="watch-for">
-      <div className="watch-for__bar">
-        <h2 id="watch-for-heading" className="watch-for__heading">Watch for</h2>
+  const options = (
         <div role="radiogroup" aria-labelledby="watch-for-heading" className="watch-for__options">
           {WAYS.map(({ way: option, label }) => {
             const chosen = way === option;
@@ -378,7 +469,20 @@ export function WatchForChooser({ watchFor, watching, wide }: ChooserProps) {
             );
           })}
         </div>
-      </div>
+  );
+
+  // The bar is one row at every width: the heading, from 1024 px the two
+  // options, then the end keys. It scrolls inside itself, with its arrow
+  // keys, when larger text makes it wider than the column.
+  return (
+    <section aria-labelledby="watch-for-heading" className="watch-for">
+      <KeyRow className="watch-bar">
+        <h2 id="watch-for-heading" className="watch-for__heading">Watch for</h2>
+        {inRow && options}
+        {end && <span className="watch-bar__end">{end}</span>}
+      </KeyRow>
+      {afterBar}
+      {!inRow && options}
 
       {line && <p className={`watch-for__line${watching ? ' watch-for__line--watching' : ''}`}>{line}</p>}
 

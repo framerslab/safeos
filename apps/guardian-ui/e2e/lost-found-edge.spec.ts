@@ -123,11 +123,11 @@ test('a sighting raised from a striped camera picture keeps an edge score above 
   // The watch is held in memory, so the monitor is reached by the page's own
   // key, without a reload.
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
-  await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
+  await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
 
   // Start the camera and wait for the watch to raise the sighting.
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click({ timeout: 60_000 });
-  await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
+  await expect(page.locator('.watch-frame[data-phase="live"]')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[data-alert-card]').filter({ hasText: 'Could this be Stripes?' }).first()).toBeVisible({ timeout: 90_000 });
 
   // The sighting's alert is saved with its four scores.

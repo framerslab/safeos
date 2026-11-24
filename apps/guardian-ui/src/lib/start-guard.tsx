@@ -32,8 +32,9 @@ import { askOtherTabs, releaseStart, takeOverWatch } from './tab-channel';
  * focus back to `opener`, as Cancel does, so a start that fails leaves the
  * person on its key. `drop()` ends a check the page has left (its Back): an
  * answer or a takeover that ends after it shows nothing and starts nothing.
+ * `keep` names the dialog's key that keeps the other tab (Cancel when not given).
  */
-export function useStartGuard() {
+export function useStartGuard({ keep }: { keep?: string } = {}) {
   const [asked, setAsked] = useState<{ start: () => unknown; opener: HTMLElement | null; ready?: () => boolean } | null>(null);
   // An answer that comes after the page was left starts nothing.
   const shown = useRef(true);
@@ -80,6 +81,7 @@ export function useStartGuard() {
 
   const dialog = asked ? (
     <OtherTabDialog
+      keep={keep}
       onWatchHere={() => {
         const ask = asked;
         setAsked(null);

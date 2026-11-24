@@ -48,7 +48,7 @@ it('a comparison keeps no frame of its own, in memory or in the store, also afte
   useLostFoundStore.setState({ activeSubject: subject, chosenPetId: subject.id, settings: { ...DEFAULT_SETTINGS, scanGridSize: 2, minConfidenceForRecord: 0, alertSound: false, alertNotification: false, adaptiveLighting: false, motionPriority: false } });
   const camera = render(<MonitorPage />);
   await screen.findByRole('radio', { name: 'Lost and Found', checked: true });
-  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
   await waitFor(() => expect(useLostFoundStore.getState().isWatching).toBe(true));
   // A check that scores is reported; the watch keeps no frame for it. A sighting's picture is the alert's own.
   await waitFor(() => expect(useLostFoundStore.getState().recentMatches.length).toBeGreaterThan(0), { timeout: 4000 });

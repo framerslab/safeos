@@ -22,6 +22,9 @@ import { OpenPictureKey, PictureBlock, alertMoment } from './alert-pictures/Pict
 import { PictureDialogHost } from './alert-pictures/PictureDialog';
 import { ListLine } from './alert-pictures/ListLine';
 import { KeyRow } from './alert-pictures/KeyRow';
+import { ProblemMark } from './dashboard/Drawn';
+import { Num } from './visitor/Num';
+import { BellGlyph } from './watch/Glyphs';
 import {
   IconInfo,
   IconBell,
@@ -30,7 +33,6 @@ import {
   IconShieldAlert,
   IconVolume,
   IconVolumeOff,
-  IconCheck,
   IconChevronUp,
   IconChevronDown,
 } from './icons';
@@ -45,6 +47,8 @@ export type { Alert };
 interface AlertPanelProps {
   alerts?: Alert[];
   onAcknowledge?: (alertId: string) => void;
+  /** The panel's own mute key; the watch mutes from its bar instead. */
+  showMute?: boolean;
 }
 
 // =============================================================================
@@ -63,8 +67,10 @@ const SEVERITY_ICONS: Record<Alert['severity'], React.ComponentType<{ size?: num
 // AlertPanel Component
 // =============================================================================
 
-export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProps) {
+export function AlertPanel({ alerts: propAlerts, onAcknowledge, showMute = true }: AlertPanelProps) {
   const storeAlerts = useMonitoringStore((state) => state.alerts);
+  // Alerts handed in are read already; the store's are once it has read them.
+  const storeRead = useMonitoringStore((state) => state.alertsRead);
   const acknowledgeAlert = useMonitoringStore((state) => state.acknowledgeAlert);
   const effectiveVolume = useSettingsStore((state) => state.getEffectiveVolume());
   const globalMute = useSettingsStore((state) => state.globalMute);
@@ -72,6 +78,10 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
   const escalationConfig = useSettingsStore((state) => state.alertEscalationLevels);
   
   const alerts = propAlerts || storeAlerts || [];
+  const alertsRead = propAlerts !== undefined || storeRead;
+  // A failed read of the saved alerts is not an empty history.
+  const storeReadFailed = useMonitoringStore((state) => state.alertsReadFailed);
+  const readFailed = propAlerts === undefined && storeReadFailed;
   const [escalationLevels, setEscalationLevels] = useState<Map<string, number>>(new Map());
   const escalationLevelsRef = useRef<Map<string, number>>(new Map());
   const [muted, setMuted] = useState(false);
@@ -263,7 +273,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
   const latestKind = latestAlert ? kindOfAlert(latestAlert) : null;
 
   return (
-    <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+    <section className="watch-list" aria-labelledby="watch-list-name">
       {/* Screen reader live region for alert announcements */}
       <div
         role="status"
@@ -285,21 +295,18 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
               ` ${unacknowledgedAlerts.length} total unacknowledged alerts.`}
           </span>
         )}
-        {unacknowledgedAlerts.length === 0 && 'No active alerts. All clear.'}
       </div>
 
-      {/* Header */}
-      <div className="p-4 border-b border-slate-700/50 flex items-center justify-between">
-        <h3 className="font-semibold text-white flex items-center gap-2">
-          <IconBell size={18} className="text-slate-400" aria-hidden="true" />
-          Alerts
-          {unacknowledgedAlerts.length > 0 && (
-            <span className="px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full text-xs">
-              {unacknowledgedAlerts.length}
-            </span>
-          )}
-        </h3>
-        <button
+      {/* The header row: the heading, and how many alerts are new */}
+      <div className="watch-list__head">
+        <h2 id="watch-list-name" className="watch-heading">Alerts</h2>
+        {unacknowledgedAlerts.length > 0 && (
+          <p className="watch-list__new">
+            <ProblemMark />
+            <span><Num>{unacknowledgedAlerts.length}</Num> new</span>
+          </p>
+        )}
+        {showMute && <button
           onClick={toggleMute}
           disabled={globalMute}
           aria-label={effectiveMuted ? 'Unmute alerts' : 'Mute alerts'}
@@ -315,7 +322,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
           ) : (
             <IconVolume size={20} aria-hidden="true" />
           )}
-        </button>
+        </button>}
       </div>
 
       {/* An alert's picture, opened large over the watch */}
@@ -324,10 +331,18 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
       {/* Said once: a device that ran out of room for pictures, or a window that keeps none */}
       <ListLine />
 
-      {/* Content: every card stands whole and the list scrolls with the page */}
-      <div>
+      {/* Storage this device refused: the list goes on in memory under the line. */}
+      {readFailed && (
+        <p className="watch-list__problem" role="status">
+          <ProblemMark />
+          <span>{ALERTS_NOT_SAVED}</span>
+        </p>
+      )}
+
+      {/* Content */}
+      <div className="watch-list__body">
         {alerts.length === 0 ? (
-          <EmptyState />
+          alertsRead ? <EmptyState /> : <ListWaits />
         ) : (
           <div className="alert-card-list">
             {/* Unacknowledged alerts: the newest shows its pictures large, the others a thumbnail */}
@@ -348,7 +363,7 @@ export function AlertPanel({ alerts: propAlerts, onAcknowledge }: AlertPanelProp
           </div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -495,17 +510,27 @@ function AcknowledgedSection({ alerts }: AcknowledgedSectionProps) {
   );
 }
 
+/** No alert in the list, new or seen: where alerts show, or that none came while watching. */
 function EmptyState() {
   const isStreaming = useMonitoringStore(state => state.isStreaming);
   return (
-    <div className="p-8 text-center">
-      <div className="w-12 h-12 rounded-full bg-slate-700/50 flex items-center justify-center mx-auto mb-3">
-        <IconCheck size={24} className="text-emerald-500 opacity-50" aria-hidden="true" />
-      </div>
-      <p className="text-slate-400 text-sm">No active alerts</p>
-      <p className="text-slate-500 text-xs mt-1">
-        {isStreaming ? 'Monitoring is running normally' : 'Monitoring is inactive'}
-      </p>
+    <div className="watch-list__empty">
+      <BellGlyph />
+      <p>{isStreaming ? 'No alert so far.' : 'Alerts show here while this device watches.'}</p>
+    </div>
+  );
+}
+
+/** The saved alerts could not be read: this device's storage refuses them, so new ones are held in memory. */
+export const ALERTS_NOT_SAVED = 'Alerts could not be saved on this device. They show here until you reload.';
+
+/** Three bars where the entries go, while the saved alerts are read. */
+function ListWaits() {
+  return (
+    <div className="watch-list__waits" aria-hidden="true">
+      <span className="watch-list__wait" />
+      <span className="watch-list__wait" />
+      <span className="watch-list__wait" />
     </div>
   );
 }

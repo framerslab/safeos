@@ -9,7 +9,7 @@
  * already raised. A frame an earlier version saved keeps no `alerted` field.
  */
 import React from 'react';
-import { act, cleanup, render, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import MonitorPage from '@/app/monitor/page';
 import { getAllMatchFrames, getMatchFrame, saveMatchFrame, saveSubjectProfile, type MatchFrameDB } from '@/lib/client-db';
 import { kindOfAlert } from '@/lib/alert-pictures/rules';
@@ -34,6 +34,11 @@ Object.defineProperty(global, 'structuredClone', { configurable: true, value: (v
 });
 
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
+// The browser notifications the watch shows, read by the test.
+const mockNotify = jest.fn().mockResolvedValue(undefined);
+jest.mock('@/lib/browser-notification', () => ({
+  showBrowserNotification: (...args: unknown[]) => mockNotify(...args),
+}));
 const mockBackendConfig = { wsUrl: 'wss://monitor.example.test' };
 jest.mock('@/contexts/BackendStatusContext', () => ({
   useBackendStatus: () => ({ config: mockBackendConfig }),
@@ -241,4 +246,32 @@ it('a frame saved before this change keeps no field', async () => {
   expect(read).not.toBeNull();
   expect(read?.alerted).toBeUndefined();
   expect(read).not.toHaveProperty('alerted');
+});
+
+it('shows no score panel while the watch compares with a saved pet', async () => {
+  await twoChecks('panel-75', 'panel-55');
+  // The comparison runs: the pet is saved and chosen, and the watch is on.
+  expect(useLostFoundStore.getState().isWatching).toBe(true);
+  expect(useLostFoundStore.getState().activeSubject?.id).toBe('pet-1');
+  expect(screen.queryByText(/Confidence|consecutive match|Matching|View Match History/)).toBeNull();
+});
+
+it("a Lost and Found notification names the pet's colours, with no score and no match", async () => {
+  useLostFoundStore.setState({ settings: { ...useLostFoundStore.getState().settings, alertNotification: true } });
+  Object.defineProperty(global, 'Notification', { configurable: true, value: Object.assign(jest.fn(), {
+    permission: 'granted', requestPermission: jest.fn().mockResolvedValue('granted'),
+  }) });
+  mockNotify.mockClear();
+  await twoChecks('note-75', 'note-55');
+  expect(mockNotify).toHaveBeenCalledWith(
+    'Could this be Mittens?',
+    expect.objectContaining({ body: expect.stringMatching(/^Colours and shape like Mittens.s photos, /) }),
+    undefined,
+  );
+  for (const [title, options] of mockNotify.mock.calls as Array<[string, { body?: string } | undefined]>) {
+    const words = `${title} ${options?.body ?? ''}`;
+    if (words.includes('Mittens') || words.includes('Lost and Found')) {
+      expect(words).not.toMatch(/detect|match|confidence|%/i);
+    }
+  }
 });

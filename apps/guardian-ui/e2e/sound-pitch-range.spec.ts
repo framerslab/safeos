@@ -94,16 +94,17 @@ async function walk(
     });
     const page = await context.newPage();
     await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
-    await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click();
-    await expect(page.getByText('LIVE', { exact: true })).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
 
-    const level = page.locator('div.uppercase:text-is("Audio") + div.text-xl');
+    // The Sound meter under the live picture, read from its value.
+    const level = page.getByRole('meter', { name: 'Sound level' });
     await expect(level).toBeVisible();
     // The microphone's first second, while the browser starts it, is not read.
     await page.waitForTimeout(1_000);
     const readings: number[] = [];
     for (let i = 0; i < 30; i++) {
-      readings.push(Number.parseFloat((await level.textContent()) ?? ''));
+      readings.push(Number.parseFloat((await level.getAttribute('aria-valuenow')) ?? ''));
       await page.waitForTimeout(200);
     }
     // Cards are counted by their kind's words, whatever the device's clock looks like.

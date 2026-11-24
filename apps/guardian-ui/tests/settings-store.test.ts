@@ -8,6 +8,7 @@
  */
 
 import { describe, it, expect, beforeEach } from '@jest/globals';
+import { DEFAULT_PRESETS as STORE_PRESETS } from '@/stores/settings-store';
 
 // =============================================================================
 // Types (extracted for testing)
@@ -1040,5 +1041,11 @@ describe('Settings Store', () => {
         expect(preset.alertDelay).toBeLessThanOrEqual(300);
       });
     });
+  });
+});
+
+describe('the presets the watch offers', () => {
+  it('names no interval in a preset description', () => {
+    for (const preset of Object.values(STORE_PRESETS)) expect(preset.description).not.toMatch(/interval/i);
   });
 });

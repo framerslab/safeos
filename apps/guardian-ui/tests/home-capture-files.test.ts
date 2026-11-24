@@ -86,6 +86,8 @@ describe('the sample clip and its record', () => {
     expect(clip.words.captureCaption).toBe('SafeOS watching a recorded clip of a kitten. Captured from the app while it ran.');
     expect(Object.keys(clip.words.captureAlt).sort()).toEqual(['landscape', 'phone', 'portrait']);
     for (const text of Object.values(clip.words.captureAlt)) expect(text).toMatch(/kitten/);
+    // The phone crop holds the camera view alone: its text names no meter or indicator outside it.
+    expect(clip.words.captureAlt.phone).not.toMatch(/indicator|meter|reading/i);
     // The words say what the clip shows; none says SafeOS, a phone or a laptop recorded it.
     for (const text of [clip.words.caption, clip.words.description]) {
       expect(text).not.toMatch(/SafeOS|phone|laptop|recorded by/i);
@@ -137,7 +139,7 @@ describe('the capture job', () => {
       '--use-file-for-fake-video-capture=',
       '--use-file-for-fake-audio-capture=',
       "permissions: ['camera', 'microphone']",
-      "name: 'Start Monitoring'",
+      "name: 'Start watching'",
       'Motion at \\d',
       'Sound at \\d',
     ]) {
@@ -179,9 +181,9 @@ describe('the committed captures', () => {
       }
       const ratio = sizes[crop].width / sizes[crop].height;
       if (crop === 'portrait') {
-        // The camera view with two whole rows of readout tiles: its own ratio, near 4:5.
-        expect(ratio).toBeGreaterThan(0.78);
-        expect(ratio).toBeLessThan(0.9);
+        // The camera's frame with its live picture and the meters under it, at its own ratio.
+        expect(ratio).toBeGreaterThan(0.6);
+        expect(ratio).toBeLessThan(1.6);
       } else {
         expect(Math.abs(ratio - ratios[crop])).toBeLessThan(0.01);
       }

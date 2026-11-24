@@ -71,7 +71,12 @@ function smallMovementCamera() {
   }));
 }
 
-const stopKey = () => screen.queryByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ });
+// The key under the camera's frame that stops the watch or the start; the
+// other tab's question has keys of its own.
+const stopKey = () => {
+  const controls = document.querySelector<HTMLElement>('.watch-controls');
+  return controls ? within(controls).queryByRole('button', { name: /^(Stop watching|Cancel)$/ }) : null;
+};
 const sounds = () => play.mock.calls.map(([type]) => type);
 const smallMovementAlerted = () => useMonitoringStore.getState().alerts
   .some((alert) => alert.message.startsWith('Pixel movement detected') && alert.severity === 'low');
@@ -118,7 +123,7 @@ it('starts nothing from a link: the address carries no nap', async () => {
   render(<MonitorPage />);
   await act(async () => {});
 
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
   await act(async () => { jest.advanceTimersByTime(90_000); });
   expect(warnings()).toBe(0);
@@ -129,7 +134,7 @@ it('ignores a hand-off older than two minutes', async () => {
   render(<MonitorPage />);
   await act(async () => {});
 
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(sessionStorage.getItem('safeos-nap-handoff')).toBeNull();
 });
 
@@ -162,7 +167,7 @@ it('starts nothing from a nap kept over twelve hours ago, as in a tab restored t
   render(<MonitorPage />);
   await act(async () => {});
 
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
 });
 
@@ -289,7 +294,7 @@ it('starts on arrival under React Strict Mode, which runs effects twice in devel
   await act(async () => {});
 
   expect(useMonitoringStore.getState().isStreaming).toBe(true);
-  expect(screen.getByRole('button', { name: 'Stop Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Stop watching' })).toBeTruthy();
 });
 
 it('gives a watch opened any other way no nap, even after an earlier nap in the tab', async () => {
@@ -321,10 +326,10 @@ it('keeps the setting of a watch not started from Nap Mode when it stops', async
   expect(useSettingsStore.getState().activePresetId).toBe('night');
 });
 
-it('links Nap Mode from the settings menu', async () => {
+it('links Nap Mode first in the watch\'s settings', async () => {
   render(<MonitorPage />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Select Security Mode' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Show settings' }));
 
   const links = screen.getAllByRole('link', { name: 'Nap Mode' });
   expect(links.map((link) => bare(link.getAttribute('href')))).toEqual(['/nap']);
@@ -354,19 +359,19 @@ it("asks before a nap's watch starts while another tab watches", async () => {
   expect(stopKey()).not.toBeNull();
   cleanup();
 
-  // Cancel: nothing watches, and the nap stays.
+  // Keep the other tab: nothing watches, and the nap stays.
   browser.getUserMedia.mockClear();
   window.history.replaceState(null, '', '/monitor/');
   arriveFromNap(30);
   render(<MonitorPage />);
   await act(async () => {});
-  fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Cancel' }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'Keep the other tab' }));
   await act(async () => {});
   expect(screen.queryByRole('dialog')).toBeNull();
   expect(browser.getUserMedia).not.toHaveBeenCalled();
   expect(stopKey()).toBeNull();
   expect(screen.getByRole('button', { name: 'End nap' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Start watching' })).toBeTruthy();
   expect(window.history.state.safeosNap).toMatchObject({ minutes: 30 });
 });
 

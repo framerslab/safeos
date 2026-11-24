@@ -83,7 +83,7 @@ Setup asks what this device watches. To change it later, run setup again from th
 | **Baby Monitoring** | Motion and sound alerts during a nap you stay nearby for. SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS |
 | **Elderly Care** | Motion and sound alerts, and an optional alert when nothing has moved for a time you set |
 | **Security Mode** | Motion and sound alerts while the place is empty. The People page counts the people in view |
-| **Lost & Found** | Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. It saves the pet use, and the last step's **Open Lost and Found** opens the Lost & Found page: add the photos there and press **Start Monitoring**, then press **Start Monitoring** on the Motion and sound page to start the camera and the comparison |
+| **Lost & Found** | Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. It saves the pet use, and the last step's **Open Lost and Found** opens the Lost & Found page: add the photos there and press **Start Monitoring**, then press **Start watching** on the Motion and sound page to start the camera and the comparison |
 
 #### Step 3: Choose a Camera and Allow Access
 
@@ -93,7 +93,7 @@ access, then **Continue** to finish Setup. A camera without a microphone is enou
 
 Setup can be finished without a camera. Until access is granted the step shows
 **Continue without the camera**, which goes on to the next step; Monitor asks
-for the camera when you click **Start Monitoring**. When a request fails, the
+for the camera when you click **Start watching**. When a request fails, the
 step says what happened (the browser blocked the camera, the camera did not
 start, or no camera was found) and the key reads **Try again**.
 
@@ -105,17 +105,23 @@ or "Until I delete them". Going on past the step keeps your choice, so the
 first watch starts without asking again. Both settings are also under **Alert
 pictures** in the watch's settings and on **Settings > Detection**.
 
-Monitor opens with **Watch for**: **Motion and sound** sounds an alert on this
+Monitor opens with one row: **Watch for** and **Mute alerts**. **Motion and sound** sounds an alert on this
 device when something moves or makes a sound; **Lost and Found** also compares
 what the camera sees with a saved pet's photos, by colour and shape, while the
 watch runs. With Lost and Found chosen, Monitor shows the pet: **Change pet**
 chooses another saved pet, and with no pet saved **Add a pet** opens the Lost &
 Found page.
 
-On Monitor, click **Start Monitoring**. Monitoring becomes active when the camera is
-ready. **Cancel Starting** cancels a pending request; **Stop Monitoring** releases
-the camera and microphone. A camera error or an unplugged camera leaves monitoring
-inactive; a camera that pauses its video resumes monitoring when the video returns.
+On Monitor, click **Start watching** inside the camera's frame. While the camera
+starts the key reads "Starting the camera…", and **Cancel** under the frame cancels
+the request. Once the live picture shows, a meter for each kind (Motion, Sound,
+Picture change) stands under it with its alert line, and **Stop watching** releases
+the camera and microphone. A camera that fails is named inside the frame with its
+fix and **Try again**. A selected camera that is unavailable is named with no
+**Try again**: choose another camera in the menu, or connect it again and the frame
+offers **Start watching**. A browser with no camera request is named the same way;
+open SafeOS in a browser that can ask for the camera. A camera that pauses its
+video resumes watching when the video returns.
 
 The **Local** processing mode sends no camera frames to a connected server. Alerts
 survive reload in **History → Local Timeline** when browser storage is available.
@@ -131,14 +137,14 @@ For best results:
 
 #### Step 5: Adjust Sensitivity
 
-In the sidebar, adjust:
+On Monitor, **Show settings** under **Settings for this watch** opens the watch's settings; there, adjust:
 - **Motion Sensitivity**: Higher = more alerts on movement
 - **Audio Sensitivity**: Higher = more alerts on sounds
 - **Alert Volume**: How loud escalating alerts play
 
 Settings > Detection holds Motion and Audio Sensitivity for each use (Baby Monitoring, Pet Monitoring, Elderly Care and Security). The watch for that use runs at them in place of the preset's, and **Reset to defaults** there returns the use to the preset.
 
-On the Monitor page, the Motion and Audio sliders (Fine-Tune, Sensitivity and Quick Settings) show and move the values set for the use while it has them, and a preset change keeps them; Fine-Tune's note names them. Fine-Tune's **Reset to** the preset's **Defaults** clears them and returns the preset's values. Pixel Threshold, Analysis Interval and the processing mode belong to the preset and are the same for every use.
+On the Monitor page, the Motion and Audio sliders (Fine-Tune and Sensitivity, under **Show settings**) show and move the values set for the use while it has them, and a preset change keeps them; Fine-Tune's note names them. Fine-Tune's **Reset to** the preset's **Defaults** clears them and returns the preset's values. Pixel Threshold, Analysis Interval and the processing mode belong to the preset and are the same for every use. Analysis Interval shows only while this device's own server is connected.
 
 ---
 

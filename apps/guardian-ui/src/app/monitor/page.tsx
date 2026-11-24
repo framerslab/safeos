@@ -16,14 +16,12 @@ import { useSearchParams } from 'next/navigation';
 import { CameraPicker } from '../../components/CameraPicker';
 import { useCameraStore } from '../../stores/camera-store';
 import { CameraFeed, type CheckFrames } from '../../components/CameraFeed';
-import { KeyRow } from '../../components/app/KeyRow';
+import { KeyRow } from '../../components/KeyRow';
+import { MuteAlerts, MutedLine } from '../../components/watch/MuteAlerts';
 import { AlertPanel } from '../../components/AlertPanel';
-import { SubjectPreviewOverlay, SubjectPreview } from '../../components/SubjectPreview';
 import { LostFoundMediaOverlay } from '../../components/LostFoundMediaOverlay';
-import { QuickSettingsPanel } from '../../components/QuickSettingsPanel';
 import { InlineSettingsPanel } from '../../components/monitor';
-import { WatchForChooser, WatchForPet, useWatchFor, useWideWatch, NO_PET_FRAME_LINE } from '../../components/monitor/WatchFor';
-import { IconSearch, IconChevronDown, IconShield } from '../../components/icons';
+import { WatchForChooser, WatchForPet, useWatchFor, useWideWatch, usePhoneWatch, NO_PET_FRAME_LINE } from '../../components/monitor/WatchFor';
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { useSettingsStore, DEFAULT_PRESETS, type PresetId, isSleepPreset } from '../../stores/settings-store';
@@ -37,9 +35,16 @@ import { getSoundManager } from '../../lib/sound-manager';
 import { keepNap, napTimeIsUp, readKeptNap, takeNapHandoff, type Nap } from '../../lib/nap-session';
 import { forgetRaised } from '../../lib/watch-sound';
 import { keepWatchTimes, rememberWay, watchEnded, watchStarted } from '../../lib/watch-session';
-import { announceWatch } from '../../lib/tab-channel';
+import { announceWatch, useOtherTabWatch } from '../../lib/tab-channel';
+import { useCameraAsk } from '../../lib/browser-asks';
+import { cameraFailureOf, type CameraFailure, type MicrophoneProblem } from '../../lib/camera-failure';
+import { WatchFrame, type FramePhase } from '../../components/watch/WatchFrame';
+import { Meters, type MeterRow } from '../../components/watch/Meters';
+import { SettingsFold } from '../../components/watch/SettingsFold';
+import { levelMeter, pictureChangeMeter, pictureChangeRatio } from '../../lib/watch-meters';
 import { dropStart, startHeld, takeStart, type StartRequest } from '../../lib/camera-handoff';
 import { useStartGuard } from '../../lib/start-guard';
+import { Brand } from '../../components/home/Brand';
 import type { PixelDetectionResult } from '../../lib/pixel-detection';
 import { detectRegionalMotion } from '../../lib/motion-detection';
 import { LIVE_BOX_MS, NOTIFICATION_WAIT_MS, alertBox, askNote, forgetOldNotes, showInTurn, boxFromCells, boxFromHotspots, boxFromRegion, type AlertKind, type Box, type PercentZone } from '../../lib/alert-pictures/rules';
@@ -107,7 +112,12 @@ export default function MonitorPage() {
     addAlert,
   } = useMonitoringStore();
 
-  const { config: backendConfig } = useBackendStatus();
+  const { config: backendConfig, isConnected: serverAnswers, status: backendStatus } = useBackendStatus();
+  // This device's own server, as the interval's controls show it. A check of
+  // the server marks it as connecting while it waits for an answer; the
+  // controls keep their state through the check, so one in use stays.
+  const [serverConnected, setServerConnected] = useState(serverAnswers);
+  if (backendStatus?.api !== 'connecting' && serverConnected !== serverAnswers) setServerConnected(serverAnswers);
   const deviceId = useCameraStore(state => state.deviceId);
 
   const { selectedScenario } = useOnboardingStore();
@@ -126,9 +136,29 @@ export default function MonitorPage() {
   const [captureRequested, setCaptureRequested] = useState(false);
   // True once this capture request has shown video; a later pause keeps it true.
   const [videoSeen, setVideoSeen] = useState(false);
+  // Which of Motion and Sound has given a reading since the watch started or
+  // its camera changed; a meter stands empty until its first one.
+  const [heard, setHeard] = useState({ motion: false, sound: false });
+  // A reading the camera feed hands the page marks its meter as heard (a
+  // measured zero included); so does any other change of the level in the
+  // monitoring store.
+  useEffect(() => useMonitoringStore.subscribe((state, before) => {
+    const motion = state.motionScore !== before.motionScore;
+    const sound = state.audioLevel !== before.audioLevel;
+    if (!motion && !sound) return;
+    setHeard((was) => ((was.motion || !motion) && (was.sound || !sound)
+      ? was
+      : { motion: was.motion || motion, sound: was.sound || sound }));
+  }), []);
+  // What the camera's frame shows when no picture is live: the failure of
+  // the last start, or when a camera that was watching stopped.
+  const [cameraFailure, setCameraFailure] = useState<CameraFailure | null>(null);
+  const [stoppedAt, setStoppedAt] = useState<number | null>(null);
+  const [microphone, setMicrophone] = useState<MicrophoneProblem | null>(null);
+  const otherTab = useOtherTabWatch();
+  const cameraAsk = useCameraAsk();
   const captureRequestedRef = useRef(false);
   const serverRequestedRef = useRef(false);
-  const [showModeDropdown, setShowModeDropdown] = useState(false);
 
   // Watch for: Motion and sound, or Lost and Found with the pet it compares
   // with. It compares while the watch runs; from 1024 px the pet's card
@@ -136,21 +166,20 @@ export default function MonitorPage() {
   const watchFor = useWatchFor(captureRequested);
   const petsMarker = watchFor.petsMarker;
   const wide = useWideWatch();
+  const phone = usePhoneWatch();
   const petCard = wide && watchFor.way === 'lost_found';
 
   // Media overlay state for Lost & Found alerts
   const [showMediaOverlay, setShowMediaOverlay] = useState(false);
   const [mediaOverlayData, setMediaOverlayData] = useState<{
     subjectName: string;
-    confidence: number;
     images: string[];
   } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const matcherRef = useRef(getSubjectMatcher());
-  const modeDropdownRef = useRef<HTMLDivElement | null>(null);
 
   // Settings store for security modes/presets
-  const { activePresetId, setActivePreset, activeSleepPreset, globalSettings, globalMute, toggleGlobalMute, timingSettings, getCooldownForSeverity } = useSettingsStore();
+  const { activePresetId, activeSleepPreset, globalSettings, globalMute, toggleGlobalMute, timingSettings, getCooldownForSeverity } = useSettingsStore();
   const detectionFeatureSettings = useSettingsStore((state) => state.detectionFeatureSettings);
   const detectionZones = useSettingsStore((state) => state.detectionZones);
   // The watch runs at the preset, with the Motion and Audio set for this use on Settings > Detection laid over it.
@@ -159,17 +188,6 @@ export default function MonitorPage() {
   const [showOverrides, setShowOverrides] = useState(false);
 
   // URL parameter handling is done via PresetInitializer component below
-
-  // Close mode dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (modeDropdownRef.current && !modeDropdownRef.current.contains(event.target as Node)) {
-        setShowModeDropdown(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // ---------------------------------------------------------------------------
   // Lost & Found Integration
@@ -377,9 +395,23 @@ export default function MonitorPage() {
   const { askBeforeStart, notice: picturesNotice } = useNoticeGate();
 
   const beginCapture = () => {
+    setCameraFailure(null);
+    setStoppedAt(null);
+    setMicrophone(null);
     captureRequestedRef.current = true;
     setCaptureRequested(true);
     setVideoSeen(false);
+    forgetReadings();
+  };
+
+  // A new watch's meters start from its own camera's readings, never from
+  // the last watch's.
+  const forgetReadings = () => {
+    setMotionZone(null);
+    setPixelZoneStatus(null);
+    setMotionScore(0);
+    setAudioLevel(0);
+    setHeard({ motion: false, sound: false });
   };
 
   // Start watching on the notice asks the other tabs again: one may have started a watch while
@@ -395,6 +427,7 @@ export default function MonitorPage() {
 
   const stopStream = () => {
     stopOwnLostFoundSounds(true);
+    forgetReadings();
     captureRequestedRef.current = false;
     setCaptureRequested(false);
     setVideoSeen(false);
@@ -404,16 +437,81 @@ export default function MonitorPage() {
     serverRequestedRef.current = false;
   };
 
+  // A failed start is named in the frame with its fix; a camera that was
+  // watching and is lost says when it stopped.
+  const handleCameraError = (error: Error & { cause?: unknown }) => {
+    // A camera lost before its first picture never watched: its start failed.
+    const lost = error.name === 'CameraLostError' && videoSeen;
+    stopStream();
+    if (lost) {
+      setCameraFailure(null);
+      setStoppedAt(Date.now());
+    } else {
+      setStoppedAt(null);
+      setCameraFailure(cameraFailureOf(error.cause ?? error, Boolean(navigator.mediaDevices?.getUserMedia)));
+    }
+  };
+
+  // A watch whose camera sends no picture (a muted camera, or another camera
+  // chosen while it starts) is not shown as live: no picture is read then.
+  const framePhase: FramePhase = captureRequested
+    ? (!videoSeen ? 'starting' : isStreaming ? 'live' : 'paused')
+    : cameraFailure ? 'failed' : stoppedAt !== null ? 'stopped' : 'off';
+
+  // On a phone while watching, Stop watching is followed by the alert list and
+  // the camera menu stands under the list.
+  const cameraAfterList = phone && (framePhase === 'live' || framePhase === 'paused');
+
+  // Another camera chosen after a failure is the way out of it: the frame
+  // offers Start watching again. One chosen while watching starts its meters
+  // from its own readings, never from the last camera's.
+  const forgetReadingsRef = useRef(forgetReadings);
+  forgetReadingsRef.current = forgetReadings;
+  useEffect(() => {
+    if (!captureRequestedRef.current) setCameraFailure(null);
+    else forgetReadingsRef.current();
+  }, [deviceId]);
+
+  // The chosen camera that was unavailable and is connected again is the
+  // other way out: once the browser lists it, the frame offers Start watching.
+  useEffect(() => {
+    if (cameraFailure !== 'gone') return;
+    const media = navigator.mediaDevices;
+    if (!media?.enumerateDevices || !media.addEventListener) return;
+    let live = true;
+    // Only the newest read of the devices counts: an older one that lands
+    // after it lists what the browser had before.
+    let reads = 0;
+    const listed = async () => {
+      const read = ++reads;
+      try {
+        const devices = await media.enumerateDevices();
+        if (read !== reads) return;
+        const cameras = devices.filter((device) => device.kind === 'videoinput');
+        const back = deviceId ? cameras.some((device) => device.deviceId === deviceId) : cameras.length > 0;
+        if (live && back && !captureRequestedRef.current) setCameraFailure(null);
+      } catch {
+        // A list the browser refuses leaves the failure named.
+      }
+    };
+    media.addEventListener('devicechange', listed);
+    return () => {
+      live = false;
+      media.removeEventListener('devicechange', listed);
+    };
+  }, [cameraFailure, deviceId]);
+
   const stopStreamRef = useRef(stopStream);
   stopStreamRef.current = stopStream;
 
-  // While another tab watches, a start key here asks first.
-  const { guard, dialog } = useStartGuard();
+  // While another tab watches, a start key here asks first; its second key
+  // keeps the other tab.
+  const { guard, dialog } = useStartGuard({ keep: 'Keep the other tab' });
   // The press turns the sound on before the other tabs answer: a browser that
   // keeps a page's sound off until a tap turns it on only inside the tap.
-  const pressStart = (start: () => unknown) => (event: React.MouseEvent<HTMLButtonElement>) => {
+  const pressStart = (start: () => unknown) => (key: HTMLButtonElement) => {
     getSoundManager().unlockAudio();
-    void guard(start, event.currentTarget);
+    void guard(start, key);
   };
 
   // A start the dashboard's key asked for: the camera is open already, so the
@@ -693,7 +791,7 @@ export default function MonitorPage() {
   }, [currentPreset.pixelDetectionEnabled]);
 
   const [pixelChangePercent, setPixelChangePercent] = useState(0);
-  const [pixelChangedPixels, setPixelChangedPixels] = useState(0);
+  const [, setPixelChangedPixels] = useState(0);
   const [pixelZoneStatus, setPixelZoneStatus] = useState<null | {
     zoneName: string | null;
     changedPx: number;
@@ -1089,7 +1187,6 @@ export default function MonitorPage() {
     if (lostFoundSettings.customMediaEnabled && subject.referenceImages.length > 0) {
       setMediaOverlayData({
         subjectName: subject.name,
-        confidence: result.confidence,
         images: subject.referenceImages,
       });
       setShowMediaOverlay(true);
@@ -1098,7 +1195,13 @@ export default function MonitorPage() {
 
   const handleMotion = useCallback((score: number) => {
     setMotionScore(score);
+    setHeard((was) => (was.motion ? was : { ...was, motion: true }));
   }, [setMotionScore]);
+
+  // The Motion meter reads the zone whose reading stands highest over its own
+  // line, a full-screen zone with its own sensitivity included: the zone and
+  // the line an alert reads.
+  const [motionZone, setMotionZone] = useState<{ score: number; threshold: number } | null>(null);
 
   const handleMotionZones = useCallback((zones: Array<{ id: string; name: string; score: number }>, frames?: CheckFrames) => {
     if (!currentPreset.motionDetectionEnabled || !isStreaming) {
@@ -1110,14 +1213,17 @@ export default function MonitorPage() {
     const now = Date.now();
 
     let best: { id: string; name: string; score: number; threshold: number; delta: number } | null = null;
+    let highest: { score: number; threshold: number; delta: number } | null = null;
     for (const z of zones) {
       const override = detectionZones.find((dz) => dz.id === z.id)?.sensitivityOverride?.motion;
       const threshold = override !== undefined ? sensitivityToThreshold(override) : globalThreshold;
       const delta = z.score - threshold;
+      if (!highest || delta > highest.delta) highest = { score: z.score, threshold, delta };
       if (delta >= 0 && (!best || delta > best.delta)) {
         best = { id: z.id, name: z.name, score: z.score, threshold, delta };
       }
     }
+    setMotionZone(highest ? { score: highest.score, threshold: highest.threshold } : null);
 
     const severity = best ? classifyDeltaSeverity(best.score, best.threshold) : null;
     const outcome = readDetector(motionEventRef.current, now, severity, {
@@ -1182,6 +1288,7 @@ export default function MonitorPage() {
 
   const handleAudio = useCallback((level: number) => {
     setAudioLevel(level);
+    setHeard((was) => (was.sound ? was : { ...was, sound: true }));
 
     if (!isStreaming || !currentPreset.audioDetectionEnabled) {
       endDetectorEvent(audioEventRef.current);
@@ -1270,7 +1377,14 @@ export default function MonitorPage() {
       zoneName: chosenZoneName ?? fullZone?.name ?? (enabledZones.length === 0 ? 'Full Screen' : null),
       changedPx: chosenChangedPx,
       thresholdPx: chosenThresholdPx,
-      ratio: ratioNow,
+      // The meter reads on the scale the check used: in the share mode the
+      // changed share of the picture against the check's share, not the count.
+      ratio: pictureChangeRatio({
+        useAbsoluteThreshold: currentPreset.useAbsoluteThreshold,
+        changedPx: chosenChangedPx,
+        thresholdPx: chosenThresholdPx,
+        difference: result.difference,
+      }),
       triggered,
     });
 
@@ -1416,295 +1530,162 @@ export default function MonitorPage() {
   }, [wsConnected, sendMessage]);
 
   // ---------------------------------------------------------------------------
+  // The meters: each level waits for the camera's first picture after a press
+  // ---------------------------------------------------------------------------
+
+  const metersLive = framePhase === 'live';
+  const motionByZone = metersLive && motionZone !== null;
+  const meterRows: MeterRow[] = [
+    {
+      kind: 'motion',
+      reading: levelMeter(
+        metersLive && (heard.motion || motionByZone) ? (motionByZone ? motionZone!.score : motionScore) : null,
+        motionByZone ? motionZone!.threshold : sensitivityToThreshold(currentPreset.motionSensitivity),
+        currentPreset.motionDetectionEnabled,
+      ),
+    },
+    {
+      kind: 'sound',
+      reading: levelMeter(
+        metersLive && heard.sound ? audioLevel : null,
+        sensitivityToThreshold(currentPreset.audioSensitivity),
+        currentPreset.audioDetectionEnabled,
+      ),
+    },
+  ];
+  const pictureChange = pictureChangeMeter(
+    metersLive && pixelZoneStatus ? { ratio: pixelZoneStatus.ratio, triggered: pixelZoneStatus.triggered } : null,
+    currentPreset.pixelDetectionEnabled,
+  );
+  if (pictureChange) meterRows.push({ kind: 'picture-change', reading: pictureChange });
+  const meterPet = watchFor.comparing && watchFor.pet
+    ? { name: watchFor.pet.name, photo: watchFor.pet.referenceImages?.[0] ?? null }
+    : null;
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-      {/* Header */}
-      <header className="border-b border-gray-700 bg-gray-900/50 backdrop-blur-sm relative z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="way-head">
-            <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                aria-label="SafeOS home"
-                className="text-emerald-400 hover:text-emerald-300 hover:scale-110 transition-all"
-              >
-                <IconShield size={28} />
-              </Link>
-              <h1 className="text-xl font-bold text-white">Motion and sound</h1>
-            </div>
+    <main className={`watch look-part watch-grid${cameraAfterList ? ' watch-grid--camera-after' : ''}`}>
+      <h1 className="sr-only">Motion and sound</h1>
 
-            <KeyRow>
-              {/* Volume Mute Toggle */}
-              <button
-                onClick={toggleGlobalMute}
-                className={`p-2 rounded-lg transition-colors ${globalMute
-                  ? 'bg-red-500/20 text-red-400 border border-red-500/50'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                  }`}
-                aria-label={globalMute ? 'Unmute Alerts' : 'Mute Alerts'}
-                title={globalMute ? 'Unmute Alerts (click to enable sounds)' : 'Mute Alerts (click to silence)'}
-              >
-                {globalMute ? (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                  </svg>
-                )}
-              </button>
+      <div className="watch-grid__bar">
+        <WatchForChooser
+          watchFor={watchFor}
+          watching={captureRequested}
+          wide={wide}
+          end={<MuteAlerts muted={globalMute} onToggle={toggleGlobalMute} />}
+          afterBar={<MutedLine muted={globalMute} />}
+        />
+      </div>
 
-              {/* Security Mode Selector */}
-              <div ref={modeDropdownRef} className="way-head__menu">
-                <button
-                  onClick={() => setShowModeDropdown(!showModeDropdown)}
-                  className={`px-3 py-2 rounded-lg flex items-center gap-2 transition-colors ${isSleepPreset(activePresetId)
-                    ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-                    : currentPreset.emergencyMode
-                      ? 'bg-red-500/20 text-red-400 border border-red-500/50'
-                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    }`}
-                  aria-label="Select Security Mode"
-                  aria-expanded={showModeDropdown}
-                  aria-haspopup="listbox"
-                >
-                  <IconShield size={18} />
-                  <span className="hidden sm:inline max-w-[120px] truncate">
-                    {currentPreset.name}
-                  </span>
-                  <IconChevronDown size={14} className={`transition-transform ${showModeDropdown ? 'rotate-180' : ''}`} />
-                </button>
-
-                {/* Dropdown Menu */}
-                {showModeDropdown && (
-                  <div className="absolute right-0 mt-2 w-72 bg-gray-800 rounded-xl border border-gray-700 shadow-xl z-50 overflow-hidden">
-                    <div className="p-2 border-b border-gray-700">
-                      <p className="text-xs text-gray-400 font-medium uppercase tracking-wider">Security Modes</p>
-                    </div>
-                    <div className="max-h-[400px] overflow-y-auto">
-                      {/* Sleep Presets */}
-                      <div className="p-2 border-b border-gray-700/50">
-                        <p className="text-[10px] text-blue-400 font-medium uppercase tracking-wider px-2 py-1">Sleep Monitoring</p>
-                        {(['infant_sleep', 'pet_sleep', 'deep_sleep_minimal'] as const).map((presetId) => {
-                          const preset = DEFAULT_PRESETS[presetId];
-                          const isActive = activePresetId === presetId;
-                          return (
-                            <button
-                              key={presetId}
-                              onClick={() => {
-                                setActivePreset(presetId);
-                                setShowModeDropdown(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${isActive
-                                ? 'bg-blue-500/20 text-blue-400'
-                                : 'text-gray-300 hover:bg-gray-700'
-                                }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm">{preset.name}</span>
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                                  {preset.absolutePixelThreshold}px
-                                </span>
-                              </div>
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{preset.description}</p>
-                            </button>
-                          );
-                        })}
-                        {/* A watch while you rest, with its reminder: Nap Mode's own page. */}
-                        <Link
-                          href="/nap/"
-                          onClick={() => setShowModeDropdown(false)}
-                          className="flex items-center w-full min-h-[44px] text-left px-3 py-2 rounded-lg transition-colors text-gray-300 hover:bg-gray-700"
-                        >
-                          <span className="font-medium text-sm">Nap Mode</span>
-                        </Link>
-                      </div>
-
-                      {/* General Presets */}
-                      <div className="p-2">
-                        <p className="text-[10px] text-gray-500 font-medium uppercase tracking-wider px-2 py-1">General Modes</p>
-                        {(['silent', 'night', 'maximum', 'ultimate'] as const).map((presetId) => {
-                          const preset = DEFAULT_PRESETS[presetId];
-                          const isActive = activePresetId === presetId;
-                          return (
-                            <button
-                              key={presetId}
-                              onClick={() => {
-                                setActivePreset(presetId);
-                                setShowModeDropdown(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors ${isActive
-                                ? preset.emergencyMode
-                                  ? 'bg-red-500/20 text-red-400'
-                                  : 'bg-emerald-500/20 text-emerald-400'
-                                : 'text-gray-300 hover:bg-gray-700'
-                                }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-medium text-sm">{preset.name}</span>
-                                {preset.emergencyMode && (
-                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/20 text-red-400">
-                                    EMERGENCY
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{preset.description}</p>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {!captureRequested && nap && (
-                <button
-                  onClick={endNap}
-                  className="px-4 py-2 border border-slate-500 text-slate-200 hover:bg-slate-700 rounded-lg transition-colors"
-                >
-                  End nap
-                </button>
-              )}
-
-              {!captureRequested && (
-                <button
-                  onClick={pressStart(() => startStream())}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                >
-                  Start Monitoring
-                </button>
-              )}
-
-              {captureRequested && (
-                <button
-                  onClick={stopWatching}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                >
-                  {isStreaming || videoSeen ? 'Stop Monitoring' : 'Cancel Starting'}
-                </button>
-              )}
-            </KeyRow>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <WatchForChooser watchFor={watchFor} watching={captureRequested} wide={wide} />
-
-        {nap && napWaitsForTap && !captureRequested && (
-          <div role="status" className="mb-6 rounded-xl border border-indigo-400/50 bg-indigo-500/15 p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <p className="text-base text-indigo-50 flex-1">
+      {!captureRequested && nap && (
+        <div className="watch-grid__nap watch-nap">
+          {napWaitsForTap && (
+            <p role="status" className="watch-nap__line">
               This nap stopped watching when the page reloaded, and the browser keeps its sound off until you tap. Resume nap turns the sound on and starts the camera again.
             </p>
-            <button
-              onClick={pressStart(resumeNap(nap))}
-              className="min-h-[44px] px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg transition-colors"
-            >
-              Resume nap
+          )}
+          <KeyRow className="watch-nap__keys">
+            {napWaitsForTap && (
+              <button type="button" className="key key--outline" onClick={(event) => pressStart(resumeNap(nap))(event.currentTarget)}>
+                Resume nap
+              </button>
+            )}
+            <button type="button" className="key key--outline" onClick={endNap}>
+              End nap
             </button>
-          </div>
+          </KeyRow>
+        </div>
+      )}
+
+      <div className="watch-grid__frame">
+        <WatchFrame
+          phase={framePhase}
+          failure={cameraFailure}
+          stoppedAt={stoppedAt}
+          otherTab={otherTab}
+          askLine={cameraAsk !== 'granted'}
+          noPetLine={watchFor.way === 'lost_found' && watchFor.petsRead === 'ready' && !watchFor.pet}
+          onStart={pressStart(startStream)}
+          onTryAgain={pressStart(startStream)}
+          strip={(framePhase === 'starting' || framePhase === 'live' || framePhase === 'paused') && (
+            <Meters rows={meterRows} pet={meterPet} microphone={microphone} />
+          )}
+        >
+          <CameraFeed
+            bare
+            deviceId={deviceId}
+            enabled={captureRequested}
+            scenario={selectedScenario || scenario || undefined}
+            onFrame={handleFrame}
+            onMotion={handleMotion}
+            onMotionZones={handleMotionZones}
+            onAudio={handleAudio}
+            onPixel={handlePixel}
+            alertBox={liveBox}
+            onVideoReady={handleVideoReady}
+            onError={handleCameraError}
+            onMicrophone={setMicrophone}
+            className="watch-frame__video"
+            detectionZones={detectionZones}
+            frameCaptureThresholds={{
+              motion: sensitivityToThreshold(currentPreset.motionSensitivity),
+              audio: sensitivityToThreshold(currentPreset.audioSensitivity),
+            }}
+            frameIntervalMs={Math.max(250, currentPreset.analysisInterval * 1000)}
+            pixelDetection={{
+              enabled: currentPreset.pixelDetectionEnabled,
+              sensitivity: Math.max(0, Math.min(100, 100 - currentPreset.pixelThreshold)),
+              absolutePixelThreshold: currentPreset.absolutePixelThreshold,
+              useAbsoluteThreshold: currentPreset.useAbsoluteThreshold,
+              instantLocalMode: isSleepPreset(activePresetId),
+              downsampleFactor: isSleepPreset(activePresetId) ? 2 : 1,
+            }}
+          />
+        </WatchFrame>
+      </div>
+
+      <div className="watch-grid__controls watch-controls">
+        {framePhase === 'starting' && (
+          <button type="button" className="key key--outline watch-stop" onClick={stopWatching}>
+            Cancel
+          </button>
         )}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Camera Feed */}
-          <div className={`lg:col-span-8${petCard ? ' min-[1440px]:col-span-7' : ''}`}>
-            <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden relative">
-              <div className="p-4 border-b border-gray-700 flex items-center justify-between">
-                <h2 className="font-semibold text-white">Camera Feed</h2>
-              </div>
-              {watchFor.way === 'lost_found' && watchFor.petsRead === 'ready' && !watchFor.pet && (
-                <p className="px-4 pt-3 text-base text-[var(--color-steel-50)]">{NO_PET_FRAME_LINE}</p>
-              )}
+        {(framePhase === 'live' || framePhase === 'paused') && (
+          <button type="button" className="key key--outline watch-stop" onClick={stopWatching}>
+            Stop watching
+          </button>
+        )}
+        {!cameraAfterList && <CameraPicker refreshKey={isStreaming} className="watch-camera" />}
+      </div>
 
-              {/* Subject preview overlay */}
-              {isLostFoundWatching && <SubjectPreviewOverlay />}
+      {/* The list, on a phone the camera menu while watching, and the
+          statement come before the settings in the page, as they stand on
+          screen, so Tab reaches them in that order. */}
+      <div className="watch-grid__side">
+        {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
+        <AlertPanel showMute={false} />
+        {watchFor.comparing && (
+          <Link href={LOCAL_TIMELINE_HREF} className="link-row">{OPEN_IN_HISTORY}</Link>
+        )}
+      </div>
 
-              <CameraPicker refreshKey={isStreaming} />
-              <CameraFeed
-                deviceId={deviceId}
-                enabled={captureRequested}
-                scenario={selectedScenario || scenario || undefined}
-                onFrame={handleFrame}
-                onMotion={handleMotion}
-                onMotionZones={handleMotionZones}
-                onAudio={handleAudio}
-                onPixel={handlePixel}
-                alertBox={liveBox}
-                onVideoReady={handleVideoReady}
-                onError={stopStream}
-                showDebug={true}
-                showZonesOverlay={true}
-                className="aspect-video"
-                detectionZones={detectionZones}
-                frameCaptureThresholds={{
-                  motion: sensitivityToThreshold(currentPreset.motionSensitivity),
-                  audio: sensitivityToThreshold(currentPreset.audioSensitivity),
-                }}
-                frameIntervalMs={Math.max(250, currentPreset.analysisInterval * 1000)}
-                pixelDetection={{
-                  enabled: currentPreset.pixelDetectionEnabled,
-                  sensitivity: Math.max(0, Math.min(100, 100 - currentPreset.pixelThreshold)),
-                  absolutePixelThreshold: currentPreset.absolutePixelThreshold,
-                  useAbsoluteThreshold: currentPreset.useAbsoluteThreshold,
-                  instantLocalMode: isSleepPreset(activePresetId),
-                  downsampleFactor: isSleepPreset(activePresetId) ? 2 : 1,
-                }}
-              />
-            </div>
+      {cameraAfterList && (
+        <div className="watch-grid__camera">
+          <CameraPicker refreshKey={isStreaming} className="watch-camera" />
+        </div>
+      )}
 
-            {/* Stats */}
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-4">
-              <StatCard
-                label="Motion"
-                value={motionScore.toFixed(1)}
-                unit="%"
-                color={motionScore > 30 ? 'yellow' : 'green'}
-              />
-              <StatCard
-                label="Audio"
-                value={audioLevel.toFixed(1)}
-                unit="%"
-                color={audioLevel > 30 ? 'yellow' : 'green'}
-              />
-              <StatCard
-                label="Pixel"
-                value={(pixelZoneStatus?.changedPx ?? pixelChangedPixels).toFixed(0)}
-                unit="px"
-                color={
-                  pixelZoneStatus
-                    ? pixelZoneStatus.ratio >= 5
-                      ? 'red'
-                      : pixelZoneStatus.ratio >= 1
-                        ? 'yellow'
-                        : 'green'
-                    : pixelChangedPixels >= currentPreset.absolutePixelThreshold
-                      ? 'yellow'
-                      : 'green'
-                }
-                subtext={
-                  pixelZoneStatus
-                    ? `${pixelZoneStatus.zoneName ?? 'All Zones'} • threshold ${pixelZoneStatus.thresholdPx}px`
-                    : `Threshold ${currentPreset.absolutePixelThreshold}px`
-                }
-              />
-              <StatCard
-                label="Stream"
-                value={isStreaming ? 'Active' : captureRequested ? (videoSeen ? 'Paused' : 'Starting') : 'Inactive'}
-                color={isStreaming ? 'green' : 'gray'}
-              />
-              <StatCard
-                label="Mode"
-                value={currentPreset.name}
-                color={isSleepPreset(activePresetId) ? 'blue' : currentPreset.emergencyMode ? 'red' : 'green'}
-              />
-            </div>
+      <p className="watch-grid__statement watch-statement">
+        <Brand>SafeOS</Brand> adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.
+      </p>
 
+      <div className="watch-grid__settings">
+        <SettingsFold>
+          <Link href="/nap/" className="link-row">Nap Mode</Link>
+          <div>
             {/* Active Mode Info Panel */}
             <div
               key={activePresetId}
@@ -1716,12 +1697,6 @@ export default function MonitorPage() {
                     }`} />
                   {currentPreset.name}
                 </h3>
-                <span className={`text-xs px-2 py-1 rounded-full ${currentPreset.processingMode === 'local'
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-blue-500/20 text-blue-400'
-                  }`}>
-                  {currentPreset.processingMode === 'local' ? 'Local Processing' : 'Cloud AI'}
-                </span>
               </div>
 
               <p className="text-xs text-gray-400 mb-4">{currentPreset.description}</p>
@@ -1746,12 +1721,15 @@ export default function MonitorPage() {
                   </div>
                   <div className="text-xs sm:text-[10px] text-gray-500 uppercase">Audio</div>
                 </div>
-                <div className="text-center p-2 bg-gray-900/50 rounded-lg">
-                  <div className="text-lg font-bold text-amber-400">
-                    {currentPreset.analysisInterval}s
+                {/* How often frames go to this device's own server: shown only while one is connected. */}
+                {serverConnected && (
+                  <div className="text-center p-2 bg-gray-900/50 rounded-lg">
+                    <div className="text-lg font-bold text-amber-400">
+                      {currentPreset.analysisInterval}s
+                    </div>
+                    <div className="text-xs sm:text-[10px] text-gray-500 uppercase">Interval</div>
                   </div>
-                  <div className="text-xs sm:text-[10px] text-gray-500 uppercase">Interval</div>
-                </div>
+                )}
               </div>
 
               {/* Emergency Mode Badge */}
@@ -1853,24 +1831,26 @@ export default function MonitorPage() {
                     />
                   </div>
 
-                  {/* Analysis Interval Slider */}
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-gray-400">Analysis Interval</span>
-                      <span className="text-amber-400 font-medium">{currentPreset.analysisInterval}s</span>
+                  {/* How often frames go to this device's own server: shown only while one is connected. */}
+                  {serverConnected && (
+                    <div>
+                      <div className="flex justify-between text-xs mb-1">
+                        <span className="text-gray-400">Analysis Interval</span>
+                        <span className="text-amber-400 font-medium">{currentPreset.analysisInterval}s</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={1}
+                        max={60}
+                        value={currentPreset.analysisInterval}
+                        onChange={(e) => tuneWatch({ analysisInterval: Number(e.target.value) })}
+                        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
+                                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
+                                   [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-amber-500
+                                   [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
+                      />
                     </div>
-                    <input
-                      type="range"
-                      min={1}
-                      max={60}
-                      value={currentPreset.analysisInterval}
-                      onChange={(e) => tuneWatch({ analysisInterval: Number(e.target.value) })}
-                      className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer
-                                 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4
-                                 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-amber-500
-                                 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:cursor-pointer"
-                    />
-                  </div>
+                  )}
 
                   {/* Reset to Preset Defaults */}
                   <button
@@ -1885,44 +1865,8 @@ export default function MonitorPage() {
             </div>
           </div>
 
-          {/* The pet's card, the alerts and, while the watch compares, the pet's matches */}
-          <div className={`lg:col-span-4${petCard ? ' min-[1440px]:col-span-5' : ''} flex flex-col gap-6`}>
-            {petCard && <WatchForPet watchFor={watchFor} layout="card" />}
-
-            <div className="flex-1 bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden min-h-[400px]">
-              <AlertPanel />
-            </div>
-
-            {watchFor.comparing && activeSubject && (
-              <div className="bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden p-4">
-                <h2 className="font-semibold text-white flex items-center gap-2 mb-4">
-                  <IconSearch size={18} />
-                  Lost and Found
-                </h2>
-                <SubjectPreview mode="full" showClose={false} onPhotosSaved={watchFor.photosSaved} savedUnder={petsMarker} />
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <Link
-                    href={LOCAL_TIMELINE_HREF}
-                    className="block w-full text-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                  >
-                    {OPEN_IN_HISTORY}
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Inline Settings Panel */}
-        <InlineSettingsPanel defaultExpanded={['detection']} />
-      </main>
-
-      {/* The notice before the first watch on this device */}
-      {picturesNotice}
-
-      {/* Quick Settings Panel - floating bottom-right (mobile fallback) */}
-      <div className="lg:hidden">
-        <QuickSettingsPanel />
+          <InlineSettingsPanel defaultExpanded={['detection']} serverConnected={serverConnected} />
+        </SettingsFold>
       </div>
 
       {/* Preset Initializer - handles URL params */}
@@ -2063,13 +2007,13 @@ export default function MonitorPage() {
             setMediaOverlayData(null);
           }}
           subjectName={mediaOverlayData.subjectName}
-          confidence={mediaOverlayData.confidence}
           images={mediaOverlayData.images}
         />
       )}
 
+      {picturesNotice}
       {dialog}
-    </div>
+    </main>
   );
 }
 
@@ -2099,47 +2043,4 @@ function PresetInitializer() {
   }, [searchParams, setActivePreset, applied]);
 
   return null; // This component only handles side effects
-}
-
-// =============================================================================
-// Sub-Components
-// =============================================================================
-
-function StatCard({
-  label,
-  value,
-  unit,
-  color,
-  subtext,
-}: {
-  label: string;
-  value: string;
-  unit?: string;
-  color: 'green' | 'yellow' | 'red' | 'blue' | 'gray';
-  subtext?: string;
-}) {
-  const colorClasses = {
-    green: 'bg-green-500/20 text-green-400',
-    yellow: 'bg-yellow-500/20 text-yellow-400',
-    red: 'bg-red-500/20 text-red-400',
-    blue: 'bg-blue-500/20 text-blue-400',
-    gray: 'bg-gray-500/20 text-gray-400',
-  };
-
-  return (
-    <div
-      className={`p-4 rounded-lg ${colorClasses[color]} border border-current/20`}
-    >
-      <div className="text-xs uppercase mb-1">{label}</div>
-      <div className="text-xl font-bold capitalize">
-        {value}
-        {unit && <span className="text-sm ml-1">{unit}</span>}
-      </div>
-      {subtext && (
-        <div className="mt-1 text-[11px] leading-tight text-current/80 truncate">
-          {subtext}
-        </div>
-      )}
-    </div>
-  );
 }

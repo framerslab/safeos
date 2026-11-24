@@ -98,8 +98,8 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   expect(preset).toBe('infant_sleep');
 
   // The watch starts on arrival, with no second press.
-  await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('button', { name: 'Start Monitoring', exact: true })).toHaveCount(0);
+  await expect(page.locator('.watch-controls').getByRole('button', { name: /^(Stop watching|Cancel)$/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('button', { name: 'Start watching', exact: true })).toHaveCount(0);
   // Chromium's fake camera shows a moving picture, so the Nap preset's pixel check alerts.
   await expect(page.getByText(/^Picture change at /).first()).toBeVisible({ timeout: 45_000 });
   // The watch as it runs after Start Nap Mode, kept as the pull request's picture.
@@ -113,9 +113,9 @@ test('Start Nap Mode opens Motion and sound with the infant_sleep preset', async
   expect(await page.evaluate(() => window.history.state?.safeosNap?.minutes)).toBe(15);
   await page.screenshot({ path: test.info().outputPath('nap-resume-1280.png') });
   await resume.click();
-  // The camera runs again: the key reads Stop Monitoring and the Stream tile reads Active.
-  await expect(page.getByRole('button', { name: 'Stop Monitoring', exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('Stream', { exact: true }).locator('xpath=following-sibling::div[1]')).toHaveText('Active', { timeout: 30_000 });
+  // The camera runs again: the key reads Stop watching and the Motion meter reads the live picture.
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('meter', { name: 'Motion level' })).toHaveAttribute('aria-valuetext', /per cent/, { timeout: 30_000 });
 });
 
 test('Start Nap Mode on a device that has not answered the notice opens it before the camera', async ({ page, context }) => {
@@ -143,7 +143,7 @@ test('Start Nap Mode on a device that has not answered the notice opens it befor
   // The notice stands before the camera starts, and nothing is kept.
   const notice = page.getByRole('dialog', { name: 'Each alert keeps a picture', exact: true });
   await expect(notice).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('LIVE', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.watch-frame[data-phase="live"]')).toHaveCount(0);
   expect(await pictureRows(page)).toEqual([]);
   expect(await cameraAsks(), 'the watch asks for no camera while the notice stands').toBe(0);
 
@@ -152,7 +152,7 @@ test('Start Nap Mode on a device that has not answered the notice opens it befor
   await expect(notice).toHaveCount(0);
   const resume = page.getByRole('button', { name: 'Resume nap', exact: true });
   await expect(resume).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('LIVE', { exact: true })).toHaveCount(0);
+  await expect(page.locator('.watch-frame[data-phase="live"]')).toHaveCount(0);
   await resume.click();
   await expect(notice).toBeVisible();
   expect(await pictureRows(page)).toEqual([]);
@@ -161,9 +161,10 @@ test('Start Nap Mode on a device that has not answered the notice opens it befor
   // Start watching starts the nap's watch, and the fake camera's moving picture raises its alert.
   await notice.getByRole('button', { name: 'Start watching', exact: true }).click();
   await expect(notice).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /^(Stop Monitoring|Cancel Starting)$/ })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.watch-frame[data-phase="live"]')).toBeVisible({ timeout: 30_000 });
   await expect.poll(cameraAsks, { timeout: 30_000 }).toBeGreaterThan(0);
   await expect(page.getByText(/^Picture change at /).first()).toBeVisible({ timeout: 45_000 });
+  await expect.poll(pictureRows.bind(null, page), { timeout: 15_000 }).not.toEqual([]);
 });
 
 test('says when quiet hours will silence a nap, and End nap ends a nap whose camera failed', async ({ page, context }) => {
@@ -195,7 +196,9 @@ test('says when quiet hours will silence a nap, and End nap ends a nap whose cam
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   const endNap = page.getByRole('button', { name: 'End nap', exact: true });
   await expect(endNap).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('button', { name: 'Start Monitoring', exact: true })).toBeVisible();
+  // The frame names the blocked camera with its fix and Try again.
+  await expect(page.locator('.watch-frame').getByText(/^The browser blocked the camera for this site\./)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Try again', exact: true })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('nap-camera-failed-1280.png') });
   await endNap.click();
   await expect(endNap).toHaveCount(0);
