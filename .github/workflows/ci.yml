@@ -253,7 +253,7 @@ jobs:
   web-lost-found:
     name: Web app Lost & Found browser test
     runs-on: ubuntu-24.04
-    # Eleven walks on one build, Watch for's among them with axe in both looks.
+    # Twelve walks on one build, Watch for's among them with axe in both looks.
     timeout-minutes: 45
     defaults:
       run:
@@ -295,7 +295,7 @@ jobs:
           npx playwright test e2e/lost-found-edge.spec.ts e2e/nap-opens-the-watch.spec.ts e2e/setup-lost-found.spec.ts \
             e2e/quiet-hours-critical.spec.ts e2e/detection-use-values.spec.ts e2e/set-times-apply.spec.ts \
             e2e/lost-found-sound.spec.ts e2e/lost-found-sound-stop.spec.ts e2e/sound-pitch-range.spec.ts e2e/watch-for.spec.ts \
-            e2e/watch-for-pet-change.spec.ts \
+            e2e/watch-for-pet-change.spec.ts e2e/lost-found-words.spec.ts \
             --project=chromium
 
       - name: Upload the test's report
@@ -340,6 +340,10 @@ jobs:
             apps/guardian-ui/test-results/**/lost-found-alert-1280.png
             apps/guardian-ui/test-results/**/sounds-played-1280.png
             apps/guardian-ui/test-results/**/pitch-range-*-1280.png
+            apps/guardian-ui/test-results/**/lost-found-setup-words-1280.png
+            apps/guardian-ui/test-results/**/lost-found-watch-words-1280.png
+            apps/guardian-ui/test-results/**/lost-found-overlay-words-1280.png
+            apps/guardian-ui/test-results/**/lost-found-gallery-words-1280.png
           if-no-files-found: warn
           retention-days: 14
 
