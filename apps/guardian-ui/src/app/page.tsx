@@ -2,25 +2,25 @@
  * SafeOS Guardian - Home Page
  *
  * The page a first-time visitor reads before letting a browser tool use a
- * camera: what it is, a real capture of it watching a room, where it stops,
+ * camera: what it is, recorded runs of it watching a room, where it stops,
  * what sets off an alert and where the alert goes, then the way into setup.
- * Every word, link and picture is in the served HTML, so the page reads
+ * The words, links and first poster are in the served HTML, so the page reads
  * before any script runs and when a script fails; nothing on it asks for a
  * permission, and it requests nothing from another company.
  *
  * @module app/page
  */
 import type { Metadata } from 'next';
-import { HomeCapture, type CaptureCrop } from '@/components/home/HomeCapture';
+import { HomeRuns } from '@/components/home/HomeRuns';
 import { HomeDetection } from '@/components/home/HomeDetection';
 import { HomeStart } from '@/components/home/HomeStart';
 import { HomeBenefits, HomeUses, HomeHow, HomeFree, HomeClosing } from '@/components/home/HomeSections';
 import { Brand, HomeLockup } from '@/components/home/Brand';
 import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, pageMetadata, socialImage } from '@/lib/page-metadata';
 import { HOME_LAST_CHANGED } from '@/lib/page-last-changed';
-import { captureSizes } from '@/lib/home-captures';
-import { CAPTURE_PRELOAD_SCRIPT, CAPTURE_PRELOADS_SCRIPTS_OFF } from '@/lib/capture-preload';
-import clip from '../../public/home/sample-clip.json';
+import { dashboardPreloadScript, dashboardPreloads } from '@/lib/capture-preload';
+import type { HomeRunManifest } from '@/lib/home-runs';
+import recording from '../../public/home/runs/runs.json';
 import appPackage from '../../package.json';
 
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://safeos.sh').replace(/\/+$/, '');
@@ -32,17 +32,7 @@ export const metadata: Metadata = pageMetadata({
   path: '/',
 });
 
-// The three crops of the capture, each with its file's size and the words for
-// what it shows. The sizes come from the capture's record and the words from
-// the clip's record, so both change when the files do. A phone shows the
-// monitor's camera view; a desktop a portrait crop with the monitor's
-// readings; a tablet and the wide layout a landscape crop with the alert list.
-const CAPTURE_SIZES = captureSizes();
-const CAPTURE_CROPS: CaptureCrop[] = [
-  { name: 'phone', ...CAPTURE_SIZES.phone, alt: clip.words.captureAlt.phone },
-  { name: 'landscape', ...CAPTURE_SIZES.landscape, alt: clip.words.captureAlt.landscape },
-  { name: 'portrait', ...CAPTURE_SIZES.portrait, alt: clip.words.captureAlt.portrait },
-];
+const RECORD = recording as unknown as HomeRunManifest;
 
 // React's own name for this attribute differs between versions; the HTML name works in all.
 const HIGH_PRIORITY = { fetchpriority: 'high' } as Record<string, string>;
@@ -75,7 +65,7 @@ function structuredData() {
       'Motion alerts from the camera of a phone, tablet or laptop',
       'Loud-sound alerts from its microphone',
       'Stillness alerts after a time you set',
-      'An alert sound, a notification and a History entry on the device that watches',
+      'An alert sound, a notification if the browser allows it and a History entry on the device that watches',
       'Motion and sound alerts with no connection, once the browser has saved the app',
       'An object-detection model for people and animals on the People and Wildlife pages',
     ],
@@ -108,17 +98,15 @@ export default function HomePage() {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(block) }}
         />
       ))}
-      {/* The capture for the width in the look that is on is asked for early;
-          with scripts off, the device's own look. */}
-      <script dangerouslySetInnerHTML={{ __html: CAPTURE_PRELOAD_SCRIPT }} />
+      <script dangerouslySetInnerHTML={{ __html: dashboardPreloadScript(RECORD.runs[0]) }} />
       <noscript>
-        {CAPTURE_PRELOADS_SCRIPTS_OFF.map(({ crop, look, media }) => (
+        {dashboardPreloads(RECORD.runs[0]).map(({ size, look, media, href }) => (
           <link
-            key={`${crop}-${look}`}
+            key={`${size}-${look}`}
             rel="preload"
             as="image"
             type="image/webp"
-            href={`/home/capture-${crop}-${look}.webp`}
+            href={href}
             media={media}
             {...HIGH_PRIORITY}
           />
@@ -134,15 +122,6 @@ export default function HomePage() {
             </h1>
           </div>
 
-          <HomeCapture
-            crops={CAPTURE_CROPS}
-            caption={
-              <>
-                <Brand>SafeOS</Brand> watching a recorded clip of a kitten. Captured from the app while it ran.
-              </>
-            }
-          />
-
           <div className="home-first__start">
             <HomeStart />
             <p className="home-statement">
@@ -154,6 +133,8 @@ export default function HomePage() {
             </p>
             <script dangerouslySetInnerHTML={{ __html: HIDE_NEEDS_SCRIPT }} />
           </div>
+
+          <HomeRuns runs={RECORD.runs} />
         </div>
       </section>
 

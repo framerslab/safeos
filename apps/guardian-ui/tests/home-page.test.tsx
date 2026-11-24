@@ -16,7 +16,6 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import HomePage from '@/app/page';
 import { SiteShell } from '@/components/layout/SiteShell';
-import clip from '../public/home/sample-clip.json';
 import recording from '../public/home/runs/runs.json';
 import { SETUP_CAMERA_STEP, SETUP_STEPS, SETUP_STEP_COUNT } from '@/lib/setup-steps';
 import { MAX_PET_PHOTOS, MIN_PET_PHOTOS } from '@/lib/pet-photo-limits';
@@ -24,8 +23,8 @@ import { COCO_ANIMAL_CLASSES } from '@/lib/animal-kinds';
 import * as detector from '@/lib/animal-detection';
 import { MODEL_BYTES, MODEL_MANIFEST_BYTES, MODEL_SIZE_MB, MODEL_URL, MODEL_WEIGHTS_BYTES } from '@/lib/detection-model-facts';
 import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
-import { captureSizes, type CaptureCropName } from '@/lib/home-captures';
-import { CAPTURE_PRELOAD_SCRIPT } from '@/lib/capture-preload';
+import { mediaPath, type HomeRunManifest } from '@/lib/home-runs';
+import { dashboardPreloadScript, dashboardPreloads } from '@/lib/capture-preload';
 import { barredWording, homeWordingInputs } from '../scripts/home-wording.cjs';
 import { bare, served, words } from './helpers/served-html';
 
@@ -46,6 +45,7 @@ jest.mock('@/contexts/BackendStatusContext', () => ({
 const APP_ROOT = path.resolve(__dirname, '..');
 const source = (...parts: string[]) => fs.readFileSync(path.join(APP_ROOT, ...parts), 'utf8');
 
+const recorded = recording as unknown as HomeRunManifest;
 const html = renderToStaticMarkup(<HomePage />);
 const page = served(html);
 const all = (selector: string) => Array.from(page.querySelectorAll(selector));
@@ -170,7 +170,13 @@ describe('the page reads before any script runs and asks for nothing', () => {
   });
 
   it('asks nothing of another company: every picture, script and preload is the site\'s own', () => {
+    const templates = all('template[data-run-poster]') as HTMLTemplateElement[];
+    const posterAddresses = templates.flatMap(({ content }) => [
+      ...Array.from(content.querySelectorAll('img'), (image) => image.getAttribute('src')),
+      ...Array.from(content.querySelectorAll('source'), (source) => source.getAttribute('srcset')),
+    ]);
     const addresses = [
+      ...posterAddresses,
       ...all('img').map((image) => image.getAttribute('src')),
       ...all('source').map((item) => item.getAttribute('srcset')),
       ...all('link').map((link) => link.getAttribute('href')),
@@ -295,7 +301,7 @@ describe('headline and benefits', () => {
 
 describe('start action and the limit statement', () => {
   it('serves one key in the first screen, a plain link to setup that reads "Start setup"', () => {
-    const keys = all('.home-first a, .home-first button');
+    const keys = all('.home-first__start a, .home-first__start button');
     expect(keys).toHaveLength(1);
     expect(words(keys[0])).toBe('Start setup');
     expect(bare(keys[0].getAttribute('href'))).toBe('/setup');
@@ -329,64 +335,59 @@ describe('start action and the limit statement', () => {
   });
 });
 
-describe('a real capture of SafeOS watching a recorded clip', () => {
-  const sizes = captureSizes();
+describe('recorded app runs', () => {
+  const first = recorded.runs[0];
+  const region = one('section[aria-label="Recorded runs of SafeOS Guardian"]');
 
-  it('shows the capture in a figure whose caption says what it is', () => {
-    const figure = one('figure.home-capture');
-    expect(words(figure?.querySelector('figcaption'))).toBe('SafeOS watching a recorded clip of a kitten. Captured from the app while it ran.');
-    expect(words(figure?.querySelector('figcaption'))).toBe(clip.words.captureCaption);
-    // Four corner ticks frame it; they are decoration.
-    expect(figure?.querySelectorAll('.corner-ticks i')).toHaveLength(4);
-    expect(figure?.querySelector('.corner-ticks')?.getAttribute('aria-hidden')).toBe('true');
+  it('serves the setup key and statement before the recording', () => {
+    const order = one('.home-first__start')?.compareDocumentPosition(region!);
+    expect(Number(order) & 4).toBe(4);
   });
 
-  const crops: [CaptureCropName, string][] = [
-    ['phone', clip.words.captureAlt.phone],
-    ['landscape', clip.words.captureAlt.landscape],
-    ['portrait', clip.words.captureAlt.portrait],
-  ];
+  it('serves the manifest’s step labels and the first caption', () => {
+    const keys = Array.from(region!.querySelectorAll('button[data-run]'));
+    expect(keys.map((key) => [key.getAttribute('data-run'), words(key)]))
+      .toEqual(recorded.runs.map(({ id, key }) => [id, key]));
+    expect(words(region?.querySelector('[data-run-caption]'))).toBe(first.description);
+    expect(region?.querySelectorAll('.home-run__frame .corner-ticks i')).toHaveLength(4);
+    expect(region?.querySelector('[aria-current="step"]')?.getAttribute('data-run')).toBe(first.id);
+    expect(region?.querySelector('button[aria-label="Previous run"]')?.hasAttribute('disabled')).toBe(true);
+    expect(region?.querySelector('video')?.getAttribute('aria-describedby')).toBe('home-run-description-' + first.id);
+  });
 
-  it.each(crops)('serves the %s crop in both looks as a .webp with a .png beside it, with the record\'s text equivalent', (crop, alt) => {
-    for (const look of ['dark', 'light']) {
-      const picture = one(`.capture__slot--${crop} .capture__pic--${look} picture`);
-      expect(picture?.querySelector('source')?.getAttribute('srcset')).toBe(`/home/capture-${crop}-${look}.webp`);
-      expect(picture?.querySelector('source')?.getAttribute('type')).toBe('image/webp');
-      const image = picture?.querySelector('img');
-      expect(image?.getAttribute('src')).toBe(`/home/capture-${crop}-${look}.png`);
-      expect(image?.getAttribute('alt')).toBe(alt);
-      expect(Number(image?.getAttribute('width'))).toBe(sizes[crop].width);
-      expect(Number(image?.getAttribute('height'))).toBe(sizes[crop].height);
+  it('keeps a dimensioned poster for every look and width in an inert template', () => {
+    const templates = all('template[data-run-poster]') as HTMLTemplateElement[];
+    expect(templates.map((template) => template.dataset.runPoster)).toEqual(recorded.runs.map(({ id }) => id));
+    for (const [index, template] of templates.entries()) {
+      const run = recorded.runs[index];
+      expect(template.content.querySelector('img')?.getAttribute('alt')).toBe(run.description);
+      for (const size of ['square', 'wide'] as const) {
+        for (const look of ['dark', 'light'] as const) {
+          const variant = run.variants[size][look];
+          for (const file of Object.values(variant.poster)) {
+            const source = template.content.querySelector('source[srcset="' + mediaPath(file) + '"]');
+            expect([Number(source?.getAttribute('width')), Number(source?.getAttribute('height'))])
+              .toEqual([file.width, file.height]);
+          }
+        }
+      }
     }
+    expect(all('img').map((element) => element.getAttribute('src'))).toEqual(['/home/site-qr.svg']);
   });
 
-  it.each(crops)('reserves the %s crop\'s box at the ratio of its own file', (crop) => {
-    const box = /--capture-box:\s*([\d.]+)%/.exec(one(`.capture__slot--${crop}`)?.getAttribute('style') || '');
-    expect(box).not.toBeNull();
-    expect(Number(box?.[1])).toBeCloseTo((sizes[crop].height / sizes[crop].width) * 100, 2);
-    // The style sheet reads it, and falls back to no other ratio.
-    expect(source('src', 'styles', 'visitor.css')).toMatch(/\.capture__slot::before\s*\{[^}]*padding-top:\s*var\(--capture-box\);/);
-    expect(source('src', 'styles', 'visitor.css')).not.toMatch(/\.capture__slot--(phone|landscape|portrait)::before/);
-  });
-
-  it('asks early for the capture of the look that is on, with the device\'s own look when scripts are off', () => {
-    // The page's script asks for the crop for the width in the look that is on.
-    expect(html).toContain(CAPTURE_PRELOAD_SCRIPT);
-    // With scripts off, the device's own look, in each crop's widths.
-    const preloads = all('link[rel="preload"][as="image"]');
-    for (const link of preloads) expect(link.closest('noscript')).not.toBeNull();
-    expect(preloads.map((link) => link.getAttribute('href')).sort()).toEqual(
-      ['phone', 'landscape', 'portrait'].flatMap((crop) => ['dark', 'light'].map((look) => `/home/capture-${crop}-${look}.webp`)).sort()
-    );
-    for (const link of preloads) {
-      expect(link.getAttribute('media')).toContain(`prefers-color-scheme: ${link.getAttribute('href')?.includes('-dark') ? 'dark' : 'light'}`);
+  it('preloads the first picture using the same URLs as first paint', () => {
+    expect(html).toContain(dashboardPreloadScript(first));
+    const box = region?.querySelector('.home-run__frame')?.getAttribute('style');
+    const requests = all('link[rel="preload"][as="image"]');
+    expect(requests.map((link) => [link.getAttribute('href'), link.getAttribute('media')]))
+      .toEqual(dashboardPreloads(first).map(({ href, media }) => {
+        expect(box).toContain(href);
+        return [href, media];
+      }));
+    for (const link of requests) {
+      expect(link.closest('noscript')).not.toBeNull();
       expect(link.getAttribute('fetchpriority')).toBe('high');
     }
-  });
-
-  it('shows no picture that is drawn or generated: the only pictures are the capture and the QR code', () => {
-    const pictures = all('img').map((image) => image.getAttribute('src') || '');
-    expect(pictures.filter((address) => !address.startsWith('/home/capture-'))).toEqual(['/home/site-qr.svg']);
   });
 });
 
@@ -681,9 +682,16 @@ describe('the page as a whole', () => {
     for (const id of ['how-it-works', 'uses', 'one-device']) expect(page.getElementById(id)).not.toBeNull();
   });
 
-  it('plays nothing: it holds no video, no sound and no key that plays one', () => {
-    expect(pageWords).not.toMatch(/sample clip|Try it on|Play the/i);
-    expect(all('video, audio')).toHaveLength(0);
+  it('serves one muted inline player with no source and no key that plays sound', () => {
+    const videos = all('video');
+    expect(videos).toHaveLength(1);
+    expect(videos[0].hasAttribute('muted')).toBe(true);
+    expect(videos[0].hasAttribute('playsinline')).toBe(true);
+    expect(videos[0].getAttribute('preload')).toBe('none');
+    expect(videos[0].hasAttribute('src')).toBe(false);
+    expect(videos[0].children).toHaveLength(0);
+    expect(all('audio')).toHaveLength(0);
+    expect(pageWords).not.toMatch(/play sound|try it on/i);
   });
 
   it('opens every link in the same tab but the one inside the not-a-medical-device sentence', () => {

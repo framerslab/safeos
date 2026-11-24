@@ -89,7 +89,7 @@ const PUBLIC_FILES = [
   app('src', 'app', 'sitemap.ts'),
   app('src', 'app', 'not-found.tsx'),
   component('home', 'HomeSections.tsx'), // home
-  component('home', 'HomeCapture.tsx'), // home
+  component('home', 'HomeRuns.tsx'), // home
   component('home', 'HomeDetection.tsx'), // home
   component('home', 'UseStartLink.tsx'), // home
   component('home', 'HomeStart.tsx'), // home
