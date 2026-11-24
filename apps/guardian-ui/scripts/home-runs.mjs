@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 import {
-  captureNotifications, checkNotifications, encodeVariant, limits,
+  captureNotifications, checkNotifications, emulatedSurface, encodeVariant, limits,
   readRecordingWords, sha256, spool, testPosterEncoders,
 } from './home-run-frames.mjs';
 import { recordingInputs } from './home-run-inputs.mjs';
@@ -60,12 +60,15 @@ async function recordVariant(browser, recipe, view, avif) {
   const page = await context.newPage();
   try {
     await captureNotifications(context);
+    const cdp = await emulatedSurface(page, view);
     const prepared = await recipe.prepare({ page, baseUrl });
     const actualLook = await page.evaluate(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light');
     assert.equal(actualLook, view.look, 'The site look differs from the browser');
+    const viewport = await page.evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
+    assert.deepEqual(viewport, [view.width, view.height, view.scale], 'The recording changed the app’s CSS viewport or device scale');
     const top = await placeSubject(page, recipe, view);
     const crop = { x: 0, y: top, width: view.width, height: view.size === 'square' ? view.width : view.height };
-    const recording = await spool(page, dir, view);
+    const recording = await spool(cdp, dir, view);
     const stopReading = watchWords(page, crop);
     let cut;
     let frames;
