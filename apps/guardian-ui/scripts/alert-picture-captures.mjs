@@ -318,7 +318,7 @@ async function state(names, size, look, run) {
 // The states
 // =============================================================================
 
-/** Motion alerts: the live box, three cards, the opened picture, the watch's group, History, Settings. */
+/** Motion alerts: the live box, three cards, the opened picture, the watch's group, History, Settings, Data on this device. */
 async function motionStates(browser, size, look) {
   const context = await seededContext(browser, { size, look, settings: PART_MOTION, before: [clipInOnePart] });
   const page = await context.newPage();
@@ -364,6 +364,14 @@ async function motionStates(browser, size, look) {
     await state(['settings-group'], size, look, async () => {
       await page.goto(address('/settings/detection/'), { waitUntil: 'networkidle', timeout: 60_000 });
       await capture('settings-group', size, look, page.getByRole('group', { name: 'Alert pictures', exact: true }));
+    });
+
+    await state(['data-count'], size, look, async () => {
+      await page.goto(address('/settings/data/'), { waitUntil: 'networkidle', timeout: 60_000 });
+      // The three alerts' pictures stand among the saved pictures the page counts.
+      const head = page.locator('.set-head').filter({ has: page.getByRole('heading', { level: 1, name: 'Data on this device', exact: true }) });
+      await head.getByText(/\b3 saved pictures\b/).waitFor({ timeout: 30_000 });
+      await capture('data-count', size, look, head);
     });
 
   } finally {

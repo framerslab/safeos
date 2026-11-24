@@ -587,9 +587,9 @@ After the home captures, the same job runs
 on the served site. It seeds a device with the notice about alert pictures
 answered, raises alerts from the sample clip and saves each state at 390 by 844
 and 1440 by 900, in both looks, at a device scale factor of 2, clipped to the
-state's own part of the page: `card`, `sound-card`, `opened`, `history`,
-`watch-group`, `settings-group`, `notice`, `notification-setting`,
-`live-box` and, on a first visit, setup's camera step as `setup-choice`, then, with a striped pet enrolled and a striped clip it writes,
+state's own part of the page: `card`, `sound-card`, `card-failed`, `opened`, `history`,
+`watch-group`, `settings-group`, the count at the top of Data on this device as
+`data-count`, `notice`, `notification-setting`, `live-box` and, on a first visit, setup's camera step as `setup-choice`, then, with a striped pet enrolled and a striped clip it writes,
 `sighting` and, in the same visit, the dashboard's Since you last looked as
 `dashboard-sighting`. Each file is `alert-<state>-<width>-<look>.png`. A state it cannot
 reach fails the step and names the state. The files are the run's
