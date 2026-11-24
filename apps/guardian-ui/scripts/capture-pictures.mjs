@@ -97,7 +97,7 @@ try {
   const homeChecks = process.env.PICTURE_VERSION === 'after' && routes.includes('/')
     ? await import('./home-checks.mjs')
     : null;
-  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks?.loadHomeQr);
+  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks);
   for (const route of routes) {
     for (const size of WIDTHS) {
       for (const look of LOOKS) {
@@ -175,8 +175,13 @@ try {
           } else if (route === '/privacy/') {
             await page.locator('#main-content').screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
           } else {
-            if (route === '/' && homeChecks) await homeChecks.loadHomeQr(page);
-            await page.screenshot({ path: file, fullPage: true });
+            const shot = { path: file, fullPage: true };
+            if (route === '/' && homeChecks) {
+              await homeChecks.loadHomeQr(page);
+              await homeChecks.screenshotWithHomeQr(page, shot);
+            } else {
+              await page.screenshot(shot);
+            }
           }
           console.log(`captured ${file}`);
           // The public header, the footer and the open Menu on their own, and
@@ -486,7 +491,7 @@ function contrastOf(locator) {
   });
 }
 
-async function captureHomeFirst(browser, baseUrl, outDir, loadHomeQr) {
+async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
   let failures = 0;
   for (const [width, height] of [[390, 844], [1440, 900]]) {
     for (const look of LOOKS) {
@@ -502,7 +507,7 @@ async function captureHomeFirst(browser, baseUrl, outDir, loadHomeQr) {
         await page.screenshot({ path: path.join(outDir, first), scale: 'device', caret: 'hide' });
         console.log(`captured ${first}`);
 
-        if (!loadHomeQr) continue;
+        if (!homeChecks) continue;
         const hideBar = 'nav[aria-label="Site"] { visibility: hidden !important; }';
         const picture = async (locator, name) => {
           const file = `home-${name}-${width}-${look}.png`;
@@ -517,10 +522,12 @@ async function captureHomeFirst(browser, baseUrl, outDir, loadHomeQr) {
               height: Math.ceil(rect.bottom + window.scrollY) - y,
             };
           });
-          await page.screenshot({
+          const shot = {
             path: path.join(outDir, file), clip, fullPage: true, scale: 'device',
             style: hideBar, caret: 'hide', timeout: 15_000,
-          });
+          };
+          if (name === 'device') await homeChecks.screenshotWithHomeQr(page, shot);
+          else await page.screenshot(shot);
           console.log(`captured ${file}`);
         };
         if ((width === 390 && look === 'light') || (width === 1440 && look === 'dark')) {
@@ -532,7 +539,7 @@ async function captureHomeFirst(browser, baseUrl, outDir, loadHomeQr) {
           await picture(lostAndFound, 'lost-and-found');
         }
         if (width === 390 || look === 'dark') {
-          await loadHomeQr(page);
+          await homeChecks.loadHomeQr(page);
           await picture(page.locator('#one-device'), 'device');
         }
         if (width === 1440 && look === 'dark') {

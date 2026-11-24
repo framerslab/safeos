@@ -195,15 +195,61 @@ export function readStrokes(base64) {
   });
 }
 
-// The full-page shot can be taken before the browser requests a lazy image.
+// Allow the browser to paint a newly decoded SVG before taking a screenshot.
+const paint = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
 export async function loadHomeQr(page) {
   const qr = page.locator('#one-device .home-qr img');
+  // The exported page keeps its lazy image; the camera captures the whole
+  // document at once and needs the image painted even beyond the viewport.
+  await qr.evaluate((image) => { image.loading = 'eager'; });
   await qr.scrollIntoViewIfNeeded({ timeout: 15_000 });
-  // A lazy request may start on a later frame after scrolling.
   await page.waitForFunction((image) => image.complete && image.naturalWidth > 0,
     await qr.elementHandle(), { timeout: 15_000 });
   await qr.evaluate((image) => image.decode());
+  await page.evaluate(paint);
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.evaluate(paint);
+}
+
+export async function screenshotWithHomeQr(page, options) {
+  const qr = await page.locator('#one-device .home-qr img').evaluate((image, { clip, scale }) => {
+    const rect = image.getBoundingClientRect();
+    const density = scale === 'css' ? 1 : window.devicePixelRatio;
+    return {
+      x: Math.round((rect.left + window.scrollX - (clip?.x ?? 0)) * density),
+      y: Math.round((rect.top + window.scrollY - (clip?.y ?? 0)) * density),
+      width: Math.round(rect.width * density),
+      height: Math.round(rect.height * density),
+    };
+  }, options);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const png = await page.screenshot(options);
+    const visible = await page.evaluate(async ({ png, qr }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${png}`;
+      await image.decode();
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const drawing = canvas.getContext('2d');
+      drawing.imageSmoothingEnabled = false;
+      drawing.drawImage(image, qr.x, qr.y, qr.width, qr.height, 0, 0, size, size);
+      const { data } = drawing.getImageData(0, 0, size, size);
+      let black = 0;
+      let white = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        const colour = data.slice(i, i + 3);
+        if (colour.every((channel) => channel < 32)) black += 1;
+        if (colour.every((channel) => channel > 223)) white += 1;
+      }
+      return black > size * size * 0.12 && white > size * size * 0.25;
+    }, { png: png.toString('base64'), qr });
+    if (visible) return;
+    await page.evaluate(paint);
+  }
+  throw new Error('The QR code is missing from the captured pixels');
 }
 
 async function withOpenDisclosures(page, read) {
@@ -575,7 +621,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           await loadHomeQr(page);
           expect(await page.locator('.home-qr img').evaluate((image) => image.complete && image.naturalWidth > 0),
             `full page at ${width} px, ${look}: the QR has not loaded`);
-          await page.screenshot({ path: path.join(outDir, `home-${width}-${look}.png`), fullPage: true });
+          await screenshotWithHomeQr(page, { path: path.join(outDir, `home-${width}-${look}.png`), fullPage: true });
         }
         if (![390, 820, 1280, 1440, 1920].includes(width)) return;
 
@@ -633,7 +679,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         const file = `home-readability-${width}-${look}.png`;
         const sample = await page.evaluate(pageWordBoxes);
         expect(sample.boxes.length > 100, `readability ${file}: only ${sample.boxes.length} ranges`);
-        await page.screenshot({ path: path.join(outDir, file), fullPage: true, scale: 'device', caret: 'hide' });
+        await screenshotWithHomeQr(page, { path: path.join(outDir, file), fullPage: true, scale: 'device', caret: 'hide' });
         const variant = [{ file, ...sample }];
         await withOpenDisclosures(page, async (id) => {
           const file = `home-readability-${id}-${width}-${look}.png`;

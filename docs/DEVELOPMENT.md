@@ -487,7 +487,7 @@ When the route list includes `/`, both builds capture the first visit at
 build also captures the HTML diagram, the expanded Lost and Found card, the
 device steps, the uses and the closing section. The device pictures include
 the full server section. Full-page home captures wait for the QR image to
-decode, and the phone captures show it in both looks.
+decode. The capture checks the resulting pixels for the QR code in both looks.
 
 The walk in `apps/guardian-ui/scripts/home-checks.mjs` checks the supplied
 capture and its crop, the header and Menu, native disclosure grouping, QR,
