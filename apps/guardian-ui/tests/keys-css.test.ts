@@ -243,4 +243,15 @@ describe('the other stylesheets', () => {
     const github = visitor.filter((r) => r.selectors.some((s) => s.endsWith('.site-header__github')) && r.declarations.display === 'inline-flex');
     expect(github.map((r) => [r.media.includes('min-width: 64em'), r.selectors])).toEqual([[true, [".site-header:not([data-collapsed='true']):not([data-short]) .site-header__github"]]]);
   });
+
+  it('leaves the text link its own underline: no page rule resets its colour or thickness', () => {
+    // A text-decoration shorthand on a more specific rule puts the link back to
+    // a thin underline in the text's colour, at rest and on hover.
+    const resets = STYLESHEETS.filter((file) => file !== 'styles/keys.css')
+      .flatMap((file) => rulesOf(read(file)).map((r) => ({ file, ...r })))
+      .filter((r) => r.selectors.some((s) => /\.link-row(?![\w-])/.test(s)))
+      .filter((r) => ['text-decoration', 'text-decoration-color', 'text-decoration-thickness'].some((name) => name in r.declarations))
+      .map((r) => `${r.file}: ${r.selectors.join(', ')}`);
+    expect(resets).toEqual([]);
+  });
 });

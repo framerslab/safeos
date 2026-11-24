@@ -618,6 +618,13 @@ describe('the page as a whole', () => {
     (text) => expect(text).toMatch(barredWording)
   );
 
+  it('reads two blocks with no space between them as two words', () => {
+    const root = served('<p>Keep watch</p><p>Intruders trigger an alert.</p><p>Read <a href="/">the</a><span>ory</span></p>').body;
+    const [text] = homeWordingInputs(root);
+    expect(text).toMatch(barredWording);
+    expect(text).toBe('Keep watch Intruders trigger an alert. Read theory');
+  });
+
   it.each([
     ['nav .site-header__brand', 'aria-label', 'keeps intruders out'],
     ['nav .site-header__brand', 'aria-description', 'lists threats'],
