@@ -14,6 +14,7 @@
 
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
+import { readable, wordsOn } from './helpers/alert-pictures';
 import { BARRED, readWords } from './helpers/lost-found-words';
 import { enrolPet, sightingAlerts } from './helpers/own-sound';
 import { OWN_SETTING, setUpDevice } from './helpers/seeded-device';
@@ -264,33 +265,43 @@ test('the watch names the pet it compares with no score, bar or count', async ({
   await page.screenshot({ path: testInfo.outputPath('lost-found-watch-words-1280.png'), fullPage: true });
 });
 
-test('an alert asks its question in the notification and on the full-screen pictures, and speaks the new line', async ({ page, context }, testInfo) => {
-  test.setTimeout(240_000);
-  await keepNotificationsAndSpeech(context);
-  await seed(context);
+for (const look of ['light', 'dark'] as const) {
+  test(`an alert asks its question in the notification and on the full-screen pictures, and speaks the new line, ${look}`, async ({ page, context }, testInfo) => {
+    test.setTimeout(240_000);
+    await page.emulateMedia({ colorScheme: look });
+    await keepNotificationsAndSpeech(context);
+    await seed(context);
 
-  await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
-  await openSetup(page);
-  await addStripesPhoto(page);
-  await switchOnOverlay(page);
-  await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
-  await openWatch(page);
+    await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+    await openSetup(page);
+    await addStripesPhoto(page);
+    await switchOnOverlay(page);
+    await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
+    await openWatch(page);
 
-  await expect
-    .poll(async () => (await keptSoFar(page)).notifications.map((shown) => shown.title), { timeout: 60_000 })
-    .toContain(QUESTION);
-  const shown = (await keptSoFar(page)).notifications.find((notification) => notification.title === QUESTION);
-  expect(shown?.body).toMatch(/^Colours and shape like Stripes’s photos, .+\.$/);
-  expect(shown?.body).not.toContain('%');
+    await expect
+      .poll(async () => (await keptSoFar(page)).notifications.map((shown) => shown.title), { timeout: 60_000 })
+      .toContain(QUESTION);
+    const shown = (await keptSoFar(page)).notifications.find((notification) => notification.title === QUESTION);
+    expect(shown?.body).toMatch(/^Colours and shape like Stripes’s photos, .+\.$/);
+    expect(shown?.body).not.toContain('%');
 
-  const dialog = page.getByRole('alertdialog', { name: QUESTION });
-  await expect(dialog).toBeVisible({ timeout: 30_000 });
-  await expect(dialog.getByText(FIRST_LINE, { exact: true })).toBeVisible();
+    const dialog = page.getByRole('alertdialog', { name: QUESTION });
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    await expect(dialog.getByText(FIRST_LINE, { exact: true })).toBeVisible();
 
-  await expect.poll(async () => (await keptSoFar(page)).spoken.length, { timeout: 30_000 }).toBeGreaterThan(0);
-  expect((await keptSoFar(page)).spoken[0]).toBe('Colours like your pet’s photos are in view.');
-  await page.screenshot({ path: testInfo.outputPath('lost-found-overlay-words-1280.png') });
-});
+    await expect.poll(async () => (await keptSoFar(page)).spoken.length, { timeout: 30_000 }).toBeGreaterThan(0);
+    expect((await keptSoFar(page)).spoken[0]).toBe('Colours like your pet’s photos are in view.');
+    const capture = look === 'light' ? 'lost-found-overlay-words-1280.png' : 'lost-found-overlay-words-1280-dark.png';
+    await page.screenshot({ path: testInfo.outputPath(capture) });
+    const title = dialog.getByRole('heading', { name: QUESTION, exact: true });
+    const shown = await wordsOn(dialog, title);
+    expect.soft(shown.ratio, 'the heading has at least 12:1 contrast against the black overlay').toBeGreaterThanOrEqual(12);
+    expect.soft(shown.solid).toBe(true);
+    expect.soft(shown.size).toBeGreaterThanOrEqual(18);
+    expect(await readable(dialog, { lead: 18, other: 18, floor: 18, leadRatio: 12, otherRatio: 7 })).toEqual([]);
+  });
+}
 
 test('the gallery lists saved pictures with no score, and an opened one asks the question', async ({ page, context }, testInfo) => {
   test.setTimeout(180_000);

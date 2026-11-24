@@ -21,6 +21,7 @@ import { test, expect, type BrowserContext, type Locator, type Page } from '@pla
 import {
   CUSTOM_PRESET,
   doubleText,
+  faultPictureStore,
   near,
   notesOf,
   pixelsAt,
@@ -269,6 +270,54 @@ for (const look of ['dark', 'light'] as const) {
     });
   }
 }
+
+test('a kept sighting fills the pet count and the gallery, and deleting its picture also clears it from History', async ({ page, context }, testInfo) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await setUp(context);
+  await stripedCamera(page);
+  await watchForStripes(page);
+  const time = await timeOf(sightings(page).first());
+  await page.evaluate(() => { window.__stripes!.hidden = true; });
+  await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+  await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+  expect((await readDatabase(page)).matchFrames).toEqual([]);
+
+  const historyRow = page.locator('[data-history-row]').filter({ hasText: QUESTION });
+  await page.goto('/history/?view=local', { waitUntil: 'networkidle' });
+  await expect(historyRow.getByRole('button', { name: /^Open picture: / })).toBeVisible();
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('button', { name: 'Start Monitoring' })).toBeVisible();
+  await expect.soft(page.getByText(/^1 possible sighting saved • Created /), 'the pet counts its kept picture').toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('lost-found-kept-count-1280.png') });
+
+  await page.getByRole('link', { name: /^Saved pictures/ }).click();
+  await expect(page.getByRole('heading', { name: 'Saved pictures', exact: true })).toBeVisible();
+  const tile = page.getByRole('button', { name: 'Open this picture', exact: true });
+  await expect.soft(tile, 'the kept sighting has a tile in Saved pictures').toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('lost-found-kept-gallery-1280.png') });
+  if (testInfo.errors.length > 0) return;
+
+  await expect(page.getByText(QUESTION, { exact: true })).toBeVisible();
+  await tile.click();
+  const opened = page.getByRole('dialog', { name: QUESTION, exact: true });
+  await expect(opened.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+  await expect(opened.locator('.alert-picture__box')).toHaveCount(1);
+  await expect(opened.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('lost-found-kept-opened-1280.png') });
+  await opened.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByText('No pictures saved', { exact: true })).toBeVisible();
+  expect(keptRows(await readDatabase(page))).toEqual([]);
+
+  await page.goto('/history/?view=local', { waitUntil: 'networkidle' });
+  await expect(historyRow.getByText(QUESTION, { exact: true })).toBeVisible();
+  await expect(historyRow.getByRole('button', { name: /^Open picture: / })).toHaveCount(0);
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('button', { name: 'Start Monitoring' })).toBeVisible();
+  await expect(page.getByText(/^1 possible sighting saved/)).toHaveCount(0);
+});
 
 test.describe('A sighting at 320 px and 200 per cent text', () => {
   test.use({ viewport: { width: 320, height: 1000 } });
@@ -554,6 +603,8 @@ for (const look of ['light', 'dark'] as const) {
     test('with the switch on, the sighting’s notification carries the camera’s picture and no pet photo', async ({ page, context }) => {
       test.setTimeout(240_000);
       await setUp(context, { pictures: { inNotifications: true }, notifications: {} });
+      // The picture cannot be ready before the notification has to go.
+      await faultPictureStore(page, { holdDrawMs: 1_000 });
       await stripedCamera(page);
       await watchForStripes(page);
       await expect(sightings(page).first()).toBeVisible({ timeout: 90_000 });
