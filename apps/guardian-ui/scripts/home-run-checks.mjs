@@ -123,7 +123,9 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
       await check(page, context);
       console.log('Home recordings: ' + name);
     } catch (error) {
-      issues.push(name + ': ' + error.message);
+      const issue = name + ': ' + error.message;
+      issues.push(issue);
+      console.error('Home recordings: ' + issue);
     } finally {
       await context.close();
     }
@@ -217,10 +219,18 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
           return keys.flat().some((request) => /\.mp4(?:$|\?)/.test(request.url));
         }), false);
         if (width === 1440) {
-          assert.equal(await page.evaluate(async (url) => {
+          const widePoster = openingFile + '-wide-' + look + '.avif';
+          // Block the upstream request as well as going offline in the page.
+          // The worker's own fetch can otherwise reach the test server.
+          await context.route('**' + widePoster, async (route) => {
+            if (route.request().serviceWorker()) await route.abort('internetdisconnected');
+            else await route.continue();
+          });
+          const fallback = await page.evaluate(async (url) => {
             const answer = await fetch(url);
-            return answer.headers.get('Content-Type');
-          }, openingFile + '-wide-' + look + '.avif'), 'image/webp', 'Worker serves the saved square’s media type');
+            return { status: answer.status, type: answer.headers.get('Content-Type') };
+          }, widePoster);
+          assert.deepEqual(fallback, { status: 200, type: 'image/webp' });
         }
       });
     }
@@ -398,6 +408,5 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 320);
   });
 
-  for (const issue of issues) console.error('Home recordings: ' + issue);
   return issues.length;
 }

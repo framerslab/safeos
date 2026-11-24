@@ -218,13 +218,15 @@ export default function RootLayout({
                       if (!navigator.onLine || motion.matches || document.documentElement.classList.contains('reduce-motion')
                           || (connection && (connection.saveData || /^(slow-)?2g$/.test(connection.effectiveType)))) return;
                       workers.ready.then(function(registration) {
-                        if (registration.active && navigator.onLine && !motion.matches
+                        var worker = workers.controller || registration.active;
+                        if (worker && navigator.onLine && !motion.matches
                             && !document.documentElement.classList.contains('reduce-motion')
                             && !(connection && (connection.saveData || /^(slow-)?2g$/.test(connection.effectiveType)))) {
-                          registration.active.postMessage({ type: 'save-home-posters' });
+                          worker.postMessage({ type: 'save-home-posters' });
                         }
                       });
                     }
+                    workers.addEventListener('controllerchange', savePosters);
                     window.addEventListener('online', savePosters);
                     motion.addEventListener('change', savePosters);
                     if (connection) connection.addEventListener('change', savePosters);
