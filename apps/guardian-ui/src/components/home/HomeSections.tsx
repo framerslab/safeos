@@ -12,6 +12,7 @@
  */
 
 import Link from 'next/link';
+import { IconBell, IconLock } from '@/components/icons';
 import { NotAMedicalDevice } from '@/components/NotAMedicalDevice';
 import { StartLink } from '@/components/visitor/StartLink';
 import { SETUP_CAMERA_STEP, SETUP_STEP_COUNT } from '@/lib/setup-steps';
@@ -27,6 +28,52 @@ export const ANIMAL_KINDS = new Intl.ListFormat('en-GB', { style: 'long', type: 
 );
 
 const NBSP = ' ';
+
+function LaptopGlyph() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"
+      strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="16" height="12" rx="2" />
+      <path d="m4 16-2 4h20l-2-4" />
+    </svg>
+  );
+}
+
+const BENEFITS = [
+  {
+    title: 'Lo-tech and portable',
+    text: 'Uses the camera and microphone of a phone, tablet or laptop you already own. Point it at any spot, indoors or out.',
+    Glyph: LaptopGlyph,
+  },
+  {
+    title: 'Supplemental alerts',
+    text: 'When something moves or gets loud, the device that watches plays an alert sound, shows a notification and lists the alert in History.',
+    Glyph: IconBell,
+  },
+  {
+    title: 'Privacy first',
+    text: 'Monitoring runs in the browser on the device that watches. Pictures and alerts stay in its storage, and go to a server only if you connect one you run.',
+    Glyph: IconLock,
+  },
+];
+
+export function HomeBenefits() {
+  return (
+    <section className="home-part" aria-labelledby="benefits-title">
+      <div className="home-wrap">
+        <h2 id="benefits-title" className="sr-only">What SafeOS is</h2>
+        <ul className="home-benefits">
+          {BENEFITS.map(({ title, text, Glyph }) => (
+            <li key={title} className="home-benefit">
+              <h3 className="home-h3"><span aria-hidden="true"><Glyph /></span>{title}</h3>
+              <p className="home-p">{text}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
 
 // =============================================================================
 // What people set it up for

@@ -956,6 +956,44 @@ html.light .maker-mark__image--light {
   list-style: none;
 }
 
+.home-benefits {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-benefit {
+  min-width: 0;
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--color-steel-900);
+  color: var(--visitor-panel-ink);
+}
+
+.home-benefit .home-h3 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.home-benefit .home-h3 span {
+  flex: none;
+  color: var(--look-accent);
+}
+
+.home-benefit :is(.home-h3, .home-p) {
+  color: inherit;
+}
+
+@media (min-width: 48em) {
+  .home-benefits {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 /* A rule between two parts of the page: a 1 px line with one tick, 8 px tall
    and 32 px from its left end, both in the line colour. */
 .tick-rule {

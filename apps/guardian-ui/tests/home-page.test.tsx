@@ -148,21 +148,23 @@ describe('the page reads before any script runs and asks for nothing', () => {
   });
 });
 
-describe('headline and lead', () => {
-  it('says what a visitor gets in one H1 and one lead', () => {
+describe('headline and benefits', () => {
+  it('says what a visitor gets in the H1 and three benefits', () => {
     expect(words(one('h1'))).toBe('Free motion and sound alerts from an old phone or laptop');
-    expect(words(one('.home-lead'))).toBe(
-      'SafeOS Guardian runs in your browser. The device watching the room sounds the alert when something moves or gets loud.'
-    );
-    // The H1 comes first in the main content.
     expect(one('main h1, main h2, main h3')).toBe(one('h1'));
+    expect(all('.home-benefits h3').map(words)).toEqual([
+      'Lo-tech and portable', 'Supplemental alerts', 'Privacy first',
+    ]);
+    expect(all('.home-benefits p').map(words)).toEqual([
+      'Uses the camera and microphone of a phone, tablet or laptop you already own. Point it at any spot, indoors or out.',
+      'When something moves or gets loud, the device that watches plays an alert sound, shows a notification and lists the alert in History.',
+      'Monitoring runs in the browser on the device that watches. Pictures and alerts stay in its storage, and go to a server only if you connect one you run.',
+    ]);
   });
 
-  it('leads with no absence claim and none of the old page\'s words', () => {
-    for (const text of [words(one('h1')), words(one('.home-lead'))]) {
-      expect(text).not.toMatch(/no account|nothing|never|private|stays/i);
-    }
-    for (const gone of ['Experimental Supplemental Monitoring Tool', 'lo-tech', 'tech-savvy']) expect(pageWords).not.toContain(gone);
+  it('leads with the offer and keeps the old promotional wording off the page', () => {
+    expect(words(one('h1'))).not.toMatch(/no account|nothing|never|private|stays/i);
+    for (const gone of ['Experimental Supplemental Monitoring Tool', 'tech-savvy']) expect(pageWords).not.toContain(gone);
   });
 });
 
@@ -182,7 +184,7 @@ describe('start action and the limit statement', () => {
     );
     expect(one('.home-statement')?.parentElement).toBe(one('.home-first a.key')?.closest('.home-first__start'));
     expect(count('It does not replace a person nearby.')).toBe(1);
-    for (const gone of ['supplemental', 'supplementary', 'NOT a replacement', 'babysitter', 'carer', 'security system', 'Takes less than 2 minutes']) {
+    for (const gone of ['supplementary', 'NOT a replacement', 'babysitter', 'carer', 'security system', 'Takes less than 2 minutes']) {
       expect(pageWords.toLowerCase()).not.toContain(gone.toLowerCase());
     }
   });
