@@ -15,15 +15,20 @@ export type PictureNews =
   | { type: 'gone'; ids: string[]; reason: 'person' | 'age' | 'with-alert' }
   | { type: 'saved'; id: string }
   // The choices travel with the news: a tab can hear it before the browser hands it the saved choices.
-  // `at` is when they were chosen. A tab of an earlier release sends none of them.
-  | { type: 'settings'; keep?: boolean; deleteAfterDays?: DeleteAfterDays; inNotifications?: boolean; at?: number };
+  // `at` is when they were chosen. A tab of an earlier release sends none of them. `noticeAnswered`
+  // is true once the device has answered the notice about alert pictures.
+  | {
+      type: 'settings'; keep?: boolean; deleteAfterDays?: DeleteAfterDays; inNotifications?: boolean;
+      noticeAnswered?: boolean; at?: number;
+    };
 
 /** The news of a change of the choices, as this tab's store holds them now. */
 export function settingsNews(choices: {
-  keep: boolean; deleteAfterDays: DeleteAfterDays; inNotifications: boolean; chosenAt: number;
+  keep: boolean; deleteAfterDays: DeleteAfterDays; inNotifications: boolean; noticeAnswered: boolean; chosenAt: number;
 }): PictureNews {
   return {
-    type: 'settings', keep: choices.keep, deleteAfterDays: choices.deleteAfterDays, inNotifications: choices.inNotifications, at: choices.chosenAt,
+    type: 'settings', keep: choices.keep, deleteAfterDays: choices.deleteAfterDays, inNotifications: choices.inNotifications,
+    noticeAnswered: choices.noticeAnswered, at: choices.chosenAt,
   };
 }
 

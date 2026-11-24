@@ -18,6 +18,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { postPictureNews, settingsNews } from '../../lib/alert-pictures/channel';
+import { noticeAnswered } from '../../lib/alert-pictures/keeper';
 import { ASK_LINE, GO_BACK, KEEPS_LINE, KEEP_OFF_LINE, NOTICE_TITLE, START_WATCHING, STAY_LINE } from '../../lib/alert-pictures/words';
 import { useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 import { DeleteAfterRow, KeepSwitchRow, StreetLine } from './AlertPicturesGroup';
@@ -151,7 +152,7 @@ export function useNoticeGate(): {
   const [pending, setPending] = useState<Pending | null>(null);
 
   const askBeforeStart = useCallback((start: () => void, onBack?: () => void) => {
-    if (useAlertPicturesStore.getState().noticeAnswered) {
+    if (noticeAnswered()) {
       start();
       return;
     }

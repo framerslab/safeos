@@ -271,7 +271,7 @@ export function holdPicture(promise: Promise<PictureSet>, id: string): void {
   forgetUnnamed(Date.now());
 
   const choice = useAlertPicturesStore.getState();
-  const keeps = choice.noticeAnswered && (heardKeep ?? choice.keep) && storeState === 'usable';
+  const keeps = noticeAnswered() && (heardKeep ?? choice.keep) && storeState === 'usable';
   // The clear markers as they stand at the alert: a save is written only while none has moved.
   const stamp = keeps ? pictureStampNow() : null;
   const since = forgets;
@@ -441,6 +441,8 @@ export function forgetAllPictures(): void {
   for (const entry of [...entries.values()]) if (entry.holders === 0) entries.delete(entry.id);
   listLine = null;
   keptCount = null;
+  // The clear takes the answer to the notice with it.
+  heardNoticeAnswered = false;
   // A count read before the clear is not the count after it.
   countReads += 1;
   tell();
@@ -485,6 +487,8 @@ function hear(news: PictureNews): void {
     }
     tell();
   } else if (news.type === 'settings') {
+    // An answer to the notice holds whenever it was given: the device has answered it.
+    if (news.noticeAnswered) heardNoticeAnswered = true;
     // A choice this tab makes after hearing of this one is the later one, even in the same millisecond.
     if (news.at !== undefined) heardChoiceAt(news.at);
     // Choices made before the ones this tab holds, heard late, change nothing here and delete
@@ -511,6 +515,17 @@ let heardKeep: boolean | null = null;
 
 /** Show the picture in alert notifications as another tab just chose it; null till then, as `heardKeep`. */
 let heardInNotifications: boolean | null = null;
+
+/**
+ * Whether another tab told this one that the device answered the notice about alert pictures. It
+ * holds until all local data is cleared: a tab whose browser keeps no choices never reads the answer.
+ */
+let heardNoticeAnswered = false;
+
+/** Whether this device has answered the notice: in this tab's store, or as another tab told it. */
+export function noticeAnswered(): boolean {
+  return heardNoticeAnswered || useAlertPicturesStore.getState().noticeAnswered;
+}
 
 /**
  * Whether an alert's notification carries its picture: this tab's choice, or a later one another
