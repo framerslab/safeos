@@ -1200,7 +1200,7 @@ html.light input::placeholder {
 }
 
 /* Range sliders in light mode */
-html.light input[type="range"] {
+html.light input[type="range"]:not(.set-slider__input) {
   background-color: #e2e8f0 !important;
 }
 

@@ -151,7 +151,7 @@ export default function PrivacyPage() {
                 and 500 alerts overall in this browser. Acknowledged alerts are removed first, oldest first;
                 if all remaining alerts are unacknowledged, the oldest leave first. Alerts are never removed
                 because of their age. Records on a configured server are not deleted by clearing browser
-                data or signing out. Clear All Local Data also removes recorded sounds and the offline cache.
+                data or signing out. Clear all data on this device, on Settings, Data on this device, also removes recorded sounds and the offline cache.
                 Signing out, in any tab, clears the alerts, frames, recordings and personal settings saved in
                 this browser, for every tab; the server connection is kept. Another tab that is still open
                 may go on showing its alerts until it is reloaded, and it stops receiving alerts from a
@@ -268,7 +268,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: November 13, 2026
+          Last updated: November 22, 2026
         </div>
       </div>
     </main>

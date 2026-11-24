@@ -50,7 +50,7 @@ state word widening its column.
 The watch's settings fold under one row below the alert list, **Settings for this
 watch**, with **Show settings** at its right; a press anywhere along the row opens
 them in place and the key reads **Hide settings**. The choice is kept on this
-device (`safeos-watch-view`, cleared by Clear All Local Data). Open, they hold the
+device (`safeos-watch-view`, cleared by **Clear all data on this device**). Open, they hold the
 link **Nap Mode**, the preset card (its name, description, Pixel Threshold, Motion
 and Audio, **Calibrate Baseline**, Fine-Tune) and the detection settings, whose mode keys
 include **Deep sleep** (Deep Sleep Ultra-Sensitive). The preset card shows
@@ -135,8 +135,8 @@ Photos are added to a pet on the Lost & Found page, and the frames the compariso
 saves stay in its match history. Another pet chosen while the watch compares
 starts with none of the first pet's matches, with no restart of the camera.
 
-When another tab of this browser clears all local data (**Clear All Local Data**,
-or a sign-out), the open watch drops the pets it had read and ends the
+When another tab of this browser clears all local data (**Clear all data on this
+device**, or a sign-out), the open watch drops the pets it had read and ends the
 comparison: it says "Stopped comparing at {time}.", shows "No pet saved", and
 goes on watching for motion and sound. A read of the saved pets on its way at
 that moment shows none of them, and a match being saved
@@ -338,8 +338,8 @@ they are written, or wait for their retry. A repeat made after this tab's Clear 
 goes on a card of its own. An
 acknowledgement or a dismissal never creates a record: when the alert is no longer
 saved, because another tab cleared or dismissed it or a limit removed it, nothing is
-written, and an acknowledged alert leaves that tab's list. Clear All Local Data, a
-sign-out or Clear all, in any tab of this browser, cancels every tab's pending saves.
+written, and an acknowledged alert leaves that tab's list. Clear all data on this
+device, a sign-out or Clear all, in any tab of this browser, cancels every tab's pending saves.
 A failed acknowledgement of a saved alert is retried as an update with no clear
 comparison: it never creates a record, so it acknowledges an alert engine record that
 Clear all kept, and writes nothing once a clear has removed the record. Each clear
@@ -374,9 +374,9 @@ answers 401, that session has ended: the tab uses a newer token that another tab
 in local storage, or else makes a new session, kept in memory and local storage. A
 network failure or any other answer keeps the token, without a profile until the next
 load. After a reload with the database open, the session saved there is used. While a
-notice is shown, signing out and Clear All Local Data are refused until the reload,
+notice is shown, signing out and Clear all data on this device are refused until the reload,
 after which everything saved is shown as it was. Otherwise signing out, in any tab, and
-Clear All Local Data clear every local store for the whole browser. The notice is
+Clear all data on this device clear every local store for the whole browser. The notice is
 readable in the light and dark looks. Browser-only data is not included in server
 exports; use History's local export for that data.
 

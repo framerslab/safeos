@@ -1,4 +1,10 @@
-/** Prefer persistent notifications, which also work on mobile browsers. */
+import { readBrowserNotificationsOn } from './notification-choices';
+
+/**
+ * Prefer persistent notifications, which also work on mobile browsers. Shows
+ * nothing while Send browser notifications is off on Notifications, whatever
+ * the browser allows.
+ */
 export async function showBrowserNotification(
   title: string,
   options: globalThis.NotificationOptions = {}
@@ -6,6 +12,7 @@ export async function showBrowserNotification(
   if (typeof window === 'undefined' || !('Notification' in window) || Notification.permission !== 'granted') {
     return null;
   }
+  if (!readBrowserNotificationsOn()) return null;
   try {
     if ('serviceWorker' in navigator) {
       const registration = await navigator.serviceWorker.getRegistration();

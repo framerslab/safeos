@@ -28,6 +28,9 @@
 /* Import the watch's layout and parts, after Watch for so its rules win */
 @import '../styles/watch.css';
 
+/* Import the settings pages' list and rows */
+@import '../styles/settings.css';
+
 /* =============================================================================
    Additional Base Styles
    ============================================================================= */

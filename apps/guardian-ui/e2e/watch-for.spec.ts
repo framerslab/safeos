@@ -18,6 +18,7 @@
 import { test, expect, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { clearAllDataOnThisDevice } from './helpers/clear-all-data';
 
 test.use({
   viewport: { width: 390, height: 844 },
@@ -692,15 +693,13 @@ const storedUse = (page: Page): Promise<string | null | undefined> =>
   page.evaluate(() => JSON.parse(localStorage.getItem('safeos-onboarding') || '{}')?.state?.selectedScenario);
 
 /**
- * Clear All Local Data, pressed on Settings in another tab of this browser.
- * Returns once the open watch's tab can read that the clear has landed.
+ * Clear all data, pressed on Settings, Data on this device, in another tab of
+ * this browser. Returns once the open watch's tab can read that the clear has
+ * landed.
  */
 async function clearAllLocalDataInAnotherTab(context: BrowserContext, watch: Page) {
   const other = await context.newPage();
-  await other.goto('/settings/', { waitUntil: 'networkidle', timeout: 60_000 });
-  await other.getByRole('button', { name: 'Privacy', exact: true }).click();
-  other.once('dialog', (dialog) => void dialog.accept());
-  await other.getByRole('button', { name: 'Clear All Local Data', exact: true }).click();
+  await clearAllDataOnThisDevice(other);
   await expect.poll(() => watch.evaluate(() => localStorage.getItem('safeos_account_data_cleared')), { timeout: 30_000 }).not.toBeNull();
   await expect.poll(() => savedRows(watch, 'subject_profile'), { timeout: 30_000 }).toBe(0);
   await other.close();
@@ -711,7 +710,7 @@ type HeldPhotos = { __holdPhotos?: boolean };
 const holdPhotoReads = (page: Page, held: boolean) =>
   page.evaluate((hold) => { (window as unknown as HeldPhotos).__holdPhotos = hold; }, held);
 
-test('Clear All Local Data in another tab takes the pets from the open watch and ends its comparison', async ({ page, context }) => {
+test('Clear all data in another tab takes the pets from the open watch and ends its comparison', async ({ page, context }) => {
   test.setTimeout(180_000);
   await setUpDevice(context, { lostFoundChosen: true });
   await page.setViewportSize({ width: 1280, height: 900 });
