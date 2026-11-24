@@ -343,7 +343,9 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
       {/* Gallery grid */}
       {filteredFrames.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-[var(--color-steel-400)]">No pictures saved</p>
+          <p className="text-[var(--color-steel-400)]">
+            {frames.length === 0 ? 'No pictures saved' : 'None of the saved pictures fit this filter'}
+          </p>
         </div>
       ) : (
         <div className="p-4">

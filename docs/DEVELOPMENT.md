@@ -184,8 +184,9 @@ tests the site at that address and starts no development server. CI runs this
 spec, the sighting walk, the alert walk (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`),
 which hands the monitor a canvas camera whose picture keeps changing and checks
 when its alerts come again, and the alert pictures walk. The walk needs desktop Chromium and skips under the
-other projects in `playwright.config.ts`. The other files in
-`apps/guardian-ui/e2e` are not run in CI.
+other projects in `playwright.config.ts`. CI also runs the files listed in
+the "Web app Lost & Found browser test" job of `.github/workflows/ci.yml`; the
+other files in `apps/guardian-ui/e2e` run only by hand.
 
 A test that fails on master for a reason not yet fixed is marked with the
 runner's own known-failure marker (`it.fails` in Vitest, `test.failing` in

@@ -25,6 +25,7 @@ import { SubjectPreview } from '../../components/SubjectPreview';
 import { useLostFoundStore, getSubjectTypeLabel } from '../../stores/lost-found-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
 import { countMatchFramesBySubject, getAllSubjectProfiles, deleteSubjectProfile, type SubjectProfileDB } from '../../lib/client-db';
+import { onTabMessage } from '../../lib/tab-channel';
 import { useStartGuard } from '../../lib/start-guard';
 import { savedSightings } from '../../lib/lost-found-words';
 
@@ -65,6 +66,16 @@ export default function LostFoundPage() {
     };
     loadSubjects();
   }, [subjects]); // Reload when store subjects change
+
+  // Another tab that saves or deletes a picture says the alerts changed; the
+  // counts are read again so each card shows what this device keeps.
+  useEffect(() => onTabMessage((message) => {
+    if (message.type !== 'alerts-changed') return;
+    getAllSubjectProfiles()
+      .then((profiles) => countMatchFramesBySubject(profiles.map((profile) => profile.id)))
+      .then(setSavedPictures)
+      .catch(() => setSavedPictures(null));
+  }), []);
 
   // Handle subject selection
   const handleSelectSubject = (subject: SubjectProfileDB) => {
