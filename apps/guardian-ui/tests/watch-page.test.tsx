@@ -20,6 +20,8 @@ import { clockTime } from '@/lib/clock-time';
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 const mockBackendConfig = { wsUrl: 'wss://monitor.example.test' };
 let mockConnected = false;
+// The server's health as the check reads it; 'connecting' while a check waits.
+let mockApi = 'disconnected';
 // A read of the saved alerts a test holds until it settles it; null reads them as the app does.
 const mockAlertRead: { held: Promise<never[]> | null } = { held: null };
 jest.mock('@/lib/client-db', () => {
@@ -30,13 +32,14 @@ jest.mock('@/lib/client-db', () => {
   };
 });
 jest.mock('@/contexts/BackendStatusContext', () => ({
-  useBackendStatus: () => ({ config: mockBackendConfig, isConnected: mockConnected }),
+  useBackendStatus: () => ({ config: mockBackendConfig, isConnected: mockConnected, status: { api: mockApi } }),
 }));
 
 let browser: ReturnType<typeof installCameraBrowser>;
 beforeEach(() => {
   mockBackendConfig.wsUrl = 'wss://monitor.example.test';
   mockConnected = false;
+  mockApi = 'disconnected';
   jest.useFakeTimers();
   localStorage.clear();
   useMonitoringStore.getState().reset();
@@ -424,6 +427,66 @@ it('shows the Analysis Interval sliders, Fine-Tune\'s and Sensitivity\'s, only w
   await act(async () => {});
   fireEvent.click(screen.getByRole('button', { name: /Fine-Tune Settings/ }));
   expect(screen.getAllByText('Analysis Interval')).toHaveLength(2);
+});
+
+it('keeps the Analysis Interval sliders, and the focus on one, while a check of the server is under way', async () => {
+  localStorage.setItem('safeos-watch-view', 'settings');
+  mockConnected = true;
+  mockApi = 'connected';
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Fine-Tune Settings/ }));
+  const slider = screen.getAllByText('Analysis Interval')[0].parentElement!.parentElement!.querySelector('input')!;
+  slider.focus();
+  // The check marks the server as connecting while it waits for an answer.
+  mockConnected = false;
+  mockApi = 'connecting';
+  view.rerender(<MonitorPage />);
+  expect(screen.getAllByText('Analysis Interval')).toHaveLength(2);
+  expect(document.activeElement).toBe(slider);
+  // A check that finds no server takes them away.
+  mockApi = 'disconnected';
+  view.rerender(<MonitorPage />);
+  expect(screen.queryAllByText('Analysis Interval')).toHaveLength(0);
+});
+
+it('says in a polite status that sound alerts stopped when the microphone is lost while watching', async () => {
+  seedMotionOnly();
+  render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  const status = document.querySelector('.watch-meters [role="status"]');
+  expect(status?.getAttribute('aria-live')).toBe('polite');
+  expect(status?.textContent).toBe('');
+  act(() => browser.audio.end());
+  expect(document.querySelector('.watch-meters [role="status"]')).toBe(status);
+  expect(status?.textContent).toBe('Sound: No microphone found. Sound alerts are off. Connect a microphone, then stop and start watching.');
+});
+
+it('keeps the unavailable camera named when an older read of the devices lands after a newer one', async () => {
+  useCameraStore.getState().setDeviceId('usb');
+  const without = [{ kind: 'videoinput', deviceId: 'built-in', label: 'Built-in camera' }];
+  const withUsb = [...without, { kind: 'videoinput', deviceId: 'usb', label: 'USB camera' }];
+  browser.mediaDevices.enumerateDevices.mockResolvedValue(without);
+  browser.getUserMedia.mockRejectedValueOnce(new DOMException('', 'OverconstrainedError'));
+  try {
+    render(<MonitorPage />);
+    await act(async () => {});
+    await startMonitoring();
+    expect(screen.getByText(FAILURE_WORDS.gone)).toBeTruthy();
+    // Each read of the devices waits until the test answers it.
+    const reads: Array<(list: typeof withUsb) => void> = [];
+    browser.mediaDevices.enumerateDevices.mockImplementation(() => new Promise((resolve) => { reads.push(resolve); }));
+    act(() => { browser.mediaDevices.dispatchEvent(new Event('devicechange')); });
+    const first = reads.length;
+    act(() => { browser.mediaDevices.dispatchEvent(new Event('devicechange')); });
+    // The camera came and went: the newer reads find it gone, and the older reads, which listed it, land after them.
+    await act(async () => { for (const answer of reads.slice(first)) answer(without); });
+    await act(async () => { for (const answer of reads.slice(0, first)) answer(withUsb); });
+    expect(screen.getByText(FAILURE_WORDS.gone)).toBeTruthy();
+  } finally {
+    useCameraStore.getState().setDeviceId('');
+  }
 });
 
 it('floats no quick settings over the page', async () => {
