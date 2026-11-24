@@ -16,6 +16,7 @@ import { useLostFoundStore } from '@/stores/lost-found-store';
 import { useOnboardingStore } from '@/stores/onboarding-store';
 import { useAlertPicturesStore } from '@/stores/alert-pictures-store';
 import { saveSubjectProfile } from '@/lib/client-db';
+import { extractColorHistogram, extractDominantColors, calculateAverageColor, extractEdgeSignature, estimateSizeRatio } from '@/lib/visual-fingerprint';
 
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams(), useRouter: () => ({ push: jest.fn() }) }));
 jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => ({ status: { api: 'disconnected' }, config: { apiUrl: '', wsUrl: '' } }) }));
@@ -51,13 +52,19 @@ it('Go back on the notice ends the Lost and Found watch the dashboard\'s start b
     close() { return Promise.resolve(); }
   } });
 
+  const createdAt = new Date(0).toISOString();
+  const fingerprint = {
+    id: 'pet-stripes', name: 'Stripes', colorHistogram: extractColorHistogram(pixels, 16), dominantColors: extractDominantColors(pixels, 3),
+    averageColor: calculateAverageColor(pixels), colorVariance: 0, estimatedSizeRatio: estimateSizeRatio(pixels),
+    edgeSignature: extractEdgeSignature(pixels, 4), referenceImages: [], createdAt,
+  };
   const pet = {
-    id: 'pet-stripes', name: 'Stripes', type: 'pet' as const, description: '', fingerprint: null, referenceImages: [],
-    createdAt: new Date(0).toISOString(), lastActiveAt: null, matchCount: 0,
+    id: 'pet-stripes', name: 'Stripes', type: 'pet' as const, description: '', fingerprint, referenceImages: [],
+    createdAt, lastActiveAt: null, matchCount: 0,
   };
   await saveSubjectProfile(pet);
   // The watch holds Stripes from an earlier visit, and Lost and Found is the way chosen.
-  useLostFoundStore.setState({ activeSubject: { ...pet, fingerprint: null } as never, chosenPetId: pet.id, isWatching: false });
+  useLostFoundStore.setState({ activeSubject: pet, chosenPetId: pet.id, isWatching: false });
   useOnboardingStore.setState({ lostFoundChosen: true });
   // The device has not answered the notice about alert pictures.
   useAlertPicturesStore.setState({ noticeAnswered: false });
