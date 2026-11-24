@@ -245,6 +245,12 @@ export default function AIModelsPage() {
                         Once saved, it can load offline while browser storage is retained.
                     </p>
                     <ModelDownloadProgress />
+                    <p className="text-sm text-slate-400 mt-4">
+                        The model and the packages that run it keep their own licences:{' '}
+                        <a href="/third-party-notices.txt" className="text-emerald-400 hover:text-emerald-300">
+                            Third-party notices
+                        </a>
+                    </p>
                 </section>
 
                 {/* Recommended Models */}

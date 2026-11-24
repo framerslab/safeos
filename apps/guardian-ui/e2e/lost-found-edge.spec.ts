@@ -1,8 +1,8 @@
 /**
- * Lost and Found: a saved frame or sighting carries an edge score
+ * Lost & Found: a sighting carries an edge score
  *
- * Enrols a pet from a striped picture, shows the camera the same stripes
- * and reads the comparison details the watch kept on this device.
+ * Enrols a subject from a striped picture, shows the camera the same stripes
+ * and reads the edge score the watch keeps with the sighting's alert.
  *
  * The camera is Chromium's fake one, fed from a .y4m file through
  * --use-file-for-fake-video-capture as scripts/home-captures.mjs feeds it.
@@ -18,55 +18,45 @@ import monitorSettings from '../scripts/home-capture-settings.json';
 import { CAMERA_FILE, stripedPhoto } from './helpers/striped-subject';
 
 // =============================================================================
-// The saved comparisons
+// The saved sighting
 // =============================================================================
 
-interface SavedScores {
-  colorMatch: number;
-  dominantMatch: number;
-  edgeMatch: number;
-  sizeMatch: number;
-}
+interface Scores { colorMatch: number; dominantMatch: number; edgeMatch: number; sizeMatch: number }
 
-interface SavedComparison {
-  kind?: string;
-  subjectId: string;
-  details?: SavedScores;
-}
-
-/** Reads both versions of a comparison the watch can keep for this pet. */
-const savedScores = (page: Page, name: string): Promise<SavedScores[]> =>
-  page.evaluate(async (petName) => {
-    if (!(await indexedDB.databases()).some((database) => database.name === 'safeos-guardian')) return [];
-    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+/**
+ * The four scores the watch keeps with a sighting's alert, read from the
+ * browser's database; null while no sighting is saved. They are kept as
+ * data: the alert's card shows none of them.
+ */
+const sightingScores = (page: Page): Promise<Scores | null> =>
+  page.evaluate(async () => {
+    const known = await indexedDB.databases();
+    if (!known.some((database) => database.name === 'safeos-guardian')) {
+      return null;
+    }
+    return new Promise<Scores | null>((resolve) => {
       const opening = indexedDB.open('safeos-guardian');
-      opening.onsuccess = () => resolve(opening.result);
-      opening.onerror = () => reject(opening.error);
-    });
-    try {
-      const read = <T,>(store: string) => new Promise<T[]>((resolve, reject) => {
-        if (!database.objectStoreNames.contains(store)) {
-          resolve([]);
+      opening.onerror = () => resolve(null);
+      opening.onsuccess = () => {
+        const database = opening.result;
+        if (!database.objectStoreNames.contains('alert_cache')) {
+          database.close();
+          resolve(null);
           return;
         }
-        const reading = database.transaction(store).objectStore(store).getAll();
-        reading.onsuccess = () => resolve(reading.result as T[]);
-        reading.onerror = () => reject(reading.error);
-      });
-      const [pets, frames, alerts] = await Promise.all([
-        read<{ id: string; name: string }>('subject_profile'),
-        read<SavedComparison>('match_frame'),
-        read<SavedComparison>('alert_cache'),
-      ]);
-      const ids = new Set(pets.filter((pet) => pet.name === petName).map((pet) => pet.id));
-      const sightings = alerts.filter((alert) => alert.kind === 'sighting');
-      return [...frames, ...sightings].flatMap(({ subjectId, details }) =>
-        ids.has(subjectId) && details ? [details] : []
-      );
-    } finally {
-      database.close();
-    }
-  }, name);
+        const reading = database.transaction('alert_cache').objectStore('alert_cache').getAll();
+        reading.onsuccess = () => {
+          database.close();
+          const sighting = reading.result.find((alert) => alert.kind === 'sighting' && alert.details);
+          resolve(sighting ? sighting.details : null);
+        };
+        reading.onerror = () => {
+          database.close();
+          resolve(null);
+        };
+      };
+    });
+  });
 
 // =============================================================================
 // The test
@@ -90,7 +80,7 @@ test.skip(
   'The fake camera file is a Chromium switch; the test runs at desktop width'
 );
 
-test('a frame or sighting saved from a striped camera picture keeps an edge score above 0', async ({ page, context }) => {
+test('a sighting raised from a striped camera picture keeps an edge score above 0', async ({ page, context }) => {
   test.setTimeout(240_000);
 
   await context.grantPermissions(['camera', 'microphone']);
@@ -105,6 +95,10 @@ test('a frame or sighting saved from a striped camera picture keeps an edge scor
     localStorage.setItem('safeos-settings', JSON.stringify({ state: settings, version: 0 }));
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+    // The device has answered the notice about alert pictures, so a watch starts at its key.
+    localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+      keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+    }, version: 0 }));
   }, monitorSettings);
 
   // Enrol a subject from one reference photo: the clip's stripes, standing still.
@@ -131,18 +125,17 @@ test('a frame or sighting saved from a striped camera picture keeps an edge scor
   await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 60_000 });
   await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
 
-  // Start the camera and wait for the comparison to save what it saw.
+  // Start the camera and wait for the watch to raise the sighting.
   await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
-  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.watch-frame[data-phase="live"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-alert-card]').filter({ hasText: 'Could this be Stripes?' }).first()).toBeVisible({ timeout: 90_000 });
 
-  await expect.poll(async () => {
-    const scores = (await savedScores(page, 'Stripes')).find((comparison) => comparison.edgeMatch > 0);
-    if (!scores) return 0;
+  // The sighting's alert is saved with its four scores.
+  await expect.poll(() => sightingScores(page), { timeout: 60_000 }).not.toBeNull();
+  const scores = (await sightingScores(page))!;
 
-    console.log(
-      `Saved comparison scores: colour ${scores.colorMatch}, main colours ${scores.dominantMatch}, ` +
-      `edges ${scores.edgeMatch}, size ${scores.sizeMatch}`
-    );
-    return scores.edgeMatch;
-  }, { timeout: 60_000 }).toBeGreaterThan(0);
+  // The run's log keeps what the watch saved.
+  console.log(`The saved sighting keeps: Color ${scores.colorMatch}, Dominant ${scores.dominantMatch}, Edge ${scores.edgeMatch}, Size ${scores.sizeMatch}`);
+
+  expect(scores.edgeMatch).toBeGreaterThan(0);
 });

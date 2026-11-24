@@ -7,27 +7,17 @@
  * Every screen that names a sighting takes its words from here.
  */
 
-/** "{name}’s" */
-export const possessive = (name: string): string => `${name}’s`;
+import { possessive } from './alert-pictures/words';
 
-/** The question a sighting asks: "Could this be {name}?" */
-export const sightingQuestion = (name: string): string => `Could this be ${name}?`;
-
-/** The two lines under the question: what was alike, and what to do. */
-export const sightingLines = (name: string): [string, string] => [
-  `Colours and shape like ${possessive(name)} photos.`,
-  'Compare the two pictures. It can be another animal that looks alike.',
-];
-
-/** The plate on the camera's picture beside the box. */
-export const sightingPlate = (name: string): string => `Colours like ${possessive(name)}`;
-
-const timeWithSeconds = (at: number | Date): string =>
-  new Intl.DateTimeFormat(undefined, { timeStyle: 'medium' }).format(new Date(at));
-
-/** The notification's body: the first line with the device's own time, seconds included. */
-export const sightingNotificationBody = (name: string, at: number | Date): string =>
-  `Colours and shape like ${possessive(name)} photos, ${timeWithSeconds(at)}.`;
+// The sighting's own words have one owner, the alert pictures' words; this
+// module passes them on so every Lost and Found screen reads them from here.
+export {
+  possessive,
+  sightingQuestion,
+  sightingLines,
+  sightingPlate,
+  sightingNotificationBody,
+} from './alert-pictures/words';
 
 /** The line the full-screen pictures speak unless the person wrote their own. */
 export const SPOKEN_DEFAULT = 'Colours like your pet’s photos are in view.';

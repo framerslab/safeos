@@ -303,7 +303,7 @@ it.each(['answered', 'failed'])('keeps the held token when a session request in 
   const { auth, db } = await tab();
   const setUp = auth.getState().initialize();
   await waitFor(() => expect(calls.posts()).toHaveLength(1), { timeout: 5000 });
-  const newer = await openDB('safeos-guardian', 8);
+  const newer = await openDB('safeos-guardian', 9);
   try {
     await waitFor(() => expect(db.getDatabaseNotice()).toMatch(/updated in another tab/), { timeout: 5000 });
     if (outcome === 'answered') settle.answer(sessionAnswer('new-token'));
@@ -343,7 +343,7 @@ it.each(['held', 'none'])('goes on without the database when storage fails to op
 });
 
 it('shows the update notice and makes no session when the stored database is newer than the code', async () => {
-  (await openDB('safeos-guardian', 8, { upgrade(database) {
+  (await openDB('safeos-guardian', 9, { upgrade(database) {
     database.createObjectStore('local_session', { keyPath: 'id' });
   } })).close();
   holdToken('held-token');
@@ -419,7 +419,7 @@ it('signs in with the server profile when the saved session check answers OK aft
   const { auth, db } = await tab();
   const setUp = auth.getState().initialize();
   await waitFor(() => expect(calls.checks()).toHaveLength(1), { timeout: 5000 });
-  const newer = await openDB('safeos-guardian', 8);
+  const newer = await openDB('safeos-guardian', 9);
   try {
     await waitFor(() => expect(db.getDatabaseNotice()).toMatch(/updated in another tab/), { timeout: 5000 });
     answer(sessionAnswer('saved-token', { id: 'server-person', displayName: 'Server person' }));
@@ -445,7 +445,7 @@ it('adopts a renewal in flight when the database closes for an update after the 
   const { auth, db } = await tab();
   const setUp = auth.getState().initialize();
   await waitFor(() => expect(calls.posts()).toHaveLength(1), { timeout: 5000 });
-  const newer = await openDB('safeos-guardian', 8);
+  const newer = await openDB('safeos-guardian', 9);
   try {
     await waitFor(() => expect(db.getDatabaseNotice()).toMatch(/updated in another tab/), { timeout: 5000 });
     answer(sessionAnswer('new-token'));
@@ -1236,7 +1236,7 @@ it('refuses a queued profile save whose turn comes under a reload notice set whi
   const queued = outcomeOf(auth.getState().updateProfile({ displayName: 'Queued' }));
   await waitFor(() => expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1), { timeout: 5000 });
   // The notice is set while the first save waits on the server: a newer release opens the database.
-  const newer = await openDB('safeos-guardian', 8);
+  const newer = await openDB('safeos-guardian', 9);
   try {
     await waitFor(() => expect(db.getDatabaseNotice()).toBe(UPDATED), { timeout: 5000 });
     patches.settle[0].answer(tookIt());

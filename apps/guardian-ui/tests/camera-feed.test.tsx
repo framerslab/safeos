@@ -50,6 +50,22 @@ it('removes LIVE while the video track is muted and resumes when it unmutes', as
   expect(ready).toHaveBeenLastCalledWith(expect.any(HTMLVideoElement));
 });
 
+it('hides an alert\'s box while the video track is muted and shows it again when it unmutes', async () => {
+  const alertBox = {
+    key: 'picture-1', box: { x: 40, y: 40, width: 80, height: 60 }, frameWidth: 320, frameHeight: 240,
+    lines: ['Motion here at 9:42:40 PM'] as [string],
+  };
+  const { container } = render(<CameraFeed alertBox={alertBox} />);
+  await act(async () => {});
+  expect(container.querySelector('.alert-live')).not.toBeNull();
+  // The picture is frozen while the track is muted: no box stands over it.
+  act(() => browser.video.mute());
+  expect(screen.getByText(/Camera paused/)).toBeTruthy();
+  expect(container.querySelector('.alert-live')).toBeNull();
+  act(() => browser.video.unmute());
+  expect(container.querySelector('.alert-live')).not.toBeNull();
+});
+
 it('monitors video alone when the device has no microphone', async () => {
   const videoOnly = {
     getTracks: () => [browser.video],

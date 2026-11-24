@@ -18,6 +18,7 @@ import {
   type ScenarioType,
 } from '../../../stores/settings-store';
 import { BackButton } from '@/components/BackButton';
+import { AlertPicturesGroup } from '@/components/alert-pictures/AlertPicturesGroup';
 
 // =============================================================================
 // Types
@@ -282,6 +283,11 @@ export default function DetectionSettingsPage() {
               </button>
             </div>
           </div>
+        </section>
+
+        {/* Alert pictures: what each alert keeps, for how long, and Delete all pictures */}
+        <section className="alert-pictures-section">
+          <AlertPicturesGroup place="settings" />
         </section>
 
         {/* Section 2: Audio Frequency Filtering */}

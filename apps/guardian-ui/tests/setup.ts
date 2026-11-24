@@ -73,6 +73,25 @@ class LocalStorageMock implements Storage {
 
 const localStorageMock = new LocalStorageMock();
 
+// A device that has answered the notice about alert pictures, so a watch
+// starts at its key. A test that clears local storage and then imports the
+// watch seeds this again. While an earlier test's refusal of storage stands
+// (its file restores it in its own beforeEach, which runs after this one),
+// the seed is left out, and the test goes on.
+const ALERT_PICTURES_ANSWERED = JSON.stringify({
+  state: { keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false },
+  version: 0,
+});
+localStorageMock.setItem('safeos-alert-pictures', ALERT_PICTURES_ANSWERED);
+beforeEach(() => {
+  if (localStorageMock.getItem('safeos-alert-pictures') !== null) return;
+  try {
+    localStorageMock.setItem('safeos-alert-pictures', ALERT_PICTURES_ANSWERED);
+  } catch {
+    // The earlier test's refusal: nothing is seeded.
+  }
+});
+
 // Always set up localStorage mock (even if defined) to ensure consistency
 Object.defineProperty(global, 'localStorage', {
   value: localStorageMock,

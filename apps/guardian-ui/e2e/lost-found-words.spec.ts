@@ -15,7 +15,7 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
 import { BARRED, readWords } from './helpers/lost-found-words';
-import { enrolPet, savedMatchFrames } from './helpers/own-sound';
+import { enrolPet, sightingAlerts } from './helpers/own-sound';
 import { OWN_SETTING, setUpDevice } from './helpers/seeded-device';
 import { CAMERA_FILE, HEIGHT, WIDTH, stripedPhoto } from './helpers/striped-subject';
 
@@ -246,11 +246,11 @@ test('the watch names the pet it compares with no score, bar or count', async ({
   await openWatch(page);
 
   // The pet's meter at the foot of the live picture names the pet and what
-  // it compares. It draws no bar and says no number, even once the
-  // comparison has saved a picture over the alert line.
+  // it compares. It draws no bar and says no number, even once the watch
+  // has raised a sighting.
   const petMeter = page.locator('.watch-meter--pet');
   await expect(petMeter.getByText('Comparing with Stripes’s photos', { exact: true })).toBeVisible({ timeout: 30_000 });
-  await expect.poll(() => savedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(0);
+  await expect.poll(() => sightingAlerts(page, NAME), { timeout: 60_000 }).toBeGreaterThan(0);
   const meterWords = await readWords(page, '.watch-meter--pet');
   expect(meterWords).not.toMatch(/\d|%|Quiet|Over the line|Colours and shape|checks? (in a row )?like/);
   await expect(petMeter.locator('[style*="width"]')).toHaveCount(0);

@@ -97,6 +97,14 @@ for the camera when you click **Start watching**. When a request fails, the
 step says what happened (the browser blocked the camera, the camera did not
 start, or no camera was found) and the key reads **Try again**.
 
+The same step says what an alert keeps on this device: the camera's picture of
+the moment, a box round what changed and a close-up (a Sound alert keeps the
+picture alone). It has the **Keep alert pictures** switch, on unless you turn
+it off, and **Delete pictures after**, 3 days unless you choose 1, 7 or 30 days
+or "Until I delete them". Going on past the step keeps your choice, so the
+first watch starts without asking again. Both settings are also under **Alert
+pictures** in the watch's settings and on **Settings > Detection**.
+
 Monitor opens with one row: **Watch for** and **Mute alerts**. **Motion and sound** sounds an alert on this
 device when something moves or makes a sound; **Lost and Found** also compares
 what the camera sees with a saved pet's photos, by colour and shape, while the
@@ -170,8 +178,8 @@ Zones are local-first and work offline.
 SafeOS keeps a local incident log in your browser:
 
 - Go to **History → Local Timeline** to see:
-  - Monitoring alerts (a card whose event alerted again is listed at its newest alert)
-  - Lost & Found match frames
+  - Monitoring alerts with their pictures (a card whose event alerted again is listed at its newest alert)
+  - Lost and Found sightings with their pictures, and frames an earlier version saved
   - Security intrusion frames
   - Wildlife sightings
 - History opens on Local Timeline when this device holds new alerts, and marks them as seen there.

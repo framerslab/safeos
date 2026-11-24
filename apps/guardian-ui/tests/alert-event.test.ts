@@ -36,3 +36,17 @@ it('keeps an event going through a quiet spell shorter than the window, and hold
   expect(readDetector(event, 1200, 'high', timing)).toEqual({ kind: 'held' });
   expect(readDetector(event, 31_000, 'high', timing)).toEqual({ kind: 'alert', repeat: true });
 });
+
+it('alerts on the first reading over the line when no sustained window is asked for, as one sighting check is', () => {
+  const sighting = { severitySeconds: 0, cooldownPeriodSeconds: 30, sustainedMs: 0, endSustainedMs: 30_000 };
+  const event = newDetectorEvent();
+  // One check over the line, then none: the run's alert comes with that one check.
+  expect(readDetector(event, 0, 'medium', sighting)).toEqual({ kind: 'alert', repeat: false });
+  expect(readDetector(event, 500, null, sighting)).toEqual({ kind: 'quiet' });
+  // The run goes on through the quiet spell and repeats after the Cooldown Period.
+  expect(readDetector(event, 20_000, 'medium', sighting)).toEqual({ kind: 'held' });
+  expect(readDetector(event, 30_000, 'medium', sighting)).toEqual({ kind: 'alert', repeat: true });
+  // 30 seconds with no check over the line end the run; the next check starts a new one at once.
+  readDetector(event, 30_500, null, sighting);
+  expect(readDetector(event, 61_000, 'medium', sighting)).toEqual({ kind: 'alert', repeat: false });
+});

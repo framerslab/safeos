@@ -893,6 +893,16 @@ export class SubjectMatcher {
   }
 
   /**
+   * The canvas that holds the frame of the last `processFrame`, as the camera
+   * gave it and before any JPEG is made of it, until the next check draws
+   * over it. An alert's picture and close-up are cut from it in the check's
+   * own tick. Null before the first check.
+   */
+  frameCanvas(): HTMLCanvasElement | null {
+    return this.canvas && this.frameCount > 0 ? this.canvas : null;
+  }
+
+  /**
    * Check if current match exceeds alert threshold
    */
   shouldAlert(): boolean {

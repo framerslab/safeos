@@ -107,7 +107,8 @@ async function walk(
       readings.push(Number.parseFloat((await level.getAttribute('aria-valuenow')) ?? ''));
       await page.waitForTimeout(200);
     }
-    const alerts = await page.locator('p').filter({ hasText: /^Audio detected: \d+%/ }).count();
+    // Cards are counted by their kind's words, whatever the device's clock looks like.
+    const alerts = await page.locator('[data-alert-card]').filter({ hasText: /Sound at / }).count();
     console.log(`Audio levels read with a ${hz} Hz tone at ${watch.low} to ${watch.high} Hz: ${readings.join(', ')}; ${alerts} sound alert cards`);
     await page.screenshot({ path: test.info().outputPath(`pitch-range-${hz}hz-${watch.low}-${watch.high}-1280.png`) });
     return { highest: Math.max(...readings.filter(Number.isFinite)), alerts };

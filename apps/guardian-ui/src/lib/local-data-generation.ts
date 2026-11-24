@@ -45,3 +45,41 @@ export function learnClearGeneration(generation: string): void {
 export function pendingClearStamp(marker: string): ClearStamp {
   return { marker, generation: knownClear !== null && knownClear.marker === marker ? knownClear.generation : null };
 }
+
+/** A pending deletion and the last one that committed when it began. */
+type PicturesClearMarker = { pending: string; before: string };
+
+/** Delete all pictures publishes this marker so a picture can take its stamp synchronously. */
+export const PICTURES_CLEAR_MARKER_KEY = 'safeos_alert_pictures_cleared';
+function readPicturesClearMarker(): PicturesClearMarker | null {
+  try {
+    const stored = localStorage.getItem(PICTURES_CLEAR_MARKER_KEY);
+    const marker = stored ? JSON.parse(stored) as Partial<PicturesClearMarker> : null;
+    return typeof marker?.pending === 'string' && typeof marker.before === 'string'
+      ? { pending: marker.pending, before: marker.before }
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Throws when local storage refuses the marker, so the caller aborts the deletion. */
+export function writePicturesClearMarker(pending: string, before: string): void {
+  localStorage.setItem(PICTURES_CLEAR_MARKER_KEY, JSON.stringify({ pending, before }));
+}
+
+/** The database says whether the stamped deletion committed or left the previous one in place. */
+export function picturesMarkerHolds(stamped: PicturesClearMarker | null, committed: string): boolean {
+  return stamped ? committed === stamped.pending || committed === stamped.before : committed === '';
+}
+
+/** What a picture save carries from its alert: the clear boundary and the pictures marker then. */
+export type PictureStamp = {
+  clearMarker: string;
+  clearGeneration: string | null;
+  picturesMarker: PicturesClearMarker | null;
+};
+export function pictureStampNow(): PictureStamp {
+  const clearMarker = readLocalClearMarker();
+  return { clearMarker, clearGeneration: pendingClearStamp(clearMarker).generation, picturesMarker: readPicturesClearMarker() };
+}

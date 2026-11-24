@@ -369,9 +369,16 @@ it('lists an alert whose dates do not parse, with no error', async () => {
 
   m.openHistory();
 
-  const dated = await waitFor(() => entryOf('Dated by its id'), SLOW);
+  // A watch alert is listed by its kind, at the time its id carries; a record with no time shows none.
+  const { dateAtTime } = await import('@/lib/alert-pictures/words');
+  const dated = await waitFor(() => {
+    const row = document.querySelector<HTMLElement>('[data-history-row]');
+    expect(row).not.toBeNull();
+    return row!;
+  }, SLOW);
+  expect(dated.textContent).toContain('Motion');
+  expect(dated.textContent).toContain(dateAtTime(1731600000000));
   const undated = entryOf('With no date');
-  expect(timeOf(dated)).not.toBe('');
   expect(timeOf(undated)).toBe('');
   expect(dated.compareDocumentPosition(undated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(undated.nextElementSibling).toBeNull();

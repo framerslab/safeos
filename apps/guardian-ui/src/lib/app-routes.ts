@@ -35,6 +35,12 @@ export interface Destination {
   section: string;
 }
 
+/**
+ * History opened on its Local Timeline, the device's own alerts, whatever view it would open on
+ * by itself: a link from an alert the device keeps, such as a sighting, goes there.
+ */
+export const LOCAL_TIMELINE_HREF = '/history/?view=local';
+
 /** The app's four destinations, in the header's order. A phone's bar carries the first three. */
 export const DESTINATIONS: readonly Destination[] = [
   { href: '/dashboard/', label: 'Dashboard', section: '/dashboard' },

@@ -407,8 +407,15 @@ function routeDir(address: string): string | null {
   return dir;
 }
 
+// Files the build writes into public/ before it exports (package.json "prebuild"), each with the
+// script that writes it: a link to one has a destination while its script is there.
+const BUILT_FILES: Record<string, string> = {
+  '/third-party-notices.txt': app('scripts', 'generate-notices.mjs'),
+};
+
 function hasDestination(address: string): boolean {
   const clean = address.split(/[?#]/)[0];
+  if (BUILT_FILES[clean]) return fs.existsSync(BUILT_FILES[clean]);
   if (fs.existsSync(app('public', clean)) && fs.statSync(app('public', clean)).isFile()) return true;
   const dir = routeDir(address);
   return !!dir && fs.existsSync(path.join(dir, 'page.tsx'));

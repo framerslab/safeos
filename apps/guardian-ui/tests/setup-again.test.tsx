@@ -7,13 +7,15 @@
  * that parameter; then it opens at its first step and stays there. Arriving
  * that way, and going on through the steps, resets nothing: the saved setup
  * stays done until the last step is finished. The camera step's "Continue
- * without the camera" is one of those answers, and a camera request answered
- * after the visitor went on, or after a newer request, keeps nothing.
+ * without the camera" is one of those answers, and so is the camera step's
+ * choice of what an alert keeps; a camera request answered after the visitor
+ * went on, or after a newer request, keeps nothing.
  */
 
 import React from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import SetupPage from '@/app/setup/page';
+import { useAlertPicturesStore } from '@/stores/alert-pictures-store';
 import { canSkipOnboarding, useOnboardingStore } from '@/stores/onboarding-store';
 import { installCameraBrowser } from './helpers/camera-browser';
 
@@ -222,6 +224,40 @@ it('an older camera request answered after a newer one failed keeps nothing', as
   cleanup();
   expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(true);
   expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(true);
+});
+
+// The camera step's choice of what an alert keeps: keeping off and 7 days.
+function chooseKeepingOffFor7Days() {
+  const choice = screen.getByRole('group', { name: 'Each alert keeps a picture' });
+  const select = within(choice).getByLabelText('Delete pictures after') as HTMLSelectElement;
+  const sevenDays = within(choice).getByRole('option', { name: '7 days' }) as HTMLOptionElement;
+  fireEvent.change(select, { target: { value: sevenDays.value } });
+  fireEvent.click(within(choice).getByRole('switch', { name: 'Keep alert pictures' }));
+}
+
+it('keeps the camera step’s choice of what an alert keeps on the page: a visitor who leaves part way keeps the saved choice', async () => {
+  useAlertPicturesStore.setState({ keep: true, deleteAfterDays: 3, noticeAnswered: false });
+  await openCameraStepAgain();
+  chooseKeepingOffFor7Days();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+  await act(async () => {});
+  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
+
+  // The visitor leaves before the last step.
+  cleanup();
+  expect(useAlertPicturesStore.getState()).toMatchObject({ keep: true, deleteAfterDays: 3, noticeAnswered: false });
+});
+
+it('saves the camera step’s choice of what an alert keeps as the notice’s answer when the visitor finishes the last step', async () => {
+  useAlertPicturesStore.setState({ keep: true, deleteAfterDays: 3, noticeAnswered: false });
+  await openCameraStepAgain();
+  chooseKeepingOffFor7Days();
+  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+  await act(async () => {});
+  await finishFromNotifications();
+
+  expect(useAlertPicturesStore.getState()).toMatchObject({ keep: false, deleteAfterDays: 7, noticeAnswered: true });
+  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
 });
 
 it('still opens at its first step for a first visit, with or without the parameter', () => {

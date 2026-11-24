@@ -140,7 +140,8 @@ describe('the capture job', () => {
       '--use-file-for-fake-audio-capture=',
       "permissions: ['camera', 'microphone']",
       "name: 'Start watching'",
-      'Motion detected: \\d+% \\(threshold: 20%',
+      'Motion at \\d',
+      'Sound at \\d',
     ]) {
       expect(script).toContain(part);
     }

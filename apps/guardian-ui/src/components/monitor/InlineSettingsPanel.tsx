@@ -18,6 +18,10 @@ import {
 import { useWatchSettings } from '../../stores/watch-settings';
 import { ExpandableSection, ToggleSwitch, SettingsSlider } from './ExpandableSection';
 import { InfoTooltip } from './Tooltip';
+import { AlertPicturesGroup, KEEP_SWITCH_HASH, KEEP_SWITCH_ID, OPEN_GROUP_EVENT } from '../alert-pictures/AlertPicturesGroup';
+import { keptWords } from '@/lib/alert-pictures/words';
+import { useKeptCount } from '@/lib/alert-pictures/keeper';
+import { useAlertPicturesStore } from '../../stores/alert-pictures-store';
 import { STILLNESS_ALERT_MIN_MINUTES, STILLNESS_ALERT_MAX_MINUTES } from '@/lib/stillness-bounds';
 import { MODEL_SIZE_MB } from '@/lib/detection-model-facts';
 
@@ -147,6 +151,31 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'], serverCon
     setMounted(true);
   }, []);
 
+  // The card's link "Keep alert pictures" opens the group at its switch: the address ends in
+  // the switch's id, and a second press of the link, which leaves the address as it is, says so.
+  const [picturesOpen, setPicturesOpen] = useState(false);
+  const keepsPictures = useAlertPicturesStore((state) => state.keep);
+  const keptPictures = useKeptCount();
+  useEffect(() => {
+    const openAtSwitch = () => {
+      if (window.location.hash !== KEEP_SWITCH_HASH) return;
+      setPicturesOpen(true);
+      // After the section has opened, focus goes to the switch.
+      window.setTimeout(() => {
+        const keep = document.getElementById(KEEP_SWITCH_ID);
+        keep?.scrollIntoView({ block: 'center' });
+        keep?.focus();
+      }, 250);
+    };
+    openAtSwitch();
+    window.addEventListener('hashchange', openAtSwitch);
+    window.addEventListener(OPEN_GROUP_EVENT, openAtSwitch);
+    return () => {
+      window.removeEventListener('hashchange', openAtSwitch);
+      window.removeEventListener(OPEN_GROUP_EVENT, openAtSwitch);
+    };
+  }, [mounted]);
+
   if (!mounted) {
     return (
       <div className="space-y-3 animate-pulse">
@@ -211,6 +240,34 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'], serverCon
           <p className="text-xs text-slate-400">{currentPreset.description}</p>
         </div>
       </div>
+
+      {/* Alert pictures: what each alert keeps, for how long, and Delete all pictures */}
+      <ExpandableSection
+        id="alert-pictures"
+        title="Alert pictures"
+        titleClassName="text-base"
+        summaryClassName="text-base text-slate-300 whitespace-normal break-words"
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="1" strokeWidth={2} />
+            <rect x="11" y="10" width="7" height="6" strokeWidth={2} />
+          </svg>
+        }
+        summary={
+          <span>
+            {keepsPictures ? 'Kept on this device' : 'Not kept'}
+            {keptPictures !== null && ` · ${keptWords(keptPictures)}`}
+          </span>
+        }
+        defaultExpanded={expandedSections.has('alert-pictures')}
+        open={picturesOpen}
+        onToggle={(expanded) => {
+          toggleSection('alert-pictures', expanded);
+          if (!expanded) setPicturesOpen(false);
+        }}
+      >
+        <AlertPicturesGroup place="watch" />
+      </ExpandableSection>
 
       {/* Detection Types */}
       <ExpandableSection
