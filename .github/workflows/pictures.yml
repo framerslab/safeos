@@ -234,9 +234,12 @@ jobs:
         run: |
           if [ -f scripts/alert-picture-captures.mjs ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
-          else
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "present=false" >> "$GITHUB_OUTPUT"
             echo "No alert pictures script at this commit: its captures are left out."
+          else
+            echo "::error::scripts/alert-picture-captures.mjs is missing: a pull request's run keeps its alert pictures."
+            exit 1
           fi
 
       - name: Capture the alert pictures

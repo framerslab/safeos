@@ -76,9 +76,10 @@ it('the news of a change carries Show the picture in alert notifications, and a 
   expect(picturesInNotifications()).toBe(true);
   expect(settingsNews(useAlertPicturesStore.getState())).toMatchObject({ inNotifications: true });
 
-  // Another tab turns the picture off later; this tab has not read the saved choice yet.
+  // Another tab turns the picture off later; this tab has not read the saved choice yet. The news
+  // makes the choice this tab's own, with its time.
   hear({ type: 'settings', keep: true, deleteAfterDays: 3, inNotifications: false, at: T + 20_000 });
-  expect(useAlertPicturesStore.getState().inNotifications).toBe(true);
+  expect(useAlertPicturesStore.getState()).toMatchObject({ inNotifications: false, chosenAt: T + 20_000 });
   expect(picturesInNotifications()).toBe(false);
 });
 

@@ -343,6 +343,8 @@ async function motionStates(browser, size, look) {
 
       await cards(page).first().getByRole('button', { name: /^Open picture: / }).click();
       const dialog = page.locator('[role="dialog"].alert-picture-dialog');
+      // The picture itself, not the tile that stands while it is read.
+      await dialog.locator('.alert-picture__frame img').waitFor({ state: 'visible', timeout: 15_000 });
       // On a phone the dialog scrolls inside itself: it is saved whole, its keys included.
       await captureWhole('opened', size, look, dialog);
       await page.keyboard.press('Escape');
