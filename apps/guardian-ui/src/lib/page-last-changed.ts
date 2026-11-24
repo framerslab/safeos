@@ -10,7 +10,7 @@
  */
 
 export const PAGE_LAST_CHANGED: Record<string, string> = {
-  '/': '2026-11-15',
+  '/': '2026-11-23',
 };
 
 /** The day the home page's own files last changed, as YYYY-MM-DD. */

@@ -94,6 +94,7 @@ await mkdir(outDir, { recursive: true });
 const browser = await chromium.launch();
 let failures = 0;
 try {
+  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir);
   for (const route of routes) {
     for (const size of WIDTHS) {
       for (const look of LOOKS) {
@@ -482,6 +483,54 @@ function contrastOf(locator) {
     const b = luminance(background);
     return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
   });
+}
+
+async function captureHomeFirst(browser, baseUrl, outDir) {
+  let failures = 0;
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
+    for (const look of LOOKS) {
+      const context = await browser.newContext({
+        viewport: { width, height }, deviceScaleFactor: 2, reducedMotion: 'no-preference',
+        colorScheme: look, isMobile: width === 390, hasTouch: width === 390,
+      });
+      try {
+        const page = await context.newPage();
+        await page.goto(new URL('/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+        await page.evaluate(() => document.fonts.ready);
+        const first = `home-first-${width}-${look}.png`;
+        await page.screenshot({ path: path.join(outDir, first), scale: 'device', caret: 'hide' });
+        console.log(`captured ${first}`);
+
+        if (process.env.PICTURE_VERSION !== 'after') continue;
+        const hideBar = 'nav[aria-label="Site"] { visibility: hidden !important; }';
+        const picture = async (locator, name) => {
+          const file = `home-${name}-${width}-${look}.png`;
+          await locator.screenshot({ path: path.join(outDir, file), scale: 'device', style: hideBar, timeout: 15_000 });
+          console.log(`captured ${file}`);
+        };
+        if ((width === 390 && look === 'light') || (width === 1440 && look === 'dark')) {
+          await picture(page.locator('.home-diagram'), 'how-it-works');
+        }
+        if (width === 1440 && look === 'dark') {
+          const lostAndFound = page.locator('[data-card="lost-found"]');
+          await lostAndFound.locator('summary').press('Space');
+          await picture(lostAndFound, 'lost-and-found');
+          const device = page.locator('#one-device');
+          await device.locator('img').scrollIntoViewIfNeeded();
+          await device.locator('img').evaluate((image) => image.decode());
+          await picture(device, 'device');
+          await picture(page.locator('#uses'), 'uses');
+          await picture(page.locator('section:has(.home-closing)'), 'closing');
+        }
+      } catch (error) {
+        failures += 1;
+        console.error(`failed home pictures at ${width} px, ${look}: ${error.message}`);
+      } finally {
+        await context.close();
+      }
+    }
+  }
+  return failures;
 }
 
 async function checkFirstVisit(browser, baseUrl, outDir) {
