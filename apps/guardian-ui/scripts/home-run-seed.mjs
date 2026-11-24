@@ -33,7 +33,7 @@ export async function seededContext(browser, options) {
     }, version: 0 }));
     localStorage.setItem('guardian-onboarding-complete', 'true');
     localStorage.setItem('safeos-settings', JSON.stringify({ state: settings, version: 0 }));
-    localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: look }, version: 0 }));
+    localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: look, resolvedTheme: look }, version: 0 }));
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-capture-seeded', 'true');

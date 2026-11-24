@@ -59,6 +59,7 @@ export async function spool(cdp, directory, view) {
   const height = Math.round(view.height * view.scale);
   let failure;
   let earliest = Number.POSITIVE_INFINITY;
+  let latest = Number.NEGATIVE_INFINITY;
   let accepting = true;
   let settleFirst;
   const firstFrame = new Promise((resolve) => { settleFirst = resolve; });
@@ -83,12 +84,15 @@ export async function spool(cdp, directory, view) {
       return;
     }
     const at = metadata.timestamp;
-    if (!Number.isFinite(at) || (frames.length && at <= frames.at(-1).at)) {
-      failure = Error(`Out-of-order DevTools timestamp: ${at} after ${frames.at(-1)?.at}`);
+    // PNG encodes can finish in a different order than Chromium sampled
+    // them. Preserve their times and bound the allowed transport reordering.
+    if (!Number.isFinite(at) || latest - at > 0.15) {
+      failure = Error(`Out-of-order DevTools timestamp: ${at} after ${latest}`);
       settleFirst();
       return;
     }
     earliest = Math.min(earliest, at);
+    latest = Math.max(latest, at);
     if (at - earliest > view.seconds + 4) {
       failure = Error(`Screencast passed its ${view.seconds + 4} second spool window`);
       return;
@@ -128,6 +132,9 @@ export async function spool(cdp, directory, view) {
       }
       if (failure) throw failure;
       assert.ok(frames.length, 'DevTools sent no frames');
+      frames.sort((a, b) => a.at - b.at);
+      assert.ok(frames.every((frame, index) => index === 0 || frame.at > frames[index - 1].at),
+        'DevTools sent two frames with the same timestamp');
       return frames;
     },
   };

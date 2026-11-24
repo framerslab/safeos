@@ -121,7 +121,10 @@ export async function placeSubject(page, recipe, view) {
     return 0;
   }
   const box = await page.locator(recipe.anchor).first().boundingBox();
-  const maxTop = view.height - view.width;
+  const footer = await page.locator('.phone-bar').first().boundingBox();
+  // The fixed phone navigation must not intersect the crop; scroll the
+  // actual route to hold its subject above the bar when needed.
+  const maxTop = Math.floor(Math.min(view.height, footer?.y ?? view.height) - view.width);
   const visibleTop = Math.min(maxTop, Math.max(headerHeight, Math.floor(box.y - offset)));
   if (box.y - offset > maxTop) {
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), top - visibleTop - offset);
