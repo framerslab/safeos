@@ -18,8 +18,9 @@ jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
   useRouter: () => ({ push: jest.fn(), back: jest.fn(), replace: jest.fn() }),
 }));
+let mockConnected = false;
 jest.mock('@/contexts/BackendStatusContext', () => ({
-  useBackendStatus: () => ({ config: { wsUrl: '' } }),
+  useBackendStatus: () => ({ config: { wsUrl: '' }, isConnected: mockConnected }),
 }));
 
 type Analyser = { getByteFrequencyData: (data: Uint8Array) => void };
@@ -75,8 +76,11 @@ async function watch() {
 }
 
 beforeEach(() => {
+  mockConnected = false;
   jest.useFakeTimers();
   localStorage.clear();
+  // The watch's settings open, as a person who pressed Show settings left them.
+  localStorage.setItem('safeos-watch-view', 'settings');
   useMonitoringStore.getState().reset();
   useSettingsStore.getState().resetToDefaults();
   useSettingsStore.setState({ globalMute: true });
@@ -113,7 +117,7 @@ async function loadSaved(scenarioOverrides: Record<string, unknown>) {
   await useSettingsStore.persist.rehydrate();
 }
 
-/** Opens Fine-Tune on the Monitor page and returns its Motion, Audio, Pixel and Interval sliders. */
+/** Opens Fine-Tune on the Monitor page and returns its Motion, Audio and Pixel sliders, and Interval while a server is connected. */
 function openFineTune() {
   const toggle = screen.getByRole('button', { name: /Fine-Tune Settings/ });
   fireEvent.click(toggle);
@@ -150,15 +154,12 @@ it('moves the watch with its own Motion slider when the use has an override', as
   expect((await watch()).motionThreshold).toBe(30);
 });
 
-it('shows and moves the use\'s Motion and Audio in Quick Settings, and leaves the preset for other uses', async () => {
+it('shows and moves the use\'s Motion and Audio in Fine-Tune, and leaves the preset for other uses', async () => {
   tuneOnDetection('Baby Monitoring', 60, 55);
   const view = render(<MonitorPage />);
   await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: /Quick Settings/ }));
-  const quick = screen.getByRole('dialog', { name: 'Quick Settings' });
-  fireEvent.click(within(quick).getByRole('button', { name: 'More options' }));
-  expect((within(quick).getByRole('slider', { name: 'Motion sensitivity' }) as HTMLInputElement).value).toBe('60');
-  const audio = within(quick).getByRole('slider', { name: 'Audio sensitivity' }) as HTMLInputElement;
+  const [motion, audio] = openFineTune();
+  expect(motion.value).toBe('60');
   expect(audio.value).toBe('55');
   fireEvent.change(audio, { target: { value: '70' } });
   view.unmount();
@@ -180,21 +181,28 @@ it('returns the watch to the preset with Fine-Tune\'s Reset, clearing the use\'s
   expect(await watch()).toEqual(presetValues);
 });
 
+/** The preset card's Pixel Threshold figure, as the watch runs at it. */
+const cardPixelThreshold = () => screen.getAllByText('Pixel Threshold')
+  .map((label) => label.previousElementSibling?.textContent ?? '')
+  .find((figure) => /^\d+px$/.test(figure));
+
 it('runs at the preset\'s pixel threshold and interval, which the Sensitivity and Fine-Tune sliders move, whatever a saved override holds', async () => {
   await loadSaved({ baby: { absolutePixelThreshold: 20, analysisInterval: 5 } });
+  // Fine-Tune shows Analysis Interval only while this device's own server is connected.
+  mockConnected = true;
   render(<MonitorPage />);
   await act(async () => {});
-  expect(screen.getByText(`Threshold ${preset.absolutePixelThreshold}px`)).toBeTruthy();
+  expect(cardPixelThreshold()).toBe(`${preset.absolutePixelThreshold}px`);
 
   fireEvent.click(screen.getByRole('button', { name: /^Sensitivity/ }));
   fireEvent.change(screen.getByRole('slider', { name: 'Pixel Threshold' }), { target: { value: '40' } });
-  expect(screen.getByText('Threshold 40px')).toBeTruthy();
+  expect(cardPixelThreshold()).toBe('40px');
 
   const [, , pixel, interval] = openFineTune();
   expect(pixel.value).toBe('40');
   fireEvent.change(pixel, { target: { value: '30' } });
   fireEvent.change(interval, { target: { value: '10' } });
-  expect(screen.getByText('Threshold 30px')).toBeTruthy();
+  expect(cardPixelThreshold()).toBe('30px');
   expect(useSettingsStore.getState().getEffectiveSettings('baby')).toMatchObject({ absolutePixelThreshold: 30, analysisInterval: 10 });
 });
 

@@ -14,5 +14,5 @@ it('keeps saved camera availability unknown when the browser hides device identi
   await act(async () => {});
   expect(screen.queryByText('Saved camera (unavailable)')).toBeNull();
   expect((screen.getByRole('combobox', { name: 'Camera' }) as HTMLSelectElement).value).toBe('usb');
-  expect(screen.getByText(/Camera names may appear after access is granted/)).toBeTruthy();
+  expect(screen.getByText('Camera names show once the camera is allowed.')).toBeTruthy();
 });

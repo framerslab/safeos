@@ -14,7 +14,7 @@
 import { test, expect } from '@playwright/test';
 
 import monitorSettings from '../scripts/home-capture-settings.json';
-import { saveOwnSound, timesPlayed, watchStripes } from './helpers/own-sound';
+import { alertedMatchFrames, saveOwnSound, timesPlayed, watchStripes } from './helpers/own-sound';
 import { setUpDevice } from './helpers/seeded-device';
 import { CAMERA_FILE } from './helpers/striped-subject';
 
@@ -74,7 +74,7 @@ test('a saved sound that loops stops when the watch stops', async ({ page, conte
   await watchStripes(page);
   await expect.poll(passes, { timeout: 60_000 }).toBeGreaterThan(1);
 
-  await page.getByRole('button', { name: 'Stop Monitoring', exact: true }).click();
+  await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
   await page.waitForTimeout(1_000);
   const afterStop = await passes();
   // The sound lasts 0.3 seconds: a loop that went on would start about ten passes here.
@@ -100,7 +100,8 @@ test('in Silent quiet hours a Lost & Found alert does not play the saved sound',
   await saveOwnSound(page);
   await watchStripes(page);
   // The comparison alerts on the matching frames that follow; give it five seconds of them.
+  // Frames that raised the alert are saved, so each of those alerts went down the sound path.
+  await expect.poll(() => alertedMatchFrames(page), { timeout: 60_000 }).toBeGreaterThan(0);
   await page.waitForTimeout(5_000);
-  await expect(page.getByText(/consecutive match/).first()).toBeVisible();
   expect(await timesPlayed(page)).toBe(0);
 });

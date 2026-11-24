@@ -184,7 +184,7 @@ it("keeps an alert of a watch that has ended silent, and lets the running watch'
   await act(async () => {});
   await startMonitoring();
   // The watch runs, its picture seen: the alerts of the watch before it are forgotten by now.
-  await waitFor(() => expect(screen.getByText('Stop Monitoring')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Stop watching')).toBeTruthy());
   await act(async () => {});
   act(() => useMonitoringStore.getState().setStreamId('stream-b'));
 

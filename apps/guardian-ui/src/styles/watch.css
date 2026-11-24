@@ -1,0 +1,775 @@
+/* =============================================================================
+   The watch: the Motion and sound page (src/app/monitor/page.tsx) and its parts
+   (src/components/watch/).
+
+   On the readable look's tokens, so the light look follows from html.light and,
+   before script, from the device's own look: the page steel-950, the panel
+   steel-900 (the camera's drawn frame, the meters' strip), the track steel-800
+   (a meter's track, the chosen option, a muted key, the loading bars), the ink
+   steel-50 (headings, sentences, names, key labels), the quiet tone steel-200,
+   every edge, rule and glyph steel-300, the accent (--look-accent) for Start
+   watching's fill, the ring, the check, the ticks and a bar under its line, and
+   the alert colour (--look-alert) for the problem mark and a bar over its line.
+   The accent and the alert colour are never the colour of a word.
+
+   Words at weights 400 and 600 only: the watch's root sets --weight-bold to
+   600, so the keys' solid label and every name on the watch take it. Words in
+   rem so the browser's text size scales them; edges, glyphs and photos in px;
+   stops in em.
+   ============================================================================= */
+
+.watch {
+  --weight-bold: 600;
+  color: var(--color-steel-50);
+}
+
+html:has(.watch) {
+  scroll-padding-bottom: calc(var(--phone-bar-height) + 1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.watch button,
+.watch a,
+.watch select {
+  touch-action: manipulation;
+}
+
+/* The page's places. On a phone and a tablet one column: the bar, the nap
+   banner, the frame, the wait line, the controls, the pet card and the alert
+   list, the statement after the list, then the settings. */
+.watch-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "bar"
+    "nap"
+    "frame"
+    "wait"
+    "controls"
+    "side"
+    "statement"
+    "settings";
+  gap: 1rem;
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+.watch-grid > * {
+  min-width: 0;
+}
+
+.watch-grid__bar { grid-area: bar; }
+.watch-grid__nap { grid-area: nap; }
+.watch-grid__frame { grid-area: frame; }
+.watch-grid__wait { grid-area: wait; }
+.watch-grid__controls { grid-area: controls; }
+.watch-grid__side { grid-area: side; }
+.watch-grid__statement { grid-area: statement; }
+.watch-grid__settings { grid-area: settings; }
+.watch-grid__camera { grid-area: camera; }
+
+/* On a phone while watching, the camera menu steps under the alert list, so
+   the newest alert follows Stop watching in the first screen. */
+@media (max-width: 47.99em) {
+  .watch-grid--camera-after {
+    grid-template-areas:
+      "bar"
+      "nap"
+      "frame"
+      "wait"
+      "controls"
+      "side"
+      "camera"
+      "statement"
+      "settings";
+  }
+}
+
+/* The statement: what the watch is for, in the body's size and ink. */
+.watch-statement {
+  margin: 0;
+  max-width: 40rem;
+  color: var(--color-steel-50);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  text-wrap: pretty;
+}
+
+@media (min-width: 48em) {
+  .watch-grid {
+    max-width: 44rem;
+    padding-inline: 2rem;
+  }
+}
+
+/* From 64em the picture takes the left 8 of 12 columns and the pet card and
+   the alert list the right 4; a tall list grows the statement's row alone. */
+@media (min-width: 64em) {
+  .watch-grid {
+    max-width: 75rem;
+    grid-template-columns: minmax(0, 8fr) minmax(0, 4fr);
+    column-gap: 1.5rem;
+    grid-template-rows: auto auto auto auto auto 1fr auto;
+    grid-template-areas:
+      "bar bar"
+      "nap side"
+      "frame side"
+      "wait side"
+      "controls side"
+      "statement side"
+      "settings settings";
+  }
+
+  .watch-grid > * {
+    align-self: start;
+  }
+}
+
+/* From 90em the left 7 and the right 5, the statement under the list. */
+@media (min-width: 90em) {
+  .watch {
+    --type-body-size: 1.25rem;
+    --type-body-line: 1.875rem;
+  }
+
+  .watch-grid {
+    max-width: 82.5rem;
+    grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+    grid-template-rows: auto auto auto auto 1fr auto auto;
+    grid-template-areas:
+      "bar bar"
+      "nap side"
+      "frame side"
+      "wait side"
+      "controls side"
+      ". statement"
+      "settings settings";
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   The bar's row: the heading "Watch for", from 64em the two options, and Mute
+   alerts at the row's end. One row at every width; larger text scrolls it
+   inside itself with its arrow keys (components/KeyRow).
+   ----------------------------------------------------------------------------- */
+
+.watch .watch-for {
+  margin-bottom: 0;
+}
+
+.watch-bar {
+  justify-content: flex-start;
+}
+
+.watch-bar .key-row__keys {
+  flex: 1 1 auto;
+  gap: 1rem;
+}
+
+.watch-bar__end {
+  display: flex;
+  margin-left: auto;
+}
+
+.watch-heading,
+.watch .watch-for__heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  color: var(--color-steel-50);
+}
+
+@media (min-width: 48em) {
+  .watch-heading,
+  .watch .watch-for__heading {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+  }
+}
+
+/* Mute alerts: the speaker and its words in both states; pressed, its ground
+   is the track colour. */
+.watch-mute {
+  gap: 0.5rem;
+  min-width: 8rem;
+}
+
+.watch-mute[aria-pressed='true'] {
+  background: var(--color-steel-800);
+}
+
+.watch-glyph {
+  flex: none;
+}
+
+.watch-muted {
+  margin: 0.5rem 0 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+/* -----------------------------------------------------------------------------
+   The camera's frame: the panel colour at 16:9 inside four corner ticks. The
+   picture is always mounted under the drawn panel, so the camera never
+   restarts; the drawn panel stands over it until the picture is live.
+   ----------------------------------------------------------------------------- */
+
+.watch-frame {
+  position: relative;
+  width: 100%;
+}
+
+/* The picture's place: 16:9, grown by the drawn panel at larger text. */
+.watch-frame__screen {
+  position: relative;
+  display: flex;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+
+.watch-frame__picture {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.watch-frame__picture .camera-feed--bare,
+.watch-frame__picture video {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.watch-frame__picture video {
+  object-fit: cover;
+}
+
+.watch-frame[data-phase='live'] .watch-frame__picture {
+  z-index: 0;
+}
+
+.watch-frame:not([data-phase='live']) .watch-frame__picture {
+  visibility: hidden;
+}
+
+.watch-frame .corner-ticks > i {
+  z-index: 2;
+  width: 12px;
+  height: 12px;
+}
+
+/* The drawn panel: the camera drawing, a status line, the key, the lines.
+   It grows with its words at larger text, so the frame grows with it. */
+.watch-frame__drawn {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  padding: 1rem;
+  text-align: center;
+  background: var(--color-steel-900);
+}
+
+.watch-glyph--camera {
+  color: var(--color-steel-300);
+}
+
+.watch-frame__line {
+  margin: 0;
+  max-width: 32rem;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+  text-wrap: pretty;
+}
+
+.watch-frame__problem {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.watch-start {
+  width: calc(100% - 40px);
+  min-height: 3.25rem;
+  white-space: normal;
+}
+
+@media (min-width: 48em) {
+  .watch-start {
+    max-width: 25rem;
+  }
+}
+
+/* While the camera starts: no fill, a 2 px edge in the line colour. */
+.watch-start.key--waiting {
+  background: transparent;
+  border: 2px solid var(--color-steel-300);
+  color: var(--color-steel-50);
+  cursor: default;
+}
+
+/* The accent bar that grows along the frame's foot while the camera starts. */
+.watch-frame__starting {
+  position: absolute;
+  z-index: 2;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--look-accent);
+  transform-origin: left center;
+  animation: capture-loading 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-frame__starting {
+    display: none;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   The controls under the frame: Stop watching (or Cancel) and the camera menu;
+   across the column on a phone, side by side from 48em.
+   ----------------------------------------------------------------------------- */
+
+.watch-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.watch-stop {
+  width: 100%;
+  min-height: 3.25rem;
+}
+
+@media (min-width: 48em) {
+  .watch-controls {
+    flex-direction: row;
+    align-items: flex-end;
+  }
+
+  .watch-stop {
+    flex: none;
+    width: 20rem;
+  }
+}
+
+.watch-camera {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.watch .watch-camera label,
+.watch .watch-camera select,
+.watch .watch-camera p {
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+}
+
+.watch .watch-camera label {
+  font-weight: var(--weight-bold);
+  color: var(--color-steel-50);
+}
+
+.watch .watch-camera p {
+  color: var(--color-steel-50);
+}
+
+.watch .watch-camera select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--color-steel-300);
+  border-radius: var(--key-radius);
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+}
+
+/* The light look's rule for every menu on the site carries !important; the
+   watch's camera menu keeps its own edge, ground and ink over it. */
+html.light .watch .watch-camera select {
+  border-color: var(--color-steel-300) !important;
+  background-color: var(--color-steel-950) !important;
+  color: var(--color-steel-50) !important;
+}
+
+.watch .watch-camera select:focus-visible {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+}
+
+/* -----------------------------------------------------------------------------
+   The nap banner above the frame: its sentence, then Resume nap and End nap.
+   ----------------------------------------------------------------------------- */
+
+.watch-nap {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 6px;
+  background: var(--color-steel-900);
+}
+
+.watch-nap__line {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--color-steel-50);
+}
+
+.watch-nap__keys {
+  justify-content: flex-start;
+}
+
+/* -----------------------------------------------------------------------------
+   The meters' strip: the panel colour along the picture's foot, inside the
+   ticks. On a phone one row each, the name at the left, the state word at the
+   right and the bar under them; from 48em up to three side by side, the name
+   over the track and the state word under it, the pet's meter on its own row;
+   from 64em the name and state word on one line over the track, the pet's
+   meter a fourth column.
+   ----------------------------------------------------------------------------- */
+
+.watch-meters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 1rem;
+  background: var(--color-steel-900);
+}
+
+.watch-meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "name state"
+    "track track";
+  align-items: center;
+  column-gap: 0.75rem;
+  row-gap: 0.375rem;
+  min-width: 0;
+}
+
+.watch-meter__name {
+  grid-area: name;
+  min-width: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  color: var(--color-steel-50);
+  overflow-wrap: anywhere;
+}
+
+.watch-meter__state {
+  grid-area: state;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+  white-space: nowrap;
+}
+
+.watch-meter__track {
+  grid-area: track;
+  position: relative;
+  height: 8px;
+  overflow: hidden;
+  background: var(--color-steel-800);
+}
+
+.watch-meter__fill,
+.watch-meter__over,
+.watch-meter__line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.watch-meter__fill {
+  left: 0;
+  background: var(--look-accent);
+}
+
+.watch-meter__over {
+  background: var(--look-alert);
+}
+
+.watch-meter__line {
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-steel-50);
+}
+
+.watch-meter__problem {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+.watch-meter--pet {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "photo name"
+    "photo compares";
+}
+
+.watch-meter__photo {
+  grid-area: photo;
+  width: 24px;
+  height: 24px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.watch-meter__compares {
+  grid-area: compares;
+  min-width: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 48em) {
+  .watch-meters {
+    display: flex;
+    flex-wrap: wrap;
+    column-gap: 1.5rem;
+  }
+
+  .watch-meter {
+    flex: 1 1 0;
+  }
+
+  .watch-meter:not(.watch-meter--pet):not(.watch-meter--problem) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "name"
+      "track"
+      "state";
+  }
+
+  .watch-meter--pet {
+    flex-basis: 100%;
+  }
+}
+
+@media (min-width: 64em) {
+  /* A column is never narrower than its name and state word on one line:
+     the others share what is left, and a strip too narrow for all of them
+     takes a meter onto a second row. */
+  .watch-meter:not(.watch-meter--pet):not(.watch-meter--problem) {
+    min-width: max-content;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name state"
+      "track track";
+  }
+
+  .watch-meter--pet {
+    flex-basis: 0;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Settings for this watch: one 44 px row under the alert list, its heading at
+   the left and Show settings with its chevron at the right. The key stretches
+   over the whole row, so a press anywhere along it opens or folds the
+   settings; no edge, the panel colour under the pointer, the ring on focus.
+   ----------------------------------------------------------------------------- */
+
+.watch-fold {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.watch-disclosure {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.75rem;
+  padding-inline: 0.5rem;
+  color: var(--color-steel-50);
+}
+
+.watch-disclosure:hover {
+  background: var(--color-steel-900);
+}
+
+.watch-disclosure__name {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+}
+
+.watch-disclosure__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.watch-disclosure__key::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* A pressed button is drawn smaller on the site's touch rule; a transform
+   would make the key hold its own stretched layer, so a press at the row's
+   far end would end outside the key. The row stays as it is. */
+.watch .watch-disclosure__key:active {
+  transform: none;
+}
+
+.watch-disclosure__key:focus-visible {
+  outline: none;
+}
+
+.watch-disclosure:has(.watch-disclosure__key:focus-visible) {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+}
+
+.watch-disclosure__key .watch-glyph--chevron {
+  color: var(--color-steel-300);
+  transition: transform 150ms ease-out;
+}
+
+.watch-disclosure[data-open='true'] .watch-glyph--chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .watch-disclosure__key .watch-glyph--chevron {
+    transition: none;
+  }
+}
+
+.watch-fold__panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* -----------------------------------------------------------------------------
+   The alert list: it stands on the page's ground with no box. Its header row
+   holds the heading "Alerts" and, while any alert is new, the problem glyph
+   and "{n} new" in the ink. Empty, the bell over a sentence; while the saved
+   alerts are read, three bars in the track colour where entries go.
+   ----------------------------------------------------------------------------- */
+
+.watch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.watch-list__head {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.watch-list__new {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+  white-space: nowrap;
+}
+
+.watch-list__body {
+  min-width: 0;
+}
+
+/* Storage that refused the saved alerts: the problem glyph and its line under
+   the header. */
+.watch-list__problem {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+  text-wrap: pretty;
+}
+
+.watch-list__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding-block: 0.5rem;
+}
+
+.watch-list__empty .watch-glyph--bell {
+  color: var(--color-steel-300);
+}
+
+.watch-list__empty p {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+}
+
+.watch-list__waits {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.watch-list__wait {
+  display: block;
+  height: 1.5rem;
+  background: var(--color-steel-800);
+}

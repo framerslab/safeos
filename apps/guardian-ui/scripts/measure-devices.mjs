@@ -147,7 +147,7 @@ function seed(settings) {
 /**
  * Runs in the page before its own scripts. Times every tick of every
  * interval timer, notes whether the tick read the camera's pixels or the
- * microphone's analyser, notes when "Start Monitoring" is pressed and when
+ * microphone's analyser, notes when "Start watching" is pressed and when
  * the first alert card is drawn, and keeps the main thread's long tasks.
  */
 function instrument() {
@@ -192,7 +192,7 @@ function instrument() {
 
   document.addEventListener('click', (event) => {
     const button = event.target instanceof Element ? event.target.closest('button') : null;
-    if (button && (button.textContent || '').includes('Start Monitoring')) m.startPressedAt = performance.now();
+    if (button && (button.textContent || '').includes('Start watching')) m.startPressedAt = performance.now();
   }, true);
 
   // An alert card's message line starts with its kind; the screen-reader
@@ -271,9 +271,9 @@ async function firstFrameTick(page, otherThan, timeoutMs) {
 }
 
 async function startMonitoring(page) {
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click({ timeout: 120_000 });
-  await page.getByText('LIVE', { exact: true }).waitFor({ timeout: 120_000 }).catch(async (error) => {
-    const shown = await page.locator('text=Camera Error').first().locator('xpath=..').textContent({ timeout: 2_000 }).catch(() => null);
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 120_000 });
+  await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 120_000 }).catch(async (error) => {
+    const shown = await page.locator('.watch-frame [role="status"]').first().textContent({ timeout: 2_000 }).catch(() => null);
     throw new Error(shown ? `the camera did not start: ${shown.replace(/\s+/g, ' ').trim()}` : error.message);
   });
 }
@@ -594,7 +594,7 @@ async function measureLostFound(browser, cls, rate, name, watchDelay) {
     // The page's own key opens the watch with Lost and Found chosen and this
     // pet; the watch compares once its Start Monitoring is pressed.
     await page.getByRole('button', { name: 'Start Monitoring' }).click({ timeout: 120_000 });
-    await page.waitForURL(/\/monitor\/?$/, { timeout: 120_000 });
+    await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 120_000 });
     await startMonitoring(page);
 
     // The monitor's motion loop reads pixels too; matching is the other timer
@@ -640,8 +640,8 @@ function table(results) {
   row('Watch: frames analysed per second', (r) => part(r, 'watch', (w) => show(w.framesAnalysedPerSecond)));
   row('Watch: frame analysis time, median / 95th percentile', (r) => part(r, 'watch', (w) => showSpread(w.frameAnalysisTime)));
   row('Watch: sound reading time, median / 95th percentile', (r) => part(r, 'watch', (w) => (w.soundReadingTime ? showSpread(w.soundReadingTime) : w.soundMeasured)));
-  row('Watch: time from Start Monitoring to the first alert', (r) => part(r, 'watch', (w) => (w.timeToFirstAlert ? `${show(w.timeToFirstAlert)} (${w.firstAlertKind})` : w.firstAlertKind)));
-  row('Watch: time from Start Monitoring to the first motion alert', (r) => part(r, 'watch', (w) => (w.timeToFirstMotionAlert ? show(w.timeToFirstMotionAlert) : w.firstMotionAlert)));
+  row('Watch: time from Start watching to the first alert', (r) => part(r, 'watch', (w) => (w.timeToFirstAlert ? `${show(w.timeToFirstAlert)} (${w.firstAlertKind})` : w.firstAlertKind)));
+  row('Watch: time from Start watching to the first motion alert', (r) => part(r, 'watch', (w) => (w.timeToFirstMotionAlert ? show(w.timeToFirstMotionAlert) : w.firstMotionAlert)));
   row('Watch: JS heap used after 60 s (as read, after a garbage collection)', (r) => part(r, 'watch', (w) => `${show(w.jsHeapUsedAfter60s)}, ${w.garbageCollection === 'run' ? show(w.jsHeapUsedAfter60sAndGarbageCollection) : w.garbageCollection.replace(/\|/g, '/')}`));
   row('Watch: long tasks in 60 s (count, total)', (r) => part(r, 'watch', (w) => (w.longTasks ? `${w.longTasks.count.value}, ${show(w.longTasks.total)}` : 'not read')));
   row('Model: downloaded (decoded, on the wire)', (r) => part(r, 'model', (m) => `${(m.downloadDecoded.value / 1e6).toFixed(2)} MB, ${(m.downloadOnTheWire.value / 1e6).toFixed(2)} MB`));

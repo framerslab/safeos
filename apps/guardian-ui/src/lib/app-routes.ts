@@ -53,8 +53,8 @@ const APP_SECTIONS = [
 ];
 
 // The pages built in the readable look: their whole body follows the device's
-// light or dark setting before any script runs.
-const LOOK_SECTIONS = ['/dashboard', '/tutorial', '/analytics', '/profiles'];
+// light or dark setting before any script runs. The watch is /monitor.
+const LOOK_SECTIONS = ['/dashboard', '/monitor', '/tutorial', '/analytics', '/profiles'];
 
 // Single pages built in the readable look inside a section that is not: one
 // path each, so a page still on its old layout keeps it.
