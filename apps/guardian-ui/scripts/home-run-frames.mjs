@@ -20,8 +20,8 @@ export function ffmpeg(args, options) {
 
 export async function testPosterEncoders(directory) {
   for (const [encoder, extra] of [
-    ['libaom-av1', ['-still-picture', '1', '-crf', '20', '-cpu-used', '5']],
-    ['libsvtav1', ['-crf', '20', '-preset', '6']],
+    ['libaom-av1', ['-still-picture', '1', '-crf', '28', '-cpu-used', '5']],
+    ['libsvtav1', ['-crf', '28', '-preset', '6']],
   ]) {
     try {
       ffmpeg(['-f', 'lavfi', '-i', 'color=s=64x64', '-frames:v', '1',
@@ -274,44 +274,90 @@ const srgb = Array.from({ length: 256 }, (_, n) => {
   return code <= 0.04045 ? code / 12.92 : ((code + 0.055) / 1.055) ** 2.4;
 });
 
-// Count paired, opposing luminance and saturated-red transitions in each
-// rolling second. The reduced raster still measures fifteen separate frames
-// per second and keeps area, so single noisy pixels do not count as flashes.
-function checkFlashes(file) {
+// Use the WCAG 2.2 visual field and concurrent affected area. A line of
+// text moving through a frame can change isolated pixels without a flash.
+function affectedField(mask, stride, width, height, area) {
+  const integral = new Uint32Array((stride + 1) ** 2);
+  for (let y = 0; y < stride; y++) {
+    let row = 0;
+    for (let x = 0; x < stride; x++) {
+      row += mask[y * stride + x];
+      integral[(y + 1) * (stride + 1) + x + 1] = integral[y * (stride + 1) + x + 1] + row;
+    }
+  }
+  for (let y = height; y <= stride; y++) {
+    for (let x = width; x <= stride; x++) {
+      const sum = integral[y * (stride + 1) + x]
+        - integral[(y - height) * (stride + 1) + x]
+        - integral[y * (stride + 1) + x - width]
+        + integral[(y - height) * (stride + 1) + x - width];
+      if (sum > area) return true;
+    }
+  }
+  return false;
+}
+
+function chromaticity(r, g, b) {
+  const x = 0.4124 * r + 0.3576 * g + 0.1805 * b;
+  const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const z = 0.0193 * r + 0.1192 * g + 0.9505 * b;
+  const sum = x + 15 * y + 3 * z || 1;
+  return [4 * x / sum, 9 * y / sum];
+}
+
+// Checks decoded video at its highest displayed size. The 341×256 CSS px
+// field estimates 10 degrees at a typical viewing distance.
+function checkFlashes(file, size) {
   const edge = 96;
   const pixels = edge * edge;
   const stride = pixels * 3;
   const frames = ffmpeg(['-i', file, '-vf', `scale=${edge}:${edge}:flags=area,format=rgb24`,
     '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { maxBuffer: 24 * 1024 * 1024 });
-  const steps = [new Int8Array(pixels), new Int8Array(pixels)];
+  const [displayWidth, displayHeight] = size === 'square' ? [560, 560] : [820, 512.5];
+  const fieldWidth = Math.ceil(341 / displayWidth * edge);
+  const fieldHeight = Math.ceil(256 / displayHeight * edge);
+  const fieldArea = (341 / displayWidth * edge) * (256 / displayHeight * edge) / 4;
+  const previous = [new Int8Array(pixels), new Int8Array(pixels)];
+  const previousAt = [new Int32Array(pixels), new Int32Array(pixels)];
   const paired = [[], []];
-  const red = (r, g, b) => r / (r + g + b || 1) >= 0.8;
-  const luminance = (r, g, b) => 0.2126 * srgb[r] + 0.7152 * srgb[g] + 0.0722 * srgb[b];
+  const red = (r, g, b) => r / (r + g + b || 1);
+  const luminance = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
   for (let frame = 1; (frame + 1) * stride <= frames.length; frame++) {
+    const masks = [new Uint8Array(pixels), new Uint8Array(pixels)];
     const areas = [0, 0];
     for (let px = 0; px < pixels; px++) {
       const a = (frame - 1) * stride + px * 3;
       const b = a + stride;
-      const l0 = luminance(frames[a], frames[a + 1], frames[a + 2]);
-      const l1 = luminance(frames[b], frames[b + 1], frames[b + 2]);
-      const l = l1 - l0;
-      const r0 = Math.max(0, frames[a] - frames[a + 1] - frames[a + 2]);
-      const r1 = Math.max(0, frames[b] - frames[b + 1] - frames[b + 2]);
-      const r = r1 - r0;
-      const direction = [
-        Math.abs(l) >= 0.1 && Math.min(l0, l1) < 0.8 ? Math.sign(l) : 0,
-        Math.abs(r) > 20 && (red(frames[a], frames[a + 1], frames[a + 2])
-          || red(frames[b], frames[b + 1], frames[b + 2])) ? Math.sign(r) : 0,
+      const [r0, g0, b0] = [srgb[frames[a]], srgb[frames[a + 1]], srgb[frames[a + 2]]];
+      const [r1, g1, b1] = [srgb[frames[b]], srgb[frames[b + 1]], srgb[frames[b + 2]]];
+      const l0 = luminance(r0, g0, b0);
+      const l1 = luminance(r1, g1, b1);
+      const difference = l1 - l0;
+      const red0 = red(r0, g0, b0);
+      const red1 = red(r1, g1, b1);
+      let redDirection = 0;
+      if (red0 >= 0.8 || red1 >= 0.8) {
+        const [u0, v0] = chromaticity(r0, g0, b0);
+        const [u1, v1] = chromaticity(r1, g1, b1);
+        if (Math.hypot(u1 - u0, v1 - v0) > 0.2) redDirection = Math.sign(red1 - red0 || u1 - u0);
+      }
+      const directions = [
+        Math.abs(difference) >= 0.1 && Math.min(l0, l1) < 0.8 ? Math.sign(difference) : 0,
+        redDirection,
       ];
-      for (let kind = 0; kind < steps.length; kind++) {
-        if (direction[kind] === 0) continue;
-        const closes = steps[kind][px] === -direction[kind];
-        if (closes) areas[kind] += 1;
-        steps[kind][px] = closes ? 0 : direction[kind];
+      for (let kind = 0; kind < directions.length; kind++) {
+        if (!directions[kind]) continue;
+        const closes = previous[kind][px] === -directions[kind] && frame - previousAt[kind][px] < FPS;
+        if (closes) {
+          areas[kind] += 1;
+          masks[kind][px] = 1;
+        }
+        previous[kind][px] = closes ? 0 : directions[kind];
+        previousAt[kind][px] = frame;
       }
     }
     for (let kind = 0; kind < paired.length; kind++) {
-      if (areas[kind] < pixels / 16) continue;
+      if (areas[kind] <= fieldArea || !affectedField(masks[kind], edge, fieldWidth, fieldHeight, fieldArea)) continue;
       const events = paired[kind];
       while (events.length && frame - events[0] >= FPS) events.shift();
       events.push(frame);
@@ -356,7 +402,7 @@ export async function encodeVariant({ frames, cut, view, crop, directory, outDir
     ['video', 'h264', width, height, '15/1'], 'MP4 stream differs from the recording contract');
   assert.ok(Math.abs(Number(format.duration) - view.seconds) <= 1 / FPS, `Unexpected MP4 duration ${format.duration}`);
   checkFastStart(await readFile(movie));
-  checkFlashes(movie);
+  checkFlashes(movie, view.size);
 
   const stills = [
     ['webp', ['-c:v', 'libwebp', '-quality', '86', '-compression_level', '6']],
