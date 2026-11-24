@@ -144,11 +144,12 @@ const keptSoFar = (page: Page): Promise<Kept> =>
  * Writes one saved picture for the pet into the browser's database, as the
  * watch saves one: a 640 by 480 picture, a score of 82 with its four parts
  * and the compared region. The gallery then has a picture to show whether or
- * not the build saves a picture on each check.
+ * not the build saves a picture on each check. With `counted`, the pet's
+ * saved count goes up by one too, as the watch's own save raises it.
  */
-const savePicture = (page: Page) =>
+const savePicture = (page: Page, { counted = false }: { counted?: boolean } = {}) =>
   page.evaluate(
-    async ({ name, width, height }) => {
+    async ({ name, width, height, counted }) => {
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
@@ -166,7 +167,7 @@ const savePicture = (page: Page) =>
         opening.onerror = () => reject(opening.error);
       });
       try {
-        const pets = await new Promise<Array<{ id: string; name: string }>>((resolve, reject) => {
+        const pets = await new Promise<Array<{ id: string; name: string; matchCount?: number }>>((resolve, reject) => {
           const reading = database.transaction('subject_profile').objectStore('subject_profile').getAll();
           reading.onsuccess = () => resolve(reading.result);
           reading.onerror = () => reject(reading.error);
@@ -174,7 +175,7 @@ const savePicture = (page: Page) =>
         const pet = pets.find((saved) => saved.name === name);
         if (!pet) throw new Error(`no saved pet named ${name}`);
         await new Promise<void>((resolve, reject) => {
-          const writing = database.transaction('match_frame', 'readwrite');
+          const writing = database.transaction(['match_frame', 'subject_profile'], 'readwrite');
           writing.objectStore('match_frame').put({
             id: `walk-picture-${Date.now()}`,
             subjectId: pet.id,
@@ -189,6 +190,7 @@ const savePicture = (page: Page) =>
             exported: false,
             alerted: true,
           });
+          if (counted) writing.objectStore('subject_profile').put({ ...pet, matchCount: (pet.matchCount ?? 0) + 1 });
           writing.oncomplete = () => resolve();
           writing.onerror = () => reject(writing.error);
         });
@@ -196,7 +198,7 @@ const savePicture = (page: Page) =>
         database.close();
       }
     },
-    { name: NAME, width: WIDTH, height: HEIGHT }
+    { name: NAME, width: WIDTH, height: HEIGHT, counted }
   );
 
 // =============================================================================
@@ -316,11 +318,34 @@ test('the gallery lists saved pictures with no score, and an opened one asks the
   await page.screenshot({ path: testInfo.outputPath('lost-found-gallery-words-1280.png') });
 });
 
+test('the pet’s card counts the pictures saved for it, and a picture deleted in the gallery leaves the count', async ({ page, context }) => {
+  test.setTimeout(180_000);
+  await seed(context);
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await enrolPet(page, NAME, await stripedPhoto(page));
+  await expect(savedPetCard(page)).toBeVisible({ timeout: 30_000 });
+  await savePicture(page, { counted: true });
+  await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
+  await expect(page.getByText(/^1 possible sighting saved • Created /)).toBeVisible({ timeout: 30_000 });
+
+  await page.goto('/lost-found/gallery/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await page.getByRole('button', { name: 'Open this picture', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByText('No pictures saved', { exact: true })).toBeVisible();
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await expect(savedPetCard(page)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/^1 possible sighting saved/)).toHaveCount(0);
+});
+
 test('no Lost and Found screen says match, detected, confidence, accurate or likelihood', async ({ page, context }, testInfo) => {
   test.setTimeout(300_000);
   await seed(context);
+  // A whole page is read with its title, which names the page in the tab,
+  // the history, a bookmark and a search result.
   const holdsNoBarredWord = async (stop: string, scope?: string) => {
-    const words = await readWords(page, scope);
+    const words = scope ? await readWords(page, scope) : `${await page.title()}\n${await readWords(page)}`;
     expect(words, `${stop} says: ${words.match(BARRED)?.[0]}`).not.toMatch(BARRED);
   };
 
