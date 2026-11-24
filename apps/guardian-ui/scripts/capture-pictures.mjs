@@ -223,6 +223,7 @@ try {
     }
   }
   if (homeChecks) {
+    failures += await checkFirstVisit(browser, baseUrl, outDir);
     failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
     failures += await checkHomeUseSetup(browser, baseUrl);
   }

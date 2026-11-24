@@ -321,7 +321,7 @@ export function LostFoundSetup({ onComplete, onCancel }: LostFoundSetupProps) {
             </div>
             
             {/* Image previews */}
-            {images.length >= MIN_PET_PHOTOS && (
+            {images.length > 0 && (
               <div className="grid grid-cols-5 gap-3">
                 {images.map((img) => (
                   <div key={img.id} className="relative group">
