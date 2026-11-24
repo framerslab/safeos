@@ -10,7 +10,7 @@ import {
 } from './home-run-frames.mjs';
 import { recordingInputs } from './home-run-inputs.mjs';
 import { omittedRuns, placeSubject, recipes } from './home-run-list.mjs';
-import { launchSampleDevice, seededContext } from './home-run-seed.mjs';
+import { launchSampleDevice, recordingSettings, seededContext } from './home-run-seed.mjs';
 
 const [baseUrl, outDir, video, audio, gardenVideo, gardenAudio] = process.argv.slice(2);
 assert.ok(baseUrl && outDir && video && audio && Boolean(gardenVideo) === Boolean(gardenAudio),
@@ -56,7 +56,7 @@ async function recordVariant(browser, recipe, view, avif) {
     colorScheme: view.look,
     timezoneId: 'UTC',
     locale: 'en-US',
-  });
+  }, recordingSettings);
   const page = await context.newPage();
   try {
     await captureNotifications(context);

@@ -21,7 +21,7 @@ const files = exported.filter((file) => {
   const relative = relativePath(file);
   // Install the shell, route data, lazy scripts and its everyday images.
   // Home recordings and their posters are transferred separately.
-  if (/^home\/(?:runs\/|capture-|card\.jpg$)/.test(relative)
+  if (/^home\/(?:runs\/|lost-found\/|capture-|card\.jpg$)/.test(relative)
     || relative.startsWith('screenshots/') || relative.endsWith('.mp4')) return false;
   return relative.startsWith('_next/static/') || relative.startsWith('icons/') ||
     /\.(html|txt|css|js|woff2?|svg|png|ico|webp|jpe?g|gif)$/.test(relative) && relative !== 'sw.js' || relative === 'manifest.json';

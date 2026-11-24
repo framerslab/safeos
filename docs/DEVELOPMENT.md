@@ -602,7 +602,8 @@ least 320 px. This preserves readable labels when the home is 320 px wide.
 The first poster shows the kitten and the Motion and Sound meters when a dog
 barks. The player uses the matching Watching WebP. Dashboard follows with
 the movement and sound alerts and the movement alert’s kept picture. The
-player holds the poster for reduced motion and data saving until Play. Once the service worker has
+recordings use the Custom preset with motion sensitivity set to keep that
+picture before the kitten leaves the camera. The player holds the poster for reduced motion and data saving until Play. Once the service worker has
 saved the app, an eligible visit saves both looks' square WebP posters as
 an optional batch. Visitors can step through the saved pictures offline.
 Save-Data, 2g, slow-2g and reduced motion defer the poster batch. The
@@ -659,9 +660,8 @@ screenshots and the sharing card:
    granted, so the unchanged monitor reads the clip through its real camera
    path.
 3. For each look it seeds a finished setup and the Custom preset in
-   `scripts/home-capture-settings.json` (with pixel detection off and the
-   motion sensitivity set to keep a picture before the kitten leaves the
-   camera), opens `/monitor/`, presses "Start watching" and waits
+   `scripts/home-capture-settings.json` (the default preset with pixel
+   detection off), opens `/monitor/`, presses "Start watching" and waits
    until the alert list holds a motion alert and the Motion meter reads
    "Over the line".
 4. It saves the three crops in both looks (`capture-phone-*`,
@@ -710,6 +710,33 @@ state's own part of the page: `card`, `sound-card`, `card-failed`, `opened`, `hi
 reach fails the step and names the state. The files are the run's
 `alert-pictures` artifact; a pull request that changes them copies them into
 `docs/pictures/pr-<number>/alert/` with a README naming the run.
+
+#### The Lost and Found probe
+
+After the home and alert captures, the job's step "Probe Lost and Found on the sample clip"
+runs `apps/guardian-ui/scripts/lost-found-probe.mjs` on the same build and the
+same fake camera files. It enrols "Toffee" through `/lost-found/` with the
+three photos under `apps/guardian-ui/public/home/lost-found/`, as a person
+would, checks that the pet was saved on the device with all three photos in
+the order it added them, starts the watch on the sample clip at the app's
+default Lost and Found settings and reads what the watch keeps every 2 s for
+85 s, three plays of the clip, and once more 3 s after, for a frame still
+being saved. Its log gives the alert and save lines, the first frame saved,
+the first alert with its score, its four parts and its region, the best score
+and the verdict. A saved frame counts as an alert when the watch raised the
+alert for it. The probe also reads Lost and Found sighting records on builds
+that keep them. Only what the watch kept inside the 85 s counts. The step
+fails when the watch does not alert, when the camera does not start or its
+picture is not live at the end, and when any step of the walk or of the
+database reads fails, with a picture of the page,
+`failed-lost-found-probe.png`. Its result, `lost-found-probe.json`, is in the
+run's `home-pictures` artifact beside `home/`. Each set of photos the probe
+tries is copied into the `tried` list of `public/home/lost-found/photos.json`,
+the sets that did not alert as well as the one that did, and the last set
+listed is the one that alerted, with the digests of the photos and the clip it
+ran on. The list is held by `tests/home-lost-found-photos.test.ts`, with each
+photo's size, digest, source, crop box and licence, so a photo or the clip
+changed without a new probe fails the test.
 
 ---
 

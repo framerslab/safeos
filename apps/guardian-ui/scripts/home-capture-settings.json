@@ -3,8 +3,8 @@
   "globalSettings": {
     "id": "custom",
     "name": "Maximum Alert",
-    "description": "High sensitivity and maximum volume.",
-    "motionSensitivity": 87,
+    "description": "High sensitivity (80%) and max volume.",
+    "motionSensitivity": 80,
     "audioSensitivity": 80,
     "pixelThreshold": 20,
     "absolutePixelThreshold": 50,

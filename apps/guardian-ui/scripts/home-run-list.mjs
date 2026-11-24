@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { settings } from './home-run-seed.mjs';
+import { recordingSettings as settings } from './home-run-seed.mjs';
 
 export const omittedRuns = [
   { id: 'alert', reason: 'Requires saved alert pictures and the live box on the Motion and sound page.' },

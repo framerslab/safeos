@@ -183,7 +183,7 @@ jobs:
   home-captures:
     name: Capture the home page pictures
     runs-on: ubuntu-24.04
-    # The home captures, then the alert pictures in each state, width and look.
+    # The home captures, the alert pictures in each state, width and look, then the probe.
     timeout-minutes: 45
     defaults:
       run:
@@ -281,6 +281,30 @@ jobs:
             sleep 1
           done
           node scripts/alert-picture-captures.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/alert-pictures" "$RUNNER_TEMP/sample-clip.y4m" "$RUNNER_TEMP/sample-clip.wav"
+
+      # Enrols the Lost and Found example's three photos as a person would,
+      # watches the sample clip through the fake camera at the app's default
+      # settings and fails when the watch does not alert. Its result,
+      # lost-found-probe.json, goes into the capture's folder, so the
+      # home-pictures artifact carries it. It runs after a failed capture as
+      # well, but not in a run that was cancelled.
+      - name: Probe Lost and Found on the sample clip
+        if: ${{ !cancelled() }}
+        env:
+          CAPTURE_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # A run started by hand on a commit from before the probe has nothing to run.
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ] && [ ! -f scripts/lost-found-probe.mjs ]; then
+            echo "probe: this commit has no Lost and Found probe"
+            exit 0
+          fi
+          export CAPTURE_COMMIT="$(git rev-parse HEAD)"
+          curl -sf http://127.0.0.1:4173/ >/dev/null || (python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node scripts/lost-found-probe.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/home-pictures" "$RUNNER_TEMP/sample-clip.y4m" "$RUNNER_TEMP/sample-clip.wav"
 
       - name: Upload the home page pictures
         if: always()

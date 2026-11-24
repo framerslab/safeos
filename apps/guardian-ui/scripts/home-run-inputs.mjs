@@ -39,6 +39,7 @@ const common = [
   'scripts/home-run-frames.mjs',
   'scripts/home-run-list.mjs',
   'scripts/home-run-seed.mjs',
+  'scripts/lost-found-walk.mjs',
   'scripts/home-runs.mjs',
   'scripts/home-wording.cjs',
 ];
