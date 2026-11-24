@@ -64,6 +64,23 @@ it('installs the home page capture the page shows, and not its PNG copies, the c
   }
 });
 
+it('leaves the Lost and Found example out until a page shows it', () => {
+  const { urls } = generate({
+    'out/index.html': '<img src="/logo.svg"><img src="/diagrams/how-it-works.svg">',
+    'out/_next/static/chunks/main.js': '',
+    'out/logo.svg': '<svg/>',
+    'out/favicon.svg': '<svg/>',
+    'out/favicon-32x32.png': 'png',
+    'out/diagrams/how-it-works.svg': '<svg/>',
+    'out/logos/react.svg': '<svg/>',
+    'out/icons/icon-192.png': 'png',
+    'out/sw.js': '',
+    'out/home/lost-found/photo-1.jpg': 'jpg',
+  });
+  expect(urls).toContain('/logo.svg');
+  expect(urls).not.toContain('/home/lost-found/photo-1.jpg');
+});
+
 it('assigns different cache versions to distinct exported file contents', () => {
   const shared = { 'out/_next/static/chunks/main.js': '' };
   const first = generate({ ...shared, 'out/index.html': '<html/>index.txt', 'out/index.txt': '' });

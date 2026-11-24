@@ -1,0 +1,151 @@
+{
+  "photos": [
+    {
+      "file": "home/lost-found/photo-1.jpg",
+      "bytes": 265904,
+      "sha256": "f41e31cd553c30673e3488b16c675fb4bd326d7cc20662deb2b435d0c74e98fc",
+      "width": 1200,
+      "height": 900,
+      "alt": "Photo 1 of 3: a kitten lying on a beige carpet, facing the camera",
+      "crop": {
+        "x": 1679,
+        "y": 355,
+        "width": 1952,
+        "height": 1464
+      },
+      "copy600": {
+        "file": "home/lost-found/photo-1-600.jpg",
+        "bytes": 74923,
+        "sha256": "dbefb2acad288e0ae4c2a61b7e23eac51bebba223e7d780de1173791846d9cb1",
+        "width": 600,
+        "height": 450
+      },
+      "source": {
+        "title": "Female Champagne Burmese Kitten",
+        "page": "https://commons.wikimedia.org/wiki/File:Female_Champagne_Burmese_Kitten.jpg",
+        "file": "https://upload.wikimedia.org/wikipedia/commons/4/4d/Female_Champagne_Burmese_Kitten.jpg",
+        "sha1": "3d388f535f6370097e7ba76f9548ca34cfd2ef8a",
+        "bytes": 2692928,
+        "width": 3784,
+        "height": 2428,
+        "author": "Alistair Findlay",
+        "date": "2019-04-23",
+        "licence": "CC0 1.0",
+        "authorOnPage": "Psypherium, the Commons account that uploaded this photo and the recording; the recording's page names its author Alistair Findlay"
+      }
+    },
+    {
+      "file": "home/lost-found/photo-2.jpg",
+      "bytes": 179463,
+      "sha256": "72db79986b7db9365c2bc5f2358e394bf8e411e6bc636f32c451990aa37e610f",
+      "width": 1200,
+      "height": 900,
+      "alt": "Photo 2 of 3: a kitten sitting on a grey carpet, licking a paw",
+      "crop": {
+        "x": 852,
+        "y": 72,
+        "width": 2784,
+        "height": 2088
+      },
+      "copy600": {
+        "file": "home/lost-found/photo-2-600.jpg",
+        "bytes": 57198,
+        "sha256": "09f98f067481eea046488820c6fa62fd8bba335bf7ef83fed26fa21902da4032",
+        "width": 600,
+        "height": 450
+      },
+      "source": {
+        "title": "Burmese Kitten Grooming Itself",
+        "page": "https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm",
+        "file": "https://upload.wikimedia.org/wikipedia/commons/e/ed/Burmese_Kitten_Grooming_Itself.webm",
+        "sha1": "037b53ec53ddd5e7fb325bfc37fc620ca23b12e8",
+        "bytes": 256322864,
+        "width": 3840,
+        "height": 2160,
+        "author": "Alistair Findlay",
+        "date": "2019-07-05",
+        "licence": "CC0 1.0",
+        "atSeconds": 3
+      }
+    },
+    {
+      "file": "home/lost-found/photo-3.jpg",
+      "bytes": 155998,
+      "sha256": "ac2ba40a398be82f926d86bbd48c1730f376aeea15b3d3bca4470681e89bc5b9",
+      "width": 1200,
+      "height": 900,
+      "alt": "Photo 3 of 3: a kitten sitting on a grey carpet, seen from behind",
+      "crop": {
+        "x": 540,
+        "y": 180,
+        "width": 2640,
+        "height": 1980
+      },
+      "copy600": {
+        "file": "home/lost-found/photo-3-600.jpg",
+        "bytes": 52140,
+        "sha256": "4ee413a0b2a8c59bfd31c66a487570118a8e891f993cdfaf4d64078823444a8d",
+        "width": 600,
+        "height": 450
+      },
+      "source": {
+        "title": "Burmese Kitten Grooming Itself",
+        "page": "https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm",
+        "file": "https://upload.wikimedia.org/wikipedia/commons/e/ed/Burmese_Kitten_Grooming_Itself.webm",
+        "sha1": "037b53ec53ddd5e7fb325bfc37fc620ca23b12e8",
+        "bytes": 256322864,
+        "width": 3840,
+        "height": 2160,
+        "author": "Alistair Findlay",
+        "date": "2019-07-05",
+        "licence": "CC0 1.0",
+        "atSeconds": 13
+      }
+    }
+  ],
+  "licence": {
+    "name": "Creative Commons CC0 1.0 Universal Public Domain Dedication",
+    "shortName": "CC0 1.0",
+    "address": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "legalCode": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.en",
+    "readOn": "2026-11-22",
+    "quoted": "To the greatest extent permitted by, but not in contravention of, applicable law, Affirmer hereby overtly, fully, permanently, irrevocably and unconditionally waives, abandons, and surrenders all of Affirmer's Copyright and Related Rights and associated claims and causes of action, whether now known or unknown (including existing as well as future claims and causes of action), in the Work (i) in all territories worldwide, (ii) for the maximum duration provided by applicable law or treaty (including future time extensions), (iii) in any current or future medium and for any number of copies, and (iv) for any purpose whatsoever, including without limitation commercial, advertising or promotional purposes (the \"Waiver\")."
+  },
+  "credit": "Photos: Alistair Findlay (Psypherium), CC0 1.0, cropped; two are stills from the recording the clip comes from.",
+  "command": [
+    "ffmpeg version 8.1.1",
+    "ffmpeg -nostdin -v error -y -i Female_Champagne_Burmese_Kitten.jpg -vf \"crop=1952:1464:1679:355,scale=1200:900:flags=lanczos\" -q:v 2 photo-1.jpg",
+    "ffmpeg -nostdin -v error -y -i Female_Champagne_Burmese_Kitten.jpg -vf \"crop=1952:1464:1679:355,scale=600:450:flags=lanczos\" -q:v 2 photo-1-600.jpg",
+    "ffmpeg -nostdin -v error -y -ss 3.0 -i Burmese_Kitten_Grooming_Itself.webm -frames:v 1 -vf \"crop=2784:2088:852:72,scale=1200:900:flags=lanczos\" -q:v 2 photo-2.jpg",
+    "ffmpeg -nostdin -v error -y -ss 3.0 -i Burmese_Kitten_Grooming_Itself.webm -frames:v 1 -vf \"crop=2784:2088:852:72,scale=600:450:flags=lanczos\" -q:v 2 photo-2-600.jpg",
+    "ffmpeg -nostdin -v error -y -ss 13.0 -i Burmese_Kitten_Grooming_Itself.webm -frames:v 1 -vf \"crop=2640:1980:540:180,scale=1200:900:flags=lanczos\" -q:v 2 photo-3.jpg",
+    "ffmpeg -nostdin -v error -y -ss 13.0 -i Burmese_Kitten_Grooming_Itself.webm -frames:v 1 -vf \"crop=2640:1980:540:180,scale=600:450:flags=lanczos\" -q:v 2 photo-3-600.jpg"
+  ],
+  "notChecked": [
+    "That the photo and the recording show the same kitten rests on the uploader's own description of both."
+  ],
+  "tried": [
+    {
+      "set": "A",
+      "run": "https://github.com/framerslab/safeos/actions/runs/44998727312",
+      "alerted": true,
+      "saved": 171,
+      "alertLine": 70,
+      "firstAlertSeconds": 0.2,
+      "best": {
+        "score": 90,
+        "colour": 86,
+        "mainColours": 89,
+        "edges": 94,
+        "size": 99
+      },
+      "commit": "339ab5d1d3e906f321be6b7db3e6ec0fd741bf8c",
+      "photos": [
+        "f41e31cd553c30673e3488b16c675fb4bd326d7cc20662deb2b435d0c74e98fc",
+        "72db79986b7db9365c2bc5f2358e394bf8e411e6bc636f32c451990aa37e610f",
+        "ac2ba40a398be82f926d86bbd48c1730f376aeea15b3d3bca4470681e89bc5b9"
+      ],
+      "clip": "c0da07fcc37fb35fd843e1c7c8380ccd4342dd6a8f79eb0a5d41800f20796b5a"
+    }
+  ]
+}
