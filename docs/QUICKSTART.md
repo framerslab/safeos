@@ -109,8 +109,11 @@ starts the key reads "Starting the camera…", and **Cancel** under the frame ca
 the request. Once the live picture shows, a meter for each kind (Motion, Sound,
 Picture change) stands under it with its alert line, and **Stop watching** releases
 the camera and microphone. A camera that fails is named inside the frame with its
-fix and **Try again**; a camera that pauses its video resumes watching when the
-video returns.
+fix and **Try again**. A selected camera that is unavailable is named with no
+**Try again**: choose another camera in the menu, or connect it again and the frame
+offers **Start watching**. A browser with no camera request is named the same way;
+open SafeOS in a browser that can ask for the camera. A camera that pauses its
+video resumes watching when the video returns.
 
 The **Local** processing mode sends no camera frames to a connected server. Alerts
 survive reload in **History → Local Timeline** when browser storage is available.

@@ -21,6 +21,7 @@ and the camera menu stands under the list. A device with a camera and no microph
 one whose camera is allowed and whose microphone is blocked, watches video alone,
 from the watch's own key and from the dashboard's, and the Sound meter names the
 missing or blocked microphone while Motion goes on; a microphone lost while watching is named there as missing.
+A polite status says the microphone's problem once, and never a reading.
 Setup's **Grant Permissions** also completes with the camera alone.
 
 ## The meters
@@ -35,9 +36,10 @@ line, a full-screen zone's own Motion sensitivity included, as its alert does.
 Before the first reading after a press the names stand over empty tracks with no
 state word, and a new watch's meters start from its own camera's readings, never
 from the last watch's; so do the meters of another camera chosen while watching.
-When the camera stops, focus on a key that stays on the page (a setting, the camera
-menu) stays there; focus on a key that goes, such as Stop watching, moves to the
-frame's key. **Picture change** reads on the scale its check uses: the
+When the camera stops, focus on a key that stays on the page (a setting) stays
+there; focus on a key that goes, such as Stop watching, moves to the frame's key.
+On a phone the camera menu moves from under the alert list to under the frame, so
+focus on it moves to the frame's key too. **Picture change** reads on the scale its check uses: the
 changed pixels against the pixel count, or, where the setting checks a share of the
 picture, the changed share against the check's 1 per cent.
 A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";

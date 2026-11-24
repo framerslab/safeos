@@ -122,7 +122,12 @@ export default function MonitorPage() {
     addAlert,
   } = useMonitoringStore();
 
-  const { config: backendConfig, isConnected: serverConnected } = useBackendStatus();
+  const { config: backendConfig, isConnected: serverAnswers, status: backendStatus } = useBackendStatus();
+  // This device's own server, as the interval's controls show it. A check of
+  // the server marks it as connecting while it waits for an answer; the
+  // controls keep their state through the check, so one in use stays.
+  const [serverConnected, setServerConnected] = useState(serverAnswers);
+  if (backendStatus?.api !== 'connecting' && serverConnected !== serverAnswers) setServerConnected(serverAnswers);
   const deviceId = useCameraStore(state => state.deviceId);
 
   const { selectedScenario } = useOnboardingStore();
@@ -532,9 +537,14 @@ export default function MonitorPage() {
     const media = navigator.mediaDevices;
     if (!media?.enumerateDevices || !media.addEventListener) return;
     let live = true;
+    // Only the newest read of the devices counts: an older one that lands
+    // after it lists what the browser had before.
+    let reads = 0;
     const listed = async () => {
+      const read = ++reads;
       try {
         const devices = await media.enumerateDevices();
+        if (read !== reads) return;
         const cameras = devices.filter((device) => device.kind === 'videoinput');
         const back = deviceId ? cameras.some((device) => device.deviceId === deviceId) : cameras.length > 0;
         if (live && back && !captureRequestedRef.current) setCameraFailure(null);

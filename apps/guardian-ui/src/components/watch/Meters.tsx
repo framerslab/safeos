@@ -109,6 +109,10 @@ function SoundProblem({ problem }: { problem: MicrophoneProblem }) {
 export function Meters({ rows, pet, microphone }: MetersProps) {
   return (
     <div className="watch-meters">
+      {/* Says once when the microphone is lost or blocked, never a reading. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {microphone ? `${METER_NAMES.sound}: ${MICROPHONE_WORDS[microphone]}` : ''}
+      </p>
       {rows.map((row) =>
         row.kind === 'sound' && microphone ? (
           <SoundProblem key={row.kind} problem={microphone} />
