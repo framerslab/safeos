@@ -1676,10 +1676,15 @@ export default function MonitorPage() {
         <div
           className="watch-grid__camera"
           onFocus={(event) => {
-            const bar = document.querySelector('nav.phone-bar');
-            if (bar && event.target.getBoundingClientRect().bottom > bar.getBoundingClientRect().top) {
-              event.target.scrollIntoView({ block: 'center' });
-            }
+            const picker = event.target;
+            // The browser scrolls on focus. Check its position after that scroll.
+            requestAnimationFrame(() => {
+              if (document.activeElement !== picker) return;
+              const bar = document.querySelector('nav.phone-bar');
+              if (!bar) return;
+              const overlap = picker.getBoundingClientRect().bottom - bar.getBoundingClientRect().top;
+              if (overlap >= 0) window.scrollBy({ top: overlap + 8, behavior: 'instant' });
+            });
           }}
         >
           <CameraPicker refreshKey={isStreaming} className="watch-camera" />
