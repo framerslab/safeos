@@ -508,13 +508,63 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
       });
       try {
         const page = await context.newPage();
-        await page.goto(new URL('/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-        await page.evaluate(() => document.fonts.ready);
-        const first = `home-first-${width}-${look}.png`;
-        await page.screenshot({ path: path.join(outDir, first), scale: 'device', caret: 'hide' });
-        console.log(`captured ${first}`);
+        const home = new URL('/', baseUrl).href;
+        let release;
+        let watchingRelease;
+        if (homeChecks) {
+          const held = new Promise((resolve) => { release = resolve; });
+          const watching = new Promise((resolve) => { watchingRelease = resolve; });
+          await context.route('**/home/runs/dashboard-*.mp4', async (route) => {
+            await held;
+            await route.continue().catch(() => {});
+          });
+          await context.route('**/home/runs/watching-*.mp4', async (route) => {
+            await watching;
+            await route.continue().catch(() => {});
+          });
+        }
+        try {
+          await page.mouse.move(0, 0);
+          await page.goto(home, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+          await page.evaluate(() => document.fonts.ready);
+          if (homeChecks) {
+            await page.waitForFunction(() => {
+              const image = document.querySelector('.home-run__poster img');
+              return image?.complete && image.naturalWidth > 0 && !image.closest('picture').hidden;
+            }, null, { timeout: 15000 });
+          } else {
+            await page.waitForLoadState('networkidle');
+          }
+          const save = (name) => page.screenshot({
+            path: path.join(outDir, name), scale: 'device', caret: 'hide',
+          });
+          const first = 'home-first-' + width + '-' + look + '.png';
+          await save(first);
+          console.log('captured ' + first);
+          if (!homeChecks) continue;
 
-        if (!homeChecks) continue;
+          if (width === 1440 && look === 'dark') {
+            const { waitForPlaying } = await import('./home-run-checks.mjs');
+            await save('home-dashboard-1440-dark.png');
+            release();
+            await waitForPlaying(page);
+            await save('home-dashboard-playing-1440-dark.png');
+            await page.locator('button[data-run="watching"]').click();
+            await page.waitForFunction(() => {
+              const image = document.querySelector('.home-run__poster img');
+              return image?.currentSrc.includes('/watching-wide-dark.') && image.complete
+                && image.naturalWidth > 0 && !image.closest('picture').hidden;
+            });
+            await save('home-watching-1440-dark.png');
+            watchingRelease();
+            await waitForPlaying(page, 6, 15000);
+            await save('home-watching-playing-1440-dark.png');
+          }
+        } finally {
+          release?.();
+          watchingRelease?.();
+        }
+
         const hideBar = 'nav[aria-label="Site"] { visibility: hidden !important; }';
         const picture = async (locator, name) => {
           const file = `home-${name}-${width}-${look}.png`;

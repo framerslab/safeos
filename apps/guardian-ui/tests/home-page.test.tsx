@@ -89,10 +89,10 @@ describe('the page reads before any script runs and asks for nothing', () => {
     const region = one('section[aria-label="Recorded runs of SafeOS Guardian"]');
     expect(region).not.toBeNull();
     expect(Array.from(region!.querySelectorAll('button[data-run]')).map(words))
-      .toEqual(recording.runs.map(({ key }) => key));
+      .toEqual(recorded.runs.map(({ key }) => key));
     const templates = Array.from(region!.querySelectorAll<HTMLTemplateElement>('template[data-run-poster]'));
-    expect(templates.map((template) => template.dataset.runPoster)).toEqual(recording.runs.map(({ id }) => id));
-    for (const run of recording.runs) {
+    expect(templates.map((template) => template.dataset.runPoster)).toEqual(recorded.runs.map(({ id }) => id));
+    for (const run of recorded.runs) {
       const template = templates.find((candidate) => candidate.dataset.runPoster === run.id);
       for (const variants of Object.values(run.variants)) {
         for (const variant of Object.values(variants)) {

@@ -159,7 +159,7 @@ jobs:
         run: npm ci
       - name: Install Chromium for Playwright
         run: npx playwright install chromium
-      - name: Check the live home and its setup links
+      - name: Check the live runs, home and setup links
         env:
           EXPECTED_HOME_SHA256: ${{ needs.build.outputs.home-sha256 }}
         run: node scripts/check-published-home.mjs "$EXPECTED_HOME_SHA256"
