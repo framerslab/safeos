@@ -220,6 +220,25 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     }
   }
 
+  await inContext('a new service worker saves posters for the open home', {}, async (page, context) => {
+    await open(page);
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 45000 });
+    await installedPosters(page, paths);
+    await page.evaluate(async (paths) => {
+      for (const name of await caches.keys()) {
+        const cache = await caches.open(name);
+        await Promise.all(paths.map((url) => cache.delete(url)));
+      }
+      await navigator.serviceWorker.register('/sw.js?rollover', { scope: '/' });
+    }, paths);
+    await page.waitForFunction(() => navigator.serviceWorker.controller?.scriptURL.endsWith('/sw.js?rollover'),
+      null, { timeout: 45000 });
+    await installedPosters(page, paths).catch(() => { throw Error('The new worker did not save posters on taking control'); });
+    await context.setOffline(true);
+    await page.reload({ waitUntil: 'load' });
+    await waitForPoster(page, ids[0], 'square', 'dark');
+  });
+
   await inContext('hover, keyboard focus, viewport and document visibility suspend playback', {
     serviceWorkers: 'block',
   }, async (page) => {

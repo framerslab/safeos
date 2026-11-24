@@ -727,6 +727,15 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         for (const [index, run] of runRecord.runs.entries()) {
           if (index) await page.locator('button[data-run="' + run.id + '"]').click();
           const variant = run.variants[width < 1280 ? 'square' : 'wide'][look];
+          const posterWords = variant.words.map(({ word }) => word).join(' ');
+          if (run.id === 'dashboard') {
+            expect(posterWords.includes('Since you last looked') && posterWords.includes('Movement at')
+              && posterWords.includes('Sound at'), 'Dashboard poster omits the watch’s alerts at ' + width + ' px, ' + look);
+          }
+          if (run.id === 'watching') {
+            expect(posterWords.includes('Motion') && posterWords.includes('Sound') && posterWords.includes('Over the line'),
+              'Watching poster omits a meter or the bark reading at ' + width + ' px, ' + look);
+          }
           const poster = page.locator('.home-run__poster img');
           await page.waitForFunction((name) => {
             const image = document.querySelector('.home-run__poster img');
@@ -1257,7 +1266,23 @@ export async function checkHomePage(browser, baseUrl, outDir) {
             'First-screen bounds ' + at + ': controls end at ' + seen.controlsBottom + ', description ends at ' + seen.captionBottom + ' over ' + seen.captionLines + ' lines');
         }
         if (width >= 1280) expect(seen.captionLines === 1, 'Desktop caption lines ' + at + ': ' + seen.captionLines);
-        if (width === 320) expect((await sidewaysScroll(page)) <= 0, 'The first screen scrolls sideways ' + at);
+        if (width === 320) {
+          expect(seen.captionLines <= 2 && seen.captionBottom <= seen.screen,
+            'First-screen caption ' + at + ': ends at ' + seen.captionBottom + ' over ' + seen.captionLines + ' lines');
+          expect((await sidewaysScroll(page)) <= 0, 'The first screen scrolls sideways ' + at);
+        }
+        if (width === 320 || width === 390 || width >= 1280) {
+          for (const run of runRecord.runs.slice(1)) {
+            await page.locator('button[data-run="' + run.id + '"]').click();
+            const caption = await page.locator('[data-run-caption]').evaluate((element) => {
+              const box = element.getBoundingClientRect();
+              return { lines: Math.round(box.height / parseFloat(getComputedStyle(element).lineHeight)), bottom: box.bottom + scrollY };
+            });
+            const maxLines = width >= 1280 ? 1 : 2;
+            expect(caption.lines <= maxLines && (width >= 1280 || caption.bottom <= (width === 390 ? 836 : height)),
+              run.key + ' caption ' + at + ': ends at ' + caption.bottom + ' over ' + caption.lines + ' lines');
+          }
+        }
       });
     }
   }
