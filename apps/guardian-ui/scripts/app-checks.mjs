@@ -1271,6 +1271,15 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(bar.sameRow && bar.apart <= 1, `at 200 per cent text "Watch for" and Mute alerts leave one row (${bar.apart.toFixed(1)} px apart)`);
       check(bar.more !== null, 'at 200 per cent text the bar\'s row is not marked as holding more');
       check(bar.arrows.includes('Scroll right'), `at 200 per cent text the bar's row has no key "Scroll right" (${bar.arrows.join(', ') || 'none'})`);
+      if (!bar.arrows.includes('Scroll right')) return;
+      // The key moves the row's keys, and the page itself does not scroll sideways.
+      await page.locator('.watch-bar').getByRole('button', { name: 'Scroll right', exact: true }).click();
+      const moved = await page.waitForFunction(
+        () => (document.querySelector('.watch-bar .key-row__keys')?.scrollLeft ?? 0) > 0, null, { timeout: 3_000 },
+      ).then(() => true, () => false);
+      check(moved, 'at 200 per cent text Scroll right does not move the bar\'s row');
+      const sideways = await sidewaysScroll(page);
+      check(sideways === 0, `at 200 per cent text /monitor/ scrolls ${sideways} px sideways after Scroll right`);
     });
   }
 
@@ -2093,6 +2102,8 @@ export async function checkApp(browser, baseUrl, outDir) {
     media.getUserMedia = async (constraints) => {
       window.__camera.requests += 1;
       if (window.__camera.waitMs) await new Promise((resolve) => setTimeout(resolve, window.__camera.waitMs));
+      // A walk can also hold the request until it lets it go.
+      if (window.__camera.held) await window.__camera.held;
       if (window.__camera.answer !== 'ok') throw new DOMException('camera', window.__camera.answer);
       const canvas = document.createElement('canvas');
       canvas.width = 320;
@@ -3050,12 +3061,14 @@ export async function checkApp(browser, baseUrl, outDir) {
 
         await seedAlerts(page, { motion: [{ id: `motion-${Date.now()}-kept`, at: Date.now(), message: 'Seeded alert that stays after the watch stops' }] });
         await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
-        await page.evaluate(() => { window.__camera.waitMs = 2000; });
+        // The request is held until both keys of the start are read.
+        await page.evaluate(() => { window.__camera.held = new Promise((resolve) => { window.__camera.release = resolve; }); });
         await page.getByRole('button', { name: 'Start watching', exact: true }).click();
-        const starting = await page.getByRole('button', { name: 'Starting the camera…', exact: true }).waitFor({ timeout: 1_500 }).then(() => true, () => false);
+        const starting = await page.getByRole('button', { name: 'Starting the camera…', exact: true }).waitFor({ timeout: 10_000 }).then(() => true, () => false);
         check(starting, `at ${width} px a press does not show "Starting the camera…"`);
         const cancel = await page.getByRole('button', { name: 'Cancel', exact: true }).count();
         check(cancel === 1, `at ${width} px while the camera starts there are ${cancel} keys named Cancel, not 1`);
+        await page.evaluate(() => { window.__camera.release(); window.__camera.held = null; });
         await page.getByRole('button', { name: 'Stop watching', exact: true }).waitFor({ timeout: 20_000 });
         const live = await frameReading(page);
         check(live?.video, `at ${width} px the live picture is not inside the frame`);
@@ -3201,6 +3214,8 @@ export async function checkApp(browser, baseUrl, outDir) {
         await page.locator('.watch-meter__state').first().waitFor({ timeout: 10_000 }).catch(() => {});
         const read = await meterReading(page);
         check(read.meters.length > 0, `at ${width} px the live picture shows no meter`);
+        const names = read.meters.map((meter) => meter.name);
+        for (const kind of ['Motion', 'Sound']) check(names.includes(kind), `at ${width} px the live picture has no meter ${kind} (${names.join(', ') || 'none'})`);
         check(read.inside, `at ${width} px the meters' strip is not inside the frame`);
         if (width === 320) check(read.sideways === 0, `at 320 px /monitor/ scrolls ${read.sideways} px sideways while watching`);
         for (const meter of read.meters) {
@@ -3224,7 +3239,7 @@ export async function checkApp(browser, baseUrl, outDir) {
           }));
           for (const meter of longest) check(meter.oneLine, `at ${width} px the meter's name ${meter.name} breaks onto two lines beside "Over the line"`);
         }
-        if (width === 820 && read.meters.length > 1) {
+        if (width === 820) {
           const tops = read.meters.map((meter) => Math.round(meter.top));
           check(new Set(tops).size === 1, `at 820 px the meters do not stand side by side (tops ${tops.join(', ')})`);
         }

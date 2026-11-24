@@ -250,9 +250,13 @@ export function useWatchFor(watching: boolean): WatchFor {
   // Set by a choice the person makes on Watch for; one made before the
   // address is read stands over what the address names.
   const choseRef = useRef(false);
+  // Counts the choices made on Watch for, so a choice that leaves the way and
+  // the pet as they stand is still written where the address names otherwise.
+  const [choices, setChoices] = useState(0);
   const chooseWay = useCallback(
     (next: WatchWay) => {
       choseRef.current = true;
+      setChoices((count) => count + 1);
       setLostFoundChosen(next === 'lost_found');
     },
     [setLostFoundChosen]
@@ -262,6 +266,7 @@ export function useWatchFor(watching: boolean): WatchFor {
       const chosen = pets.find((saved) => saved.id === id);
       if (!chosen) return;
       choseRef.current = true;
+      setChoices((count) => count + 1);
       setActiveSubject(toSubject(chosen));
     },
     [pets, setActiveSubject]
@@ -297,23 +302,32 @@ export function useWatchFor(watching: boolean): WatchFor {
   }, [addressRead, petsRead, pets, setLostFoundChosen, setActiveSubject]);
 
   // Each change of way or pet afterwards writes the address in place, other
-  // parameters kept.
+  // parameters kept, and so does a choice on Watch for that differs from
+  // what the address names (Motion and sound chosen while Lost and Found,
+  // named there, cannot run because the pets could not be read).
   const petId = pet?.id ?? null;
+  const choicesSeenRef = useRef(0);
   useEffect(() => {
     if (!addressRead) return;
     const named = way === 'lost_found' ? `lost-found:${petId ?? ''}` : 'monitor';
-    if (writtenRef.current === null || writtenRef.current === named) {
+    const chose = choices !== choicesSeenRef.current;
+    choicesSeenRef.current = choices;
+    const params = new URLSearchParams(window.location.search);
+    const inAddress = params.get('way') === 'lost-found'
+      ? `lost-found:${params.get('pet') ?? ''}`
+      : params.get('way') === 'monitor' ? 'monitor' : null;
+    const unchanged = writtenRef.current === null || writtenRef.current === named;
+    if (unchanged && !(chose && inAddress !== null && inAddress !== named)) {
       writtenRef.current = named;
       return;
     }
     writtenRef.current = named;
-    const params = new URLSearchParams(window.location.search);
     params.delete('way');
     params.delete('pet');
     params.set('way', way === 'lost_found' ? 'lost-found' : 'monitor');
     if (way === 'lost_found' && petId) params.set('pet', petId);
     window.history.replaceState(window.history.state, '', `${window.location.pathname}?${params.toString()}${window.location.hash}`);
-  }, [addressRead, way, petId]);
+  }, [addressRead, way, petId, choices]);
 
   const photosSaved = useCallback((saved: SubjectProfileDB) => {
     setPets((held) => held.map((record) => (record.id === saved.id ? saved : record)));

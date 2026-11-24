@@ -106,7 +106,11 @@ export async function startWatch(choice: StartChoice, go: (address: string) => v
   const listens = !needsModel;
   let camera: MediaStream;
   try {
-    camera = await openCamera({ deviceId: listens ? useCameraStore.getState().deviceId : '', audio: listens });
+    camera = await openCamera({
+      deviceId: listens ? useCameraStore.getState().deviceId : '',
+      audio: listens,
+      wanted: () => !stopped,
+    });
   } catch (error) {
     release();
     return stopped ? 'stopped' : cameraProblem(error);

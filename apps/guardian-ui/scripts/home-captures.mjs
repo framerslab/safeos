@@ -135,8 +135,8 @@ function overTheLine(page, timeout) {
   ), null, { timeout, polling: 100 });
 }
 
-// The meters under the live picture that a crop would cut: a meter is wholly
-// in the picture or wholly out of it.
+// The meters the portrait crop does not hold whole: every meter stands
+// wholly inside it, so a crop that cuts one or leaves one out is not kept.
 async function metersCutBy(page, frame) {
   return page.evaluate((f) => {
     const meters = [...document.querySelectorAll('.watch-meter')];
@@ -146,8 +146,7 @@ async function metersCutBy(page, frame) {
       const right = f.x + f.width;
       const bottom = f.y + f.height;
       const inside = box.left >= f.x - 0.5 && box.right <= right + 0.5 && box.top >= f.y - 0.5 && box.bottom <= bottom + 0.5;
-      const apart = box.right <= f.x + 0.5 || box.left >= right - 0.5 || box.bottom <= f.y + 0.5 || box.top >= bottom - 0.5;
-      return !inside && !apart;
+      return !inside;
     }).map((meter) => meter.querySelector('.watch-meter__name')?.textContent.trim() || '(a meter)');
   }, frame);
 }
@@ -183,7 +182,8 @@ async function portraitFrame(page, name) {
   const width = Math.ceil(box.x + box.width + margin) - x;
   const height = Math.ceil(box.y + box.height + margin) - y;
   const ratio = width / height;
-  if (ratio < 0.6 || ratio > 1.6) {
+  // The same bounds as the home page's checks and the file's test.
+  if (!(ratio > 0.6 && ratio < 1.6)) {
     throw new Error(`${name}: the frame with its meters is ${width} by ${height} px, ${ratio.toFixed(3)} wide for its height`);
   }
   return { x, y, width, height };

@@ -897,6 +897,7 @@ async function captureWatchStates(browser, baseUrl, outDir) {
       for (const look of LOOKS) {
         const file = path.join(outDir, `monitor-watch-${state}-${size.width}-${look}.png`);
         let context = null;
+        let failedHere = false;
         try {
           context = await finishedSetupContext(browser, {
             viewport: { width: size.width, height: size.height },
@@ -947,6 +948,8 @@ async function captureWatchStates(browser, baseUrl, outDir) {
             if (state === 'watching') {
               await stopKey(page).waitFor({ timeout: 30_000 });
               await page.waitForTimeout(2_000);
+              // Stop watching shows while paused too; the picture is taken live.
+              if (after) await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 10_000 });
             } else {
               await shownFor(page, state).waitFor({ timeout: 30_000 });
             }
@@ -957,9 +960,15 @@ async function captureWatchStates(browser, baseUrl, outDir) {
           console.log(`captured ${file}`);
         } catch (err) {
           failed += 1;
+          failedHere = true;
           console.error(`failed monitor ${state} at ${size.width} ${look}: ${err.message}`);
         } finally {
-          await context?.close();
+          // A context that will not close fails its picture, once, and the
+          // pictures after it are still taken.
+          await context?.close().catch((err) => {
+            if (!failedHere) failed += 1;
+            console.error(`failed monitor ${state} at ${size.width} ${look}: the browser context did not close: ${err.message}`);
+          });
         }
       }
     }

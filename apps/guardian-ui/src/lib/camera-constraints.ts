@@ -44,9 +44,15 @@ export function microphoneLeftOut(camera: MediaStream): MicrophoneLeftOut | null
  * allows the camera and blocks the microphone: a refusal while the camera
  * reads as allowed was the microphone's, so the camera is asked for once
  * more without sound. Any other refusal is the camera's, and the person is
- * not asked twice.
+ * not asked twice. `wanted` is read just before that second request: a start
+ * that has ended meanwhile (another tab took the watch over) makes none, and
+ * the first refusal stands.
  */
-export async function openCamera({ deviceId, audio }: { deviceId: string; audio: boolean }): Promise<MediaStream> {
+export async function openCamera({ deviceId, audio, wanted }: {
+  deviceId: string;
+  audio: boolean;
+  wanted?: () => boolean;
+}): Promise<MediaStream> {
   try {
     return await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, audio));
   } catch (error) {
@@ -55,6 +61,7 @@ export async function openCamera({ deviceId, audio }: { deviceId: string; audio:
     if (error.name === 'NotFoundError') reason = 'missing';
     else if (error.name === 'NotAllowedError' && (await cameraAllowed())) reason = 'blocked';
     else throw error;
+    if (wanted && !wanted()) throw error;
     const camera = await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, false));
     leftOut.set(camera, reason);
     return camera;

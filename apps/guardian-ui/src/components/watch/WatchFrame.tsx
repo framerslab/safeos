@@ -71,12 +71,15 @@ export function WatchFrame({
   const previous = useRef<FramePhase>(phase);
 
   // Focus goes back to the frame's key when a start fails or a watch stops,
-  // so it is never lost with the key that held it.
+  // so it is never lost with the key that held it. Focus on a key that is
+  // still on the page (a setting, the camera menu) stays where it is.
   useEffect(() => {
     const was = previous.current;
     previous.current = phase;
     if (was !== 'starting' && was !== 'live' && was !== 'paused') return;
     if (phase !== 'off' && phase !== 'failed' && phase !== 'stopped') return;
+    const held = document.activeElement;
+    if (held && held !== document.body && held.isConnected) return;
     drawnRef.current?.querySelector<HTMLButtonElement>('button:not([aria-disabled="true"])')?.focus();
   }, [phase]);
 

@@ -34,7 +34,10 @@ detection zones, the Motion meter reads the zone that stands highest over its ow
 line, a full-screen zone's own Motion sensitivity included, as its alert does.
 Before the first reading after a press the names stand over empty tracks with no
 state word, and a new watch's meters start from its own camera's readings, never
-from the last watch's. **Picture change** reads on the scale its check uses: the
+from the last watch's; so do the meters of another camera chosen while watching.
+When the camera stops, focus on a key that stays on the page (a setting, the camera
+menu) stays there; focus on a key that goes, such as Stop watching, moves to the
+frame's key. **Picture change** reads on the scale its check uses: the
 changed pixels against the pixel count, or, where the setting checks a share of the
 picture, the changed share against the check's 1 per cent.
 A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";
@@ -102,7 +105,9 @@ Lost and Found with that saved pet, `/monitor/?way=monitor` opens Motion and sou
 and an address with no way keeps the stored choice. The address is read once the
 saved pets are read; a way or a pet chosen on Watch for before then stands, and is
 written to the address. Each change of way or pet on the page writes the address
-in place, so a bookmark or a reload of that address
+in place, and so does a choice on Watch for that differs from what the address
+names (Motion and sound chosen where the address names Lost and Found and the pets
+could not be read), so a bookmark or a reload of that address
 opens the same watch; `/monitor/` opened with no way follows the choice this device
 keeps, and so does a bookmark of it. The pet is kept as `chosenPetId` in the Lost & Found store;
 until one is chosen it is the newest saved pet. A thing saved on the Lost &

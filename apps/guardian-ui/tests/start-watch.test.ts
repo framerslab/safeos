@@ -123,7 +123,7 @@ it("asks for the camera and the microphone once, holds them, and opens the way's
 
   await expect(startWatch({ way: 'monitor' }, go)).resolves.toBe('opened');
 
-  expect(opened.mock.calls).toEqual([[{ deviceId: 'camera-2', audio: true }]]);
+  expect(opened.mock.calls).toEqual([[{ deviceId: 'camera-2', audio: true, wanted: expect.any(Function) }]]);
   expect(go.mock.calls).toEqual([['/monitor/']]);
   expect(go.mock.invocationCallOrder[0]).toBeGreaterThan(opened.mock.invocationCallOrder[0]);
   expect(takeStart('monitor')).toEqual({ way: 'monitor' });
@@ -142,7 +142,7 @@ it('asks for no microphone where the way does not listen', async () => {
   for (const way of ['security', 'wildlife'] as const) {
     opened.mockReset().mockResolvedValue(standInCamera().stream);
     await expect(startWatch({ way }, go)).resolves.toBe('opened');
-    expect(opened.mock.calls).toEqual([[{ deviceId: '', audio: false }]]);
+    expect(opened.mock.calls).toEqual([[{ deviceId: '', audio: false, wanted: expect.any(Function) }]]);
     expect(takeStart(way)).toEqual({ way });
     dropStart();
   }

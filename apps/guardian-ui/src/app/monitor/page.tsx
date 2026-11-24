@@ -142,6 +142,9 @@ export default function MonitorPage() {
   const [captureRequested, setCaptureRequested] = useState(false);
   // True once this capture request has shown video; a later pause keeps it true.
   const [videoSeen, setVideoSeen] = useState(false);
+  // Which of Motion and Sound has given a reading since the watch started or
+  // its camera changed; a meter stands empty until its first one.
+  const [heard, setHeard] = useState({ motion: false, sound: false });
   // What the camera's frame shows when no picture is live: the failure of
   // the last start, or when a camera that was watching stopped.
   const [cameraFailure, setCameraFailure] = useState<CameraFailure | null>(null);
@@ -462,6 +465,7 @@ export default function MonitorPage() {
     setPixelZoneStatus(null);
     setMotionScore(0);
     setAudioLevel(0);
+    setHeard({ motion: false, sound: false });
   };
 
   const stopStream = () => {
@@ -501,9 +505,13 @@ export default function MonitorPage() {
   const cameraAfterList = phone && (framePhase === 'live' || framePhase === 'paused');
 
   // Another camera chosen after a failure is the way out of it: the frame
-  // offers Start watching again.
+  // offers Start watching again. One chosen while watching starts its meters
+  // from its own readings, never from the last camera's.
+  const forgetReadingsRef = useRef(forgetReadings);
+  forgetReadingsRef.current = forgetReadings;
   useEffect(() => {
     if (!captureRequestedRef.current) setCameraFailure(null);
+    else forgetReadingsRef.current();
   }, [deviceId]);
 
   // The chosen camera that was unavailable and is connected again is the
@@ -1020,6 +1028,7 @@ export default function MonitorPage() {
 
   const handleMotion = useCallback((score: number) => {
     setMotionScore(score);
+    setHeard((was) => (was.motion ? was : { ...was, motion: true }));
   }, [setMotionScore]);
 
   // The Motion meter reads the zone whose reading stands highest over its own
@@ -1086,6 +1095,7 @@ export default function MonitorPage() {
 
   const handleAudio = useCallback((level: number) => {
     setAudioLevel(level);
+    setHeard((was) => (was.sound ? was : { ...was, sound: true }));
 
     if (!isStreaming || !currentPreset.audioDetectionEnabled) {
       endDetectorEvent(audioEventRef.current);
@@ -1307,7 +1317,7 @@ export default function MonitorPage() {
     {
       kind: 'motion',
       reading: levelMeter(
-        metersLive ? (motionByZone ? motionZone!.score : motionScore) : null,
+        metersLive && (heard.motion || motionByZone) ? (motionByZone ? motionZone!.score : motionScore) : null,
         motionByZone ? motionZone!.threshold : sensitivityToThreshold(currentPreset.motionSensitivity),
         currentPreset.motionDetectionEnabled,
       ),
@@ -1315,7 +1325,7 @@ export default function MonitorPage() {
     {
       kind: 'sound',
       reading: levelMeter(
-        metersLive ? audioLevel : null,
+        metersLive && heard.sound ? audioLevel : null,
         sensitivityToThreshold(currentPreset.audioSensitivity),
         currentPreset.audioDetectionEnabled,
       ),

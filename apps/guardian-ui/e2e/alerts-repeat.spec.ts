@@ -214,7 +214,10 @@ async function openMonitor(page: Page, seed: Seed): Promise<void> {
         if (list.length === 0 || list[list.length - 1][1] !== value) list.push([now, value]);
       }
     };
-    new MutationObserver(look).observe(document, { childList: true, subtree: true, characterData: true });
+    // A meter moves through its value attributes alone, so they are watched too.
+    new MutationObserver(look).observe(document, {
+      childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-valuenow', 'aria-valuetext'],
+    });
 
     const W = 320;
     const H = 240;
