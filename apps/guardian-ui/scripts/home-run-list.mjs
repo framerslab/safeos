@@ -155,7 +155,7 @@ async function scrollSubject(page, selector, top, seconds, edge = 'start', frame
     return new Promise((resolve) => {
       const began = performance.now();
       const tick = (now) => {
-        const progress = Math.min(1, (now - began) / (seconds * 1000));
+        const progress = seconds === 0 ? 1 : Math.min(1, (now - began) / (seconds * 1000));
         window.scrollTo({ top: start + (target - start) * progress, behavior: 'instant' });
         if (progress < 1) requestAnimationFrame(tick);
         else resolve({ from: start, to: scrollY, target });
@@ -178,7 +178,9 @@ async function dashboard({ page, view, top, prepared, sample }) {
   // The gap before the alerts is larger on phones. Keep some of it in the
   // square so the footer's brand stays below the crop.
   const subjectTop = Math.max(top + (view.size === 'square' ? 38 : 6), (header?.height ?? 0) + 4);
-  const scroll = await scrollSubject(page, '#since-label', subjectTop, 2);
+  // Show the alert list with one scroll. On the light phone, a continuous
+  // sweep across the rows produces repeated luminance transitions.
+  const scroll = await scrollSubject(page, '#since-label', subjectTop, 0);
   assert.ok(Math.abs(scroll.to - scroll.from) > 16, 'The dashboard did not scroll to its new alerts');
 
   const event = await browserTime(page);
