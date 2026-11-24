@@ -4,16 +4,17 @@
 // the home page is among the routes. Each block walks one part of the page as
 // a visitor would: the page before any script runs, the header, the look
 // switch, the headline, the start key, the capture, the five uses, how it
-// works, what sets off an alert, the free part, the questions, the footer and
+// works, what stays on the device, the free part, the footer and
 // what a search result or a shared link shows. It also saves the page from
 // top to bottom at 820 and 1920 pixels in both looks. Every finding is
 // printed, and the count of findings is returned; any finding fails the run.
+import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { barredWording, homeWordingInputs } from './home-wording.cjs';
 import { checkPublicChrome, starsHanded } from './public-chrome-checks.mjs';
 
 const LOOKS = ['light', 'dark'];
 const HEADLINE = 'Free motion and sound alerts from an old phone or laptop';
-const LEAD = 'SafeOS Guardian runs in your browser. The device watching the room sounds the alert when something moves or gets loud.';
 const STATEMENT = 'SafeOS adds an alert. It does not replace a person nearby. A phone or a browser can sleep, lose power or drop the camera, so stay within reach.';
 const NEEDS_SCRIPT = 'Setup needs JavaScript. The rest of this page reads without it.';
 const CAPTION = 'SafeOS watching a recorded clip of a kitten. Captured from the app while it ran.';
@@ -87,9 +88,10 @@ export function measureText(root) {
     const element = walker.currentNode.parentElement;
     if (!words || !element || seen.has(element)) continue;
     if (element.closest('script, style, [hidden], .sr-only')) continue;
+    if (element.closest('details:not([open])') && !element.closest('summary')) continue;
     const box = element.getBoundingClientRect();
     const style = getComputedStyle(element);
-    if (box.width === 0 || box.height === 0 || style.visibility === 'hidden') continue;
+    if (box.width === 0 || box.height === 0 || style.visibility === 'hidden' || style.clipPath === 'inset(50%)') continue;
     seen.add(element);
     const background = backgroundOf(element);
     const text = over(parse(style.color), background);
@@ -98,7 +100,7 @@ export function measureText(root) {
     out.push({
       words: words.slice(0, 40),
       tag: element.tagName.toLowerCase(),
-      body: !!element.closest('main') && !!element.closest('h1, h2, h3, p, summary') && !element.closest('a, figcaption'),
+      body: !!element.closest('main') && !!element.closest('h1, h2, h3, p, summary') && !element.closest('a, figcaption, .home-detection__tags'),
       size: parseFloat(style.fontSize),
       face: style.fontFamily,
       weight: style.fontWeight,
@@ -193,6 +195,165 @@ export function readStrokes(base64) {
   });
 }
 
+// Allow the browser to paint a newly decoded SVG before taking a screenshot.
+const paint = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+export async function loadHomeQr(page) {
+  const qr = page.locator('#one-device .home-qr img');
+  // The exported page keeps its lazy image; the camera captures the whole
+  // document at once and needs the image painted even beyond the viewport.
+  await qr.evaluate((image) => { image.loading = 'eager'; });
+  await qr.scrollIntoViewIfNeeded({ timeout: 15_000 });
+  await page.waitForFunction((image) => image.complete && image.naturalWidth > 0,
+    await qr.elementHandle(), { timeout: 15_000 });
+  await qr.evaluate((image) => image.decode());
+  await page.evaluate(paint);
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.evaluate(paint);
+}
+
+export async function screenshotWithHomeQr(page, options) {
+  const qr = await page.locator('#one-device .home-qr img').evaluate((image, { clip, scale }) => {
+    const rect = image.getBoundingClientRect();
+    const density = scale === 'css' ? 1 : window.devicePixelRatio;
+    return {
+      x: Math.round((rect.left + window.scrollX - (clip?.x ?? 0)) * density),
+      y: Math.round((rect.top + window.scrollY - (clip?.y ?? 0)) * density),
+      width: Math.round(rect.width * density),
+      height: Math.round(rect.height * density),
+    };
+  }, options);
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const png = await page.screenshot(options);
+    const visible = await page.evaluate(async ({ png, qr }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${png}`;
+      await image.decode();
+      const size = 64;
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = size;
+      const drawing = canvas.getContext('2d');
+      drawing.imageSmoothingEnabled = false;
+      drawing.drawImage(image, qr.x, qr.y, qr.width, qr.height, 0, 0, size, size);
+      const { data } = drawing.getImageData(0, 0, size, size);
+      let black = 0;
+      let white = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] === 0) continue;
+        const colour = data.slice(i, i + 3);
+        if (colour.every((channel) => channel < 32)) black += 1;
+        if (colour.every((channel) => channel > 223)) white += 1;
+      }
+      return black > size * size * 0.12 && white > size * size * 0.25;
+    }, { png: png.toString('base64'), qr });
+    if (visible) return;
+    await page.evaluate(paint);
+  }
+  throw new Error('The QR code is missing from the captured pixels');
+}
+
+async function withOpenDisclosures(page, read) {
+  for (const card of await page.locator('.home-detection__card').all()) {
+    const id = await card.evaluate((details) => {
+      details.open = true;
+      return details.dataset.card;
+    });
+    try {
+      await read(id, card.locator('.home-detection__body'));
+    } finally {
+      await card.evaluate((details) => { details.open = false; });
+    }
+  }
+}
+
+// Read text from each visible CSS range. Canvas glyph extents let the pixel
+// sampler tell a short glyph at 18 px from a longer glyph at a smaller size.
+function pageWordBoxes(disclosure) {
+  const shell = document.querySelector('.visitor-shell');
+  const root = disclosure ? shell.querySelector(`[data-card="${disclosure}"] .home-detection__body`) : shell;
+  let clip;
+  if (disclosure) {
+    const rect = root.getBoundingClientRect();
+    const x = Math.floor(rect.left + window.scrollX);
+    const y = Math.floor(rect.top + window.scrollY);
+    clip = {
+      x, y,
+      width: Math.ceil(rect.right + window.scrollX) - x,
+      height: Math.ceil(rect.bottom + window.scrollY) - y,
+    };
+  }
+  const canvas = document.createElement('canvas').getContext('2d');
+  const boxes = [];
+  const rectangle = (rect) => ({
+    x: rect.x + window.scrollX - (clip?.x ?? 0),
+    y: rect.y + window.scrollY - (clip?.y ?? 0),
+    width: rect.width, height: rect.height,
+  });
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const element = node.parentElement;
+    if (element.closest('script, style, [hidden], .sr-only, .skip-link, #site-menu, svg')) continue;
+    if (element.closest('details:not([open])') && !element.closest('summary')) continue;
+    const style = getComputedStyle(element);
+    if (!element.getClientRects().length || style.visibility === 'hidden' || style.clipPath === 'inset(50%)') continue;
+    const body = element.closest('main :is(h1,h2,h3,p,.home-detection__summary,.home-diagram__node,.home-server__list)')
+      && !element.closest('a, button, figcaption, .home-detection__tags, .home-diagram__inputs');
+    const range = document.createRange();
+    canvas.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    for (const word of node.textContent.matchAll(/\S+/g)) {
+      const label = word[0];
+      range.setStart(node, word.index);
+      range.setEnd(node, word.index + label.length);
+      const rects = Array.from(range.getClientRects());
+      if (!rects.length) continue;
+      const metrics = canvas.measureText(label);
+      const meaningful = /[\p{L}\p{N}]/u.test(label);
+      for (const rect of rects) {
+        if (rect.width < 1 || rect.height < 1) continue;
+        boxes.push({
+          name: label, type: meaningful ? body ? 'body' : 'label' : 'glyph',
+          size: parseFloat(style.fontSize),
+          expectedInkHeight: rects.length === 1 ? metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent : null,
+          ...rectangle(rect),
+        });
+      }
+    }
+  }
+  if (clip) return { scale: window.devicePixelRatio, width: clip.width, height: clip.height, clip, boxes };
+
+  for (const element of shell.querySelectorAll('main .home-benefit svg, main .home-use .home-h3 svg, main .home-detection__glyph svg, main .home-diagram__glyph svg, main .home-server__list svg')) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width > 1 && rect.height > 1) boxes.push({ name: element.closest('li, details').textContent.trim().slice(0, 45), type: 'glyph', ...rectangle(rect) });
+  }
+  for (const element of shell.querySelectorAll('.home-use__key, .home-diagram__node, .home-detection__card')) {
+    const rect = element.getBoundingClientRect();
+    // Sample the actual top edge and a strip of its backing colour.
+    boxes.push({ name: element.textContent.trim().slice(0, 45), type: 'edge',
+      x: rect.x + rect.width / 4 + window.scrollX, y: rect.y - 3 + window.scrollY,
+      width: rect.width / 2, height: 4 });
+  }
+  return { scale: window.devicePixelRatio, width: document.documentElement.clientWidth, height: document.documentElement.scrollHeight, boxes };
+}
+
+// Measure the words themselves so inline link boxes cannot hide uneven line spacing.
+function readLines(selector) {
+  const root = document.querySelector(selector);
+  const lines = new Map();
+  const range = document.createRange();
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    for (let i = 0; i < node.length; i += 1) {
+      range.setStart(node, i);
+      range.setEnd(node, i + 1);
+      const rect = range.getBoundingClientRect();
+      if (rect.width === 0) continue;
+      const top = Math.round(rect.top * 2) / 2;
+      lines.set(top, (lines.get(top) || '') + node.data[i]);
+    }
+  }
+  return [...lines].sort(([a], [b]) => a - b).map(([top, text]) => ({ top, text: text.trim() }));
+}
+
 export async function checkHomePage(browser, baseUrl, outDir) {
   const problems = [];
   const home = new URL('/', baseUrl).toString();
@@ -232,6 +393,49 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   const visit = (page, address = home) => page.goto(address, { waitUntil: 'networkidle', timeout: 60_000 });
   const sidewaysScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
+  await open({ name: 'home explanation', width: 390 }, async (page) => {
+    await visit(page);
+    const section = page.locator('#how-it-works');
+    const heading = section.getByRole('heading', { name: 'Deep learning, in your browser.', exact: true });
+    if (!(await heading.isVisible())) throw new Error('How it works: Deep learning, in your browser. missing');
+    const cards = section.locator('details');
+    if (await cards.count() !== 6) throw new Error('How it works must have six disclosures');
+    const first = cards.first();
+    await first.locator('summary').press('Space');
+    if (!(await first.evaluate((card) => card.open))) throw new Error('Space did not open the first disclosure');
+  });
+
+  for (const width of [390, 1440]) {
+    await open({ name: 'diagram and disclosure accessibility', width }, async (page, context) => {
+      await visit(page);
+      const sources = await page.locator('[data-node="lost-found"]').ariaSnapshot();
+      expect(/From[\s\S]*Camera[\s\S]*Your pet[’']s photos/.test(sources),
+        `diagram at ${width} px: Lost and Found sources missing from the accessibility snapshot`);
+      const alert = await page.locator('[data-node="alert"]').ariaSnapshot();
+      expect(/From[\s\S]*Motion[\s\S]*People and Wildlife/.test(alert),
+        `diagram at ${width} px: the alert inputs are missing from the accessibility snapshot`);
+
+      const session = await context.newCDPSession(page);
+      try {
+        const { root } = await session.send('DOM.getDocument');
+        const { nodeIds } = await session.send('DOM.querySelectorAll', {
+          nodeId: root.nodeId, selector: '.home-detection__card > summary',
+        });
+        const summaries = await page.locator('.home-detection__card > summary').allInnerTexts();
+        expect(nodeIds.length === 6, `disclosures at ${width} px: expected six accessible summaries`);
+        for (const [index, nodeId] of nodeIds.entries()) {
+          const { nodes: [summary] } = await session.send('Accessibility.getPartialAXTree', {
+            nodeId, fetchRelatives: false,
+          });
+          expect(plain(summary?.name?.value) === plain(summaries[index]),
+            `disclosure at ${width} px: Chromium names "${summaries[index]}" as "${summary?.name?.value}"`);
+        }
+      } finally {
+        await session.detach();
+      }
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // The page reads before any script runs and asks for nothing
   // ---------------------------------------------------------------------------
@@ -247,13 +451,13 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         for (let node = document.querySelector('h1'); node; node = node.parentElement) opacity *= parseFloat(getComputedStyle(node).opacity);
         return {
           h1: visible(document.querySelector('h1')),
-          lead: visible(document.querySelector('.home-lead')),
+          benefits: document.querySelectorAll('.home-benefit').length,
           start: document.querySelector('.home-first a.key--start')?.getAttribute('href'),
           startWords: document.querySelector('.home-first a.key--start')?.textContent.trim(),
           statement: visible(statement),
           line: visible(line) && line.textContent.trim() === NEEDS,
           lineUnderStatement: !!line && !!statement && line.getBoundingClientRect().top >= statement.getBoundingClientRect().bottom,
-          sections: [...document.querySelectorAll('main h2')].filter(visible).length,
+          sections: [...document.querySelectorAll('main h2')].filter((heading) => visible(heading) && !heading.classList.contains('sr-only')).length,
           footer: visible(document.querySelector('footer nav[aria-label="Site links"]')),
           menu: document.querySelector('nav[aria-label="Site"] .site-header__menu-key')?.getAttribute('href'),
           menuTag: document.querySelector('nav[aria-label="Site"] .site-header__menu-key')?.tagName,
@@ -263,20 +467,20 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           opacity,
         };
       }, NEEDS_SCRIPT);
-      expect(seen.h1 && seen.lead && seen.statement, `first visit, scripts off, ${look}: the headline, the lead or the statement is not shown`);
+      expect(seen.h1 && seen.benefits === 3 && seen.statement, `first visit, scripts off, ${look}: the headline, benefits or statement is missing`);
       expect(/^\/setup\/?$/.test(seen.start || '') && seen.startWords === 'Start setup', `first visit, scripts off, ${look}: the start key is "${seen.startWords}" to ${seen.start}`);
       expect(seen.line && seen.lineUnderStatement, `first visit, scripts off, ${look}: "${NEEDS_SCRIPT}" does not show under the statement`);
-      expect(seen.sections === 6, `first visit, scripts off, ${look}: ${seen.sections} part headings show, not 6`);
+      expect(seen.sections === 5, `first visit, scripts off, ${look}: ${seen.sections} part headings show, expected 5`);
       expect(seen.footer, `first visit, scripts off, ${look}: the footer's links do not show`);
       expect(seen.menuTag === 'A' && seen.menu === '#site-links', `header, scripts off, ${look}: Menu is a ${seen.menuTag} to ${seen.menu}, not a link to the footer's links`);
       expect(!seen.switchShown, `look switch, scripts off, ${look}: a look switch is shown`);
       expect(seen.footerStart === 'Start setup', `footer, scripts off, ${look}: the footer's start link reads "${seen.footerStart}"`);
       expect(seen.background === PAGE_COLOURS[look], `first visit, scripts off, ${look}: the page is ${seen.background}, not ${PAGE_COLOURS[look]}`);
       expect(seen.opacity === 1, `first visit, scripts off, ${look}: the headline's opacity is ${seen.opacity}`);
-      // A question opens with scripts off.
-      const question = page.locator('details.home-q').nth(1);
+      // A disclosure opens with scripts off.
+      const question = page.locator('details.home-detection__card').nth(1);
       await question.locator('summary').click();
-      expect(await question.evaluate((element) => element.open), `questions, scripts off, ${look}: a pressed question does not open`);
+      expect(await question.evaluate((element) => element.open), `disclosures, scripts off, ${look}: a pressed card does not open`);
       await page.screenshot({ path: path.join(outDir, `home-scripts-off-390-${look}.png`), fullPage: true });
     });
 
@@ -313,26 +517,44 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect(!seen.shown, `first visit, app still loading: "${NEEDS_SCRIPT}" shows to a visitor whose scripts run (app started: ${seen.started})`);
   });
 
+  function observePermissionRequests() {
+    window.homePermissionRequests = [];
+    if (navigator.mediaDevices) {
+      navigator.mediaDevices.getUserMedia = () => {
+        window.homePermissionRequests.push('camera or microphone');
+        return Promise.reject(new DOMException('Permission denied', 'NotAllowedError'));
+      };
+    }
+    if (window.Notification) {
+      Notification.requestPermission = () => {
+        window.homePermissionRequests.push('notifications');
+        return Promise.resolve('denied');
+      };
+    }
+  }
+
   // Nothing blocked: the line hides once the app has started; every request
   // stays on the site; no cookie; no card or sheet appears, however long the
   // visitor stays, before setup or after it.
   for (const setupDone of [false, true]) {
-    await open({ name: 'first visit, requests', width: setupDone ? 390 : 1280, height: setupDone ? 844 : 800 }, async (page) => {
+    await open({ name: 'first visit, requests', width: setupDone ? 390 : 1280, height: setupDone ? 844 : 800 }, async (page, context) => {
       const hosts = new Set();
-      page.on('request', (request) => {
+      context.on('request', (request) => {
         const url = new URL(request.url());
         if (url.protocol === 'http:' || url.protocol === 'https:' || url.protocol === 'ws:' || url.protocol === 'wss:') hosts.add(url.origin);
       });
       await visit(page);
       await page.waitForTimeout(8_000);
       const elsewhere = [...hosts].filter((host) => host !== origin);
+      const permissionRequests = await page.evaluate(() => window.homePermissionRequests);
+      expect(permissionRequests.length === 0, `first visit requested permission: ${permissionRequests.join(', ')}`);
       expect(elsewhere.length === 0, `first visit: the page asked ${elsewhere.join(', ')}`);
       expect((await page.evaluate(() => document.cookie)) === '', 'first visit: the page set a cookie');
       expect(await page.locator('#home-needs-script').isHidden(), `first visit: "${NEEDS_SCRIPT}" still shows after the app started`);
       for (const words of ['Enable notifications', 'Install SafeOS', 'Install App']) {
         expect((await page.getByText(words).count()) === 0, `first visit: "${words}" shows on the home page${setupDone ? ' after setup' : ''}`);
       }
-    }, { setupDone });
+    }, { setupDone, script: observePermissionRequests });
   }
 
   // A saved server address: every request that leaves the site goes to it.
@@ -377,14 +599,14 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     // the skip link's #main-content and start Tab there.
     await visit(page);
     const order = [];
-    for (let i = 0; i < 10; i += 1) {
+    for (let i = 0; i < 9; i += 1) {
       await page.keyboard.press('Tab');
       order.push(await page.evaluate(() => {
         const element = document.activeElement;
         return element.getAttribute('aria-label') || element.textContent.trim();
       }));
     }
-    const wanted = ['Skip to content', 'SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', GITHUB_NAME, 'Switch to the light look', 'Start setup'];
+    const wanted = ['Skip to content', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', GITHUB_NAME, 'Switch to the light look', 'Start setup'];
     expect(order.join(' > ') === wanted.join(' > '), `header: the Tab order is ${order.join(' > ')}`);
   });
 
@@ -396,12 +618,22 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         await visit(page);
         expect((await sidewaysScroll(page)) <= 0, `first visit at ${width} px, ${look}: the page scrolls sideways`);
         if (width === 820 || width === 1920) {
-          await page.screenshot({ path: path.join(outDir, `home-${width}-${look}.png`), fullPage: true });
+          await loadHomeQr(page);
+          expect(await page.locator('.home-qr img').evaluate((image) => image.complete && image.naturalWidth > 0),
+            `full page at ${width} px, ${look}: the QR has not loaded`);
+          await screenshotWithHomeQr(page, { path: path.join(outDir, `home-${width}-${look}.png`), fullPage: true });
         }
-        if (![390, 820, 1280, 1920].includes(width)) return;
-        // Open every question so its answer is measured too.
-        await page.evaluate(() => document.querySelectorAll('details').forEach((details) => { details.open = true; }));
-        const texts = await page.evaluate(measureText, await page.evaluateHandle(() => document.querySelector('.visitor-shell')));
+        if (![390, 820, 1280, 1440, 1920].includes(width)) return;
+
+        const shell = await page.locator('.visitor-shell').elementHandle();
+        const texts = await page.evaluate(measureText, shell);
+        expect(texts.length > 60, `readability at ${width} px, ${look}: only ${texts.length} pieces of text were measured`);
+        await withOpenDisclosures(page, async (id, body) => {
+          const disclosure = await page.evaluate(measureText, await body.elementHandle());
+          expect(disclosure.some((text) => text.body), `readability at ${width} px, ${look}: no CSS readings for ${id}`);
+          texts.push(...disclosure);
+        });
+
         const bodySize = width >= 1440 ? 20 : 18;
         for (const text of texts) {
           const where = `at ${width} px, ${look}: "${text.words}"`;
@@ -411,7 +643,6 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           if (text.body && text.tag === 'p' && text.size < bodySize) fail(`readability ${where} is body text at ${text.size} px, under ${bodySize}`);
           if (text.contrast < (text.body ? 12 : 7)) fail(`readability ${where} has contrast ${text.contrast.toFixed(2)}, under ${text.body ? 12 : 7}`);
         }
-        expect(texts.length > 60, `readability at ${width} px, ${look}: only ${texts.length} pieces of text were measured`);
         // Tabular figures for the numbers only: a word set with them takes
         // Inter's figure-width hyphen ("loud - sound").
         const figures = await page.evaluate(() => {
@@ -434,69 +665,53 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     }
   }
 
-  // The words measured from their own pixels, as the readability rule
-  // measures them: body text and headings at 12:1 or more on their strokes,
-  // every other word in the quiet tone at 7:1 or more. A computed colour can
-  // pass while a thin face's strokes read under it.
-  for (const width of [390, 820, 1280, 1920]) {
+  // Pair the full page and each open disclosure with their exact CSS word
+  // ranges at both widths and in both looks.
+  const readability = [];
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
     for (const look of LOOKS) {
-      await open({ name: 'readable, measured from the pixels', width, height: width >= 1440 ? 900 : width >= 768 ? 800 : 844, look }, async (page, context) => {
+      await open({ name: 'readability pictures', width, height, look, deviceScaleFactor: 2 }, async (page) => {
         await visit(page);
         await page.evaluate(() => document.fonts.ready);
-        await page.evaluate(() => document.querySelectorAll('details').forEach((details) => { details.open = true; }));
-        const marked = await page.evaluate(() => {
-          const shell = document.querySelector('.visitor-shell');
-          const probe = document.createElement('span');
-          probe.style.color = 'var(--color-steel-200)';
-          shell.appendChild(probe);
-          const quiet = getComputedStyle(probe).color;
-          probe.remove();
-          const blocks = new Set();
-          const walker = document.createTreeWalker(shell, NodeFilter.SHOW_TEXT);
-          while (walker.nextNode()) {
-            if (!walker.currentNode.textContent.trim()) continue;
-            let element = walker.currentNode.parentElement;
-            // Words inside a sentence (a name, a number) are measured with it.
-            while (element && element !== shell && getComputedStyle(element).display === 'inline') element = element.parentElement;
-            if (element && element !== shell) blocks.add(element);
-          }
-          const out = [];
-          for (const element of blocks) {
-            if (element.closest('script, style, [hidden], .sr-only, .skip-link, #site-menu')) continue;
-            const box = element.getBoundingClientRect();
-            const style = getComputedStyle(element);
-            if (box.width < 4 || box.height < 4 || style.visibility === 'hidden' || style.opacity === '0') continue;
-            const body = !!element.closest('main') && !!element.closest('h1, h2, h3, p, summary') && !element.closest('a, figcaption');
-            if (!body && style.color !== quiet) continue;
-            element.setAttribute('data-measure', String(out.length));
-            out.push({ words: element.textContent.trim().replace(/\s+/g, ' ').slice(0, 40), body, header: !!element.closest('nav[aria-label="Site"]') });
-          }
-          return out;
+        await loadHomeQr(page);
+        expect(await page.locator('.home-qr img').evaluate((image) => image.complete && image.naturalWidth > 0),
+          `readability at ${width} px, ${look}: the QR has not loaded`);
+        const file = `home-readability-${width}-${look}.png`;
+        const sample = await page.evaluate(pageWordBoxes);
+        expect(sample.boxes.length > 100, `readability ${file}: only ${sample.boxes.length} ranges`);
+        await screenshotWithHomeQr(page, { path: path.join(outDir, file), fullPage: true, scale: 'device', caret: 'hide' });
+        const variant = [{ file, ...sample }];
+        await withOpenDisclosures(page, async (id) => {
+          const file = `home-readability-${id}-${width}-${look}.png`;
+          const { clip, ...sample } = await page.evaluate(pageWordBoxes, id);
+          await page.screenshot({
+            path: path.join(outDir, file), clip, fullPage: true, scale: 'device', caret: 'hide',
+            style: 'nav[aria-label="Site"] { visibility: hidden !important; }',
+          });
+          variant.push({ file, disclosure: id, ...sample });
         });
-        const scratch = await context.newPage();
-        let headerHidden = false;
-        for (const [index, item] of [...marked.entries()].sort((a, b) => Number(b[1].header) - Number(a[1].header))) {
-          if (!item.header && !headerHidden) {
-            // The fixed bar would cover words scrolled under it, and links
-            // inside a sentence are measured as links, not as its words.
-            await page.evaluate(() => {
-              const style = document.createElement('style');
-              style.textContent = 'nav[aria-label="Site"] { visibility: hidden !important; } main p a { color: transparent !important; text-decoration-color: transparent !important; }';
-              document.head.appendChild(style);
-            });
-            headerHidden = true;
-          }
-          const picture = await page.locator(`[data-measure="${index}"]`).screenshot({ animations: 'disabled', caret: 'hide', scale: 'css' });
-          const read = await scratch.evaluate(readStrokes, picture.toString('base64'));
-          if (!read) continue;
-          const least = item.body ? 12 : 7;
-          if (read.strokes < least) fail(`readability at ${width} px, ${look}: "${item.words}" measures ${read.strokes.toFixed(2)}:1 on its strokes (core ${read.core.toFixed(2)}:1), under ${least}`);
-        }
-        await scratch.close();
-        expect(marked.length > 30, `readability at ${width} px, ${look}: only ${marked.length} pieces of text were measured from the pixels`);
+        readability.push(...variant);
+        const disclosureIds = await page.locator('.home-detection__card').evaluateAll((cards) => cards.map((card) => card.dataset.card));
+        const measured = new Set(variant.filter((entry) => entry.boxes.some((box) => box.type === 'body'))
+          .map(({ disclosure }) => disclosure));
+        expect(disclosureIds.length === 6 && disclosureIds.every((id) => measured.has(id)),
+          `readability at ${width} px, ${look}: missing open disclosure words for ${disclosureIds.filter((id) => !measured.has(id)).join(', ')}`);
+        expect(variant.some((entry) => entry.disclosure === 'storage' &&
+          entry.boxes.some((box) => box.name === 'privacy' && box.type === 'label')),
+        `readability at ${width} px, ${look}: missing the open privacy link`);
       });
     }
   }
+  await writeFile(path.join(outDir, 'home-readability-boxes.json'), JSON.stringify(readability));
+
+  await open({ name: 'narrow diagram', width: 320 }, async (page) => {
+    await visit(page);
+    expect((await sidewaysScroll(page)) === 0, '320 px: the page scrolls sideways');
+    const columns = await page.locator('.home-diagram__band').evaluateAll((bands) =>
+      bands.every((band) => new Set([...band.children].map((node) => Math.round(node.getBoundingClientRect().left))).size === 1)
+    );
+    expect(columns, '320 px: the diagram is in more than one column');
+  });
 
   // Text at 200 per cent with the spacing overrides: nothing scrolls sideways
   // and the header keeps one row.
@@ -507,6 +722,11 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       await page.waitForTimeout(500);
       expect((await sidewaysScroll(page)) <= 0, `larger text at ${width} px: the page scrolls sideways`);
       const row = await page.evaluate(() => {
+        const stacked = (group) => {
+          const children = [...group.children].map((child) => child.getBoundingClientRect());
+          return children.every((box, index) => index === 0 ||
+            (Math.abs(box.left - children[0].left) < 1 && box.top >= children[index - 1].bottom - 0.5));
+        };
         const bar = document.querySelector('nav[aria-label="Site"] .site-header__bar');
         const tops = [...bar.querySelectorAll('a, button')].filter((element) => element.getBoundingClientRect().width > 0)
           .map((element) => { const box = element.getBoundingClientRect(); return Math.round(box.top + box.height / 2); });
@@ -517,6 +737,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           over: bar.scrollWidth > bar.clientWidth + 1,
           menu: !!document.querySelector('.site-header__menu-key')?.getBoundingClientRect().width,
           cut,
+          diagramStacks: [...document.querySelectorAll('.home-diagram__band')].every(stacked),
+          cardsStack: stacked(document.querySelector('.home-detection__cards')),
+          deviceStacks: stacked(document.querySelector('.home-how')),
           wordmark: !!wordmark && wordmark.getBoundingClientRect().width > 0 && getComputedStyle(wordmark).visibility !== 'hidden',
         };
       });
@@ -526,6 +749,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       // text leaves no room for the wordmark beside the look switch.
       if (width >= 390) expect(row.wordmark, `header, larger text at ${width} px: the wordmark left the row`);
       else console.log(`header, larger text at ${width} px: the wordmark is ${row.wordmark ? 'in' : 'out of'} the row`);
+      expect(row.diagramStacks, `larger text at ${width} px: diagram has not stacked`);
+      expect(row.cardsStack, `larger text at ${width} px: the six cards have not stacked`);
+      expect(row.deviceStacks, `larger text at ${width} px: the device section has not stacked`);
       if (width === 820) expect(row.menu, 'header, larger text at 820 px: the links did not move into the Menu');
       expect(row.cut.length === 0, `larger text at ${width} px: cut labels: ${row.cut.join(', ')}`);
       await page.screenshot({ path: path.join(outDir, `home-larger-text-${width}-light.png`) });
@@ -602,19 +828,6 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     }, { script: choose });
   }
 
-  // The first screen's counts.
-  for (const [width, height, controls] of [[390, 844, 4], [1280, 800, 10]]) {
-    await open({ name: 'first visit, first screen', width, height, look: 'dark' }, async (page) => {
-      await visit(page);
-      const count = await page.evaluate(() => [...document.querySelectorAll('a, button, summary')].filter((element) => {
-        const box = element.getBoundingClientRect();
-        return box.width > 0 && box.height > 0 && box.top < window.innerHeight && box.bottom > 0 && getComputedStyle(element).visibility !== 'hidden'
-          && !element.classList.contains('skip-link');
-      }).length);
-      expect(count === controls, `first visit: the first screen at ${width} by ${height} holds ${count} controls, not ${controls}`);
-    });
-  }
-
   // ---------------------------------------------------------------------------
   // Visitor header
   // ---------------------------------------------------------------------------
@@ -643,9 +856,9 @@ export async function checkHomePage(browser, baseUrl, outDir) {
             if (box.left < -0.5 || box.right > screen + 0.5) out.push(`${name} runs off the screen`);
             if (box.height < 43.5) out.push(`${name} is ${Math.round(box.height)} px tall`);
           }
-          const want = phone ? ['SafeOS Guardian, home', 'Switch to the dark look|Switch to the light look', 'Menu']
-            : screen < 1024 ? ['SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Switch to the dark look|Switch to the light look', 'Start setup']
-              : ['SafeOS Guardian, home', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', githubName, 'Switch to the dark look|Switch to the light look', 'Start setup'];
+          const want = phone ? ['Switch to the dark look|Switch to the light look', 'Menu']
+            : screen < 1024 ? ['How it works', 'Uses', 'Guides', 'FAQ', 'Switch to the dark look|Switch to the light look', 'Start setup']
+              : ['How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', githubName, 'Switch to the dark look|Switch to the light look', 'Start setup'];
           if (names.length !== want.length || names.some((name, i) => !want[i].split('|').includes(name))) out.push(`its items are ${names.join(', ')}`);
           if (nav.querySelector('[aria-label="Help"], [aria-label*="otification"]')) out.push('it holds a bell or a shortcuts key');
           if (nav.querySelector('svg path[d^="M12 2C6.477"]')) out.push('it holds the GitHub logo');
@@ -660,6 +873,19 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           return out;
         }, GITHUB_NAME);
         for (const p of found) fail(`header at ${width} px, ${look}: ${p}`);
+        await page.keyboard.press('Tab');
+        const headerKeys = await header.locator('.site-header__bar :is(a,button):visible').all();
+        for (const key of headerKeys) {
+          const focus = await key.evaluate((control) => {
+            control.focus();
+            const style = getComputedStyle(control);
+            const rect = control.getBoundingClientRect();
+            return { active: document.activeElement === control, ring: style.outlineWidth, offset: style.outlineOffset,
+              covered: document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest('a,button') !== control };
+          });
+          expect(focus.active && focus.ring === '2px' && focus.offset === '2px' && !focus.covered,
+            `header at ${width} px, ${look}: ${await key.textContent()} focus ${JSON.stringify(focus)}`);
+        }
         expect((await sidewaysScroll(page)) <= 0, `header at ${width} px, ${look}: the page scrolls sideways`);
         // Once the page has moved under the bar, a 1 px line in the line colour.
         await page.evaluate(() => window.scrollTo(0, 600));
@@ -945,13 +1171,15 @@ export async function checkHomePage(browser, baseUrl, outDir) {
             lines: Math.round(h1.getBoundingClientRect().height / parseFloat(style.lineHeight)),
             ink: style.color,
             face: style.fontFamily,
-            lead: document.querySelector('.home-lead').textContent.trim(),
+            lockup: box('.home-lockup').height > 0,
+            mark: box('.home-lockup .site-mark').width,
+            lockupName: document.querySelector('.home-lockup').getAttribute('aria-label'),
             statement: document.querySelector('.home-statement').textContent.trim(),
             caption: document.querySelector('.capture__caption').textContent.trim(),
-            order: ['h1', '.home-lead', '.home-capture', '.home-first a.key--start', '.home-statement'].map((selector) => Math.round(box(selector).top)),
-            bottoms: ['h1', '.home-lead', '.capture__frame', '.home-first a.key--start', '.home-statement'].map((selector) => Math.round(box(selector).bottom)),
+            order: ['h1', '.home-capture', '.home-first a.key--start', '.home-statement'].map((selector) => Math.round(box(selector).top)),
+            bottoms: ['h1', '.capture__frame', '.home-first a.key--start', '.home-statement'].map((selector) => Math.round(box(selector).bottom)),
             lefts: { text: box('.home-first__text').left, textRight: box('.home-first__text').right, capture: box('.capture__frame').left, captureRight: box('.capture__frame').right, wrap: box('.home-first__grid').left, wrapRight: box('.home-first__grid').right },
-            tops: { h1: box('h1').top, capture: box('.capture__frame').top },
+            tops: { text: box('.home-first__text').top, capture: box('.capture__frame').top },
             keys: document.querySelectorAll('.home-first a.key, .home-first button').length,
             key: { width: key.getBoundingClientRect().width, height: key.getBoundingClientRect().height, column: box('.home-first__start').width, colour: keyStyle.color, fill: keyStyle.backgroundColor, href: key.getAttribute('href') },
             statementSize: parseFloat(getComputedStyle(document.querySelector('.home-statement')).fontSize),
@@ -964,7 +1192,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         });
         const at = `at ${width} px, ${look}`;
         expect(seen.h1s === 1 && seen.headline === HEADLINE, `headline ${at}: ${seen.h1s} H1 reading "${seen.headline}"`);
-        expect(plain(seen.lead) === LEAD, `headline ${at}: the lead reads "${seen.lead}"`);
+        expect(seen.lockupName === 'SafeOS Guardian' && seen.lockup === (width >= 768), `headline ${at}: incorrect lockup visibility or name`);
+        if (width >= 768) expect(seen.mark === 64, `headline ${at}: the shield is ${seen.mark} px wide`);
         const [least, most] = H1_LINES[width];
         expect(seen.lines >= least && seen.lines <= most, `headline ${at}: the headline has ${seen.lines} lines, not ${least === most ? most : `at most ${most}`}`);
         expect(seen.ink === INK[look], `headline ${at}: the headline is ${seen.ink}`);
@@ -973,7 +1202,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         expect(seen.statementSize >= 18 && seen.statementInk === INK[look], `start key ${at}: the statement is ${seen.statementSize} px in ${seen.statementInk}`);
         expect(seen.keys === 1, `start key ${at}: the first screen holds ${seen.keys} keys`);
         expect(/^\/setup\/?$/.test(seen.key.href || ''), `start key ${at}: the start key opens ${seen.key.href}`);
-        expect(Math.abs(seen.key.height - (width >= 1440 ? 56 : 52)) < 0.5, `start key ${at}: the start key is ${seen.key.height} px tall`);
+        expect(Math.abs(seen.key.height - 56) < 0.5, `start key ${at}: the start key is ${seen.key.height} px tall`);
         if (width < 768) expect(Math.abs(seen.key.width - seen.key.column) < 0.5, `start key ${at}: the start key is ${seen.key.width} px wide in a ${seen.key.column} px column`);
         else expect(seen.key.width < seen.key.column - 40, `start key ${at}: the start key is as wide as its column`);
         expect(plain(seen.caption) === CAPTION, `capture ${at}: the caption reads "${seen.caption}"`);
@@ -986,10 +1215,14 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         // The order and the layout of the first screen.
         const sorted = (list) => list.every((value, i) => i === 0 || value >= list[i - 1]);
         if (width < 768) {
-          expect(sorted(seen.order), `headline ${at}: the first screen's order is not headline, lead, capture, key, statement`);
+          expect(sorted(seen.order), `headline ${at}: the first screen's order is not headline, capture, key, statement`);
+          // Each block ends at or above the top of the one below it.
+          for (let i = 0; i + 1 < seen.order.length; i += 1) {
+            expect(seen.bottoms[i] <= seen.order[i + 1], `headline ${at}: block ${i + 1} ends at ${seen.bottoms[i]} px, below the top of block ${i + 2} at ${seen.order[i + 1]} px`);
+          }
         } else if (width < 1024) {
           expect(seen.lefts.textRight - seen.lefts.text <= 640.5, `headline ${at}: the text block is ${Math.round(seen.lefts.textRight - seen.lefts.text)} px wide`);
-          expect(seen.order[2] > seen.order[4], `capture ${at}: the capture is not under the text block`);
+          expect(seen.order[1] > seen.order[3], `capture ${at}: the capture is not under the text block`);
           expect(Math.abs((seen.lefts.captureRight - seen.lefts.capture) - (seen.lefts.wrapRight - seen.lefts.wrap - 64)) < 1, `capture ${at}: the capture is not as wide as the container`);
         } else {
           const columns = width >= 1440 ? 6 : 7;
@@ -998,10 +1231,10 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           const column = (container - 11 * gap) / 12;
           expect(Math.abs((seen.lefts.textRight - seen.lefts.text) - (columns * column + (columns - 1) * gap)) < 1, `headline ${at}: the words are not in the left ${columns} of twelve columns`);
           expect(seen.lefts.capture > seen.lefts.textRight, `capture ${at}: the capture is not at the right of the words`);
-          expect(Math.abs(seen.tops.capture - seen.tops.h1) <= 16, `capture ${at}: the capture's top is ${Math.round(seen.tops.capture - seen.tops.h1)} px from the headline's`);
+          expect(Math.abs(seen.tops.capture - seen.tops.text) <= 16, `capture ${at}: the capture's top is ${Math.round(seen.tops.capture - seen.tops.text)} px from the text column's`);
         }
         if ((width === 390 && height === 844) || (width === 1440 && height === 900)) {
-          expect(seen.bottoms.every((bottom) => bottom <= seen.screen), `headline ${at}: the first screen does not hold the headline, the lead, the capture, the key and the statement (bottoms ${seen.bottoms.join(', ')} of ${seen.screen})`);
+          expect(seen.bottoms.every((bottom) => bottom <= seen.screen), `headline ${at}: the first screen does not hold the headline, capture, key and statement (bottoms ${seen.bottoms.join(', ')} of ${seen.screen})`);
         }
       });
     }
@@ -1025,22 +1258,23 @@ export async function checkHomePage(browser, baseUrl, outDir) {
   // The start key opens setup; the words that left the page are gone.
   await open({ name: 'words', width: 1280, height: 800 }, async (page) => {
     await visit(page);
-    const words = plain(await page.evaluate(() => {
-      document.querySelectorAll('details').forEach((details) => { details.open = true; });
-      return document.querySelector('.visitor-shell').innerText;
-    }));
+    const [words, ...names] = (await page.locator('.visitor-shell').evaluate(homeWordingInputs)).map(plain);
     const count = (needle) => words.split(needle).length - 1;
     expect(count('It does not replace a person nearby.') === 1, `start key: "It does not replace a person nearby." appears ${count('It does not replace a person nearby.')} times`);
     expect(count('SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.') === 1, 'uses: the not-a-medical-device sentence does not appear exactly once');
-    for (const gone of ['Experimental Supplemental Monitoring Tool', 'lo-tech', 'tech-savvy', 'supplemental', 'supplementary', 'NOT a replacement', 'babysitter', 'carer',
-      'security system', 'Takes less than 2 minutes', 'Deep learning', 'cosine', 'Sobel', 'Blurred', 'humanitarian', 'always be free', 'never charge', 'Future optional service',
-      'nonprofit', 'charity', 'donate', 'donation', 'tax-exempt', 'tax-deductible', 'identify', 'FREE', 'Quick Start', 'All systems operational', 'All rights reserved',
-      'Your camera\'s pictures stay in your browser', 'never leaves', '100% local', 'No telemetry', 'Who can see my camera?', 'What does it cost?', 'vital', 'falls', 'COCO-SSD']) {
+    for (const gone of ['Experimental Supplemental Monitoring Tool', 'tech-savvy', 'supplementary', 'NOT a replacement', 'babysitter', 'carer',
+      'security system', 'Takes less than 2 minutes', 'cosine', 'Sobel', 'Blurred', 'always be free', 'never charge', 'Future optional service',
+      'nonprofit', 'charity', 'tax-exempt', 'tax-deductible', 'FREE', 'Quick Start', 'All systems operational', 'All rights reserved',
+      'Your camera\'s pictures stay in your browser', 'never leaves', '100% local', 'No telemetry', 'Who can see my camera?', 'What does it cost?', 'vital', 'falls']) {
       expect(!words.toLowerCase().includes(gone.toLowerCase()) || (gone === 'FREE' && !words.includes('FREE')), `the page says "${gone}"`);
     }
     expect(!/\bAI\b/.test(words), 'alerts: the page says "AI"');
     for (const health of ['medical', 'breathing', 'SIDS']) expect(count(health) === 1, `uses: "${health}" appears ${count(health)} times`);
-    expect(count('account') === 1, `questions: the word "account" appears ${count('account')} times`);
+    expect(count('No account') === 1, 'free: expected one no-account line');
+    for (const text of [words, ...names]) {
+      const barred = text.match(barredWording)?.[0];
+      expect(!barred, `home wording: barred word "${barred}"`);
+    }
     await Promise.all([
       page.waitForURL((url) => /^\/setup\/?$/.test(url.pathname), { timeout: 15_000 }),
       page.locator('.home-first a.key--start').click(),
@@ -1061,102 +1295,126 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     return [...rows.entries()].sort((a, b) => a[0] - b[0]).map((row) => row[1]).join(',');
   }, selector);
 
-  const LAYOUTS = {
-    390: { uses: '1,1,1,1,1', alerts: '1,1,1,1', footer: '2,2,2', qr: false },
-    820: { uses: '2,2,1', alerts: '2,2', footer: '3,3', qr: 160 },
-    1280: { uses: '2,3', alerts: '2,2', footer: '6', qr: 200 },
-    1440: { uses: '3,2', alerts: '3,1', footer: '6', qr: 200 },
+  const layouts = {
+    390: { uses: '1,1,1,1,1', cards: '1,1,1,1,1,1', footer: '2,2,2' },
+    820: { uses: '2,2,1', cards: '2,2,2', footer: '3,3' },
+    1280: { uses: '3,2', cards: '2,2,2', footer: '6' },
+    1440: { uses: '3,2', cards: '3,3', footer: '6' },
   };
   for (const width of [390, 820, 1280, 1440]) {
     for (const look of LOOKS) {
       await open({ name: 'parts, layout', width, height: 900, look }, async (page) => {
         await visit(page);
         const at = `at ${width} px, ${look}`;
-        const layout = LAYOUTS[width];
-        expect((await columnsOf(page, '.home-use')) === layout.uses, `uses ${at}: the entries sit in rows of ${await columnsOf(page, '.home-use')}, not ${layout.uses}`);
-        expect((await columnsOf(page, '.home-alert')) === layout.alerts, `alerts ${at}: the entries sit in rows of ${await columnsOf(page, '.home-alert')}, not ${layout.alerts}`);
-        expect((await columnsOf(page, '.site-footer__groups > div')) === layout.footer, `footer ${at}: the groups sit in rows of ${await columnsOf(page, '.site-footer__groups > div')}, not ${layout.footer}`);
+        for (const [selector, layout] of [
+          ['.home-use', layouts[width].uses],
+          ['.home-detection__card', layouts[width].cards],
+          ['.site-footer__groups > div', layouts[width].footer],
+        ]) {
+          const rows = await columnsOf(page, selector);
+          expect(rows === layout, `${selector} ${at}: rows of ${rows}, expected ${layout}`);
+        }
         const seen = await page.evaluate(() => {
-          const box = (selector) => document.querySelector(selector).getBoundingClientRect();
-          const qr = document.querySelector('.home-qr img');
-          const style = (selector) => getComputedStyle(document.querySelector(selector));
-          const questions = [...document.querySelectorAll('.home-q > summary')].map((summary) => summary.getBoundingClientRect());
+          const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
+          const fill = (selector) => getComputedStyle(document.querySelector(selector)).backgroundColor;
+          const deviceWrap = document.querySelector('#one-device .home-wrap');
+          const deviceWrapStyle = getComputedStyle(deviceWrap);
           return {
-            qr: qr.getBoundingClientRect().width,
-            qrAlt: qr.getAttribute('alt'),
-            steps: box('.home-steps'),
-            qrBox: box('.home-qr'),
-            note: box('.home-how__note'),
-            noteFill: style('.home-how__note').backgroundColor,
-            free: style('#free').backgroundColor,
-            closing: style('.home-closing').textAlign,
-            closingBand: getComputedStyle(document.querySelector('.home-closing').closest('section')).backgroundColor,
-            closingKey: box('.home-closing a.key'),
-            closingWords: box('.home-closing__words'),
-            footer: style('footer').backgroundColor,
-            questionRows: Math.min(...questions.map((row) => row.height)),
-            questionColumns: new Set(questions.map((row) => Math.round(row.left))).size,
-            links: [...document.querySelectorAll('main .link-row, main .home-use__medical a, footer nav a')].map((link) => ({ words: link.textContent.trim(), height: link.getBoundingClientRect().height })),
-            cells: [...document.querySelectorAll('.home-use')].map((cell) => Math.round(cell.getBoundingClientRect().width)),
-            freeLinks: [...document.querySelectorAll('.home-free__links li')].map((item) => Math.round(item.getBoundingClientRect().top)),
-            boxed: [...document.querySelectorAll('.home-use, .home-alert, .home-step, .home-q')].filter((entry) => {
-              const entryStyle = getComputedStyle(entry);
-              return entryStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' || parseFloat(entryStyle.borderRadius) > 0;
-            }).length,
+            deviceWidth: deviceWrap.clientWidth - parseFloat(deviceWrapStyle.paddingLeft) - parseFloat(deviceWrapStyle.paddingRight),
+            qr: rect('.home-qr img'),
+            qrBox: rect('.home-qr'),
+            steps: rect('.home-steps'),
+            centeredCode: (() => {
+              const range = document.createRange();
+              range.selectNodeContents(document.querySelector('.home-detection__code a'));
+              const text = range.getBoundingClientRect();
+              const cards = rect('.home-detection__cards');
+              return Math.abs(text.left + text.width / 2 - cards.left - cards.width / 2) < 1;
+            })(),
+            panel: rect('.home-how'),
+            panelFill: fill('.home-how'),
+            panelBorder: parseFloat(getComputedStyle(document.querySelector('.home-how')).borderTopWidth),
+            server: rect('.home-how__note'),
+            serverRule: parseFloat(getComputedStyle(document.querySelector('.home-how__note')).borderTopWidth),
+            panelFills: ['#free', '.home-closing', 'footer'].map((selector) => {
+              return selector === '.home-closing' ? getComputedStyle(document.querySelector(selector).closest('section')).backgroundColor : fill(selector);
+            }),
+            benefits: [...document.querySelectorAll('.home-benefit')].map((item) => {
+              const style = getComputedStyle(item);
+              return { fill: style.backgroundColor, edge: style.borderTopWidth };
+            }),
+            controls: [...document.querySelectorAll('.home-use__key, .home-detection summary, .home-first .key--start, .home-closing .key--start')].map((key) => ({
+              name: key.textContent.trim().slice(0, 45),
+              minimum: key.matches('summary') ? 64 : key.matches('.key--start') ? 56 : 48,
+              height: key.getBoundingClientRect().height,
+            })),
           };
         });
-        if (layout.qr) {
-          expect(Math.abs(seen.qr - layout.qr) < 0.5, `how it works ${at}: the QR code is ${seen.qr} px wide, not ${layout.qr}`);
-          expect(seen.qrBox.left >= seen.steps.right - 1, `how it works ${at}: the QR panel is not beside the steps`);
-        } else {
-          expect(seen.qr === 0, `how it works ${at}: a QR code shows on a phone`);
-        }
-        expect(seen.qrAlt === 'QR code for https://safeos.sh/', `how it works ${at}: the QR code's text equivalent is "${seen.qrAlt}"`);
-        expect(seen.free === PANEL_COLOURS[look] && seen.closingBand === PANEL_COLOURS[look] && seen.footer === PANEL_COLOURS[look],
-          `bands ${at}: the bands are ${seen.free}, ${seen.closingBand} and ${seen.footer}, not the panel colour`);
-        expect(seen.questionRows >= 48, `questions ${at}: a question's row is ${seen.questionRows} px tall`);
-        expect(seen.questionColumns === (width === 820 || width === 1440 ? 2 : 1), `questions ${at}: the questions sit in ${seen.questionColumns} columns`);
-        expect(seen.boxed === 0, `${at}: ${seen.boxed} text entries are boxed`);
+        expect(Math.abs(seen.qr.width - 200) < 0.5, `device ${at}: the QR code is ${seen.qr.width} px wide`);
+        expect(width < 768 ? seen.qrBox.top >= seen.steps.bottom : seen.qrBox.left >= seen.steps.right,
+          `device ${at}: the QR placement is wrong`);
+        expect(seen.centeredCode, `detection code ${at}: the link is not centred under the cards`);
         if (width === 390) {
-          for (const link of seen.links) expect(link.height >= 43.5, `${at}: the link "${link.words}" is ${link.height} px tall`);
-          expect(seen.closingKey.top > seen.closingWords.bottom, `start key ${at}: the closing block's key is not under its line`);
-        } else {
-          for (const link of seen.links) expect(link.height >= 24, `${at}: the link "${link.words}" is ${link.height} px tall`);
+          expect(Math.abs(seen.qr.left + seen.qr.width / 2 - width / 2) < 1, `device ${at}: the QR is off-centre`);
         }
-        if (width === 820 || width === 1280) {
-          expect(seen.closing === 'center' && seen.closingKey.top > seen.closingWords.bottom, `start key ${at}: the closing block is not centred with its key under its line`);
+        if (width >= 1280) {
+          const columnGap = width >= 1440 ? 32 : 24;
+          expect(Math.abs(seen.panel.width - (seen.deviceWidth * 2 - columnGap) / 3) < 1 &&
+            Math.abs(seen.panel.left + seen.panel.width / 2 - width / 2) < 1,
+          `device ${at}: expected eight centred columns, got ${seen.panel.width}px`);
+          expect(seen.panelFill === PANEL_COLOURS[look] && seen.panelBorder > 0 && seen.serverRule > 0 &&
+            seen.server.top >= Math.max(seen.qrBox.bottom, seen.steps.bottom) &&
+            seen.server.left > seen.panel.left && seen.server.right < seen.panel.right && seen.server.bottom < seen.panel.bottom,
+          `device ${at}: the steps, QR and server rule should share the panel`);
         }
-        if (width === 1440) {
-          expect(seen.closingKey.left > seen.closingWords.right - 1 && Math.abs(seen.closingKey.height - 56) < 0.5, `start key ${at}: the closing block is not one row with a 56 px key`);
-          expect(Math.min(...seen.cells) >= 424, `uses ${at}: a cell of the grid is ${Math.min(...seen.cells)} px wide`);
+        expect(seen.panelFills.every((fill) => fill === PANEL_COLOURS[look]), `bands ${at}: wrong surface colours`);
+        expect(seen.benefits.length === 3 && seen.benefits.every(({ fill, edge }) => fill === PANEL_COLOURS[look] && edge === '0px'),
+          `benefits ${at}: expected three unoutlined tinted panels`);
+        for (const key of seen.controls) expect(key.height >= key.minimum - 0.5, `${at}: "${key.name}" is ${key.height} px tall, expected ${key.minimum}`);
+        for (const selector of ['.home-use:has(#lost-pet) p', '.home-free__words p:first-child']) {
+          const lines = await page.evaluate(readLines, selector);
+          const leading = await page.locator(selector).evaluate((p) => parseFloat(getComputedStyle(p).fontSize) * 1.55);
+          const gaps = lines.slice(1).map(({ top }, index) => top - lines[index].top);
+          expect(gaps.length > 0 && gaps.every((gap) => Math.abs(gap - leading) <= 1),
+            `paragraph leading ${at}, ${selector}: ${gaps.join(', ')} px, expected ${leading.toFixed(1)} px`);
         }
-        if (width === 1280) expect(new Set(seen.freeLinks).size === 2, `free and open ${at}: the four links are not a grid of two by two`);
-        if (width === 1280) expect(seen.noteFill === PANEL_COLOURS[look], `how it works ${at}: the server note is not in the panel`);
+        if (width >= 1280) {
+          const lines = await page.evaluate(readLines, '.home-detection__lead');
+          expect(lines.length > 0 && lines.every(({ text }) => text.length <= 64),
+            `detection lead ${at}: line lengths ${lines.map(({ text }) => text.length).join(', ')} exceed 64 characters`);
+        }
+        if (width === 390) {
+          const checkLinks = async () => {
+            const links = await page.locator('.visitor-shell a[href]:visible').evaluateAll((anchors) => anchors.map((anchor) => ({
+              name: anchor.getAttribute('aria-label') || anchor.textContent.trim(),
+              fragments: [...anchor.getClientRects()].map((rect) => rect.height),
+            })));
+            for (const { name, fragments } of links) {
+              expect(fragments.length > 0 && fragments.every((height) => height >= 43.5),
+                `phone link ${at}: "${name}" has targets of ${fragments.join(', ')} px, expected 44 px`);
+            }
+          };
+          await page.locator('[data-card="storage"] > summary').press('Space');
+          await checkLinks();
+          await page.locator('.site-header__menu-key').click();
+          await checkLinks();
+        }
       });
     }
   }
 
-  // The words of each part, the anchors and the links.
-  await open({ name: 'parts, words', width: 1280, height: 800 }, async (page) => {
+  await open({ name: 'parts and links', width: 1280, height: 800 }, async (page) => {
     await visit(page);
     const seen = await page.evaluate(() => {
-      const text = (element) => (element ? element.textContent.replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim() : '');
-      const part = (id) => document.getElementById(id);
+      const text = (element) => (element?.textContent || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
       return {
         h2s: [...document.querySelectorAll('main h2')].map(text),
-        uses: [...document.querySelectorAll('.home-use')].map((entry) => ({ id: entry.querySelector('h3').id, title: text(entry.querySelector('h3')), words: [...entry.querySelectorAll('p')].map(text), links: [...entry.querySelectorAll('a')].map((a) => `${text(a)} ${a.href} ${a.target}`) })),
-        steps: [...document.querySelectorAll('ol.home-steps > li')].map((step) => ({ action: text(step.querySelector('h3')), words: text(step.querySelector('p')) })),
-        note: text(document.querySelector('.home-how__note p')),
+        benefits: [...document.querySelectorAll('.home-benefit h3')].map(text),
+        model: text(document.querySelector('[data-card="people-animals"] .home-detection__tags')),
+        useLinks: [...document.querySelectorAll('#uses .home-use__key')].map((link) => link.getAttribute('href')),
         noteLink: document.querySelector('.home-how__note a').href,
-        qrCaption: text(document.querySelector('.home-qr figcaption')),
-        alerts: [...document.querySelectorAll('.home-alert')].map((entry) => ({ title: text(entry.querySelector('h3')), words: [...entry.querySelectorAll('p')].map(text) })),
-        aside: text(document.querySelector('.home-alerts__aside p')),
-        asideLink: `${text(document.querySelector('.home-alerts__aside a'))} ${document.querySelector('.home-alerts__aside a').href}`,
-        openers: part('alerts').querySelectorAll('details, button').length,
-        free: [...document.querySelectorAll('.home-free__words p')].map(text),
-        freeLinks: [...document.querySelectorAll('.home-free__links a')].map((a) => `${text(a)} ${a.getAttribute('href')}`),
-        questions: [...document.querySelectorAll('.home-q')].map((details) => ({ question: text(details.querySelector('summary')), open: details.open, answer: text(details.querySelector('.home-q__answer p')), links: [...details.querySelectorAll('a')].map((a) => `${text(a)} ${a.getAttribute('href')}`) })),
-        all: `${text(document.querySelector('.home-questions__all'))} ${document.querySelector('.home-questions__all').getAttribute('href')}`,
+        codeLink: document.querySelector('.home-detection__code a').href,
+        qr: document.querySelector('.home-qr img').alt,
         closing: [...document.querySelectorAll('.home-closing h2, .home-closing p, .home-closing a')].map(text),
         footer: [...document.querySelectorAll('.site-footer__groups > div')].map((group) => `${text(group.querySelector('h2'))}: ${[...group.querySelectorAll('a')].map((a) => `${text(a)} ${a.getAttribute('href')}${a.target ? ` ${a.target}` : ''}`).join(' | ')}`),
         brand: [...document.querySelectorAll('.site-footer__brand p')].map(text),
@@ -1165,45 +1423,14 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       };
     });
     const same = (got, want, what) => expect(JSON.stringify(got) === JSON.stringify(want), `${what}: ${JSON.stringify(got)}`);
-    same(seen.h2s, ['What people set it up for', 'One device does the watching and the alerting', 'Four things set off an alert', 'Free on safeos.sh, with the code in the open', 'Questions people ask first', 'Start with the device you have'], 'the part headings are');
-    same(seen.uses.map((entry) => `${entry.id}: ${entry.title}`), ['baby-nap: A baby\'s nap', 'pet-out: A pet while you are out', 'elderly-parent: An elderly parent', 'lost-pet: A lost pet near home', 'wildlife: Backyard wildlife'], 'uses: the entries are');
-    same(seen.uses[0].words, ['Motion and loud-sound alerts for a short nap while you are close by. It reacts to movement and noise in the room.', 'SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS. Safe-sleep guidance (NIH)'], 'uses: the baby entry reads');
-    same(seen.uses[0].links, ['Safe-sleep guidance (NIH) https://safetosleep.nichd.nih.gov/reduce-risk/reduce _blank'], 'uses: the baby entry links');
-    same(seen.uses[1].words, ['Leave it watching for a short while. It can play a sound you recorded when it sees motion, and History lists each alert for when you are back.'], 'uses: the pet entry reads');
-    same(seen.uses[2].words, ['Set it up together, with their agreement. It alerts in the room on motion, a loud sound or a set time of stillness. It cannot tell why nothing has moved or whether someone needs help. Reaching your own phone takes a server you run.'], 'uses: the elderly entry reads');
-    same(seen.uses[3].words, ['Point a camera at the yard or the porch. SafeOS compares what it sees with the colours in your pet\'s photos and alerts on a likely match. It cannot tell your pet from a look-alike, so post an alert on PawBoost or Petco Love Lost too.'], 'uses: the lost pet entry reads');
-    same(seen.uses[3].links, ['PawBoost https://www.pawboost.com/ ', 'Petco Love Lost https://lost.petcolove.org/ '], 'uses: the lost pet entry links');
-    same(seen.uses[4].words, ['The Wildlife page uses an object-detection model to spot 10 kinds of animal, birds, cats and dogs among them. It saves a picture of each sighting in your browser.'], 'uses: the wildlife entry reads');
-    same(seen.steps, [
-      { action: 'Open safeos.sh on the device that will watch.', words: 'An old phone, a tablet or a laptop works. Plug it in and set its screen to stay on, because a device that sleeps stops watching.' },
-      { action: 'Go through setup.', words: 'It has 6 short steps. You say what you are watching, and at step 4 the browser asks for the camera and microphone.' },
-      { action: 'Stay within earshot.', words: 'When something moves or gets loud, the device plays an alert sound, shows a notification and lists the alert in History.' },
-    ], 'how it works: the steps read');
-    expect(seen.note === 'Want the alert on another phone? Email, text and Telegram alerts need a server you run yourself.', `how it works: the server note reads "${seen.note}"`);
-    expect(seen.noteLink === 'https://github.com/framerslab/safeos/blob/master/docs/DEPLOYMENT.md#option-b-full-stack-deployment', `how it works: the server guide link is ${seen.noteLink}`);
-    expect(seen.qrCaption === 'Scan to open safeos.sh on the phone or tablet that will watch.', `how it works: the QR caption reads "${seen.qrCaption}"`);
-    same(seen.alerts, [
-      { title: 'Motion', words: ['The camera picture changes by more than the amount you set.'] },
-      { title: 'A loud sound', words: ['The microphone level stays above the level you set.'] },
-      { title: 'Stillness', words: ['Nothing has moved for a time you set, from 1 to 60 minutes.'] },
-      { title: 'A person or an animal', words: ['The Security and Wildlife pages run an object-detection model in your browser. It finds people and 10 kinds of animal: dog, cat, bird, horse, sheep, cow, elephant, bear, zebra and giraffe.', 'That model is 18.6 MB, downloaded from Google\'s storage. The download starts only after you agree, and Google sees your IP address when it does.'] },
-    ], 'alerts: the entries read');
-    expect(seen.aside === 'The everyday monitor compares each camera frame with the one before and measures how loud the room is.', `alerts: the everyday-monitor line reads "${seen.aside}"`);
-    expect(seen.asideLink === 'Read the detection code on GitHub https://github.com/framerslab/safeos/tree/master/apps/guardian-ui/src/lib', `alerts: the code link is ${seen.asideLink}`);
-    expect(seen.openers === 0, 'alerts: an entry opens or closes');
-    same(seen.free, ['SafeOS at safeos.sh is free, and this site has no paid tier or subscription. Frame builds SafeOS and pays for it.', 'The code is MIT-licensed, so anyone can read it, change it and run it.', 'SafeOS is experimental software, provided as is.'], 'free and open: the sentences read');
-    same(seen.freeLinks.map((link) => link.replace(/\/$/, '')), ['Read the code on GitHub https://github.com/framerslab/safeos', 'The MIT License https://github.com/framerslab/safeos/blob/master/LICENSE',
-      'The offline check that runs before each deploy https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/scripts/check-offline-start.mjs', 'How SafeOS works, in detail /blog/how-safeos-guardian-works'], 'free and open: the links are');
-    same(seen.questions.map((entry) => ({ ...entry, links: entry.links.map((link) => link.replace(/\/$/, '')) })), [
-      { question: 'Can an old phone be the camera?', open: false, answer: 'Yes. SafeOS runs in the browser on phones, tablets and computers. Plug the device in and set its screen to stay on, because a device that sleeps stops watching. The FAQ lists the browsers.', links: ['See the browser list in the FAQ /faq'] },
-      { question: 'Where does the alert go?', open: false, answer: 'To the device that is watching. It plays a sound, shows a notification and lists the alert in History. Email, text and Telegram alerts need a server you run yourself.', links: [] },
-      { question: 'Can I see the camera from another device?', open: false, answer: 'No. safeos.sh shows the camera only on the device that is watching.', links: [] },
-      { question: 'Does it work without internet?', open: false, answer: 'Yes, after your browser has saved the app\'s files on a visit online. Motion and sound alerts then work with no connection. The Security and Wildlife pages also need their model saved first.', links: [] },
-      { question: 'Do I need an account?', open: false, answer: 'No. Open safeos.sh on the device that will watch and go through setup.', links: [] },
-      { question: 'Where are my pictures kept?', open: false, answer: 'In the browser on the device that watches. Saved frames, photos and alerts are kept in its storage, and they go to a server only if you connect one of your own.', links: ['Read the privacy page /privacy'] },
-    ], 'questions: the questions read');
-    expect(seen.all.replace(/\/$/, '') === 'All questions and answers /faq', `questions: the link to the FAQ is ${seen.all}`);
-    same(seen.closing, ['Start with the device you have', 'Setup has 6 short steps and asks for the camera at step 4.', 'Start setup'], 'start key: the closing block reads');
+    same(seen.h2s, ['What SafeOS is', 'Deep learning, in your browser.', 'One device does the watching and the alerting', 'What people set it up for', 'Free on safeos.sh, with the code in the open', 'Start with the device you have'], 'home section order');
+    same(seen.benefits, ['Lo-tech and portable', 'Supplemental alerts', 'Privacy first'], 'benefit headings');
+    expect(/^COCO-SSD on TensorFlow\.js · \d+\.\d+ MB, after you agree$/.test(seen.model), `model card tags: ${seen.model}`);
+    same(seen.useLinks, ['monitor', 'monitor', 'monitor', 'lost-found', 'wildlife'].map((way) => `/setup/?next=${way}`), 'home setup destinations');
+    expect(seen.noteLink === 'https://github.com/framerslab/safeos/blob/master/docs/DEPLOYMENT.md#option-b-full-stack-deployment', `server guide: ${seen.noteLink}`);
+    expect(seen.codeLink === 'https://github.com/framerslab/safeos/tree/master/apps/guardian-ui/src/lib', `detection code: ${seen.codeLink}`);
+    expect(seen.qr === 'QR code for https://safeos.sh/', `device: QR alternative text is "${seen.qr}"`);
+    same(seen.closing, ['Start with the device you have', 'Setup has 6 short steps and asks for the camera at step 4.', 'Start setup'], 'closing block');
     const slashless = (line) => line.replace(/(\/[a-z-]+)\/(?= |$)/g, '$1');
     same(seen.footer.map(slashless), [
       'Use it: Start setup /setup',
@@ -1223,22 +1450,33 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       && /^\d+\.\d+\.\d+/.test(application.softwareVersion || '') && !application.aggregateRating && !application.review,
     `search and card: the WebApplication block is ${JSON.stringify(application).slice(0, 300)}`);
 
-    // All six questions can be open together, by pointer and by keyboard.
-    for (const summary of await page.locator('.home-q > summary').all()) await summary.click();
-    expect((await page.locator('.home-q[open]').count()) === 6, 'questions: the six questions cannot be open together');
-    const first = page.locator('.home-q > summary').first();
-    await first.focus();
-    await page.keyboard.press('Enter');
-    expect(!(await page.locator('.home-q').first().evaluate((details) => details.open)), 'questions: Enter does not close an open question');
-    await page.keyboard.press('Space');
-    expect(await page.locator('.home-q').first().evaluate((details) => details.open), 'questions: Space does not open a question');
+    const summaries = page.locator('#how-it-works details > summary');
+    await summaries.first().press('Space');
+    expect(await page.locator('[data-card="motion"]').evaluate((details) => details.open), 'disclosures: Space did not open Motion and stillness');
+    await summaries.nth(3).press('Enter');
+    expect(await page.locator('[data-card="lost-found"]').evaluate((details) => details.open), 'disclosures: Enter did not open Lost and Found');
+    expect(await page.locator('#how-it-works details[open]').count() === 1, 'disclosures: only one should stay open');
   });
+
+  await open({ name: 'returning use links', width: 390 }, async (page) => {
+    await visit(page);
+    const keys = await page.locator('#uses .home-use__key').evaluateAll((links) => links.map((link) => [link.textContent.trim(), link.pathname]));
+    const want = ['Motion and sound', 'Motion and sound', 'Motion and sound', 'Lost and Found', 'Wildlife']
+      .map((name, i) => [`Open ${name}`, `/${['monitor', 'monitor', 'monitor', 'lost-found', 'wildlife'][i]}/`]);
+    expect(JSON.stringify(keys) === JSON.stringify(want), `returning use destinations: ${JSON.stringify(keys)}`);
+  }, { setupDone: true });
 
   // The header's and the footer's anchors land below the bar, not under it.
   for (const [from, link, hash, target] of [
     ['/', 'Uses', '#uses', '#uses-title'],
-    ['/', 'How it works', '#how-it-works', '#how-title'],
-    ['/faq/', 'A lost pet near home', '#lost-pet', '#lost-pet'],
+    ['/', 'How it works', '#how-it-works', '#detection-title'],
+    ...[
+      ['A baby’s nap', 'baby-nap'],
+      ['A pet while you are out', 'pet-out'],
+      ['An elderly parent', 'elderly-parent'],
+      ['A lost pet near home', 'lost-pet'],
+      ['Backyard wildlife', 'wildlife'],
+    ].map(([link, id]) => ['/faq/', link, `#${id}`, `#${id}`]),
   ]) {
     await open({ name: 'anchors', width: 1280, height: 800, look: 'dark', reducedMotion: 'reduce' }, async (page) => {
       await visit(page, new URL(from, baseUrl).toString());
@@ -1319,8 +1557,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     });
     expect(seen.h1 === HEADLINE && seen.steps === 3, 'offline: the page does not show from the installed copy');
     expect(seen.capture, 'capture, offline: the capture does not show from the installed copy');
-    await page.locator('.home-q > summary').nth(3).click();
-    expect(await page.locator('.home-q').nth(3).evaluate((details) => details.open), 'questions, offline: a question does not open');
+    await page.locator('.home-detection__card > summary').nth(3).click();
+    expect(await page.locator('.home-detection__card').nth(3).evaluate((details) => details.open), 'disclosures, offline: a card does not open');
     await page.getByRole('button', { name: /^Switch to the/ }).click();
     expect((await page.evaluate(() => getComputedStyle(document.body).backgroundColor)) === PAGE_COLOURS.light, 'look switch, offline: the look does not change');
     await Promise.all([

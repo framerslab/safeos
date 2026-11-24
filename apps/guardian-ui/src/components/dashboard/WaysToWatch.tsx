@@ -18,8 +18,8 @@
 'use client';
 
 import Link from 'next/link';
-import { cloneElement, useEffect, useState } from 'react';
-import { IconActivity, IconPaw, IconPerson, IconWildlife } from '@/components/icons';
+import { useEffect, useState } from 'react';
+import { WayGlyph } from '@/components/icons/WayGlyph';
 import { StartArrow } from '@/components/visitor/StartLink';
 import { WAYS, type Way, type WayId } from '@/lib/app-routes';
 import type { SubjectProfileDB } from '@/lib/client-db';
@@ -42,18 +42,6 @@ const NEEDS_CONNECTION = 'Needs a connection the first time.';
 export function peopleLine(allowed: number): string {
   if (!(allowed >= 1)) return 'Alerts when someone is in view.';
   return allowed === 1 ? 'Alerts above 1 person in view.' : `Alerts above ${allowed} people in view.`;
-}
-
-const GLYPHS: Record<WayId, (props: { size?: number }) => JSX.Element> = {
-  monitor: IconActivity,
-  'lost-found': IconPaw,
-  security: IconPerson,
-  wildlife: IconWildlife,
-};
-
-/** A way's glyph at 32 px, hidden from assistive technology: the words beside it name the way. */
-export function WayGlyph({ way }: { way: WayId }) {
-  return cloneElement(GLYPHS[way]({ size: 32 }), { 'aria-hidden': 'true', focusable: 'false' });
 }
 
 /** Words for a name read aloud, with each curly apostrophe written straight. */

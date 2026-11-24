@@ -94,6 +94,10 @@ await mkdir(outDir, { recursive: true });
 const browser = await chromium.launch();
 let failures = 0;
 try {
+  const homeChecks = process.env.PICTURE_VERSION === 'after' && routes.includes('/')
+    ? await import('./home-checks.mjs')
+    : null;
+  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks);
   for (const route of routes) {
     for (const size of WIDTHS) {
       for (const look of LOOKS) {
@@ -171,7 +175,13 @@ try {
           } else if (route === '/privacy/') {
             await page.locator('#main-content').screenshot({ path: file, style: 'nav { visibility: hidden !important; }' });
           } else {
-            await page.screenshot({ path: file, fullPage: true });
+            const shot = { path: file, fullPage: true };
+            if (route === '/' && homeChecks) {
+              await homeChecks.loadHomeQr(page);
+              await homeChecks.screenshotWithHomeQr(page, shot);
+            } else {
+              await page.screenshot(shot);
+            }
           }
           console.log(`captured ${file}`);
           // The public header, the footer and the open Menu on their own, and
@@ -212,12 +222,10 @@ try {
       }
     }
   }
-  if (process.env.PICTURE_VERSION === 'after' && routes.includes('/')) {
+  if (homeChecks) {
     failures += await checkFirstVisit(browser, baseUrl, outDir);
-    // The base build has no such file, so it is loaded only for the pull
-    // request's own build.
-    const { checkHomePage } = await import('./home-checks.mjs');
-    failures += await checkHomePage(browser, baseUrl, outDir);
+    failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
+    failures += await checkHomeUseSetup(browser, baseUrl);
   }
   // The app's own pages, for the pull request's own build. The base build
   // has no such file, so it is loaded only here.
@@ -484,6 +492,72 @@ function contrastOf(locator) {
   });
 }
 
+async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
+  let failures = 0;
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
+    for (const look of LOOKS) {
+      const context = await browser.newContext({
+        viewport: { width, height }, deviceScaleFactor: 2, reducedMotion: 'no-preference',
+        colorScheme: look, isMobile: width === 390, hasTouch: width === 390,
+      });
+      try {
+        const page = await context.newPage();
+        await page.goto(new URL('/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+        await page.evaluate(() => document.fonts.ready);
+        const first = `home-first-${width}-${look}.png`;
+        await page.screenshot({ path: path.join(outDir, first), scale: 'device', caret: 'hide' });
+        console.log(`captured ${first}`);
+
+        if (!homeChecks) continue;
+        const hideBar = 'nav[aria-label="Site"] { visibility: hidden !important; }';
+        const picture = async (locator, name) => {
+          const file = `home-${name}-${width}-${look}.png`;
+          // Use document coordinates so a section can extend below the viewport.
+          const clip = await locator.evaluate((section) => {
+            const rect = section.getBoundingClientRect();
+            const x = Math.floor(rect.left + window.scrollX);
+            const y = Math.floor(rect.top + window.scrollY);
+            return {
+              x, y,
+              width: Math.ceil(rect.right + window.scrollX) - x,
+              height: Math.ceil(rect.bottom + window.scrollY) - y,
+            };
+          });
+          const shot = {
+            path: path.join(outDir, file), clip, fullPage: true, scale: 'device',
+            style: hideBar, caret: 'hide', timeout: 15_000,
+          };
+          if (name === 'device') await homeChecks.screenshotWithHomeQr(page, shot);
+          else await page.screenshot(shot);
+          console.log(`captured ${file}`);
+        };
+        if ((width === 390 && look === 'light') || (width === 1440 && look === 'dark')) {
+          await picture(page.locator('.home-diagram'), 'how-it-works');
+        }
+        if (width === 1440 && look === 'dark') {
+          const lostAndFound = page.locator('[data-card="lost-found"]');
+          await lostAndFound.locator('summary').press('Space');
+          await picture(lostAndFound, 'lost-and-found');
+        }
+        if (width === 390 || look === 'dark') {
+          await homeChecks.loadHomeQr(page);
+          await picture(page.locator('#one-device'), 'device');
+        }
+        if (width === 1440 && look === 'dark') {
+          await picture(page.locator('#uses'), 'uses');
+          await picture(page.locator('section:has(.home-closing)'), 'closing');
+        }
+      } catch (error) {
+        failures += 1;
+        console.error(`failed home pictures at ${width} px, ${look}: ${error.message}`);
+      } finally {
+        await context.close();
+      }
+    }
+  }
+  return failures;
+}
+
 async function checkFirstVisit(browser, baseUrl, outDir) {
   const HEADER_WIDTHS = [320, 360, 390, 430, 480, 768, 820, 1024, 1280];
   const problems = [];
@@ -512,7 +586,8 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
           const box = el.getBoundingClientRect();
           return box.width > 0 && box.height > 0 && getComputedStyle(el).visibility !== 'hidden';
         });
-        if (controls.length < 3) out.push(`only ${controls.length} controls in the row`);
+        if (phone && !controls.some((el) => el.classList.contains('look-switch'))) out.push('the look switch is missing');
+        if (phone && !controls.some((el) => el.classList.contains('site-header__menu-key'))) out.push('Menu is missing');
         for (const el of controls) {
           const box = el.getBoundingClientRect();
           const name = el.getAttribute('aria-label') || el.textContent.trim() || el.tagName;
@@ -533,7 +608,7 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
           if (size < 16) out.push(`"${words}" is ${size} px`);
         }
         return out;
-      }, width < 1280);
+      }, width < 768);
       for (const p of found) problems.push(`header at ${width} px: ${p}`);
       console.log(`checked header at ${width} px`);
     } catch (err) {
@@ -871,25 +946,17 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 // -----------------------------------------------------------------------------
 
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
-// Both versions: the watch at 390 and 1280 px in both looks while its camera
-// starts, with a blocked camera, while watching, and with its settings open
-// (monitor-watch-<state>-<width>-<look>.png). The base build's start key reads
-// "Start Monitoring" and this build's "Start watching"; the base build has no
-// Show settings, so its settings picture is the page as it stands, scrolled
-// to its settings. Each picture waits for its state to show (this build's
-// Starting the camera…, Try again and Hide settings; the base build's Cancel
-// Starting, Camera Error and Mode Selection), and a state that does not show
-// fails that picture alone. A canvas stands in for the camera.
+// Capture both versions of the watch while its camera starts, with a blocked
+// camera, while watching and with its settings open. The fixture supports
+// the older watch with always-visible settings and the watch with a fold.
 async function captureWatchStates(browser, baseUrl, outDir) {
   let failed = 0;
   const after = process.env.PICTURE_VERSION === 'after';
   const startKey = (page) => page.getByRole('button', { name: /^(Start watching|Start Monitoring)$/ }).first();
   const stopKey = (page) => page.getByRole('button', { name: /^(Stop watching|Stop Monitoring)$/ }).first();
-  // What each version shows once the state stands: this build's key and Try
-  // again; the base build's Cancel Starting and its camera's error.
-  const shownFor = (page, state) => (state === 'starting'
-    ? page.getByRole('button', { name: after ? 'Starting the camera…' : 'Cancel Starting', exact: true })
-    : after
+  const shownFor = (page, state, hasSettingsFold) => (state === 'starting'
+    ? page.getByRole('button', { name: hasSettingsFold ? 'Starting the camera…' : 'Cancel Starting', exact: true })
+    : hasSettingsFold
       ? page.getByRole('button', { name: 'Try again', exact: true })
       : page.getByText('Camera Error', { exact: true })).first();
   for (const state of ['starting', 'blocked', 'watching', 'settings']) {
@@ -935,8 +1002,9 @@ async function captureWatchStates(browser, baseUrl, outDir) {
           }, state === 'starting' ? 'held' : state === 'blocked' ? 'blocked' : 'ok');
           const page = await context.newPage();
           await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+          const hasSettingsFold = after || await page.locator('.watch-fold').count() > 0;
           if (state === 'settings') {
-            if (after) {
+            if (hasSettingsFold) {
               await page.getByRole('button', { name: 'Show settings', exact: true }).click({ timeout: 30_000 });
               await page.getByRole('button', { name: 'Hide settings', exact: true }).waitFor({ timeout: 10_000 });
               await page.locator('.watch-fold').scrollIntoViewIfNeeded();
@@ -949,9 +1017,9 @@ async function captureWatchStates(browser, baseUrl, outDir) {
               await stopKey(page).waitFor({ timeout: 30_000 });
               await page.waitForTimeout(2_000);
               // Stop watching shows while paused too; the picture is taken live.
-              if (after) await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 10_000 });
+              if (hasSettingsFold) await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 10_000 });
             } else {
-              await shownFor(page, state).waitFor({ timeout: 30_000 });
+              await shownFor(page, state, hasSettingsFold).waitFor({ timeout: 30_000 });
             }
             await page.evaluate(() => window.scrollTo(0, 0));
           }
@@ -1108,12 +1176,59 @@ function setupStep(page) {
 // choice, to the camera step.
 async function openCameraStep(page, baseUrl) {
   await page.goto(new URL('/setup/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+  await reachCameraStep(page);
+}
+
+async function reachCameraStep(page) {
   const step = setupStep(page);
   await step.getByRole('button', { name: /Begin Setup/ }).click();
   await step.getByRole('checkbox').check();
   await step.getByRole('button', { name: /Accept & Continue/ }).click();
   await step.getByRole('button', { name: /Pet Monitoring/ }).click();
   await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 });
+}
+
+async function reachSetupComplete(step) {
+  await step.getByRole('heading', { name: /Notification Settings/ }).waitFor({ timeout: 10_000 });
+  await step.getByRole('button', { name: /Enable & Continue/ }).click();
+  await step.getByRole('heading', { name: /Setup Complete/ }).waitFor({ timeout: 10_000 });
+}
+
+async function checkHomeUseSetup(browser, baseUrl) {
+  let failures = 0;
+  for (const [start, finish, way] of [
+    ['Set it up for a lost pet', 'Open Lost and Found', 'lost-found'],
+    ['Set it up for wildlife', 'Open Wildlife', 'wildlife'],
+  ]) {
+    const context = await cameraContext(browser, {
+      viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light',
+    }, 'NotFoundError');
+    try {
+      const page = await context.newPage();
+      await page.goto(new URL('/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+      const key = page.locator('#uses').getByRole('link', { name: start, exact: true });
+      if (!(await key.isVisible())) throw new Error(`${start} missing`);
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === '/setup/' && url.searchParams.get('next') === way, { timeout: 10_000 }),
+        key.click(),
+      ]);
+      await reachCameraStep(page);
+      const step = setupStep(page);
+      await step.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
+      await reachSetupComplete(step);
+      await Promise.all([
+        page.waitForURL((url) => url.pathname === `/${way}/`, { timeout: 20_000 }),
+        step.getByRole('button', { name: finish, exact: true }).click({ timeout: 10_000 }),
+      ]);
+      console.log(`checked home setup: ${start} led to ${finish} at /${way}/`);
+    } catch (err) {
+      failures += 1;
+      console.error(`failed home setup: ${err.message}`);
+    } finally {
+      await context.close();
+    }
+  }
+  return failures;
 }
 
 // A full-page picture is taken from the top of the page (the fixed header is
@@ -1289,9 +1404,7 @@ async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
         await skip.click();
       }
 
-      await step.getByRole('heading', { name: /Notification Settings/ }).waitFor({ timeout: 10_000 });
-      await step.getByRole('button', { name: /Enable & Continue/ }).click();
-      await step.getByRole('heading', { name: /Setup Complete/ }).waitFor({ timeout: 10_000 });
+      await reachSetupComplete(step);
       await Promise.all([
         page.waitForURL((url) => /^\/dashboard\/?$/.test(url.pathname), { timeout: 20_000 }),
         step.getByRole('button', { name: 'Open dashboard', exact: true }).click(),

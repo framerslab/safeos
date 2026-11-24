@@ -14,6 +14,7 @@ import { IconPaw, IconUser, IconSearch, IconX, IconCheck } from './icons';
 import { useLostFoundStore } from '../stores/lost-found-store';
 import { getMatchQuality } from '../lib/subject-matcher';
 import { addReferencePhotos, generateFingerprint } from '../lib/visual-fingerprint';
+import { MAX_PET_PHOTOS } from '../lib/pet-photo-limits';
 import { createThumbnailFromSource, readFileAsDataUrl } from '../lib/image-utils';
 import { saveSubjectProfile, type SubjectProfileDB } from '../lib/client-db';
 import { readAccountClearMarker } from '../lib/local-data-generation';
@@ -85,10 +86,9 @@ export function SubjectPreview({
   const onAddReferenceImages = useCallback(async (files: FileList | null) => {
     if (!activeSubject || !files) return;
 
-    const maxImages = 5;
-    const remaining = Math.max(0, maxImages - (activeSubject.referenceImages?.length || 0));
+    const remaining = Math.max(0, MAX_PET_PHOTOS - (activeSubject.referenceImages?.length || 0));
     if (remaining <= 0) {
-      setReferenceError(`Maximum of ${maxImages} reference images reached.`);
+      setReferenceError(`Maximum of ${MAX_PET_PHOTOS} reference images reached.`);
       return;
     }
 
@@ -128,7 +128,7 @@ export function SubjectPreview({
         newReferenceImages,
         (photo) => generateFingerprint(photo, activeSubject.name)
       );
-      const updatedReferenceImages = [...activeSubject.referenceImages, ...newReferenceImages].slice(0, maxImages);
+      const updatedReferenceImages = [...activeSubject.referenceImages, ...newReferenceImages].slice(0, MAX_PET_PHOTOS);
       const lastActiveAt = new Date().toISOString();
       if (!current()) return;
 
