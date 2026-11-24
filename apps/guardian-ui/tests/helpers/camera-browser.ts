@@ -91,6 +91,6 @@ export function installCameraBrowser() {
 }
 
 export async function startMonitoring() {
-  fireEvent.click(screen.getByRole('button', { name: 'Start Monitoring' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Start watching' }));
   await act(async () => {});
 }

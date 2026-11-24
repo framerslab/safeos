@@ -29,5 +29,6 @@ test("a use with nothing saved shows the setting's values, and its watch runs at
   await page.screenshot({ path: test.info().outputPath('detection-baby-row-1280.png') });
 
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
+  await page.getByRole('button', { name: 'Show settings', exact: true }).click({ timeout: 30_000 });
   await expect(page.getByText(/^Motion: 80% \| Audio: 80%/)).toBeVisible({ timeout: 30_000 });
 });

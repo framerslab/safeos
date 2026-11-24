@@ -14,7 +14,7 @@ import { getAudioLevel, detectCryingPattern, resetCryDetection, AUDIO_THRESHOLDS
 import { PixelDetectionEngine, type PixelDetectionResult } from '../lib/pixel-detection';
 import { useSettingsStore, type DetectionZone as SettingsDetectionZone } from '../stores/settings-store';
 import { closeCamera, takeHeldCamera } from '@/lib/camera-handoff';
-import { cameraConstraints } from '@/lib/camera-constraints';
+import { cameraAllowed, cameraConstraints, microphoneLeftOut } from '@/lib/camera-constraints';
 
 // =============================================================================
 // Types
@@ -41,7 +41,15 @@ interface CameraFeedProps {
   onAudio?: (level: number) => void;
   onPixel?: (result: PixelDetectionResult) => void;
   onVideoReady?: (video: HTMLVideoElement | null) => void;
-  onError?: (error: Error) => void;
+  /**
+   * A camera that failed or was lost. `cause` holds the browser's own error
+   * when the request failed; a lost camera's error is named CameraLostError.
+   */
+  onError?: (error: Error & { cause?: unknown }) => void;
+  /** The microphone's problem, or null once a track with sound runs. */
+  onMicrophone?: (problem: 'missing' | 'blocked' | null) => void;
+  /** Draws its video only: no badge, indicators, zones, loading or error panel. */
+  bare?: boolean;
   scenario?: 'pet' | 'baby' | 'elderly' | 'security';
   enabled?: boolean;
   deviceId?: string;
@@ -89,6 +97,8 @@ export function CameraFeed({
   onPixel,
   onVideoReady,
   onError,
+  onMicrophone,
+  bare = false,
   scenario = 'baby',
   enabled = true,
   deviceId = '',
@@ -128,6 +138,8 @@ export function CameraFeed({
 
   // Keep refs up to date
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  const onMicrophoneRef = useRef(onMicrophone);
+  useEffect(() => { onMicrophoneRef.current = onMicrophone; }, [onMicrophone]);
   useEffect(() => { onMotionRef.current = onMotion; }, [onMotion]);
   useEffect(() => { onMotionZonesRef.current = onMotionZones; }, [onMotionZones]);
   useEffect(() => { onAudioRef.current = onAudio; }, [onAudio]);
@@ -246,6 +258,8 @@ export function CameraFeed({
     const request = ++requestRef.current;
     const isCurrent = () => requestRef.current === request && enabledRef.current;
     let acquired: MediaStream | null = null;
+    // Set when the camera was asked for again without sound.
+    let withoutSound = false;
     try {
       setIsLoading(true);
       setError(null);
@@ -261,17 +275,36 @@ export function CameraFeed({
           acquired = null;
         }
       }
+      // A held camera the dashboard opened without its microphone names why.
+      const heldWithoutSound = acquired ? microphoneLeftOut(acquired) : null;
+      if (heldWithoutSound && audioEnabled) {
+        withoutSound = true;
+        onMicrophoneRef.current?.(heldWithoutSound);
+      }
       if (!acquired) {
         try {
           acquired = await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, audioEnabled));
         } catch (err) {
-          // A camera without a microphone still monitors video; a missing camera fails again below.
-          if (!audioEnabled || !isCurrent() || !(err instanceof Error) || err.name !== 'NotFoundError') throw err;
-          acquired = await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, false));
+          if (!audioEnabled || !isCurrent() || !(err instanceof Error)) throw err;
+          if (err.name === 'NotFoundError') {
+            // A camera without a microphone still monitors video; a missing camera fails again below.
+            acquired = await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, false));
+            withoutSound = true;
+            if (isCurrent()) onMicrophoneRef.current?.('missing');
+          } else if (err.name === 'NotAllowedError' && (await cameraAllowed())) {
+            // The camera is allowed, so the refusal was the microphone's: the
+            // camera goes on without sound and the person is not asked twice.
+            if (!isCurrent()) throw err;
+            acquired = await navigator.mediaDevices.getUserMedia(cameraConstraints(deviceId, false));
+            withoutSound = true;
+            if (isCurrent()) onMicrophoneRef.current?.('blocked');
+          } else {
+            throw err;
+          }
         }
       }
       // A feed that listens to nothing keeps no sound track of a camera it took.
-      if (!audioEnabled) {
+      if (!audioEnabled || withoutSound) {
         acquired.getAudioTracks().forEach((track) => {
           track.stop();
           acquired!.removeTrack(track);
@@ -288,6 +321,7 @@ export function CameraFeed({
         if (!isCurrent()) return;
         stopCamera();
         const error = new Error('Camera connection lost. Check the device and start monitoring again.');
+        error.name = 'CameraLostError';
         setError(error.message);
         onErrorRef.current?.(error);
       };
@@ -325,6 +359,10 @@ export function CameraFeed({
         resetCryDetection();
         onAudioRef.current?.(0);
         setMicrophoneUnavailable(true);
+        // A bare feed shows no warning of its own: the page names the lost
+        // microphone beside its Sound meter. A camera asked for again without
+        // sound has named its microphone's problem already.
+        if (!withoutSound) onMicrophoneRef.current?.('missing');
       };
       for (const track of audioTracks) {
         track.addEventListener('ended', audioLost);
@@ -356,6 +394,7 @@ export function CameraFeed({
       }
       const audioAvailable = audioTracks.some(track => track.readyState === 'live' && !track.muted);
       if (audioEnabled && audioAvailable) {
+        onMicrophoneRef.current?.(null);
         audioContextRef.current = new AudioContext();
         const source = audioContextRef.current.createMediaStreamSource(acquired);
         analyserRef.current = audioContextRef.current.createAnalyser();
@@ -375,7 +414,8 @@ export function CameraFeed({
         (err instanceof Error && err.name === 'OverconstrainedError'
           ? 'The selected camera is unavailable. Choose another camera.'
           : 'Failed to access camera. Check the device and browser permissions.');
-      const error = new Error(message);
+      const error: Error & { cause?: unknown } = new Error(message);
+      error.cause = err;
       setError(error.message);
       onErrorRef.current?.(error);
     }
@@ -536,19 +576,26 @@ export function CameraFeed({
   }, [cameraActive, motionThreshold, audioThreshold, frameIntervalMs]);
 
   return (
-    <div className={`relative w-full aspect-video bg-slate-900 rounded-xl overflow-hidden ${className || ''}`}>
+    <div
+      className={bare
+        ? `camera-feed--bare ${className || ''}`
+        : `relative w-full aspect-video bg-slate-900 rounded-xl overflow-hidden ${className || ''}`}
+    >
       {/* Video feed */}
       <video
         ref={videoRef}
         autoPlay
         playsInline
         muted
+        aria-label={bare ? "Live picture from this device's camera" : undefined}
         className="w-full h-full object-cover"
       />
 
       {/* Hidden canvas for processing */}
       <canvas ref={canvasRef} className="hidden" />
 
+      {!bare && (
+        <>
       {/* Detection zones overlay (read-only) */}
       {showZonesOverlay && (detectionZones || []).some((z) => z.enabled && !(z.x === 0 && z.y === 0 && z.width === 100 && z.height === 100)) && (
         <div className="absolute inset-0 pointer-events-none">
@@ -656,6 +703,8 @@ export function CameraFeed({
               </div>
             </div>
           )}
+        </>
+      )}
         </>
       )}
     </div>

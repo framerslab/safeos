@@ -1,0 +1,651 @@
+/* =============================================================================
+   Settings: the list of settings pages and the rows every page shares.
+
+   On the readable look's tokens, so the light look follows from html.light:
+   the page steel-950, the panel steel-900 (a hovered row), the track
+   steel-800, the ink steel-50 (names, headings, sentences), the quiet tone
+   steel-200 (values, lines, group headings, "Saved"), every drawn line
+   steel-300 and the accent for a filled track, the ring and the bar of the
+   page being read. Two weights, 400 and 600. Words in rem so the browser's
+   text size scales them; edges and glyphs in px; stops in em.
+   ============================================================================= */
+
+.settings {
+  --weight-bold: 600;
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+}
+
+/* One column with 16 px gutters on a phone; from the tablet stop it is held
+   to 640 px and centred. */
+.settings-page {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0 16px 32px;
+  margin: 0 auto;
+}
+
+@media (min-width: 48em) {
+  .settings-page {
+    max-width: 40rem;
+    padding: 0 0 48px;
+  }
+}
+
+.set-heading {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: 1.5rem;
+  line-height: 2rem;
+  color: var(--color-steel-50);
+}
+
+@media (min-width: 48em) {
+  .set-heading {
+    font-size: 1.75rem;
+    line-height: 2.25rem;
+  }
+}
+
+.set-lead {
+  margin: 4px 0 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-200);
+}
+
+/* =============================================================================
+   The head: the back link, the heading and its line
+   ============================================================================= */
+
+.set-head {
+  padding: 8px 0 12px;
+}
+
+.set-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-bottom: 4px;
+  color: var(--color-steel-50);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  text-decoration: none;
+}
+
+.set-back:hover {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.look-part .set-back:active {
+  transform: translateY(1px);
+}
+
+/* =============================================================================
+   Glyphs
+   ============================================================================= */
+
+.set-glyph {
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+
+.set-glyph--chevron,
+.set-glyph--back {
+  color: var(--color-steel-300);
+}
+
+.set-glyph--back {
+  color: var(--color-steel-50);
+}
+
+.set-glyph--check {
+  width: 18px;
+  height: 18px;
+  color: var(--color-steel-200);
+}
+
+.set-glyph--problem {
+  color: var(--look-alert);
+}
+
+/* =============================================================================
+   Groups and rows: on the page's own ground with no box, card, fill or
+   shadow; one 1 px line above each group's heading, none between rows.
+   ============================================================================= */
+
+.set-group {
+  margin: 0;
+}
+
+.set-group--headed {
+  margin-top: 8px;
+  border-top: 1px solid var(--color-steel-300);
+}
+
+.set-group__heading {
+  margin: 0;
+  padding: 12px 0 4px;
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  color: var(--color-steel-200);
+}
+
+.set-group__rows {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.set-row {
+  position: relative;
+  display: flex;
+  min-height: 56px;
+  color: var(--color-steel-50);
+}
+
+.set-row__name {
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+}
+
+.set-row__value {
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-200);
+  overflow-wrap: anywhere;
+}
+
+/* A value still being read: a short accent bar along the row's foot, never
+   a default. */
+.set-row__loading {
+  display: block;
+  width: 3rem;
+  height: 3px;
+  margin-top: 10px;
+  border-radius: 2px;
+  background: var(--look-accent);
+}
+
+.set-row--inactive .set-row__name,
+.set-row--inactive .set-slider__value {
+  color: var(--color-steel-200);
+}
+
+/* A link row: the whole row its link, 96 px tall on a phone and 80 px from
+   the tablet stop, the hover fill across the row. */
+.set-link {
+  align-items: center;
+  gap: 12px;
+  min-height: 96px;
+  margin: 0 -16px;
+  padding: 20px 16px 16px;
+  text-decoration: none;
+}
+
+.set-link:hover {
+  background: var(--color-steel-900);
+}
+
+.look-part .set-link:active {
+  transform: translateY(1px);
+}
+
+.look-part .set-link:focus-visible {
+  outline-offset: -2px;
+}
+
+/* The page being read: a 2 px accent bar at the row's left edge, on the
+   page's own ground. */
+.set-link[aria-current='page']::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 2px;
+  background: var(--look-accent);
+}
+
+.set-link__words {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.set-link__lead {
+  display: inline-flex;
+  flex: none;
+}
+
+.set-link__picture {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+@media (min-width: 48em) {
+  .set-link {
+    min-height: 80px;
+    margin: 0 -12px;
+    padding: 16px 12px;
+  }
+}
+
+/* =============================================================================
+   A slider row: the name and the value, the slider, the ends' words
+   ============================================================================= */
+
+.set-slider {
+  flex-direction: column;
+  padding: 12px 0;
+}
+
+.set-slider__top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.set-slider__top .set-row__name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.set-slider__value {
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--color-steel-50);
+}
+
+.set-slider__extra {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The slider's own parts are named on input[type='range'] with its class, so
+   they hold over the app's touch sliders (touch.css) whatever its order. */
+input.set-slider__input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 44px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+input.set-slider__input[type='range']:disabled {
+  cursor: default;
+}
+
+/* A 4 px track: the filled part in the accent, the rest in the track colour,
+   with a 1 px edge in the line colour so the empty part reads on any
+   ground. */
+input.set-slider__input[type='range']::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--look-accent) var(--set-fill), var(--color-steel-800) var(--set-fill));
+  box-shadow: 0 0 0 1px var(--color-steel-300);
+}
+
+input.set-slider__input[type='range']::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-steel-800);
+  box-shadow: 0 0 0 1px var(--color-steel-300);
+}
+
+input.set-slider__input[type='range']::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--look-accent);
+}
+
+/* A 24 px knob in the ink, held still while pressed. */
+input.set-slider__input[type='range']::-webkit-slider-thumb,
+input.set-slider__input[type='range']::-webkit-slider-thumb:active {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -10px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-steel-50);
+  box-shadow: none;
+  transform: none;
+}
+
+input.set-slider__input[type='range']::-moz-range-thumb,
+input.set-slider__input[type='range']::-moz-range-thumb:active {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-steel-50);
+  box-shadow: none;
+  transform: none;
+}
+
+.set-slider__ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-200);
+}
+
+/* A row's line under its control. */
+.set-line {
+  margin: 4px 0 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-200);
+}
+
+/* =============================================================================
+   Keys a settings row holds: 44 px tall and 64 px wide or more; the solid
+   key 52 px tall.
+   ============================================================================= */
+
+.set-key {
+  min-width: 4rem;
+}
+
+.settings .key--solid.set-key {
+  min-height: 52px;
+}
+
+/* =============================================================================
+   Saved, and a change this browser did not keep
+   ============================================================================= */
+
+.set-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-200);
+}
+
+.set-saved--refused {
+  color: var(--color-steel-50);
+}
+
+.set-saved:empty {
+  display: none;
+}
+
+/* =============================================================================
+   A question asked in place
+   ============================================================================= */
+
+.set-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0;
+}
+
+.set-confirm__question {
+  margin: 0;
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  color: var(--color-steel-50);
+}
+
+/* =============================================================================
+   A field: its label above, its error under it
+   ============================================================================= */
+
+.set-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+}
+
+.set-field__input {
+  min-height: 48px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-steel-300);
+  border-radius: var(--key-radius);
+  background: var(--color-steel-950);
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+}
+
+.set-field__input[aria-invalid='true'] {
+  border-color: var(--look-alert);
+}
+
+.set-field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+/* =============================================================================
+   The storage line at the top of Settings
+   ============================================================================= */
+
+.set-storage__line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+/* On a page under the list the line stands above the page's own heading,
+   and takes no room while the settings are kept. */
+.set-storage-page {
+  background: none;
+}
+
+.set-storage-page .settings-page {
+  padding-bottom: 0;
+}
+
+.set-storage-page .set-storage__line {
+  margin: 16px 0;
+}
+
+.set-storage__line .set-glyph,
+.set-field__error .set-glyph {
+  margin-top: 2px;
+}
+
+/* Under reduced motion nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  .look-part .set-link:active,
+  .look-part .set-back:active {
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   The list of settings pages and its small pictures
+   ============================================================================= */
+
+.set-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 64 px on a phone, so a row's value line keeps to one line beside it;
+   88 px from the tablet stop. */
+.set-pic {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 64px;
+}
+
+@media (min-width: 48em) {
+  .set-pic {
+    width: 88px;
+  }
+}
+
+.set-pic--meters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.set-pic-meter {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-steel-800);
+}
+
+/* A meter's alert tick: where an alert would start. */
+.set-pic-meter__tick {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-steel-50);
+}
+
+.set-pic--volume {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-steel-800);
+  overflow: hidden;
+}
+
+.set-pic-volume__fill {
+  display: block;
+  height: 100%;
+  background: var(--look-accent);
+}
+
+.set-pic--band {
+  height: 14px;
+  border-radius: 3px;
+  background: var(--color-steel-800);
+  overflow: hidden;
+}
+
+.set-pic-band__quiet {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--color-steel-300);
+}
+
+.set-pic-band__moon {
+  position: absolute;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  color: var(--color-steel-950);
+}
+
+.set-pic-pet {
+  display: block;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+/* A settings row set on a page still on its old layout: on that page's own
+   ground, with no box or fill of its own. */
+.settings.set-on-page {
+  margin-bottom: 24px;
+  padding: 0;
+  background: transparent;
+}
+
+/* A row that holds a key: Export settings, Clear all data on this device,
+   Save. Its line or result stands under the key. */
+.set-action {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 16px 0;
+}
+
+.set-action .set-line:empty {
+  display: none;
+}
+
+/* A failure named beside the key that caused it, in the ink with the
+   problem glyph. */
+.set-failure {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+.set-failure .set-glyph {
+  margin-top: 2px;
+}
+
+/* A row that is a button (Server address): the link row's look. */
+.set-link--button {
+  width: calc(100% + 32px);
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.set-link--button:hover {
+  background: var(--color-steel-900);
+}
+
+@media (min-width: 48em) {
+  .set-link--button {
+    width: calc(100% + 24px);
+  }
+}
+
+/* The Save of a form sent to a server, with its note beside it. */
+.set-save {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 0 12px;
+}

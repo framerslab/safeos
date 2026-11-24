@@ -286,6 +286,9 @@ function lastUsedSessionId(): string | null {
 const serverToken = (token: unknown): token is string =>
   typeof token === 'string' && token !== '' && !/^(local-|offline-)/.test(token);
 
+/** True for a session the server issued; a browser-only or offline session sends nothing to a server. */
+export const isServerSession = (token: unknown): boolean => serverToken(token);
+
 /** Server tokens that set-up's session check saw answered with 401 in this page load. */
 const refusedTokens = new Set<string>();
 

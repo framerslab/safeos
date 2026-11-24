@@ -24,7 +24,7 @@ async function app() {
   const { Providers } = await import('@/components/Providers');
   const { default: Monitor } = await import('@/app/monitor/page');
   const { default: History } = await import('@/app/history/page');
-  const { default: Settings } = await import('@/app/settings/page');
+  const { default: Settings } = await import('@/app/settings/server/page');
   const { default: NotificationSettings } = await import('@/app/settings/notifications/page');
   const { default: Export } = await import('@/app/export/page');
   const { StatusBanner } = await import('@/components/StatusBanner');
@@ -376,11 +376,11 @@ it.each([
       expect(screen.queryByText(/Saved on this device/)).toBeNull();
       expect(calls.calls.filter((call) => call.method === 'PATCH')).toEqual([]);
     } else {
-      const name = screen.getByText('Display Name').parentElement!.querySelector('input')!;
+      const name = screen.getByRole('textbox', { name: 'Your name on your server' });
       fireEvent.change(name, { target: { value: 'Changed name' } });
-      fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
-      expect(await screen.findByText('Failed to save settings.')).toBeTruthy();
-      expect(screen.queryByText('Settings saved!')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(await screen.findByText('Your name was not saved. Try again.')).toBeTruthy();
+      expect(screen.queryByText('Saved')).toBeNull();
     }
     if (!blocked) expect(auth.getState().profile?.displayName).toBe('Returning person');
   } finally {
@@ -402,7 +402,7 @@ function profileCacheFull() {
 
 it.each([
   'Notifications, the server did not take it', 'Notifications, the server took it and this browser could not write it',
-  'Notifications, this browser could not write it for a browser-only session', 'Settings, the server did not take it',
+  'Notifications, this browser could not write it for a browser-only session', 'Your own server, the server did not take the name',
 ])('says what a failed settings save kept: %s', async (state) => {
   const browserOnly = state.endsWith('browser-only session');
   const serverTook = state.includes('the server took it');
@@ -427,11 +427,11 @@ it.each([
     }
     expect(screen.queryByText(/Saved on this device/)).toBeNull();
   } else {
-    const name = screen.getByText('Display Name').parentElement!.querySelector('input')!;
+    const name = screen.getByRole('textbox', { name: 'Your name on your server' });
     fireEvent.change(name, { target: { value: 'Changed name' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }));
-    expect(await screen.findByText('Failed to save settings.')).toBeTruthy();
-    expect(screen.queryByText('Settings saved!')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Your name was not saved. Try again.')).toBeTruthy();
+    expect(screen.queryByText('Saved')).toBeNull();
   }
   if (calls) expect(calls.sent('PATCH', '/api/auth/profile')).toHaveLength(1);
   // A change that was not taken is not kept in the tab either.

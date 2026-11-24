@@ -62,9 +62,9 @@ export function readProvenance(publicDir: string = path.join(process.cwd(), 'pub
 // The size of each crop at the capture job's viewports, for a build made
 // before the first capture is committed; the box keeps the crop's ratio.
 const EXPECTED_SIZES: Record<CaptureCropName, { width: number; height: number }> = {
-  phone: { width: 1246, height: 700 },
-  portrait: { width: 1271, height: 1481 },
-  landscape: { width: 1824, height: 1140 },
+  phone: { width: 1253, height: 704 },
+  portrait: { width: 1309, height: 1173 },
+  landscape: { width: 1800, height: 1125 },
 };
 
 /** Each crop's width and height in pixels, from the capture record when it exists. */
