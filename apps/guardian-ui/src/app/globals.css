@@ -25,6 +25,9 @@
 /* Import the watch's Watch for, its pet and Choose a pet */
 @import '../styles/watch-for.css';
 
+/* Import the alert card and its picture block */
+@import '../styles/alert-pictures.css';
+
 /* Import the watch's layout and parts, after Watch for so its rules win */
 @import '../styles/watch.css';
 

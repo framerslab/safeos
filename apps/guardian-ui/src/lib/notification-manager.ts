@@ -33,7 +33,11 @@ export interface NotificationOptions {
   actions?: NotificationAction[];
   data?: Record<string, unknown>;
   vibrate?: number[];
-  image?: string;
+  /**
+   * The picture, or a function that gives it as the browser takes the notification (after its
+   * service worker is found): one that gives nothing then sends the words alone.
+   */
+  image?: string | (() => string | undefined);
 }
 
 export interface NotificationAction {
@@ -149,13 +153,14 @@ class NotificationManager {
       (notificationOptions as Record<string, unknown>).renotify = true;
     }
 
-    // Add image if provided
-    if (options.image) {
+    // Add image if provided; one asked for later is read as the browser takes the notification.
+    const picture = typeof options.image === 'function' ? options.image : undefined;
+    if (typeof options.image === 'string' && options.image) {
       (notificationOptions as Record<string, unknown>).image = options.image;
     }
 
     try {
-      const notification = await showBrowserNotification(title, notificationOptions);
+      const notification = await showBrowserNotification(title, notificationOptions, picture);
       if (!notification) return null;
 
       // Store active notification

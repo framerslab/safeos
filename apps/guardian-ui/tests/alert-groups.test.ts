@@ -263,3 +263,35 @@ it('lists every record not marked as seen, of all four stores', () => {
 
   expect([...ids].sort()).toEqual(['motion-open', 'of-a-person', 'people-open', 'sighting-open', 'under-threshold']);
 });
+
+// A Lost and Found sighting the watch raised: a record of Motion and sound's list, of kind
+// `sighting`, carrying its pet and its picture's id.
+const watchSighting = (
+  id: string, petId: string, name: string, at: number,
+  { kind = 'sighting', pictureId, seen = false }: { kind?: string; pictureId?: string; seen?: boolean } = {},
+): SavedRecords['alerts'][number] => ({
+  ...motion(id, at, seen), message: `Could this be ${name}?`, kind, subjectId: petId, subjectName: name,
+  ...(pictureId ? { pictureId } : {}),
+});
+
+it("reads a sighting the watch saved in its alert list as a Lost and Found alert of its pet, never as Motion and sound", () => {
+  const alerts = groupAlerts(records({
+    subjects: [pet('a', 'Mittens'), pet('k', 'Keys', 'other'), pet('sam', 'Sam', 'person')],
+    alerts: [
+      motion('motion-1000-a', 1000),
+      watchSighting('sighting-2000-b', 'a', 'Mittens', 2000, { pictureId: 'picture-2000-b' }),
+      // An earlier record that carries no kind is read by its id.
+      watchSighting('sighting-3000-c', 'k', 'Keys', 3000, { kind: '' }),
+      // A person, and a pet that is no longer saved, are never named.
+      watchSighting('sighting-4000-d', 'sam', 'Sam', 4000),
+      watchSighting('sighting-5000-e', 'gone', 'Ghost', 5000),
+    ],
+  }));
+
+  expect(alerts.map(({ id, way, what, recordIds, pictureId, inAlertList }) => ({ id, way, what, recordIds, pictureId, inAlertList }))).toEqual([
+    { id: 'sighting-3000-c', way: 'lost-found', what: 'Colours like Keys’s', recordIds: ['sighting-3000-c'], pictureId: undefined, inAlertList: true },
+    { id: 'sighting-2000-b', way: 'lost-found', what: 'Colours like Mittens’s', recordIds: ['sighting-2000-b'], pictureId: 'picture-2000-b', inAlertList: true },
+    { id: 'motion-1000-a', way: 'monitor', what: 'Movement', recordIds: ['motion-1000-a'], pictureId: undefined, inAlertList: undefined },
+  ]);
+  expect(JSON.stringify(alerts)).not.toMatch(/Sam|Ghost/);
+});

@@ -35,7 +35,7 @@ it('upgrades a version 4 database in place and indexes its existing alerts', asy
   expect(useMonitoringStore.getState().alerts).toHaveLength(304);
   expect(await getCachedAlerts()).toEqual(expect.arrayContaining([expect.objectContaining(record)]));
   const upgraded = await openDB('safeos-guardian');
-  expect(upgraded.version).toBe(7);
+  expect(upgraded.version).toBe(8);
   expect(await upgraded.count('alert_cache')).toBe(305);
   expect(await upgraded.get('alert_cache', 'existing')).toMatchObject({ producer: 'monitoring' });
   expect(await upgraded.get('alert_cache', 'engine-old')).toMatchObject({ producer: 'shared', savedBeforeUpgrade: true, retentionClass: 'saved' });
@@ -105,7 +105,7 @@ it.each([5, 6])('upgrades a version %i database left by an unreleased build', as
   await monitoring.getState().hydrateAlerts();
   expect(monitoring.getState().alerts.map(a => a.id).sort()).toEqual(['saved-under-alice', 'saved-under-bob', 'saved-under-nobody']);
   const upgraded = await openDB('safeos-guardian');
-  expect(upgraded.version).toBe(7);
+  expect(upgraded.version).toBe(8);
   const records = await upgraded.getAll('alert_cache');
   expect(records.filter((a: any) => 'ownerId' in a || 'cacheOwner' in a)).toEqual([]);
   expect(records.map((a: any) => [a.savedBeforeUpgrade, a.retentionClass])).toEqual(records.map(() => [true, 'saved']));

@@ -114,7 +114,7 @@ Repository root (the server):
 | `npm test` | Run the web app's Jest suite (`apps/guardian-ui/tests`) |
 | `npm run lint` | Run `next lint` (`.eslintrc.json`). The lockfile carries no ESLint, so first run `npm install --no-save eslint@8.57.1 eslint-config-next@14.2.35`, the same command CI runs |
 | `npx tsc --noEmit` | Type check the web app |
-| `npm run build` | Build the static export into `out/`. Its `prebuild` step, `node scripts/generate-site-qr.mjs`, first writes the home page's QR code of the site's address (`NEXT_PUBLIC_SITE_URL`, read from the environment and the same `.env` files Next.js reads, or `https://safeos.sh`) to `public/home/site-qr.svg` with the `qrcode` package; the file is not committed |
+| `npm run build` | Build the static export into `out/`. Its `prebuild` step first runs `node scripts/generate-site-qr.mjs`, which writes the home page's QR code of the site's address (`NEXT_PUBLIC_SITE_URL`, read from the environment and the same `.env` files Next.js reads, or `https://safeos.sh`) to `public/home/site-qr.svg` with the `qrcode` package, then `node scripts/generate-notices.mjs`, which writes `public/third-party-notices.txt` from `package-lock.json`: each package the lockfile does not mark `dev` or `devOptional` (an optional package npm left out on the build machine, such as a compiler build for another platform, is not listed), with its version, its licence and the first copyright line of its licence file, the COCO dataset's line, and each package's licence text whole, once for the packages that share it word for word (a package with no licence file of its own and the licence Apache-2.0 takes `scripts/licenses/Apache-2.0.txt`). Neither file is committed |
 
 ---
 
@@ -151,16 +151,39 @@ PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/watch-for.spec
 
 # Web app: the alert walk (Chromium) on the same served build, the way CI runs it
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/alerts-repeat.spec.ts --project=chromium
+
+# Web app: the alert pictures walk; its sample-clip walks read the clip's .y4m and
+# .wav made with ffmpeg, as CI makes them
+ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -an -pix_fmt yuv420p /tmp/sample-clip.y4m
+ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -vn -ac 1 -ar 48000 -c:a pcm_s16le /tmp/sample-clip.wav
+SAMPLE_CLIP_Y4M=/tmp/sample-clip.y4m SAMPLE_CLIP_WAV=/tmp/sample-clip.wav PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 \
+  npx playwright test e2e/alert-pictures.spec.ts --project=chromium --workers=2 --grep-invert "A watch alert.s notification"
+# The notification walks run alone: a notification waits 300 ms for its picture
+SAMPLE_CLIP_Y4M=/tmp/sample-clip.y4m SAMPLE_CLIP_WAV=/tmp/sample-clip.wav PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 \
+  npx playwright test e2e/alert-pictures.spec.ts --project=chromium --workers=1 --grep "A watch alert.s notification"
+
+# Web app: a Lost and Found sighting (Chromium) on the same served build
+PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 npx playwright test e2e/lost-found-sighting.spec.ts --project=chromium
 ```
 
 The browser test (`apps/guardian-ui/e2e/lost-found-edge.spec.ts`) enrols a
 subject from a striped picture, feeds Chromium's fake camera the same stripes
-from a clip it writes itself, starts the monitor and reads the Edge value of
-the saved match in the gallery. With `PLAYWRIGHT_BASE_URL` set, Playwright
+from a clip it writes itself, starts the monitor and reads the Edge value the
+sighting's alert keeps as data. The sighting walk
+(`apps/guardian-ui/e2e/lost-found-sighting.spec.ts`) hands the watch a canvas
+camera drawing the same stripes and checks the sighting's entry, its pictures
+beside the pet's photo, its run and repeats, the live box, the opened picture,
+History, keeping off, Delete all pictures and the notification. The alert
+pictures walk (`apps/guardian-ui/e2e/alert-pictures.spec.ts`) checks each
+alert's picture, box and close-up on the card, the live box, the opened
+picture, History, Keep alert pictures and its notice, the room rule, other
+tabs and profiles, the notification's picture, the privacy page and the
+third-party notices, from the sample clip on Chromium's fake camera and from
+canvas cameras. With `PLAYWRIGHT_BASE_URL` set, Playwright
 tests the site at that address and starts no development server. CI runs this
-spec and the alert walk (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`), which
-hands the monitor a canvas camera whose picture keeps changing and checks when
-its alerts come again. The walk needs desktop Chromium and skips under the
+spec, the sighting walk, the alert walk (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`),
+which hands the monitor a canvas camera whose picture keeps changing and checks
+when its alerts come again, and the alert pictures walk. The walk needs desktop Chromium and skips under the
 other projects in `playwright.config.ts`. The other files in
 `apps/guardian-ui/e2e` are not run in CI.
 
@@ -375,14 +398,14 @@ prints an error and carries on.
 | `ci.yml` | Server build | `npm run build` (`tsc`) compiles the server |
 | `ci.yml` | Web app type check and lint | `tsc --noEmit` and `next lint` pass for `apps/guardian-ui` |
 | `ci.yml` | Web app tests | The web app's Jest suite passes |
-| `ci.yml` | Web app Lost & Found browser test | In Chromium, on the static build: a subject enrolled from a striped picture is matched against the same stripes on the fake camera, and the match saved in the gallery shows an Edge value above 0 (`apps/guardian-ui/e2e/lost-found-edge.spec.ts`); Monitor's Watch for offers Motion and sound and Lost and Found with the pet's photo, name, count and Change pet, No pet saved and Add a pet, Choose a pet, the comparison starting and stopping with the choice during a watch, setup and Monitor showing one choice, one row from 320 to 768 px, and axe finding nothing at 390 and 1280 px in both looks (`apps/guardian-ui/e2e/watch-for.spec.ts`, with axe-core from the dev dependencies) |
-| `ci.yml` | Web app alert walk | In Chromium, on the static build, with a test camera whose picture keeps changing and a tone on the microphone (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`): a continuing motion, pixel or sound event alerts again once the longer of its severity's cooldown and the Cooldown Period has passed, on its one card with "Repeated N times"; a rise to critical alerts at once; a picture that pauses for a moment now and then is one event; after Stop and Start, or with a detector turned off and on again, a new event alerts at once on a new card. The same spec run under Firefox skips |
+| `ci.yml` | Web app Lost & Found browser test | In Chromium, on the static build: a subject enrolled from a striped picture is compared with the same stripes on the fake camera, and the sighting's saved alert keeps an Edge score above 0 (`apps/guardian-ui/e2e/lost-found-edge.spec.ts`); a sighting tops the alert list with the camera's picture, its box, the close-up and the pet's saved photo, repeats on its entry after the Cooldown Period, starts a new entry after 40 seconds out of view, opens large, lists in History beside an earlier version's frame with no score, keeps nothing with keeping off, and sends a notification with no pet photo (`apps/guardian-ui/e2e/lost-found-sighting.spec.ts`); Monitor's Watch for offers Motion and sound and Lost and Found with the pet's photo, name, count and Change pet, No pet saved and Add a pet, Choose a pet, the comparison starting and stopping with the choice during a watch, setup and Monitor showing one choice, one row from 320 to 768 px, and axe finding nothing at 390 and 1280 px in both looks (`apps/guardian-ui/e2e/watch-for.spec.ts`, with axe-core from the dev dependencies) |
+| `ci.yml` | Web app alert walk | In Chromium, on the static build, with a test camera whose picture keeps changing and a tone on the microphone (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`): a continuing motion, pixel or sound event alerts again once the longer of its severity's cooldown and the Cooldown Period has passed, on its one card with "Repeated N times"; a rise to critical alerts at once; a picture that pauses for a moment now and then is one event; after Stop and Start, or with a detector turned off and on again, a new event alerts at once on a new card. Then, from the sample clip on Chromium's fake camera (its `.y4m` and `.wav` made with ffmpeg in the job) and from canvas cameras, with two workers, and its notification walks after them with one (`apps/guardian-ui/e2e/alert-pictures.spec.ts`): each alert's picture, box and close-up on its card, the live box, the opened picture with Show the box, Save picture and Delete picture, History's rows, Keep alert pictures with its notice, ages and Delete all pictures, the room rule, other tabs and profiles, the notification's picture, the privacy page's sentences and `/third-party-notices.txt`, and setup's camera step carrying the notice's choice. Both specs skip under Firefox; the same step then checks Settings > Notifications in Firefox itself (`apps/guardian-ui/e2e/notification-picture-firefox.spec.ts`), where the notification's picture switch is inactive because Firefox shows a notification's words alone |
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
 | `deploy-pages.yml` | Check the published home | After a master deployment, Chromium checks the live home at phone and desktop widths and compares its served HTML with the build's SHA-256 |
 | `docker-publish.yml` | Build & push | On `master`, builds and pushes `ghcr.io/<owner>/safeos-api` and `ghcr.io/<owner>/safeos-ui` for `linux/amd64` and `linux/arm64` (a 64-bit Raspberry Pi pulls the same tags). On a pull request that changes the Dockerfile or anything copied into the images it builds both platforms without pushing. This is the only workflow that publishes images |
 | `pictures.yml` | Capture pictures | Screenshots of the web app (see below), with browser checks of the home page and the app's pages for the pull request's own build |
-| `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera (see below) |
+| `pictures.yml` | Capture the home page pictures | Makes the pictures the home page itself shows, from the sample clip through Chromium's fake camera, then captures each alert picture state (see below) |
 
 `measure.yml` (Measure) is apart from these: it runs on each push to
 `master` and by hand, never on a pull request. It records how fast the watch,
@@ -594,6 +617,22 @@ screenshot is missing or differs from `provenance.json`, and when the clip's
 record (`public/home/sample-clip.json`) lacks its source, author, licence or
 words. A pull request that changes what the monitor draws commits the captures
 again from its own run.
+
+#### The alert pictures
+
+After the home captures, the same job runs
+`apps/guardian-ui/scripts/alert-picture-captures.mjs <base-url> <out-dir> <y4m> <wav>`
+on the served site. It seeds a device with the notice about alert pictures
+answered, raises alerts from the sample clip and saves each state at 390 by 844
+and 1440 by 900, in both looks, at a device scale factor of 2, clipped to the
+state's own part of the page: `card`, `sound-card`, `card-failed`, `opened`, `history`,
+`watch-group`, `settings-group`, the count at the top of Data on this device as
+`data-count`, `notice`, `notification-setting`, `live-box` and, on a first visit, setup's camera step as `setup-choice`, then, with a striped pet enrolled and a striped clip it writes,
+`sighting` and, in the same visit, the dashboard's Since you last looked as
+`dashboard-sighting`. Each file is `alert-<state>-<width>-<look>.png`. A state it cannot
+reach fails the step and names the state. The files are the run's
+`alert-pictures` artifact; a pull request that changes them copies them into
+`docs/pictures/pr-<number>/alert/` with a README naming the run.
 
 ---
 

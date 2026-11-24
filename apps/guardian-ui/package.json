@@ -5,9 +5,9 @@
   "author": "Frame <team@frame.dev>",
   "homepage": "https://safeos.sh",
   "scripts": {
-    "predev": "node scripts/generate-site-qr.mjs",
+    "predev": "node scripts/generate-site-qr.mjs && node scripts/generate-notices.mjs",
     "dev": "next dev -p 3000",
-    "prebuild": "node scripts/generate-site-qr.mjs",
+    "prebuild": "node scripts/generate-site-qr.mjs && node scripts/generate-notices.mjs",
     "build": "next build",
     "postbuild": "node scripts/generate-offline-manifest.mjs",
     "start": "next start",

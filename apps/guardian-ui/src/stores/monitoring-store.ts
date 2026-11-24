@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import { getLocalDataGeneration, isCurrentLocalData, readLocalClearMarker, pendingClearStamp, type ClearStamp } from '../lib/local-data-generation';
 import { cacheAlert, updateCachedAlert, repeatCachedAlert, getCachedMonitoringAlerts, deleteCachedMonitoringAlert, clearCachedMonitoringAlerts, MAX_MONITORING_ALERTS } from '../lib/client-db';
+import type { AlertKind } from '../lib/alert-pictures/rules';
 import { guardedStorage } from '../lib/storage-full';
 import { raisedByThisWatch, watchRaised } from '../lib/watch-sound';
 
@@ -38,6 +39,16 @@ export interface Alert {
   acknowledged: boolean;
   /** How many times the event alerted again after its card was made. */
   repeats?: number;
+  /** The kind of picture the alert keeps; alerts saved before pictures have none. */
+  kind?: AlertKind;
+  /** The id of the alert's picture set: the frame of the moment, its box and its close-up. */
+  pictureId?: string;
+  /** The name of the zone that set the alert off, where zones are set. */
+  zone?: string;
+  /** A Lost and Found sighting's pet and its four scores, kept as data. */
+  subjectId?: string;
+  subjectName?: string;
+  details?: { colorMatch: number; dominantMatch: number; edgeMatch: number; sizeMatch: number };
 }
 
 export type MonitoringScenario = 'pet' | 'baby' | 'elderly' | 'security';

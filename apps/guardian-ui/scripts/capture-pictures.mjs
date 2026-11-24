@@ -946,9 +946,12 @@ async function captureLostAndFoundWatch(browser, baseUrl, outDir) {
 // -----------------------------------------------------------------------------
 
 // A person who has finished setup, so /dashboard/ opens the dashboard, not Setup.
-// Capture both versions of the watch while its camera starts, with a blocked
-// camera, while watching and with its settings open. The fixture supports
-// the older watch with always-visible settings and the watch with a fold.
+// Both versions: the watch at 390 and 1280 px in both looks while its camera
+// starts, with a blocked camera, while watching, and with its settings open
+// (monitor-watch-<state>-<width>-<look>.png). A base build with a watch frame
+// or settings fold uses the same controls as the proposed build. Older
+// builds have always-visible settings. Each picture waits for its state, and
+// a state that does not show fails that picture alone. A canvas stands in for the camera.
 async function captureWatchStates(browser, baseUrl, outDir) {
   let failed = 0;
   const after = process.env.PICTURE_VERSION === 'after';
@@ -1002,7 +1005,7 @@ async function captureWatchStates(browser, baseUrl, outDir) {
           }, state === 'starting' ? 'held' : state === 'blocked' ? 'blocked' : 'ok');
           const page = await context.newPage();
           await page.goto(new URL('/monitor/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-          const hasSettingsFold = after || await page.locator('.watch-fold').count() > 0;
+          const hasSettingsFold = after || (await page.locator('.watch-frame, .watch-fold').count()) > 0;
           if (state === 'settings') {
             if (hasSettingsFold) {
               await page.getByRole('button', { name: 'Show settings', exact: true }).click({ timeout: 30_000 });
@@ -1053,6 +1056,11 @@ async function finishedSetupContext(browser, options) {
       acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
     }, version: 0 }));
     localStorage.setItem('guardian-onboarding-complete', 'true');
+    if (!localStorage.getItem('safeos-alert-pictures')) {
+      localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
+        keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
+      }, version: 0 }));
+    }
   });
   return context;
 }

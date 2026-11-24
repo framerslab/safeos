@@ -14,6 +14,13 @@ import { isStaticMode } from '@/lib/env';
 import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useAnimalAlertStore } from '@/stores/animal-alert-store';
 import { cardTime } from '@/lib/alert-event';
+import { kindOfAlert } from '@/lib/alert-pictures/rules';
+import { kindWords, levelWords, pictureName, sightingQuestion } from '@/lib/alert-pictures/words';
+import { petNameOf } from '@/lib/alert-pictures/pet-photo';
+import { sweepPicturesByAge } from '@/lib/alert-pictures/keeper';
+import { OpenPictureKey, PictureBlock } from '@/components/alert-pictures/PictureBlock';
+import { PictureDialogHost } from '@/components/alert-pictures/PictureDialog';
+import { KeyRow } from '@/components/alert-pictures/KeyRow';
 import { recordTime } from '@/lib/alert-groups';
 import { markSeen, onAlertsChanged, useDeviceAlerts } from '@/lib/device-alerts';
 import type { DeviceAlert } from '@/lib/alert-groups';
@@ -124,8 +131,17 @@ function formatDate(dateString: string): string {
 // =============================================================================
 
 export default function HistoryPage() {
+  // Pictures past their age are deleted before the watch's alerts show their rows.
+  const [picturesSwept, setPicturesSwept] = useState(false);
   useEffect(() => {
+    let alive = true;
+    void sweepPicturesByAge().catch(() => undefined).then(() => {
+      if (alive) setPicturesSwept(true);
+    });
     void useMonitoringStore.getState().hydrateAlerts();
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const [viewMode, setViewMode] = useState<ViewMode>('alerts');
@@ -135,7 +151,9 @@ export default function HistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const localAlerts = useMonitoringStore((s) => s.alerts);
+  const savedAlerts = useMonitoringStore((s) => s.alerts);
+  const localAlerts = useMemo(() => (picturesSwept ? savedAlerts : []), [picturesSwept, savedAlerts]);
+  const localAlertById = useMemo(() => new Map(localAlerts.map((alert) => [alert.id, alert])), [localAlerts]);
   const acknowledgeLocalAlert = useMonitoringStore((s) => s.acknowledgeAlert);
   const sightings = useAnimalAlertStore((s) => s.detectionHistory);
   const exportSettingsJson = useSettingsStore((s) => s.exportSettings);
@@ -235,7 +253,9 @@ export default function HistoryPage() {
       hostname.endsWith('.pages.dev');
 
     setIsStaticDeployment(isStatic);
-    if (isStatic) {
+    // A link to the Local Timeline (LOCAL_TIMELINE_HREF) opens History there.
+    const linkedLocal = new URLSearchParams(window.location.search).get('view') === 'local';
+    if (isStatic || linkedLocal) {
       setViewMode('local');
     }
   }, []);
@@ -310,25 +330,31 @@ export default function HistoryPage() {
       const shown = Date.parse(cardTime(alert) ?? '');
       const ts = Number.isFinite(shown) ? shown : recordTime(alert) ?? Number.NEGATIVE_INFINITY;
 
+      // A Motion, Sound or Picture change alert is listed by its kind and level, with its picture;
+      // a Lost and Found sighting by its question, with no level.
+      const kind = kindOfAlert(alert);
+      const sighting = kind === 'sighting';
+
       events.push({
         id: alert.id,
         type: 'alert',
         timestamp: ts,
         acknowledged: alert.acknowledged,
         severity: (alert.severity as LocalTimelineSeverity) || 'info',
-        title: 'Monitoring Alert',
-        description: alert.message,
+        title: sighting ? sightingQuestion(petNameOf(alert)) : kind ? kindWords(kind) : 'Monitoring Alert',
+        description: sighting ? '' : kind ? [levelWords(alert.severity), alert.zone].filter(Boolean).join(' ') : alert.message,
         thumbnailData: alert.thumbnailUrl?.startsWith('data:') ? alert.thumbnailUrl : undefined,
         meta: {
           streamId: alert.streamId,
           alertType: alert.alertType,
+          ...(sighting ? { sighting: true, subjectId: alert.subjectId } : {}),
         },
       });
     }
 
+    // Frames an earlier version saved for each check: their own thumbnail beside the sighting's
+    // question. The score each was saved with stays as data and is not shown.
     for (const frame of matchFrames) {
-      const confidence = frame.confidence ?? 0;
-      const severity: LocalTimelineSeverity = confidence >= 90 ? 'high' : confidence >= 75 ? 'medium' : 'low';
       const subjectName = subjectNameById.get(frame.subjectId);
 
       events.push({
@@ -336,13 +362,12 @@ export default function HistoryPage() {
         type: 'lost_found',
         timestamp: frame.timestamp,
         acknowledged: frame.acknowledged,
-        severity,
-        title: `Lost & Found Match${subjectName ? `: ${subjectName}` : ''}`,
-        description: `${confidence}% confidence`,
+        severity: 'info',
+        title: sightingQuestion(petNameOf({ subjectName })),
+        description: '',
         thumbnailData: frame.thumbnailData,
         meta: {
           subjectId: frame.subjectId,
-          confidence,
           exported: frame.exported,
           notes: frame.notes,
         },
@@ -392,9 +417,9 @@ export default function HistoryPage() {
     const filteredByType = localFilter === 'all'
       ? events
       : events.filter((e) => (localFilter === 'alerts'
-        ? e.type === 'alert'
+        ? e.type === 'alert' && !e.meta?.sighting
         : localFilter === 'lost_found'
-          ? e.type === 'lost_found'
+          ? e.type === 'lost_found' || Boolean(e.meta?.sighting)
           : localFilter === 'wildlife'
             ? e.type === 'wildlife'
             : e.type === 'intrusion'));
@@ -467,7 +492,7 @@ export default function HistoryPage() {
         version: 1,
         generatedAt: new Date().toISOString(),
         settings,
-        alerts: localAlerts,
+        alerts: savedAlerts,
         lostFound: {
           subjects,
           matchFrames: matchExport,
@@ -529,6 +554,8 @@ export default function HistoryPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+      {/* An alert's picture, opened large over History */}
+      <PictureDialogHost />
       {/* Header */}
       <header className="p-4 sm:p-6 border-b border-slate-700/50">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
@@ -771,7 +798,8 @@ export default function HistoryPage() {
                   <p className="text-sm text-slate-500 mt-1">Start monitoring or enable Lost &amp; Found/Security to record events offline</p>
                 </div>
               ) : (
-                localTimelineEvents.map((event) => {
+                <div role="list" className="space-y-3">
+                {localTimelineEvents.map((event) => {
                   const colors = severityColors[event.severity];
                   const eventKey = `${event.type}:${event.id}`;
                   const isExpanded = expandedEventKey === eventKey;
@@ -852,17 +880,59 @@ export default function HistoryPage() {
                     }
                   };
 
+                  // A watch alert that keeps a picture: its thumbnail, its kind and level, the date
+                  // and the time, and Open picture; the row's own keys stay.
+                  const watchAlert = event.type === 'alert' ? localAlertById.get(event.id) : undefined;
+                  if (watchAlert && kindOfAlert(watchAlert)) {
+                    return (
+                      <div key={`${event.type}-${event.id}`} role="listitem" className="alert-history-row" data-history-row="">
+                        <PictureBlock alert={watchAlert} form="row" />
+                        <div className="alert-history-row__open">
+                          <OpenPictureKey alert={watchAlert} withDate />
+                        </div>
+                        <div className="alert-history-row__foot">
+                          <span className="alert-history-row__state">
+                            {event.acknowledged ? 'Acknowledged' : 'Unacknowledged'}
+                          </span>
+                          <KeyRow className="alert-history-row__keys">
+                            <button type="button" className="alert-pictures-key" onClick={toggleDetails} aria-expanded={isExpanded}>
+                              {isExpanded ? 'Hide' : 'Details'}
+                            </button>
+                            {!event.acknowledged && (
+                              <button type="button" className="alert-pictures-key" onClick={acknowledgeEvent}>
+                                Acknowledge
+                              </button>
+                            )}
+                          </KeyRow>
+                        </div>
+                        {isExpanded && (
+                          <div className="alert-history-row__details">
+                            <p>Type: {event.type}</p>
+                            <p>ID: {event.id}</p>
+                            <p>Stream: {String(event.meta?.streamId ?? 'local')}</p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+
+                  // A frame an earlier version saved for a Lost & Found check: its thumbnail and the
+                  // sighting's question, with no level and no score.
+                  const earlierFrame = event.type === 'lost_found';
+
                   return (
                     <div
                       key={`${event.type}-${event.id}`}
+                      role="listitem"
                       className={`p-4 rounded-xl border ${colors.border} ${colors.bg}`}
+                      {...(earlierFrame ? { 'data-history-row': '', 'data-earlier-frame': '' } : {})}
                     >
                       <div className="flex items-start gap-4">
                         {event.thumbnailData && (
                           <div className="w-20 h-20 rounded-lg bg-slate-900/50 border border-slate-700 overflow-hidden flex-shrink-0">
                             <img
                               src={event.thumbnailData}
-                              alt={`${event.title} thumbnail`}
+                              alt={earlierFrame ? pictureName(false, event.timestamp) : `${event.title} thumbnail`}
                               className="w-full h-full object-cover"
                               loading="lazy"
                             />
@@ -872,9 +942,11 @@ export default function HistoryPage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className={`px-2 py-0.5 text-xs font-medium rounded ${colors.text} ${colors.bg}`}>
-                                {event.severity.toUpperCase()}
-                              </span>
+                              {!earlierFrame && (
+                                <span className={`px-2 py-0.5 text-xs font-medium rounded ${colors.text} ${colors.bg}`}>
+                                  {event.severity.toUpperCase()}
+                                </span>
+                              )}
                               <span className="text-sm font-medium text-white truncate">
                                 {event.title}
                               </span>
@@ -884,9 +956,11 @@ export default function HistoryPage() {
                             </span>
                           </div>
 
-                          <p className="text-sm text-slate-200 mt-1">
-                            {event.description}
-                          </p>
+                          {event.description && (
+                            <p className="text-sm text-slate-200 mt-1">
+                              {event.description}
+                            </p>
+                          )}
 
                           <div className="mt-2 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2 text-xs text-slate-500 truncate">
@@ -939,14 +1013,9 @@ export default function HistoryPage() {
                                   </>
                                 )}
                                 {event.type === 'lost_found' && (
-                                  <>
-                                    <div>
-                                      <span className="text-slate-500">Subject:</span> {String(event.meta?.subjectId ?? 'n/a')}
-                                    </div>
-                                    <div>
-                                      <span className="text-slate-500">Confidence:</span> {String(event.meta?.confidence ?? 'n/a')}%
-                                    </div>
-                                  </>
+                                  <div>
+                                    <span className="text-slate-500">Subject:</span> {String(event.meta?.subjectId ?? 'n/a')}
+                                  </div>
                                 )}
                                 {event.type === 'intrusion' && (
                                   <>
@@ -995,7 +1064,8 @@ export default function HistoryPage() {
                       </div>
                     </div>
                   );
-                })
+                })}
+                </div>
               )}
             </section>
           </div>
