@@ -59,7 +59,7 @@
    it; when space is short the arrow gives way first. */
 .key--start {
   width: 100%;
-  min-height: 52px;
+  min-height: var(--start-key-height, 52px);
   padding: 13px 7px;
   font-size: var(--type-key-size);
   line-height: var(--type-key-line);

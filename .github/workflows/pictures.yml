@@ -153,12 +153,38 @@ jobs:
               npx playwright test e2e/lost-found-words.spec.ts --project=chromium --grep 'captures the earlier'
           fi
 
+      - name: Set up Python for the home pixel sampler
+        if: always() && matrix.version == 'after'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Measure home readability from the captured pixels
+        if: always() && matrix.version == 'after'
+        env:
+          ROUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.routes || env.DEFAULT_ROUTES }}
+        run: |
+          set -f
+          for route in $ROUTES; do
+            [ "$route" = / ] || continue
+            if [ ! -s "$RUNNER_TEMP/pictures/home-readability-boxes.json" ]; then
+              echo "::error::Missing home-readability-boxes.json for the home route" >&2
+              exit 1
+            fi
+            python3 -m venv "$RUNNER_TEMP/home-pixels"
+            "$RUNNER_TEMP/home-pixels/bin/python3" -m pip install --quiet Pillow==11.3.0
+            "$RUNNER_TEMP/home-pixels/bin/python3" -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures"
+            break
+          done
+
       - name: Upload pictures
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.version == 'before' && 'pictures-before' || 'pictures' }}
-          path: ${{ runner.temp }}/pictures/*.png
+          path: |
+            ${{ runner.temp }}/pictures/*.png
+            ${{ runner.temp }}/pictures/home-readability.json
           if-no-files-found: error
           retention-days: 14
 

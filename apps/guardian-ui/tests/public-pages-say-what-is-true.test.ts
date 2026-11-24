@@ -94,6 +94,8 @@ const PUBLIC_FILES = [
   app('src', 'app', 'not-found.tsx'),
   component('home', 'HomeSections.tsx'), // home
   component('home', 'HomeCapture.tsx'), // home
+  component('home', 'HomeDetection.tsx'), // home
+  component('home', 'UseStartLink.tsx'), // home
   component('home', 'HomeStart.tsx'), // home
   component('visitor', 'VisitorHeader.tsx'), // home and the other public pages
   component('visitor', 'VisitorFooter.tsx'), // home and the other public pages

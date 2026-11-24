@@ -126,8 +126,9 @@ describe('the keys\' stylesheet', () => {
     // The look switch carries its own class and takes the icon key's box.
     const icon = keys.find((r) => r.selectors.includes('.key--icon') && r.selectors.includes('.look-switch'));
     expect([icon?.declarations.width, icon?.declarations.height]).toEqual(['44px', '44px']);
-    // The start key of a first screen: 52 px, and 56 px in the wide layout.
-    expect(rule(keys, '.key--start')[0].declarations['min-height']).toBe('52px');
+    // A shared start key is 52 px by default and 56 px in the wide layout or on home.
+    expect(rule(keys, '.key--start')[0].declarations['min-height']).toBe('var(--start-key-height, 52px)');
+    expect(rule(visitor, '.home-first').some((r) => r.declarations['--start-key-height'] === '56px')).toBe(true);
     expect(keys.find((r) => r.media.includes('90em') && r.selectors.includes('.key--start'))?.declarations['min-height']).toBe('56px');
     // An outlined key's label is the regular weight and its edge the line colour at rest.
     const outline = rule(keys, '.key--outline')[0].declarations;
@@ -241,5 +242,16 @@ describe('the other stylesheets', () => {
     // GitHub shows only in a row that is neither collapsed nor short.
     const github = visitor.filter((r) => r.selectors.some((s) => s.endsWith('.site-header__github')) && r.declarations.display === 'inline-flex');
     expect(github.map((r) => [r.media.includes('min-width: 64em'), r.selectors])).toEqual([[true, [".site-header:not([data-collapsed='true']):not([data-short]) .site-header__github"]]]);
+  });
+
+  it('leaves the text link its own underline: no page rule resets its colour or thickness', () => {
+    // A text-decoration shorthand on a more specific rule puts the link back to
+    // a thin underline in the text's colour, at rest and on hover.
+    const resets = STYLESHEETS.filter((file) => file !== 'styles/keys.css')
+      .flatMap((file) => rulesOf(read(file)).map((r) => ({ file, ...r })))
+      .filter((r) => r.selectors.some((s) => /\.link-row(?![\w-])/.test(s)))
+      .filter((r) => ['text-decoration', 'text-decoration-color', 'text-decoration-thickness'].some((name) => name in r.declarations))
+      .map((r) => `${r.file}: ${r.selectors.join(', ')}`);
+    expect(resets).toEqual([]);
   });
 });
