@@ -199,6 +199,9 @@ export function readStrokes(base64) {
 export async function loadHomeQr(page) {
   const qr = page.locator('#one-device .home-qr img');
   await qr.scrollIntoViewIfNeeded({ timeout: 15_000 });
+  // A lazy request may start on a later frame after scrolling.
+  await page.waitForFunction((image) => image.complete && image.naturalWidth > 0,
+    await qr.elementHandle(), { timeout: 15_000 });
   await qr.evaluate((image) => image.decode());
   await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
 }
