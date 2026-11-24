@@ -30,7 +30,7 @@ import {
   sweepUnheldAlertPictures,
   type AlertPictureDB,
 } from '../client-db';
-import { ACCOUNT_CLEAR_MARKER_KEY, LOCAL_CLEAR_MARKER_KEY, pictureStampNow } from '../local-data-generation';
+import { ACCOUNT_CLEAR_MARKER_KEY, LOCAL_CLEAR_MARKER_KEY, pictureStampNow, readAccountClearMarker } from '../local-data-generation';
 import { useMonitoringStore } from '../../stores/monitoring-store';
 import { ALERT_PICTURES_KEY, heardChoiceAt, useAlertPicturesStore, type DeleteAfterDays } from '../../stores/alert-pictures-store';
 import type { PictureSet } from './capture';
@@ -368,10 +368,11 @@ export async function deleteAllPictures(): Promise<'deleted' | 'failed'> {
 /**
  * Deletes the kept pictures past the chosen age; nothing while the choice is
  * "Until I delete them". `chosen` is an age another tab chose, which this
- * tab's saved choice may not hold yet; without it, this tab's choice.
+ * tab's saved choice may not hold yet; without it, the newest age this tab
+ * knows of, its own or one another tab saved or told it of.
  */
 export async function sweepPicturesByAge(now: number = Date.now(), chosen?: DeleteAfterDays): Promise<void> {
-  const days = chosen === undefined ? useAlertPicturesStore.getState().deleteAfterDays : chosen;
+  const days = chosen === undefined ? newestAge() : chosen;
   if (days === null) return;
   // A sweep that waits for the store deletes by its age only while no longer age, and not "Until I
   // delete them", has been chosen since: the check is made inside the sweep's own transaction.
@@ -512,6 +513,8 @@ function hear(news: PictureNews): void {
     }
     tell();
   } else if (news.type === 'settings') {
+    // News sent before a clear of all local data, in any tab, answers nothing after it.
+    if (news.cleared !== undefined && news.cleared !== readAccountClearMarker()) return;
     // An answer to the notice holds whenever it was given: the device has answered it.
     if (news.noticeAnswered) heardNoticeAnswered = true;
     // A choice this tab makes after hearing of this one is the later one, even in the same millisecond.
@@ -519,10 +522,20 @@ function hear(news: PictureNews): void {
     // Choices made before the ones this tab holds, heard late, change nothing here and delete
     // nothing; so do choices made in the same millisecond, where this tab's own stands.
     if (news.at !== undefined && news.at <= useAlertPicturesStore.getState().chosenAt) return;
-    // The other tab's choices hold here from now, though this tab may read them from the browser only later.
-    if (news.keep !== undefined) heardKeep = news.keep;
-    if (news.inNotifications !== undefined) heardInNotifications = news.inNotifications;
-    if (news.deleteAfterDays !== undefined) heardAge = { at: news.at ?? Date.now(), days: news.deleteAfterDays };
+    if (news.at !== undefined) {
+      // The other tab's choices are this tab's from now, with the time they were made: a change of
+      // another choice here keeps them, and news of an older choice, heard later, changes nothing.
+      const heard: Partial<Pick<ReturnType<typeof useAlertPicturesStore.getState>, 'keep' | 'deleteAfterDays' | 'inNotifications' | 'chosenAt'>> = { chosenAt: news.at };
+      if (news.keep !== undefined) heard.keep = news.keep;
+      if (news.inNotifications !== undefined) heard.inNotifications = news.inNotifications;
+      if (news.deleteAfterDays !== undefined) heard.deleteAfterDays = news.deleteAfterDays;
+      useAlertPicturesStore.setState(heard);
+    } else {
+      // News with no time: its choices hold here until this tab reads them from the browser.
+      if (news.keep !== undefined) heardKeep = news.keep;
+      if (news.inNotifications !== undefined) heardInNotifications = news.inNotifications;
+      if (news.deleteAfterDays !== undefined) heardAge = { at: Date.now(), days: news.deleteAfterDays };
+    }
     void sweepPicturesByAge(Date.now(), news.deleteAfterDays);
   } else if (news.type === 'saved') {
     // A card that read this picture before it was saved found none: it reads it again.

@@ -9,6 +9,7 @@
  */
 
 import type { DeleteAfterDays } from '../../stores/alert-pictures-store';
+import { readAccountClearMarker } from '../local-data-generation';
 import { onTabMessage, tellTabs } from '../tab-channel';
 
 export type PictureNews =
@@ -16,10 +17,11 @@ export type PictureNews =
   | { type: 'saved'; id: string }
   // The choices travel with the news: a tab can hear it before the browser hands it the saved choices.
   // `at` is when they were chosen. A tab of an earlier release sends none of them. `noticeAnswered`
-  // is true once the device has answered the notice about alert pictures.
+  // is true once the device has answered the notice about alert pictures. `cleared` is the account
+  // marker as the sending tab read it: news sent before a clear of all local data answers nothing after it.
   | {
       type: 'settings'; keep?: boolean; deleteAfterDays?: DeleteAfterDays; inNotifications?: boolean;
-      noticeAnswered?: boolean; at?: number;
+      noticeAnswered?: boolean; at?: number; cleared?: string;
     };
 
 /** The news of a change of the choices, as this tab's store holds them now. */
@@ -28,7 +30,7 @@ export function settingsNews(choices: {
 }): PictureNews {
   return {
     type: 'settings', keep: choices.keep, deleteAfterDays: choices.deleteAfterDays, inNotifications: choices.inNotifications,
-    noticeAnswered: choices.noticeAnswered, at: choices.chosenAt,
+    noticeAnswered: choices.noticeAnswered, at: choices.chosenAt, cleared: readAccountClearMarker(),
   };
 }
 

@@ -1134,6 +1134,9 @@ export async function goneAlertPicture(
     const pictures = write.objectStore('alert_picture');
     const row = await pictures.get(id);
     if (row && row.state === 'kept') await pictures.put(goneRow(row, reason));
+    // A set whose save waits (for room, or behind another write) has no row yet: the row that
+    // says it was deleted stands in its place, so that save writes nothing.
+    else if (!row && known) await pictures.put(goneRow({ id, state: 'gone', kind: known.kind, takenAt: known.takenAt }, reason));
     await tx.done;
     return 'deleted';
   } catch {

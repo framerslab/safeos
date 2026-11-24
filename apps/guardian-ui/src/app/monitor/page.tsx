@@ -382,13 +382,15 @@ export default function MonitorPage() {
     setVideoSeen(false);
   };
 
+  // Start watching on the notice asks the other tabs again: one may have started a watch while
+  // the notice stood open, and this tab then asks whether to watch here. With the notice answered
+  // the watch starts at once.
+  const startAfterNotice = () => (noticeAnswered() ? beginCapture : () => { void guard(beginCapture); });
+
   const startStream = (onBack?: () => void) => {
     // A click here turns the sound on in a browser that keeps it off until a tap.
     getSoundManager().unlockAudio();
-    // Start watching on the notice asks the other tabs again: one may have started a watch while
-    // the notice stood open, and this tab then asks whether to watch here.
-    const asksFirst = !noticeAnswered();
-    askBeforeStart(asksFirst ? () => { void guard(beginCapture); } : beginCapture, onBack);
+    askBeforeStart(startAfterNotice(), onBack);
   };
 
   const stopStream = () => {
@@ -579,7 +581,7 @@ export default function MonitorPage() {
     // While another tab watches it asks first. Then, on a device that has not answered the
     // notice about alert pictures, the notice opens before the camera; Go back leaves the nap
     // waiting for Resume nap.
-    void guard(() => askBeforeStart(beginCapture, () => setNapWaitsForTap(true)));
+    void guard(() => askBeforeStart(startAfterNotice(), () => setNapWaitsForTap(true)));
     // Runs when the page opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
