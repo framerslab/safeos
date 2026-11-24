@@ -86,17 +86,18 @@ export async function enrol(page, baseUrl, { name, photos, atFingerprints }) {
 }
 
 /**
- * Presses the Lost & Found page's "Start Monitoring", then the watch's own,
- * and waits for the camera to show LIVE. Returns the time it did, in
- * milliseconds since 1970. A camera that does not start throws with the
- * app's own error words.
+ * Presses the Lost & Found page's "Start Monitoring", then the watch's own
+ * "Start watching", and waits for the camera's frame to show the live
+ * picture. Returns the time it did, in milliseconds since 1970. A camera that
+ * does not start throws with the app's own words for what failed.
  */
 export async function startWatch(page) {
   await page.getByRole('button', { name: 'Start Monitoring' }).first().click({ timeout: 60_000 });
-  await page.waitForURL(/\/monitor\/?$/, { timeout: 60_000 });
-  await page.getByRole('button', { name: 'Start Monitoring', exact: true }).click({ timeout: 60_000 });
-  await page.getByText('LIVE', { exact: true }).waitFor({ timeout: 30_000 }).catch(async (err) => {
-    const shown = await page.locator('text=Camera Error').first().locator('xpath=..').textContent({ timeout: 2_000 }).catch(() => null);
+  // The Lost & Found page opens the watch with its way and pet in the address.
+  await page.waitForURL(/\/monitor\/(\?.*)?$/, { timeout: 60_000 });
+  await page.getByRole('button', { name: 'Start watching', exact: true }).click({ timeout: 60_000 });
+  await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 30_000 }).catch(async (err) => {
+    const shown = await page.locator('.watch-frame__problem').first().textContent({ timeout: 2_000 }).catch(() => null);
     throw new Error(shown ? `the camera did not start: ${shown.replace(/\s+/g, ' ').trim()}` : err.message);
   });
   return Date.now();
@@ -184,4 +185,12 @@ export async function readPet(page, name) {
       database.close();
     }
   }, name);
+}
+
+/**
+ * Where the watch's camera stands: 'live', 'paused' (the camera sends no
+ * picture), 'failed', 'stopped', 'starting' or 'off', read from the frame.
+ */
+export async function watchPhase(page) {
+  return page.locator('.watch-frame').first().getAttribute('data-phase', { timeout: 5_000 });
 }

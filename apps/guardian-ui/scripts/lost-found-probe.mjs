@@ -25,7 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { judgeWatch, savedPetProblem } from './lost-found-verdict.mjs';
-import { enrol, readPet, readWatch, seededContext, startWatch } from './lost-found-walk.mjs';
+import { enrol, readPet, readWatch, seededContext, startWatch, watchPhase } from './lost-found-walk.mjs';
 
 const [baseUrl, outDir, videoFile, audioFile] = process.argv.slice(2);
 if (!baseUrl || !outDir || !videoFile || !audioFile) {
@@ -90,8 +90,9 @@ try {
   }
   await sleep(SETTLE_MS);
   watch = await readWatch(page);
-  if (await page.getByText('Camera Error').count() > 0) throw new Error('the camera stopped during the watch');
-  if (await page.getByText('Camera paused').count() > 0) throw new Error('the camera was paused at the end of the watch');
+  const phase = await watchPhase(page);
+  if (phase === 'paused') throw new Error('the camera was paused at the end of the watch');
+  if (phase !== 'live') throw new Error(`the camera stopped during the watch (the frame shows ${phase})`);
 
   const { saved, sightings, overLine, alerting, firstSaved, firstAlert, best, alerted } = judgeWatch({
     ...watch,
