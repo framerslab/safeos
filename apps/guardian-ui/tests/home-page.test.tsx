@@ -81,8 +81,8 @@ describe('the page reads before any script runs and asks for nothing', () => {
     const region = one('section[aria-label="Recorded runs of SafeOS Guardian"]');
     expect(region).not.toBeNull();
     const keys = Array.from(region!.querySelectorAll('button[data-run]')).map(words);
-    expect(keys.filter(key => ['Dashboard', 'Watching', 'Settings'].includes(key)))
-      .toEqual(['Dashboard', 'Watching', 'Settings']);
+    expect(keys).toEqual(['Watching', 'Dashboard', 'Settings']);
+    expect(region!.querySelector('[aria-current="step"]')?.getAttribute('data-run')).toBe('watching');
   });
 
   it('serves the recorded manifest’s keys and poster sizes on home', () => {
@@ -353,6 +353,7 @@ describe('recorded app runs', () => {
     expect(region?.querySelector('[aria-current="step"]')?.getAttribute('data-run')).toBe(first.id);
     expect(region?.querySelector('button[aria-label="Previous run"]')?.hasAttribute('disabled')).toBe(true);
     expect(region?.querySelector('video')?.getAttribute('aria-describedby')).toBe('home-run-description-' + first.id);
+    expect(region?.querySelector('video')?.getAttribute('aria-label')).toBe(first.description);
   });
 
   it('keeps a dimensioned poster for every look and width in an inert template', () => {

@@ -42,7 +42,8 @@ export async function checkHomeRuns(browser, baseUrl) {
     assert.equal(await video.evaluate((movie) => movie.currentTime), held, 'Pause must keep the current frame');
     await region.getByRole('button', { name: 'Play the recordings' }).click();
     await page.mouse.move(0, 0);
-    await page.locator('h1').click({ position: { x: 0, y: 2 } });
+    assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Pause the recordings');
+    await waitForPlaying(page, held).catch(() => { throw Error('Play must continue when the pointer leaves the focused toggle'); });
     await region.locator('[data-run="watching"][aria-current="step"]').waitFor({ timeout: 16000 });
     await waitForPlaying(page);
     assert.match(await video.evaluate((movie) => movie.currentSrc), /watching-wide-dark\.mp4$/);
@@ -201,7 +202,9 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
           await waitForPoster(page, id, 'square', look);
         }
         await button(page, 'Play the recordings').click();
-        await player(page).getByText('The recordings need a connection. Each picture shows its moment.', { exact: true }).waitFor();
+        const message = 'The recordings need a connection. Each picture shows its moment.';
+        await player(page).getByRole('status').filter({ hasText: message }).waitFor();
+        assert.equal(await player(page).getByText(message, { exact: true }).count(), 1);
         assert.ok(log.worker.every((url) => paths.includes(url)), 'Only square WebP media may be saved by the worker');
         assert.equal(await page.evaluate(async () => {
           const keys = await Promise.all((await caches.keys()).map(async (name) => (await caches.open(name)).keys()));
