@@ -180,6 +180,29 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Check the People alert pictures at 390 and 1440 px
+        if: ${{ !cancelled() }}
+        env:
+          ROUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.routes || env.DEFAULT_ROUTES }}
+        run: |
+          case " $ROUTES " in
+            *" /security/ "*) ;;
+            *) exit 0 ;;
+          esac
+          missing=0
+          for width in 390 1440; do
+            for look in light dark; do
+              for view in sighting count notification; do
+                file="people-$view-$width-$look.png"
+                if [ ! -s "$RUNNER_TEMP/pictures/$file" ]; then
+                  echo "::error::Missing People alert picture: $file"
+                  missing=1
+                fi
+              done
+            done
+          done
+          exit "$missing"
+
       - name: Upload watch page pictures
         if: always()
         uses: actions/upload-artifact@v4

@@ -136,21 +136,20 @@ describe('with 58 stars counted on 18 November 2026', () => {
     expect(current('/')).toEqual([]);
   });
 
-  it('shows GitHub with a star and 58 as one link, named "SafeOS on GitHub 58 stars" by its own content', () => {
+  it('serves the desktop GitHub mark and the star count of 58 in one link', () => {
     const page = header();
     const html = page.body.innerHTML;
     const link = page.querySelector('.site-header__bar .site-header__github');
     expect(link?.getAttribute('href')).toBe(REPOSITORY);
     expect(link?.hasAttribute('target')).toBe(false);
     expect(shown(link)).toBe('GitHub 58');
-    expect(link?.hasAttribute('aria-label')).toBe(false);
-    expect(nameOf(link)).toBe('SafeOS on GitHub 58 stars');
+    expect(nameOf(link)).toBe('SafeOS on GitHub, 58 stars');
     expect(descriptionOf(link)).toBe('Counted 18 November 2026.');
     // The number is in the served HTML, in tabular figures.
     expect(html).toMatch(/<span class="num">58<\/span>/);
-    // One drawn star, hidden from assistive technology; no image and no mark of GitHub.
-    expect(link?.querySelectorAll('svg')).toHaveLength(1);
-    expect(link?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link?.querySelectorAll('svg')).toHaveLength(2);
+    expect(link?.querySelector('svg.github-mark')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link?.querySelector('svg.star-count__star')?.getAttribute('aria-hidden')).toBe('true');
     expect(link?.querySelector('img')).toBeNull();
     // It stands between the links and the look switch's place, and is never the page being read.
     const order = Array.from(page.querySelectorAll('.site-header__bar .site-header__links, .site-header__bar .site-header__github, .site-header__bar .look-switch-place')).map((item) =>

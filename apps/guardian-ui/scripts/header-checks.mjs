@@ -41,6 +41,20 @@ export async function checkHeaders(browser, baseUrl) {
     };
 
     try {
+      for (const width of [1024, 1440]) {
+        await walk('/', width, 'GitHub mark beside the star count', async () => {
+          const at = `/, ${width} px, ${look}`;
+          const link = page.locator('.site-header__bar .site-header__github');
+          check(await link.locator('svg.github-mark').isVisible(), `${at}: GitHub has no visible mark beside the star count`);
+          check(await link.and(page.getByRole('link', { name: iconName, exact: true })).isVisible(),
+            `${at}: the counted link is missing the name "${iconName}"`);
+          if (stars) {
+            const count = link.locator('.star-count .num');
+            check(await count.isVisible() && await count.textContent() === stars.short, `${at}: GitHub shows no star count`);
+          }
+        });
+      }
+
       for (const [route, selector] of [['/', '.site-header__bar'], ['/dashboard/', '.app-header__bar']]) {
         for (const width of [320, 360, 390, 430, 480, 768, 1440]) {
           await walk(route, width, 'GitHub in the header', async () => {

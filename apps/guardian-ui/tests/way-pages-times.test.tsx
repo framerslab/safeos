@@ -399,6 +399,18 @@ it.each([...PRESET_MESSAGES.authoritative, ...PRESET_MESSAGES.alarm])('speaks Pe
   expect(message).not.toMatch(/unauthorized/i);
 });
 
+it('shows truthful preset examples when Custom TTS Messages is expanded on People', async () => {
+  render(<SecurityPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Custom TTS Messages/ }));
+  expect(screen.getByText(/^Preset examples:/).textContent).not.toMatch(/authorities/i);
+});
+
+it.each(PRESET_MESSAGES.authoritative)(
+  'the built-in People warning "%s" makes no claim about authorities',
+  (message) => expect(message).not.toMatch(/authorities/i),
+);
+
 const zebra = (): AnimalDetection => ({
   ...sighting(), id: 'zebra-1', type: 'zebra', displayName: 'Zebra', dangerLevel: 'medium',
   confidence: 0.82, timestamp: new Date('2026-11-18T21:42:40Z').getTime(),
