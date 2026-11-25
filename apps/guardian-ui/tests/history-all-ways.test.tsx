@@ -245,19 +245,20 @@ it("lists only Wildlife's sightings under the Type filter's Wildlife", async () 
 
 /** Presses Download Bundle and reads the file it hands the browser. */
 async function downloaded(): Promise<any> {
+  const button = await screen.findByRole('button', { name: 'Download Bundle (.json)' }, SLOW);
   let bundle: Blob | undefined;
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: jest.fn((blob: Blob) => { bundle = blob; return 'blob:bundle'; }) });
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: jest.fn() });
   jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Download Bundle (.json)' }));
+  fireEvent.click(button);
   await waitFor(() => expect(bundle).toBeDefined(), SLOW);
   const text = await new Promise<string>((resolve) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
     reader.readAsText(bundle!);
   });
-  // The bundle's marks are saved before the next press.
-  await act(async () => {});
+  // The button returns when the bundle's export marks have been saved.
+  await screen.findByRole('button', { name: 'Download Bundle (.json)' }, SLOW);
   return JSON.parse(text);
 }
 
