@@ -33,10 +33,12 @@ import {
 } from './helpers/alert-pictures';
 import { countOwnSoundPasses, enrolPet, ownSoundCounts, saveOwnSound } from './helpers/own-sound';
 import { HEIGHT, PERIOD, WIDTH, stripedPhoto } from './helpers/striped-subject';
+import { NOTIFICATION_QUALITY, NOTIFICATION_WAIT_MS } from '../src/lib/alert-pictures/rules';
 
 declare global {
   interface Window {
     __stripes?: { hidden: boolean };
+    __sightingNoteCopy?: { at: number; url: string };
   }
 }
 
@@ -184,6 +186,21 @@ const wordsOf = (root: Locator): Promise<string> => root.evaluate((el) => {
     .map((part) => part.getAttribute('alt') ?? part.getAttribute('aria-label') ?? '');
   return [(el as HTMLElement).innerText, ...named].join(' \n ');
 });
+
+/** Records when the actual camera copy becomes ready, even if the deadline already passed. */
+async function recordSightingNoteCopy(page: Page) {
+  await page.addInitScript(({ width, height, quality }) => {
+    const toDataURL = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function (type, requestedQuality) {
+      const url = toDataURL.call(this, type, requestedQuality);
+      if (location.pathname === '/monitor/' && type === 'image/jpeg' && requestedQuality === quality
+        && this.width === width && this.height === height) {
+        window.__sightingNoteCopy ??= { at: Date.now(), url };
+      }
+      return url;
+    };
+  }, { width: WIDTH, height: HEIGHT, quality: NOTIFICATION_QUALITY });
+}
 
 // =============================================================================
 // The walks
@@ -600,32 +617,59 @@ for (const look of ['light', 'dark'] as const) {
       await expect(page.getByRole('link', { name: 'Open in History', exact: true })).toBeVisible();
     });
 
-    test('with the switch on, the sighting’s notification carries the camera’s picture and no pet photo', async ({ page, context }) => {
+    test('a sighting sends its words when the picture takes too long', async ({ page, context }) => {
       test.setTimeout(240_000);
       await setUp(context, { pictures: { inNotifications: true }, notifications: {} });
-      // The picture cannot be ready before the notification has to go.
       await faultPictureStore(page, { holdDrawMs: 1_000 });
+      await recordSightingNoteCopy(page);
       await stripedCamera(page);
       await watchForStripes(page);
-      await expect(sightings(page).first()).toBeVisible({ timeout: 90_000 });
-      await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+      const time = await timeOf(sightings(page).first());
+      await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBe(1);
       const [note] = await notesOf(page);
       expect(note.title).toBe(QUESTION);
-      expect(note.image).toMatch(/^data:image\/jpeg;base64,/);
+      expect((note.body ?? '').replace(/\s+/g, ' ')).toBe(`Colours and shape like Stripes’s photos, ${time}.`);
+      expect(note.image).toBeUndefined();
       expect(note.icon ?? '').not.toMatch(/^(data|blob):/);
+
+      await expect.poll(() => page.evaluate(() => window.__sightingNoteCopy?.at), { timeout: 15_000 }).toBeDefined();
+      const copy = await page.evaluate(() => window.__sightingNoteCopy!);
+      expect(copy.at).toBeGreaterThan(note.at);
+      expect(await notesOf(page)).toHaveLength(1);
+    });
+
+    test('a sighting’s notification carries the boxed camera picture when ready', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context, { pictures: { inNotifications: true }, notifications: {} });
+      await recordSightingNoteCopy(page);
+      await stripedCamera(page);
+      await watchForStripes(page);
+      const time = await timeOf(sightings(page).first());
+      await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBe(1);
+      const [note] = await notesOf(page);
+      expect(note.title).toBe(QUESTION);
+      expect((note.body ?? '').replace(/\s+/g, ' ')).toBe(`Colours and shape like Stripes’s photos, ${time}.`);
+      expect(note.icon ?? '').not.toMatch(/^(data|blob):/);
+
+      await expect.poll(() => page.evaluate(() => window.__sightingNoteCopy?.at), { timeout: 15_000 }).toBeDefined();
+      const copy = await page.evaluate(() => window.__sightingNoteCopy!);
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      const [row] = keptRows(await readDatabase(page));
+      if (copy.at - row.takenAt < NOTIFICATION_WAIT_MS || note.image !== undefined) {
+        expect(note.image).toBe(copy.url);
+      }
+      expect(copy.url).toMatch(/^data:image\/jpeg;base64,/);
       const size = await page.evaluate((url) => new Promise<[number, number]>((resolve, reject) => {
         const image = new Image();
         image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
         image.onerror = () => reject(new Error('the notification’s picture did not load'));
         image.src = url;
-      }), note.image!);
+      }), copy.url);
       expect(size, 'the camera’s picture at 640 px on its long edge').toEqual([WIDTH, HEIGHT]);
       // The region's box is drawn in: its green line stands at the box's left edge.
-      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-      const [row] = keptRows(await readDatabase(page));
       const middle = Math.round(row.box.y + row.box.height / 2);
       const left = Math.round(row.box.x);
-      const across = await pixelsAt(page, note.image!, [[left, middle], [left + 1, middle], [left + 2, middle], [left + 3, middle]]);
+      const across = await pixelsAt(page, copy.url, [[left, middle], [left + 1, middle], [left + 2, middle], [left + 3, middle]]);
       expect(across.filter((rgb) => near(rgb, '#4ade80', 60)).length, `the region’s box is drawn in (${JSON.stringify(across)})`).toBeGreaterThanOrEqual(2);
     });
   });
