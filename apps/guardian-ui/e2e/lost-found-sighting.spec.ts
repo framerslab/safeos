@@ -314,6 +314,10 @@ test('a kept sighting fills the pet count and the gallery, and deleting its pict
   await expect(page.getByRole('heading', { name: 'Saved pictures', exact: true })).toBeVisible();
   const tile = page.getByRole('button', { name: 'Open this picture', exact: true });
   await expect.soft(tile, 'the kept sighting has a tile in Saved pictures').toBeVisible();
+  if (testInfo.errors.length === 0) {
+    await expect(page.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+    await expect(page.locator('.alert-picture__box')).toHaveCount(1);
+  }
   await page.screenshot({ path: testInfo.outputPath('lost-found-kept-gallery-1280.png') });
   if (testInfo.errors.length > 0) return;
 
@@ -334,7 +338,7 @@ test('a kept sighting fills the pet count and the gallery, and deleting its pict
 
   await page.goto('/lost-found/', { waitUntil: 'networkidle' });
   await expect(page.getByRole('heading', { name: 'Stripes', exact: true })).toBeVisible();
-  await expect(page.getByText(/^1 possible sighting saved/)).toHaveCount(0);
+  await expect(page.getByText(/^No possible sightings saved • Created /)).toBeVisible();
 });
 
 test.describe('A sighting at 320 px and 200 per cent text', () => {
@@ -633,7 +637,9 @@ for (const look of ['light', 'dark'] as const) {
 
       await expect.poll(() => page.evaluate(() => window.__sightingNoteCopy?.at), { timeout: 15_000 }).toBeDefined();
       const copy = await page.evaluate(() => window.__sightingNoteCopy!);
-      expect(copy.at).toBeGreaterThan(note.at);
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      const [row] = keptRows(await readDatabase(page));
+      expect(copy.at - row.takenAt).toBeGreaterThan(NOTIFICATION_WAIT_MS);
       expect(await notesOf(page)).toHaveLength(1);
     });
 
