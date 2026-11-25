@@ -73,8 +73,7 @@ export async function probeWildlife({ context, baseUrl, modelHost, outDir, seed,
       // The clip is 28.2 seconds long. Let the timer see the full first play.
       await page.waitForFunction(() => document.querySelector('video')?.currentTime >= 30, null, { timeout: 65_000 });
       result = await page.evaluate(() => window.wildlifeProbe());
-      if (result.catSecond !== null) {
-        await page.getByText('Cat', { exact: true }).first().waitFor();
+      if (result.catSecond !== null && await page.getByText('Cat', { exact: true }).first().isVisible()) {
         await page.screenshot({ path: path.join(outDir, `wildlife-cat-${attempt}.png`) });
       }
       await page.getByRole('button', { name: 'Stop Monitoring' }).click();

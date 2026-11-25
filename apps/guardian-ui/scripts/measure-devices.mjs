@@ -35,7 +35,7 @@
 //
 // It records and does not judge: a slow number is written down, and a part
 // that could not be measured is written down with the reason. It exits
-// non-zero only when it could not write its results.
+// non-zero if results cannot be written or a Wildlife watch cannot run the model.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -752,7 +752,18 @@ try {
   await browser.close();
 }
 
-const summary = table(results);
+const wildlifeLines = (results.wildlife?.attempts ?? []).map((attempt) => {
+  if (attempt.error) return `- Watch ${attempt.attempt}: ${attempt.error}`;
+  const first = attempt.inferences[0];
+  const gate = first === undefined ? 'no model check finished' : `first model check on the frame at ${first} s`;
+  const cat = attempt.catSecond === null ? 'no cat sighting' : `first cat sighting at ${attempt.catSecond} s`;
+  return `- Watch ${attempt.attempt}: ${gate}, ${cat}.`;
+});
+const summary = `${table(results)}
+### Wildlife on the sample clip
+
+${wildlifeLines.join('\n')}
+`;
 await writeFile(path.join(outDir, 'measurements.json'), `${JSON.stringify(results, null, 2)}\n`);
 await writeFile(path.join(outDir, 'summary.md'), summary);
 console.log(summary);
