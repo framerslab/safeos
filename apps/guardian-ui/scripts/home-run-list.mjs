@@ -8,6 +8,12 @@ export const omittedRuns = [
 
 const SECOND = 1000;
 const WATCH = '/monitor/';
+const CAMERA = '.watch-frame__picture video';
+const MOTION_WALK = { from: 25.2, to: 26.8 };
+const KITTEN_FACES_CAMERA = { from: 22, to: 25.25 };
+const ALERT_HOLD_SECONDS = 2.5;
+const WATCH_CLIP_START = 20;
+const between = (value, { from, to }) => value >= from && value <= to;
 const pose = (page, name) => page.getByRole('button', { name, exact: true });
 
 async function open(page, baseUrl, route) {
@@ -53,25 +59,38 @@ function watchEvent(page, kind) {
   return page.locator(`.watch-list__body [data-alert-card][data-kind="${kind}"]`).first();
 }
 
-function trackWatchAlerts(page) {
-  return page.evaluate(() => {
+function trackWatchAlerts(page, offset = 0) {
+  return page.evaluate(({ offset, camera }) => {
     const watch = document.querySelector('.watch-list__body');
     if (!watch) throw Error('The watch has no alert list');
     window.homeWatchEvents = [];
     const seen = new Set();
     const observer = new MutationObserver(() => {
-      const clipAt = document.querySelector('.watch-frame__picture video')?.currentTime;
+      const clipAt = document.querySelector(camera)?.currentTime + offset;
       if (!Number.isFinite(clipAt)) return;
       for (const card of watch.querySelectorAll('[data-alert-card][data-kind][data-alert-at]')) {
         const { kind, alertAt: at } = card.dataset;
         const identity = kind + ':' + at;
         if (seen.has(identity)) continue;
         seen.add(identity);
-        window.homeWatchEvents.push({ kind, at, clipAt });
+        window.homeWatchEvents.push({
+          kind, at, clipAt,
+          observedAt: (performance.timeOrigin + performance.now()) / 1000,
+        });
       }
     });
     observer.observe(watch, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-alert-at'] });
-  });
+  }, { offset, camera: CAMERA });
+}
+
+function alertCard(page, { kind, at }) {
+  return page.locator(`.watch-list__body [data-alert-card][data-kind="${kind}"][data-alert-at="${at}"]`);
+}
+
+async function readPicture(picture, timeout = 3000) {
+  await picture.waitFor({ state: 'visible', timeout });
+  await picture.evaluate((image) => image.decode());
+  assert.match(await picture.getAttribute('src'), /^blob:/, 'Expected the alert’s own saved picture');
 }
 
 async function prepareDashboard({ page, baseUrl }) {
@@ -79,21 +98,26 @@ async function prepareDashboard({ page, baseUrl }) {
   await trackWatchAlerts(page);
   await markStart(page);
   await pose(page, 'Stop watching').waitFor({ timeout: 15 * SECOND });
+  await pose(page, 'Show settings').click();
+  await page.getByRole('button', { name: /Fine-Tune Settings/ }).click();
+  const sensitivity = page.getByText('Motion Sensitivity', { exact: true }).locator('../..').getByRole('slider');
+  assert.equal(await sensitivity.inputValue(), '0', 'The Dashboard watch starts with Motion at its least sensitive setting');
   await watchEvent(page, 'sound').waitFor({ timeout: 20 * SECOND });
-  await watchEvent(page, 'motion').waitFor({ timeout: 35 * SECOND });
-  await page.waitForFunction(() => window.homeWatchEvents.some(
-    ({ kind, clipAt }) => kind === 'sound' && clipAt >= 5.5 && clipAt <= 10,
-  ), null, { timeout: 5 * SECOND }).catch(() => { throw Error('No recorded sound alert during the bark'); });
+  await page.waitForFunction((camera) => document.querySelector(camera)?.currentTime >= 22, CAMERA);
+  await sensitivity.fill('97');
+  await page.waitForFunction(() => window.homeWatchEvents.some(({ kind }) => kind === 'motion'),
+    null, { timeout: 3200 }).catch(() => {});
   const events = await page.evaluate(() => window.homeWatchEvents);
   const latestMotion = events.findLast(({ kind }) => kind === 'motion');
-  // The kitten's face shows as it licks its paw and when it turns toward
-  // the camera. The saved alert must come from one of those moments.
-  const faceInView = [[14.75, 15.25], [22, 25.25]].some(
-    ([from, to]) => latestMotion && latestMotion.clipAt >= from && latestMotion.clipAt <= to,
-  );
-  assert.ok(faceInView, 'The kept movement picture must show the kitten’s face: ' + JSON.stringify(events));
+  assert.ok(latestMotion && between(latestMotion.clipAt, KITTEN_FACES_CAMERA),
+    'The kept movement picture must show the kitten’s face: ' + JSON.stringify(events));
+  assert.ok(events.some(({ kind, clipAt }) => kind === 'sound' && clipAt >= 5.5 && clipAt <= 10),
+    'No recorded sound alert during the bark');
   await pose(page, 'Stop watching').click();
   await pose(page, 'Start watching').waitFor();
+  const openPicture = alertCard(page, latestMotion).locator('[data-open-picture]');
+  const alertId = await openPicture.getAttribute('data-open-picture');
+  assert.ok(alertId, 'The movement alert has no picture to open');
   const notices = await page.evaluate(() => window.homeRunNotifications);
   assert.ok(notices?.length, 'The watch saved alerts without a recorded notification');
   await open(page, baseUrl, '/dashboard/');
@@ -105,10 +129,9 @@ async function prepareDashboard({ page, baseUrl }) {
   const since = page.getByRole('region', { name: 'Since you last looked' });
   const motion = since.getByRole('link', { name: /Movement at/ }).first();
   await motion.waitFor();
-  await motion.locator('img').evaluate((image) => image.decode());
-  assert.match(await motion.locator('img').getAttribute('src'), /^blob:/, 'The newest movement alert must show its own kept picture');
+  await readPicture(motion.locator('img'));
   await since.getByRole('link', { name: /Sound at/ }).first().waitFor();
-  return { notices, events };
+  return { notices, events, alertId };
 }
 
 async function viewingTop(page, selector) {
@@ -151,7 +174,7 @@ export async function placeSubject(page, recipe, view, height) {
   if (recipe.id === 'watching' || view.size === 'wide') {
     // Leave room below the fixed header’s scroll shadow.
     const cropTop = recipe.id === 'watching' ? headerBottom + 4 : 0;
-    const target = Math.max(headerBottom + 4, cropTop + 6);
+    const target = Math.max(headerBottom + 4, cropTop + 3);
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.max(0, top - target));
     return cropTop;
   }
@@ -187,131 +210,163 @@ async function scrollSubject(page, selector, top, seconds, edge = 'start', frame
   }, { selector, top, seconds, edge, frameHeight });
 }
 
-async function dashboard({ page, view, top, prepared, sample }) {
+function fits(box, { x, y, width, height }) {
+  return box && box.x >= x - 0.5 && box.x + box.width <= x + width + 0.5
+    && box.y >= y - 0.5 && box.y + box.height <= y + height + 0.5;
+}
+
+async function dashboard({ page, crop, view, prepared, sample }) {
   const since = page.getByRole('region', { name: 'Since you last looked' });
   const motion = since.getByRole('link', { name: /Movement at/ }).first();
   const sound = since.getByRole('link', { name: /Sound at/ }).first();
-  const bottom = top + (view.size === 'square' ? view.width : view.width * 5 / 8);
   for (const subject of [since.getByRole('heading'), motion, motion.locator('img'), sound]) {
-    const box = await subject.boundingBox();
-    assert.ok(box && box.y >= top && box.y + box.height <= bottom,
-      'The Dashboard recording must hold the alerts, the kept movement picture and their heading whole: ' + subject);
+    assert.ok(fits(await subject.boundingBox(), crop),
+      'The Dashboard recording must hold the heading, both alerts and the movement picture: ' + subject);
   }
   const start = await browserTime(page);
   const words = await sample();
-  await sleepUntil(page, start, view.seconds);
+  await sleepUntil(page, start, 2);
+  const event = await browserTime(page);
+  await motion.click();
+  await page.waitForURL((url) => url.pathname === '/history/');
+  // Fit the complete saved camera frame inside the capture of History's picture viewer.
+  await page.addStyleTag({ content: `
+    .alert-picture-dialog__picture .alert-picture__frame {
+      max-width: ${Math.floor((crop.y + crop.height - 108) * 4 / 3)}px;
+      margin-inline: auto;
+    }
+  ` });
+  await page.locator(`[data-open-picture=${JSON.stringify(prepared.alertId)}]`).click();
+  const picture = page.getByRole('dialog').locator('.alert-picture-dialog__picture img');
+  await readPicture(picture);
+  assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture does not fit the recording');
+  const pictureAt = await browserTime(page);
+  const end = start + view.seconds;
+  assert.ok(end - pictureAt >= 3.5, 'The Dashboard must hold the opened picture through the end');
+  await sleepUntil(page, end, 0);
+  assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture left the frame');
   return {
-    start, poster: start, event: start, words, hold: true,
+    start, end, poster: start, event, words, pictureAt,
     notices: prepared.notices, watchEvents: prepared.events,
   };
 }
 
-async function watching({ page, view, top, sample, nextFrameAfter }) {
-  await page.evaluate(() => {
-    const frame = document.querySelector('.watch-frame');
-    if (!frame) throw Error('The watch has no camera frame');
-    const observer = new MutationObserver(() => {
-      if (frame.dataset.phase === 'live') {
-        window.homeCameraLiveAt = (performance.timeOrigin + performance.now()) / 1000;
-        observer.disconnect();
-      }
-    });
-    observer.observe(frame, { attributes: true, attributeFilter: ['data-phase'] });
-  });
-  const start = await markStart(page);
-  const stop = pose(page, 'Stop watching');
-  await stop.waitFor({ timeout: 4 * SECOND });
-  const camera = page.locator('.watch-frame__picture video').first();
-  await camera.waitFor({ state: 'visible', timeout: 4 * SECOND });
-  // Starting the live camera changes the page's height and moves keyboard
-  // focus. Reframe by scrolling the actual page within the fixed crop.
-  const header = await page.locator('.app-header').first().boundingBox();
-  // The square starts in the gap above the picture and ends before the
-  // Stop watching label below the meters.
-  const target = Math.max(top + (view.size === 'square' ? 26 : 6), (header?.height ?? 0) + 4);
-  const cameraTop = await viewingTop(page, '.watch-frame__screen');
-  await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), Math.max(0, cameraTop - target));
-  const bottom = top + (view.size === 'wide' ? view.width * 5 / 8 : view.width);
-  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-  const framed = await page.locator('.watch-frame').boundingBox();
-  assert.ok(framed && framed.y >= top - 0.5 && framed.y + framed.height <= bottom + 0.5,
-    `The Watching crop ${top}–${bottom} must contain the whole camera and both meters: ${JSON.stringify(framed)}`);
-  const peaks = { motion: 0, sound: 0 };
-  const threshold = 100 - settings.globalSettings.audioSensitivity;
-  const readMeters = () => page.evaluate(() => {
-    const video = document.querySelector('.watch-frame__picture video');
-    const level = (name) => Number(document.querySelector(`[role="meter"][aria-label="${name}"]`)?.getAttribute('aria-valuenow') ?? 0);
+async function prepareWatching({ page, baseUrl, view }) {
+  await openWatch(page, baseUrl);
+  const height = view.size === 'square' ? view.width : view.width * 5 / 8;
+  const square = view.size === 'square';
+  // Fit the live camera and meters into one native capture. The home player
+  // surrounds the recording with its own ticks.
+  await page.addStyleTag({ content: `
+    .watch-grid__frame { width: 100vw; justify-self: center; }
+    .watch-frame .corner-ticks { visibility: hidden; }
+    .watch-frame[data-phase="live"] .watch-frame__screen {
+      height: ${height - (square ? 104 : 76)}px;
+      max-height: none;
+    }
+    .watch-frame__picture video { object-fit: cover; }
+    .watch-meters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .watch-meters .watch-meter:not(.watch-meter--pet):not(.watch-meter--problem) {
+      grid-template-columns: ${square ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) auto'};
+      grid-template-areas: ${square ? '"name" "track" "state"' : '"name state" "track track"'};
+    }
+    .watch-list .alert-picture[data-form="large"] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+    .watch-list .alert-picture[data-form="large"] > .alert-picture__notes { grid-column: 1 / -1; }
+  ` });
+  await trackWatchAlerts(page, WATCH_CLIP_START);
+  await markStart(page);
+  await pose(page, 'Stop watching').waitFor({ timeout: 4 * SECOND });
+  await page.locator(CAMERA).waitFor({ state: 'visible', timeout: 4 * SECOND });
+}
+
+function readWatch(page) {
+  return page.evaluate(({ camera, offset }) => {
+    const motion = document.querySelector('[role="meter"][aria-label="Motion level"]');
+    const sound = document.querySelector('[role="meter"][aria-label="Sound level"]');
     return {
       at: (performance.timeOrigin + performance.now()) / 1000,
-      clipAt: video.currentTime,
-      motion: level('Motion level'),
-      sound: level('Sound level'),
+      clipAt: document.querySelector(camera).currentTime + offset,
+      motion: Number(motion?.getAttribute('aria-valuenow') ?? 0),
+      motionOverLine: motion?.closest('.watch-meter')?.dataset.state === 'over',
+      sound: Number(sound?.getAttribute('aria-valuenow') ?? 0),
+      events: window.homeWatchEvents,
     };
-  });
-  const aboveDuringBark = (reading) => reading.clipAt >= 6 && reading.clipAt <= 9 && reading.sound > threshold;
+  }, { camera: CAMERA, offset: WATCH_CLIP_START });
+}
+
+async function watching({ page, crop, view, sample, nextFrameAfter }) {
+  const camera = page.locator(CAMERA).first();
+  const cameraBox = await camera.boundingBox();
+  const meters = await page.locator('.watch-meters').boundingBox();
+  assert.ok(cameraBox && Math.abs(cameraBox.x - crop.x) <= 0.5
+    && Math.abs(cameraBox.width - crop.width) <= 0.5 && fits(cameraBox, crop) && fits(meters, crop),
+    `Watching must frame the full-width camera and both meters: ${JSON.stringify({ cameraBox, meters, crop })}`);
+  assert.equal(await camera.evaluate((element) => getComputedStyle(element).objectFit), 'cover');
+  assert.equal(await page.locator('.watch-frame .corner-ticks').isVisible(), false, 'The watch’s ticks show inside the home recording');
+
+  await page.waitForFunction(({ camera, offset }) => document.querySelector(camera).currentTime + offset >= 22,
+    { camera: CAMERA, offset: WATCH_CLIP_START });
+  const first = await readWatch(page);
+  assert.ok(first.clipAt < 22.75, 'The Watching recording missed the start of the kitten’s face window');
+  const start = first.at;
+  const end = start + view.seconds;
+  const peaks = { motion: 0, sound: 0 };
+  const line = 100 - settings.globalSettings.motionSensitivity;
   let poster;
   let posterReading;
   let words;
-  let lastBarkReading;
-  const nominalEnd = start + view.seconds;
-  let end = nominalEnd;
-  let reachedEnd = false;
-  while ((await browserTime(page)) < nominalEnd + 1.5) {
-    const reading = await readMeters();
+  let motionOverAt;
+  let arrival;
+  let reading = first;
+  while (reading.clipAt <= MOTION_WALK.to + 0.2 && reading.at < start + 6) {
     peaks.motion = Math.max(peaks.motion, reading.motion);
     peaks.sound = Math.max(peaks.sound, reading.sound);
-    if (aboveDuringBark(reading)) lastBarkReading = reading.at;
-    if (!poster && aboveDuringBark(reading) && reading.clipAt >= 8.3) {
-      // The kitten turns into profile near the end of the bark. Select a
-      // compositor frame bracketed by live, above-line readings.
-      const at = await nextFrameAfter(reading.at);
-      const painted = await readMeters();
-      if (at !== undefined && at <= painted.at && aboveDuringBark(painted)) {
-        const candidate = await sample();
-        if (candidate.map(({ word }) => word).join(' ').includes('Sound Over the line')) {
-          poster = at;
-          words = candidate;
-          posterReading = {
-            clipAt: reading.clipAt + (painted.clipAt - reading.clipAt) * (at - reading.at) / (painted.at - reading.at),
-            sound: Math.min(reading.sound, painted.sound),
-            threshold,
-          };
-        }
+    if (!poster && reading.clipAt >= 22.75 && reading.clipAt <= 25) {
+      const frame = await nextFrameAfter(reading.at);
+      if (frame && frame - reading.at <= 25 - reading.clipAt) {
+        words = await sample();
+        poster = frame;
+        posterReading = { clipAt: reading.clipAt + frame - reading.at };
       }
     }
-    if (lastBarkReading) end = Math.max(nominalEnd, lastBarkReading + 1);
-    if (reading.clipAt > 9 && reading.at >= end) {
-      reachedEnd = true;
-      break;
+    if (!motionOverAt && between(reading.clipAt, MOTION_WALK)
+      && reading.motionOverLine && reading.motion > line) {
+      motionOverAt = await nextFrameAfter(reading.at);
     }
+    arrival ??= reading.events.find(({ kind, clipAt }) => kind === 'motion' && between(clipAt, MOTION_WALK));
+    if (arrival && motionOverAt) break;
     await sleepUntil(page, reading.at, 0.04);
+    reading = await readWatch(page);
   }
-  const motionLine = 100 - settings.globalSettings.motionSensitivity;
-  const motionAlert = watchEvent(page, 'motion');
-  const finalAlert = await motionAlert.count() ? await motionAlert.boundingBox() : null;
-  const picture = motionAlert.locator('img').first();
-  const finalPicture = await picture.count() ? await picture.boundingBox() : null;
-  const inFrame = (box) => box && box.x >= 0 && box.x + box.width <= view.width
-    && box.y >= top && box.y + box.height <= bottom;
-  const missing = [];
-  if (peaks.motion <= motionLine) missing.push(`Motion never went over its line (peak ${peaks.motion}, line ${motionLine})`);
-  if (!inFrame(finalAlert) || !inFrame(finalPicture)) missing.push('the motion alert and its picture were not in frame at the end');
-  assert.deepEqual(missing, [], 'The Watching recording must show the complete motion alert');
-  assert.ok(poster, `No above-line Sound frame showed the kitten’s face during the bark (peak ${peaks.sound}, line ${threshold})`);
-  assert.ok(reachedEnd, 'The watch did not hold through the second after the bark');
-  const trimSeconds = end - nominalEnd;
-  let trim;
-  if (trimSeconds > 0) {
-    const liveAt = await page.evaluate(() => window.homeCameraLiveAt);
-    const trimStart = liveAt - trimSeconds;
-    assert.ok(trimStart - start >= 1 / 15, `The ${(liveAt - start).toFixed(3)} s camera-start wait cannot accommodate a ${trimSeconds.toFixed(3)} s trim`);
-    trim = { start: trimStart, end: liveAt };
-  }
-  console.log(`Last above-line bark reading after ${(lastBarkReading - start).toFixed(3)} s, then ${(end - lastBarkReading).toFixed(3)} s of hold; trimmed ${trimSeconds.toFixed(3)} s before the camera went live`);
-  const raised = await watchEvent(page, 'sound').count();
+  assert.ok(poster, 'No frame showed the kitten facing the camera in the poster window');
+  assert.ok(motionOverAt, `Motion never went over its line during the walk (peak ${peaks.motion}, line ${line})`);
+  assert.ok(arrival, 'No motion alert arrived during the walk: ' + JSON.stringify(reading.events));
+  const alert = alertCard(page, arrival);
+  const picture = alert.locator('.alert-picture__frame img').first();
+  await readPicture(picture);
+  await scrollSubject(page, '.watch-list__head', crop.y + 8, 0.35);
+  const checkAlert = async () => {
+    const heading = page.getByRole('heading', { name: 'Alerts', exact: true });
+    const boxes = await Promise.all([heading, alert, picture].map((part) => part.boundingBox()));
+    assert.ok(boxes.every((box) => fits(box, crop)),
+      'The motion alert and its picture were not in frame: ' + JSON.stringify({ boxes, crop }));
+  };
+  await checkAlert();
+  const pictureAt = await browserTime(page);
+  assert.ok(end - pictureAt >= ALERT_HOLD_SECONDS,
+    'The motion alert and its picture did not stay in frame for 2.5 seconds');
+  await sleepUntil(page, end, 0);
+  await checkAlert();
   const notices = await page.evaluate(() => window.homeRunNotifications);
-  assert.ok(!raised || notices?.length, 'The watch saved a sound alert without a recorded notification');
-  return { start, end, poster, posterFrame: poster, posterReading, words, event: poster, peaks, notices, trim, lastBarkReading };
+  assert.ok(notices.some(({ title }) => /^Motion alert/i.test(title)), 'The watch saved a motion alert without a recorded notification');
+  return {
+    start, end, poster, posterFrame: poster, posterReading, words,
+    event: arrival.observedAt, peaks, line, motionOverAt, pictureAt,
+    notices, watchEvents: reading.events,
+  };
 }
 
 async function siteSettings({ page, view, top, sample }) {
@@ -330,18 +385,18 @@ export const recipes = [
     id: 'watching',
     key: 'Watching',
     route: WATCH,
-    state: 'starting',
+    state: 'motion-alert',
     clip: 'home/sample-clip.mp4',
-    seconds: 10,
+    inputOffset: WATCH_CLIP_START,
+    seconds: 9,
     anchor: '.watch-frame__screen',
-    description: 'A kitten clip with rising Motion and Sound meters.',
+    description: 'On a kitten clip, the kitten walks past, Motion crosses its line and the alert arrives.',
     longDescription: [
-      '0–2 seconds. Start watching opens the camera on a kitten on a grey carpet.',
-      '2–6 seconds. The kitten grooms itself and its movement raises the Motion meter.',
-      '6–9 seconds. The Sound meter rises over its line as a dog barks off camera.',
-      '9–10 seconds. The watch continues on the kitten.',
+      'The kitten faces the camera on a grey carpet, then gets up and walks past.',
+      'Motion crosses its line and a movement alert arrives.',
+      'The watch scrolls to Alerts and holds the movement alert and its picture in view.',
     ],
-    prepare: ({ page, baseUrl }) => openWatch(page, baseUrl),
+    prepare: prepareWatching,
     record: watching,
   },
   {
@@ -350,10 +405,16 @@ export const recipes = [
     route: '/dashboard/',
     state: 'B',
     clip: 'home/sample-clip.mp4',
-    seconds: 6,
-    description: 'Movement and sound alerts from the kitten clip.',
+    seconds: 7,
+    settings: {
+      ...settings,
+      globalSettings: { ...settings.globalSettings, motionSensitivity: 0 },
+      timingSettings: { cooldownPeriod: 30, minimumMotionDuration: 200, emergencyEscalationDelay: 300 },
+    },
+    description: "The kitten clip's movement and sound alerts, and the picture one of them kept.",
     longDescription: [
-      '0–6 seconds. Since you last looked shows a movement alert with a kept picture of the kitten and a sound alert.',
+      '0–2 seconds. Since you last looked shows movement and sound alerts from the kitten clip.',
+      '2–7 seconds. The movement alert opens its kept picture of the kitten with its face in view.',
     ],
     prepare: prepareDashboard,
     record: dashboard,

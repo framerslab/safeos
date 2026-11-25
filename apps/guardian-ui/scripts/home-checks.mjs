@@ -749,8 +749,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
               && posterWords.includes('Sound at'), 'Dashboard poster omits the watch’s alerts at ' + width + ' px, ' + look);
           }
           if (run.id === 'watching') {
-            expect(posterWords.includes('Motion') && posterWords.includes('Sound') && posterWords.includes('Over the line'),
-              'Watching poster omits a meter or the bark reading at ' + width + ' px, ' + look);
+            expect(posterWords.includes('Motion') && posterWords.includes('Sound'),
+              'Watching poster omits a meter at ' + width + ' px, ' + look);
           }
           const poster = page.locator('.home-run__poster img');
           await page.waitForFunction((name) => {

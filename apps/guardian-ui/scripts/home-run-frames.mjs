@@ -88,7 +88,7 @@ export async function spool(cdp, directory, view) {
     }
     if (!frames.length) console.log(`DevTools preroll: ${w}×${h} native pixels`);
     const filename = `frame-${String(frames.length).padStart(4, '0')}.png`;
-    frames.push({ filename, at, scrollY: metadata.scrollOffsetY });
+    frames.push({ filename, at });
     for (const listen of frameListeners) listen(at);
     settleFirst();
     const write = writeFile(path.join(directory, filename), bytes);
@@ -225,11 +225,9 @@ export function checkNotifications(notices = []) {
   }
 }
 
-// Only a measured camera startup wait can be removed. The remaining
-// timestamps preserve the browser's elapsed time through every visible event.
-export function outputTime(at, { start, trim }) {
-  const removed = trim ? Math.max(0, Math.min(at, trim.end) - trim.start) : 0;
-  return at - start - removed;
+// Use the browser's elapsed time from the first recorded frame.
+export function outputTime(at, { start }) {
+  return at - start;
 }
 
 async function concatWindow(frames, cut, seconds, directory) {
@@ -239,14 +237,8 @@ async function concatWindow(frames, cut, seconds, directory) {
   assert.ok(cut.event >= cut.start && cut.event <= last, 'The observed event falls outside the recording');
   const first = frames.findLastIndex((frame) => frame.at <= cut.start);
   assert.ok(first >= 0, 'The screencast did not start before the first event');
-  const segment = frames.slice(first).filter(({ at }) => at < last
-    && (!cut.trim || at < cut.trim.start || at >= cut.trim.end));
-  if (cut.hold) {
-    assert.ok(segment.every(({ scrollY }) => scrollY === segment[0].scrollY),
-      'The page scrolled while holding the Dashboard alerts');
-  } else {
-    assert.ok(segment.length > 1, 'The screencast did not record a changing page');
-  }
+  const segment = frames.slice(first).filter(({ at }) => at < last);
+  assert.ok(segment.length > 1, 'The screencast did not record a changing page');
   const posterFrame = cut.posterFrame === undefined
     ? segment.findLast(({ at }) => at <= cut.poster)
     : segment.find(({ at }) => at === cut.posterFrame);

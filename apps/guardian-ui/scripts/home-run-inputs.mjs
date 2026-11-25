@@ -196,7 +196,8 @@ export function verifyBundle(directory) {
     for (const size of sizes) {
       assert.deepEqual(Object.keys(variants[size]).sort(), looks, id + ': look variants');
       for (const look of looks) {
-        const { video, poster, crop, viewport, scale, words, posterAt, posterReading } = variants[size][look];
+        const variant = variants[size][look];
+        const { video, poster, crop, viewport, scale, words, posterAt } = variant;
         const label = id + '-' + size + '-' + look;
         const base = mediaPrefix + label;
         const budget = limits[size];
@@ -225,8 +226,23 @@ export function verifyBundle(directory) {
         }
         checkWords(words?.map(({ word }) => word), label);
         if (id === 'watching') {
-          assert.ok(posterReading && posterReading.clipAt >= 8.3 && posterReading.clipAt <= 9
-            && posterReading.sound > posterReading.threshold, label + ': missing the above-line bark frame');
+          const { posterReading, meterPeaks, motionLine, motionOverAt, pictureAt, watchEvents } = variant;
+          assert.ok(posterReading?.clipAt >= 22 && posterReading.clipAt <= 25, label + ': missing the kitten’s face in the poster');
+          assert.ok(meterPeaks?.motion > motionLine && motionOverAt > posterAt && motionOverAt < pictureAt,
+            label + ': missing the Motion reading over its line');
+          assert.ok(watchEvents?.some(({ kind, clipAt }) => kind === 'motion' && clipAt >= 25.2 && clipAt <= 26.8),
+            label + ': missing the motion alert from the kitten walking past');
+          assert.ok(pictureAt >= variant.eventAt && run.seconds - pictureAt >= 2.5,
+            label + ': the motion picture must stay in frame for at least 2.5 seconds');
+        }
+        if (id === 'dashboard') {
+          const { eventAt, pictureAt, watchEvents } = variant;
+          const movement = watchEvents?.findLast(({ kind }) => kind === 'motion');
+          assert.ok(movement?.clipAt >= 22 && movement.clipAt <= 25.25,
+            label + ': the saved movement picture must show the kitten’s face');
+          assert.ok(run.seconds >= 6 && run.seconds <= 8 && eventAt >= 1.9 && eventAt <= 2.5
+            && pictureAt > eventAt && run.seconds - pictureAt >= 3.5,
+          label + ': the Dashboard must show the list, open its movement alert and hold its picture');
         }
         for (const { word, x, y, width, height, size: font } of words) {
           assert.ok([x, y, width, height, font].every(Number.isFinite) && x >= -0.5 && y >= -0.5

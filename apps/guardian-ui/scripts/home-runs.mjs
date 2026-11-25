@@ -3,9 +3,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import {
-  captureNotifications, checkNotifications, encodeVariant, limits,
+  captureNotifications, checkNotifications, encodeVariant, ffmpeg, limits,
   outputTime, readRecordingWords, sha256, spool, testPosterEncoders, wideView,
 } from './home-run-frames.mjs';
 import { recordingInputs } from './home-run-inputs.mjs';
@@ -56,12 +57,12 @@ async function recordVariant(browser, recipe, view, avif) {
     colorScheme: view.look,
     timezoneId: 'UTC',
     locale: 'en-US',
-  }, recordingSettings);
+  }, recipe.settings ?? recordingSettings);
   const page = await context.newPage();
   try {
     await captureNotifications(context);
     const cdp = await context.newCDPSession(page);
-    const prepared = await recipe.prepare({ page, baseUrl });
+    const prepared = await recipe.prepare({ page, baseUrl, view });
     const actualLook = await page.evaluate(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light');
     assert.equal(actualLook, view.look, 'The site look differs from the browser');
     const viewport = await page.evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
@@ -75,7 +76,7 @@ async function recordVariant(browser, recipe, view, avif) {
     let frames;
     try {
       cut = await recipe.record({
-        page, view, top, prepared, nextFrameAfter: recording.nextFrameAfter,
+        page, view, top, crop, prepared, nextFrameAfter: recording.nextFrameAfter,
         sample: () => readRecordingWords(page, crop, { poster: true }),
       });
     } finally {
@@ -108,11 +109,13 @@ async function recordVariant(browser, recipe, view, avif) {
       ...(cut.peaks ? {
         meterPeaks: cut.peaks,
         posterReading: cut.posterReading,
-        barkEndedAt: outputTime(cut.lastBarkReading, cut),
-        sourceSeconds: cut.end - cut.start,
-        ...(cut.trim ? { startupTrimSeconds: cut.trim.end - cut.trim.start } : {}),
+        motionLine: cut.line,
+        motionOverAt: outputTime(cut.motionOverAt, cut),
       } : {}),
-      ...(cut.watchEvents ? { watchEvents: cut.watchEvents } : {}),
+      ...(cut.pictureAt ? { pictureAt: outputTime(cut.pictureAt, cut) } : {}),
+      ...(cut.watchEvents ? {
+        watchEvents: cut.watchEvents.map(({ kind, at, clipAt }) => ({ kind, at, clipAt })),
+      } : {}),
       ...(cut.notices?.length ? { notifications: cut.notices } : {}),
     };
   } catch (cause) {
@@ -156,23 +159,37 @@ async function recordSet(browsers, recipe, avif) {
   };
 }
 
-const sample = {};
-const withoutClip = {};
+function sampleInput(recipe) {
+  if (!recipe.inputOffset) return [video, audio];
+  const input = fileURLToPath(new URL(recipe.clip, publicRoot));
+  const start = ['-ss', String(recipe.inputOffset), '-i', input];
+  const camera = path.join(workspace, `${recipe.id}.y4m`);
+  const microphone = path.join(workspace, `${recipe.id}.wav`);
+  ffmpeg([...start, '-an', '-pix_fmt', 'yuv420p', camera]);
+  ffmpeg([...start, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'pcm_s16le', microphone]);
+  return [camera, microphone];
+}
+
 try {
   await mkdir(outDir, { recursive: true });
   const avif = await testPosterEncoders(workspace);
   console.log(`Poster formats: WebP${avif ? ' and AVIF' : ''}`);
-  sample.square = await launchSampleDevice(video, audio, 'chromium', 3);
-  sample.wide = await launchSampleDevice(video, audio, 'chromium', 2.5);
-  withoutClip.square = await chromium.launch({
-    channel: 'chromium', args: ['--force-device-scale-factor=3'],
-  });
-  withoutClip.wide = await chromium.launch({
-    channel: 'chromium', args: ['--force-device-scale-factor=2.5'],
-  });
   const runs = [];
+  let browserVersion;
   for (const recipe of recipes) {
-    runs.push(await recordSet(recipe.clip ? sample : withoutClip, recipe, avif));
+    const input = recipe.clip ? sampleInput(recipe) : null;
+    const launch = (scale) => input ? launchSampleDevice(...input, 'chromium', scale) : chromium.launch({
+      channel: 'chromium', args: [`--force-device-scale-factor=${scale}`],
+    });
+    const browsers = {};
+    try {
+      browsers.square = await launch(3);
+      browserVersion ??= browsers.square.version();
+      if (wideView(recipe.id).scale !== 3) browsers.wide = await launch(2.5);
+      runs.push(await recordSet(browsers, recipe, avif));
+    } finally {
+      await Promise.allSettled(Object.values(browsers).map((browser) => browser.close()));
+    }
   }
   for (const size of ['square', 'wide']) {
     for (const look of looks) {
@@ -186,7 +203,7 @@ try {
   const encoder = execFileSync('ffmpeg', ['-version'], { encoding: 'utf8' }).split('\n')[0];
   const manifest = {
     schemaVersion: 1, commit, run, ...source,
-    browser: sample.square.version(), encoder,
+    browser: browserVersion, encoder,
     clips: [{ path: clip, sha256: actualHash, tracks: sampleClip.tracks, credit: sampleClip.credit.long, sources: sampleClip.sources }],
     omitted: omittedRuns,
     runs,
@@ -194,6 +211,5 @@ try {
   await writeFile(path.join(outDir, 'runs.json'), JSON.stringify(manifest, null, 2) + '\n');
   console.log(`Saved ${runs.length} runs, each in four variants, from ${commit}`);
 } finally {
-  await Promise.allSettled([...Object.values(sample), ...Object.values(withoutClip)].map((browser) => browser.close()));
   await rm(workspace, { recursive: true, force: true });
 }
