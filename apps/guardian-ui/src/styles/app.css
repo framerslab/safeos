@@ -281,17 +281,11 @@ html:has(.app-shell) {
   }
 }
 
-/* The navigation keeps GitHub on the phone and adds the destinations and
-   look switch at the tablet width. */
-.app-header__nav {
-  display: flex;
-  flex: 1 0 auto;
-  align-items: center;
-  gap: 16px;
-}
-
+/* The navigation and the look switch join the row at the tablet width; on a
+   phone the bar at the foot of the screen is the navigation and the row holds
+   the brand and GitHub. */
 @media not all and (min-width: 48em) {
-  .app-header__bar .app-header__links,
+  .app-header__bar .app-header__nav,
   .app-header__bar .app-header__more,
   .app-header__actions .look-switch,
   .app-header__actions .look-switch-place {
@@ -540,11 +534,12 @@ html:has(.app-shell) {
   }
 }
 
-/* Three equal places, each a glyph over its word. A place keeps its words
-   whole: with much larger text the places grow and the bar scrolls inside
-   itself. */
+/* Equal places, each a glyph over its word. A place keeps its words whole:
+   with much larger text one place takes its words' width from the others, and
+   only when the three do not fit does the row scroll inside itself. The words
+   alone say whether they fit: the arrows that narrow the row change nothing. */
 .phone-bar__place {
-  flex: 1 0 33.333%;
+  flex: 1 0 0;
   min-width: max-content;
   min-height: var(--phone-bar-height);
   display: flex;
@@ -762,19 +757,19 @@ html:has(.app-shell) {
   line-height: var(--type-body-line);
 }
 
-/* The keys keep one row and scroll inside it; the row's padding keeps a
-   focused key's ring whole, and its margin keeps the keys where they stand. */
+/* The keys fill one row (src/components/KeyRow.tsx), which scrolls inside
+   itself with its arrows where they do not fit. The row's margin keeps the
+   keys where they stand, beside the padding that keeps a ring whole. */
 .app-dialog__keys {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 12px;
-  margin: -0.25rem;
-  padding: 0.25rem;
-  overflow-x: auto;
-  scrollbar-width: none;
+  max-width: none;
+  margin: -4px;
 }
 
-.app-dialog__keys > .key {
+.app-dialog__keys .key-row__keys {
+  flex: 1 1 auto;
+}
+
+.app-dialog__keys .key {
   flex: 1 0 auto;
   color: var(--visitor-panel-ink);
 }

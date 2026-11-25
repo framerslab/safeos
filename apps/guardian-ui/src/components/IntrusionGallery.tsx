@@ -399,7 +399,7 @@ export function IntrusionGallery({ className = '', limit }: IntrusionGalleryProp
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('Delete this intrusion record?')) {
+    if (confirm('Delete this picture?')) {
       await deleteIntrusionFrame(id);
       await loadFrames();
     }
@@ -407,7 +407,7 @@ export function IntrusionGallery({ className = '', limit }: IntrusionGalleryProp
 
   const handleBulkDelete = async () => {
     if (selectedIds.size === 0) return;
-    if (!confirm(`Delete ${selectedIds.size} intrusion record(s)?`)) return;
+    if (!confirm(`Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'picture' : 'pictures'}?`)) return;
 
     for (const id of selectedIds) {
       await deleteIntrusionFrame(id);

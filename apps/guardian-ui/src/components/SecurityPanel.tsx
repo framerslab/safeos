@@ -549,8 +549,8 @@ export function SecurityPanel({ className = '', onTrigger, armBlockedReason, gua
         {settings.alertMode === 'silent' && (
           <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
             <p className="text-sm text-blue-300">
-              <strong>Silent Mode:</strong> Intrusions will be recorded without sound or visual alerts.
-              You can review captured frames in the Intrusion Gallery.
+              <strong>Silent Mode:</strong> Each alert saves a picture, with no siren, voice, flash or notification.
+              The History key shows the pictures.
             </p>
           </div>
         )}

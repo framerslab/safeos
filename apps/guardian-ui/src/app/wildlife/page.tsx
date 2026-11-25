@@ -81,9 +81,10 @@ function DetectionCard({ detection, onAcknowledge }: DetectionCardProps) {
       className="p-3 rounded-lg border transition-all"
       style={{ borderColor: dangerColor, backgroundColor: `${dangerColor}10` }}
     >
-      <div className="flex items-center gap-3">
+      {/* A badge that leaves no room for the name stands under it, so neither breaks inside a word. */}
+      <div className="flex flex-wrap items-center gap-3">
         <span className="text-2xl">{getSizeIcon(detection.sizeCategory)}</span>
-        <div className="flex-1">
+        <div className="min-w-0 flex-[1_1_10ch]">
           <div className="font-semibold text-white">{detection.displayName}</div>
           <div className="text-xs text-slate-400">
             {timeWords(detection.timestamp)}

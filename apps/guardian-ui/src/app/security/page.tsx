@@ -172,7 +172,7 @@ function PersonCountDisplay({ count, allowed, isArmed }: PersonCountDisplayProps
           {peopleWords(count)} in view
         </div>
         {isExcess && isArmed && (
-          <div className="mt-3 px-3 py-1 bg-red-500 text-white text-sm font-bold rounded-full inline-block animate-bounce">
+          <div className="mt-3 px-3 py-1 bg-red-700 text-white text-sm font-bold rounded-full inline-block animate-bounce">
             {moreThanWatchAllows}
           </div>
         )}
@@ -206,7 +206,9 @@ export default function SecurityPage() {
   const modelStatus = !download.setupComplete ? 'idle' : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
   // Arming without a ready model would show an armed system that checks no frame.
   const armBlockedReason = modelStatus === 'ready' ? undefined : 'Download the detection model above before arming.';
-  const [lastDetection, setLastDetection] = useState<PersonDetectionResult | null>(null);
+  // The last check that went over the watch's line. Its alert stands with its
+  // DISARM key until the watch is disarmed, also once the people have left.
+  const [overLine, setOverLine] = useState<{ count: number; at: number } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const detectionLoopBusyRef = useRef(false);
@@ -350,6 +352,7 @@ export default function SecurityPage() {
       setIsSirenPlaying(false);
       stopSecurityAlert();
       previousCountRef.current = 0;
+      setOverLine(null);
     }
   }, [armingState]);
 
@@ -431,7 +434,7 @@ export default function SecurityPage() {
         if (!result) return;
         if (shouldForce) lastForceDetectionRef.current = now;
 
-        setLastDetection(result);
+        if (result.personCount > settings.allowedPersons) setOverLine({ count: result.personCount, at: result.timestamp });
         setCurrentPersonCount(result.personCount);
         recordDetection(result.personCount);
 
@@ -573,14 +576,14 @@ export default function SecurityPage() {
               />
 
               {/* Quick Status */}
-              {armingState === 'triggered' && lastDetection && currentPersonCount > settings.allowedPersons && (
+              {armingState === 'triggered' && overLine && (
                 <div className="p-4 bg-red-500/20 border border-red-500 rounded-xl animate-pulse">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <IconAlertTriangle size={24} className="text-red-500" />
                       <div>
                         <div className="font-bold text-red-400">
-                          {peopleAtTime(currentPersonCount, lastDetection.timestamp)}
+                          {peopleAtTime(overLine.count, overLine.at)}
                         </div>
                         <div className="text-sm text-red-300">{moreThanWatchAllows}</div>
                       </div>

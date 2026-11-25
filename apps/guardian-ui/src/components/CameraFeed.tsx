@@ -700,7 +700,7 @@ export function CameraFeed({
           {/* Motion indicator */}
           <div {...{ [LIVE_MARK]: '' }} className="absolute top-4 right-4 flex items-center gap-2">
             <MotionIndicator score={motionScore} threshold={motionThreshold} />
-            <AudioIndicator level={audioLevel} threshold={audioThreshold} hasCrying={hasCrying} />
+            <AudioIndicator level={audioLevel} threshold={audioThreshold} hasCrying={hasCrying} listening={audioEnabled && !microphoneUnavailable} />
           </div>
 
           {/* Debug overlay */}
@@ -759,7 +759,7 @@ function MotionIndicator({ score, threshold }: MotionIndicatorProps) {
     <div
       className={`px-3 py-1.5 ${color} rounded-full backdrop-blur-sm flex items-center gap-2`}
       role="status"
-      aria-label={`Motion level ${Math.round(score)}%${isActive ? ', motion detected' : ''}`}
+      aria-label={isActive ? 'Movement in the picture' : 'Little or no movement in the picture'}
     >
       <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
@@ -779,9 +779,10 @@ interface AudioIndicatorProps {
   level: number;
   threshold: number;
   hasCrying: boolean;
+  listening: boolean;
 }
 
-function AudioIndicator({ level, threshold, hasCrying }: AudioIndicatorProps) {
+function AudioIndicator({ level, threshold, hasCrying, listening }: AudioIndicatorProps) {
   const isActive = level >= threshold || hasCrying;
   const color = hasCrying
     ? 'bg-red-500/80 animate-pulse'
@@ -793,7 +794,7 @@ function AudioIndicator({ level, threshold, hasCrying }: AudioIndicatorProps) {
     <div
       className={`px-3 py-1.5 ${color} rounded-full backdrop-blur-sm flex items-center gap-2`}
       role="status"
-      aria-label={hasCrying ? 'Crying detected!' : `Audio level ${Math.round(level)}%${isActive ? ', audio detected' : ''}`}
+      aria-label={hasCrying ? 'Sounds like crying' : !listening ? 'Microphone off' : isActive ? 'Sound in the room' : 'Little or no sound in the room'}
     >
       {hasCrying ? (
         <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">

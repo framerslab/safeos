@@ -179,7 +179,7 @@ const TUTORIALS: TutorialSection[] = [
     steps: [
       {
         title: 'Security Mode Overview',
-        content: `Security mode runs the COCO-SSD model in your browser to count the people in view. You set how many people are allowed, and it alerts when more are detected.`,
+        content: `Security mode runs the COCO-SSD model in your browser to count the people in view. You set how many people are allowed, and it alerts when more are in view.`,
         tips: [
           'Works best with clear camera angles',
           'AI detection requires a moment to initialize',
@@ -188,7 +188,7 @@ const TUTORIALS: TutorialSection[] = [
       },
       {
         title: 'Configuring Allowed Persons',
-        content: `Set the number of people normally present in the monitored area. If more people are detected, the system will trigger an alert. Set to 0 for areas that should always be empty.`,
+        content: `Set the number of people normally present in the monitored area. It alerts when more people are in view. Set to 0 for areas that should always be empty.`,
         tips: [
           'Account for regular visitors and family members',
           'Use 0 for vacation mode or empty-house monitoring',
@@ -205,8 +205,8 @@ const TUTORIALS: TutorialSection[] = [
         ],
       },
       {
-        title: 'Reviewing Intrusion Frames',
-        content: `All detected intrusions are saved as frames with timestamps. You can review, export, and delete these frames from the Intrusion Gallery.`,
+        title: 'Reviewing Saved Pictures',
+        content: `Each alert saves a picture with its time. The History key on the People page shows the pictures, where you can review, export and delete them.`,
         tips: [
           'Export frames as evidence if needed',
           'Regularly clean up old acknowledged frames',

@@ -31,7 +31,9 @@ export async function checkHeaders(browser, baseUrl) {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(new URL(route, baseUrl).href, { waitUntil: 'domcontentloaded', timeout: 20_000 });
         await page.locator('html[data-app-started="true"]').waitFor({ state: 'attached' });
+        // The header measures its row again once the page's face has come.
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        await page.waitForTimeout(150);
         await run();
       } catch (error) {
         check(false, `${name}, ${width} px, ${look}: ${error.message.split('\n')[0]}`);

@@ -3,13 +3,13 @@
  *
  * One row on every app page: the mark and the wordmark as a link to the
  * dashboard, then a navigation named "App" with the four destinations
- * (Dashboard, History, Settings and Help), GitHub and the look switch. On
- * a phone the header holds the plain brand and GitHub, and the bar at the
- * foot of the screen carries the destinations. When the row runs short (a narrow window or
- * larger text) it folds: the wordmark leaves first, then Help moves into
- * More, then Settings, and only when nothing else is left does the row scroll
- * inside itself. Before script runs every link works and the look switch has
- * only its place held.
+ * (Dashboard, History, Settings and Help), then GitHub and the look switch.
+ * On a phone the header holds the plain brand and GitHub, and the bar at the
+ * foot of the screen is the navigation named "App". When the row runs short
+ * (a narrow window or larger text) it folds: the wordmark leaves first, then
+ * Help moves into More, then Settings, and only when nothing else is left
+ * does the row scroll inside itself. Before script runs every link works and
+ * the look switch has only its place held.
  *
  * @module components/app/AppHeader
  */
@@ -62,6 +62,7 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
   const barRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const foldingLink = useRef<HTMLElement | null>(null);
+  const unfolding = useRef(false);
 
   // Closing More, by Escape, by a press outside or by one of its rows, puts
   // focus back on the More key.
@@ -102,6 +103,9 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
       if (movesAt !== undefined && Number(was) < movesAt && next >= movesAt && focused instanceof HTMLElement) {
         foldingLink.current = focused;
       }
+      // More and its panel leave the row with focus on one of them.
+      unfolding.current = Number(was) >= 2 && next < 2 && focused instanceof HTMLElement
+        && (focused === moreRef.current || focused.classList.contains('app-more__row'));
       setFold(next);
       if (next < 2) setOpen(false);
     };
@@ -116,11 +120,17 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
     };
   }, [newAlerts, fold]);
 
+  // Focus follows Help and Settings into More as the row folds, and goes back
+  // to Help when More leaves the row.
   useLayoutEffect(() => {
     const previous = foldingLink.current;
+    const unfolded = unfolding.current;
     foldingLink.current = null;
+    unfolding.current = false;
     if (previous && (document.activeElement === previous || document.activeElement === document.body)) {
       moreRef.current?.focus();
+    } else if (unfolded) {
+      headerRef.current?.querySelector<HTMLElement>('.app-header__link[data-section="/help"]')?.focus();
     }
   }, [fold]);
 
@@ -188,23 +198,23 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
         </span>
         <nav aria-label="App" className="app-header__nav">
           <div className="app-header__links">{DESTINATIONS.map((d) => link(d, 'app-header__link'))}</div>
-          <div className="app-header__actions">
-            <GitHubIconLink className="app-header__github" />
-            {fold >= 2 && (
-              <button
-                ref={moreRef}
-                type="button"
-                className="app-header__more"
-                aria-expanded={open}
-                aria-controls="app-more"
-                onClick={() => (open ? close() : setOpen(true))}
-              >
-                More
-              </button>
-            )}
-            <LookSwitch />
-          </div>
         </nav>
+        <div className="app-header__actions">
+          <GitHubIconLink className="app-header__github" />
+          {fold >= 2 && (
+            <button
+              ref={moreRef}
+              type="button"
+              className="app-header__more"
+              aria-expanded={open}
+              aria-controls="app-more"
+              onClick={() => (open ? close() : setOpen(true))}
+            >
+              More
+            </button>
+          )}
+          <LookSwitch />
+        </div>
       </div>
       <div id="app-more" className="app-more" hidden={!open}>
         {DESTINATIONS.filter((d) => (MOVES[d.section] ?? 9) <= Math.min(fold, 3)).map((d) => link(d, 'app-more__row', close))}

@@ -240,8 +240,12 @@ export function VisitorHeader() {
     <nav
       ref={navRef}
       aria-label="Site"
+      // Focus that moves to what stands behind the open Menu closes it. Focus
+      // that goes to nothing on the page (another window, a press between two
+      // rows) leaves it open, so a row being pressed stays under the press.
       onBlur={(event) => {
-        if (menuInUse && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+        const next = event.relatedTarget;
+        if (menuInUse && next instanceof Node && !event.currentTarget.contains(next)) setOpen(false);
       }}
       className="site-header"
       data-script={scriptArrived ? 'true' : undefined}
