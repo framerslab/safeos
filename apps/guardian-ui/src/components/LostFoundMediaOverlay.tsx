@@ -358,7 +358,9 @@ export function LostFoundMediaOverlay({
       <div className="absolute inset-0 pointer-events-none border-4 border-red-500/50 animate-pulse" />
 
       <style jsx>{`
+        /* The watch's page is a grid that starts its parts at their top: this one fills the window. */
         .lost-found-media {
+          align-self: stretch;
           background: #000;
           color: #f4f5f6;
           font-size: max(18px, 1.125rem);
