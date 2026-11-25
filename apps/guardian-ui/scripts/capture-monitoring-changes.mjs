@@ -67,19 +67,28 @@ function camera() {
     const canvas = document.createElement('canvas');
     canvas.width = 1280;
     canvas.height = 720;
+    canvas.style.cssText = 'position:fixed;left:-10000px;top:0;width:1px;height:1px';
+    document.body.appendChild(canvas);
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#303d46';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // Changing this 960 × 16 strip puts the reading between one and two times the share line.
-    const levels = ['#202020', '#666666', '#aaaaaa', '#ffffff'];
-    let frame = 0;
+
+    // About three quarters of a 160 × 92 patch changes even when the watch
+    // skips frames. That is about 1.2 times the share line at 1280 × 720.
+    const patch = ctx.createImageData(160, 92);
+    const levels = [0, 85, 170, 255];
+    let random = 42;
     const draw = () => {
-      ctx.fillStyle = levels[frame++ % levels.length];
-      ctx.fillRect(128, 288, 960, 16);
+      for (let i = 0; i < patch.data.length; i += 4) {
+        random = (Math.imul(random, 1664525) + 1013904223) >>> 0;
+        patch.data.fill(levels[random >>> 30], i, i + 3);
+        patch.data[i + 3] = 255;
+      }
+      ctx.putImageData(patch, 560, 314);
     };
     draw();
-    setInterval(draw, 86);
-    return canvas.captureStream(30);
+    setInterval(draw, 40);
+    return canvas.captureStream(25);
   };
 }
 
@@ -127,8 +136,15 @@ try {
       await page.addInitScript(camera);
       await open(page, '/monitor/');
       await page.getByRole('button', { name: 'Start watching', exact: true }).click();
+      await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 15_000 });
       const card = page.locator('[data-alert-card][data-kind="picture-change"]').first();
-      await card.locator('.alert-picture[data-status="shown"] img').first().waitFor({ timeout: 30_000 });
+      try {
+        await card.waitFor({ timeout: 15_000 });
+        await card.locator('.alert-picture[data-status="shown"] img').first().waitFor({ timeout: 15_000 });
+      } catch (error) {
+        const meter = await page.getByRole('meter', { name: 'Picture change level' }).getAttribute('aria-valuetext');
+        throw new Error(`Picture change meter reads ${meter ?? 'no value'}: ${error.message}`);
+      }
       console.log(`Picture change level: ${await card.getAttribute('data-severity')}`);
       return card;
     });
