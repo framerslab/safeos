@@ -321,6 +321,9 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
     && Math.abs(cameraBox.width - crop.width) <= 0.5 && fits(cameraBox, crop) && fits(meters, crop),
     `Watching must frame the full-width camera and both meters: ${JSON.stringify({ cameraBox, meters, crop })}`);
   assert.equal(await camera.evaluate((element) => getComputedStyle(element).objectFit), 'cover');
+  const size = await camera.evaluate(({ videoWidth, videoHeight }) => ({ videoWidth, videoHeight }));
+  assert.ok(size.videoWidth > 0 && cameraBox.height >= cameraBox.width * size.videoHeight / size.videoWidth - 0.5,
+    `The Watching poster cuts off the camera picture vertically: ${JSON.stringify({ cameraBox, size })}`);
   assert.equal(await page.locator('.watch-frame .corner-ticks').isVisible(), false, 'The watch’s ticks show inside the home recording');
 
   await page.waitForFunction(({ camera, offset }) => document.querySelector(camera).currentTime + offset >= 22,
