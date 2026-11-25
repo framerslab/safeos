@@ -762,7 +762,7 @@ export default function HistoryPage() {
 
               <div className="mt-3 text-xs text-slate-500">
                 {isStaticDeployment
-                  ? 'Static deployment detected: remote history is disabled. Local timeline is fully offline.'
+                  ? 'This build keeps history on this device. The local timeline works offline.'
                   : 'Local timeline works offline; remote history requires the API.'}
               </div>
             </section>
