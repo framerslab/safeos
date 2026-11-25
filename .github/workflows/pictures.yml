@@ -461,6 +461,9 @@ jobs:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.ref }}
           persist-credentials: false
 
+      - name: Install ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+
       - name: Trim the credited original at its full width
         run: |
           directory="$RUNNER_TEMP/watch-clip"
