@@ -286,7 +286,17 @@ async function watching({ page, view, top, sample, nextFrameAfter }) {
     }
     await sleepUntil(page, reading.at, 0.04);
   }
-  assert.ok(peaks.motion > 0, 'The Motion meter never rose');
+  const motionLine = 100 - settings.globalSettings.motionSensitivity;
+  const motionAlert = watchEvent(page, 'motion');
+  const finalAlert = await motionAlert.count() ? await motionAlert.boundingBox() : null;
+  const picture = motionAlert.locator('img').first();
+  const finalPicture = await picture.count() ? await picture.boundingBox() : null;
+  const inFrame = (box) => box && box.x >= 0 && box.x + box.width <= view.width
+    && box.y >= top && box.y + box.height <= bottom;
+  const missing = [];
+  if (peaks.motion <= motionLine) missing.push(`Motion never went over its line (peak ${peaks.motion}, line ${motionLine})`);
+  if (!inFrame(finalAlert) || !inFrame(finalPicture)) missing.push('the motion alert and its picture were not in frame at the end');
+  assert.deepEqual(missing, [], 'The Watching recording must show the complete motion alert');
   assert.ok(poster, `No above-line Sound frame showed the kitten’s face during the bark (peak ${peaks.sound}, line ${threshold})`);
   assert.ok(reachedEnd, 'The watch did not hold through the second after the bark');
   const trimSeconds = end - nominalEnd;

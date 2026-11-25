@@ -16,6 +16,19 @@ const verify = (directory: string) => spawnSync(
   { encoding: 'utf8' }
 );
 
+it('keeps a Dashboard movement picture from when the kitten faces the camera', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(publicDir, record), 'utf8'));
+  const dashboard = manifest.runs.find(({ id }: { id: string }) => id === 'dashboard');
+  for (const look of ['dark', 'light']) {
+    for (const size of ['square', 'wide']) {
+      const events: Array<{ kind: string; clipAt: number }> = dashboard.variants[size][look].watchEvents;
+      const clipAt = events.filter(({ kind }) => kind === 'motion').pop()?.clipAt;
+      expect(clipAt).toBeGreaterThanOrEqual(22);
+      expect(clipAt).toBeLessThanOrEqual(25.25);
+    }
+  }
+});
+
 type FileManifest = HomeRunManifest & { clips: Array<{ path: string }> };
 
 function changed(mutate: (manifest: FileManifest, directory: string) => void) {

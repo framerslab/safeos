@@ -358,19 +358,20 @@ describe('recorded app runs', () => {
 
   it('names the kitten clip in both sample runs and says what Settings shows', () => {
     expect(words(region?.querySelector('[data-run-caption]'))).toBe(
-      'A kitten clip with rising Motion and Sound meters.'
+      'On a kitten clip, the kitten walks past, Motion crosses its line and the alert arrives.'
     );
     expect(all('noscript li').map(words)).toEqual(expect.arrayContaining([
-      'Dashboard. Movement and sound alerts from the kitten clip.',
+      "Dashboard. The kitten clip's movement and sound alerts, and the picture one of them kept.",
       'Settings. Settings say what the device watches for and what raises an alert.',
     ]));
   });
 
-  it('describes the alert list throughout the Dashboard recording', () => {
+  it('describes opening the Dashboard movement alert and viewing its picture', () => {
     const key = region?.querySelector('button[data-run="dashboard"]');
     const description = page.getElementById(key?.getAttribute('aria-describedby') ?? '');
     expect(Array.from(description?.querySelectorAll('li') ?? [], words)).toEqual([
-      '0–6 seconds. Since you last looked shows a movement alert with a kept picture of the kitten and a sound alert.',
+      '0–2 seconds. Since you last looked shows movement and sound alerts from the kitten clip.',
+      '2–7 seconds. The movement alert opens its kept picture of the kitten with its face in view.',
     ]);
   });
 
