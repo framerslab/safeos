@@ -593,6 +593,12 @@ when the 288 px home box would display a label under 14 px. The source
 viewport must remain at least 320 px. The even width gives H.264 even
 dimensions at 3×.
 
+The Pictures job checks every recorded word on the exported home poster.
+Each word needs 7:1 pixel contrast and a displayed font size of at least
+14 px. The sampler checks the projected font size against the visible ink
+and allows one device pixel at each stroke edge for raster rounding.
+Missing or unreadable word boxes fail the check.
+
 | Limit | Square | Wide |
 | --- | ---: | ---: |
 | An MP4 | 400,000 bytes | 1,200,000 bytes |

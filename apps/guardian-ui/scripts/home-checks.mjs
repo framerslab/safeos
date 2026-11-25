@@ -1246,7 +1246,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           };
         });
         const at = `at ${width} px, ${look}`;
-        firstScreenBounds.push({ width, look, ...seen });
+        const firstScreen = { viewportWidth: width, look, ...seen, alternateCaptions: [] };
+        firstScreenBounds.push(firstScreen);
         expect(seen.h1s === 1 && seen.headline === HEADLINE, `headline ${at}: ${seen.h1s} H1 reading "${seen.headline}"`);
         expect(seen.lockupName === 'SafeOS Guardian' && seen.lockup === (width >= 768), `headline ${at}: incorrect lockup visibility or name`);
         if (width >= 768) expect(seen.mark === 64, `headline ${at}: the shield is ${seen.mark} px wide`);
@@ -1297,6 +1298,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
               const box = element.getBoundingClientRect();
               return { lines: Math.round(box.height / parseFloat(getComputedStyle(element).lineHeight)), bottom: box.bottom + scrollY };
             });
+            firstScreen.alternateCaptions.push({ id: run.id, ...caption });
             const maxLines = width >= 1280 ? 1 : 2;
             expect(caption.lines <= maxLines && (width >= 1280 || caption.bottom <= (width === 390 ? 836 : height)),
               run.key + ' caption ' + at + ': ends at ' + caption.bottom + ' over ' + caption.lines + ' lines');

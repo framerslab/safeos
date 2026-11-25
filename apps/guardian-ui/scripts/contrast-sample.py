@@ -78,9 +78,13 @@ def measure(image, box, scale):
         errors.append(f"strokes {strokes:.2f}:1, expected {minimum_ratio}:1")
     if minimum_size and (css_size is None or css_size < minimum_size):
         errors.append(f"CSS size {css_size}, expected {minimum_size} px")
-    # A raster edge can differ by a pixel on either side because its CSS
-    # position falls between pixels, or because the stroke edge is antialiased.
-    if minimum_size and expected and estimated_px + 2 / scale < expected * 0.75:
+    if kind == "poster":
+        if estimated_size is None:
+            errors.append("missing recorded glyph metrics")
+        # Allow one device pixel on each edge for rounding and antialiasing.
+        elif (estimated_px + 2 / scale) * css_size / expected < minimum_size:
+            errors.append(f"ink estimates {estimated_size:.2f} px, under {minimum_size} px after raster rounding")
+    elif minimum_size and expected and estimated_px + 2 / scale < expected * 0.75:
         errors.append(f"ink height {estimated_px:.2f} px, CSS range predicts {expected:.2f} px")
     return {
         **box, "pixelBounds": bounds, "core": round(core, 3), "strokes": round(strokes, 3),
@@ -104,16 +108,20 @@ def main():
         for card in ("", *DISCLOSURES)
     }
     runs = json.loads(args.runs.read_text())["runs"] if args.runs else []
+    poster_words = {}
     if runs:
         expected.update({
             f"home-readability-run-steps-390-{look}.png": "steps" for look in ("dark", "light")
         })
-        expected.update({
-            f"home-readability-run-{run['id']}-{width}-{look}.png": "poster"
+        poster_words = {
+            f"home-readability-run-{run['id']}-{width}-{look}.png": [
+                word["word"] for word in run["variants"]["square" if width < 1280 else "wide"][look]["words"]
+            ]
             for run in runs
             for width in (320, 390, 768, 1024, 1280, 1440)
             for look in ("dark", "light")
-        })
+        }
+        expected.update(dict.fromkeys(poster_words, "poster"))
     files = [source["file"] for source in sources]
     missing = expected.keys() - set(files)
     unexpected = set(files) - expected.keys()
@@ -133,6 +141,10 @@ def main():
         card = expected.get(file)
         if card is None:
             continue
+        if card == "poster":
+            words = [box["name"] for box in source["boxes"] if box["type"] == "poster"]
+            if words != poster_words[file]:
+                errors.append(f"{file}: sampled word boxes differ from the recorded poster")
         scale = source["scale"]
         with Image.open(args.directory / file) as original:
             image = original.convert("RGB")
