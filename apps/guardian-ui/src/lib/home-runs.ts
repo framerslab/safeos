@@ -35,7 +35,11 @@ export interface RunVariant {
   posterAt: number;
   eventAt: number;
   meterPeaks?: { motion: number; sound: number };
-  posterReading?: { clipAt: number; sound: number; threshold: number };
+  posterReading?: { clipAt: number };
+  motionLine?: number;
+  motionOverAt?: number;
+  pictureAt?: number;
+  watchEvents?: { kind: string; at: string; clipAt: number }[];
 }
 
 export interface HomeRun {

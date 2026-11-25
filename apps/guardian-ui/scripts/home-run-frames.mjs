@@ -390,7 +390,8 @@ export async function encodeVariant({ frames, cut, view, crop, directory, outDir
   const prefix = path.join(outDir, `${id}-${view.size}-${view.look}`);
   const movie = prefix + '.mp4';
   const budget = limits[view.size];
-  for (const crf of [26, 30]) {
+  // The square file has the tighter transfer cap.
+  for (const crf of [26, view.size === 'square' ? 32 : 30]) {
     ffmpeg(['-f', 'concat', '-safe', '0', '-i', concat,
       '-vf', [...filters, `fps=${FPS}`, 'format=yuv420p'].join(','),
       '-t', String(view.seconds), '-an', '-c:v', 'libx264', '-profile:v', 'high', '-crf', String(crf),
