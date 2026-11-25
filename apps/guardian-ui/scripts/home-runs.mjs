@@ -87,7 +87,8 @@ async function recordVariant(browser, recipe, view, avif) {
     checkNotifications(cut.notices);
     const smallest = cut.words.reduce((best, word) => word.size < best.size ? word : best);
     if (view.size === 'square' && smallest.size * 288 / view.width < 14) {
-      const width = Math.floor(288 * smallest.size / 14);
+      // At 3×, an even CSS width keeps both H.264 dimensions even.
+      const width = 2 * Math.floor(288 * smallest.size / (2 * 14));
       assert.ok(width >= 320, `“${smallest.word}” at ${smallest.size} CSS px cannot show at 14 px in 288 px: ${JSON.stringify(smallest)}`);
       assert.ok(width < view.width, 'Narrower square must change the page layout');
       console.log(`${label}: “${smallest.word}” at ${smallest.size} CSS px needs to be recorded at ${width} px`);

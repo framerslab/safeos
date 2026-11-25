@@ -588,9 +588,10 @@ credits, visible words, recording positions and file hashes in `runs.json`.
 
 The page uses square media below 1280 px and wide media from 1280 px. The
 square crop starts at a 390 px source view. Given its smallest label size
-`s` in CSS px, recapture at `floor(288 * s / 14)` when the 288 px home
-box would display any label under 14 px. The source viewport must remain at
-least 320 px. This preserves readable labels when the home is 320 px wide.
+`s` in CSS px, recapture at the largest even width up to `288 * s / 14`
+when the 288 px home box would display a label under 14 px. The source
+viewport must remain at least 320 px. The even width gives H.264 even
+dimensions at 3×.
 
 | Limit | Square | Wide |
 | --- | ---: | ---: |
