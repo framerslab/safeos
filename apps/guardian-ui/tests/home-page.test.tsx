@@ -356,6 +356,34 @@ describe('recorded app runs', () => {
     expect(region?.querySelector('video')?.getAttribute('aria-label')).toBe(first.description);
   });
 
+  it('names the kitten clip in both sample runs and says what Settings shows', () => {
+    expect(words(region?.querySelector('[data-run-caption]'))).toBe(
+      'A kitten clip with rising Motion and Sound meters.'
+    );
+    expect(all('noscript li').map(words)).toEqual(expect.arrayContaining([
+      'Dashboard. Movement and sound alerts from the kitten clip.',
+      'Settings. Settings say what the device watches for and what raises an alert.',
+    ]));
+  });
+
+  it('describes the alert list throughout the Dashboard recording', () => {
+    const key = region?.querySelector('button[data-run="dashboard"]');
+    const description = page.getElementById(key?.getAttribute('aria-describedby') ?? '');
+    expect(Array.from(description?.querySelectorAll('li') ?? [], words)).toEqual([
+      '0–6 seconds. Since you last looked shows a movement alert with a kept picture of the kitten and a sound alert.',
+    ]);
+  });
+
+  it.each(['watching', 'dashboard'] as const)('frames the wide %s run without app chrome', (id) => {
+    const run = recorded.runs.find((entry) => entry.id === id)!;
+    for (const { crop, words: posterWords } of Object.values(run.variants.wide)) {
+      expect(crop.y).toBeGreaterThan(0);
+      const text = posterWords.map(({ word }) => word).join(' ');
+      expect(text).not.toMatch(/SafeOS|Guardian|Settings Help|Motion and sound alerts that run in your browser/);
+      expect(text).toMatch(id === 'watching' ? /Motion .*Sound / : /Since you last looked.*Movement at.*Sound at/);
+    }
+  });
+
   it('keeps a dimensioned poster for every look and width in an inert template', () => {
     const templates = all('template[data-run-poster]') as HTMLTemplateElement[];
     expect(templates.map((template) => template.dataset.runPoster)).toEqual(recorded.runs.map(({ id }) => id));
