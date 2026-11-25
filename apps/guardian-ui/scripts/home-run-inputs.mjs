@@ -289,6 +289,7 @@ function checkDigestScope(manifest) {
     }
   };
   proof(path.join(appPath, 'src/app/settings/page.tsx'), true);
+  proof(path.join(appPath, 'src/app/history/page.tsx'), true);
   proof(path.join(appPath, 'tailwind.config.js'), true);
   proof('README.md', false);
 }

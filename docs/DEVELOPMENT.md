@@ -616,7 +616,9 @@ Missing or unreadable word boxes fail the check.
 The first poster shows the kitten facing the camera between 22 and 25
 seconds of the sample clip. The Watching walk uses the section of the clip
 starting at 20 seconds and records the Motion crossing and alert from the
-walk at 25.2 to 26.8 seconds. Only the recorder adjusts the camera and alert
+walk at 25.2 to 26.8 seconds. The camera holds the clip’s final frame after it
+ends, so the alert stays in view without a second alert from a loop. Only the
+recorder adjusts the camera and alert
 layout to fit the capture. Dashboard uses the full sample clip, keeping the
 sound alert from the bark and the movement picture from 22 to 25.25
 seconds. It opens that picture from the alert in History. The player holds

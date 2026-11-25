@@ -244,7 +244,10 @@ async function dashboard({ page, crop, view, prepared, sample }) {
       margin-inline: auto;
     }
   ` });
-  await page.locator(`[data-open-picture=${JSON.stringify(prepared.alertId)}]`).click();
+  const openPicture = `[data-open-picture=${JSON.stringify(prepared.alertId)}]`;
+  await page.locator(openPicture).waitFor();
+  await scrollSubject(page, `.alert-history-row:has(${openPicture})`, crop.y + 8, 0);
+  await page.locator(openPicture).click();
   const picture = page.getByRole('dialog').locator('.alert-picture-dialog__picture img');
   await readPicture(picture);
   assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture does not fit the recording');
@@ -357,6 +360,7 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
   assert.ok(poster, 'No frame showed the kitten facing the camera in the poster window');
   assert.ok(motionOverAt, `Motion never went over its line during the walk (peak ${peaks.motion}, line ${line}): ${JSON.stringify(readings)}`);
   assert.ok(arrival, 'No motion alert arrived during the walk: ' + JSON.stringify({ readings, events: reading.events }));
+  console.log(`Watching Motion peak ${peaks.motion}, line ${line}, alert at clip ${arrival.clipAt.toFixed(3)} s`);
   const alert = alertCard(page, arrival);
   const picture = alert.locator('.alert-picture__frame img').first();
   await readPicture(picture);

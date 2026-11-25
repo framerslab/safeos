@@ -59,6 +59,7 @@ async function recordVariant(browser, recipe, view, avif) {
     locale: 'en-US',
   }, recipe.settings ?? recordingSettings);
   const page = await context.newPage();
+  page.setDefaultTimeout(4000);
   try {
     await captureNotifications(context);
     const cdp = await context.newCDPSession(page);
@@ -79,12 +80,15 @@ async function recordVariant(browser, recipe, view, avif) {
         page, view, top, crop, prepared, nextFrameAfter: recording.nextFrameAfter,
         sample: () => readRecordingWords(page, crop, { poster: true }),
       });
+    } catch (error) {
+      // Keep the failing step when stopping the screencast also reports an error.
+      await Promise.allSettled([recording.stop(), stopReading()]);
+      throw error;
+    }
+    try {
+      frames = await recording.stop();
     } finally {
-      try {
-        frames = await recording.stop();
-      } finally {
-        await stopReading();
-      }
+      await stopReading();
     }
     checkNotifications(cut.notices);
     const smallest = cut.words.reduce((best, word) => word.size < best.size ? word : best);
@@ -165,8 +169,10 @@ function sampleInput(recipe) {
   const start = ['-ss', String(recipe.inputOffset), '-i', input];
   const camera = path.join(workspace, `${recipe.id}.y4m`);
   const microphone = path.join(workspace, `${recipe.id}.wav`);
-  ffmpeg([...start, '-an', '-pix_fmt', 'yuv420p', camera]);
-  ffmpeg([...start, '-vn', '-ac', '1', '-ar', '48000', '-c:a', 'pcm_s16le', microphone]);
+  // Keep the final camera frame until the alert hold ends. The fake camera
+  // would otherwise loop back to the kitten and raise another motion alert.
+  ffmpeg([...start, '-an', '-vf', 'tpad=stop_mode=clone:stop_duration=4', '-pix_fmt', 'yuv420p', camera]);
+  ffmpeg([...start, '-vn', '-af', 'apad=pad_dur=4', '-ac', '1', '-ar', '48000', '-c:a', 'pcm_s16le', microphone]);
   return [camera, microphone];
 }
 
