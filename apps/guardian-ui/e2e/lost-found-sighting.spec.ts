@@ -288,7 +288,7 @@ test('a kept sighting fills the pet count and the gallery, and deleting its pict
   await expect(historyRow.getByRole('button', { name: /^Open picture: / })).toBeVisible();
 
   await page.goto('/lost-found/', { waitUntil: 'networkidle' });
-  await expect(page.getByRole('button', { name: 'Start Monitoring' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Stripes', exact: true })).toBeVisible();
   await expect.soft(page.getByText(/^1 possible sighting saved • Created /), 'the pet counts its kept picture').toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('lost-found-kept-count-1280.png') });
 
@@ -315,7 +315,7 @@ test('a kept sighting fills the pet count and the gallery, and deleting its pict
   await expect(historyRow.getByRole('button', { name: /^Open picture: / })).toHaveCount(0);
 
   await page.goto('/lost-found/', { waitUntil: 'networkidle' });
-  await expect(page.getByRole('button', { name: 'Start Monitoring' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Stripes', exact: true })).toBeVisible();
   await expect(page.getByText(/^1 possible sighting saved/)).toHaveCount(0);
 });
 
