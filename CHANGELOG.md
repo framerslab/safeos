@@ -106,7 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - People and Wildlife start their model check when the average pixel change in any one part of the picture reaches the motion line. Wildlife’s setting explains the reading.
 - Picture change alerts use the same line as their meter to set their severity. In share mode, a change just over the line now raises a low alert.
 - People keeps up to 100 pictures on the device. It makes room with the oldest seen pictures first, then the oldest unseen pictures.
-- Removed unused age values from People, Wildlife and the older Lost and Found picture store. Their saved pictures and sightings keep their existing retention rules.
+- Removed unused age values from People, Wildlife and the older Lost and Found picture store.
 - Spoken alerts use a voice on the device if available. Alert sounds lets you choose an online voice and says that some voices send the alert’s words to the browser maker.
 - Lost and Found's full-screen pictures are readable in both looks: the question at 12:1 or more, every other word at 7:1 or more and 18 px. They fill the window at every width, and a tall photo leaves their keys in view. They take focus when they open, keep Tab on their keys and give focus back when they close, and Space presses the key that holds focus.
 - **Mark all as seen** on the dashboard moves focus to **Since you last looked** as it is pressed, so focus stays on the list when the key leaves.

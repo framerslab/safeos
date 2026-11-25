@@ -79,6 +79,9 @@ of each settings page say the same. The line goes once a later write of the
 settings is kept. Motion sensitivity, audio sensitivity and
 alert volume use the same values as the monitor controls. A volume of zero stays
 zero.
+The **Spoken alert voice** choice is kept on this browser. Choose an online
+voice separately on each browser where you want it to speak.
+
 Emergency alarms retain their explicit full-volume behavior. Quiet hours are
 saved to the shared schedule settings from both Settings → Quiet hours and
 Notification Settings. Earlier saved preferences are imported once per account, or once for
@@ -131,6 +134,10 @@ Three keys in local storage hold what the dashboard says:
 - `safeos-last-way`: the way the last watch ran with and, for Lost and Found, the id of the pet it looked for. Start watching starts that way.
 - `safeos-watch-session`: when the last watch started, the last time it was known to run (written once a minute and when the page is hidden) and when it ended. A page closed without running its code writes no end, and the dashboard then says "The last watch ran until at least {time}."
 - `safeos-history-seen`: the ids of the alerts and frames this browser held, not marked as seen, the first time one of the app's pages opened in this version. They never count as new. The key is written once.
+
+The People library keeps up to 100 pictures in IndexedDB. The oldest seen
+pictures make room first, followed by the oldest unseen pictures. Opening an
+older library over the limit applies the same rule.
 
 An alert is new while none of its records is marked as seen; no clock time decides it. When the frame limit (500 Lost and Found frames, 100 of People's) removes the only frames of an alert marked as seen, the first frame it keeps of that alert is marked, so the alert stays seen. Each Lost and Found frame saved from this version carries `alerted`, true when the check that saved it raised the alert; a frame saved earlier is judged against the alert threshold as it is set. Open tabs tell each other of saved, marked and deleted alerts and of a running watch on the browser's BroadcastChannel, which reaches no server. A browser with no BroadcastChannel passes the same words through local storage under `safeos-tab-message`, written and removed at once, and the tab that watches or starts a watch keeps `safeos-tab-watch` there (the tab, its way and when it wrote the note) until its watch ends; Clear all data on this device removes both. Whether this window's storage ends when the window closes is checked once a visit and kept in session storage as `safeos-window-storage`. Clear all data on this device removes all four.
 
