@@ -580,6 +580,8 @@ interface SettingsState {
   
   // Audio settings
   audioSettings: AudioSettings;
+  // An online voice the person chose in this browser.
+  spokenAlertVoiceURI: string | null;
   
   // Timing settings
   timingSettings: TimingSettings;
@@ -625,6 +627,7 @@ interface SettingsState {
   
   // Audio settings actions
   updateAudioSettings: (settings: Partial<AudioSettings>) => void;
+  setSpokenAlertVoice: (voiceURI: string | null) => void;
   
   // Timing settings actions
   updateTimingSettings: (settings: Partial<TimingSettings>) => void;
@@ -685,6 +688,7 @@ export const useSettingsStore = create<SettingsState>()(
       scenarioOverrides: {},
       detectionZones: [...DEFAULT_DETECTION_ZONES],
       audioSettings: { ...DEFAULT_AUDIO_SETTINGS },
+      spokenAlertVoiceURI: null,
       timingSettings: {
         cooldownPeriod: 30,
         minimumMotionDuration: 500,
@@ -824,6 +828,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
       
       // Audio settings actions
+      setSpokenAlertVoice: (voiceURI) => set({ spokenAlertVoiceURI: voiceURI }),
+
       updateAudioSettings: (settings) => {
         set((state) => ({
           audioSettings: { ...state.audioSettings, ...settings },
@@ -999,6 +1005,7 @@ export const useSettingsStore = create<SettingsState>()(
           scenarioOverrides: {},
           detectionZones: [...DEFAULT_DETECTION_ZONES],
           audioSettings: { ...DEFAULT_AUDIO_SETTINGS },
+          spokenAlertVoiceURI: null,
           timingSettings: {
             cooldownPeriod: 30,
             minimumMotionDuration: 500,
@@ -1060,6 +1067,7 @@ export const useSettingsStore = create<SettingsState>()(
         scenarioOverrides: state.scenarioOverrides,
         detectionZones: state.detectionZones,
         audioSettings: state.audioSettings,
+        spokenAlertVoiceURI: state.spokenAlertVoiceURI,
         timingSettings: state.timingSettings,
         severityCooldowns: state.severityCooldowns,
         quietHoursSettings: state.quietHoursSettings,

@@ -8,6 +8,8 @@
  * @module lib/tts-alerts
  */
 
+import { useSettingsStore } from '@/stores/settings-store';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -21,8 +23,6 @@ export interface TTSConfig {
   pitch: number;
   /** Speech volume (0 to 1) */
   volume: number;
-  /** Preferred voice name (if available) */
-  preferredVoice?: string;
   /** Delay between repeated messages in ms */
   repeatDelay: number;
   /** Whether to use random message selection */
@@ -72,6 +72,20 @@ export const PRESET_MESSAGES: Record<MessageCategory, string[]> = {
   custom: [],
 };
 
+/** A named online voice is used only when the person chose that voice on this browser. */
+export function findSpokenAlertVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
+  const chosenURI = useSettingsStore.getState().spokenAlertVoiceURI;
+  const chosen = chosenURI ? voices.find((voice) => voice.localService === false && voice.voiceURI === chosenURI) : undefined;
+  if (chosen) return chosen;
+
+  const language = (typeof document !== 'undefined' && document.documentElement.lang || 'en').toLowerCase();
+  const primaryLanguage = language.split('-')[0];
+  const local = voices.filter((voice) => voice.localService === true);
+  return local.find((voice) => voice.lang.toLowerCase() === language)
+    ?? local.find((voice) => voice.lang.toLowerCase().split('-')[0] === primaryLanguage)
+    ?? local[0];
+}
+
 // =============================================================================
 // TTS Manager Class
 // =============================================================================
@@ -79,8 +93,6 @@ export const PRESET_MESSAGES: Record<MessageCategory, string[]> = {
 export class TTSManager {
   private config: TTSConfig;
   private synth: SpeechSynthesis | null = null;
-  private voices: SpeechSynthesisVoice[] = [];
-  private selectedVoice: SpeechSynthesisVoice | null = null;
   private repeatInterval: ReturnType<typeof setInterval> | null = null;
   private currentCategory: MessageCategory = 'authoritative';
   private messageIndex: number = 0;
@@ -103,68 +115,11 @@ export class TTSManager {
     }
 
     this.synth = window.speechSynthesis;
-
-    // Load voices (may be async in some browsers)
-    return new Promise((resolve) => {
-      const loadVoices = () => {
-        this.voices = this.synth?.getVoices() || [];
-        this.selectBestVoice();
-        resolve();
-      };
-
-      // Some browsers load voices asynchronously
-      if (this.synth && this.synth.onvoiceschanged !== undefined) {
-        this.synth.onvoiceschanged = loadVoices;
-      }
-
-      // Try loading immediately too
-      loadVoices();
-
-      // Fallback timeout
-      setTimeout(resolve, 1000);
-    });
   }
 
-  /**
-   * Select the best available voice
-   */
-  private selectBestVoice(): void {
-    if (!this.voices.length) return;
-
-    // Priority: Preferred voice > English voices > Default
-    if (this.config.preferredVoice) {
-      const preferred = this.voices.find(v => 
-        v.name.toLowerCase().includes(this.config.preferredVoice!.toLowerCase())
-      );
-      if (preferred) {
-        this.selectedVoice = preferred;
-        return;
-      }
-    }
-
-    // Prefer English voices that sound authoritative
-    const englishVoices = this.voices.filter(v => 
-      v.lang.startsWith('en') && !v.name.includes('Whisper')
-    );
-
-    // Prefer male voices for authority (configurable)
-    const preferredVoice = englishVoices.find(v =>
-      v.name.includes('Daniel') || 
-      v.name.includes('Alex') ||
-      v.name.includes('Google UK English Male')
-    );
-
-    this.selectedVoice = preferredVoice || englishVoices[0] || this.voices[0];
-  }
-
-  /**
-   * Update configuration
-   */
+  /** Update configuration. */
   updateConfig(config: Partial<TTSConfig>): void {
     this.config = { ...this.config, ...config };
-    if (config.preferredVoice) {
-      this.selectBestVoice();
-    }
   }
 
   /**
@@ -187,7 +142,7 @@ export class TTSManager {
    * Get available voices
    */
   getVoices(): SpeechSynthesisVoice[] {
-    return this.voices;
+    return this.synth?.getVoices() ?? [];
   }
 
   /**
@@ -198,7 +153,7 @@ export class TTSManager {
       isSpeaking: this.isSpeaking,
       isRepeating: this.isRepeating,
       currentMessage: this.currentMessage,
-      availableVoices: this.voices,
+      availableVoices: this.getVoices(),
     };
   }
 
@@ -211,6 +166,9 @@ export class TTSManager {
       return;
     }
 
+    const voice = findSpokenAlertVoice(this.getVoices());
+    if (!voice) return;
+
     // Cancel any ongoing speech
     this.synth.cancel();
 
@@ -219,9 +177,8 @@ export class TTSManager {
     utterance.pitch = this.config.pitch;
     utterance.volume = this.config.volume;
 
-    if (this.selectedVoice) {
-      utterance.voice = this.selectedVoice;
-    }
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
 
     utterance.onstart = () => {
       this.isSpeaking = true;
@@ -348,8 +305,6 @@ export class TTSManager {
   dispose(): void {
     this.stop();
     this.synth = null;
-    this.voices = [];
-    this.selectedVoice = null;
   }
 }
 
