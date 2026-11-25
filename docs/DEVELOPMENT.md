@@ -645,11 +645,13 @@ would, checks that the pet was saved on the device with all three photos in
 the order it added them, starts the watch on the sample clip at the app's
 default Lost and Found settings and reads what the watch keeps every 2 s for
 85 s, three plays of the clip, and once more 3 s after, for a frame still
-being saved. Its log gives the alert and save lines, the first frame saved,
-the first alert with its score, its four parts and its region, the best score
-and the verdict. A saved frame counts as an alert when the watch raised the
-alert for it. The probe also reads Lost and Found sighting records on builds
-that keep them. Only what the watch kept inside the 85 s counts. The step
+being saved. Its log gives the alert line, save line and colour sensitivity.
+For the current build it reports the time to the first alert as "a sighting,
+its score not kept", reports that the watch saved no frame and has no best score,
+then gives the counts of frames and sightings and the verdict. On an earlier
+build that saves frames, the log can also report the first saved frame and
+its score, the first frame that alerted with its score and region, and the best
+score. Only what the watch kept inside the 85 s counts. The step
 fails when the watch does not alert, when the camera does not start or its
 picture is not live at the end, and when any step of the walk or of the
 database reads fails, with a picture of the page,
