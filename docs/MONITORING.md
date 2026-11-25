@@ -470,6 +470,11 @@ and reconnect timer.
 
 ## Alert history
 
+People keeps up to 100 saved pictures on this device. A new save makes room
+by removing the oldest seen pictures first, then the oldest unseen pictures.
+An alert stays seen if its only marked picture makes room and it still has
+other pictures.
+
 Monitor alerts are written to the `safeos-guardian` IndexedDB alert cache. Saved alerts
 belong to the browser, not to a session or a profile: Monitor, **History → Local
 Timeline** and History's offline export show the same records on every page and in every
