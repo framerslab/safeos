@@ -48,11 +48,11 @@ describe.each([PersonDetector, AnimalDetector])('%p motion gate', (Detector) => 
     ['five per cent brightness drift across the whole frame', still, () => frame(() => 113), false],
   ] as const)('handles %s', async (_label, first, second, opensGate) => {
     const detect = jest.fn().mockResolvedValue([]);
-    jest.mocked(loadDetectionModel).mockResolvedValue({ detect } as Awaited<ReturnType<typeof loadDetectionModel>>);
+    jest.mocked(loadDetectionModel).mockResolvedValue({ detect } as unknown as Awaited<ReturnType<typeof loadDetectionModel>>);
     const read = jest.fn().mockReturnValueOnce(first()).mockReturnValueOnce(second());
-    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+    jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation((() => ({
       drawImage: jest.fn(), getImageData: read,
-    } as unknown as CanvasRenderingContext2D);
+    })) as unknown as typeof HTMLCanvasElement.prototype.getContext);
 
     const detector = new Detector({ captureFrames: false });
     await detector.initialize();
