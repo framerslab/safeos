@@ -13,6 +13,7 @@ const MOTION_WALK = { from: 25.2, to: 26.8 };
 const KITTEN_FACES_CAMERA = { from: 22, to: 25.25 };
 const ALERT_HOLD_SECONDS = 2.5;
 const WATCH_CLIP_START = 20;
+const WATCH_POSTER_AT = 22.25;
 const between = (value, { from, to }) => value >= from && value <= to;
 const pose = (page, name) => page.getByRole('button', { name, exact: true });
 
@@ -277,14 +278,18 @@ async function prepareWatching({ page, baseUrl, view }) {
     .watch-grid__frame { width: 100vw; justify-self: center; }
     .watch-frame .corner-ticks { display: none; }
     .watch-frame[data-phase="live"] .watch-frame__screen {
-      height: ${height - (square ? 104 : 76)}px;
+      height: ${square ? height - 104 : view.width * 9 / 16}px;
       max-height: none;
     }
     .watch-frame__picture video { object-fit: cover; }
-    .watch-meters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .watch-meters {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      ${square ? '' : 'padding-block: 6px;'}
+    }
     .watch-meters .watch-meter:not(.watch-meter--pet):not(.watch-meter--problem) {
-      grid-template-columns: ${square ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) auto'};
-      grid-template-areas: ${square ? '"name" "track" "state"' : '"name state" "track track"'};
+      grid-template-columns: ${square ? 'minmax(0, 1fr)' : 'auto minmax(0, 1fr) auto'};
+      grid-template-areas: ${square ? '"name" "track" "state"' : '"name track state"'};
     }
     .watch-list .alert-picture[data-form="large"] {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -347,7 +352,7 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
     }
     peaks.motion = Math.max(peaks.motion, reading.motion);
     peaks.sound = Math.max(peaks.sound, reading.sound);
-    if (!poster && reading.clipAt >= 22.75 && reading.clipAt <= 25) {
+    if (!poster && reading.clipAt >= WATCH_POSTER_AT && reading.clipAt <= 25) {
       const frame = await nextFrameAfter(reading.at);
       if (frame && frame - reading.at <= 25 - reading.clipAt) {
         words = await sample();
@@ -411,7 +416,7 @@ export const recipes = [
     key: 'Watching',
     route: WATCH,
     state: 'motion-alert',
-    clip: 'home/sample-clip.mp4',
+    clip: 'home/sample-clip.wide.mp4',
     inputOffset: WATCH_CLIP_START,
     seconds: 9,
     anchor: '.watch-frame__screen',

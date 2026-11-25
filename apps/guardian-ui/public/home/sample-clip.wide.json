@@ -1,0 +1,40 @@
+{
+  "file": "sample-clip.wide.mp4",
+  "bytes": 1475351,
+  "sha256": "badf25ed58e24d08733701eb374deab331429be2c0fc65c6e3088fe956101d57",
+  "seconds": 8.2,
+  "width": 640,
+  "height": 360,
+  "framesPerSecond": 15,
+  "clipOffset": 20,
+  "picture": "H.264, 640 by 360 (16:9), 15 frames a second",
+  "source": {
+    "role": "picture",
+    "title": "Burmese Kitten Grooming Itself",
+    "author": "Alistair Findlay",
+    "page": "https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm",
+    "file": "https://upload.wikimedia.org/wikipedia/commons/e/ed/Burmese_Kitten_Grooming_Itself.webm",
+    "date": "2019-07-05",
+    "licence": "CC0 1.0",
+    "statement": "Source: Own work. Author: Alistair Findlay. I, the copyright holder of this work, hereby publish it under the following license: This file is made available under the Creative Commons CC0 1.0 Universal Public Domain Dedication.",
+    "original": {
+      "format": "VP9 3840x2160 at 120 frames a second, Opus mono 48 kHz, 45.234 s",
+      "bytes": 256322864,
+      "sha256": "4dd694e1de0851f40083ea799a5cd42710affde3f5da1291bbe829baa78f6641",
+      "sha1": "037b53ec53ddd5e7fb325bfc37fc620ca23b12e8"
+    },
+    "used": "37.0 to 45.2 s of the original (8.2 s)"
+  },
+  "licence": {
+    "name": "Creative Commons CC0 1.0 Universal Public Domain Dedication",
+    "shortName": "CC0 1.0",
+    "address": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "legalCode": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.en",
+    "readOn": "2026-11-14",
+    "quoted": "To the greatest extent permitted by, but not in contravention of, applicable law, Affirmer hereby overtly, fully, permanently, irrevocably and unconditionally waives, abandons, and surrenders all of Affirmer's Copyright and Related Rights and associated claims and causes of action, whether now known or unknown (including existing as well as future claims and causes of action), in the Work (i) in all territories worldwide, (ii) for the maximum duration provided by applicable law or treaty (including future time extensions), (iii) in any current or future medium and for any number of copies, and (iv) for any purpose whatsoever, including without limitation commercial, advertising or promotional purposes (the \"Waiver\")."
+  },
+  "credit": "Burmese Kitten Grooming Itself by Alistair Findlay (https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm), CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). Trimmed to 37.0–45.2 seconds and scaled without cropping.",
+  "command": "ffmpeg -nostdin -v error -y -ss 37 -i kitten.webm -t 8.2 -an -vf 'fps=15,scale=640:360:flags=area,format=yuv420p' -c:v libx264 -preset slow -crf 18 -map_metadata -1 -movflags +faststart sample-clip.wide.mp4",
+  "commit": "032a757e1c93845320ba2134f359f6b21ce10a0c",
+  "run": "https://github.com/framerslab/safeos/actions/runs/45717721683"
+}

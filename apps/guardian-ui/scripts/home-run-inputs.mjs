@@ -160,7 +160,7 @@ export function verifyBundle(directory) {
   const paths = new Set([mediaPrefix + 'runs.json']);
   const clipPaths = new Set();
   for (const clip of manifest.clips) {
-    assert.match(clip.path, /^home\/(?:sample-clip\.mp4|runs\/garden\.mp4)$/);
+    assert.match(clip.path, /^home\/(?:sample-clip(?:\.wide)?\.mp4|runs\/garden\.mp4)$/);
     assert.match(clip.sha256, hex);
     assert.ok(clip.credit?.trim(), 'Clip needs a credit: ' + clip.path);
     assert.equal(sha256(readFileSync(path.join(folder, clip.path))), clip.sha256, 'Clip hash mismatch: ' + clip.path);

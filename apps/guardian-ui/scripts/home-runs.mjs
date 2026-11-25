@@ -25,10 +25,17 @@ const looks = ['dark', 'light'];
 const scratch = process.env.RUNNER_TEMP ?? os.tmpdir();
 const workspace = await mkdtemp(path.join(scratch, 'safeos-frames-'));
 const publicRoot = new URL('../public/', import.meta.url);
-const sampleClip = JSON.parse(await readFile(new URL('home/sample-clip.json', publicRoot), 'utf8'));
-const clip = 'home/sample-clip.mp4';
-const actualHash = sha256(await readFile(new URL(clip, publicRoot)));
-assert.equal(actualHash, sampleClip.sha256, 'The sample clip differs from its credit record');
+const sampleClip = 'home/sample-clip.mp4';
+const clipPaths = [...new Set(recipes.map(({ clip }) => clip).filter(Boolean))];
+const clips = await Promise.all(clipPaths.map(async (clip) => {
+  const input = JSON.parse(await readFile(new URL(clip.replace(/\.mp4$/, '.json'), publicRoot), 'utf8'));
+  const actualHash = sha256(await readFile(new URL(clip, publicRoot)));
+  assert.equal(actualHash, input.sha256, `The sample clip ${clip} differs from its credit`);
+  return {
+    path: clip, sha256: actualHash, tracks: input.tracks, clipOffset: input.clipOffset,
+    credit: input.credit.long ?? input.credit, sources: input.sources ?? [input.source],
+  };
+}));
 const source = recordingInputs(recipes.map(({ id }) => id));
 for (const [name, oid] of Object.entries(source.inputs)) console.log(`${oid}  ${name}`);
 
@@ -165,14 +172,15 @@ async function recordSet(browsers, recipe, avif) {
 
 function sampleInput(recipe) {
   if (!recipe.inputOffset) return [video, audio];
+  assert.equal(clips.find(({ path }) => path === recipe.clip)?.clipOffset, recipe.inputOffset);
   const input = fileURLToPath(new URL(recipe.clip, publicRoot));
-  const start = ['-ss', String(recipe.inputOffset), '-i', input];
+  const audioSource = fileURLToPath(new URL(sampleClip, publicRoot));
   const camera = path.join(workspace, `${recipe.id}.y4m`);
   const microphone = path.join(workspace, `${recipe.id}.wav`);
   // Keep the final camera frame until the alert hold ends. The fake camera
   // would otherwise loop back to the kitten and raise another motion alert.
-  ffmpeg([...start, '-an', '-vf', 'tpad=stop_mode=clone:stop_duration=4', '-pix_fmt', 'yuv420p', camera]);
-  ffmpeg([...start, '-vn', '-af', 'apad=pad_dur=4', '-ac', '1', '-ar', '48000', '-c:a', 'pcm_s16le', microphone]);
+  ffmpeg(['-i', input, '-an', '-vf', 'tpad=stop_mode=clone:stop_duration=4', '-pix_fmt', 'yuv420p', camera]);
+  ffmpeg(['-ss', String(recipe.inputOffset), '-i', audioSource, '-vn', '-af', 'apad=pad_dur=4', '-ac', '1', '-ar', '48000', '-c:a', 'pcm_s16le', microphone]);
   return [camera, microphone];
 }
 
@@ -210,7 +218,7 @@ try {
   const manifest = {
     schemaVersion: 1, commit, run, ...source,
     browser: browserVersion, encoder,
-    clips: [{ path: clip, sha256: actualHash, tracks: sampleClip.tracks, credit: sampleClip.credit.long, sources: sampleClip.sources }],
+    clips,
     omitted: omittedRuns,
     runs,
   };
