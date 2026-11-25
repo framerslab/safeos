@@ -21,6 +21,7 @@ import { useCallback, useSyncExternalStore } from 'react';
 
 import {
   countKeptAlertPictures,
+  deleteSubjectProfile,
   getAlertPicture,
   goneAlertPicture,
   goneAllAlertPictures,
@@ -350,6 +351,22 @@ export async function deletePicture(id: string, known: { kind: AlertKind; takenA
   postPictureNews({ type: 'gone', ids: [id], reason: 'person' });
   tell();
   await readCount();
+  return 'deleted';
+}
+
+/**
+ * Deletes a Lost and Found pet with its saved pictures: each set kept for its sightings leaves, in
+ * every tab; the alerts' words stay.
+ */
+export async function deletePet(subjectId: string): Promise<'deleted' | 'failed'> {
+  const answer = await deleteSubjectProfile(subjectId);
+  if (answer.result === 'failed') return 'failed';
+  if (answer.pictureIds.length > 0) {
+    gone(answer.pictureIds, 'person');
+    postPictureNews({ type: 'gone', ids: answer.pictureIds, reason: 'person' });
+    tell();
+    await readCount();
+  }
   return 'deleted';
 }
 

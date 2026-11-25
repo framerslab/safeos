@@ -18,7 +18,6 @@ import { expiredPictureIds, type AlertKind, type Box } from './alert-pictures/ru
 import { alertsChanged } from './tab-channel';
 import { noteStorageFull } from './storage-full';
 import { recordTime, seenAfterRemoval } from './alert-groups';
-import { postPictureNews } from './alert-pictures/channel';
 
 // =============================================================================
 // Database Schema
@@ -1624,7 +1623,17 @@ export async function getSubjectProfilesByType(type: 'pet' | 'person' | 'other')
   }
 }
 
-export async function deleteSubjectProfile(id: string): Promise<void> {
+/** A picture an alert names that has no row may be drawn or saved for this long; after that none was kept. */
+const PICTURE_ON_ITS_WAY_MS = 60_000;
+
+/**
+ * Deletes a pet with its saved pictures, in one transaction: the frames an earlier version saved
+ * for it, and the pictures kept for its sightings, whose alerts keep their words. Answers the ids
+ * of the sightings' pictures that went; `failed` deleted nothing.
+ */
+export async function deleteSubjectProfile(
+  id: string,
+): Promise<{ result: 'deleted'; pictureIds: string[] } | { result: 'failed' }> {
   let tx: Abandonable | undefined;
   try {
     const db = await getDB();
@@ -1636,28 +1645,29 @@ export async function deleteSubjectProfile(id: string): Promise<void> {
       frames.index('by-subject').getAllKeys(id),
       write.objectStore('alert_cache').index('by-producer-created').getAll(producerRange('monitoring')),
     ]);
-    const removed: string[] = [];
+    const pictureIds: string[] = [];
+    const now = Date.now();
     for (const alert of alerts) {
       if (alert.kind !== 'sighting' || alert.subjectId !== id || !alert.pictureId) continue;
       const picture = await pictures.get(alert.pictureId);
-      if (picture?.state === 'gone') continue;
-      // Leave a mark for a pending picture too, so it cannot arrive after the pet is deleted.
-      await pictures.put({
-        id: alert.pictureId, state: 'gone', kind: 'sighting', gone: 'person',
-        takenAt: picture?.takenAt ?? recordTime({ id: alert.pictureId }) ?? recordTime(alert) ?? 0,
-      });
-      removed.push(alert.pictureId);
+      const takenAt = picture?.takenAt ?? recordTime({ id: alert.pictureId }) ?? recordTime(alert) ?? 0;
+      // With no row, a picture on its way gets the mark that keeps its save out; one that was never
+      // kept gets none, so its alert does not say the person deleted it.
+      if (picture ? picture.state === 'gone' : now - takenAt > PICTURE_ON_ITS_WAY_MS) continue;
+      await pictures.put({ id: alert.pictureId, state: 'gone', kind: 'sighting', gone: 'person', takenAt });
+      pictureIds.push(alert.pictureId);
     }
     await Promise.all([
       write.objectStore('subject_profile').delete(id),
       ...earlierIds.map((frameId) => frames.delete(frameId)),
     ]);
     await write.done;
-    if (removed.length > 0) postPictureNews({ type: 'gone', ids: removed, reason: 'person' });
     alertsChanged();
+    return { result: 'deleted', pictureIds };
   } catch (error) {
     console.warn('[ClientDB] Failed to delete subject profile:', error);
     await abandonTransaction(tx);
+    return { result: 'failed' };
   }
 }
 
@@ -1971,13 +1981,15 @@ export async function acknowledgeMatchFrames(ids: string[]): Promise<void> {
   }
 }
 
-export async function deleteMatchFrame(id: string): Promise<void> {
+export async function deleteMatchFrame(id: string): Promise<'deleted' | 'failed'> {
   try {
     const db = await getDB();
     await db.delete('match_frame', id);
     alertsChanged();
+    return 'deleted';
   } catch (error) {
     console.warn('[ClientDB] Failed to delete match frame:', error);
+    return 'failed';
   }
 }
 

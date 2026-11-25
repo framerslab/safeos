@@ -24,7 +24,9 @@ import { LostFoundSetup } from '../../components/LostFoundSetup';
 import { SubjectPreview } from '../../components/SubjectPreview';
 import { useLostFoundStore, getSubjectTypeLabel } from '../../stores/lost-found-store';
 import { useOnboardingStore } from '../../stores/onboarding-store';
-import { countMatchFramesBySubject, getAllSubjectProfiles, deleteSubjectProfile, type SubjectProfileDB } from '../../lib/client-db';
+import { countMatchFramesBySubject, getAllSubjectProfiles, type SubjectProfileDB } from '../../lib/client-db';
+import { onKeptPicturesChanged } from '../../lib/alert-pictures/channel';
+import { deletePet } from '../../lib/alert-pictures/keeper';
 import { onTabMessage } from '../../lib/tab-channel';
 import { useStartGuard } from '../../lib/start-guard';
 import { savedSightings } from '../../lib/lost-found-words';
@@ -37,6 +39,8 @@ export default function LostFoundPage() {
   // or when the read fails, and then no count shows.
   const [savedPictures, setSavedPictures] = useState<Record<string, number> | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // The pet this device could not delete, by name.
+  const [undeleted, setUndeleted] = useState<string | null>(null);
   const countLine = (id: string): string => {
     const count = savedPictures?.[id];
     return count === undefined ? '' : `${savedSightings(count)} • `;
@@ -67,14 +71,21 @@ export default function LostFoundPage() {
     loadSubjects();
   }, [subjects]); // Reload when store subjects change
 
-  // Read the counts again when an alert or its kept picture changes.
-  useEffect(() => onTabMessage((message) => {
-    if (message.type !== 'alerts-changed' && !(message.type === 'pictures' && message.news.type !== 'settings')) return;
-    getAllSubjectProfiles()
-      .then((profiles) => countMatchFramesBySubject(profiles.map((profile) => profile.id)))
-      .then(setSavedPictures)
-      .catch(() => setSavedPictures(null));
-  }), []);
+  // Read the counts again when an alert or its kept picture changes, in this tab or another.
+  useEffect(() => {
+    const countAgain = () => {
+      getAllSubjectProfiles()
+        .then((profiles) => countMatchFramesBySubject(profiles.map((profile) => profile.id)))
+        .then(setSavedPictures)
+        .catch(() => setSavedPictures(null));
+    };
+    const stopAlerts = onTabMessage((message) => { if (message.type === 'alerts-changed') countAgain(); });
+    const stopPictures = onKeptPicturesChanged(countAgain);
+    return () => {
+      stopAlerts();
+      stopPictures();
+    };
+  }, []);
 
   // Handle subject selection
   const handleSelectSubject = (subject: SubjectProfileDB) => {
@@ -92,10 +103,15 @@ export default function LostFoundPage() {
   };
 
   // Handle delete subject
-  const handleDeleteSubject = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteSubject = async (subject: SubjectProfileDB, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Delete this subject? Its saved pictures are deleted too.')) {
-      await deleteSubjectProfile(id);
+      const { id } = subject;
+      setUndeleted(null);
+      if ((await deletePet(id)) === 'failed') {
+        setUndeleted(subject.name);
+        return;
+      }
       setSavedSubjects(prev => prev.filter(s => s.id !== id));
       if (activeSubject?.id === id) {
         setActiveSubject(null);
@@ -284,7 +300,7 @@ export default function LostFoundPage() {
                         
                         {/* Delete button */}
                         <button
-                          onClick={(e) => handleDeleteSubject(subject.id, e)}
+                          onClick={(e) => handleDeleteSubject(subject, e)}
                           className="p-2 text-[var(--color-steel-500)] hover:text-red-400 transition-colors"
                           aria-label={`Delete ${subject.name}`}
                         >
@@ -294,6 +310,11 @@ export default function LostFoundPage() {
                     </div>
                   ))}
                 </div>
+                {undeleted && (
+                  <p role="alert" className="mt-4 text-base text-[var(--color-steel-100)]">
+                    {`${undeleted} could not be deleted on this device.`}
+                  </p>
+                )}
               </div>
             )}
 

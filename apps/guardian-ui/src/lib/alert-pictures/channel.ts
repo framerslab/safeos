@@ -34,9 +34,23 @@ export function settingsNews(choices: {
   };
 }
 
-/** Tells the other tabs. This tab's own views are changed by the caller. */
+/** This tab's lists of kept pictures. */
+const lists = new Set<() => void>();
+
+/** Tells the other tabs, and this tab's lists of kept pictures. This tab's own views are changed by the caller. */
 export function postPictureNews(news: PictureNews): void {
   tellTabs({ type: 'pictures', news });
+  if (news.type !== 'settings') lists.forEach((listener) => listener());
+}
+
+/** Hears that a picture was saved or went, in this tab or another. Answers the way to stop. */
+export function onKeptPicturesChanged(listener: () => void): () => void {
+  lists.add(listener);
+  const stop = onPictureNews((news) => { if (news.type !== 'settings') listener(); });
+  return () => {
+    lists.delete(listener);
+    stop();
+  };
 }
 
 /** Hears the other tabs' news. Answers the way to stop. */
