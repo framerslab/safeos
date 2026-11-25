@@ -145,7 +145,8 @@ the pictures kept for the pet's sightings beside the frames earlier versions
 saved. The pet's card counts both. Open a picture to see its time and the
 question "Could this be {name}?". A sighting's picture shows its box and any
 close-up. Deleting the picture here also removes it from History. The sighting's
-words stay.
+words stay. Deleting the pet deletes its saved pictures the same way. Pictures this
+device cannot read, or cannot delete, are named in the gallery.
 The watch links to **Open in History**, which opens History on its Local Timeline,
 also on a device that uses a server. Choosing another pet starts a new comparison
 without restarting the camera.
