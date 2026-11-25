@@ -281,19 +281,25 @@ html:has(.app-shell) {
   }
 }
 
-/* The row: the four destinations, then More while it is needed and the look
-   switch at the right. The navigation never shrinks: a row that runs short
-   runs past the bar, so the header's script moves to the next fold. */
+/* The navigation keeps GitHub on the phone and adds the destinations and
+   look switch at the tablet width. */
 .app-header__nav {
-  display: none;
+  display: flex;
+  flex: 1 0 auto;
+  align-items: center;
+  gap: 16px;
 }
 
-@media (min-width: 48em) {
-  .app-header__nav {
-    display: flex;
-    flex: 1 0 auto;
-    align-items: center;
-    gap: 16px;
+@media not all and (min-width: 48em) {
+  .app-header__bar .app-header__links,
+  .app-header__bar .app-header__more,
+  .app-header__actions .look-switch,
+  .app-header__actions .look-switch-place {
+    display: none;
+  }
+
+  .app-header:not([data-fold='0']) .app-header__brand--plain .wordmark {
+    display: none;
   }
 }
 
@@ -406,6 +412,11 @@ html:has(.app-shell) {
   font-size: var(--type-word-size);
   line-height: var(--type-word-line);
   font-weight: var(--weight-bold);
+}
+
+.app-header[data-fold='0'] .app-header__more,
+.app-header[data-fold='1'] .app-header__more {
+  display: none;
 }
 
 .app-header__more:hover {

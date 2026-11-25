@@ -3,9 +3,9 @@
  *
  * One row on every app page: the mark and the wordmark as a link to the
  * dashboard, then a navigation named "App" with the four destinations
- * (Dashboard, History, Settings and Help) and the look switch. On a phone the
- * row shows the brand alone, plain, and the bar at the foot of the screen
- * carries the destinations. When the row runs short (a narrow window or
+ * (Dashboard, History, Settings and Help), GitHub and the look switch. On
+ * a phone the header holds the plain brand and GitHub, and the bar at the
+ * foot of the screen carries the destinations. When the row runs short (a narrow window or
  * larger text) it folds: the wordmark leaves first, then Help moves into
  * More, then Settings, and only when nothing else is left does the row scroll
  * inside itself. Before script runs every link works and the look switch has
@@ -20,6 +20,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { DESTINATIONS, destinationOf, type Destination } from '@/lib/app-routes';
+import { GitHubIconLink } from '../visitor/GitHubLink';
 import { SiteMark } from '../visitor/SiteMark';
 import { LookSwitch } from '../visitor/LookSwitch';
 import { NewAlertsCount, historyName } from './NewAlertsCount';
@@ -188,6 +189,7 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
         <nav aria-label="App" className="app-header__nav">
           <div className="app-header__links">{DESTINATIONS.map((d) => link(d, 'app-header__link'))}</div>
           <div className="app-header__actions">
+            <GitHubIconLink className="app-header__github" />
             {fold >= 2 && (
               <button
                 ref={moreRef}

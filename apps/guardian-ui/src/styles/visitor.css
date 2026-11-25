@@ -384,6 +384,10 @@ html.light .visitor-shell {
   line-height: 18px;
 }
 
+.site-header[data-compact] .site-header__actions {
+  gap: 4px;
+}
+
 .site-header[data-compact='true'] .wordmark {
   display: none;
 }
@@ -509,6 +513,13 @@ html.light .visitor-shell {
   }
 }
 
+@media (min-width: 48em) and (max-width: 63.999em) {
+  .site-header__links {
+    gap: 16px;
+    margin-left: 8px;
+  }
+}
+
 @media (min-width: 64em) {
   .site-header__bar {
     max-width: 1264px;
@@ -519,6 +530,10 @@ html.light .visitor-shell {
   }
 
   .site-header[data-short='privacy'] .site-header__link--wide {
+    display: none;
+  }
+
+  .site-header:not([data-collapsed='true']):not([data-short]) .site-header__github-icon {
     display: none;
   }
 
