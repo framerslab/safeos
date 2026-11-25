@@ -322,6 +322,7 @@ describe.each([false, true])('Picture change severity (count mode: %s)', (useAbs
     jest.spyOn(PixelDetectionEngine.prototype, 'analyzeImageData').mockImplementation(() => ({
       changed: true, difference: changedPixelCount / pixels * 100, changedPixelCount,
       totalPixels: pixels, hotspots: [], timestamp: Date.now(), processingTimeMs: 0,
+      triggeredBy: useAbsoluteThreshold ? 'absolute' : 'percentage',
     }));
 
     render(<MonitorPage />);

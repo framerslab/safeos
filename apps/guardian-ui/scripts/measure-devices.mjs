@@ -42,6 +42,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { chromium } from '@playwright/test';
+import { probeWildlife } from './wildlife-probe.mjs';
 
 const [baseUrl, outDir, videoFile, audioFile, subjectFile] = process.argv.slice(2);
 if (!baseUrl || !outDir || !videoFile || !audioFile || !subjectFile) {
@@ -537,6 +538,13 @@ async function measureModel(browser, cls, rate, name) {
       };
     }, { modelUrl: MODEL_URL, route: MODEL_ROUTE, cacheName: MODEL_CACHE, inferences: INFERENCES, limitMs: INFERENCE_LIMIT_MS }), MODEL_LIMIT_MS, 'the model measurement');
 
+    // Reuse this context's model cache for both Wildlife watch starts.
+    if (cls.id === 'laptop' && rate === 1) {
+      await page.close();
+      page = null;
+      results.wildlife = await probeWildlife({ context, baseUrl, modelHost: MODEL_HOST, outDir, seed, settings: SETTINGS });
+    }
+
     const files = [...requests.values()];
     const wire = files.reduce((sum, r) => sum + r.wire, 0);
     const body = files.reduce((sum, r) => sum + r.body, 0);
@@ -748,3 +756,10 @@ const summary = table(results);
 await writeFile(path.join(outDir, 'measurements.json'), `${JSON.stringify(results, null, 2)}\n`);
 await writeFile(path.join(outDir, 'summary.md'), summary);
 console.log(summary);
+
+// Wildlife's real watch must get through its motion gate and finish an inference
+// on each play. Save the measurements and the clip times even if this fails.
+if (results.wildlife?.attempts.length !== 2
+  || results.wildlife.attempts.some((attempt) => attempt.error || attempt.frameReads < 2 || !attempt.inferences.length)) {
+  throw new Error('Wildlife did not complete a model check through its motion gate on both plays of the sample clip.');
+}

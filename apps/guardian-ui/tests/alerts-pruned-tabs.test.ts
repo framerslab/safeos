@@ -162,3 +162,23 @@ it('keeps the newest 100 of 130 unseen People pictures', async () => {
   expect(kept.map((frame) => frame.id)).toEqual(Array.from({ length: 100 }, (_, i) => `unseen-${129 - i}`));
   expect(kept.every((frame) => !frame.acknowledged)).toBe(true);
 });
+
+it('repairs a People picture store already over its limit when the pictures are opened', async () => {
+  await getAllIntrusionFrames();
+  await empty('intrusion_frame');
+  await fill('intrusion_frame', Array.from({ length: 130 }, (_, i) => (
+    person(`older-${i}`, i * 60_000, i === 129)
+  )));
+
+  const kept = await getAllIntrusionFrames();
+
+  expect(kept).toHaveLength(100);
+  expect(kept[0]?.id).toBe('older-128');
+  expect(kept[99]?.id).toBe('older-29');
+  const database = await openDB('safeos-guardian');
+  try {
+    expect(await database.count('intrusion_frame')).toBe(100);
+  } finally {
+    database.close();
+  }
+});

@@ -343,3 +343,17 @@ describe('Playback Modes', () => {
   });
 });
 
+
+it('keeps a Lost and Found spoken alert quiet when only an online voice is available', () => {
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockReturnValueOnce([
+    { name: 'Online English', lang: 'en-US', voiceURI: 'remote-en', localService: false, default: true },
+  ]);
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
+  } finally {
+    player.dispose();
+  }
+});
