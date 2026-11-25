@@ -375,10 +375,16 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
   console.log(`Watching Motion peak ${peaks.motion}, line ${line}, alert at clip ${arrival.clipAt.toFixed(3)} s`);
   const alert = alertCard(page, arrival);
   const picture = alert.locator('.alert-picture__frame img').first();
-  await readPicture(picture);
   // Bring the entry into view in one scroll. Intermediate frames of a fast
   // scroll repeatedly swap the camera and the white background in the light look.
   await scrollSubject(page, '.watch-list__head', crop.y + 8, 0);
+  await readPicture(picture).catch(async (cause) => {
+    const cards = await page.locator('.watch-list__body [data-alert-card]').evaluateAll((cards) => cards.map((card) => ({
+      ...card.dataset,
+      picture: card.querySelector('.alert-picture')?.dataset.status,
+    })));
+    throw Error('The new motion card did not show its picture: ' + JSON.stringify(cards), { cause });
+  });
   const checkAlert = async () => {
     const heading = page.getByRole('heading', { name: 'Alerts', exact: true });
     const boxes = await Promise.all([heading, alert, picture].map((part) => part.boundingBox()));
@@ -390,12 +396,14 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
   assert.ok(end - pictureAt >= ALERT_HOLD_SECONDS,
     'The motion alert and its picture did not stay in frame for 2.5 seconds');
   await holdThrough(page, end, checkAlert);
+  const events = await page.evaluate(() => window.homeWatchEvents);
+  assert.equal(events.length, 1, 'The Watching recording must show one alert: ' + JSON.stringify(events));
   const notices = await page.evaluate(() => window.homeRunNotifications);
   assert.ok(notices.some(({ title }) => /^Motion alert/i.test(title)), 'The watch saved a motion alert without a recorded notification');
   return {
     start, end, poster, posterFrame: poster, posterReading, words,
     event: arrival.observedAt, peaks, line, motionOverAt, pictureAt,
-    notices, watchEvents: reading.events,
+    notices, watchEvents: events,
   };
 }
 
@@ -418,6 +426,10 @@ export const recipes = [
     state: 'motion-alert',
     clip: 'home/sample-clip.wide.mp4',
     inputOffset: WATCH_CLIP_START,
+    settings: {
+      ...settings,
+      severityCooldowns: { info: 10, low: 10, medium: 10, high: 10, critical: 10 },
+    },
     seconds: 9,
     anchor: '.watch-frame__screen',
     description: 'On a kitten clip, the kitten walks past, Motion crosses its line and the alert arrives.',
