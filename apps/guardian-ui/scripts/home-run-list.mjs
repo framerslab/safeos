@@ -100,7 +100,7 @@ async function prepareDashboard({ page, baseUrl }) {
   await pose(page, 'Stop watching').waitFor({ timeout: 15 * SECOND });
   await pose(page, 'Show settings').click();
   await page.getByRole('button', { name: /Fine-Tune Settings/ }).click();
-  const sensitivity = page.getByText('Motion Sensitivity', { exact: true }).locator('../..').getByRole('slider');
+  const sensitivity = page.getByText('Motion Sensitivity', { exact: true }).locator('xpath=../..').getByRole('slider');
   assert.equal(await sensitivity.inputValue(), '0', 'The Dashboard watch starts with Motion at its least sensitive setting');
   await watchEvent(page, 'sound').waitFor({ timeout: 20 * SECOND });
   await page.waitForFunction((camera) => document.querySelector(camera)?.currentTime >= 22, CAMERA);
@@ -116,7 +116,7 @@ async function prepareDashboard({ page, baseUrl }) {
   await pose(page, 'Stop watching').click();
   await pose(page, 'Start watching').waitFor();
   const openPicture = alertCard(page, latestMotion).locator('[data-open-picture]');
-  const alertId = await openPicture.getAttribute('data-open-picture');
+  const alertId = await openPicture.getAttribute('data-open-picture', { timeout: 3000 });
   assert.ok(alertId, 'The movement alert has no picture to open');
   const notices = await page.evaluate(() => window.homeRunNotifications);
   assert.ok(notices?.length, 'The watch saved alerts without a recorded notification');
@@ -215,6 +215,14 @@ function fits(box, { x, y, width, height }) {
     && box.y >= y - 0.5 && box.y + box.height <= y + height + 0.5;
 }
 
+async function holdThrough(page, end, check) {
+  for (let at = await browserTime(page); at < end; at = await browserTime(page)) {
+    await check();
+    await sleepUntil(page, Math.min(at + 0.12, end), 0);
+  }
+  await check();
+}
+
 async function dashboard({ page, crop, view, prepared, sample }) {
   const since = page.getByRole('region', { name: 'Since you last looked' });
   const motion = since.getByRole('link', { name: /Movement at/ }).first();
@@ -243,8 +251,9 @@ async function dashboard({ page, crop, view, prepared, sample }) {
   const pictureAt = await browserTime(page);
   const end = start + view.seconds;
   assert.ok(end - pictureAt >= 3.5, 'The Dashboard must hold the opened picture through the end');
-  await sleepUntil(page, end, 0);
-  assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture left the frame');
+  await holdThrough(page, end, async () => {
+    assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture left the frame');
+  });
   return {
     start, end, poster: start, event, words, pictureAt,
     notices: prepared.notices, watchEvents: prepared.events,
@@ -259,7 +268,7 @@ async function prepareWatching({ page, baseUrl, view }) {
   // surrounds the recording with its own ticks.
   await page.addStyleTag({ content: `
     .watch-grid__frame { width: 100vw; justify-self: center; }
-    .watch-frame .corner-ticks { visibility: hidden; }
+    .watch-frame .corner-ticks { display: none; }
     .watch-frame[data-phase="live"] .watch-frame__screen {
       height: ${height - (square ? 104 : 76)}px;
       max-height: none;
@@ -320,8 +329,12 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
   let words;
   let motionOverAt;
   let arrival;
+  const readings = [];
   let reading = first;
   while (reading.clipAt <= MOTION_WALK.to + 0.2 && reading.at < start + 6) {
+    if (readings.at(-1)?.motion !== reading.motion) {
+      readings.push({ clipAt: Number(reading.clipAt.toFixed(3)), motion: reading.motion });
+    }
     peaks.motion = Math.max(peaks.motion, reading.motion);
     peaks.sound = Math.max(peaks.sound, reading.sound);
     if (!poster && reading.clipAt >= 22.75 && reading.clipAt <= 25) {
@@ -342,8 +355,8 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
     reading = await readWatch(page);
   }
   assert.ok(poster, 'No frame showed the kitten facing the camera in the poster window');
-  assert.ok(motionOverAt, `Motion never went over its line during the walk (peak ${peaks.motion}, line ${line})`);
-  assert.ok(arrival, 'No motion alert arrived during the walk: ' + JSON.stringify(reading.events));
+  assert.ok(motionOverAt, `Motion never went over its line during the walk (peak ${peaks.motion}, line ${line}): ${JSON.stringify(readings)}`);
+  assert.ok(arrival, 'No motion alert arrived during the walk: ' + JSON.stringify({ readings, events: reading.events }));
   const alert = alertCard(page, arrival);
   const picture = alert.locator('.alert-picture__frame img').first();
   await readPicture(picture);
@@ -358,8 +371,7 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
   const pictureAt = await browserTime(page);
   assert.ok(end - pictureAt >= ALERT_HOLD_SECONDS,
     'The motion alert and its picture did not stay in frame for 2.5 seconds');
-  await sleepUntil(page, end, 0);
-  await checkAlert();
+  await holdThrough(page, end, checkAlert);
   const notices = await page.evaluate(() => window.homeRunNotifications);
   assert.ok(notices.some(({ title }) => /^Motion alert/i.test(title)), 'The watch saved a motion alert without a recorded notification');
   return {

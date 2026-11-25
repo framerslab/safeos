@@ -580,11 +580,12 @@ public header and footer on their own (`site-header-<width>-<look>.png`,
 
 The Pictures job **Record the home page runs** builds the app and runs
 `apps/guardian-ui/scripts/home-runs.mjs`. Dashboard uses the real alerts
-from a watch on the sample clip. It holds the new alerts and the kept movement
-picture for six seconds in both sizes. Watching records the start key,
-whole camera picture and both meters. Settings records a scroll of the
-actual settings list. The producer
-captures native frames and encodes silent MP4s and WebP posters, with AVIF
+from a watch on the sample clip. It shows the list for about two seconds,
+opens the movement alert and holds its kept picture through the end of the
+seven-second run. Watching shows the kitten facing the camera and walking
+past it. Motion crosses its line and the watch scrolls to the alert and
+its saved picture for at least 2.5 seconds. Settings records a scroll of
+the actual settings list. The producer captures native frames and encodes silent MP4s and WebP posters, with AVIF
 alternatives when available. It records the source commit, run URL, clip
 credits, visible words, recording positions and file hashes in `runs.json`.
 
@@ -612,11 +613,14 @@ Missing or unreadable word boxes fail the check.
 | Watching and its poster | 460,000 bytes | 1,300,000 bytes |
 | Complete set in one look | 2,300,000 bytes | 6,600,000 bytes |
 
-The first poster shows the kitten and the Motion and Sound meters when a dog
-barks. The player uses the matching Watching WebP. Dashboard follows with
-the movement and sound alerts and the movement alert’s kept picture. The
-recordings use the Custom preset with motion sensitivity set to keep that
-picture before the kitten leaves the camera. The player holds the poster for reduced motion and data saving until Play. Once the service worker has
+The first poster shows the kitten facing the camera between 22 and 25
+seconds of the sample clip. The Watching walk uses the section of the clip
+starting at 20 seconds and records the Motion crossing and alert from the
+walk at 25.2 to 26.8 seconds. Only the recorder adjusts the camera and alert
+layout to fit the capture. Dashboard uses the full sample clip, keeping the
+sound alert from the bark and the movement picture from 22 to 25.25
+seconds. It opens that picture from the alert in History. The player holds
+the poster for reduced motion and data saving until Play. Once the service worker has
 saved the app, an eligible visit saves both looks' square WebP posters as
 an optional batch. Visitors can step through the saved pictures offline.
 Save-Data, 2g, slow-2g and reduced motion defer the poster batch. The

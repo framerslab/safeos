@@ -12,7 +12,7 @@ const app = fileURLToPath(new URL('..', import.meta.url));
 const repo = path.resolve(app, '../..');
 const appPath = path.relative(repo, app);
 const routes = {
-  dashboard: ['dashboard', 'monitor'],
+  dashboard: ['dashboard', 'monitor', 'history'],
   watching: ['monitor'],
   alert: ['monitor'],
   'lost-found': ['monitor', 'lost-found'],

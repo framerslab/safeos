@@ -97,13 +97,16 @@ try {
   const homeChecks = process.env.PICTURE_VERSION === 'after' && routes.includes('/')
     ? await import('./home-checks.mjs')
     : null;
-  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks);
+  let runs;
+  if (homeChecks) {
+    const response = await fetch(new URL('/home/runs/runs.json', baseUrl));
+    if (!response.ok) throw Error('Missing exported home recordings');
+    ({ runs } = await response.json());
+  }
+  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs);
   if (homeChecks) {
     failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
     const { checkHomeRuns, checkRunPolicies } = await import('./home-run-checks.mjs');
-    const response = await fetch(new URL('/home/runs/runs.json', baseUrl));
-    if (!response.ok) throw Error('Missing exported home recordings');
-    const { runs } = await response.json();
     failures += await checkHomeRuns(browser, baseUrl, runs);
     failures += await checkRunPolicies(browser, baseUrl, runs);
   }
@@ -500,7 +503,7 @@ function contrastOf(locator) {
   });
 }
 
-async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
+async function captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs) {
   let failures = 0;
   for (const [width, height] of [[390, 844], [1440, 900]]) {
     for (const look of LOOKS) {
@@ -512,7 +515,7 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
         const page = await context.newPage();
         const home = new URL('/', baseUrl).href;
         const release = new Map();
-        if (homeChecks) {
+        if (runs) {
           for (const id of ['watching', 'dashboard']) {
             const held = new Promise((resolve) => release.set(id, resolve));
             await context.route('**/home/runs/' + id + '-*.mp4', async (route) => {
@@ -525,7 +528,7 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
           await page.mouse.move(0, 0);
           await page.goto(home, { waitUntil: 'domcontentloaded', timeout: 60_000 });
           await page.evaluate(() => document.fonts.ready);
-          if (homeChecks) {
+          if (runs) {
             await page.waitForFunction(() => {
               const image = document.querySelector('.home-run__poster img');
               return image?.complete && image.naturalWidth > 0 && !image.closest('picture').hidden;
@@ -539,7 +542,7 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
           const first = 'home-first-' + width + '-' + look + '.png';
           await save(first);
           console.log('captured ' + first);
-          if (!homeChecks) continue;
+          if (!runs) continue;
 
           for (const id of ['watching', 'dashboard']) {
             const key = page.locator('button[data-run="' + id + '"]');
@@ -551,12 +554,27 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
             }, id, { timeout: 15000 });
             await save('home-' + id + '-' + width + '-' + look + '.png');
 
-            if (width === 1440 && look === 'dark') {
-              const { waitForPlaying } = await import('./home-run-checks.mjs');
-              release.get(id)();
-              await waitForPlaying(page, id === 'watching' ? 8.3 : 4, 15000);
-              await save('home-' + id + '-playing-1440-dark.png');
+            const run = runs.find((entry) => entry.id === id);
+            const variant = run.variants[width === 390 ? 'square' : 'wide'][look];
+            if (variant.pictureAt === undefined && (width !== 1440 || look !== 'dark')) continue;
+            const { waitForPlaying } = await import('./home-run-checks.mjs');
+            release.get(id)();
+            await waitForPlaying(page, 0, 15000);
+            const movie = page.locator('.home-run__frame video');
+            const freeze = (time) => movie.evaluate(async (video, time) => {
+              video.pause();
+              const seeked = new Promise((resolve) => video.addEventListener('seeked', resolve, { once: true }));
+              video.currentTime = time;
+              await seeked;
+              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            }, time);
+            if (id === 'watching' && variant.motionOverAt !== undefined && look === 'dark') {
+              // Step to the first encoded frame at or after the above-line reading.
+              await freeze(Math.ceil(variant.motionOverAt * 15) / 15 + 0.001);
+              await save('home-watching-motion-' + width + '-' + look + '.png');
             }
+            await freeze(variant.pictureAt === undefined ? (id === 'watching' ? 8.3 : 4) : run.seconds - 0.5);
+            await save('home-' + id + '-playing-' + width + '-' + look + '.png');
           }
         } finally {
           for (const resume of release.values()) resume();
