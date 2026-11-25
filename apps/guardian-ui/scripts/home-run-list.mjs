@@ -99,6 +99,7 @@ async function prepareDashboard({ page, baseUrl }) {
   await open(page, baseUrl, '/dashboard/');
   await page.getByRole('heading', { name: 'Not watching', exact: true }).waitFor();
   await page.locator('.dash-new').getByText(/new alerts? since you last looked/).waitFor();
+  await pose(page, 'Start watching').waitFor();
   const ways = page.getByRole('region', { name: 'Ways to watch' });
   assert.equal(await ways.getByRole('link').count(), 4, 'Expected all four ways to watch');
   const since = page.getByRole('region', { name: 'Since you last looked' });
@@ -118,28 +119,48 @@ async function viewingTop(page, selector) {
   }, selector);
 }
 
-export async function placeSubject(page, recipe, view) {
+async function placeDashboard(page, top, height) {
+  await page.mouse.move(0, 0);
+  return page.evaluate(async ({ top, height }) => {
+    const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+    const alerts = box('.since');
+    const ways = box('.ways');
+    const footer = box('.app-shell__footer');
+    const bar = box('.phone-bar');
+    const first = Math.ceil(Math.max(ways.bottom, alerts.bottom - height) + scrollY);
+    const last = Math.floor(Math.min(alerts.top, footer.top - height) + scrollY);
+    if (first > last || (bar.height && top + height > bar.top)) {
+      throw Error('The Dashboard alerts do not fit between the watch links and the app footer');
+    }
+    const center = Math.round((alerts.top + alerts.bottom - height) / 2 + scrollY);
+    const crop = Math.min(last, Math.max(first, center));
+    window.scrollTo({ top: crop - top, behavior: 'instant' });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    if (Math.abs(scrollY - (crop - top)) > 0.5) throw Error('The Dashboard crop did not reach the alert list');
+    return top;
+  }, { top, height });
+}
+
+export async function placeSubject(page, recipe, view, height) {
+  const header = await page.locator('.app-header').first().boundingBox();
+  const headerBottom = Math.ceil(header ? header.y + header.height : 0);
+  if (recipe.id === 'dashboard') return placeDashboard(page, headerBottom + 8, height);
+
   const anchor = recipe.anchor;
   const top = await viewingTop(page, anchor);
-  const header = await page.locator('.app-header').first().boundingBox();
-  const headerHeight = header?.height ?? 0;
-  const offset = view.size === 'square' ? 6 : headerHeight + 4;
-  if (view.size === 'wide' || recipe.id === 'watching') {
-    // The live frame moves higher than the start panel. Leave room to scroll
-    // it under the header instead of fixing the crop at the start panel's top.
-    const cropTop = view.size === 'wide' ? 0 : Math.ceil(headerHeight);
-    const target = Math.max(headerHeight + 4, cropTop + offset);
+  if (recipe.id === 'watching' || view.size === 'wide') {
+    const cropTop = recipe.id === 'watching' ? headerBottom : 0;
+    const target = Math.max(headerBottom + 4, cropTop + 6);
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.max(0, top - target));
     return cropTop;
   }
+
   const box = await page.locator(anchor).first().boundingBox();
   const footer = await page.locator('.phone-bar').first().boundingBox();
-  // The fixed phone navigation must not intersect the crop; scroll the
-  // actual route to hold its subject above the bar when needed.
-  const maxTop = Math.floor(Math.min(view.height, footer?.y ?? view.height) - view.width);
-  const visibleTop = Math.min(maxTop, Math.max(headerHeight, Math.floor(box.y - offset)));
-  if (box.y - offset > maxTop) {
-    await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), top - visibleTop - offset);
+  const maxTop = Math.floor(Math.min(view.height, footer?.y ?? view.height) - height);
+  const visibleTop = Math.min(maxTop, Math.max(headerBottom, Math.floor(box.y - 6)));
+  if (box.y - 6 > maxTop) {
+    await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), top - visibleTop - 6);
   }
   return Math.round(visibleTop);
 }
@@ -166,38 +187,20 @@ async function scrollSubject(page, selector, top, seconds, edge = 'start', frame
 }
 
 async function dashboard({ page, view, top, prepared, sample }) {
-  const start = await browserTime(page);
-  await sleepUntil(page, start, 1);
-  const ways = page.getByRole('region', { name: 'Ways to watch' });
-  const first = await ways.getByRole('link').first().boundingBox();
-  const end = top + (view.size === 'square' ? view.width : view.height);
-  assert.ok(first && first.y >= top && first.y + first.height <= end, 'The Dashboard must start with a complete way to watch');
-
-  await sleepUntil(page, start, 2);
-  const header = await page.locator('.app-header').first().boundingBox();
-  // The gap before the alerts is larger on phones. Keep some of it in the
-  // square so the footer's brand stays below the crop.
-  const subjectTop = Math.max(top + (view.size === 'square' ? 38 : 6), (header?.height ?? 0) + 4);
-  // Show the alert list with one scroll. On the light phone, a continuous
-  // sweep across the rows produces repeated luminance transitions.
-  const scroll = await scrollSubject(page, '#since-label', subjectTop, 0);
-  assert.ok(Math.abs(scroll.to - scroll.from) > 16, 'The dashboard did not scroll to its new alerts');
-
-  const event = await browserTime(page);
   const since = page.getByRole('region', { name: 'Since you last looked' });
   const motion = since.getByRole('link', { name: /Movement at/ }).first();
   const sound = since.getByRole('link', { name: /Sound at/ }).first();
-  await sleepUntil(page, start, 5);
+  const bottom = top + (view.size === 'square' ? view.width : view.width * 5 / 8);
   for (const subject of [since.getByRole('heading'), motion, motion.locator('img'), sound]) {
     const box = await subject.boundingBox();
-    assert.ok(box && box.y >= top && box.y + box.height <= end,
-      'The Dashboard poster must hold the alerts, the kept movement picture and their heading whole: ' + subject);
+    assert.ok(box && box.y >= top && box.y + box.height <= bottom,
+      'The Dashboard recording must hold the alerts, the kept movement picture and their heading whole: ' + subject);
   }
+  const start = await browserTime(page);
   const words = await sample();
-  const poster = await browserTime(page);
-  await sleepUntil(page, start, 6);
+  await sleepUntil(page, start, view.seconds);
   return {
-    start, poster, event, words, scroll,
+    start, poster: start, event: start, words, hold: true,
     notices: prepared.notices, watchEvents: prepared.events,
   };
 }
@@ -227,7 +230,7 @@ async function watching({ page, view, top, sample, nextFrameAfter }) {
   const target = Math.max(top + (view.size === 'square' ? 26 : 6), (header?.height ?? 0) + 4);
   const cameraTop = await viewingTop(page, '.watch-frame__screen');
   await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), Math.max(0, cameraTop - target));
-  const bottom = top + (view.size === 'wide' ? view.height : view.width);
+  const bottom = top + (view.size === 'wide' ? view.width * 5 / 8 : view.width);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const framed = await page.locator('.watch-frame').boundingBox();
   assert.ok(framed && framed.y >= top - 0.5 && framed.y + framed.height <= bottom + 0.5,
@@ -320,7 +323,7 @@ export const recipes = [
     clip: 'home/sample-clip.mp4',
     seconds: 10,
     anchor: '.watch-frame__screen',
-    description: 'The kitten moves and a bark raises the Sound meter.',
+    description: 'A kitten clip with rising Motion and Sound meters.',
     longDescription: [
       '0–2 seconds. Start watching opens the camera on a kitten on a grey carpet.',
       '2–6 seconds. The kitten grooms itself and its movement raises the Motion meter.',
@@ -337,12 +340,9 @@ export const recipes = [
     state: 'B',
     clip: 'home/sample-clip.mp4',
     seconds: 6,
-    anchor: '#ways-label',
-    description: 'Movement and sound alerts from the kitten watch.',
+    description: 'Movement and sound alerts from the kitten clip.',
     longDescription: [
-      '0–2 seconds. The dashboard shows the four ways to watch after a watch on the kitten clip.',
-      '2–4 seconds. The page scrolls to Since you last looked.',
-      '4–6 seconds. The alerts show with the movement alert’s kept picture.',
+      '0–6 seconds. Since you last looked shows a movement alert with a kept picture of the kitten and a sound alert.',
     ],
     prepare: prepareDashboard,
     record: dashboard,
@@ -355,7 +355,7 @@ export const recipes = [
     clip: null,
     seconds: 6,
     anchor: 'nav[aria-label="Settings pages"]',
-    description: 'Settings control what the device watches and when it alerts.',
+    description: 'Settings say what the device watches for and what raises an alert.',
     longDescription: [
       '0–2 seconds. Settings shows Detection first, then the settings that follow it.',
       '2–5 seconds. The page scrolls through the list of settings.',

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { chromium } from '@playwright/test';
 import {
   captureNotifications, checkNotifications, encodeVariant, limits,
-  outputTime, readRecordingWords, sha256, spool, testPosterEncoders,
+  outputTime, readRecordingWords, sha256, spool, testPosterEncoders, wideView,
 } from './home-run-frames.mjs';
 import { recordingInputs } from './home-run-inputs.mjs';
 import { omittedRuns, placeSubject, recipes } from './home-run-list.mjs';
@@ -66,8 +66,9 @@ async function recordVariant(browser, recipe, view, avif) {
     assert.equal(actualLook, view.look, 'The site look differs from the browser');
     const viewport = await page.evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
     assert.deepEqual(viewport, [view.width, view.height, view.scale], 'The recording changed the app’s CSS viewport or device scale');
-    const top = await placeSubject(page, recipe, view);
-    const crop = { x: 0, y: top, width: view.width, height: view.size === 'square' ? view.width : view.height };
+    const height = view.size === 'square' ? view.width : view.width * 5 / 8;
+    const top = await placeSubject(page, recipe, view, height);
+    const crop = { x: 0, y: top, width: view.width, height };
     const recording = await spool(cdp, dir, view);
     const stopReading = watchWords(page, crop);
     let cut;
@@ -139,9 +140,11 @@ async function recordSet(browsers, recipe, avif) {
     if (narrower === width) break;
     width = narrower;
   }
+  const wide = wideView(recipe.id);
+  const wideBrowser = wide.scale === 3 ? browsers.square : browsers.wide;
   for (const look of looks) {
-    variants.wide[look] = await recordVariant(browsers.wide, recipe, {
-      size: 'wide', look, width: 768, height: 480, scale: 2.5, seconds: recipe.seconds,
+    variants.wide[look] = await recordVariant(wideBrowser, recipe, {
+      ...wide, size: 'wide', look, seconds: recipe.seconds,
     }, avif);
   }
   const { id, key, route, state, clip, seconds, description, longDescription } = recipe;

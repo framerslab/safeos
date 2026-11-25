@@ -580,8 +580,10 @@ public header and footer on their own (`site-header-<width>-<look>.png`,
 
 The Pictures job **Record the home page runs** builds the app and runs
 `apps/guardian-ui/scripts/home-runs.mjs`. Dashboard uses the real alerts
-from a watch on the sample clip. Watching records the start key, camera and
-meters. Settings records a scroll of the actual settings list. The producer
+from a watch on the sample clip. It holds the new alerts and the kept movement
+picture for six seconds in both sizes. Watching records the start key,
+whole camera picture and both meters. Settings records a scroll of the
+actual settings list. The producer
 captures native frames and encodes silent MP4s and WebP posters, with AVIF
 alternatives when available. It records the source commit, run URL, clip
 credits, visible words, recording positions and file hashes in `runs.json`.
@@ -591,7 +593,11 @@ square crop starts at a 390 px source view. Given its smallest label size
 `s` in CSS px, recapture at the largest even width up to `288 * s / 14`
 when the 288 px home box would display a label under 14 px. The source
 viewport must remain at least 320 px. The even width gives H.264 even
-dimensions at 3×.
+dimensions at 3×. The wide recordings and posters are 1920 by 1200 native
+pixels. Watching crops a 768 by 480 CSS pixel window below the app header
+in a 768 by 544 viewport at 2.5×. Dashboard crops a 640 by 400 window of the
+alert list between the watch links and the app footer in a 640 by 640
+viewport at 3×. Settings uses the full 768 by 480 viewport at 2.5×.
 
 The Pictures job checks every recorded word on the exported home poster.
 Each word needs 7:1 pixel contrast and a displayed font size of at least

@@ -34,6 +34,12 @@ export async function testPosterEncoders(directory) {
   return null;
 }
 
+export function wideView(id) {
+  if (id === 'dashboard') return { width: 640, height: 640, scale: 3 };
+  if (id === 'watching') return { width: 768, height: 544, scale: 2.5 };
+  return { width: 768, height: 480, scale: 2.5 };
+}
+
 export async function spool(cdp, directory, view) {
   const frames = [];
   const pending = new Set();
@@ -235,13 +241,11 @@ async function concatWindow(frames, cut, seconds, directory) {
   assert.ok(first >= 0, 'The screencast did not start before the first event');
   const segment = frames.slice(first).filter(({ at }) => at < last
     && (!cut.trim || at < cut.trim.start || at >= cut.trim.end));
-  assert.ok(segment.length > 1, 'The screencast did not record a changing page');
-  if (cut.scroll) {
-    assert.ok(new Set(segment.map(({ scrollY }) => scrollY)).size > 1,
-      'The screencast did not record the scroll to the new alerts');
-    const firstFrame = await readFile(path.join(directory, segment[0].filename));
-    const lastFrame = await readFile(path.join(directory, segment.at(-1).filename));
-    assert.ok(!firstFrame.equals(lastFrame), 'The screenshot pixels did not move with the Dashboard scroll');
+  if (cut.hold) {
+    assert.ok(segment.every(({ scrollY }) => scrollY === segment[0].scrollY),
+      'The page scrolled while holding the Dashboard alerts');
+  } else {
+    assert.ok(segment.length > 1, 'The screencast did not record a changing page');
   }
   const posterFrame = cut.posterFrame === undefined
     ? segment.findLast(({ at }) => at <= cut.poster)
@@ -390,7 +394,7 @@ export async function encodeVariant({ frames, cut, view, crop, directory, outDir
   const height = Math.round(crop.height * view.scale);
   const y = Math.round(crop.y * view.scale);
   assert.ok(width % 2 === 0 && height % 2 === 0, `H.264 at yuv420p requires even encoded dimensions, received ${width}×${height}`);
-  const filters = view.size === 'square' ? [`crop=${width}:${height}:0:${y}`] : [];
+  const filters = [`crop=${width}:${height}:0:${y}`];
   const prefix = path.join(outDir, `${id}-${view.size}-${view.look}`);
   const movie = prefix + '.mp4';
   const budget = limits[view.size];

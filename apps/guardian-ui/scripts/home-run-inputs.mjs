@@ -5,7 +5,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
-import { limits, sha256 } from './home-run-frames.mjs';
+import { limits, sha256, wideView } from './home-run-frames.mjs';
 import { barredWording } from './home-wording.cjs';
 
 const app = fileURLToPath(new URL('..', import.meta.url));
@@ -200,13 +200,14 @@ export function verifyBundle(directory) {
         const label = id + '-' + size + '-' + look;
         const base = mediaPrefix + label;
         const budget = limits[size];
-        assert.equal(scale, size === 'square' ? 3 : 2.5, label + ': wrong capture scale');
-        assert.equal(viewport.height, size === 'square' ? 844 : 480, label + ': wrong viewport height');
-        assert.ok(size === 'square' ? viewport.width >= 320 && viewport.width <= 390 : viewport.width === 768,
+        const wide = wideView(id);
+        assert.equal(scale, size === 'square' ? 3 : wide.scale, label + ': wrong capture scale');
+        assert.equal(viewport.height, size === 'square' ? 844 : wide.height, label + ': wrong viewport height');
+        assert.ok(size === 'square' ? viewport.width >= 320 && viewport.width <= 390 : viewport.width === wide.width,
           label + ': wrong viewport width');
         assert.equal(crop.x, 0, label + ': capture must use the whole width');
         assert.equal(crop.width, viewport.width, label + ': crop width differs from the viewport');
-        assert.equal(crop.height, size === 'square' ? crop.width : viewport.height, label + ': unexpected crop height');
+        assert.equal(crop.height, size === 'square' ? crop.width : crop.width * 5 / 8, label + ': unexpected crop height');
         assert.ok(crop.y >= 0 && crop.y + crop.height <= viewport.height, label + ': crop leaves the viewport');
         assert.ok(posterAt >= 0 && posterAt < run.seconds, label + ': poster is outside the recording');
         assert.deepEqual(Object.keys(poster).sort(), poster.avif ? ['avif', 'webp'] : ['webp'], label + ': unexpected poster formats');
