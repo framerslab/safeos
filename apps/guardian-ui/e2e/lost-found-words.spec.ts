@@ -292,6 +292,8 @@ for (const look of ['light', 'dark'] as const) {
 
     await expect.poll(async () => (await keptSoFar(page)).spoken.length, { timeout: 30_000 }).toBeGreaterThan(0);
     expect((await keptSoFar(page)).spoken[0]).toBe('Colours like your pet’s photos are in view.');
+    // Paused, the pictures stay open while they are read.
+    await dialog.getByRole('button', { name: 'Pause', exact: true }).click();
     const capture = look === 'light' ? 'lost-found-overlay-words-1280.png' : 'lost-found-overlay-words-1280-dark.png';
     await page.screenshot({ path: testInfo.outputPath(capture) });
     const title = dialog.getByRole('heading', { name: QUESTION, exact: true });
@@ -300,6 +302,22 @@ for (const look of ['light', 'dark'] as const) {
     expect.soft(titleStyle.solid).toBe(true);
     expect.soft(titleStyle.size).toBeGreaterThanOrEqual(18);
     expect(await readable(dialog, { lead: 18, other: 18, floor: 18, leadRatio: 12, otherRatio: 7 })).toEqual([]);
+
+    // The pictures fill the window, and a window shorter than the photo keeps every key in it.
+    for (const height of [1000, 600]) {
+      await page.setViewportSize({ width: 1280, height });
+      await expect
+        .poll(async () => {
+          const box = await dialog.boundingBox();
+          return box && [box.y, box.height];
+        }, { message: `the pictures fill a window ${height} px high`, timeout: 5_000 })
+        .toEqual([0, height]);
+      for (const name of ['Close alert', 'Mute', 'Resume']) {
+        const key = (await dialog.getByRole('button', { name, exact: true }).boundingBox())!;
+        expect(key.y, `${name} starts in a window ${height} px high`).toBeGreaterThanOrEqual(0);
+        expect(key.y + key.height, `${name} ends in a window ${height} px high`).toBeLessThanOrEqual(height);
+      }
+    }
   });
 }
 
@@ -328,6 +346,29 @@ test('the gallery lists saved pictures with no score, and an opened one asks the
   const words = await readWords(page);
   for (const score of ['82', '%', 'Confidence', 'Edge']) expect(words, `the gallery shows "${score}"`).not.toContain(score);
   await page.screenshot({ path: testInfo.outputPath('lost-found-gallery-words-1280.png') });
+});
+
+test.describe('The gallery on a touch screen', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('a tap on a saved picture opens it and deletes nothing', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await seed(context);
+
+    await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+    await enrolPet(page, NAME, await stripedPhoto(page));
+    await expect(page.getByRole('button', { name: 'Start Monitoring' })).toBeVisible({ timeout: 30_000 });
+    await savePicture(page);
+
+    // A finger shows no hover, so the tile's keys are out of sight: the tap lands where Delete stands.
+    await page.goto('/lost-found/gallery/', { waitUntil: 'networkidle', timeout: 60_000 });
+    const key = (await page.getByRole('button', { name: 'Delete this picture', exact: true }).boundingBox())!;
+    await page.touchscreen.tap(key.x + key.width / 2, key.y + key.height / 2);
+    const opened = page.getByRole('dialog', { name: QUESTION, exact: true });
+    await expect(opened.getByText(QUESTION, { exact: true })).toBeVisible();
+    await opened.getByRole('button', { name: 'Close', exact: true }).tap();
+    await expect(page.getByRole('img', { name: /^What the camera saw at / })).toHaveCount(1);
+  });
 });
 
 test('the pet’s card counts the pictures saved for it, and a picture deleted in the gallery leaves the count', async ({ page, context }) => {

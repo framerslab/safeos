@@ -19,6 +19,7 @@ import { readFile } from 'node:fs/promises';
 import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
 import {
+  BLOCK_READABILITY,
   CUSTOM_PRESET,
   doubleText,
   faultPictureStore,
@@ -26,6 +27,7 @@ import {
   notesOf,
   pixelsAt,
   readDatabase,
+  readable,
   recordNotifications,
   wordsOn,
   type DatabaseReading,
@@ -329,15 +331,38 @@ test('a kept sighting fills the pet count and the gallery, and deleting its pict
   await page.screenshot({ path: testInfo.outputPath('lost-found-kept-gallery-1280.png') });
   if (testInfo.errors.length > 0) return;
 
-  await expect(page.getByText(QUESTION, { exact: true })).toBeVisible();
-  await tile.click();
+  // The tile's words stand on a ground of their own, whatever the picture shows, in both looks.
+  const question = page.getByText(QUESTION, { exact: true });
+  for (const look of ['dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme: look });
+    await page.reload({ waitUntil: 'networkidle' });
+    await expect(question).toBeVisible();
+    expect.soft(await readable(question.locator('xpath=..'), BLOCK_READABILITY), `the tile's words, ${look}`).toEqual([]);
+  }
+
+  // One picture is chosen with its own box.
+  await page.getByRole('checkbox').nth(1).check({ timeout: 10_000 });
+  await expect(page.getByText('1 selected', { exact: true })).toBeVisible();
+  await page.getByRole('checkbox').nth(1).uncheck();
+
+  // With the keyboard: focus goes into the opened picture, and Escape gives it back.
   const opened = page.getByRole('dialog', { name: QUESTION, exact: true });
+  await tile.focus();
+  await page.keyboard.press('Enter');
+  await expect(opened.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+  expect(await readable(opened.getByText(QUESTION, { exact: true }).locator('xpath=..'), BLOCK_READABILITY)).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(opened).toHaveCount(0);
+  await expect(tile).toBeFocused();
+
+  await tile.click();
   await expect(opened.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
   await expect(opened.locator('.alert-picture__box')).toHaveCount(1);
   await expect(opened.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('lost-found-kept-opened-1280.png') });
   await opened.getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.getByText('No pictures saved', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved pictures', exact: true })).toBeFocused();
   expect(keptRows(await readDatabase(page))).toEqual([]);
 
   await page.goto('/history/?view=local', { waitUntil: 'networkidle' });
