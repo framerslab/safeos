@@ -678,9 +678,14 @@ export default function WildlifePage() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-sm text-slate-400">Motion Threshold</label>
+                    <label htmlFor="wildlife-movement" className="text-sm text-slate-300">Movement to start the check</label>
+                    <p id="wildlife-movement-help" className="text-sm text-slate-400">
+                      The check reads a grid. It starts when the average change in any one part of the picture reaches this line.
+                    </p>
                     <input
                       type="range"
+                      id="wildlife-movement"
+                      aria-describedby="wildlife-movement-help"
                       min={5}
                       max={50}
                       value={settings.motionThreshold}
