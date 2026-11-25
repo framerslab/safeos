@@ -141,7 +141,11 @@ names the pet, at every width from 320 px.
 While the watch compares, the meter under the live picture names the pet.
 Add photos on the Lost & Found page. Setup’s **Alert line** sets the point where
 the comparison raises an alert. **Saved pictures** on the Lost & Found page opens
-the frames earlier versions saved; an opened one asks "Could this be {name}?".
+the pictures kept for the pet's sightings beside the frames earlier versions
+saved. The pet's card counts both. Open a picture to see its time and the
+question "Could this be {name}?". A sighting's picture shows its box and any
+close-up. Deleting the picture here also removes it from History. The sighting's
+words stay.
 The watch links to **Open in History**, which opens History on its Local Timeline,
 also on a device that uses a server. Choosing another pet starts a new comparison
 without restarting the camera.
@@ -304,12 +308,13 @@ pet's photos. A check at or over the alert line is a sighting. A run of sighting
 entry: its first sighting raises the alert, and while sightings go on the same entry alerts
 again each time the **Cooldown Period** has passed, with "Repeated N times". A run ends after
 30 seconds with no sighting, and when the watch stops or its pet changes; the next sighting
-after that makes a new entry. Nothing is saved for a check: earlier versions saved the frames
-of checks in `match_frame`, and the frames they saved stay in the Lost & Found gallery and in
-History until their own delete controls or **Clear all data on this device**. The panel's recent readings,
-the newest 20 checks that scored with their frames, stay in this tab's memory alone and go
-when the page closes. History lists such a frame with its own
-thumbnail and "Could this be {name}?", with no score.
+after that makes a new entry. Each entry keeps one picture set in `alert_picture` while
+**Keep alert pictures** is on. The gallery and History open that same picture. The watch
+writes no frame for each check. Frames earlier versions saved in `match_frame` stay in
+the gallery and History until their own delete controls or **Clear all data on this device**.
+The panel's recent readings, the newest 20 checks that scored with their frames, stay in
+this tab's memory alone and go when the page closes. History lists an earlier frame with
+its own thumbnail and "Could this be {name}?", with no score.
 
 The entry asks "Could this be {name}?" with the time, and says "Colours and shape like
 {name}'s photos." and "Compare the two pictures. It can be another animal that looks alike.".

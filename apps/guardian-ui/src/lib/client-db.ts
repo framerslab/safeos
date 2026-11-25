@@ -17,7 +17,8 @@ import { isCurrentFingerprint } from './visual-fingerprint';
 import { expiredPictureIds, type AlertKind, type Box } from './alert-pictures/rules';
 import { alertsChanged } from './tab-channel';
 import { noteStorageFull } from './storage-full';
-import { seenAfterRemoval } from './alert-groups';
+import { recordTime, seenAfterRemoval } from './alert-groups';
+import { postPictureNews } from './alert-pictures/channel';
 
 // =============================================================================
 // Database Schema
@@ -95,6 +96,7 @@ interface SafeOSDB extends DBSchema {
       subjectId?: string;
       subjectName?: string;
       details?: AlertDetails;
+      exportedPictureId?: string;
     };
     indexes: {
       'by-stream': string;
@@ -890,6 +892,7 @@ async function writeAlert(
       ...(merged.subjectId ? { subjectId: merged.subjectId } : {}),
       ...(merged.subjectName ? { subjectName: merged.subjectName } : {}),
       ...(merged.details ? { details: merged.details } : {}),
+      ...(merged.exportedPictureId ? { exportedPictureId: merged.exportedPictureId } : {}),
     });
     // A card takes one picture set: a repeat's newer set replaces the one the card had.
     if (previous?.pictureId && previous.pictureId !== merged.pictureId) await pictures.delete(previous.pictureId);
@@ -1622,18 +1625,36 @@ export async function getSubjectProfilesByType(type: 'pet' | 'person' | 'other')
 }
 
 export async function deleteSubjectProfile(id: string): Promise<void> {
-  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
+  let tx: Abandonable | undefined;
   try {
     const db = await getDB();
-    await db.delete('subject_profile', id);
-    
-    // Also delete associated match frames
-    const matchFrames = await db.getAllFromIndex('match_frame', 'by-subject', id);
-    tx = db.transaction('match_frame', 'readwrite');
-    for (const frame of matchFrames) {
-      await tx.store.delete(frame.id);
+    const write = db.transaction(['subject_profile', 'match_frame', 'alert_cache', 'alert_picture'], 'readwrite');
+    tx = write;
+    const frames = write.objectStore('match_frame');
+    const pictures = write.objectStore('alert_picture');
+    const [earlierIds, alerts] = await Promise.all([
+      frames.index('by-subject').getAllKeys(id),
+      write.objectStore('alert_cache').index('by-producer-created').getAll(producerRange('monitoring')),
+    ]);
+    const removed: string[] = [];
+    for (const alert of alerts) {
+      if (alert.kind !== 'sighting' || alert.subjectId !== id || !alert.pictureId) continue;
+      const picture = await pictures.get(alert.pictureId);
+      if (picture?.state === 'gone') continue;
+      // Leave a mark for a pending picture too, so it cannot arrive after the pet is deleted.
+      await pictures.put({
+        id: alert.pictureId, state: 'gone', kind: 'sighting', gone: 'person',
+        takenAt: picture?.takenAt ?? recordTime({ id: alert.pictureId }) ?? recordTime(alert) ?? 0,
+      });
+      removed.push(alert.pictureId);
     }
-    await tx.done;
+    await Promise.all([
+      write.objectStore('subject_profile').delete(id),
+      ...earlierIds.map((frameId) => frames.delete(frameId)),
+    ]);
+    await write.done;
+    if (removed.length > 0) postPictureNews({ type: 'gone', ids: removed, reason: 'person' });
+    alertsChanged();
   } catch (error) {
     console.warn('[ClientDB] Failed to delete subject profile:', error);
     await abandonTransaction(tx);
@@ -1754,19 +1775,78 @@ export async function getMatchFramesBySubject(subjectId: string): Promise<MatchF
   }
 }
 
-/**
- * How many frames this device keeps for each of these subjects, by id, read
- * from the frames themselves. A profile's matchCount goes up with each save
- * and stays up when a frame is deleted, so it is not a count of what is kept.
- * A read that fails gives null, so a screen shows no count it could not read.
- */
+/** A kept picture and the sighting whose words it belongs to. */
+export interface KeptSightingPicture {
+  id: string;
+  alertId: string;
+  subjectId: string;
+  subjectName?: string;
+  timestamp: number;
+  acknowledged: boolean;
+  exported: boolean;
+  details?: AlertDetails;
+}
+
+type LostFoundPictureStores = ['alert_cache', 'alert_picture', 'match_frame'];
+
+/** Read the alert and picture indexes together, without loading the picture Blobs. */
+async function readKeptSightingPictures(
+  tx: IDBPTransaction<SafeOSDB, LostFoundPictureStores, 'readonly'>,
+  subjectId?: string,
+): Promise<KeptSightingPicture[]> {
+  const [alerts, pictureIds] = await Promise.all([
+    tx.objectStore('alert_cache').index('by-producer-created').getAll(producerRange('monitoring')),
+    tx.objectStore('alert_picture').index('by-state-taken').getAllKeys(KEPT_RANGE()),
+  ]);
+  const kept = new Set(pictureIds);
+  return alerts.flatMap((alert) => {
+    const { subjectId: pet, pictureId } = alert;
+    if (alert.kind !== 'sighting' || !pet || !pictureId || !kept.has(pictureId)) return [];
+    if (subjectId !== undefined && pet !== subjectId) return [];
+    return [{
+      id: pictureId,
+      alertId: alert.id,
+      subjectId: pet,
+      subjectName: alert.subjectName,
+      timestamp: recordTime({ id: pictureId }) ?? recordTime(alert) ?? 0,
+      acknowledged: alert.acknowledged,
+      exported: alert.exportedPictureId === pictureId,
+      details: alert.details,
+    }];
+  });
+}
+
+/** Every picture kept for Lost and Found, including frames from earlier versions. */
+export async function getSavedSightingPictures(subjectId?: string): Promise<(MatchFrameDB | KeptSightingPicture)[]> {
+  const db = await getDB();
+  const tx = db.transaction(['alert_cache', 'alert_picture', 'match_frame'], 'readonly');
+  const frames = tx.objectStore('match_frame');
+  const [earlier, sightings] = await Promise.all([
+    subjectId === undefined ? frames.getAll() : frames.index('by-subject').getAll(subjectId),
+    readKeptSightingPictures(tx, subjectId),
+    tx.done,
+  ]);
+  return [...earlier, ...sightings];
+}
+
+/** Counts pictures that are still kept. A failed read leaves the count unknown. */
 export async function countMatchFramesBySubject(subjectIds: string[]): Promise<Record<string, number> | null> {
+  if (subjectIds.length === 0) return {};
   try {
     const db = await getDB();
-    const counts = await Promise.all(
-      subjectIds.map((id) => db.countFromIndex('match_frame', 'by-subject', id))
-    );
-    return Object.fromEntries(subjectIds.map((id, index) => [id, counts[index]]));
+    const tx = db.transaction(['alert_cache', 'alert_picture', 'match_frame'], 'readonly');
+    const index = tx.objectStore('match_frame').index('by-subject');
+    const [earlier, sightings] = await Promise.all([
+      Promise.all(subjectIds.map((id) => index.count(id))),
+      readKeptSightingPictures(tx),
+      tx.done,
+    ]);
+    const counts = new Map(subjectIds.map((id, index) => [id, earlier[index]]));
+    for (const sighting of sightings) {
+      const count = counts.get(sighting.subjectId);
+      if (count !== undefined) counts.set(sighting.subjectId, count + 1);
+    }
+    return Object.fromEntries(counts);
   } catch {
     return null;
   }
@@ -1994,25 +2074,26 @@ export interface MatchFrameExport {
   id: string;
   subjectId: string;
   subjectName?: string;
-  confidence: number;
+  confidence?: number;
   timestamp: string;
-  colorMatch: number;
-  dominantMatch: number;
-  edgeMatch: number;
-  sizeMatch: number;
-  notes: string;
+  colorMatch?: number;
+  dominantMatch?: number;
+  edgeMatch?: number;
+  sizeMatch?: number;
+  notes?: string;
 }
 
 export async function exportMatchFrames(
   subjectId?: string,
   format: 'json' | 'csv' = 'json',
-  ids?: string[]
+  ids?: string[],
+  keptSightings: KeptSightingPicture[] = [],
 ): Promise<{ data: string; filename: string }> {
   const frames = subjectId
     ? await getMatchFramesBySubject(subjectId)
     : await getAllMatchFrames();
 
-  const selectedFrames = ids && ids.length > 0
+  const selectedFrames = ids !== undefined
     ? (() => {
         const idSet = new Set(ids);
         return frames.filter((f) => idSet.has(f.id));
@@ -2035,6 +2116,16 @@ export async function exportMatchFrames(
     notes: f.notes,
   }));
   
+  for (const sighting of keptSightings) {
+    exportData.push({
+      id: sighting.id,
+      subjectId: sighting.subjectId,
+      subjectName: sighting.subjectName ?? profileMap.get(sighting.subjectId),
+      timestamp: new Date(sighting.timestamp).toISOString(),
+      ...sighting.details,
+    });
+  }
+
   const date = new Date().toISOString().slice(0, 10);
   
   if (format === 'csv') {
@@ -2063,7 +2154,7 @@ export async function exportMatchFrames(
         row.edgeMatch,
         row.sizeMatch,
         row.notes,
-      ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')
+      ].map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')
     );
     return {
       data: [headers, ...rows].join('\n'),

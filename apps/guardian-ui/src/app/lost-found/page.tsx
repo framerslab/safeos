@@ -67,10 +67,9 @@ export default function LostFoundPage() {
     loadSubjects();
   }, [subjects]); // Reload when store subjects change
 
-  // Another tab that saves or deletes a picture says the alerts changed; the
-  // counts are read again so each card shows what this device keeps.
+  // Read the counts again when an alert or its kept picture changes.
   useEffect(() => onTabMessage((message) => {
-    if (message.type !== 'alerts-changed') return;
+    if (message.type !== 'alerts-changed' && !(message.type === 'pictures' && message.news.type !== 'settings')) return;
     getAllSubjectProfiles()
       .then((profiles) => countMatchFramesBySubject(profiles.map((profile) => profile.id)))
       .then(setSavedPictures)
