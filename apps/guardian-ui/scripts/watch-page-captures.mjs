@@ -105,7 +105,7 @@ async function captureNotice(page, notice, file) {
   await page.evaluate(({ title, body }) => {
     const card = document.createElement('section');
     card.setAttribute('data-captured-notification', '');
-    card.style.cssText = 'position:fixed;z-index:1000;inset:24px 24px auto auto;width:360px;padding:20px;border:1px solid #758290;border-radius:12px;background:#f8f9fa;color:#0f1215;font:16px/1.5 system-ui;box-shadow:0 4px 16px #0004';
+    card.style.cssText = 'position:fixed;z-index:1000;inset:24px 24px auto auto;box-sizing:border-box;width:min(360px, calc(100vw - 48px));padding:20px;border:1px solid var(--color-steel-300);border-radius:12px;background:var(--color-steel-950);color:var(--color-steel-50);font:16px/1.5 system-ui;box-shadow:0 4px 16px #0004';
     const heading = document.createElement('strong');
     heading.textContent = title;
     const line = document.createElement('p');
@@ -121,9 +121,10 @@ export async function captureWatchPages(browser, baseUrl, outDir, routes, openCo
   let failures = 0;
   const capture = async (route, look, width, run) => {
     if (!routes.includes(route)) return;
+    const phone = width < 768;
     const context = await openContext(browser, {
-      viewport: { width, height: width === 320 ? 844 : 900 }, colorScheme: look,
-      isMobile: width === 320, hasTouch: width === 320, serviceWorkers: 'block', reducedMotion: 'reduce',
+      viewport: { width, height: phone ? 844 : 900 }, colorScheme: look,
+      isMobile: phone, hasTouch: phone, serviceWorkers: 'block', reducedMotion: 'reduce',
     });
     try {
       const page = await context.newPage();
@@ -137,37 +138,46 @@ export async function captureWatchPages(browser, baseUrl, outDir, routes, openCo
   };
 
   for (const look of ['light', 'dark']) {
-    for (const [route, name, classes, start] of [
-      ['/security/', 'people', [1, 1], 'ARM SYSTEM'],
-      ['/wildlife/', 'wildlife', [24], 'Start Monitoring'],
+    for (const [route, name, classes, start, widths] of [
+      ['/security/', 'people', [1, 1], 'ARM SYSTEM', [390, 1280, 1440]],
+      ['/wildlife/', 'wildlife', [24], 'Start Monitoring', [1280]],
     ]) {
-      await capture(route, look, 1280, async (context, page, address) => {
-        await supplyModel(context, classes);
-        await context.addInitScript(standInCamera, route.split('/')[1]);
-        await page.goto(address);
-        await page.getByRole('button', { name: start, exact: true }).click({ timeout: 30_000 });
-        const notice = await page.waitForFunction(() => window.watchNotice, null, { timeout: 20_000 });
-        const suffix = `1280-${look}.png`;
-        const sighting = name === 'people'
-          ? page.getByRole('button', { name: 'DISARM', exact: true }).locator('xpath=../..')
-          : page.getByText('Caution', { exact: true }).first().locator('xpath=..');
-        await sighting.screenshot({ path: path.join(outDir, `${name}-sighting-${suffix}`) });
-        if (after && name === 'people') {
-          const ratios = await page.getByText('More than this watch allows.', { exact: true }).evaluateAll(readContrast);
-          if (ratios.length !== 2 || ratios.some((ratio) => ratio < 4.5)) {
-            throw new Error(`the words of the People alert stand at ${ratios.map((ratio) => ratio.toFixed(2)).join(' and ')}:1 in the ${look} look`);
+      for (const width of widths) {
+        await capture(route, look, width, async (context, page, address) => {
+          await supplyModel(context, classes);
+          await context.addInitScript(standInCamera, route.split('/')[1]);
+          await page.goto(address);
+          await page.getByRole('button', { name: start, exact: true }).click({ timeout: 30_000 });
+          const notice = await page.waitForFunction(() => window.watchNotice, null, { timeout: 20_000 });
+          const suffix = `${width}-${look}.png`;
+          const sighting = name === 'people'
+            ? page.getByRole('button', { name: 'DISARM', exact: true }).locator('xpath=../..')
+            : page.getByText('Caution', { exact: true }).first().locator('xpath=..');
+          await sighting.screenshot({ path: path.join(outDir, `${name}-sighting-${suffix}`) });
+          if (name === 'people' && width !== 1280) {
+            const count = page.getByText(after ? 'people in view' : 'Persons Detected', { exact: true })
+              .locator('xpath=../..');
+            await count.getByText('2', { exact: true }).waitFor();
+            await count.getByText(after ? 'More than this watch allows.' : '+1 INTRUDER', { exact: true }).waitFor();
+            await count.screenshot({ path: path.join(outDir, `people-count-${suffix}`) });
           }
-        }
-        if (name === 'wildlife') {
-          const badge = page.getByText('Caution', { exact: true }).first();
-          const size = await badge.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-          if (after && size < 16) throw new Error(`Caution badge text is ${size} px`);
-          await badge.screenshot({ path: path.join(outDir, `wildlife-caution-${suffix}`) });
-        }
-        // System notifications sit outside the page in Chromium. Capture the
-        // exact title and body the watch handed the browser in a small preview.
-        await captureNotice(page, await notice.jsonValue(), path.join(outDir, `${name}-notification-${suffix}`));
-      });
+          if (after && name === 'people') {
+            const ratios = await page.getByText('More than this watch allows.', { exact: true }).evaluateAll(readContrast);
+            if (ratios.length !== 2 || ratios.some((ratio) => ratio < 4.5)) {
+              throw new Error(`the words of the People alert stand at ${ratios.map((ratio) => ratio.toFixed(2)).join(' and ')}:1 in the ${look} look`);
+            }
+          }
+          if (name === 'wildlife') {
+            const badge = page.getByText('Caution', { exact: true }).first();
+            const size = await badge.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+            if (after && size < 16) throw new Error(`Caution badge text is ${size} px`);
+            await badge.screenshot({ path: path.join(outDir, `wildlife-caution-${suffix}`) });
+          }
+          // System notifications sit outside the page in Chromium. Capture the
+          // exact title and body the watch handed the browser in a small preview.
+          await captureNotice(page, await notice.jsonValue(), path.join(outDir, `${name}-notification-${suffix}`));
+        });
+      }
     }
   }
 

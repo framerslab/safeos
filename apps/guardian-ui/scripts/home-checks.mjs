@@ -32,7 +32,7 @@ const SOLID_KEY = {
 // then shows it and is named with it, and the footer's last line says it.
 const STARS = starsHanded();
 const GITHUB_NAME = STARS ? STARS.name : 'SafeOS on GitHub';
-const GITHUB_MARK_NAME = STARS ? `SafeOS on GitHub, ${STARS.exact}` : GITHUB_NAME;
+const GITHUB_HEADER_NAME = STARS?.headerName ?? GITHUB_NAME;
 // The longest walk takes about fifteen seconds on the CI runner.
 const WALK_LIMIT_MS = 180_000;
 
@@ -611,7 +611,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         return element.getAttribute('aria-label') || element.textContent.trim();
       }));
     }
-    const wanted = ['Skip to content', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', GITHUB_NAME, 'Switch to the light look', 'Start setup'];
+    const wanted = ['Skip to content', 'How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', GITHUB_HEADER_NAME, 'Switch to the light look', 'Start setup'];
     expect(order.join(' > ') === wanted.join(' > '), `header: the Tab order is ${order.join(' > ')}`);
   });
 
@@ -843,7 +843,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         await visit(page);
         const header = page.locator('nav[aria-label="Site"]');
         if (look === 'light') await header.screenshot({ path: path.join(outDir, `header-${width}-light.png`) });
-        const found = await header.evaluate((nav, { githubName, githubMarkName }) => {
+        const found = await header.evaluate((nav, githubName) => {
           const out = [];
           const bar = nav.querySelector('.site-header__bar');
           const barBox = bar.getBoundingClientRect();
@@ -861,8 +861,8 @@ export async function checkHomePage(browser, baseUrl, outDir) {
             if (box.left < -0.5 || box.right > screen + 0.5) out.push(`${name} runs off the screen`);
             if (box.height < 43.5) out.push(`${name} is ${Math.round(box.height)} px tall`);
           }
-          const want = phone ? [githubMarkName, 'Switch to the dark look|Switch to the light look', 'Menu']
-            : screen < 1024 ? ['How it works', 'Uses', 'Guides', 'FAQ', githubMarkName, 'Switch to the dark look|Switch to the light look', 'Start setup']
+          const want = phone ? [githubName, 'Switch to the dark look|Switch to the light look', 'Menu']
+            : screen < 1024 ? ['How it works', 'Uses', 'Guides', 'FAQ', githubName, 'Switch to the dark look|Switch to the light look', 'Start setup']
               : ['How it works', 'Uses', 'Guides', 'FAQ', 'Privacy', githubName, 'Switch to the dark look|Switch to the light look', 'Start setup'];
           if (names.length !== want.length || names.some((name, i) => !want[i].split('|').includes(name))) out.push(`its items are ${names.join(', ')}`);
           if (nav.querySelector('[aria-label="Help"], [aria-label*="otification"]')) out.push('it holds a bell or a shortcuts key');
@@ -875,7 +875,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           }
           if (getComputedStyle(nav).boxShadow !== 'none') out.push('the bar draws a line in the first screen');
           return out;
-        }, { githubName: GITHUB_NAME, githubMarkName: GITHUB_MARK_NAME });
+        }, GITHUB_HEADER_NAME);
         for (const p of found) fail(`header at ${width} px, ${look}: ${p}`);
         await page.keyboard.press('Tab');
         const headerKeys = await header.locator('.site-header__bar :is(a,button):visible').all();

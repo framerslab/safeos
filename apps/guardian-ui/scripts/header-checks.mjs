@@ -12,7 +12,7 @@ async function enlarge(page) {
 
 export async function checkHeaders(browser, baseUrl) {
   const stars = starsHanded();
-  const iconName = stars ? `SafeOS on GitHub, ${stars.exact}` : 'SafeOS on GitHub';
+  const githubName = stars?.headerName ?? 'SafeOS on GitHub';
   let failures = 0;
   const check = (ok, message) => {
     if (!ok) {
@@ -41,57 +41,42 @@ export async function checkHeaders(browser, baseUrl) {
     };
 
     try {
-      for (const width of [1024, 1440]) {
-        await walk('/', width, 'GitHub mark beside the star count', async () => {
-          const at = `/, ${width} px, ${look}`;
-          const link = page.locator('.site-header__bar .site-header__github');
-          check(await link.locator('svg.github-mark').isVisible(), `${at}: GitHub has no visible mark beside the star count`);
-          check(await link.and(page.getByRole('link', { name: iconName, exact: true })).isVisible(),
-            `${at}: the counted link is missing the name "${iconName}"`);
-          if (stars) {
-            const count = link.locator('.star-count .num');
-            check(await count.isVisible() && await count.textContent() === stars.short, `${at}: GitHub shows no star count`);
-          }
-        });
-      }
-
       for (const [route, selector] of [['/', '.site-header__bar'], ['/dashboard/', '.app-header__bar']]) {
-        for (const width of [320, 360, 390, 430, 480, 768, 1440]) {
+        for (const width of [320, 360, 390, 430, 480, 768, 1024, 1440]) {
           await walk(route, width, 'GitHub in the header', async () => {
             const header = page.locator(selector);
-            const name = route === '/' && width >= 1024 ? stars?.name ?? iconName : iconName;
             for (const size of [100, 200]) {
               if (size === 200) await enlarge(page);
               const at = `${route}, ${width} px, ${size}% text, ${look}`;
-              const link = header.getByRole('link', { name, exact: true });
-              // At large text the public header can fold its count into the icon.
-              const shown = await link.isVisible() ? link : header.getByRole('link', { name: iconName, exact: true });
+              const shown = header.getByRole('link', { name: githubName, exact: true });
               const present = await shown.isVisible();
-              check(present, `${at}: missing the header link named "${name}"`);
+              check(present, `${at}: missing the header link named "${githubName}"`);
               if (present) {
                 const box = await shown.boundingBox();
                 check(await shown.getAttribute('href') === REPOSITORY, `${at}: GitHub points outside the repository`);
                 check(box.width >= 43.5 && box.height >= 43.5, `${at}: GitHub target is smaller than 44 px`);
                 check(box.x >= -0.5 && box.x + box.width <= width + 0.5, `${at}: GitHub runs outside the header`);
-                if (width < 1024 || route !== '/') {
-                  const mark = await shown.locator('svg').first().isVisible();
-                  check(mark, `${at}: GitHub has no visible mark`);
-                  if (mark) {
-                    const ratio = await shown.evaluate((anchor) => {
-                      const glyph = anchor.querySelector('svg path');
-                      let ground = anchor;
-                      while (ground && getComputedStyle(ground).backgroundColor === 'rgba(0, 0, 0, 0)') ground = ground.parentElement;
-                      const luminance = (rgb) => rgb.match(/[\d.]+/g).slice(0, 3).map(Number)
-                        .map((value) => value / 255)
-                        .map((s, i) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][i])
-                        .reduce((a, b) => a + b, 0);
-                      const fill = glyph && getComputedStyle(glyph).fill;
-                      if (!ground || !fill || fill === 'none') return 0;
-                      const tones = [fill, getComputedStyle(ground).backgroundColor].map(luminance);
-                      return (Math.max(...tones) + 0.05) / (Math.min(...tones) + 0.05);
-                    });
-                    check(ratio >= 4.5, `${at}: GitHub mark contrast is ${ratio.toFixed(2)}:1`);
-                  }
+                if (route === '/' && width >= 1024 && size === 100 && stars) {
+                  const count = shown.locator('.star-count .num');
+                  check(await count.isVisible() && await count.textContent() === stars.short, `${at}: GitHub shows no star count`);
+                }
+                const mark = await shown.locator('svg.github-mark').isVisible();
+                check(mark, `${at}: GitHub has no visible mark`);
+                if (mark) {
+                  const ratio = await shown.evaluate((anchor) => {
+                    const glyph = anchor.querySelector('svg.github-mark path');
+                    let ground = anchor;
+                    while (ground && getComputedStyle(ground).backgroundColor === 'rgba(0, 0, 0, 0)') ground = ground.parentElement;
+                    const luminance = (rgb) => rgb.match(/[\d.]+/g).slice(0, 3).map(Number)
+                      .map((value) => value / 255)
+                      .map((s, i) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][i])
+                      .reduce((a, b) => a + b, 0);
+                    const fill = glyph && getComputedStyle(glyph).fill;
+                    if (!ground || !fill || fill === 'none') return 0;
+                    const tones = [fill, getComputedStyle(ground).backgroundColor].map(luminance);
+                    return (Math.max(...tones) + 0.05) / (Math.min(...tones) + 0.05);
+                  });
+                  check(ratio >= 4.5, `${at}: GitHub mark contrast is ${ratio.toFixed(2)}:1`);
                 }
               }
               const row = await header.evaluate((bar) => {

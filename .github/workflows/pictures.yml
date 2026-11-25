@@ -203,18 +203,21 @@ jobs:
           done
           exit "$missing"
 
-      - name: Upload watch page pictures
+      - name: Upload watch page and desktop header pictures
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.version == 'before' && 'watch-pages-before' || 'watch-pages' }}
           path: |
             ${{ runner.temp }}/pictures/people-sighting-*.png
+            ${{ runner.temp }}/pictures/people-count-*.png
             ${{ runner.temp }}/pictures/people-notification-*.png
             ${{ runner.temp }}/pictures/wildlife-sighting-*.png
             ${{ runner.temp }}/pictures/wildlife-notification-*.png
             ${{ runner.temp }}/pictures/wildlife-caution-*.png
             ${{ runner.temp }}/pictures/*-keys-320-light.png
+            ${{ runner.temp }}/pictures/site-header-1024-*.png
+            ${{ runner.temp }}/pictures/site-header-1440-*.png
           if-no-files-found: ignore
           retention-days: 14
 

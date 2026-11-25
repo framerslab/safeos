@@ -500,7 +500,7 @@ function contrastOf(locator) {
 
 async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
   let failures = 0;
-  for (const [width, height] of [[390, 844], [1440, 900]]) {
+  for (const [width, height] of [[390, 844], [1024, 800], [1440, 900]]) {
     for (const look of LOOKS) {
       const context = await browser.newContext({
         viewport: { width, height }, deviceScaleFactor: 2, reducedMotion: 'no-preference',
@@ -510,6 +510,12 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
         const page = await context.newPage();
         await page.goto(new URL('/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
         await page.evaluate(() => document.fonts.ready);
+        if (width >= 1024) {
+          await page.locator('nav[aria-label="Site"]').screenshot({
+            path: path.join(outDir, `site-header-${width}-${look}.png`), scale: 'css',
+          });
+        }
+        if (width === 1024) continue;
         const first = `home-first-${width}-${look}.png`;
         await page.screenshot({ path: path.join(outDir, first), scale: 'device', caret: 'hide' });
         console.log(`captured ${first}`);

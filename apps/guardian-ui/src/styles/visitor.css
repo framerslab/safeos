@@ -360,6 +360,11 @@ html.light .visitor-shell {
   display: none;
 }
 
+.site-header__github .github-mark {
+  flex: none;
+  margin-inline-end: 6px;
+}
+
 /* Wide enough for "Open dashboard", so the key keeps one width when its
    label changes once setup is done and nothing beside it moves. */
 .site-header__start {

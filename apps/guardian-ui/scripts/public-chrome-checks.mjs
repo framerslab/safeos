@@ -82,6 +82,7 @@ export function starsHanded(env = process.env) {
     word,
     exact,
     name: `SafeOS on GitHub ${short} ${word}`,
+    headerName: `SafeOS on GitHub, ${exact}`,
     description: n < 1_000 ? `Counted ${counted}.` : `${exact}, counted ${counted}.`,
     sentence: `${exact} on GitHub, counted ${counted}.`,
   };
@@ -365,7 +366,6 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
       github: visible(github) ? {
         ...box(github),
         ...type(github),
-        label: github.getAttribute('aria-label'),
         href: github.getAttribute('href'),
         target: github.getAttribute('target'),
         current: github.getAttribute('aria-current'),
@@ -373,6 +373,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
         described: described ? document.getElementById(described)?.textContent.trim() ?? null : null,
         pictures: github.querySelectorAll('img').length,
         glyphs: github.querySelectorAll('svg').length,
+        mark: visible(github.querySelector('svg.github-mark')),
         word: word ? box(word) : null,
         star: star ? { ...box(star), hidden: star.getAttribute('aria-hidden'), stroke: getComputedStyle(star.querySelector('path')).stroke, fill: getComputedStyle(star.querySelector('path')).fill } : null,
         number: number ? { ...box(number), ...type(number), words: number.textContent } : null,
@@ -407,15 +408,17 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
         expect(github.href === REPOSITORY && !github.target && !github.current, `${at}: the GitHub link opens ${github.href}${github.target ? ` in ${github.target}` : ''}${github.current ? ', marked as the page being read' : ''}`);
         expect(github.pictures === 0 && github.height >= 43.5, `${at}: the GitHub link holds a picture or is ${github.height} px tall`);
         expect(github.colour === tone.quiet && inter(github.face) && github.size === '16px' && github.weight === '400', `${at}: the GitHub link is ${github.colour} in ${github.face} ${github.weight} at ${github.size}`);
-        const named = page.locator('nav[aria-label="Site"] .site-header__bar').getByRole('link', { name: stars ? stars.name : 'SafeOS on GitHub', exact: true });
-        expect((await named.count()) === 1, `${at}: no link of the row is named "${stars ? stars.name : 'SafeOS on GitHub'}"`);
+        const name = stars?.headerName ?? 'SafeOS on GitHub';
+        const named = page.locator('nav[aria-label="Site"] .site-header__bar').getByRole('link', { name, exact: true });
+        expect((await named.count()) === 1, `${at}: no link of the row is named "${name}"`);
+        expect(github.mark, `${at}: GitHub has no visible mark`);
         if (!stars) {
-          expect(github.label === 'SafeOS on GitHub' && github.words === 'GitHub' && github.glyphs === 0, `${at}: with no count the GitHub link reads "${github.words}" with ${github.glyphs} glyphs`);
+          expect(github.words === 'GitHub' && github.glyphs === 1, `${at}: with no count the GitHub link reads "${github.words}" with ${github.glyphs} glyphs`);
           return;
         }
-        expect(github.label === null && github.words === stars.name, `${at}: the GitHub link's own content reads "${github.words}"`);
+        expect(github.words === `GitHub ${stars.short}`, `${at}: the GitHub link's own content reads "${github.words}"`);
         expect(github.described === stars.description, `${at}: the GitHub link is described as "${github.described}"`);
-        expect(github.glyphs === 1 && github.star?.hidden === 'true', `${at}: the GitHub link holds ${github.glyphs} glyphs`);
+        expect(github.glyphs === 2 && github.star?.hidden === 'true', `${at}: the GitHub link holds ${github.glyphs} glyphs`);
         expect(github.width >= 88, `${at}: the GitHub link is ${github.width} px wide`);
         const missing = [['word', github.word], ['star', github.star], ['count', github.number]].filter(([, part]) => !part).map(([name]) => name);
         expect(missing.length === 0, `${at}: the GitHub link shows no ${missing.join(', no ')}`);

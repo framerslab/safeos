@@ -450,7 +450,8 @@ People shows how many people are in view. Above the allowed count, the alert and
 its browser notification say when the watch saw them and that the count is more
 than this watch allows. The alert stays on the page with its **DISARM** key until
 the watch is disarmed, also once the people have left. Saved pictures keep the
-count and the time; the **History** key shows them.
+count and the time. The **History** key shows them. Voice warnings play on the
+watching device.
 
 Wildlife shows an animal's name and the time of the sighting. The browser
 notification gives the same information. The **Alert line** in Wildlife Settings

@@ -51,13 +51,13 @@ export const DEFAULT_TTS_CONFIG: TTSConfig = {
 export const PRESET_MESSAGES: Record<MessageCategory, string[]> = {
   authoritative: [
     'Warning! You are being recorded. Leave immediately.',
-    'Security alert. Authorities have been notified.',
+    'Security alert. Please step away from the camera.',
     'You are in view of a camera. This area is under surveillance.',
     'More people are here than this watch allows. You are being monitored.',
     'Warning. This property is protected. Exit now.',
     'Alert! Your presence has been logged. Leave the premises.',
     'Attention! Security alert. Recording in progress.',
-    'You are trespassing. Authorities are en route.',
+    'Warning. Leave the area now.',
   ],
   alarm: [
     'Alert! Help!',

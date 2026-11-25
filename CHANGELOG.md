@@ -96,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The header menu scrolls inside itself on a short screen, Escape closes it, and focus goes back to the Menu button when it closes.
 - The quick-start links name only presets that exist.
 - Lost & Found offers a pet or an item; subjects saved with the person type keep showing. The processing choice that only slowed the same matcher is gone.
-- GitHub stands in both headers at every width: its mark in a 44 px link named with the star count when the build read one, and from 1024 px the public header's word and count. On a phone the app's header holds the brand and GitHub, and the bar at the foot of the screen is the one navigation named "App".
+- GitHub stands in both headers at every width: its mark in a 44 px link named with the star count when the build read one, with the word and count alongside the mark in the public header from 1024 px. On a phone the app's header holds the brand and GitHub, and the bar at the foot of the screen is the one navigation named "App".
 - People says how many people are in view, when, and that it is more than the watch allows, in its alert, its notification, its spoken lines, its saved pictures and History. The alert stays with its DISARM key until the watch is disarmed, also once the people have left. Wildlife names the animal and the time with no score, and its setting shows the **Alert line** as a plain number. The camera's two indicators on both pages are named in words.
 
 ### Removed

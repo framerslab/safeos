@@ -79,11 +79,12 @@ describe('visitor header, before script runs', () => {
     expect(current('/about/')).toEqual([]);
   });
 
-  it('names the GitHub link "SafeOS on GitHub", shows the word alone with no logo, and opens it in the same tab', () => {
+  it('shows the GitHub mark and word without a count and opens the link in the same tab', () => {
     const link = header().querySelector('.site-header__github');
     expect(link?.getAttribute('aria-label')).toBe('SafeOS on GitHub');
     expect(words(link)).toBe('GitHub');
-    expect(link?.querySelector('svg, img')).toBeNull();
+    expect(link?.querySelector('svg.github-mark')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link?.querySelector('.star-count, img')).toBeNull();
     expect(link?.hasAttribute('target')).toBe(false);
   });
 

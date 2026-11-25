@@ -289,7 +289,7 @@ describe('with a larger count', () => {
     handed('1234', '2026-11-18');
     const row = header().querySelector('.site-header__bar .site-header__github');
     expect(shown(row)).toBe('GitHub 1.2k');
-    expect(nameOf(row)).toBe('SafeOS on GitHub 1.2k stars');
+    expect(nameOf(row)).toBe('SafeOS on GitHub, 1,234 stars');
     expect(descriptionOf(row)).toBe('1,234 stars, counted 18 November 2026.');
     expect(words(footer().querySelector('.site-footer__last'))).toMatch(/MIT-licensed\. 1,234 stars on GitHub, counted 18 November 2026\.$/);
   });
@@ -297,7 +297,7 @@ describe('with a larger count', () => {
   it('says "1 star" of one', () => {
     handed('1', '2026-01-02');
     const row = header().querySelector('.site-header__bar .site-header__github');
-    expect(nameOf(row)).toBe('SafeOS on GitHub 1 star');
+    expect(nameOf(row)).toBe('SafeOS on GitHub, 1 star');
     expect(descriptionOf(row)).toBe('Counted 2 January 2026.');
     expect(words(footer().querySelector('.site-footer__last'))).toMatch(/MIT-licensed\. 1 star on GitHub, counted 2 January 2026\.$/);
   });
@@ -314,14 +314,17 @@ describe.each([
 ])('with %s', (_name, count, day) => {
   beforeEach(() => handed(count, day));
 
-  it('shows the word GitHub alone in the row and in the Menu, named "SafeOS on GitHub", with no star', () => {
+  it('shows the header mark and names the header and Menu links "SafeOS on GitHub" with no star', () => {
     const page = header();
-    const links = [page.querySelector('.site-header__bar .site-header__github'), page.querySelector(`#site-menu a[href="${REPOSITORY}"]`)];
-    for (const link of links) {
+    const row = page.querySelector('.site-header__bar .site-header__github');
+    const menu = page.querySelector(`#site-menu a[href="${REPOSITORY}"]`);
+    expect(row?.querySelector('svg.github-mark')).not.toBeNull();
+    expect(menu?.querySelector('svg')).toBeNull();
+    for (const link of [row, menu]) {
       expect(shown(link)).toBe('GitHub');
       expect(nameOf(link)).toBe('SafeOS on GitHub');
       expect(descriptionOf(link)).toBe('');
-      expect(link?.querySelector('svg, img')).toBeNull();
+      expect(link?.querySelector('.star-count__star, img')).toBeNull();
     }
     expect(page.body.innerHTML).not.toMatch(/\bstars?\b|Counted/i);
   });
