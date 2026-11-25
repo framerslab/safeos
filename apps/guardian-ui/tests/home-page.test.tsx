@@ -384,6 +384,16 @@ describe('recorded app runs', () => {
     }
   });
 
+  it('starts the Watching crops below the sticky header divider', () => {
+    const watching = recorded.runs.find(({ id }) => id === 'watching')!;
+    // The square and wide headers are 56px and 64px tall, with a 1px shadow below.
+    for (const [size, dividerBottom] of [['square', 57], ['wide', 65]] as const) {
+      for (const { crop } of Object.values(watching.variants[size])) {
+        expect(crop.y).toBeGreaterThan(dividerBottom);
+      }
+    }
+  });
+
   it('keeps a dimensioned poster for every look and width in an inert template', () => {
     const templates = all('template[data-run-poster]') as HTMLTemplateElement[];
     expect(templates.map((template) => template.dataset.runPoster)).toEqual(recorded.runs.map(({ id }) => id));
