@@ -42,6 +42,9 @@ On a phone the camera menu moves from under the alert list to under the frame, s
 focus on it moves to the frame's key too. **Picture change** reads on the scale its check uses: the
 changed pixels against the pixel count, or, where the setting checks a share of the
 picture, the changed share against the check's 1 per cent.
+The alert's severity uses the same line. From that line up to twice it the
+alert is low. It is medium at twice the line, high at five times, and critical
+at ten times. In a pixel-count zone the alert uses the line for that zone.
 A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";
 a change of state is not announced. Under reduced motion a meter's shown reading
 changes at most once a second. While Lost and Found compares, the pet's meter names

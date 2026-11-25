@@ -103,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - People and Wildlife start their model check when the average pixel change in any one part of the picture reaches the motion line. Wildlife’s setting explains the reading.
+- Picture change alerts use the same line as their meter to set their severity. In share mode, a change just over the line now raises a low alert.
 - Lost and Found's full-screen pictures are readable in both looks: the question at 12:1 or more, every other word at 7:1 or more and 18 px. They fill the window at every width, and a tall photo leaves their keys in view. They take focus when they open, keep Tab on their keys and give focus back when they close, and Space presses the key that holds focus.
 - **Mark all as seen** on the dashboard moves focus to **Since you last looked** as it is pressed, so focus stays on the list when the key leaves.
 - **Saved pictures** shows each picture's time and question under it, readable in both looks, and names a gallery or a picture this device cannot read, a picture it cannot delete and an export it cannot mark. An opened picture takes focus and gives it back, **Escape** closes it, **Acknowledge** is for the picture it shows, a picture's own box, named by its time, chooses it, and a tap on a touch screen opens a picture and deletes nothing.

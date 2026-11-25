@@ -1373,19 +1373,17 @@ export default function MonitorPage() {
       }
     }
 
-    const ratioNow = chosenThresholdPx > 0 ? chosenChangedPx / chosenThresholdPx : 0;
+    const ratioNow = pictureChangeRatio({
+      useAbsoluteThreshold: currentPreset.useAbsoluteThreshold,
+      changedPx: chosenChangedPx,
+      thresholdPx: chosenThresholdPx,
+      difference: result.difference,
+    });
     setPixelZoneStatus({
       zoneName: chosenZoneName ?? fullZone?.name ?? (enabledZones.length === 0 ? 'Full Screen' : null),
       changedPx: chosenChangedPx,
       thresholdPx: chosenThresholdPx,
-      // The meter reads on the scale the check used: in the share mode the
-      // changed share of the picture against the check's share, not the count.
-      ratio: pictureChangeRatio({
-        useAbsoluteThreshold: currentPreset.useAbsoluteThreshold,
-        changedPx: chosenChangedPx,
-        thresholdPx: chosenThresholdPx,
-        difference: result.difference,
-      }),
+      ratio: ratioNow,
       triggered,
     });
 
