@@ -21,6 +21,7 @@ import { useCallback, useSyncExternalStore } from 'react';
 
 import {
   countKeptAlertPictures,
+  deleteSubjectProfile,
   getAlertPicture,
   goneAlertPicture,
   goneAllAlertPictures,
@@ -169,12 +170,13 @@ function setOf(row: AlertPictureDB): PictureSet | null {
 }
 
 /** The row a set is saved as. */
-function rowOf(set: PictureSet): AlertPictureDB {
+function rowOf(set: PictureSet, subjectId?: string): AlertPictureDB {
   return {
     id: set.id,
     state: 'kept',
     kind: set.kind,
     takenAt: set.takenAt,
+    ...(subjectId ? { subjectId } : {}),
     frame: set.frame,
     frameWidth: set.frameWidth,
     frameHeight: set.frameHeight,
@@ -267,9 +269,10 @@ function gone(ids: readonly string[], reason: 'person' | 'age' | 'with-alert', d
  * they are kept, saved. Whether it is kept is decided here, at the alert: on
  * a device that has answered the notice, with Keep alert pictures on, in a
  * store that can be written. A picture that cannot be drawn leaves the alert
- * with none.
+ * with none. `subjectId` is the pet a sighting's picture was taken for: it is
+ * not kept once the pet is deleted.
  */
-export function holdPicture(promise: Promise<PictureSet>, id: string): void {
+export function holdPicture(promise: Promise<PictureSet>, id: string, subjectId?: string): void {
   const before = entries.get(id);
   if (before) drop(before);
   const entry: Entry = { id, view: LOADING, memory: true, holders: 0, unnamedSince: null, release: null, turn: 0 };
@@ -293,7 +296,7 @@ export function holdPicture(promise: Promise<PictureSet>, id: string): void {
       }
       show(entry, set, 'saving');
       tell();
-      void saveAlertPicture(rowOf(set), stamp).then((answer) => {
+      void saveAlertPicture(rowOf(set, subjectId), stamp).then((answer) => {
         if (since !== forgets || entries.get(id) !== entry) return;
         if (answer.result === 'saved') {
           keptAs(entry, 'saved');
@@ -305,7 +308,7 @@ export function holdPicture(promise: Promise<PictureSet>, id: string): void {
           }
           postPictureNews({ type: 'saved', id });
         } else if (answer.result === 'dropped') {
-          // The person deleted the pictures, or cleared the alerts, while this one was saved.
+          // The person deleted the pictures or the pet, or cleared the alerts, while this one was saved.
           entry.memory = false;
           settle(entry, GONE_PERSON);
         } else {
@@ -350,6 +353,22 @@ export async function deletePicture(id: string, known: { kind: AlertKind; takenA
   postPictureNews({ type: 'gone', ids: [id], reason: 'person' });
   tell();
   await readCount();
+  return 'deleted';
+}
+
+/**
+ * Deletes a Lost and Found pet with its saved pictures: each set kept for its sightings leaves, in
+ * every tab; the alerts' words stay.
+ */
+export async function deletePet(subjectId: string): Promise<'deleted' | 'failed'> {
+  const answer = await deleteSubjectProfile(subjectId);
+  if (answer.result === 'failed') return 'failed';
+  if (answer.pictureIds.length > 0) {
+    gone(answer.pictureIds, 'person');
+    postPictureNews({ type: 'gone', ids: answer.pictureIds, reason: 'person' });
+    tell();
+    await readCount();
+  }
   return 'deleted';
 }
 

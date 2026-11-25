@@ -236,7 +236,7 @@ it('Mark all as seen marks them and moves focus to the label', async () => {
   key.focus();
   fireEvent.click(key);
   expect(markAllSeen).toHaveBeenCalledTimes(1);
-  expect(document.activeElement).toBe(key);
+  expect(document.activeElement).toBe(label());
 
   await act(async () => {
     marked.answer();

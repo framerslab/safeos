@@ -14,6 +14,7 @@
 
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 
+import { readable, wordsOn } from './helpers/alert-pictures';
 import { BARRED, readWords } from './helpers/lost-found-words';
 import { enrolPet, sightingAlerts } from './helpers/own-sound';
 import { OWN_SETTING, setUpDevice } from './helpers/seeded-device';
@@ -264,33 +265,75 @@ test('the watch names the pet it compares with no score, bar or count', async ({
   await page.screenshot({ path: testInfo.outputPath('lost-found-watch-words-1280.png'), fullPage: true });
 });
 
-test('an alert asks its question in the notification and on the full-screen pictures, and speaks the new line', async ({ page, context }, testInfo) => {
-  test.setTimeout(240_000);
-  await keepNotificationsAndSpeech(context);
-  await seed(context);
+for (const look of ['light', 'dark'] as const) {
+  test(`an alert asks its question in the notification and on the full-screen pictures, and speaks the new line, ${look}`, async ({ page, context }, testInfo) => {
+    test.setTimeout(240_000);
+    await page.emulateMedia({ colorScheme: look });
+    await keepNotificationsAndSpeech(context);
+    await seed(context);
 
-  await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
-  await openSetup(page);
-  await addStripesPhoto(page);
-  await switchOnOverlay(page);
-  await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
-  await openWatch(page);
+    await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+    await openSetup(page);
+    await addStripesPhoto(page);
+    await switchOnOverlay(page);
+    await page.getByRole('button', { name: 'Start Watching', exact: true }).click();
+    await openWatch(page);
 
-  await expect
-    .poll(async () => (await keptSoFar(page)).notifications.map((shown) => shown.title), { timeout: 60_000 })
-    .toContain(QUESTION);
-  const shown = (await keptSoFar(page)).notifications.find((notification) => notification.title === QUESTION);
-  expect(shown?.body).toMatch(/^Colours and shape like Stripes’s photos, .+\.$/);
-  expect(shown?.body).not.toContain('%');
+    await expect
+      .poll(async () => (await keptSoFar(page)).notifications.map((shown) => shown.title), { timeout: 60_000 })
+      .toContain(QUESTION);
+    const shown = (await keptSoFar(page)).notifications.find((notification) => notification.title === QUESTION);
+    expect(shown?.body).toMatch(/^Colours and shape like Stripes’s photos, .+\.$/);
+    expect(shown?.body).not.toContain('%');
 
-  const dialog = page.getByRole('alertdialog', { name: QUESTION });
-  await expect(dialog).toBeVisible({ timeout: 30_000 });
-  await expect(dialog.getByText(FIRST_LINE, { exact: true })).toBeVisible();
+    const dialog = page.getByRole('alertdialog', { name: QUESTION });
+    await expect(dialog).toBeVisible({ timeout: 30_000 });
+    await expect(dialog.getByText(FIRST_LINE, { exact: true })).toBeVisible();
+    await expect.soft(dialog, 'the pictures take focus when they open').toBeFocused();
 
-  await expect.poll(async () => (await keptSoFar(page)).spoken.length, { timeout: 30_000 }).toBeGreaterThan(0);
-  expect((await keptSoFar(page)).spoken[0]).toBe('Colours like your pet’s photos are in view.');
-  await page.screenshot({ path: testInfo.outputPath('lost-found-overlay-words-1280.png') });
-});
+    await expect.poll(async () => (await keptSoFar(page)).spoken.length, { timeout: 30_000 }).toBeGreaterThan(0);
+    expect((await keptSoFar(page)).spoken[0]).toBe('Colours like your pet’s photos are in view.');
+    // Paused, the pictures stay open while they are read: the cycle's words among them, the photo drawn whole.
+    await dialog.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(dialog.getByText(/^Cycle \d of 3$/)).toBeVisible();
+    await expect(dialog.locator('img')).toHaveCSS('opacity', '1');
+    const capture = look === 'light' ? 'lost-found-overlay-words-1280.png' : 'lost-found-overlay-words-1280-dark.png';
+    await page.screenshot({ path: testInfo.outputPath(capture) });
+    const title = dialog.getByRole('heading', { name: QUESTION, exact: true });
+    const titleStyle = await wordsOn(dialog, title);
+    expect.soft(titleStyle.ratio, 'the heading has at least 12:1 contrast against the black overlay').toBeGreaterThanOrEqual(12);
+    expect.soft(titleStyle.solid).toBe(true);
+    expect.soft(titleStyle.size).toBeGreaterThanOrEqual(18);
+    expect(await readable(dialog, { lead: 18, other: 18, floor: 18, leadRatio: 12, otherRatio: 7 })).toEqual([]);
+
+    // The pictures fill the window, and a window shorter than the photo keeps every key in it.
+    for (const height of [1000, 600]) {
+      await page.setViewportSize({ width: 1280, height });
+      await expect
+        .poll(async () => {
+          const box = await dialog.boundingBox();
+          return box && [box.y, box.height];
+        }, { message: `the pictures fill a window ${height} px high`, timeout: 5_000 })
+        .toEqual([0, height]);
+      for (const name of ['Close alert', 'Mute', 'Resume']) {
+        const key = (await dialog.getByRole('button', { name, exact: true }).boundingBox())!;
+        expect(key.y, `${name} starts in a window ${height} px high`).toBeGreaterThanOrEqual(0);
+        expect(key.y + key.height, `${name} ends in a window ${height} px high`).toBeLessThanOrEqual(height);
+      }
+    }
+
+    // Tab goes round the dialog's own keys, either way, and Escape closes it.
+    const holdsFocus = () => dialog.evaluate((node) => node.contains(document.activeElement));
+    for (const press of ['Tab', 'Shift+Tab']) {
+      for (let stop = 1; stop <= 5; stop++) {
+        await page.keyboard.press(press);
+        expect.soft(await holdsFocus(), `${press} pressed ${stop} times stays on the pictures`).toBe(true);
+      }
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  });
+}
 
 test('the gallery lists saved pictures with no score, and an opened one asks the question', async ({ page, context }, testInfo) => {
   test.setTimeout(180_000);
@@ -317,6 +360,29 @@ test('the gallery lists saved pictures with no score, and an opened one asks the
   const words = await readWords(page);
   for (const score of ['82', '%', 'Confidence', 'Edge']) expect(words, `the gallery shows "${score}"`).not.toContain(score);
   await page.screenshot({ path: testInfo.outputPath('lost-found-gallery-words-1280.png') });
+});
+
+test.describe('The gallery on a touch screen', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('a tap on a saved picture opens it and deletes nothing', async ({ page, context }) => {
+    test.setTimeout(180_000);
+    await seed(context);
+
+    await page.goto('/lost-found/', { waitUntil: 'networkidle', timeout: 60_000 });
+    await enrolPet(page, NAME, await stripedPhoto(page));
+    await expect(page.getByRole('button', { name: 'Start Monitoring' })).toBeVisible({ timeout: 30_000 });
+    await savePicture(page);
+
+    // A finger shows no hover, so the tile's keys are out of sight: the tap lands where Delete stands.
+    await page.goto('/lost-found/gallery/', { waitUntil: 'networkidle', timeout: 60_000 });
+    const key = (await page.getByRole('button', { name: 'Delete this picture', exact: true }).boundingBox())!;
+    await page.touchscreen.tap(key.x + key.width / 2, key.y + key.height / 2);
+    const opened = page.getByRole('dialog', { name: QUESTION, exact: true });
+    await expect(opened.getByText(QUESTION, { exact: true })).toBeVisible();
+    await opened.getByRole('button', { name: 'Close', exact: true }).tap();
+    await expect(page.getByRole('img', { name: /^What the camera saw at / })).toHaveCount(1);
+  });
 });
 
 test('the pet’s card counts the pictures saved for it, and a picture deleted in the gallery leaves the count', async ({ page, context }) => {
@@ -383,7 +449,8 @@ test('no Lost and Found screen says match, detected, confidence, accurate or lik
   await expect(picture).toBeVisible({ timeout: 30_000 });
   await holdsNoBarredWord('the gallery');
   await page.getByRole('button', { name: 'Open this picture', exact: true }).first().click();
-  await expect(page.getByText(QUESTION, { exact: true })).toBeVisible();
+  const opened = page.getByRole('dialog', { name: QUESTION, exact: true });
+  await expect(opened.getByText(QUESTION, { exact: true })).toBeVisible();
   await holdsNoBarredWord('an opened picture');
   await page.screenshot({ path: testInfo.outputPath('lost-found-words-read-1280.png') });
 });
