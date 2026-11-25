@@ -265,6 +265,7 @@ for (const look of ['dark', 'light'] as const) {
         await expect(card.getByText(/^(Info|Low|Medium|High|Critical)$/)).toHaveCount(0);
         await expect(card.getByText(/^Level \d/)).toHaveCount(0);
         await expect(card.locator('[data-escalation-bar]')).toHaveCount(0);
+        expect(await wordsOf(card)).not.toMatch(FORBIDDEN);
 
         // One kept set, as JPEG files; the watch saves no frame of its own for the check.
         await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
@@ -612,8 +613,6 @@ for (const look of ['light', 'dark'] as const) {
       expect(note.image ?? null, 'no picture while the switch is off').toBeNull();
       expect(note.icon ?? '', 'the pet’s photo is never the notification’s icon').not.toMatch(/^(data|blob):/);
       expect(`${note.title} ${note.body ?? ''}`).not.toMatch(FORBIDDEN);
-      // No word of the entry says match, detected, found, recognise, identify, confidence or a percentage.
-      expect(await wordsOf(card)).not.toMatch(FORBIDDEN);
       await expect(page.getByRole('link', { name: 'Open in History', exact: true })).toBeVisible();
     });
 
