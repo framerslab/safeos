@@ -413,9 +413,9 @@ export function createIntrusionFrame(
   frameData: string,
   personCount: number,
   allowedCount: number,
-  detections: Array<{ bbox: [number, number, number, number]; confidence: number }>
+  detections: Array<{ bbox: [number, number, number, number]; confidence: number }>,
+  timestamp = Date.now()
 ): IntrusionFrame {
-  const timestamp = Date.now();
   return {
     id: `intrusion-${timestamp}-${Math.random().toString(36).slice(2, 9)}`,
     frameData,
@@ -469,7 +469,7 @@ export function getArmingStateLabel(state: ArmingState): string {
     case 'armed':
       return 'Armed';
     case 'triggered':
-      return 'INTRUDER DETECTED';
+      return 'Alert';
     default:
       return state;
   }

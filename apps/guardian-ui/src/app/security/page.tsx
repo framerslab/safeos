@@ -9,6 +9,7 @@
  * @module app/security/page
  */
 
+import { peopleWords, peopleAtTime, moreThanWatchAllows } from '@/lib/alert-pictures/words';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
@@ -165,14 +166,14 @@ function PersonCountDisplay({ count, allowed, isArmed }: PersonCountDisplayProps
             isExcess && isArmed ? 'text-red-500' : 'text-slate-300'
           }`}
         >
-          {count}
+          {count}{' '}
         </div>
         <div className="text-sm text-slate-500 mt-2">
-          Persons Detected
+          {peopleWords(count)} in view
         </div>
         {isExcess && isArmed && (
           <div className="mt-3 px-3 py-1 bg-red-500 text-white text-sm font-bold rounded-full inline-block animate-bounce">
-            +{count - allowed} INTRUDER{count - allowed > 1 ? 'S' : ''}
+            {moreThanWatchAllows}
           </div>
         )}
       </div>
@@ -276,7 +277,8 @@ export default function SecurityPage() {
       result.detections.map(d => ({
         bbox: d.bbox,
         confidence: d.confidence,
-      }))
+      })),
+      result.timestamp
     );
 
     // Save to IndexedDB
@@ -329,8 +331,8 @@ export default function SecurityPage() {
       // Browser notification
       if (settings.alerts.notificationEnabled && 'Notification' in window) {
         if (Notification.permission === 'granted') {
-          void showBrowserNotification('INTRUDER ALERT!', {
-            body: `${result.personCount} person(s) detected. ${result.personCount - settings.allowedPersons} unauthorized.`,
+          void showBrowserNotification('People alert', {
+            body: `${peopleAtTime(result.personCount, result.timestamp)}. ${moreThanWatchAllows}`,
             icon: '/icons/icon-192.png',
             tag: 'intrusion-alert',
             requireInteraction: true,
@@ -551,15 +553,9 @@ export default function SecurityPage() {
                     <IconCamera size={18} />
                     Live Camera
                   </h2>
-                  {lastDetection && (
-                    <span className="text-xs text-slate-500">
-                      {lastDetection.processingTimeMs.toFixed(0)}ms
-                    </span>
-                  )}
                 </div>
                 <CameraFeed
                   scenario="security"
-                  showDebug={true}
                   enabled={isArmed && modelStatus === 'ready'}
                   audioEnabled={false}
                   onVideoReady={(video) => {
@@ -577,16 +573,16 @@ export default function SecurityPage() {
               />
 
               {/* Quick Status */}
-              {armingState === 'triggered' && (
+              {armingState === 'triggered' && lastDetection && currentPersonCount > settings.allowedPersons && (
                 <div className="p-4 bg-red-500/20 border border-red-500 rounded-xl animate-pulse">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <IconAlertTriangle size={24} className="text-red-500" />
                       <div>
-                        <div className="font-bold text-red-400">INTRUDER DETECTED!</div>
-                        <div className="text-sm text-red-300">
-                          {currentPersonCount - settings.allowedPersons} unauthorized person(s)
+                        <div className="font-bold text-red-400">
+                          {peopleAtTime(currentPersonCount, lastDetection.timestamp)}
                         </div>
+                        <div className="text-sm text-red-300">{moreThanWatchAllows}</div>
                       </div>
                     </div>
                     <button

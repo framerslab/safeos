@@ -9,6 +9,7 @@
  * @module app/wildlife/page
  */
 
+import { animalAtTime, timeWords } from '@/lib/alert-pictures/words';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { useState, useEffect, useCallback, useRef, type MouseEvent } from 'react';
 import Link from 'next/link';
@@ -36,6 +37,7 @@ import {
   getAnimalDetector, 
   createAnimalAnnouncement,
   getDangerColor,
+  getDangerBadgeColors,
   getDangerLabel,
   getSizeIcon,
   type AnimalDetection,
@@ -84,12 +86,12 @@ function DetectionCard({ detection, onAcknowledge }: DetectionCardProps) {
         <div className="flex-1">
           <div className="font-semibold text-white">{detection.displayName}</div>
           <div className="text-xs text-slate-400">
-            {Math.round(detection.confidence * 100)}% confidence
+            {timeWords(detection.timestamp)}
           </div>
         </div>
         <div
-          className="px-2 py-1 rounded text-xs font-bold"
-          style={{ backgroundColor: dangerColor, color: detection.dangerLevel === 'none' ? '#000' : '#fff' }}
+          className="px-2 py-1 rounded text-base font-bold"
+          style={getDangerBadgeColors(detection.dangerLevel)}
         >
           {getDangerLabel(detection.dangerLevel)}
         </div>
@@ -294,9 +296,9 @@ export default function WildlifePage() {
       if (Notification.permission === 'granted') {
         const isDangerous = primary.dangerLevel === 'high' || primary.dangerLevel === 'extreme';
         void showBrowserNotification(
-          isDangerous ? 'WILDLIFE DANGER ALERT!' : 'Animal Detected',
+          isDangerous ? 'Wildlife warning' : 'Wildlife alert',
           {
-            body: `${primary.displayName} detected with ${Math.round(primary.confidence * 100)}% confidence`,
+            body: `${animalAtTime(primary.displayName, primary.timestamp)}.`,
             icon: '/icons/icon-192.png',
             tag: 'wildlife-alert',
             requireInteraction: isDangerous,
@@ -496,7 +498,6 @@ export default function WildlifePage() {
               <CameraFeed
                 scenario="pet"
                 enabled={isMonitoring && modelStatus === 'ready'}
-                showDebug={true}
                 audioEnabled={false}
                 onError={() => {
                   // A camera that fails or is lost ends the watch; Start Monitoring starts it again.
@@ -567,7 +568,7 @@ export default function WildlifePage() {
               <div className="bg-slate-900 border border-red-500/50 rounded-xl p-4">
                 <h3 className="font-semibold text-red-400 mb-3 flex items-center gap-2">
                   <IconAlertTriangle size={18} />
-                  Active Detections
+                  In view
                 </h3>
                 <div className="space-y-2">
                   {currentDetections.slice(0, 3).map((detection) => (
@@ -585,10 +586,10 @@ export default function WildlifePage() {
 
             {/* Recent History */}
             <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-              <h3 className="font-semibold text-white mb-3">Recent Detections</h3>
+              <h3 className="font-semibold text-white mb-3">Recent sightings</h3>
               {recentDetections.length === 0 ? (
                 <p className="text-sm text-slate-500 text-center py-4">
-                  No detections yet. Start monitoring to detect animals.
+                  Sightings show here while this device watches.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -662,9 +663,10 @@ export default function WildlifePage() {
                 <h3 className="font-medium text-white mb-3">Detection</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="text-sm text-slate-400">Confidence Threshold</label>
+                    <label htmlFor="wildlife-alert-line" className="text-sm text-slate-400">Alert line</label>
                     <input
                       type="range"
+                      id="wildlife-alert-line"
                       min={10}
                       max={90}
                       value={settings.confidenceThreshold * 100}
@@ -674,7 +676,7 @@ export default function WildlifePage() {
                       className="w-full mt-1"
                     />
                     <div className="text-right text-xs text-slate-500">
-                      {Math.round(settings.confidenceThreshold * 100)}%
+                      {Math.round(settings.confidenceThreshold * 100)}
                     </div>
                   </div>
                   <div>

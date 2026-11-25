@@ -19,8 +19,8 @@ import {
   IconChevronRight,
   IconAlertTriangle,
   IconClock,
-  IconPerson,
 } from './icons';
+import { moreThanWatchAllows, peopleInView, peopleAtTime } from '../lib/alert-pictures/words';
 import {
   getAllIntrusionFrames,
   deleteIntrusionFrame,
@@ -64,7 +64,7 @@ function FrameCard({
   onDelete,
   onView,
 }: FrameCardProps) {
-  const excessCount = Math.max(0, frame.personCount - frame.allowedCount);
+  const overLimit = frame.personCount > frame.allowedCount;
   const timeAgo = getTimeAgo(frame.timestamp);
 
   return (
@@ -83,25 +83,12 @@ function FrameCard({
         {frame.thumbnailData ? (
           <img
             src={frame.thumbnailData}
-            alt={`Intrusion at ${new Date(frame.timestamp).toLocaleString()}`}
+            alt={peopleAtTime(frame.personCount, frame.timestamp)}
             className="w-full h-full object-cover"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-slate-600">
             <IconAlertTriangle size={32} />
-          </div>
-        )}
-
-        {/* Person count badge */}
-        <div className="absolute top-2 right-2 px-2 py-1 bg-red-600 text-white text-xs font-bold rounded-full flex items-center gap-1">
-          <IconPerson size={12} />
-          {frame.personCount}
-        </div>
-
-        {/* Excess indicator */}
-        {excessCount > 0 && (
-          <div className="absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs font-bold rounded">
-            +{excessCount} EXCESS
           </div>
         )}
 
@@ -134,6 +121,8 @@ function FrameCard({
 
       {/* Info bar */}
       <div className="p-2 bg-slate-800">
+        <p className="text-sm font-semibold text-white">{peopleInView(frame.personCount)}</p>
+        {overLimit && <p className="text-sm text-slate-300">{moreThanWatchAllows}</p>}
         <div className="flex items-center justify-between text-xs">
           <span className="text-slate-400 flex items-center gap-1">
             <IconClock size={12} />
@@ -198,7 +187,7 @@ function FrameViewer({
         {/* Header */}
         <div className="p-4 border-b border-slate-700 flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-white">Intrusion Detected</h3>
+            <h3 className="font-semibold text-white">{peopleInView(frame.personCount)}</h3>
             <p className="text-sm text-slate-400">
               {new Date(frame.timestamp).toLocaleString()}
             </p>
@@ -216,7 +205,7 @@ function FrameViewer({
           {frame.frameData ? (
             <img
               src={frame.frameData}
-              alt="Intrusion frame"
+              alt="Camera picture"
               className="w-full h-full object-contain"
             />
           ) : (
@@ -256,11 +245,7 @@ function FrameViewer({
                   width: `${(width / 320) * 100}%`,
                   height: `${(height / 240) * 100}%`,
                 }}
-              >
-                <span className="absolute -top-5 left-0 px-1 bg-red-500 text-white text-xs">
-                  {Math.round(detection.confidence * 100)}%
-                </span>
-              </div>
+              />
             );
           })}
         </div>
@@ -271,7 +256,7 @@ function FrameViewer({
             <div className="text-2xl font-bold text-red-400">
               {frame.personCount}
             </div>
-            <div className="text-xs text-slate-500">Persons Detected</div>
+            <div className="text-xs text-slate-500">People in view</div>
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-slate-300">
@@ -475,10 +460,10 @@ export function IntrusionGallery({ className = '', limit }: IntrusionGalleryProp
       <div className={`bg-slate-900 border border-slate-700 rounded-xl p-8 text-center ${className}`}>
         <IconAlertTriangle size={48} className="mx-auto text-slate-600 mb-4" />
         <h3 className="text-lg font-semibold text-slate-400 mb-2">
-          No Intrusion Events
+          No saved pictures
         </h3>
         <p className="text-sm text-slate-500">
-          When intruders are detected, captured frames will appear here.
+          Pictures show here when more people are in view than the watch allows.
         </p>
       </div>
     );
@@ -491,7 +476,7 @@ export function IntrusionGallery({ className = '', limit }: IntrusionGalleryProp
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             <IconAlertTriangle size={20} className="text-red-400" />
-            Intrusion History
+            People history
           </h2>
           <div className="flex gap-2">
             <button

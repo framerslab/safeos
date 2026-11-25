@@ -157,6 +157,7 @@ beforeEach(() => {
   useLostFoundStore.setState({ isWatching: false, activeSubject: null, chosenPetId: null });
   jest.mocked(readSavedPets).mockResolvedValue([]);
   useSecurityStore.getState().reset();
+  useSecurityStore.setState({ settings: DEFAULT_SECURITY_SETTINGS, intrusionFrames: [] });
   useAnimalAlertStore.setState({
     isMonitoring: false, currentDetections: [], detectionHistory: [], settings: DEFAULT_ANIMAL_SETTINGS,
   });
@@ -356,10 +357,10 @@ it("People's notification gives the count, the time and what went over the line"
   const { at } = await peopleInView();
   expect(notifications()).toHaveLength(1);
   const [title, options] = notifications()[0];
-  expect(`${title} ${options.body}`).not.toMatch(barredWording);
-  expect(options.body).toContain('2 people in view');
-  expect(options.body).toContain('More than this watch allows.');
-  expect(options.body).toContain(timeWords(at));
+  expect(`${title} ${options?.body}`).not.toMatch(barredWording);
+  expect(options?.body).toContain('2 people in view');
+  expect(options?.body).toContain('More than this watch allows.');
+  expect(options?.body).toContain(timeWords(at));
 });
 
 const zebra = (): AnimalDetection => ({
@@ -398,8 +399,8 @@ it("Wildlife's notification names the animal and gives the time", async () => {
   const animal = await wildlifeInView();
   expect(notifications()).toHaveLength(1);
   const [title, options] = notifications()[0];
-  expect(`${title} ${options.body}`).not.toMatch(barredWording);
-  expect(options.body).toBe(`Zebra in view at ${timeWords(animal.timestamp)}.`);
+  expect(`${title} ${options?.body}`).not.toMatch(barredWording);
+  expect(options?.body).toBe(`Zebra in view at ${timeWords(animal.timestamp)}.`);
 });
 
 it('shows the Wildlife alert line as a plain number', async () => {
