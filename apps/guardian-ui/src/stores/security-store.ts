@@ -9,6 +9,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { mergeFrameSettings } from './merge-frame-settings';
 
 // =============================================================================
 // Types
@@ -77,7 +78,6 @@ export interface SecuritySettings {
   
   // Frame storage
   maxStoredFrames: number;
-  autoDeleteDays: number;
 }
 
 export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
@@ -105,7 +105,6 @@ export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
   armingCountdown: 30,
   triggerCooldown: 5000,
   maxStoredFrames: 100,
-  autoDeleteDays: 30,
 };
 
 // =============================================================================
@@ -359,6 +358,7 @@ export const useSecurityStore = create<SecurityState>()(
     }),
     {
       name: 'safeos-security',
+      merge: mergeFrameSettings,
       partialize: (state) => ({
         settings: state.settings,
         intrusionFrames: state.intrusionFrames,

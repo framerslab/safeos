@@ -474,6 +474,9 @@ People keeps up to 100 saved pictures on this device. A new save makes room
 by removing the oldest seen pictures first, then the oldest unseen pictures.
 An alert stays seen if its only marked picture makes room and it still has
 other pictures.
+The People picture library, Wildlife sightings and pictures kept by an
+earlier version of Lost and Found have no automatic deletion by age. The
+**Delete pictures after** choice applies to the alert pictures described above.
 
 Monitor alerts are written to the `safeos-guardian` IndexedDB alert cache. Saved alerts
 belong to the browser, not to a session or a profile: Monitor, **History → Local

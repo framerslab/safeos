@@ -9,6 +9,7 @@
 
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { mergeFrameSettings } from './merge-frame-settings';
 import type { AnimalDetection, SizeCategory, DangerLevel } from '../lib/animal-detection';
 import { guardedStorage } from '../lib/storage-full';
 import { alertsChanged } from '../lib/tab-channel';
@@ -45,7 +46,6 @@ export interface AnimalAlertSettings {
   // Recording
   captureFrames: boolean;
   maxStoredFrames: number;
-  autoDeleteDays: number;
 }
 
 export const DEFAULT_ANIMAL_SETTINGS: AnimalAlertSettings = {
@@ -63,7 +63,6 @@ export const DEFAULT_ANIMAL_SETTINGS: AnimalAlertSettings = {
   flashScreen: true,
   captureFrames: true,
   maxStoredFrames: 100,
-  autoDeleteDays: 7,
 };
 
 export interface DetectionHistoryEntry extends AnimalDetection {
@@ -371,6 +370,7 @@ export const useAnimalAlertStore = create<AnimalAlertState>()(
     }),
     {
       name: STORE_NAME,
+      merge: mergeFrameSettings,
       // A full device keeps the sighting for the visit and the alert goes on.
       // A sighting read from storage again calls none of the actions above,
       // so two tabs never answer each other without end.

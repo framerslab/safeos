@@ -2093,28 +2093,6 @@ async function cleanupExcessMatchFrames(): Promise<void> {
   }
 }
 
-export async function cleanupOldMatchFrames(olderThanDays: number): Promise<number> {
-  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
-  try {
-    const db = await getDB();
-    const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
-    
-    const frames = await db.getAll('match_frame');
-    const toDelete = frames.filter(f => f.timestamp < cutoff && f.acknowledged);
-    
-    tx = db.transaction('match_frame', 'readwrite');
-    for (const frame of toDelete) {
-      await tx.store.delete(frame.id);
-    }
-    await tx.done;
-    
-    return toDelete.length;
-  } catch {
-    await abandonTransaction(tx);
-    return 0;
-  }
-}
-
 // =============================================================================
 // Export Match Frames to JSON/CSV
 // =============================================================================
@@ -2431,28 +2409,6 @@ async function pruneIntrusionFrames(store: IntrusionFrameStore): Promise<void> {
   const toMark = seenAfterRemoval(frames, removed);
   for (const frame of toDelete) await store.delete(frame.id);
   for (const frame of toMark) await store.put({ ...frame, acknowledged: true });
-}
-
-export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<number> {
-  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
-  try {
-    const db = await getDB();
-    const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
-    
-    const frames = await db.getAll('intrusion_frame');
-    const toDelete = frames.filter(f => f.timestamp < cutoff && f.acknowledged);
-    
-    tx = db.transaction('intrusion_frame', 'readwrite');
-    for (const frame of toDelete) {
-      await tx.store.delete(frame.id);
-    }
-    await tx.done;
-    
-    return toDelete.length;
-  } catch {
-    await abandonTransaction(tx);
-    return 0;
-  }
 }
 
 // =============================================================================
@@ -2838,28 +2794,6 @@ async function cleanupExcessAnimalDetections(): Promise<void> {
   } catch {
     // Ignore cleanup errors
     await abandonTransaction(tx);
-  }
-}
-
-export async function cleanupOldAnimalDetections(olderThanDays: number): Promise<number> {
-  let tx: IDBPTransaction<SafeOSDB, ['animal_detection'], 'readwrite'> | undefined;
-  try {
-    const db = await getDB();
-    const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
-    
-    const detections = await db.getAll('animal_detection');
-    const toDelete = detections.filter(d => d.timestamp < cutoff && d.acknowledged);
-    
-    tx = db.transaction('animal_detection', 'readwrite');
-    for (const d of toDelete) {
-      await tx.store.delete(d.id);
-    }
-    await tx.done;
-    
-    return toDelete.length;
-  } catch {
-    await abandonTransaction(tx);
-    return 0;
   }
 }
 

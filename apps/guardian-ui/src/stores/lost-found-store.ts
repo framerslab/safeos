@@ -9,6 +9,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { mergeFrameSettings } from './merge-frame-settings';
 import { EARLIER_SPOKEN_DEFAULT, SPOKEN_DEFAULT } from '../lib/lost-found-words';
 import type { VisualFingerprint } from '../lib/visual-fingerprint';
 import type { MatchResult, MatcherSettings } from '../lib/subject-matcher';
@@ -81,7 +82,6 @@ export interface LostFoundSettings {
   
   // Storage
   maxStoredFrames: number;
-  autoDeleteDays: number;
   
   // Display
   showConfidenceOverlay: boolean;
@@ -152,7 +152,6 @@ export interface LostFoundState {
   updateSettings: (settings: Partial<LostFoundSettings>) => void;
   
   // Actions - Cleanup
-  cleanupOldFrames: () => void;
   reset: () => void;
 }
 
@@ -181,7 +180,6 @@ export const DEFAULT_SETTINGS: LostFoundSettings = {
   
   // Storage
   maxStoredFrames: 500,
-  autoDeleteDays: 7,
   
   // Display
   showConfidenceOverlay: true,
@@ -407,18 +405,6 @@ export const useLostFoundStore = create<LostFoundState>()(
         }));
       },
 
-      // Cleanup
-      cleanupOldFrames: () => {
-        const { settings, matchFrames } = get();
-        const cutoffTime = Date.now() - settings.autoDeleteDays * 24 * 60 * 60 * 1000;
-        
-        const filteredFrames = matchFrames.filter(
-          (f) => f.timestamp > cutoffTime || !f.acknowledged
-        );
-        
-        set({ matchFrames: filteredFrames });
-      },
-
       reset: () => {
         set({
           activeSubject: null,
@@ -434,6 +420,7 @@ export const useLostFoundStore = create<LostFoundState>()(
     }),
     {
       name: 'safeos-lost-found',
+      merge: mergeFrameSettings,
       version: 1,
       migrate: migrateLostFound,
       partialize: (state) => ({
