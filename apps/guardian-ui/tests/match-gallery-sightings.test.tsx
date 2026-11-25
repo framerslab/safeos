@@ -24,6 +24,9 @@ const mockRead = jest.fn();
 const mockPicture = jest.fn();
 const mockGone = jest.fn();
 const mockDeleteFrame = jest.fn();
+const mockUpdateAlert = jest.fn();
+const mockMarkFrames = jest.fn();
+const mockExport = jest.fn();
 
 jest.mock('@/lib/client-db', () => ({
   getSavedSightingPictures: () => mockRead(),
@@ -33,9 +36,9 @@ jest.mock('@/lib/client-db', () => ({
   countKeptAlertPictures: jest.fn(async () => 1),
   acknowledgeMatchFrame: jest.fn(async () => undefined),
   deleteMatchFrame: (...args: unknown[]) => mockDeleteFrame(...args),
-  updateCachedAlert: jest.fn(async () => 'updated'),
-  markMatchFramesExported: jest.fn(async () => undefined),
-  exportMatchFrames: jest.fn(async () => ''),
+  updateCachedAlert: (...args: unknown[]) => mockUpdateAlert(...args),
+  markMatchFramesExported: (...args: unknown[]) => mockMarkFrames(...args),
+  exportMatchFrames: (...args: unknown[]) => mockExport(...args),
 }));
 
 const frame = (id: string) => ({
@@ -57,6 +60,11 @@ beforeEach(() => {
   mockPicture.mockReset().mockRejectedValue(new Error('refused'));
   mockGone.mockReset().mockResolvedValue('deleted');
   mockDeleteFrame.mockReset().mockResolvedValue('deleted');
+  mockUpdateAlert.mockReset().mockResolvedValue('updated');
+  mockMarkFrames.mockReset().mockResolvedValue('updated');
+  mockExport.mockReset().mockResolvedValue({ data: '[]', filename: 'pictures.json' });
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: jest.fn(() => '#file') });
+  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: jest.fn() });
   jest.spyOn(console, 'error').mockImplementation(() => undefined);
 });
 
@@ -135,6 +143,27 @@ it('takes focus into an opened picture, gives it back, and leaves it on the head
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Saved pictures' })));
 });
 
+it('says which pictures it exported but could not mark, and leaves them chosen for another export', async () => {
+  mockRead.mockResolvedValue([sighting('picture-marked'), sighting('picture-unmarked'), frame('frame-unmarked')]);
+  mockUpdateAlert.mockImplementation(async ({ id }: { id: string }) => (id === 'sighting-picture-unmarked' ? 'failed' : 'updated'));
+  mockMarkFrames.mockResolvedValue('failed');
+  render(<MatchGallery />);
+  await screen.findByText('Select all (3)');
+  fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+  expect(await screen.findByText('2 pictures are in the file but could not be marked as exported. Export again to retry.')).toBeTruthy();
+  expect(screen.getByText('2 selected')).toBeTruthy();
+
+  // Only those two are in the next file, and the line goes once they are marked.
+  mockUpdateAlert.mockResolvedValue('updated');
+  mockMarkFrames.mockResolvedValue('updated');
+  fireEvent.click(screen.getByRole('button', { name: 'Export JSON' }));
+  await waitFor(() => expect(mockExport).toHaveBeenCalledTimes(2));
+  const [, , earlier, sightings] = mockExport.mock.calls[1];
+  expect(earlier).toEqual(['frame-unmarked']);
+  expect(sightings.map((picture: { id: string }) => picture.id)).toEqual(['picture-unmarked']);
+  await waitFor(() => expect(screen.queryByText(/could not be marked as exported/)).toBeNull());
+});
+
 it('leaves focus on the heading when a tile’s own Delete takes the tile away', async () => {
   mockRead.mockResolvedValue([sighting('picture-tile'), sighting('picture-other')]);
   render(<MatchGallery />);
@@ -144,6 +173,19 @@ it('leaves focus on the heading when a tile’s own Delete takes the tile away',
   fireEvent.click(remove);
   await waitFor(() => expect(screen.getAllByRole('button', { name: 'Delete this picture' })).toHaveLength(1));
   await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Saved pictures' })));
+});
+
+it.each([
+  ['a sighting’s picture', sighting('picture-named')],
+  ['an earlier version’s frame', frame('frame-named')],
+])('names the box that selects %s, and the one that selects all', async (_what, picture) => {
+  mockRead.mockResolvedValue([picture]);
+  render(<MatchGallery />);
+  expect(await screen.findByRole('checkbox', { name: 'Select all (1)' })).toBeTruthy();
+  const box = screen.getByRole('checkbox', { name: `Select the picture from ${new Date(AT).toLocaleTimeString()}` });
+  fireEvent.click(box);
+  expect((box as HTMLInputElement).checked).toBe(true);
+  expect(screen.getByText('1 selected')).toBeTruthy();
 });
 
 it('reads the pictures once more for all the news that comes during a read', async () => {

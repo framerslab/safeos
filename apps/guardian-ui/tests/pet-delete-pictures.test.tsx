@@ -6,15 +6,17 @@
  * it and the pictures kept for its sightings, each once. Deleting the pet
  * deletes them: a picture this tab's watch took leaves this tab's alerts and
  * History at once, another pet's stays, and an alert whose picture was never
- * kept is not said to have had one deleted.
+ * kept is not said to have had one deleted. A picture of the pet that is saved
+ * after the delete, or whose alert is not saved yet, does not stay either.
  */
 import './helpers/browser-data';
 import React from 'react';
+import { openDB } from 'idb';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import LostFoundPage from '@/app/lost-found/page';
 import type { PictureSet } from '@/lib/alert-pictures/capture';
-import { holdPicture, usePicture } from '@/lib/alert-pictures/keeper';
-import { countMatchFramesBySubject, getSavedSightingPictures } from '@/lib/client-db';
+import { deletePet, holdPicture, usePicture } from '@/lib/alert-pictures/keeper';
+import { countMatchFramesBySubject, getSavedSightingPictures, saveAlertPicture } from '@/lib/client-db';
 import { pictureStampNow } from '@/lib/local-data-generation';
 import { useAlertPicturesStore } from '@/stores/alert-pictures-store';
 
@@ -116,4 +118,82 @@ it('deletes the pet’s pictures in this tab’s alerts and History too, and no 
   // A picture on its way as the pet was deleted is not saved after it.
   expect(await db.saveAlertPicture({ id: onItsWay, state: 'kept', kind: 'sighting', takenAt: Date.now() }, stamp))
     .toEqual({ result: 'dropped' });
+});
+
+describe('a picture on its way as the pet is deleted', () => {
+  /** Its save, with the row's words alone in the real database. */
+  const saveRow: typeof db.saveAlertPicture = (record, stamp) =>
+    db.saveAlertPicture({ ...record, frame: undefined, closeUp: undefined }, stamp);
+
+  beforeEach(() => {
+    useAlertPicturesStore.setState({ noticeAnswered: true, keep: true });
+    jest.mocked(saveAlertPicture).mockImplementation(saveRow);
+  });
+  afterEach(() => { jest.mocked(saveAlertPicture).mockReset().mockResolvedValue({ result: 'saved', deleted: [] }); });
+
+  /** A picture of the pet, held as the watch holds it, that is drawn when `draw` is called. */
+  function hold(petId: string, name: string, at: number): { id: string; draw: () => void } {
+    const id = pictureId(at, name);
+    let draw!: () => void;
+    holdPicture(new Promise((resolve) => { draw = () => resolve(setOf(id, at)); }), id, petId);
+    return { id, draw };
+  }
+
+  const saves = () => Promise.all(jest.mocked(saveAlertPicture).mock.results.map((result) => result.value));
+
+  it('is not kept when it is saved after the delete and its alert is not saved yet', async () => {
+    await pet('waffle', 'Waffle');
+    const before = hold('waffle', 'waffle-unsaved', Date.now());
+    expect(await deletePet('waffle')).toBe('deleted');
+    before.draw();
+    await waitFor(async () => expect(await saves()).toContainEqual({ result: 'dropped' }));
+    expect(await db.getAlertPicture(before.id)).toBeNull();
+  });
+
+  it('is not kept when its save comes more than a minute after its alert', async () => {
+    await pet('waffle', 'Waffle');
+    const at = Date.now() - 5 * MINUTE;
+    const id = await sighting('waffle', 'waffle-slow', at, null);
+    const { draw } = hold('waffle', 'waffle-slow', at);
+    expect(await deletePet('waffle')).toBe('deleted');
+    draw();
+    await waitFor(async () => expect(await saves()).toContainEqual({ result: 'dropped' }));
+    expect(await db.getAlertPicture(id)).toBeNull();
+  });
+
+  it('goes when it is saved before the delete and its alert is not', async () => {
+    await pet('waffle', 'Waffle');
+    const { id, draw } = hold('waffle', 'waffle-first', Date.now());
+    draw();
+    await waitFor(async () => expect(await db.getAlertPicture(id)).toMatchObject({ state: 'kept' }));
+    expect(await deletePet('waffle')).toBe('deleted');
+    expect(await db.getAlertPicture(id)).toMatchObject({ state: 'gone', gone: 'person' });
+  });
+
+  it('is kept for another pet, and for the pet once it is saved again', async () => {
+    await pet('waffle', 'Waffle');
+    expect(await deletePet('waffle')).toBe('deleted');
+    const others = hold('tofu', 'tofu-after', Date.now());
+    others.draw();
+    await waitFor(async () => expect(await db.getAlertPicture(others.id)).toMatchObject({ state: 'kept' }));
+
+    await pet('waffle', 'Waffle');
+    const again = hold('waffle', 'waffle-again', Date.now());
+    again.draw();
+    await waitFor(async () => expect(await db.getAlertPicture(again.id)).toMatchObject({ state: 'kept' }));
+  });
+
+  it('leaves no note of the deleted pet once all local data is cleared', async () => {
+    await pet('crumpet', 'Crumpet');
+    expect(await deletePet('crumpet')).toBe('deleted');
+    const notes = async () => {
+      const reading = await openDB('safeos-guardian');
+      const keys = (await reading.getAllKeys('clear_generation')).filter((key) => String(key).includes('crumpet'));
+      reading.close();
+      return keys.length;
+    };
+    expect(await notes()).toBe(1);
+    await db.clearClientData();
+    expect(await notes()).toBe(0);
+  });
 });

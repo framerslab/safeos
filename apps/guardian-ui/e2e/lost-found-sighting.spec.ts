@@ -288,6 +288,9 @@ for (const look of ['dark', 'light'] as const) {
         expect(reading.matchFrames).toEqual([]);
         const saved = reading.alerts.find((alert) => alert.kind === 'sighting')!;
         expect(saved).toMatchObject({ kind: 'sighting', subjectName: 'Stripes', pictureId: row.id, severity: 'info' });
+        // The picture says whose it is, so a delete of the pet finds it.
+        expect(saved.subjectId).toMatch(/.+/);
+        expect.soft(row.subjectId).toBe(saved.subjectId);
         expect(JSON.stringify(reading.alerts)).not.toContain('data:image');
 
         // Read once from the polite status.
@@ -340,10 +343,11 @@ test('a kept sighting fills the pet count and the gallery, and deleting its pict
     expect.soft(await readable(question.locator('xpath=..'), BLOCK_READABILITY), `the tile's words, ${look}`).toEqual([]);
   }
 
-  // One picture is chosen with its own box.
-  await page.getByRole('checkbox').nth(1).check({ timeout: 10_000 });
+  // One picture is chosen with its own box, which says its time.
+  const choose = page.getByRole('checkbox', { name: /^Select the picture from / });
+  await choose.check({ timeout: 10_000 });
   await expect(page.getByText('1 selected', { exact: true })).toBeVisible();
-  await page.getByRole('checkbox').nth(1).uncheck();
+  await choose.uncheck();
 
   // With the keyboard: focus goes into the opened picture, and Escape gives it back.
   const opened = page.getByRole('dialog', { name: QUESTION, exact: true });

@@ -289,6 +289,7 @@ for (const look of ['light', 'dark'] as const) {
     const dialog = page.getByRole('alertdialog', { name: QUESTION });
     await expect(dialog).toBeVisible({ timeout: 30_000 });
     await expect(dialog.getByText(FIRST_LINE, { exact: true })).toBeVisible();
+    await expect.soft(dialog, 'the pictures take focus when they open').toBeFocused();
 
     await expect.poll(async () => (await keptSoFar(page)).spoken.length, { timeout: 30_000 }).toBeGreaterThan(0);
     expect((await keptSoFar(page)).spoken[0]).toBe('Colours like your pet’s photos are in view.');
@@ -320,6 +321,17 @@ for (const look of ['light', 'dark'] as const) {
         expect(key.y + key.height, `${name} ends in a window ${height} px high`).toBeLessThanOrEqual(height);
       }
     }
+
+    // Tab goes round the dialog's own keys, either way, and Escape closes it.
+    const holdsFocus = () => dialog.evaluate((node) => node.contains(document.activeElement));
+    for (const press of ['Tab', 'Shift+Tab']) {
+      for (let stop = 1; stop <= 5; stop++) {
+        await page.keyboard.press(press);
+        expect.soft(await holdsFocus(), `${press} pressed ${stop} times stays on the pictures`).toBe(true);
+      }
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
   });
 }
 
