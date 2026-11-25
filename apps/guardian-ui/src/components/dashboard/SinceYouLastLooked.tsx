@@ -100,15 +100,14 @@ export function SinceYouLastLooked() {
   }, [status, newAlerts]);
   const arrived = (alert: DeviceAlert) => firstListed.current !== null && !firstListed.current.has(alert.id);
 
-  // Focus moves to the label once the alerts are marked, so it never falls
-  // to the top of the page when the key leaves.
+  // The alert update can remove the button before marking finishes.
   const markAll = async () => {
+    labelRef.current?.focus();
     try {
       await markAllSeen();
     } catch {
       // The list stays as it was, and the next read says what is new.
     }
-    labelRef.current?.focus();
   };
 
   const rows = newAlerts.slice(0, limit);

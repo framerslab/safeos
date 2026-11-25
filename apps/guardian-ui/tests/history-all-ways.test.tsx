@@ -245,19 +245,20 @@ it("lists only Wildlife's sightings under the Type filter's Wildlife", async () 
 
 /** Presses Download Bundle and reads the file it hands the browser. */
 async function downloaded(): Promise<any> {
+  const button = await screen.findByRole('button', { name: 'Download Bundle (.json)' }, SLOW);
   let bundle: Blob | undefined;
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: jest.fn((blob: Blob) => { bundle = blob; return 'blob:bundle'; }) });
   Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: jest.fn() });
   jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Download Bundle (.json)' }));
+  fireEvent.click(button);
   await waitFor(() => expect(bundle).toBeDefined(), SLOW);
   const text = await new Promise<string>((resolve) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
     reader.readAsText(bundle!);
   });
-  // The bundle's marks are saved before the next press.
-  await act(async () => {});
+  // The button returns when the bundle's export marks have been saved.
+  await screen.findByRole('button', { name: 'Download Bundle (.json)' }, SLOW);
   return JSON.parse(text);
 }
 
@@ -279,6 +280,45 @@ it("puts Wildlife's sightings in the downloaded bundle, with the bundle's pictur
   fireEvent.click(screen.getByRole('checkbox', { name: /Include full frames/ }));
   const third = await downloaded();
   expect(third.wildlife.sightings.map((s: { id: string; frameData?: string }) => [s.id, s.frameData])).toEqual([['animal-1', PICTURE]]);
+});
+
+it('waits for the previous bundle’s export marks before downloading again', async () => {
+  let releaseMarks!: () => void;
+  let startedMarking!: () => void;
+  const held = new Promise<void>((resolve) => { releaseMarks = resolve; });
+  const marking = new Promise<void>((resolve) => { startedMarking = resolve; });
+  jest.doMock('@/lib/client-db', () => {
+    const actual = jest.requireActual<typeof import('@/lib/client-db')>('@/lib/client-db');
+    return {
+      ...actual,
+      markIntrusionFramesExported: async (ids: string[]) => {
+        startedMarking();
+        await held;
+        await actual.markIntrusionFramesExported(ids);
+      },
+    };
+  });
+
+  try {
+    const m = await app();
+    await act(() => m.save.person('intrusion-1'));
+    m.openHistory();
+    await waitFor(() => entryOf('Security Intrusion'), SLOW);
+
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: jest.fn(() => 'blob:bundle') });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: jest.fn() });
+    jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    fireEvent.click(screen.getByRole('button', { name: 'Download Bundle (.json)' }));
+    await marking;
+    expect(screen.getByRole('button', { name: 'Exporting…' })).toHaveProperty('disabled', true);
+
+    const second = expect(downloaded()).resolves.toMatchObject({ security: { intrusionFrames: [] } });
+    releaseMarks();
+    await second;
+  } finally {
+    releaseMarks();
+    jest.dontMock('@/lib/client-db');
+  }
 });
 
 it('marks every new alert as seen when it opens', async () => {

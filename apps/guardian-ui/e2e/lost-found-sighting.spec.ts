@@ -19,12 +19,15 @@ import { readFile } from 'node:fs/promises';
 import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
 import {
+  BLOCK_READABILITY,
   CUSTOM_PRESET,
   doubleText,
+  faultPictureStore,
   near,
   notesOf,
   pixelsAt,
   readDatabase,
+  readable,
   recordNotifications,
   wordsOn,
   type DatabaseReading,
@@ -32,10 +35,12 @@ import {
 } from './helpers/alert-pictures';
 import { countOwnSoundPasses, enrolPet, ownSoundCounts, saveOwnSound } from './helpers/own-sound';
 import { HEIGHT, PERIOD, WIDTH, stripedPhoto } from './helpers/striped-subject';
+import { NOTIFICATION_QUALITY, NOTIFICATION_WAIT_MS } from '../src/lib/alert-pictures/rules';
 
 declare global {
   interface Window {
     __stripes?: { hidden: boolean };
+    __sightingNoteCopy?: { at: number; url: string };
   }
 }
 
@@ -184,6 +189,29 @@ const wordsOf = (root: Locator): Promise<string> => root.evaluate((el) => {
   return [(el as HTMLElement).innerText, ...named].join(' \n ');
 });
 
+/** Records when the actual camera copy becomes ready, even if the deadline already passed. */
+async function recordSightingNoteCopy(page: Page) {
+  await page.addInitScript((quality) => {
+    // The live comparison encodes its own canvas too. The notification draws a copy from a decoded picture.
+    const copies = new WeakSet<HTMLCanvasElement>();
+    const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+    CanvasRenderingContext2D.prototype.drawImage = function (this: CanvasRenderingContext2D, source: CanvasImageSource, ...args: number[]) {
+      Reflect.apply(drawImage, this, [source, ...args]);
+      if (source instanceof ImageBitmap || (source instanceof HTMLCanvasElement && copies.has(source))) {
+        copies.add(this.canvas);
+      }
+    };
+    const toDataURL = HTMLCanvasElement.prototype.toDataURL;
+    HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, requestedQuality?: number) {
+      const url = toDataURL.call(this, type, requestedQuality);
+      if (copies.has(this) && type === 'image/jpeg' && requestedQuality === quality) {
+        window.__sightingNoteCopy ??= { at: Date.now(), url };
+      }
+      return url;
+    };
+  }, NOTIFICATION_QUALITY);
+}
+
 // =============================================================================
 // The walks
 // =============================================================================
@@ -247,6 +275,7 @@ for (const look of ['dark', 'light'] as const) {
         await expect(card.getByText(/^(Info|Low|Medium|High|Critical)$/)).toHaveCount(0);
         await expect(card.getByText(/^Level \d/)).toHaveCount(0);
         await expect(card.locator('[data-escalation-bar]')).toHaveCount(0);
+        expect(await wordsOf(card)).not.toMatch(FORBIDDEN);
 
         // One kept set, as JPEG files; the watch saves no frame of its own for the check.
         await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
@@ -259,6 +288,9 @@ for (const look of ['dark', 'light'] as const) {
         expect(reading.matchFrames).toEqual([]);
         const saved = reading.alerts.find((alert) => alert.kind === 'sighting')!;
         expect(saved).toMatchObject({ kind: 'sighting', subjectName: 'Stripes', pictureId: row.id, severity: 'info' });
+        // The picture says whose it is, so a delete of the pet finds it.
+        expect(saved.subjectId).toMatch(/.+/);
+        expect.soft(row.subjectId).toBe(saved.subjectId);
         expect(JSON.stringify(reading.alerts)).not.toContain('data:image');
 
         // Read once from the polite status.
@@ -269,6 +301,82 @@ for (const look of ['dark', 'light'] as const) {
     });
   }
 }
+
+test('a kept sighting fills the pet count and the gallery, and deleting its picture also clears it from History', async ({ page, context }, testInfo) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await setUp(context);
+  await stripedCamera(page);
+  await watchForStripes(page);
+  const time = await timeOf(sightings(page).first());
+  await page.evaluate(() => { window.__stripes!.hidden = true; });
+  await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+  await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+  expect((await readDatabase(page)).matchFrames).toEqual([]);
+
+  const historyRow = page.locator('[data-history-row]').filter({ hasText: QUESTION });
+  await page.goto('/history/?view=local', { waitUntil: 'networkidle' });
+  await expect(historyRow.getByRole('button', { name: /^Open picture: / })).toBeVisible();
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Stripes', exact: true })).toBeVisible();
+  await expect.soft(page.getByText(/^1 possible sighting saved • Created /), 'the pet counts its kept picture').toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('lost-found-kept-count-1280.png') });
+
+  await page.getByRole('link', { name: /^Saved pictures/ }).click();
+  await expect(page.getByRole('heading', { name: 'Saved pictures', exact: true })).toBeVisible();
+  const tile = page.getByRole('button', { name: 'Open this picture', exact: true });
+  await expect.soft(tile, 'the kept sighting has a tile in Saved pictures').toBeVisible();
+  if (testInfo.errors.length === 0) {
+    await expect(page.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+    await expect(page.locator('.alert-picture__box')).toHaveCount(1);
+  }
+  await page.screenshot({ path: testInfo.outputPath('lost-found-kept-gallery-1280.png') });
+  if (testInfo.errors.length > 0) return;
+
+  // The tile's words stand on a ground of their own, whatever the picture shows, in both looks.
+  const question = page.getByText(QUESTION, { exact: true });
+  for (const look of ['dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme: look });
+    await page.reload({ waitUntil: 'networkidle' });
+    await expect(question).toBeVisible();
+    expect.soft(await readable(question.locator('xpath=..'), BLOCK_READABILITY), `the tile's words, ${look}`).toEqual([]);
+  }
+
+  // One picture is chosen with its own box, which says its time.
+  const choose = page.getByRole('checkbox', { name: /^Select the picture from / });
+  await choose.check({ timeout: 10_000 });
+  await expect(page.getByText('1 selected', { exact: true })).toBeVisible();
+  await choose.uncheck();
+
+  // With the keyboard: focus goes into the opened picture, and Escape gives it back.
+  const opened = page.getByRole('dialog', { name: QUESTION, exact: true });
+  await tile.focus();
+  await page.keyboard.press('Enter');
+  await expect(opened.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
+  expect(await readable(opened.getByText(QUESTION, { exact: true }).locator('xpath=..'), BLOCK_READABILITY)).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(opened).toHaveCount(0);
+  await expect(tile).toBeFocused();
+
+  await tile.click();
+  await expect(opened.getByRole('img', { name: pictureName(time), exact: true })).toBeVisible();
+  await expect(opened.locator('.alert-picture__box')).toHaveCount(1);
+  await expect(opened.getByRole('img', { name: closeUpName(time), exact: true })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath('lost-found-kept-opened-1280.png') });
+  await opened.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByText('No pictures saved', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Saved pictures', exact: true })).toBeFocused();
+  expect(keptRows(await readDatabase(page))).toEqual([]);
+
+  await page.goto('/history/?view=local', { waitUntil: 'networkidle' });
+  await expect(historyRow.getByText(QUESTION, { exact: true })).toBeVisible();
+  await expect(historyRow.getByRole('button', { name: /^Open picture: / })).toHaveCount(0);
+
+  await page.goto('/lost-found/', { waitUntil: 'networkidle' });
+  await expect(page.getByRole('heading', { name: 'Stripes', exact: true })).toBeVisible();
+  await expect(page.getByText(/^No possible sightings saved • Created /)).toBeVisible();
+});
 
 test.describe('A sighting at 320 px and 200 per cent text', () => {
   test.use({ viewport: { width: 320, height: 1000 } });
@@ -546,35 +654,64 @@ for (const look of ['light', 'dark'] as const) {
       expect(note.image ?? null, 'no picture while the switch is off').toBeNull();
       expect(note.icon ?? '', 'the pet’s photo is never the notification’s icon').not.toMatch(/^(data|blob):/);
       expect(`${note.title} ${note.body ?? ''}`).not.toMatch(FORBIDDEN);
-      // No word of the entry says match, detected, found, recognise, identify, confidence or a percentage.
-      expect(await wordsOf(card)).not.toMatch(FORBIDDEN);
       await expect(page.getByRole('link', { name: 'Open in History', exact: true })).toBeVisible();
     });
 
-    test('with the switch on, the sighting’s notification carries the camera’s picture and no pet photo', async ({ page, context }) => {
+    test('a sighting sends its words when the picture takes too long', async ({ page, context }) => {
       test.setTimeout(240_000);
       await setUp(context, { pictures: { inNotifications: true }, notifications: {} });
+      await faultPictureStore(page, { holdDrawMs: 1_000 });
+      await recordSightingNoteCopy(page);
       await stripedCamera(page);
       await watchForStripes(page);
-      await expect(sightings(page).first()).toBeVisible({ timeout: 90_000 });
-      await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+      const time = await timeOf(sightings(page).first());
+      await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBe(1);
       const [note] = await notesOf(page);
       expect(note.title).toBe(QUESTION);
-      expect(note.image).toMatch(/^data:image\/jpeg;base64,/);
+      expect((note.body ?? '').replace(/\s+/g, ' ')).toBe(`Colours and shape like Stripes’s photos, ${time}.`);
+      expect(note.image).toBeUndefined();
       expect(note.icon ?? '').not.toMatch(/^(data|blob):/);
+
+      await expect.poll(() => page.evaluate(() => window.__sightingNoteCopy?.at), { timeout: 15_000 }).toBeDefined();
+      const copy = await page.evaluate(() => window.__sightingNoteCopy!);
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      const [row] = keptRows(await readDatabase(page));
+      expect(copy.at - row.takenAt).toBeGreaterThan(NOTIFICATION_WAIT_MS);
+      expect(await notesOf(page)).toHaveLength(1);
+    });
+
+    test('a sighting’s notification carries the boxed camera picture when ready', async ({ page, context }) => {
+      test.setTimeout(240_000);
+      await setUp(context, { pictures: { inNotifications: true }, notifications: {} });
+      await recordSightingNoteCopy(page);
+      await stripedCamera(page);
+      await watchForStripes(page);
+      const time = await timeOf(sightings(page).first());
+      await expect.poll(async () => (await notesOf(page)).length, { timeout: 10_000 }).toBe(1);
+      const [note] = await notesOf(page);
+      expect(note.title).toBe(QUESTION);
+      expect((note.body ?? '').replace(/\s+/g, ' ')).toBe(`Colours and shape like Stripes’s photos, ${time}.`);
+      expect(note.icon ?? '').not.toMatch(/^(data|blob):/);
+
+      await expect.poll(() => page.evaluate(() => window.__sightingNoteCopy?.at), { timeout: 15_000 }).toBeDefined();
+      const copy = await page.evaluate(() => window.__sightingNoteCopy!);
+      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
+      const [row] = keptRows(await readDatabase(page));
+      if (copy.at - row.takenAt < NOTIFICATION_WAIT_MS || note.image !== undefined) {
+        expect(note.image).toBe(copy.url);
+      }
+      expect(copy.url).toMatch(/^data:image\/jpeg;base64,/);
       const size = await page.evaluate((url) => new Promise<[number, number]>((resolve, reject) => {
         const image = new Image();
         image.onload = () => resolve([image.naturalWidth, image.naturalHeight]);
         image.onerror = () => reject(new Error('the notification’s picture did not load'));
         image.src = url;
-      }), note.image!);
+      }), copy.url);
       expect(size, 'the camera’s picture at 640 px on its long edge').toEqual([WIDTH, HEIGHT]);
       // The region's box is drawn in: its green line stands at the box's left edge.
-      await expect.poll(async () => keptRows(await readDatabase(page)).length, { timeout: 15_000 }).toBe(1);
-      const [row] = keptRows(await readDatabase(page));
       const middle = Math.round(row.box.y + row.box.height / 2);
       const left = Math.round(row.box.x);
-      const across = await pixelsAt(page, note.image!, [[left, middle], [left + 1, middle], [left + 2, middle], [left + 3, middle]]);
+      const across = await pixelsAt(page, copy.url, [[left, middle], [left + 1, middle], [left + 2, middle], [left + 3, middle]]);
       expect(across.filter((rgb) => near(rgb, '#4ade80', 60)).length, `the region’s box is drawn in (${JSON.stringify(across)})`).toBeGreaterThanOrEqual(2);
     });
   });

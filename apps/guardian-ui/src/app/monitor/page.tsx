@@ -1062,7 +1062,7 @@ export default function MonitorPage() {
    * Takes an alert's picture in the tick that raises it: the source is copied
    * before anything waits, so the picture is the frame that set the alert off,
    * whatever the camera does next. Answers the picture's id for the alert's
-   * record, or nothing when there is no frame to take.
+   * record, or nothing when there is no frame to take. A sighting's picture is of `subjectId`, its pet.
    */
   const takePicture = useCallback((
     kind: AlertKind,
@@ -1071,11 +1071,12 @@ export default function MonitorPage() {
     width: number,
     height: number,
     box: Box | null,
+    subjectId?: string,
   ): { pictureId: string; picture: Promise<PictureSet> } | undefined => {
     if (!source || !(width > 0) || !(height > 0)) return undefined;
     const pictureId = newPictureId(at);
     const picture = capturePictureSet({ id: pictureId, kind, at, source, sourceWidth: width, sourceHeight: height, sourceBox: box });
-    holdPicture(picture, pictureId);
+    holdPicture(picture, pictureId, subjectId);
     return { pictureId, picture };
   }, []);
 
@@ -1141,7 +1142,7 @@ export default function MonitorPage() {
     const canvas = matcherRef.current.frameCanvas();
     const [width, height] = canvas ? [canvas.width, canvas.height] : [0, 0];
     const taken = canvas
-      ? takePicture('sighting', now, canvas, width, height, alertBox('sighting', boxFromRegion(result.region, width, height), width, height))
+      ? takePicture('sighting', now, canvas, width, height, alertBox('sighting', boxFromRegion(result.region, width, height), width, height), subject.id)
       : undefined;
 
     showDetectorAlert(
