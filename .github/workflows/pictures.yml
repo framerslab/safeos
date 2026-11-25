@@ -138,7 +138,16 @@ jobs:
             curl -sf http://127.0.0.1:4173/ >/dev/null && break
             sleep 1
           done
-          node scripts/capture-monitoring-changes.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/pictures"
+          node scripts/capture-monitoring-changes.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/monitoring-pictures"
+
+      - name: Upload monitoring pictures
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.pictures-chromium.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-pictures-${{ matrix.version }}
+          path: ${{ runner.temp }}/monitoring-pictures/*.png
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Serve the site and capture
         if: ${{ !cancelled() && steps.pictures-chromium.outcome == 'success' }}
