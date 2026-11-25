@@ -2197,15 +2197,18 @@ describeInBothLooks('The live box: one at a time, never for a sound, clear of th
     await expect(livePlate(page)).toHaveCount(0);
   });
 
-  test('a Sound alert draws no box', async ({ page, context }) => {
-    test.setTimeout(120_000);
-    await watchWith(page, context, { settings: SOUND_ONLY, camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0, height: 0 }, tone: true } });
-    const card = cards(page).first();
-    const time = await timeOf(card, 'Sound');
-    await expect(card.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
-    await expect(liveBox(page)).toHaveCount(0);
-    await expect(livePlate(page)).toHaveCount(0);
-  });
+  for (const width of [390, 1280]) {
+    test(`a Sound alert draws no box, ${width} px`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 900 });
+      test.setTimeout(120_000);
+      await watchWith(page, context, { settings: SOUND_ONLY, camera: { ...LEFT_THIRD, moving: { x: 0, y: 0, width: 0, height: 0 }, tone: true } });
+      const card = cards(page).first();
+      const time = await timeOf(card, 'Sound');
+      await expect(card.getByRole('img', { name: pictureName(time, false), exact: true })).toBeVisible();
+      await expect(liveBox(page)).toHaveCount(0);
+      await expect(livePlate(page)).toHaveCount(0);
+    });
+  }
 
   for (const width of [390, 1280]) {
     test(`a box touching the picture’s top puts its plate under it; a press reaches the picture; neither is read, ${width} px`, async ({ page, context }) => {

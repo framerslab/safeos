@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { Dashboard } from '@/components/dashboard/Dashboard';
 import { WaysToWatch } from '@/components/dashboard/WaysToWatch';
 import { useBackendStatus } from '@/contexts/BackendStatusContext';
@@ -304,6 +304,26 @@ it('passes the number of new alerts to the first screen once they are read', asy
   deviceAlerts.mockReturnValue(alertsRead({ status: 'reading', newAlerts: two }));
   await shown();
   expect(document.querySelector('p.dash-new')).toBeNull();
+});
+
+it('moves focus to the alerts heading when the list updates before marking finishes', async () => {
+  let finishMark!: () => void;
+  const markAllSeen = jest.fn(() => new Promise<void>((resolve) => { finishMark = resolve; }));
+  deviceAlerts.mockReturnValue(alertsRead({ newAlerts: [movement('alert-1', minute(10))], markAllSeen }));
+  const { rerender } = await shown();
+
+  const mark = screen.getByRole('button', { name: 'Mark all as seen' });
+  mark.focus();
+  fireEvent.click(mark);
+  expect(markAllSeen).toHaveBeenCalledTimes(1);
+
+  // A read from the alert update can remove the button while the marking call is still pending.
+  deviceAlerts.mockReturnValue(alertsRead({ markAllSeen }));
+  rerender(<Dashboard />);
+  expect(screen.queryByRole('button', { name: 'Mark all as seen' })).toBeNull();
+  expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Since you last looked' }));
+
+  await act(async () => { finishMark(); });
 });
 
 it('opens nothing over the page', async () => {

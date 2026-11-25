@@ -14,8 +14,7 @@ const PICTURE = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAA
 const mockFrames = jest.fn();
 
 jest.mock('@/lib/client-db', () => ({
-  getAllMatchFrames: () => mockFrames(),
-  getMatchFramesBySubject: () => mockFrames(),
+  getSavedSightingPictures: () => mockFrames(),
   getAllSubjectProfiles: jest.fn(async () => []),
   acknowledgeMatchFrame: jest.fn(async () => undefined),
   deleteMatchFrame: jest.fn(async () => undefined),

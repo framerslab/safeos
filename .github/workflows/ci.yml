@@ -403,7 +403,8 @@ jobs:
             apps/guardian-ui/test-results/**/pitch-range-*-1280.png
             apps/guardian-ui/test-results/**/lost-found-setup-words-1280.png
             apps/guardian-ui/test-results/**/lost-found-watch-words-1280.png
-            apps/guardian-ui/test-results/**/lost-found-overlay-words-1280.png
+            apps/guardian-ui/test-results/**/lost-found-overlay-words-1280*.png
+            apps/guardian-ui/test-results/**/lost-found-kept-*-1280.png
             apps/guardian-ui/test-results/**/lost-found-gallery-words-1280.png
           if-no-files-found: warn
           retention-days: 14
