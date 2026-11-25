@@ -149,3 +149,16 @@ it("keeps a People's alert seen when the limit removes the only frame of its run
   expect(frames.map((frame) => frame.id)).not.toContain('people-0');
   expect(frames.find((frame) => frame.id === 'people-1')?.acknowledged).toBe(true);
 });
+
+it('keeps the newest 100 of 130 unseen People pictures', async () => {
+  await getAllIntrusionFrames();
+  await empty('intrusion_frame');
+  await fill('intrusion_frame', Array.from({ length: 129 }, (_, i) => person(`unseen-${i}`, i + 1000, false)));
+
+  await saveIntrusionFrame(person('unseen-129', 1129, false));
+
+  const kept = await getAllIntrusionFrames();
+  expect(kept).toHaveLength(100);
+  expect(kept.map((frame) => frame.id)).toEqual(Array.from({ length: 100 }, (_, i) => `unseen-${129 - i}`));
+  expect(kept.every((frame) => !frame.acknowledged)).toBe(true);
+});
