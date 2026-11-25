@@ -189,17 +189,25 @@ const wordsOf = (root: Locator): Promise<string> => root.evaluate((el) => {
 
 /** Records when the actual camera copy becomes ready, even if the deadline already passed. */
 async function recordSightingNoteCopy(page: Page) {
-  await page.addInitScript(({ width, height, quality }) => {
+  await page.addInitScript((quality) => {
+    // The live comparison encodes its own canvas too. The notification draws a copy from a decoded picture.
+    const copies = new WeakSet<HTMLCanvasElement>();
+    const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+    CanvasRenderingContext2D.prototype.drawImage = function (this: CanvasRenderingContext2D, source: CanvasImageSource, ...args: number[]) {
+      Reflect.apply(drawImage, this, [source, ...args]);
+      if (source instanceof ImageBitmap || (source instanceof HTMLCanvasElement && copies.has(source))) {
+        copies.add(this.canvas);
+      }
+    };
     const toDataURL = HTMLCanvasElement.prototype.toDataURL;
-    HTMLCanvasElement.prototype.toDataURL = function (type, requestedQuality) {
+    HTMLCanvasElement.prototype.toDataURL = function (this: HTMLCanvasElement, type?: string, requestedQuality?: number) {
       const url = toDataURL.call(this, type, requestedQuality);
-      if (location.pathname === '/monitor/' && type === 'image/jpeg' && requestedQuality === quality
-        && this.width === width && this.height === height) {
+      if (copies.has(this) && type === 'image/jpeg' && requestedQuality === quality) {
         window.__sightingNoteCopy ??= { at: Date.now(), url };
       }
       return url;
     };
-  }, { width: WIDTH, height: HEIGHT, quality: NOTIFICATION_QUALITY });
+  }, NOTIFICATION_QUALITY);
 }
 
 // =============================================================================
