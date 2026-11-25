@@ -2239,13 +2239,19 @@ export interface IntrusionFrameDB {
   exported: boolean;
 }
 
+type IntrusionFrameStore = IDBPObjectStore<SafeOSDB, ['intrusion_frame'], 'intrusion_frame', 'readwrite'>;
+
 export async function saveIntrusionFrame(frame: IntrusionFrameDB): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    await db.put('intrusion_frame', frame);
+    tx = db.transaction('intrusion_frame', 'readwrite');
+    await tx.store.put(frame);
+    if (await tx.store.count() > MAX_INTRUSION_FRAMES) await pruneIntrusionFrames(tx.store);
+    await tx.done;
     alertsChanged();
-    await cleanupExcessIntrusionFrames();
   } catch (error) {
+    await abandonTransaction(tx);
     noteStorageFull(error);
     console.warn('[ClientDB] Failed to save intrusion frame:', error);
   }
@@ -2313,15 +2319,25 @@ export async function getIntrusionsByTimeRange(
   }
 }
 
+async function updateIntrusionFrame(
+  id: string, updates: Partial<Pick<IntrusionFrameDB, 'acknowledged' | 'notes'>>,
+): Promise<boolean> {
+  const db = await getDB();
+  const tx = db.transaction('intrusion_frame', 'readwrite');
+  try {
+    const frame = await tx.store.get(id);
+    if (frame) await tx.store.put({ ...frame, ...updates });
+    await tx.done;
+    return Boolean(frame);
+  } catch (error) {
+    await abandonTransaction(tx);
+    throw error;
+  }
+}
+
 export async function acknowledgeIntrusionFrame(id: string): Promise<void> {
   try {
-    const db = await getDB();
-    const frame = await db.get('intrusion_frame', id);
-    if (frame) {
-      frame.acknowledged = true;
-      await db.put('intrusion_frame', frame);
-      alertsChanged();
-    }
+    if (await updateIntrusionFrame(id, { acknowledged: true })) alertsChanged();
   } catch (error) {
     console.warn('[ClientDB] Failed to acknowledge intrusion frame:', error);
   }
@@ -2329,12 +2345,7 @@ export async function acknowledgeIntrusionFrame(id: string): Promise<void> {
 
 export async function updateIntrusionFrameNotes(id: string, notes: string): Promise<void> {
   try {
-    const db = await getDB();
-    const frame = await db.get('intrusion_frame', id);
-    if (frame) {
-      frame.notes = notes;
-      await db.put('intrusion_frame', frame);
-    }
+    await updateIntrusionFrame(id, { notes });
   } catch (error) {
     console.warn('[ClientDB] Failed to update intrusion frame notes:', error);
   }
@@ -2407,35 +2418,19 @@ export async function clearAllIntrusionFrames(): Promise<void> {
   }
 }
 
-async function cleanupExcessIntrusionFrames(): Promise<void> {
-  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
-  try {
-    const db = await getDB();
-    const count = await db.count('intrusion_frame');
-    
-    if (count > MAX_INTRUSION_FRAMES) {
-      const frames = await db.getAllFromIndex('intrusion_frame', 'by-timestamp');
-      const toDelete = frames
-        .filter(f => f.acknowledged)
-        .slice(0, count - MAX_INTRUSION_FRAMES);
-      // An alert whose only seen frames go stays seen: its first kept frame is marked.
-      const toMark = seenAfterRemoval(frames, new Set(toDelete.map((frame) => frame.id)));
-      
-      tx = db.transaction('intrusion_frame', 'readwrite');
-      for (const frame of toDelete) {
-        await tx.store.delete(frame.id);
-      }
-      for (const frame of toMark) {
-        await tx.store.put({ ...frame, acknowledged: true });
-      }
-      await tx.done;
-      // The other tabs hear of the frames the limit removed.
-      if (toDelete.length > 0) alertsChanged();
-    }
-  } catch {
-    // Ignore cleanup errors
-    await abandonTransaction(tx);
-  }
+async function pruneIntrusionFrames(store: IntrusionFrameStore): Promise<void> {
+  const frames = await store.getAll();
+  frames.sort((a, b) => (recordTime(a) ?? Infinity) - (recordTime(b) ?? Infinity));
+  const toDelete = [
+    ...frames.filter((frame) => frame.acknowledged),
+    ...frames.filter((frame) => !frame.acknowledged),
+  ].slice(0, frames.length - MAX_INTRUSION_FRAMES);
+
+  const removed = new Set(toDelete.map((frame) => frame.id));
+  // An alert whose only seen frames go stays seen.
+  const toMark = seenAfterRemoval(frames, removed);
+  for (const frame of toDelete) await store.delete(frame.id);
+  for (const frame of toMark) await store.put({ ...frame, acknowledged: true });
 }
 
 export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<number> {
