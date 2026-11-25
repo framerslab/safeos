@@ -103,7 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Lost and Found's full-screen pictures are readable in both looks: the question at 12:1 or more, every other word at 7:1 or more and 18 px. They fill the window at every width, and a tall photo leaves their keys in view.
-- **Mark all as seen** on the dashboard moves focus to **Since you last looked** as it is pressed, so focus never falls to the page when the key leaves.
+- **Mark all as seen** on the dashboard moves focus to **Since you last looked** as it is pressed, so focus stays on the list when the key leaves.
 - **Saved pictures** shows each picture's time and question under it, readable in both looks, and names a gallery or a picture this device cannot read and a picture it cannot delete. An opened picture takes focus and gives it back, **Escape** closes it, a picture's own box chooses it, and a tap on a touch screen opens a picture and deletes nothing.
 - History opens on Local Timeline when this device holds new alerts, and marks them as seen once that list is read, so the server's empty Alerts list never marks them unseen. Its Type filter has Wildlife, and Download Bundle carries Wildlife's sightings (`wildlife.sightings`) under the same picture and incremental choices. A list read that began before a saved edit (Mark Exported, a note, a mark) is read again.
 - A start that waited for the other tabs' answer starts nothing when what it was for has changed: a pet changed on the Lost & Found page, End nap after Resume nap, Back on Nap Mode's check. Watch here checks Nap Mode's quiet hours before it stops the other tab, and gives focus back to the key that asked. Of two tabs that ask in the same moment, the later one yields.

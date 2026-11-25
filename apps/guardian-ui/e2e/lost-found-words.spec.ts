@@ -292,8 +292,10 @@ for (const look of ['light', 'dark'] as const) {
 
     await expect.poll(async () => (await keptSoFar(page)).spoken.length, { timeout: 30_000 }).toBeGreaterThan(0);
     expect((await keptSoFar(page)).spoken[0]).toBe('Colours like your pet’s photos are in view.');
-    // Paused, the pictures stay open while they are read.
+    // Paused, the pictures stay open while they are read: the cycle's words among them, the photo drawn whole.
     await dialog.getByRole('button', { name: 'Pause', exact: true }).click();
+    await expect(dialog.getByText(/^Cycle \d of 3$/)).toBeVisible();
+    await expect(dialog.locator('img')).toHaveCSS('opacity', '1');
     const capture = look === 'light' ? 'lost-found-overlay-words-1280.png' : 'lost-found-overlay-words-1280-dark.png';
     await page.screenshot({ path: testInfo.outputPath(capture) });
     const title = dialog.getByRole('heading', { name: QUESTION, exact: true });
