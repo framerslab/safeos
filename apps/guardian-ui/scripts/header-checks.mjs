@@ -56,6 +56,7 @@ export async function checkHeaders(browser, baseUrl) {
                 const box = await shown.boundingBox();
                 check(await shown.getAttribute('href') === REPOSITORY, `${at}: GitHub points outside the repository`);
                 check(box.width >= 43.5 && box.height >= 43.5, `${at}: GitHub target is smaller than 44 px`);
+                check(box.x >= -0.5 && box.x + box.width <= width + 0.5, `${at}: GitHub runs outside the header`);
                 if (width < 1024 || route !== '/') {
                   const mark = await shown.locator('svg').first().isVisible();
                   check(mark, `${at}: GitHub has no visible mark`);

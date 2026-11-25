@@ -163,23 +163,34 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(await left.isDisabled() && await right.isEnabled(), `${selector} has the wrong arrows available at its start`);
     if (start.end <= 1 || !(await right.isEnabled())) return;
 
-    await right.click();
-    const moved = await page.waitForFunction((el) => el.scrollLeft > 1, await scroller.elementHandle(), { timeout: 2_000 })
-      .then(() => true, () => false);
-    check(moved, `${selector} did not scroll after Scroll right`);
-    if (!moved) return;
-    for (let i = 0; i < 10 && await right.isEnabled(); i++) await right.click();
-    await page.waitForFunction((el) => el.scrollLeft + el.clientWidth >= el.scrollWidth - 1,
-      await scroller.elementHandle(), { timeout: 3_000 });
-    check(await right.isDisabled() && await left.isEnabled(), `${selector} has the wrong arrows available at its end`);
-
-    await left.click();
-    const cameBack = await page.waitForFunction((el) => el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
-      await scroller.elementHandle(), { timeout: 2_000 }).then(() => true, () => false);
-    check(cameBack, `${selector} did not scroll after Scroll left`);
-    for (let i = 0; i < 10 && await left.isEnabled(); i++) await left.click();
-    await page.waitForFunction((el) => el.scrollLeft <= 1, await scroller.elementHandle(), { timeout: 3_000 });
-    check(await left.isDisabled(), `${selector} leaves Scroll left available at its start`);
+    const node = await scroller.elementHandle();
+    const toEdge = async (button, direction) => {
+      for (let i = 0; i < 12; i += 1) {
+        const current = await read();
+        const edge = direction === 1 ? current.end : 0;
+        if (Math.abs(current.left - edge) <= 1) return true;
+        const step = direction * Math.max(current.width * 0.8, 44);
+        const target = Math.max(0, Math.min(current.end, current.left + step));
+        await button.click({ timeout: 4_000 });
+        // The scroll and the arrow's state must settle before another press.
+        const moved = await page.waitForFunction(({ el, x }) => Math.abs(el.scrollLeft - x) <= 1,
+          { el: node, x: target }, { timeout: 2_000 }).then(() => true, () => false);
+        if (!moved) return false;
+      }
+      return false;
+    };
+    const reachedEnd = await toEdge(right, 1);
+    check(reachedEnd, `${selector} did not reach its end with Scroll right`);
+    if (!reachedEnd) return;
+    await page.waitForFunction((button) => button.getAttribute('aria-disabled') === 'true',
+      await right.elementHandle(), { timeout: 2_000 });
+    check(await left.isEnabled(), `${selector} leaves Scroll left inactive at its end`);
+    const reachedStart = await toEdge(left, -1);
+    check(reachedStart, `${selector} did not reach its start with Scroll left`);
+    if (!reachedStart) return;
+    await page.waitForFunction((button) => button.getAttribute('aria-disabled') === 'true',
+      await left.elementHandle(), { timeout: 2_000 });
+    check(await right.isEnabled(), `${selector} leaves Scroll right inactive at its start`);
   };
 
   // The header's row as drawn: each shown item, left to right, with its box.
@@ -1467,8 +1478,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
-  // Settings' first rows on a phone. The phone's top bar holds the brand
-  // alone, so Settings opens with the look row and then the Help row; from
+  // Settings' first rows on a phone are the look row and the Help row. From
   // the tablet width the header row holds both and the rows are not shown.
   const SETTINGS_LOOK_ROW = '.settings-phone-rows button.settings-row';
   const SETTINGS_HELP_ROW = '.settings-phone-rows a.settings-row';
