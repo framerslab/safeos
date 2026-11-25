@@ -364,7 +364,9 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
   const alert = alertCard(page, arrival);
   const picture = alert.locator('.alert-picture__frame img').first();
   await readPicture(picture);
-  await scrollSubject(page, '.watch-list__head', crop.y + 8, 0.35);
+  // Bring the entry into view in one scroll. Intermediate frames of a fast
+  // scroll repeatedly swap the camera and the white background in the light look.
+  await scrollSubject(page, '.watch-list__head', crop.y + 8, 0);
   const checkAlert = async () => {
     const heading = page.getByRole('heading', { name: 'Alerts', exact: true });
     const boxes = await Promise.all([heading, alert, picture].map((part) => part.boundingBox()));
