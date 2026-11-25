@@ -217,21 +217,21 @@ export function LostFoundMediaOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-[9999] bg-black flex flex-col"
+      className="lost-found-media fixed inset-0 z-[9999] flex flex-col overflow-y-auto"
       role="alertdialog"
       aria-modal="true"
       aria-label={sightingQuestion(subjectName)}
     >
       {/* Header */}
-      <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/80 to-transparent p-4">
-        <div className="flex items-center justify-between">
+      <div className="relative z-10 shrink-0 p-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <IconAlertCircle size={32} className="text-red-500 animate-pulse" />
+            <IconAlertCircle size={32} className="shrink-0 text-red-500 animate-pulse" />
             <div>
-              <h2 className="text-white text-xl font-bold">
+              <h2 className="title font-bold" data-lead>
                 {sightingQuestion(subjectName)}
               </h2>
-              <p className="text-white/80 text-sm">
+              <p className="quiet">
                 {sightingLines(subjectName)[0]}
               </p>
             </div>
@@ -239,34 +239,33 @@ export function LostFoundMediaOverlay({
 
           <button
             onClick={handleClose}
-            className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            className="control p-2 rounded-full shrink-0 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
             aria-label="Close alert"
           >
-            <IconX size={24} className="text-white" />
+            <IconX size={24} />
           </button>
         </div>
       </div>
 
       {/* Main Image Display */}
-      <div className="flex-1 flex items-center justify-center p-4 pt-20 pb-24">
+      <div className="min-h-24 flex-1 flex items-center justify-center p-4">
         {currentImage ? (
           <img
             src={currentImage}
             alt={`${subjectName} - Image ${currentImageIndex + 1} of ${uploadedImages.length}`}
-            className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-fade-in"
-            style={{ maxHeight: 'calc(100vh - 180px)' }}
+            className="max-w-full max-h-full object-contain rounded-lg animate-fade-in"
           />
         ) : (
-          <div className="text-white/60 text-lg">No images available</div>
+          <div className="quiet">No images available</div>
         )}
       </div>
 
       {/* Footer Controls */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/80 to-transparent p-4">
-        <div className="flex items-center justify-between gap-4">
+      <div className="relative z-10 shrink-0 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Image indicators */}
           {uploadedImages.length > 1 && (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {uploadedImages.map((_, index) => (
                 <button
                   key={index}
@@ -293,7 +292,7 @@ export function LostFoundMediaOverlay({
           {/* Playback info */}
           <div className="flex-1 text-center">
             {playbackState && (
-              <div className="text-white/60 text-sm">
+              <div className="quiet">
                 {settings.customMediaPlaybackMode === 'count' && (
                   <>Cycle {playbackState.completedCycles + 1} of {settings.customMediaRepeatCount}</>
                 )}
@@ -311,47 +310,47 @@ export function LostFoundMediaOverlay({
           <div className="flex gap-2">
             <button
               onClick={handleMuteToggle}
-              className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="control p-3 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label={isMuted ? 'Unmute' : 'Mute'}
               aria-pressed={isMuted}
             >
               {isMuted ? (
-                <IconVolumeX size={20} className="text-white" />
+                <IconVolumeX size={20} />
               ) : (
-                <IconVolume2 size={20} className="text-white" />
+                <IconVolume2 size={20} />
               )}
             </button>
 
             <button
               onClick={handlePauseToggle}
-              className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              className="control p-3 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
               aria-label={isPaused ? 'Resume' : 'Pause'}
               aria-pressed={isPaused}
             >
               {isPaused ? (
-                <IconPlay size={20} className="text-white" />
+                <IconPlay size={20} />
               ) : (
-                <IconPause size={20} className="text-white" />
+                <IconPause size={20} />
               )}
             </button>
 
             {uploadedImages.length > 1 && (
               <button
                 onClick={handleSkipImage}
-                className="p-3 rounded-full bg-white/10 hover:bg-white/20 transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                className="control p-3 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                 aria-label="Next image"
               >
-                <IconSkipForward size={20} className="text-white" />
+                <IconSkipForward size={20} />
               </button>
             )}
           </div>
         </div>
 
         {/* Keyboard hints */}
-        <div className="text-center mt-3 text-white/40 text-xs">
-          Press <kbd className="px-1 py-0.5 bg-white/10 rounded">Space</kbd> to pause,
-          <kbd className="px-1 py-0.5 bg-white/10 rounded ml-1">→</kbd> for next image,
-          <kbd className="px-1 py-0.5 bg-white/10 rounded ml-1">Esc</kbd> to close
+        <div className="quiet mt-3 text-center">
+          Press <kbd className="px-1 py-0.5 rounded">Space</kbd> to pause,
+          <kbd className="px-1 py-0.5 rounded ml-1">→</kbd> for next image,
+          <kbd className="px-1 py-0.5 rounded ml-1">Esc</kbd> to close
         </div>
       </div>
 
@@ -359,6 +358,25 @@ export function LostFoundMediaOverlay({
       <div className="absolute inset-0 pointer-events-none border-4 border-red-500/50 animate-pulse" />
 
       <style jsx>{`
+        .lost-found-media {
+          background: #000;
+          color: #f4f5f6;
+          font-size: max(18px, 1.125rem);
+          line-height: 1.4;
+        }
+        .title {
+          font-size: max(20px, 1.375rem);
+        }
+        .quiet {
+          color: #d4d4d4;
+        }
+        .control,
+        kbd {
+          background: #202020;
+        }
+        .control:hover {
+          background: #383838;
+        }
         @keyframes fade-in {
           from {
             opacity: 0;
