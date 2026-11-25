@@ -241,6 +241,9 @@ export function VisitorHeader() {
     <nav
       ref={navRef}
       aria-label="Site"
+      onBlur={(event) => {
+        if (menuInUse && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+      }}
       className="site-header"
       data-script={scriptArrived ? 'true' : undefined}
       data-collapsed={collapsed ? 'true' : undefined}

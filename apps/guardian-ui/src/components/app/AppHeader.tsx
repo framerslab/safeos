@@ -16,7 +16,7 @@
 
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { DESTINATIONS, destinationOf, type Destination } from '@/lib/app-routes';
@@ -60,6 +60,7 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
   const headerRef = useRef<HTMLElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
+  const foldingLink = useRef<HTMLElement | null>(null);
 
   // Closing More, by Escape, by a press outside or by one of its rows, puts
   // focus back on the More key.
@@ -87,12 +88,19 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
     if (!header || !bar) return;
     const measure = () => {
       const was = header.getAttribute('data-fold');
+      const focused = document.activeElement;
+      const section = focused instanceof HTMLElement && bar.contains(focused)
+        && focused.classList.contains('app-header__link') ? focused.dataset.section : undefined;
+      const movesAt = section ? MOVES[section] : undefined;
       const next = foldFor((at) => {
         header.setAttribute('data-fold', String(at));
         return bar.scrollWidth > bar.clientWidth + 0.5;
       });
       if (was !== null) header.setAttribute('data-fold', was);
       else header.removeAttribute('data-fold');
+      if (movesAt !== undefined && Number(was) < movesAt && next >= movesAt && focused instanceof HTMLElement) {
+        foldingLink.current = focused;
+      }
       setFold(next);
       if (next < 2) setOpen(false);
     };
@@ -106,6 +114,14 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
       window.removeEventListener('resize', measure);
     };
   }, [newAlerts, fold]);
+
+  useLayoutEffect(() => {
+    const previous = foldingLink.current;
+    foldingLink.current = null;
+    if (previous && (document.activeElement === previous || document.activeElement === document.body)) {
+      moreRef.current?.focus();
+    }
+  }, [fold]);
 
   useEffect(() => {
     if (!open) return;
