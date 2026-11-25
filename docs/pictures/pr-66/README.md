@@ -9,8 +9,8 @@ for commit `279b7684072a08e9c737740c9d0cf0a702d54cc7`. That commit adds tests
 to the unchanged app. [Before capture run](https://github.com/framerslab/safeos/actions/runs/45548921052)
 
 The five after pictures come from the `settings-pictures` artifact for commit
-`8d149a3baf94d1fe99bbc7a532f7ec3048a63369`. Every PNG is copied as captured.
-[After capture run](https://github.com/framerslab/safeos/actions/runs/45556135212)
+`6ba78dff5c1b36a01123e1ce0e4afdcd75bcff84`. Every PNG is copied as captured.
+[After capture run](https://github.com/framerslab/safeos/actions/runs/45684679777)
 
 | File | What it shows |
 | --- | --- |
