@@ -2,10 +2,9 @@
 /**
  * Frames the limit removes, in every tab
  *
- * A device keeps up to 500 Lost and Found frames and 100 of People's. A save
- * past the limit removes the oldest frames marked as seen, and the tabs hear
- * of it after the removal, so a tab that reads the frames when it hears does
- * not keep showing the removed ones.
+ * At the limit, the oldest seen pictures go first. People's library also
+ * removes its oldest unseen pictures if it has more than 100. Tabs hear of
+ * the removal after it finishes.
  */
 
 import { openDB } from 'idb';

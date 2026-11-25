@@ -2225,7 +2225,9 @@ export async function saveIntrusionFrame(frame: IntrusionFrameDB): Promise<void>
     const db = await getDB();
     tx = db.transaction('intrusion_frame', 'readwrite');
     await tx.store.put(frame);
-    if (await tx.store.count() > MAX_INTRUSION_FRAMES) await pruneIntrusionFrames(tx.store);
+    if (await tx.store.count() > MAX_INTRUSION_FRAMES) {
+      await pruneIntrusionFrames(tx.store, await tx.store.getAll());
+    }
     await tx.done;
     alertsChanged();
   } catch (error) {
@@ -2248,7 +2250,23 @@ export async function getIntrusionFrame(id: string): Promise<IntrusionFrameDB | 
 /** Every People frame, newest first. Unlike getAllIntrusionFrames, a read that fails throws. */
 export async function readAllIntrusionFrames(): Promise<IntrusionFrameDB[]> {
   const db = await getDB();
-  const frames = await db.getAll('intrusion_frame');
+  let frames = await db.getAll('intrusion_frame');
+  if (frames.length > MAX_INTRUSION_FRAMES) {
+    // Older builds could leave an oversized library. Read it again inside
+    // the write transaction so a save or an acknowledgement in another tab holds.
+    const tx = db.transaction('intrusion_frame', 'readwrite');
+    try {
+      const current = await tx.store.getAll();
+      const kept = await pruneIntrusionFrames(tx.store, current);
+      await tx.done;
+      frames = kept;
+      if (kept.length < current.length) alertsChanged();
+    } catch (error) {
+      await abandonTransaction(tx);
+      noteStorageFull(error);
+      console.warn('[ClientDB] Failed to trim saved People pictures:', error);
+    }
+  }
   return frames.sort((a, b) => b.timestamp - a.timestamp);
 }
 
@@ -2396,19 +2414,27 @@ export async function clearAllIntrusionFrames(): Promise<void> {
   }
 }
 
-async function pruneIntrusionFrames(store: IntrusionFrameStore): Promise<void> {
-  const frames = await store.getAll();
+async function pruneIntrusionFrames(
+  store: IntrusionFrameStore, frames: IntrusionFrameDB[],
+): Promise<IntrusionFrameDB[]> {
+  const excess = frames.length - MAX_INTRUSION_FRAMES;
+  if (excess <= 0) return frames;
+
   frames.sort((a, b) => (recordTime(a) ?? Infinity) - (recordTime(b) ?? Infinity));
   const toDelete = [
     ...frames.filter((frame) => frame.acknowledged),
     ...frames.filter((frame) => !frame.acknowledged),
-  ].slice(0, frames.length - MAX_INTRUSION_FRAMES);
+  ].slice(0, excess);
 
   const removed = new Set(toDelete.map((frame) => frame.id));
   // An alert whose only seen frames go stays seen.
   const toMark = seenAfterRemoval(frames, removed);
   for (const frame of toDelete) await store.delete(frame.id);
-  for (const frame of toMark) await store.put({ ...frame, acknowledged: true });
+  for (const frame of toMark) {
+    frame.acknowledged = true;
+    await store.put(frame);
+  }
+  return frames.filter((frame) => !removed.has(frame.id));
 }
 
 // =============================================================================

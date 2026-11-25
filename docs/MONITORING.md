@@ -480,9 +480,9 @@ and reconnect timer.
 
 ## Alert history
 
-People keeps up to 100 saved pictures on this device. A new save makes room
-by removing the oldest seen pictures first, then the oldest unseen pictures.
-An alert stays seen if its only marked picture makes room and it still has
+People keeps up to 100 saved pictures on this device. When it saves a picture
+or opens an older library over the limit, it removes the oldest seen pictures
+first, then the oldest unseen pictures. An alert stays seen if its only marked picture makes room and it still has
 other pictures.
 The People picture library, Wildlife sightings and pictures kept by an
 earlier version of Lost and Found have no automatic deletion by age. The
