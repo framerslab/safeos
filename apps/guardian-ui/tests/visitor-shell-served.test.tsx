@@ -4,7 +4,7 @@
  *
  * Renders both to the HTML a browser gets before any script runs. The header
  * is a navigation named "Site" with the brand, five links,
- * the GitHub link and the start key as working links, and Menu as a link to
+ * the two forms of the GitHub link and the start key as working links, and Menu as a link to
  * the footer's links; the look switch has only its place held.
  * The footer is six small groups of links in a navigation named
  * "Site links" and one last line.
@@ -32,7 +32,7 @@ const header = (pathname = '/') => {
 };
 
 describe('visitor header, before script runs', () => {
-  it('is a navigation named "Site" whose controls are five links, GitHub, the start key and Menu, in that order', () => {
+  it('is a navigation named "Site" whose controls are five links, both forms of GitHub, the start key and Menu, in that order', () => {
     const page = header();
     const nav = page.querySelector('nav');
     expect(nav?.getAttribute('aria-label')).toBe('Site');
@@ -44,10 +44,13 @@ describe('visitor header, before script runs', () => {
       'FAQ /faq',
       'Privacy /privacy',
       'SafeOS on GitHub https://github.com/framerslab/safeos',
+      'SafeOS on GitHub https://github.com/framerslab/safeos',
       'Start setup /setup',
       'Menu #site-links',
     ]);
-    // Every item is a working link before script: none is a button.
+    expect(bar[5].classList.contains('site-header__github-icon')).toBe(true);
+    expect(bar[6].classList.contains('site-header__github')).toBe(true);
+    // Every item is a working link before script.
     expect(page.querySelectorAll('.site-header__bar button')).toHaveLength(0);
   });
 
