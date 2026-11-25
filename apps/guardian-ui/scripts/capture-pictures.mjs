@@ -98,6 +98,10 @@ try {
   const homeChecks = process.env.PICTURE_VERSION === 'after' && routes.includes('/')
     ? await import('./home-checks.mjs')
     : null;
+  if (homeChecks) {
+    const { checkHeaders } = await import('./header-checks.mjs');
+    failures += await checkHeaders(browser, baseUrl);
+  }
   if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks);
   failures += await captureWatchPages(browser, baseUrl, outDir, routes, finishedSetupContext);
   for (const route of routes) {
