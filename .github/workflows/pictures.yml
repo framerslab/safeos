@@ -180,6 +180,21 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Upload watch page pictures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.version == 'before' && 'watch-pages-before' || 'watch-pages' }}
+          path: |
+            ${{ runner.temp }}/pictures/people-sighting-*.png
+            ${{ runner.temp }}/pictures/people-notification-*.png
+            ${{ runner.temp }}/pictures/wildlife-sighting-*.png
+            ${{ runner.temp }}/pictures/wildlife-notification-*.png
+            ${{ runner.temp }}/pictures/wildlife-caution-*.png
+            ${{ runner.temp }}/pictures/*-keys-320-light.png
+          if-no-files-found: ignore
+          retention-days: 14
+
   home-captures:
     name: Capture the home page pictures
     runs-on: ubuntu-24.04
