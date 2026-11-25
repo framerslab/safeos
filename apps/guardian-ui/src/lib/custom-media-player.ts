@@ -8,6 +8,7 @@
  */
 
 import { Howl } from 'howler';
+import { findSpokenAlertVoice } from './tts-alerts';
 
 // =============================================================================
 // Types
@@ -262,19 +263,21 @@ export class CustomMediaPlayer {
 
     // Alternate between audio and TTS
     const hasAudio = this.config.audioEnabled && this.config.audioFiles.length > 0;
-    const hasTTS = this.config.ttsEnabled && this.config.ttsMessages.length > 0;
+    const voice = this.config.ttsEnabled && this.config.ttsMessages.length > 0
+      ? findSpokenAlertVoice(this.speechSynth?.getVoices() ?? [])
+      : undefined;
 
-    if (hasAudio && hasTTS) {
+    if (hasAudio && voice) {
       // Alternate
       if (this.state.currentAudioIndex <= this.state.currentMessageIndex) {
         this.playNextAudio();
       } else {
-        this.speakNextMessage();
+        this.speakNextMessage(voice);
       }
     } else if (hasAudio) {
       this.playNextAudio();
-    } else if (hasTTS) {
-      this.speakNextMessage();
+    } else if (voice) {
+      this.speakNextMessage(voice);
     }
   }
 
@@ -327,18 +330,17 @@ export class CustomMediaPlayer {
   /**
    * Speak next TTS message
    */
-  private speakNextMessage(): void {
-    if (!this.speechSynth || this.config.ttsMessages.length === 0) {
-      setTimeout(() => this.playNextMedia(), 500);
-      return;
-    }
-    
+  private speakNextMessage(voice: SpeechSynthesisVoice): void {
+    if (!this.speechSynth) return;
+
     this.state.currentMessageIndex = 
       (this.state.currentMessageIndex + 1) % this.config.ttsMessages.length;
     
     const message = this.config.ttsMessages[this.state.currentMessageIndex];
     
     const utterance = new SpeechSynthesisUtterance(message);
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
