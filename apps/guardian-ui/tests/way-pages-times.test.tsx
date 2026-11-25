@@ -14,7 +14,7 @@ import { announceWatch } from '@/lib/tab-channel';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { timeWords } from '@/lib/alert-pictures/words';
 import { getPersonDetector } from '@/lib/person-detection';
-import { getTTSManager } from '@/lib/tts-alerts';
+import { getTTSManager, PRESET_MESSAGES } from '@/lib/tts-alerts';
 import { forgetVisit } from '@/lib/visit-store';
 import { readLastWay, readWatchSession } from '@/lib/watch-session';
 import { raisedByThisWatch } from '@/lib/watch-sound';
@@ -33,7 +33,7 @@ import { DEFAULT_SECURITY_SETTINGS, useSecurityStore } from '@/stores/security-s
 import { DEFAULT_ANIMAL_SETTINGS, useAnimalAlertStore } from '@/stores/animal-alert-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
-import { barredWording } from '../scripts/home-wording.cjs';
+import { barredWording, homeWordingInputs } from '../scripts/home-wording.cjs';
 
 jest.mock('@/lib/browser-notification', () => ({ showBrowserNotification: jest.fn() }));
 
@@ -363,6 +363,42 @@ it("People's notification gives the count, the time and what went over the line"
   expect(options?.body).toContain(timeWords(at));
 });
 
+it("keeps People's alert and its DISARM key after the people leave, until the watch is disarmed", async () => {
+  const { container, at } = await peopleInView();
+  const words = () => container.querySelector('video')?.closest('main')?.textContent ?? '';
+  jest.spyOn(getPersonDetector(), 'forceDetection').mockResolvedValueOnce({
+    personCount: 0, detections: [], processingTimeMs: 18, timestamp: at + 5_000, motionTriggered: true,
+  });
+  await act(async () => { jest.advanceTimersByTime(DEFAULT_SECURITY_SETTINGS.detectionInterval); });
+  expect(useSecurityStore.getState()).toMatchObject({ armingState: 'triggered', currentPersonCount: 0 });
+  expect(words()).toContain('0 people in view');
+  expect(words()).toContain(`2 people in view at ${timeWords(at)}`);
+  fireEvent.click(screen.getByRole('button', { name: 'DISARM' }));
+  expect(useSecurityStore.getState().armingState).toBe('disarmed');
+  expect(words()).not.toContain('2 people in view at');
+});
+
+it('names no part of People with a score or a barred word while its camera runs', async () => {
+  const { container } = await peopleInView();
+  for (const text of homeWordingInputs(container.querySelector('video')!.closest('main')!)) expect(text).not.toMatch(barredWording);
+  expect(screen.getByRole('status', { name: /movement/i })).toBeTruthy();
+});
+
+it('says in Silent Mode where the pictures are kept, by the name of the key that shows them', async () => {
+  useSecurityStore.setState({ settings: { ...DEFAULT_SECURITY_SETTINGS, alertMode: 'silent' } });
+  render(<SecurityPage />);
+  await act(async () => {});
+  const line = screen.getByText('Silent Mode:').parentElement?.textContent ?? '';
+  expect(line).not.toMatch(/intrusion/i);
+  expect(line).toContain('History');
+  expect(screen.getByRole('button', { name: 'History' })).toBeTruthy();
+});
+
+it.each([...PRESET_MESSAGES.authoritative, ...PRESET_MESSAGES.alarm])('speaks People\'s "%s" in plain words', (message) => {
+  expect(message).not.toMatch(barredWording);
+  expect(message).not.toMatch(/unauthorized/i);
+});
+
 const zebra = (): AnimalDetection => ({
   ...sighting(), id: 'zebra-1', type: 'zebra', displayName: 'Zebra', dangerLevel: 'medium',
   confidence: 0.82, timestamp: new Date('2026-11-18T21:42:40Z').getTime(),
@@ -393,6 +429,12 @@ it('shows a zebra sighting without a score beside its name', async () => {
     expect(words).not.toMatch(barredWording);
     expect(words).toContain(timeWords(animal.timestamp));
   }
+});
+
+it('names no part of Wildlife with a score or a barred word while its camera runs', async () => {
+  await wildlifeInView();
+  for (const text of homeWordingInputs(document.querySelector('video')!.closest('main')!)) expect(text).not.toMatch(barredWording);
+  expect(screen.getByRole('status', { name: /movement/i })).toBeTruthy();
 });
 
 it("Wildlife's notification names the animal and gives the time", async () => {

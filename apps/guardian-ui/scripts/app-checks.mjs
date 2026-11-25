@@ -4625,8 +4625,9 @@ export async function checkApp(browser, baseUrl, outDir) {
   // The dialog's two keys on one row at every phone width, and with larger
   // text a row that scrolls inside itself where the two do not fit.
   const dialogRow = (page) => page.evaluate(() => {
-    const row = document.querySelector('[role="dialog"] .app-dialog__keys');
-    if (!row) return null;
+    const place = document.querySelector('[role="dialog"] .app-dialog__keys');
+    if (!place) return null;
+    const row = place.querySelector('.key-row__keys') ?? place;
     return {
       keys: [...row.querySelectorAll('button')].map((key) => {
         const box = key.getBoundingClientRect();
@@ -4666,6 +4667,15 @@ export async function checkApp(browser, baseUrl, outDir) {
     const tops = row.keys.map((key) => key.top);
     check(Math.max(...tops) - Math.min(...tops) <= 0.5, `with larger text the keys' tops are ${tops.map((top) => top.toFixed(1)).join(' and ')} px`);
     check(row.scrolls || row.keys.every((key) => key.whole), `with larger text the keys do not fit and the row does not scroll inside itself (${row.keys.filter((key) => !key.whole).map((key) => key.name).join(', ')} cut)`);
+    if (row.scrolls) {
+      await pressRowArrows(second, '[role="dialog"] .app-dialog__keys', check);
+      // Focus goes round the dialog's keys, the arrows among them, and stays inside it.
+      const buttons = await second.locator('[role="dialog"] button').count();
+      for (let i = 0; i <= buttons; i += 1) {
+        await second.keyboard.press('Tab');
+        check(await second.evaluate(() => !!document.querySelector('[role="dialog"]')?.contains(document.activeElement)), 'with larger text Tab left the dialog');
+      }
+    }
     const sideways = await sidewaysScroll(second);
     check(sideways <= 0, `with larger text the page scrolls ${sideways} px sideways`);
   }, { script: FAKE_CAMERA });

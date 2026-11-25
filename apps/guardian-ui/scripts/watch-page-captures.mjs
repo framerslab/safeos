@@ -75,6 +75,32 @@ function standInCamera(way) {
   };
 }
 
+// The contrast of each element's words against the grounds behind them, the
+// translucent ones laid over one another down to the page's.
+function readContrast(elements) {
+  const parse = (value) => {
+    const [r, g, b, a = 1] = value.match(/[\d.]+/g).map(Number);
+    return { rgb: [r, g, b], a };
+  };
+  const over = (top, under) => top.rgb.map((channel, i) => channel * top.a + under[i] * (1 - top.a));
+  const luminance = (rgb) => rgb
+    .map((value) => value / 255)
+    .map((s, i) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4) * [0.2126, 0.7152, 0.0722][i])
+    .reduce((a, b) => a + b, 0);
+  return elements.map((element) => {
+    const grounds = [];
+    for (let node = element; node; node = node.parentElement) {
+      const ground = parse(getComputedStyle(node).backgroundColor);
+      grounds.unshift(ground);
+      if (ground.a === 1) break;
+    }
+    const page = document.documentElement.classList.contains('light') ? [255, 255, 255] : [15, 23, 42];
+    const ground = grounds.reduce((under, top) => over(top, under), page);
+    const [a, b] = [over(parse(getComputedStyle(element).color), ground), ground].map(luminance);
+    return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+  });
+}
+
 async function captureNotice(page, notice, file) {
   await page.evaluate(({ title, body }) => {
     const card = document.createElement('section');
@@ -126,6 +152,12 @@ export async function captureWatchPages(browser, baseUrl, outDir, routes, openCo
           ? page.getByRole('button', { name: 'DISARM', exact: true }).locator('xpath=../..')
           : page.getByText('Caution', { exact: true }).first().locator('xpath=..');
         await sighting.screenshot({ path: path.join(outDir, `${name}-sighting-${suffix}`) });
+        if (after && name === 'people') {
+          const ratios = await page.getByText('More than this watch allows.', { exact: true }).evaluateAll(readContrast);
+          if (ratios.length !== 2 || ratios.some((ratio) => ratio < 4.5)) {
+            throw new Error(`the words of the People alert stand at ${ratios.map((ratio) => ratio.toFixed(2)).join(' and ')}:1 in the ${look} look`);
+          }
+        }
         if (name === 'wildlife') {
           const badge = page.getByText('Caution', { exact: true }).first();
           const size = await badge.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));

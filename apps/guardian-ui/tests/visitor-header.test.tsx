@@ -158,6 +158,25 @@ describe('the Menu', () => {
     expect(document.activeElement).toBe(elsewhere);
   });
 
+  it('stays open when focus goes to nothing on the page, and closes when focus moves to what stands behind it', () => {
+    const { container } = render(
+      <>
+        <VisitorHeader />
+        <button type="button">Behind</button>
+      </>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    const menu = container.querySelector('#site-menu') as HTMLElement;
+    const row = within(menu).getByRole('link', { name: 'FAQ' });
+    act(() => row.focus());
+    // Another window takes the keyboard, or a press lands between two rows.
+    fireEvent.blur(row, { relatedTarget: null });
+    expect(menu.hidden).toBe(false);
+    act(() => screen.getByRole('button', { name: 'Behind' }).focus());
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Behind' }));
+  });
+
   it('closes when one of its rows is pressed', () => {
     const { container } = render(<VisitorHeader />);
     const menu = container.querySelector('#site-menu') as HTMLElement;

@@ -78,13 +78,17 @@ export async function checkHeaders(browser, baseUrl) {
                   }
                 }
               }
-              const oneRow = await header.evaluate((bar) => {
+              const row = await header.evaluate((bar) => {
                 const controls = [...bar.querySelectorAll('a, button, .site-header__brand, .app-header__brand')]
                   .filter((control) => control.getClientRects().length)
                   .map((control) => control.getBoundingClientRect());
-                return Math.max(...controls.map((box) => box.top)) < Math.min(...controls.map((box) => box.bottom));
+                return {
+                  one: Math.max(...controls.map((box) => box.top)) < Math.min(...controls.map((box) => box.bottom)),
+                  right: Math.max(...controls.map((box) => box.right)),
+                };
               });
-              check(oneRow, `${at}: the header wraps`);
+              check(row.one, `${at}: the header wraps`);
+              check(row.right <= width + 0.5, `${at}: a control ends at ${Math.round(row.right)} px`);
             }
           });
         }
@@ -115,6 +119,56 @@ export async function checkHeaders(browser, baseUrl) {
         });
       }
 
+      // The arrows come and go with the words' own width, so a row at any text
+      // size settles on one answer.
+      for (const [width, size] of [[320, 125], [360, 150], [390, 150], [480, 200]]) {
+        await walk('/dashboard/', width, `Phone navigation at ${size}% text`, async () => {
+          await page.addStyleTag({ content: `html { font-size: ${size}% !important; }` });
+          await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+          await page.waitForTimeout(400);
+          const changes = await page.locator('.phone-bar .key-row').evaluate(async (row) => {
+            let seen = 0;
+            const observer = new MutationObserver((records) => { seen += records.length; });
+            observer.observe(row, { attributes: true, attributeFilter: ['data-more'], childList: true });
+            await new Promise((resolve) => setTimeout(resolve, 1_000));
+            observer.disconnect();
+            return seen;
+          });
+          check(changes === 0, `Phone navigation, ${width} px, ${size}% text, ${look}: the arrows came and went ${changes} times in a second`);
+        });
+      }
+
+      await walk('/dashboard/', 390, 'One App navigation', async () => {
+        const count = await page.getByRole('navigation', { name: 'App', exact: true }).filter({ visible: true }).count();
+        check(count === 1, `390 px, ${look}: the page shows ${count} navigations named "App"`);
+      });
+
+      for (const width of [320, 1024, 1280]) {
+        await walk('/wildlife/', width, 'Wildlife sighting', async () => {
+          await page.evaluate(() => localStorage.setItem('safeos-animal-alerts', JSON.stringify({ version: 0, state: {
+            detectionHistory: [{
+              id: 'bear-1', type: 'bear', displayName: 'Bear', confidence: 0.82, sizeCategory: 'large', dangerLevel: 'extreme',
+              bbox: [0, 0, 40, 40], timestamp: Date.now(), acknowledged: false,
+            }],
+          } })));
+          await page.reload({ waitUntil: 'domcontentloaded' });
+          await page.getByText('EXTREME DANGER', { exact: true }).waitFor();
+          const lines = await page.evaluate(() => {
+            const read = (words) => {
+              const node = [...document.querySelectorAll('main div')].find((one) => one.childElementCount === 0 && one.textContent.trim() === words);
+              if (!node) return null;
+              const range = document.createRange();
+              range.selectNodeContents(node);
+              return new Set([...range.getClientRects()].map((box) => Math.round(box.top))).size;
+            };
+            return { name: read('Bear'), badge: read('EXTREME DANGER') };
+          });
+          check(lines.name === 1, `Wildlife, ${width} px, ${look}: "Bear" is broken over ${lines.name} lines`);
+          check(lines.badge !== null && lines.badge <= 2, `Wildlife, ${width} px, ${look}: "EXTREME DANGER" is broken over ${lines.badge} lines`);
+          await page.evaluate(() => localStorage.removeItem('safeos-animal-alerts'));
+        });
+      }
+
       await walk('/history/', 1920, 'Focus when Help folds', async () => {
         await enlarge(page);
         const help = page.locator('.app-header__links').getByRole('link', { name: 'Help', exact: true });
@@ -123,6 +177,10 @@ export async function checkHeaders(browser, baseUrl) {
         const more = page.locator('.app-header__more');
         await more.waitFor();
         check(await more.evaluate((key) => key === document.activeElement), `Help, ${look}: focus did not move to More after narrowing`);
+        // Wide again, More leaves the row with focus on it: Help has it back.
+        await page.setViewportSize({ width: 1920, height: 844 });
+        await more.waitFor({ state: 'detached' });
+        check(await help.evaluate((link) => link === document.activeElement), `Help, ${look}: focus did not return to Help after widening`);
       });
 
       await walk('/', 390, 'Tab out of Menu', async () => {
@@ -131,6 +189,17 @@ export async function checkHeaders(browser, baseUrl) {
         await panel.getByRole('link').last().focus();
         await page.keyboard.press('Tab');
         check(await panel.evaluate((menu) => menu.hidden || menu.contains(document.activeElement)), `Menu, ${look}: focus left the open panel`);
+      });
+
+      await walk('/', 390, 'A press between the rows of Menu', async () => {
+        await page.getByRole('button', { name: 'Menu', exact: true }).click();
+        const panel = page.locator('#site-menu');
+        await panel.waitFor();
+        const box = await panel.boundingBox();
+        const start = await panel.locator('.site-menu__start').boundingBox();
+        await page.mouse.click(box.x + box.width / 2, start.y + start.height + 4);
+        await page.waitForTimeout(200);
+        check(await panel.isVisible(), `Menu, ${look}: a press on the panel's own ground closed it`);
       });
     } finally {
       await context.close();

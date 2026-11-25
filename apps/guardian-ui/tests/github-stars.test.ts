@@ -13,6 +13,7 @@ import http from 'http';
 import os from 'os';
 import path from 'path';
 import { execFile } from 'child_process';
+import { pathToFileURL } from 'url';
 import type { AddressInfo } from 'net';
 import {
   exactStars,
@@ -193,6 +194,31 @@ describe('the script that asks GitHub before the build', () => {
     expect(result.status).toBe(0);
     expect(asked).toHaveLength(1);
     expect(asked[0].headers).not.toHaveProperty('authorization');
+    expect(result.out + result.err + result.handed).not.toContain(token);
+  });
+
+  // The script's own request, answered before it leaves the process.
+  it.each([
+    ['https://api.github.com/repos/framerslab/safeos', true],
+    ['http://api.github.com/repos/framerslab/safeos', false],
+    ['https://api.github.com.example.test/repos/framerslab/safeos', false],
+    ['https://api.github.com@example.test/repos/framerslab/safeos', false],
+    ['https://example.test/?host=api.github.com', false],
+  ])('asks %s with the token: %s', async (address, carried) => {
+    const stand = path.join(dir, 'stand.mjs');
+    const heard = path.join(dir, 'heard');
+    fs.writeFileSync(stand, `
+      import { writeFileSync } from 'node:fs';
+      globalThis.fetch = async (url, init) => {
+        writeFileSync(${JSON.stringify(heard)}, new Headers(init.headers).get('authorization') ?? 'none');
+        return new Response(JSON.stringify({ stargazers_count: 58 }), { status: 200 });
+      };
+    `);
+    const token = 'a-token-made-up-for-this-test';
+    const result = await run({ GITHUB_TOKEN: token, SAFEOS_STARS_URL: address, NODE_OPTIONS: `--import=${pathToFileURL(stand)}` });
+    expect(result.status).toBe(0);
+    expect(result.handed).toContain('NEXT_PUBLIC_GITHUB_STARS=58');
+    expect(fs.readFileSync(heard, 'utf8')).toBe(carried ? `Bearer ${token}` : 'none');
     expect(result.out + result.err + result.handed).not.toContain(token);
   });
 
