@@ -58,6 +58,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 import { skipsInBase } from './base-routes.mjs';
+import { captureWatchPages } from './watch-page-captures.mjs';
 
 const [baseUrl, outDir, ...routes] = process.argv.slice(2);
 if (!baseUrl || !outDir || routes.length === 0) {
@@ -91,13 +92,14 @@ function slug(route) {
 }
 
 await mkdir(outDir, { recursive: true });
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader'] });
 let failures = 0;
 try {
   const homeChecks = process.env.PICTURE_VERSION === 'after' && routes.includes('/')
     ? await import('./home-checks.mjs')
     : null;
   if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks);
+  failures += await captureWatchPages(browser, baseUrl, outDir, routes, finishedSetupContext);
   for (const route of routes) {
     for (const size of WIDTHS) {
       for (const look of LOOKS) {
