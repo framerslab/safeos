@@ -394,7 +394,8 @@ test('no Lost and Found screen says match, detected, confidence, accurate or lik
   await expect(picture).toBeVisible({ timeout: 30_000 });
   await holdsNoBarredWord('the gallery');
   await page.getByRole('button', { name: 'Open this picture', exact: true }).first().click();
-  await expect(page.getByText(QUESTION, { exact: true })).toBeVisible();
+  const opened = page.getByRole('dialog', { name: QUESTION, exact: true });
+  await expect(opened.getByText(QUESTION, { exact: true })).toBeVisible();
   await holdsNoBarredWord('an opened picture');
   await page.screenshot({ path: testInfo.outputPath('lost-found-words-read-1280.png') });
 });
