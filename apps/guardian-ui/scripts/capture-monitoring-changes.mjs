@@ -127,9 +127,8 @@ try {
     await capture('wildlife-motion', view, scheme, async (page) => {
       await open(page, '/wildlife/');
       await page.getByRole('button', { name: 'Settings', exact: true }).click();
-      const heading = page.getByRole('heading', { name: 'Wildlife Settings' });
-      await heading.waitFor();
-      return heading.locator('../..');
+      await page.getByRole('heading', { name: 'Wildlife Settings' }).waitFor();
+      return page.locator('input[type="range"][min="5"][max="50"]').locator('..');
     });
 
     await capture('picture-change-level', view, scheme, async (page) => {
