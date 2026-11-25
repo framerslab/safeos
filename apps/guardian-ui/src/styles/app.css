@@ -43,9 +43,9 @@
    A part built in the look
    ============================================================================= */
 
-@media (max-width: 47.99em) {
+@media (max-width: 21.25em) {
   .app-shell--look {
-    --type-word-size: 1.015625rem; /* 16.25px labels on a phone */
+    --type-word-size: 1.015625rem; /* 16.25px labels on the narrowest phones */
   }
 }
 

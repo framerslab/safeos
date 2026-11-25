@@ -2241,10 +2241,10 @@ describeInBothLooks('The live box: one at a time, never for a sound, clear of th
   }
 
   for (const width of [390, 1280]) {
-    test(`a change along the top of a 4:3 camera outside the live picture draws nothing there and the card’s picture keeps its box, ${width} px`, async ({ page, context }) => {
+    test(`a change along the top of a 4:3 camera shows on the full live image and its saved picture, ${width} px`, async ({ page, context }) => {
       await page.setViewportSize({ width, height: 900 });
       test.setTimeout(120_000);
-      // One zone over the top tenth of a 640 by 480 frame: the 16:9 live picture cuts the frame's top eighth.
+      // One zone over the top tenth of a 640 by 480 frame.
       await watchWith(page, context, {
         settings: { ...MOTION_ONLY, detectionZones: [{ id: 'top', name: 'Top', enabled: true, x: 0, y: 0, width: 100, height: 10 }] },
         camera: { width: 640, height: 480, background: 128, moving: { x: 0, y: 0, width: 1, height: 0.1 }, levels: [0, 85, 170, 255] },
@@ -2254,8 +2254,14 @@ describeInBothLooks('The live box: one at a time, never for a sound, clear of th
       await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
       await expect(card.locator('.alert-picture__box')).toHaveCount(1);
       await expect(card.getByText('in Top', { exact: true })).toBeVisible();
-      await expect(liveBox(page)).toHaveCount(0);
-      await expect(livePlate(page)).toHaveCount(0);
+      await expect(liveBox(page)).toBeVisible();
+      await expect(livePlate(page)).toBeVisible();
+      const view = (await livePicture(page).boundingBox())!;
+      const drawn = (await liveBox(page).boundingBox())!;
+      const imageWidth = view.height * 4 / 3;
+      expect(imageWidth).toBeLessThan(view.width);
+      expect(Math.abs(drawn.y - view.y)).toBeLessThanOrEqual(2);
+      expect(Math.abs(drawn.x - (view.x + (view.width - imageWidth) / 2))).toBeLessThanOrEqual(2);
     });
   }
 
