@@ -352,12 +352,19 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
     }
     peaks.motion = Math.max(peaks.motion, reading.motion);
     peaks.sound = Math.max(peaks.sound, reading.sound);
-    if (!poster && reading.clipAt >= WATCH_POSTER_AT && reading.clipAt <= 25) {
-      const frame = await nextFrameAfter(reading.at);
+    if (!poster && reading.clipAt >= WATCH_POSTER_AT && reading.clipAt <= 25 && !reading.motionOverLine) {
+      // The word boxes must describe the actual compositor frame. A meter
+      // can update between a frame arriving and the page reporting its words.
+      const candidate = await sample();
+      const frame = await nextFrameAfter(await browserTime(page));
       if (frame && frame - reading.at <= 25 - reading.clipAt) {
-        words = await sample();
-        poster = frame;
-        posterReading = { clipAt: reading.clipAt + frame - reading.at };
+        const confirmed = await sample();
+        const text = (entries) => entries.map(({ word }) => word).join(' ');
+        if (text(candidate) === 'Motion Quiet Sound Quiet' && text(candidate) === text(confirmed)) {
+          words = candidate;
+          poster = frame;
+          posterReading = { clipAt: reading.clipAt + frame - reading.at };
+        }
       }
     }
     if (!motionOverAt && between(reading.clipAt, MOTION_WALK)

@@ -1584,6 +1584,14 @@ html.reduce-motion .home-run__frame[data-loading='true']::after {
   line-height: var(--type-word-line);
 }
 
+@media (max-width: 22em) {
+  .home-run__caption {
+    margin-inline: -16px;
+    text-align: center;
+    text-wrap: balance;
+  }
+}
+
 .home-run__status {
   display: flex;
   align-items: center;
