@@ -7,6 +7,7 @@ const [baseUrl, outDir] = process.argv.slice(2);
 if (!baseUrl || !outDir) throw new Error('Pass the served site and the picture directory.');
 await mkdir(outDir, { recursive: true });
 const browser = await chromium.launch();
+const failures = [];
 
 function seed() {
   localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
@@ -36,6 +37,10 @@ async function capture(name, view, scheme, walk) {
       animations: 'disabled',
     });
     console.log(`Captured ${name} at ${view.width} in the ${scheme} look`);
+  } catch (error) {
+    const captureName = `${name}-${view.width}-${scheme}`;
+    failures.push(captureName);
+    console.error(`${captureName}: ${error}`);
   } finally {
     await context.close();
   }
@@ -158,3 +163,5 @@ try {
 } finally {
   await browser.close();
 }
+
+if (failures.length) throw new Error(`Missing monitoring pictures: ${failures.join(', ')}`);
