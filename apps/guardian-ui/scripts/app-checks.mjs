@@ -116,7 +116,9 @@ export async function checkApp(browser, baseUrl, outDir) {
   const LARGER_TEXT = 'html { font-size: 200% !important; } * { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }';
   const IPHONE_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
   const DESTINATION_WORDS = ['Dashboard', 'History', 'Settings', 'Help'];
-  const rowNames = (look) => ['SafeOS Guardian, dashboard', ...DESTINATION_WORDS, `Switch to the ${OTHER[look]} look`];
+  const stars = starsHanded();
+  const githubName = stars ? `SafeOS on GitHub, ${stars.exact}` : 'SafeOS on GitHub';
+  const rowNames = (look) => ['SafeOS Guardian, dashboard', ...DESTINATION_WORDS, githubName, `Switch to the ${OTHER[look]} look`];
   const face = (family) => (family || '').split(',')[0].replace(/["']/g, '').trim();
   const isInter = (family) => /Inter/i.test(face(family));
 
@@ -217,12 +219,12 @@ export async function checkApp(browser, baseUrl, outDir) {
       fold: header.getAttribute('data-fold'),
       wordmark: shown(wordmark),
       bar: { top: barBox.top, bottom: barBox.bottom, left: barBox.left, right: barBox.right, height: barBox.height, scroll: bar.scrollWidth - bar.clientWidth },
-      items: [...bar.querySelectorAll('a.app-header__brand--link, span.app-header__brand--plain, a.app-header__link, button.app-header__more, button.look-switch, .look-switch-place')]
+      items: [...bar.querySelectorAll('a.app-header__brand--link, span.app-header__brand--plain, a.app-header__link, a.app-header__github, button.app-header__more, button.look-switch, .look-switch-place')]
         .filter(shown)
         .map((node) => {
           const box = node.getBoundingClientRect();
           const kind = node.matches('.app-header__link') ? 'link' : node.matches('.app-header__more') ? 'more'
-            : node.matches('.look-switch, .look-switch-place') ? 'switch' : 'brand';
+            : node.matches('.look-switch, .look-switch-place') ? 'switch' : node.matches('.app-header__github') ? 'github' : 'brand';
           return {
             kind,
             name: node.getAttribute('aria-label') || node.textContent.trim(),
@@ -369,8 +371,8 @@ export async function checkApp(browser, baseUrl, outDir) {
     }, { state });
   }
 
-  // The phone's top bar: the brand alone, plain, on one row; from 768 px the
-  // row with the four links, all on one line and inside the screen.
+  // The phone's top bar holds the plain brand and GitHub. From 768 px the
+  // destinations join them on the same line.
   for (const width of ROW_WIDTHS) {
     for (const look of LOOKS) {
       await open({ name: 'phone top bar', width, look }, async (page, context, check) => {
@@ -400,11 +402,11 @@ export async function checkApp(browser, baseUrl, outDir) {
           });
           return { mark: !!plain.querySelector('svg'), lines, controls: links.map((control) => control.getAttribute('aria-label') || control.textContent.trim()) };
         });
-        check(row.items.length === 1 && row.items[0].kind === 'brand', `the top bar shows ${row.items.map((item) => item.name).join(', ')}, not the brand alone`);
+        check(row.items.map((item) => item.kind).join(',') === 'brand,github', `the top bar shows ${row.items.map((item) => item.name).join(', ')}`);
         check(brand.mark, 'the top bar has no mark');
         check(brand.lines.map((line) => line.words).join(' / ') === 'SAFEOS / GUARDIAN' && brand.lines.length === 2 && brand.lines[1].top > brand.lines[0].top,
           `the wordmark reads ${brand.lines.map((line) => line.words).join(' / ')}`);
-        check(brand.controls.length === 0, `the top bar holds the controls ${brand.controls.join(', ')}`);
+        check(brand.controls.length === 1 && brand.controls[0] === githubName, `the top bar holds the controls ${brand.controls.join(', ')}`);
         const before = page.url();
         await page.locator('header.app-header .app-header__brand--plain').click();
         await page.waitForTimeout(500);
@@ -507,8 +509,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
   }
 
-  // What leaves the header: no bell, no Help key, no GitHub, no reading
-  // pages, no ways.
+  // The header excludes the shortcuts, reading pages and ways to watch.
   for (const width of [390, 1280]) {
     for (const look of LOOKS) {
       await open({ name: 'header, what it leaves out', width, look }, async (page, context, check) => {
@@ -523,7 +524,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         });
         if (!controls) throw new Error('no app header');
         for (const control of controls) {
-          check(!/Notifications|GitHub|About|FAQ|Blog|Monitor|Lost & Found|Security|Wildlife/i.test(control.name), `the header holds ${control.button ? 'a button' : 'a link'} named "${control.name}"`);
+          check(!/Notifications|About|FAQ|Blog|Monitor|Lost & Found|Security|Wildlife/i.test(control.name), `the header holds ${control.button ? 'a button' : 'a link'} named "${control.name}"`);
           check(!(control.button && /^(Help|\?)$/i.test(control.name)), `the header holds a button named "${control.name}"`);
         }
       });
@@ -591,7 +592,9 @@ export async function checkApp(browser, baseUrl, outDir) {
       const links = row.items.filter((item) => item.kind === 'link');
       const last = links[links.length - 1];
       const lookKey = row.items.find((item) => item.kind === 'switch');
-      check(!!last && more.left >= last.right - 0.5, `More starts at ${Math.round(more.left)} px, before the last link's end at ${last ? Math.round(last.right) : '?'} px`);
+      const github = row.items.find((item) => item.kind === 'github');
+      check(!!last && !!github && github.left >= last.right - 0.5 && more.left >= github.right - 0.5,
+        'GitHub must sit between the destinations and More');
       check(!!lookKey && lookKey.left >= more.right - 0.5 && lookKey.right >= Math.max(...row.items.map((item) => item.right)) - 0.5,
         'the look switch is not the row\'s right-most item after More');
       check(Math.max(...row.items.map((item) => item.top)) < Math.min(...row.items.map((item) => item.bottom)), 'the row is more than one line');
@@ -757,7 +760,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   await open({ name: 'focus order', width: 1280, look: 'dark' }, async (page, context, check) => {
     await visit(page, '/dashboard/');
     const order = [];
-    for (let i = 0; i < 7; i += 1) {
+    for (let i = 0; i <= rowNames('dark').length; i += 1) {
       await page.keyboard.press('Tab');
       order.push(await page.evaluate(stop));
     }
@@ -1380,7 +1383,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (width >= 768) {
           check(names === rowNames(look).join(', '), `the row holds ${names}`);
         } else {
-          check(row.items.length === 1 && row.items[0].kind === 'brand', `the top bar shows ${names}, not the brand alone`);
+          check(row.items.map((item) => item.kind).join(',') === 'brand,github', `the top bar shows ${names}`);
         }
       }, { state: 'new' });
     }
@@ -2634,7 +2637,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         const word = history ? history.textContent.replace(/\s+/g, ' ').trim() : '';
         if (want && word !== want) return false;
         const bar = document.querySelector('header.app-header .app-header__bar');
-        const items = bar ? [...bar.querySelectorAll('a.app-header__brand--link, a.app-header__link, button.app-header__more, button.look-switch, .look-switch-place')]
+        const items = bar ? [...bar.querySelectorAll('a.app-header__brand--link, a.app-header__link, a.app-header__github, button.app-header__more, button.look-switch, .look-switch-place')]
           .filter((node) => node.getBoundingClientRect().width > 0) : [];
         return {
           word,

@@ -234,14 +234,15 @@ describe('the other stylesheets', () => {
     expect(footer?.['text-decoration-thickness']).toBe('1px');
   });
 
-  it('shows Privacy and GitHub in the row from 1024 px, and lets a short row give up GitHub first, then Privacy', () => {
+  it('shows Privacy and the star count from 1024 px and keeps the GitHub mark when the row folds', () => {
     const wide = (r: Rule) => r.media.includes('min-width: 64em');
     expect(rule(visitor, '.site-header__link--wide')[0].declarations.display).toBe('none');
     expect(visitor.find((r) => wide(r) && r.selectors.includes('.site-header__link--wide'))?.declarations.display).toBe('inline-flex');
     expect(visitor.find((r) => wide(r) && r.selectors.includes(".site-header[data-short='privacy'] .site-header__link--wide"))?.declarations.display).toBe('none');
-    // GitHub shows only in a row that is neither collapsed nor short.
+    // The text link joins a wide row that is neither collapsed nor short.
     const github = visitor.filter((r) => r.selectors.some((s) => s.endsWith('.site-header__github')) && r.declarations.display === 'inline-flex');
     expect(github.map((r) => [r.media.includes('min-width: 64em'), r.selectors])).toEqual([[true, [".site-header:not([data-collapsed='true']):not([data-short]) .site-header__github"]]]);
+    expect(visitor.find((r) => wide(r) && r.selectors.includes(".site-header:not([data-collapsed='true']):not([data-short]) .site-header__github-icon"))?.declarations.display).toBe('none');
   });
 
   it('leaves the text link its own underline: no page rule resets its colour or thickness', () => {

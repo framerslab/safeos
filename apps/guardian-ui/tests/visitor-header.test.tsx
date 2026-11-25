@@ -347,9 +347,9 @@ describe('a row that runs short', () => {
   }
 
   it.each([
-    ['Privacy', '.site-header__link--wide'],
-    ['GitHub', '.site-header__github'],
-  ])('moves focus from %s to the start key when the row gives that link up', (_name, selector) => {
+    ['Privacy', '.site-header__link--wide', '.site-header__start'],
+    ['GitHub', '.site-header__github', '.site-header__github-icon'],
+  ])('keeps focus in the row when %s folds', (_name, selector, next) => {
     let narrow = false;
     const restore = giveWidths(() => narrow);
     try {
@@ -363,7 +363,7 @@ describe('a row that runs short', () => {
         window.dispatchEvent(new Event('resize'));
       });
       expect(container.querySelector('.site-header')?.getAttribute('data-short')).toBe('privacy');
-      expect(document.activeElement).toBe(container.querySelector('.site-header__start'));
+      expect(document.activeElement).toBe(container.querySelector(next));
     } finally {
       restore();
     }

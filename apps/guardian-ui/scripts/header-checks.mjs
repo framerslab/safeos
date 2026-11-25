@@ -30,7 +30,7 @@ export async function checkHeaders(browser, baseUrl) {
       try {
         await page.setViewportSize({ width, height: 844 });
         await page.goto(new URL(route, baseUrl).href, { waitUntil: 'domcontentloaded', timeout: 20_000 });
-        await page.locator('.look-switch').first().waitFor();
+        await page.locator('html[data-app-started="true"]').waitFor({ state: 'attached' });
         await page.evaluate(() => document.fonts.ready.then(() => undefined));
         await run();
       } catch (error) {

@@ -12,7 +12,7 @@
 // - the start key at 820 and 1280 pixels: one width for "Start setup" and
 //   "Open dashboard", so nothing beside it moves once setup is done;
 // - a row that runs short, text growing step by step at 1100 pixels: GitHub
-//   leaves first, then Privacy, then the links move into the Menu, and the
+//   folds to its mark, then Privacy leaves and the links move into the Menu. The
 //   row never runs off the screen;
 // - the Menu's start row and its GitHub row at 390 pixels;
 // - every request each public page and each app page makes while it loads
@@ -361,6 +361,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
       short: nav.getAttribute('data-short'),
       collapsed: nav.getAttribute('data-collapsed'),
       lookSwitch: box(nav.querySelector('.look-switch, .look-switch-place')),
+      githubMark: visible(bar.querySelector('.site-header__github-icon')),
       github: visible(github) ? {
         ...box(github),
         ...type(github),
@@ -395,7 +396,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
           expect(link.height >= 43.5, `${at}: "${link.words}" is ${link.height} px tall`);
         }
         if (width < 1024) {
-          expect(!row.github, `${at}: the row holds a GitHub link`);
+          expect(row.githubMark && !row.github, `${at}: the row does not show GitHub as an icon`);
           return;
         }
         const github = row.github;
@@ -482,7 +483,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
   }
 
   // A row that runs short: with the window at 1100 px the text grows in
-  // steps of 2 per cent. GitHub leaves first, then Privacy, then the links
+  // steps of 2 per cent. GitHub folds to its mark, then Privacy leaves and the links
   // and the start key move into the Menu; the row never runs off the screen.
   await open({ name: 'row, running short', width: 1100 }, async (page) => {
     await visit(page);
@@ -498,12 +499,13 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
       const stage = row.menuKey ? 3 : !names.includes('Privacy') ? 2 : !row.github ? 1 : 0;
       stages.push(stage);
       expect(!row.over, `row running short, text at ${size} per cent: the row runs off the screen`);
+      if (stage > 0) expect(row.githubMark, `row running short, text at ${size} per cent: GitHub has no mark`);
       if (stage === 2) expect(!row.github && names.join(', ') === 'How it works, Uses, Guides, FAQ', `row running short, text at ${size} per cent: with Privacy out the row holds ${names.join(', ')}${row.github ? ' and GitHub' : ''}`);
       if (stage === 3) expect(names.length === 0 && !row.github, `row running short, text at ${size} per cent: the Menu key shows beside ${names.join(', ')}`);
     }
     expect(stages[0] === 0, `row running short: at the usual text size the row is at stage ${stages[0]}`);
     expect(stages.every((stage, index) => index === 0 || stage >= stages[index - 1]), `row running short: the stages went ${stages.join('')}`);
-    expect([0, 1, 2, 3].every((stage) => stages.includes(stage)), `row running short: not every stage was seen (GitHub out, then Privacy out, then the Menu): ${stages.join('')}`);
+    expect([0, 1, 2, 3].every((stage) => stages.includes(stage)), `row running short: not every stage was seen (GitHub mark, then Privacy out, then the Menu): ${stages.join('')}`);
   });
 
   // ---------------------------------------------------------------------------
