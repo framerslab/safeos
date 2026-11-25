@@ -206,6 +206,35 @@ export async function checkHeaders(browser, baseUrl) {
     } finally {
       await context.close();
     }
+
+    // Scripts off, nothing folds: the row as it is served stands on the screen.
+    const served = await browser.newContext({ colorScheme: look, javaScriptEnabled: false });
+    try {
+      const page = await served.newPage();
+      for (const [route, selector] of [['/', '.site-header__bar'], ['/dashboard/', '.app-header__bar']]) {
+        for (const width of [320, 360, 390]) {
+          await page.setViewportSize({ width, height: 844 });
+          await page.goto(new URL(route, baseUrl).href, { waitUntil: 'load', timeout: 20_000 });
+          await page.waitForTimeout(300);
+          const row = await page.locator(selector).evaluate((bar) => {
+            const controls = [...bar.querySelectorAll('a, .site-header__brand, .app-header__brand')].filter((control) => control.getClientRects().length);
+            return {
+              github: controls.some((control) => control.matches('.site-header__github-icon, .app-header__github')),
+              right: Math.max(...controls.map((control) => control.getBoundingClientRect().right)),
+              sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            };
+          });
+          const at = `${route}, ${width} px, scripts off, ${look}`;
+          check(row.github, `${at}: the row holds no GitHub link`);
+          check(row.right <= width + 0.5, `${at}: a control ends at ${Math.round(row.right)} px`);
+          check(row.sideways <= 0, `${at}: the page scrolls ${row.sideways} px sideways`);
+        }
+      }
+    } catch (error) {
+      check(false, `scripts off, ${look}: ${error.message.split('\n')[0]}`);
+    } finally {
+      await served.close();
+    }
   }
   return failures;
 }

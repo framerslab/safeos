@@ -313,7 +313,7 @@ html:has(.app-shell) {
 
 /* Wide: the four links sit on the page's middle line. */
 @media (min-width: 90em) {
-  .app-header__links {
+  .app-header__nav {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);

@@ -274,6 +274,19 @@ html.light .visitor-shell {
   min-height: 44px;
 }
 
+/* The narrowest phones: the gaps close, so the mark, the wordmark, GitHub, the
+   look switch and Menu hold one row on the screen, before script too. */
+@media (max-width: 21.25em) {
+  .site-header__bar,
+  .site-header__bar .site-header__actions {
+    gap: 4px;
+  }
+
+  .site-header__brand {
+    gap: 6px;
+  }
+}
+
 .site-header__links {
   display: none;
   align-items: center;
