@@ -143,6 +143,43 @@ export async function checkApp(browser, baseUrl, outDir) {
     return found ? `${found.name} ends at ${Math.round(found.right)} px` : 'nothing found past the edge';
   });
 
+  const pressRowArrows = async (page, selector, check) => {
+    const row = page.locator(selector);
+    const left = row.getByRole('button', { name: 'Scroll left', exact: true });
+    const right = row.getByRole('button', { name: 'Scroll right', exact: true });
+    const arrows = await left.isVisible() && await right.isVisible();
+    check(arrows, `${selector} has no pair of named scroll buttons`);
+    if (!arrows) return;
+    const scroller = row.locator(':scope > .key-row__keys');
+    const read = () => scroller.evaluate((el) => ({
+      left: el.scrollLeft,
+      width: el.clientWidth,
+      end: el.scrollWidth - el.clientWidth,
+    }));
+    const start = await read();
+    check(start.end > 1, `${selector} has arrows but no scroll range`);
+    check(await left.isDisabled() && await right.isEnabled(), `${selector} has the wrong arrows available at its start`);
+    if (start.end <= 1 || !(await right.isEnabled())) return;
+
+    await right.click();
+    const moved = await page.waitForFunction((el) => el.scrollLeft > 1, await scroller.elementHandle(), { timeout: 2_000 })
+      .then(() => true, () => false);
+    check(moved, `${selector} did not scroll after Scroll right`);
+    if (!moved) return;
+    for (let i = 0; i < 10 && await right.isEnabled(); i++) await right.click();
+    await page.waitForFunction((el) => el.scrollLeft + el.clientWidth >= el.scrollWidth - 1,
+      await scroller.elementHandle(), { timeout: 3_000 });
+    check(await right.isDisabled() && await left.isEnabled(), `${selector} has the wrong arrows available at its end`);
+
+    await left.click();
+    const cameBack = await page.waitForFunction((el) => el.scrollLeft < el.scrollWidth - el.clientWidth - 1,
+      await scroller.elementHandle(), { timeout: 2_000 }).then(() => true, () => false);
+    check(cameBack, `${selector} did not scroll after Scroll left`);
+    for (let i = 0; i < 10 && await left.isEnabled(); i++) await left.click();
+    await page.waitForFunction((el) => el.scrollLeft <= 1, await scroller.elementHandle(), { timeout: 3_000 });
+    check(await left.isDisabled(), `${selector} leaves Scroll left available at its start`);
+  };
+
   // The header's row as drawn: each shown item, left to right, with its box.
   const readRow = () => {
     const header = document.querySelector('header.app-header');
@@ -681,6 +718,33 @@ export async function checkApp(browser, baseUrl, outDir) {
       if (sideways > 0) check(false, `the page scrolls ${sideways} px sideways: ${await widest(page)}`);
     });
   }
+
+  for (const [route, selector] of [
+    ['/wildlife/', '.way-head__keys'],
+    ['/dashboard/', 'nav.phone-bar'],
+    ['/404.html', 'main .key-row'],
+  ]) {
+    await open({ name: `sideways keys on ${route}`, width: 320, look: 'light', reducedMotion: 'reduce' }, async (page, context, check) => {
+      await visit(page, route);
+      await largerText(page);
+      await pressRowArrows(page, selector, check);
+      check(await sidewaysScroll(page) === 0, `${route} scrolls outside the row`);
+    });
+  }
+
+  await open({ name: 'header keeps focus on a narrower window', width: 1280, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/history/');
+    await largerText(page);
+    await page.setViewportSize({ width: 1920, height: 800 });
+    const header = page.locator('header.app-header');
+    const help = header.locator('.app-header__links').getByRole('link', { name: 'Help', exact: true });
+    await help.focus();
+    check(await help.evaluate((link) => link === document.activeElement), 'Help did not start with focus');
+    await page.setViewportSize({ width: 820, height: 800 });
+    const more = header.getByRole('button', { name: 'More', exact: true });
+    await more.waitFor({ timeout: 5_000 });
+    check(await more.evaluate((key) => key === document.activeElement), 'focus did not move to More when Help folded into it');
+  });
 
   // The order of focus: the skip link, the header row, the page, the footer
   // and, on a phone, the bar's places last; Enter on the skip link moves

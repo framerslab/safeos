@@ -186,12 +186,13 @@ describe('the script that asks GitHub before the build', () => {
     expect(result.handed).toBe('');
   });
 
-  it('sends the workflow\'s token when it has one and never prints it', async () => {
+  it('keeps the workflow token out of requests to a different host', async () => {
     answer = json(200, { stargazers_count: 58 });
     const token = 'a-token-made-up-for-this-test';
     const result = await run({ GITHUB_TOKEN: token });
     expect(result.status).toBe(0);
-    expect(asked[0].headers.authorization).toBe(`Bearer ${token}`);
+    expect(asked).toHaveLength(1);
+    expect(asked[0].headers).not.toHaveProperty('authorization');
     expect(result.out + result.err + result.handed).not.toContain(token);
   });
 

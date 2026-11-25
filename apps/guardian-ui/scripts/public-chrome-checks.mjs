@@ -549,6 +549,18 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
     });
   }
 
+  await open({ name: 'Tab out of Menu', width: 390, height: 844, look: 'light' }, async (page) => {
+    await visit(page);
+    const key = page.locator('button.site-header__menu-key');
+    const panel = page.locator('#site-menu');
+    await key.click();
+    await panel.waitFor({ timeout: 5_000 });
+    await panel.getByRole('link').last().focus();
+    await page.keyboard.press('Tab');
+    const covered = await panel.evaluate((menu) => !menu.hidden && !menu.contains(document.activeElement));
+    expect(!covered, 'Tab leaves focus outside the open Menu');
+  });
+
   // ---------------------------------------------------------------------------
   // No page asks another host anything
   // ---------------------------------------------------------------------------
