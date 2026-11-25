@@ -219,6 +219,7 @@ With a range set the analyser uses 2,048 points (about 23 Hz a bin at 48 kHz) in
 place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
 read every pitch, as the root mean square of every bin, so a sensitivity saved
 for them means what it did.
+The old noise filter switch is gone. Devices that used it keep their pitch settings.
 
 **Scheduled Presets** on **Settings > Quiet Hours** apply on every page: the app
 checks once a minute and whenever a set time or the Scheduled Presets switch
