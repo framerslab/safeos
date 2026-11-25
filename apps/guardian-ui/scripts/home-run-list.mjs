@@ -99,7 +99,7 @@ async function prepareDashboard({ page, baseUrl }) {
   await markStart(page);
   await pose(page, 'Stop watching').waitFor({ timeout: 15 * SECOND });
   await pose(page, 'Show settings').click();
-  const tune = page.getByRole('button', { name: /Fine-Tune Settings/ });
+  const tune = page.getByRole('button', { name: /Fine-Tune Settings|Hide Fine-Tuning/ });
   const watchSettings = page.locator('#watch-settings > div').filter({ has: tune });
   await tune.click();
   const sensitivity = watchSettings.getByText('Motion Sensitivity', { exact: true })
