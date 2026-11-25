@@ -595,7 +595,7 @@ when the 288 px home box would display a label under 14 px. The source
 viewport must remain at least 320 px. The even width gives H.264 even
 dimensions at 3×. The wide recordings and posters are 1920 by 1200 native
 pixels. Watching crops a 768 by 480 CSS pixel window below the app header
-in a 768 by 544 viewport at 2.5×. Dashboard crops a 640 by 400 window of the
+in a 768 by 548 viewport at 2.5×. Dashboard crops a 640 by 400 window of the
 alert list between the watch links and the app footer in a 640 by 640
 viewport at 3×. Settings uses the full 768 by 480 viewport at 2.5×.
 

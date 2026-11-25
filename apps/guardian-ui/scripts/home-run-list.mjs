@@ -149,7 +149,8 @@ export async function placeSubject(page, recipe, view, height) {
   const anchor = recipe.anchor;
   const top = await viewingTop(page, anchor);
   if (recipe.id === 'watching' || view.size === 'wide') {
-    const cropTop = recipe.id === 'watching' ? headerBottom : 0;
+    // Leave room below the fixed header’s scroll shadow.
+    const cropTop = recipe.id === 'watching' ? headerBottom + 4 : 0;
     const target = Math.max(headerBottom + 4, cropTop + 6);
     await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.max(0, top - target));
     return cropTop;

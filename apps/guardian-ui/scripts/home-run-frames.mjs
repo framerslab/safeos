@@ -36,7 +36,7 @@ export async function testPosterEncoders(directory) {
 
 export function wideView(id) {
   if (id === 'dashboard') return { width: 640, height: 640, scale: 3 };
-  if (id === 'watching') return { width: 768, height: 544, scale: 2.5 };
+  if (id === 'watching') return { width: 768, height: 548, scale: 2.5 };
   return { width: 768, height: 480, scale: 2.5 };
 }
 
