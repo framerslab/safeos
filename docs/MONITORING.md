@@ -145,8 +145,9 @@ the pictures kept for the pet's sightings beside the frames earlier versions
 saved. The pet's card counts both. Open a picture to see its time and the
 question "Could this be {name}?". A sighting's picture shows its box and any
 close-up. Deleting the picture here also removes it from History. The sighting's
-words stay. Deleting the pet deletes its saved pictures the same way. Pictures this
-device cannot read, or cannot delete, are named in the gallery.
+words stay. Deleting the pet deletes its saved pictures the same way, and a picture of it
+that is being saved is not kept. Pictures this
+device cannot read, cannot delete, or cannot mark as exported, are named in the gallery.
 The watch links to **Open in History**, which opens History on its Local Timeline,
 also on a device that uses a server. Choosing another pet starts a new comparison
 without restarting the camera.
@@ -237,7 +238,8 @@ A Lost & Found alert plays the sounds saved under **Settings > Sounds** for
 **Lost Item Found**, beside the built-in alert sound, when the Lost & Found alert
 sound is on. The full-screen pictures ask "Could this be {name}?" and say
 "Colours and shape like {name}’s photos." They speak "Colours like your pet’s
-photos are in view." unless you saved a line of your own. With Lost & Found's
+photos are in view." unless you saved a line of your own. They take the keyboard's
+focus when they open, keep Tab on their own keys, and give focus back when they close. With Lost & Found's
 custom media on, the full-screen media takes the
 built-in sound's place: the saved sounds play and the built-in alert sound does not. The
 sounds come with each of a sighting's alerts (see **A Lost and Found sighting** below), never
@@ -371,7 +373,9 @@ picture is not dark) leaves focus on **Close**. **History → Local Timeline** l
 thumbnail, its kind, level, date and time, and **Open picture**.
 
 The pictures are kept in the `alert_picture` store of the `safeos-guardian` database
-(version 8) as JPEG Blobs, one set an alert, named by the alert's `pictureId`. No picture,
+(version 8) as JPEG Blobs, one set an alert, named by the alert's `pictureId`. A sighting's set
+names its pet, and a pet's delete leaves a `deleted-pet:` note in `clear_generation` that keeps
+out a set saved after it, until the pet is saved again or all local data is cleared. No picture,
 box or close-up goes to a server, the socket, the sync service, a log line or an error
 report, and no data URL of a picture is stored.
 

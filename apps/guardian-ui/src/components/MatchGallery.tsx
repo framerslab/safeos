@@ -64,6 +64,10 @@ const READ_FAILED = 'The saved pictures could not be read on this device.';
 const deleteFailed = (count: number): string =>
   `${count === 1 ? 'The picture' : `${count} pictures`} could not be deleted. Press Delete to try again.`;
 
+/** What an export says when its marks were refused; the pictures it could not mark stay chosen. */
+const marksFailed = (count: number): string =>
+  `${count === 1 ? 'One picture is' : `${count} pictures are`} in the file but could not be marked as exported. Export again to retry.`;
+
 /** The controls Tab reaches in an opened picture. */
 const STOPS = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -121,6 +125,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [readFailed, setReadFailed] = useState(false);
   const [undeleted, setUndeleted] = useState(0);
+  const [unmarked, setUnmarked] = useState(0);
   const [filter, setFilter] = useState<FilterType>('all');
   const [sort, setSort] = useState<SortType>('newest');
   const [openedId, setOpenedId] = useState<string | null>(null);
@@ -263,7 +268,9 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
   }, [frames, filter, sort, settings.minConfidenceForAlert]);
 
   const acknowledge = (frame: SavedPicture) => isSighting(frame)
-    ? updateCachedAlert({ id: frame.alertId, acknowledged: true, acknowledgedAt: new Date().toISOString() })
+    ? updateCachedAlert(
+      { id: frame.alertId, acknowledged: true, acknowledgedAt: new Date().toISOString() }, undefined, frame.id,
+    )
     : acknowledgeMatchFrame(frame.id);
 
   const remove = (frame: SavedPicture) => isSighting(frame)
@@ -278,6 +285,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
   /** Deletes these pictures and lists what is kept. Answers the ids of those the device would not delete. */
   const removeAll = async (pictures: SavedPicture[]): Promise<string[]> => {
     setUndeleted(0);
+    setUnmarked(0);
     leaving.current = focusIsLost() ? [] : pictures.map((frame) => frame.id);
     const kept: string[] = [];
     for (const frame of pictures) if ((await remove(frame)) === 'failed') kept.push(frame.id);
@@ -319,10 +327,16 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
     a.click();
     URL.revokeObjectURL(url);
 
-    await Promise.all([
+    const [earlierMarks, ...sightingMarks] = await Promise.all([
       markMatchFramesExported(earlier),
       ...sightings.map((frame) => updateCachedAlert({ id: frame.alertId, exportedPictureId: frame.id })),
     ]);
+    const refused = [
+      ...(earlierMarks === 'failed' ? earlier : []),
+      ...sightings.filter((_, index) => sightingMarks[index] === 'failed').map((frame) => frame.id),
+    ];
+    setUnmarked(refused.length);
+    if (refused.length > 0) setSelectedIds(new Set(refused));
     await loadFrames();
   };
 
@@ -488,6 +502,9 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
         {undeleted > 0 && !selectedFrame && (
           <p role="alert" className="mt-3 text-base text-[var(--color-steel-100)]">{deleteFailed(undeleted)}</p>
         )}
+        {unmarked > 0 && (
+          <p role="alert" className="mt-3 text-base text-[var(--color-steel-100)]">{marksFailed(unmarked)}</p>
+        )}
       </div>
       
       {readFailed && (
@@ -569,6 +586,7 @@ export function MatchGallery({ subjectId, onClose }: MatchGalleryProps) {
                         type="checkbox"
                         checked={selectedIds.has(frame.id)}
                         onChange={() => toggleSelect(frame.id)}
+                        aria-label={`Select the picture from ${new Date(frame.timestamp).toLocaleTimeString()}`}
                         className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
                         onClick={(e) => e.stopPropagation()}
                       />

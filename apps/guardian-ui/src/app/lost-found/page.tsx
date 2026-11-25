@@ -8,7 +8,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -55,13 +55,21 @@ export default function LostFoundPage() {
   } = useLostFoundStore();
   const setLostFoundChosen = useOnboardingStore((state) => state.setLostFoundChosen);
 
+  // Reads of the counts can end out of order: only the newest is shown.
+  const newestCount = useRef(0);
+  const showCounts = useCallback(async (profiles: SubjectProfileDB[], mine: number) => {
+    const counts = await countMatchFramesBySubject(profiles.map((profile) => profile.id));
+    if (mine === newestCount.current) setSavedPictures(counts);
+  }, []);
+
   // Load saved subjects from IndexedDB
   useEffect(() => {
     const loadSubjects = async () => {
+      const mine = ++newestCount.current;
       try {
         const profiles = await getAllSubjectProfiles();
         setSavedSubjects(profiles);
-        setSavedPictures(await countMatchFramesBySubject(profiles.map((profile) => profile.id)));
+        await showCounts(profiles, mine);
       } catch (error) {
         console.error('Failed to load subjects:', error);
       } finally {
@@ -69,15 +77,15 @@ export default function LostFoundPage() {
       }
     };
     loadSubjects();
-  }, [subjects]); // Reload when store subjects change
+  }, [subjects, showCounts]); // Reload when store subjects change
 
   // Read the counts again when an alert or its kept picture changes, in this tab or another.
   useEffect(() => {
     const countAgain = () => {
+      const mine = ++newestCount.current;
       getAllSubjectProfiles()
-        .then((profiles) => countMatchFramesBySubject(profiles.map((profile) => profile.id)))
-        .then(setSavedPictures)
-        .catch(() => setSavedPictures(null));
+        .then((profiles) => showCounts(profiles, mine))
+        .catch(() => { if (mine === newestCount.current) setSavedPictures(null); });
     };
     const stopAlerts = onTabMessage((message) => { if (message.type === 'alerts-changed') countAgain(); });
     const stopPictures = onKeptPicturesChanged(countAgain);
@@ -85,7 +93,7 @@ export default function LostFoundPage() {
       stopAlerts();
       stopPictures();
     };
-  }, []);
+  }, [showCounts]);
 
   // Handle subject selection
   const handleSelectSubject = (subject: SubjectProfileDB) => {

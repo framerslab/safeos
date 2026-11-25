@@ -41,6 +41,9 @@ export interface LostFoundMediaOverlayProps {
   audioFiles?: Array<{ data: string; name: string; mimeType: string }>;
 }
 
+/** The keys Tab reaches while the pictures show. */
+const STOPS = 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 // =============================================================================
 // Component
 // =============================================================================
@@ -58,6 +61,7 @@ export function LostFoundMediaOverlay({
   const [isMuted, setIsMuted] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const playerRef = useRef<CustomMediaPlayer | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
 
   // Get settings from store
   const settings = useLostFoundStore((state) => state.settings);
@@ -183,12 +187,37 @@ export function LostFoundMediaOverlay({
     // player.setVolume(isMuted ? 1 : 0)
   }, [isMuted]);
 
-  // Handle escape key
+  // The pictures take focus when they open and give it back when they close. No key of theirs takes
+  // it, so a press meant for the watch closes nothing.
+  useEffect(() => {
+    const dialog = panel.current;
+    if (!isOpen || !dialog) return;
+    const before = document.activeElement;
+    dialog.focus();
+    return () => {
+      const here = document.activeElement;
+      const held = !here || here === document.body || dialog.contains(here);
+      if (held && before instanceof HTMLElement && before.isConnected) before.focus();
+    };
+  }, [isOpen]);
+
+  // Handle escape key, and keep Tab on the pictures' own keys
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         handleClose();
+      } else if (e.key === 'Tab' && panel.current) {
+        const stops = Array.from(panel.current.querySelectorAll<HTMLElement>(STOPS));
+        const [first, last] = [stops[0], stops[stops.length - 1]];
+        const here = document.activeElement;
+        const inside = panel.current.contains(here) && here !== panel.current;
+        if (e.shiftKey ? !inside || here === first : !inside || here === last) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        }
       } else if (e.key === ' ') {
+        // A key that holds focus takes the press itself.
+        if (e.target instanceof Element && panel.current?.contains(e.target) && e.target.closest('button')) return;
         e.preventDefault();
         handlePauseToggle();
       } else if (e.key === 'ArrowRight') {
@@ -217,7 +246,9 @@ export function LostFoundMediaOverlay({
 
   return (
     <div
-      className="lost-found-media fixed inset-0 z-[9999] flex flex-col overflow-y-auto"
+      ref={panel}
+      tabIndex={-1}
+      className="lost-found-media fixed inset-0 z-[9999] flex flex-col overflow-y-auto outline-none"
       role="alertdialog"
       aria-modal="true"
       aria-label={sightingQuestion(subjectName)}
