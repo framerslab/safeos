@@ -1,57 +1,66 @@
 {
   "schemaVersion": 1,
-  "commit": "3c30de17f895dad1a289468de709d1d01ec88d5e",
-  "run": "https://github.com/framerslab/safeos/actions/runs/45425627605",
-  "inputDigest": "1ddf3b31bf2eb2267ea6853e0538b530bac287b0a227e13b364a3bbc3fff6c4a",
+  "commit": "7206a290a6c8f2791cb3bf54d5d9f1f107c970aa",
+  "run": "https://github.com/framerslab/safeos/actions/runs/45543824306",
+  "inputDigest": "bf1d0ecaa71b269c36d7be0b641bb1f55cd28237a8de7eb5f93d003d10872956",
   "inputs": {
     ".github/workflows/pictures.yml#record-home-runs": "5f18cbe7c55be3c92fb9c5e617d1d532d6fd3e28",
     "apps/guardian-ui/next.config.js": "99fd32331c349da96aea4e32dfb61f4a5c1f8fc5",
     "apps/guardian-ui/package-lock.json": "18247d9e41b40c6b55f5997429be331275f601a5",
-    "apps/guardian-ui/package.json": "97396c46b3f8199a4c4ed9b5442c3d7adbbb7ce6",
+    "apps/guardian-ui/package.json": "fb0876cce8813b5fc463c3b8c3de00767cdc302c",
     "apps/guardian-ui/postcss.config.js": "12a703d900da8159c30e75acbd2c4d87ae177f62",
     "apps/guardian-ui/public/home/sample-clip.captions.vtt": "5bd5fd7e15d5e606348caa50183894542a4beaec",
     "apps/guardian-ui/public/home/sample-clip.descriptions.vtt": "5cc13ab76dd9d6e0e5d6533045e07fe6799ef2db",
     "apps/guardian-ui/public/home/sample-clip.json": "56ba674a51e44abb5829a58f03b8085284677db7",
     "apps/guardian-ui/public/home/sample-clip.mp4": "8eea7180768cd8b18072eb55b5946875e49969f5",
     "apps/guardian-ui/public/logo.svg": "1393fff0a2489daa9ec0a754dd53e2b5c1f46318",
-    "apps/guardian-ui/public/sw.js": "44508c4f55aaf24214f9b0363d82905e9fe9e937",
-    "apps/guardian-ui/scripts/generate-offline-manifest.mjs": "d9b4924bbacf9aa7143a4a8728275f03abc0a734",
+    "apps/guardian-ui/public/sw.js": "979a0f8fefec264eb356d1609c885375e41bac98",
+    "apps/guardian-ui/scripts/generate-offline-manifest.mjs": "9c049ef1790e9ec62cf1ea6052aa8784b4091f99",
     "apps/guardian-ui/scripts/home-capture-settings.json": "a8eb81bac091e53b173a4c1d729cd138b06fabe8",
-    "apps/guardian-ui/scripts/home-run-frames.mjs": "9ad2e4eb0e329b37922f548b5b54291c5658f534",
-    "apps/guardian-ui/scripts/home-run-inputs.mjs": "49b9b469232b1cda78b3b862a574d976c2ba6b52",
-    "apps/guardian-ui/scripts/home-run-list.mjs": "45bd4fe1c43ccd3ac8a2e312e208bc231d11e0f7",
-    "apps/guardian-ui/scripts/home-run-seed.mjs": "4980a5a7c63cb85c0f7a3b8496e8a96c2a76ad23",
-    "apps/guardian-ui/scripts/home-runs.mjs": "4fa240dd762f70a2555b72b04d33ab8e7e352568",
+    "apps/guardian-ui/scripts/home-run-frames.mjs": "948aab2aeff993ac427f8639833b1c408486edda",
+    "apps/guardian-ui/scripts/home-run-inputs.mjs": "dee1064c7c5265c4b5f6b31225a214723ba48538",
+    "apps/guardian-ui/scripts/home-run-list.mjs": "7a496e9bc27630b70586092511cd85449e1bd08b",
+    "apps/guardian-ui/scripts/home-run-seed.mjs": "5238552335fb64610e0add934bc12e0eff324018",
+    "apps/guardian-ui/scripts/home-runs.mjs": "5e617b1a801fb1a52c995c14e07ed8da66247a4d",
     "apps/guardian-ui/scripts/home-wording.cjs": "cfa8293ad63b8ed13ff9fbcd8d1fb4aa5c70f764",
+    "apps/guardian-ui/scripts/lost-found-walk.mjs": "2bee934bca444cc76f2bc92e39ef473258f6ddc1",
     "apps/guardian-ui/scripts/read-github-stars.mjs": "48b1db98d736a6caf5297b825f9c85d5a142bb8e",
     "apps/guardian-ui/src/app/dashboard/layout.tsx": "38fc66c8f9c4706135abf72af9e1aca162564567",
     "apps/guardian-ui/src/app/dashboard/page.tsx": "acaf7048cba8c2bab8a3a676c7cf64dc732f0053",
-    "apps/guardian-ui/src/app/globals.css": "7043bb8e892fe2170260671096d54419339dfd39",
-    "apps/guardian-ui/src/app/layout.tsx": "501d62f880a95479d9ce21b37354b8688b370737",
+    "apps/guardian-ui/src/app/globals.css": "6c5f1e65c2354f15a09a41391ac42a93b95a7a94",
+    "apps/guardian-ui/src/app/layout.tsx": "3bc3708db4bb2c77ce5b9218aa16fff6537cdad1",
     "apps/guardian-ui/src/app/monitor/layout.tsx": "5beafd70b1186aded21bad1e2caab62cc6943ba2",
-    "apps/guardian-ui/src/app/monitor/page.tsx": "ec3907d61b49b811a2df62ae24fba7283fa0d448",
+    "apps/guardian-ui/src/app/monitor/page.tsx": "bfcb3b473f372836134e8e0d67f5881cea2c7f3e",
     "apps/guardian-ui/src/app/settings/layout.tsx": "980fbce4ff2e77a935a397b702f351d4633dbf3f",
     "apps/guardian-ui/src/app/settings/page.tsx": "1d9cb66a8b50927786923ac0a937434dcd0ef0af",
-    "apps/guardian-ui/src/components/AlertPanel.tsx": "23b84cdda8f2ca39fd8a9760a3fc295725763098",
+    "apps/guardian-ui/src/components/AlertPanel.tsx": "d1983b215f20ecbb4b881407f6cbb5f42de29788",
     "apps/guardian-ui/src/components/BackendSettings.tsx": "f09378fb800b5ecc622ae66f0a388038773e5254",
-    "apps/guardian-ui/src/components/CameraFeed.tsx": "94f8f2f6713de3ed87c58401816013c395832c1b",
+    "apps/guardian-ui/src/components/CameraFeed.tsx": "54bd3dd9cfd804902f7f5701db7a62670f0f90ea",
     "apps/guardian-ui/src/components/CameraPicker.tsx": "feac17ec3fb0428308570a62a232fb68055a068e",
     "apps/guardian-ui/src/components/ErrorBoundary.tsx": "6ad44a8bb148a483879cbcfc10d4df2a636e1668",
     "apps/guardian-ui/src/components/KeyRow.tsx": "8e62e561c721a252c90661fa932436bf7cdf9704",
     "apps/guardian-ui/src/components/KeyboardShortcutsModal.tsx": "0fc99a3764f320916f0a7bd52bd8fda7ded911ea",
     "apps/guardian-ui/src/components/KeyboardShortcutsProvider.tsx": "0fd75fa64611f79e9fea9cbad5bee08f8a803cdd",
-    "apps/guardian-ui/src/components/LostFoundMediaOverlay.tsx": "dbeccffbe0fab84b5a1e79d57f61809ff26bde40",
+    "apps/guardian-ui/src/components/LostFoundMediaOverlay.tsx": "57f0e4e4dbd4ee776a9e21699fb18a5e46b21c44",
     "apps/guardian-ui/src/components/Providers.tsx": "544d2dd1798442a030c3d60728bb769a028a4f57",
     "apps/guardian-ui/src/components/StatusBanner.tsx": "774062a5f7d2a5aab4b5c966773c19b08d98a34e",
     "apps/guardian-ui/src/components/ThemeProvider.tsx": "93895feb1b8dceae5e9caa76415522d250b953c3",
     "apps/guardian-ui/src/components/Toast.tsx": "1834250e36fe40962d8b1e481eb7c0c1c9a82aab",
+    "apps/guardian-ui/src/components/alert-pictures/AlertPicturesGroup.tsx": "780ff6b336ba2aea4516e5c230ad4b0e6af38222",
+    "apps/guardian-ui/src/components/alert-pictures/Glyphs.tsx": "cf6398fe64c63ab9032933befa465d3282a4f5e3",
+    "apps/guardian-ui/src/components/alert-pictures/KeyRow.tsx": "0778453792a2555084d9bbe99d4d04ec4170a421",
+    "apps/guardian-ui/src/components/alert-pictures/ListLine.tsx": "c959137ddb293ca8816c9a9f58b8ec6058f34c60",
+    "apps/guardian-ui/src/components/alert-pictures/LiveBox.tsx": "86f315fa76422664274eff674911ddb7009f95f8",
+    "apps/guardian-ui/src/components/alert-pictures/PictureBlock.tsx": "d5d40282034301dae2f0ea065b7a1361eb15a9ff",
+    "apps/guardian-ui/src/components/alert-pictures/PictureDialog.tsx": "fde627c04a5319ff7d49e0b43c919b1c4a04823e",
+    "apps/guardian-ui/src/components/alert-pictures/PicturesNotice.tsx": "4e9f6fd6f7ea73cabba904bfaa9f3dffad320a33",
     "apps/guardian-ui/src/components/app/AppHeader.tsx": "e5ea79264d1d074d6467f0c13ac2e48cc56fdec7",
     "apps/guardian-ui/src/components/app/NewAlertsCount.tsx": "e01033d8747cad00b0227de4f3eab0240723189b",
     "apps/guardian-ui/src/components/app/PhoneBar.tsx": "7f9ed7f71d84a3a85a85b5ae48dcd220cefbd780",
     "apps/guardian-ui/src/components/dashboard/Dashboard.tsx": "2252361b751c6f98ed91ce5b0bdadad4e7b7a567",
     "apps/guardian-ui/src/components/dashboard/Drawn.tsx": "546f1395fd88afa918c5d52e5a2b63de9f529384",
     "apps/guardian-ui/src/components/dashboard/OtherTabDialog.tsx": "7f3dfda88ff24a89459b4c1435400dc859f9873b",
-    "apps/guardian-ui/src/components/dashboard/SinceYouLastLooked.tsx": "485ac7f62fd2ade4d1ccb56912e700c60aac01cc",
+    "apps/guardian-ui/src/components/dashboard/SinceYouLastLooked.tsx": "7c544459a71f6cd6295b1e612464f3d2138ce037",
     "apps/guardian-ui/src/components/dashboard/WatchState.tsx": "3113c5bb71f61dcfb08fe63772e80a31c5ba3c86",
     "apps/guardian-ui/src/components/dashboard/WaysToWatch.tsx": "9dcb6727c58ff206f2415f49269ce8d72544cc69",
     "apps/guardian-ui/src/components/home/Brand.tsx": "a3b0831ca6fa5dde5c14bda7b9f2af78137650dc",
@@ -59,10 +68,10 @@
     "apps/guardian-ui/src/components/icons/index.tsx": "99b6cba5c9746f6439496c6eca12c89efd72ab7c",
     "apps/guardian-ui/src/components/layout/SiteShell.tsx": "e5f39e770af8635c36ae9288ee7bc4f51dd764db",
     "apps/guardian-ui/src/components/layout/index.tsx": "c276b18e5c62fcd10d2ae546f1d853986909c0e7",
-    "apps/guardian-ui/src/components/monitor/ExpandableSection.tsx": "684cfc8a2bbe0c62d81ddf4b4ddfa5ed78be9f88",
-    "apps/guardian-ui/src/components/monitor/InlineSettingsPanel.tsx": "c8d36ed74c2ef3ca684cd1533c7d9cf6d0ed397d",
+    "apps/guardian-ui/src/components/monitor/ExpandableSection.tsx": "a126f05007492c0f652114ef0dbc834f122dbebc",
+    "apps/guardian-ui/src/components/monitor/InlineSettingsPanel.tsx": "a27ddaaf66c364480b1f8fe9b736204cf4d23524",
     "apps/guardian-ui/src/components/monitor/Tooltip.tsx": "419d61b2e06d51857de7656b0f11f813f20f6f02",
-    "apps/guardian-ui/src/components/monitor/WatchFor.tsx": "c6cfcd3e6e4814db5c67a80144ec7a823eff28b6",
+    "apps/guardian-ui/src/components/monitor/WatchFor.tsx": "dd0817603e9c5370d6abe183029cebc14b67fa9c",
     "apps/guardian-ui/src/components/monitor/index.ts": "78bd6085a434af9d98fc0872c2b469faae27973d",
     "apps/guardian-ui/src/components/settings/Group.tsx": "bfa8af1906e86cd26235017011e863a734e8fd43",
     "apps/guardian-ui/src/components/settings/LinkRow.tsx": "8d3485be85202a64bc439aaae8fd9aaf0d717572",
@@ -84,36 +93,44 @@
     "apps/guardian-ui/src/components/watch/Glyphs.tsx": "07fc2f885899e201509fa116c981bbacd28c51af",
     "apps/guardian-ui/src/components/watch/Meters.tsx": "4dcd9a906d4816703e39d3c00aa9062b119748b3",
     "apps/guardian-ui/src/components/watch/MuteAlerts.tsx": "b394234142771925482d4aca25d4dfef9a99645b",
-    "apps/guardian-ui/src/components/watch/SettingsFold.tsx": "59727c5c7e70b5158d4c72ef4fc0c4fb6f1cd317",
+    "apps/guardian-ui/src/components/watch/SettingsFold.tsx": "6f7ea843617dd6a2728d9cb532a536e15cd3422d",
     "apps/guardian-ui/src/components/watch/WatchFrame.tsx": "3e4a41235a6c1506d8982d556f69f6731fb2173c",
     "apps/guardian-ui/src/contexts/BackendStatusContext.tsx": "14b66f815d21433dee7e3d195e7a1630617cd97f",
-    "apps/guardian-ui/src/lib/alert-event.ts": "d314c4b110ef4e3422a9e0db463d2ba54462360f",
-    "apps/guardian-ui/src/lib/alert-groups.ts": "1d03b24b5454a4235cfc04e44361a88cbbcaf2fa",
+    "apps/guardian-ui/src/lib/alert-event.ts": "c4090e45ee7a1d0e3b335e35654bc9b7625d5ff8",
+    "apps/guardian-ui/src/lib/alert-groups.ts": "24a70054509f490ea95699fe079d9d102ce54223",
     "apps/guardian-ui/src/lib/alert-id.ts": "19b03187fc21009b69427d560feb919ff70f8984",
+    "apps/guardian-ui/src/lib/alert-pictures/capture.ts": "08bf8f9224fe86ffc8a9bb908e69dacb96e13d18",
+    "apps/guardian-ui/src/lib/alert-pictures/channel.ts": "8302237299c0e6b98f2c12100968e71d61a9353a",
+    "apps/guardian-ui/src/lib/alert-pictures/keeper.ts": "4b226f5a4bab824511c215903775f22de1a4fe37",
+    "apps/guardian-ui/src/lib/alert-pictures/opened.ts": "317e33431cdf0394ce25d7892a1d0e524bce6a4b",
+    "apps/guardian-ui/src/lib/alert-pictures/pet-photo.ts": "ec5c01de973823a07820ca317e2a6f33ace2e9bf",
+    "apps/guardian-ui/src/lib/alert-pictures/rules.ts": "cf73451c838df2cff405b09b129ebfe7fad1c1ac",
+    "apps/guardian-ui/src/lib/alert-pictures/words.ts": "ea46f783047f8957067bc71d107e4b5fe3459f6e",
     "apps/guardian-ui/src/lib/animal-detection.ts": "42f231bf9e0db5ff87d870f31bc4a5cfaeabeb94",
     "apps/guardian-ui/src/lib/animal-kinds.ts": "7b77673ce6a058038dc08b12d5a9528a339610b2",
-    "apps/guardian-ui/src/lib/app-routes.ts": "33ed9c746fc3c0282e3d2bd9f1455f6c69aeaf42",
+    "apps/guardian-ui/src/lib/app-routes.ts": "7d0dc8dd872b7ae71c75a8ada5adb7252c3be3b3",
     "apps/guardian-ui/src/lib/audio-levels.ts": "490e403805c62bfb544aa384dd7504819831cb66",
     "apps/guardian-ui/src/lib/browser-asks.ts": "de1119900141339ad7ed922653218eb031b9c848",
-    "apps/guardian-ui/src/lib/browser-notification.ts": "08798d2380bac7a41b5c1597393be1a3fa490347",
+    "apps/guardian-ui/src/lib/browser-notification.ts": "d7e30ccd49656488d7308f1a961156137e3ad57a",
     "apps/guardian-ui/src/lib/camera-constraints.ts": "cc73d282a0f0d9833bc5497b1fb63da1ae17b93c",
     "apps/guardian-ui/src/lib/camera-failure.ts": "4175a5a71a017740e7c3ff27b1f53b72f9e8301f",
     "apps/guardian-ui/src/lib/camera-handoff.ts": "a15da41ed3928f1f308fdc4335e8ae532adf33d4",
-    "apps/guardian-ui/src/lib/client-db.ts": "6ed4e8a387ecbde8a1af2be7686f85293c0272a8",
+    "apps/guardian-ui/src/lib/client-db.ts": "4b04db4fb6fb0641887a5054be4274e62926c3ec",
     "apps/guardian-ui/src/lib/clock-time.ts": "ac288bb0ddde4af21ad6727649f4080b1270be3a",
     "apps/guardian-ui/src/lib/custom-media-player.ts": "5a271cbf96d000754eca845727bff5a0ad304c77",
     "apps/guardian-ui/src/lib/custom-sounds-db.ts": "84ae6fabf0fb056cd36a59fb850a12c6f2b2b490",
     "apps/guardian-ui/src/lib/detection-model-facts.ts": "57da03c22280c25dcade8f7de667803ad21333e3",
     "apps/guardian-ui/src/lib/detection-model.ts": "9bfa630d1789859ebb0d9e538eef2da6dc00f6ef",
-    "apps/guardian-ui/src/lib/device-alerts.tsx": "87da4609c077543bf29a69dca2528ad732d91a94",
+    "apps/guardian-ui/src/lib/device-alerts.tsx": "9e4d3306a44bafc7cfc6a3ae572fd2e66db54b7f",
     "apps/guardian-ui/src/lib/env.ts": "111cd82851756fde76fe1df959fc8234f56eda6d",
     "apps/guardian-ui/src/lib/github-stars.ts": "364da6d9a0f23bccc0d2f5461b5e8a1a0324916e",
     "apps/guardian-ui/src/lib/history-seen.ts": "ba6d273081a45d4873a1f897fe894cfd2e7cc566",
     "apps/guardian-ui/src/lib/keyboard-shortcuts.ts": "d8a64e03e198da341eb1c46128dddb8238b00b1c",
-    "apps/guardian-ui/src/lib/local-alert-engine.ts": "2113020cad43fd87c6f499410bb25b531889ff3e",
-    "apps/guardian-ui/src/lib/local-data-generation.ts": "cfe6c1ae2dbc82796b47e49ebc9e71879221e934",
-    "apps/guardian-ui/src/lib/local-data.ts": "0f95ce75fd6f7801a95ce8d040fc1d5c0a75c0fb",
+    "apps/guardian-ui/src/lib/local-alert-engine.ts": "f8e696db736da3f6011806d906a0638f4c4a16bb",
+    "apps/guardian-ui/src/lib/local-data-generation.ts": "0fbd19588fdf44ac8fdb5585223b74b9922f5745",
+    "apps/guardian-ui/src/lib/local-data.ts": "8f65bfd16e7bb78d65d4b0858d39d5dce0f08bfd",
     "apps/guardian-ui/src/lib/look-colours.ts": "8b8b88c8c0438793600bee37f5722a3f33adabf1",
+    "apps/guardian-ui/src/lib/lost-found-words.ts": "217a2db3a1db3e03ed09887b3426862e1ecfff26",
     "apps/guardian-ui/src/lib/model-on-device.ts": "cf4cc0235c7df2ab7d397c95c76b02d800df812c",
     "apps/guardian-ui/src/lib/motion-detection.ts": "11b3bc160e544b8062ec119afadc3b9ac0878357",
     "apps/guardian-ui/src/lib/name-on-device.ts": "567df9fdc1a9abce468d30c93f1ad1f9ca36bad8",
@@ -121,10 +138,10 @@
     "apps/guardian-ui/src/lib/needs-script.ts": "145e1b856268ca7628e4d53a26f5e40ad7315520",
     "apps/guardian-ui/src/lib/next-way.ts": "8ef00d5c66ef9ac5858189d7783b6181070fc3d8",
     "apps/guardian-ui/src/lib/notification-choices.ts": "e627dd261e51acf4f9369c3af5484a5209cf163f",
-    "apps/guardian-ui/src/lib/notification-manager.ts": "05155ac2e99accd04f485e5b99dedfadd5df1bb0",
+    "apps/guardian-ui/src/lib/notification-manager.ts": "70b66ce008e1427a79c2106b499867fed26b8cb2",
     "apps/guardian-ui/src/lib/page-metadata.ts": "9f4c317e674a9a78a77e4d2c8ec68fa0da321766",
     "apps/guardian-ui/src/lib/pet-photo-limits.ts": "ce8ebd521646b8b81a3dc273e5df0a69f5a51db0",
-    "apps/guardian-ui/src/lib/pixel-detection.ts": "1324e4661fa88ecbc279da7c1b77bedb803a6327",
+    "apps/guardian-ui/src/lib/pixel-detection.ts": "75e1ee061176ca185fd290eb5c7c0280030ee4a4",
     "apps/guardian-ui/src/lib/schedule-manager.ts": "9aa0e2ea573366fd6eee41859e9843bdc3c12cb2",
     "apps/guardian-ui/src/lib/server-model-status.ts": "0d29f3c3af46faf0919b2c03a8220e4d8f7f6971",
     "apps/guardian-ui/src/lib/setting-names.ts": "b08a7a757f6b18b85f9a40f5b8401bff437ca13f",
@@ -138,36 +155,38 @@
     "apps/guardian-ui/src/lib/start-watch.ts": "d085907f4eff8ee8dd2dc78cb1bf89950127f851",
     "apps/guardian-ui/src/lib/stillness-bounds.ts": "21f28076e54abfb3092ac614ece3855f1338c843",
     "apps/guardian-ui/src/lib/storage-full.ts": "13b4dbd272eeeb4249539f4fb4d902b8bb493fcd",
-    "apps/guardian-ui/src/lib/subject-matcher.ts": "de9b61f875d680c605c7ae06ea6922aaa9b26bf3",
-    "apps/guardian-ui/src/lib/tab-channel.ts": "b81712c86ee0dcd07414e039a9fa4b59720ef669",
-    "apps/guardian-ui/src/lib/theme-manager.ts": "bb9dcbc9f5bd7f497eaf640fd2544405e808ab2b",
+    "apps/guardian-ui/src/lib/subject-matcher.ts": "590ad5f6bbfb1ebb4f555adeb076f6b5821d720f",
+    "apps/guardian-ui/src/lib/tab-channel.ts": "3292a20b9e39ade3a3cd727a93dd60d21e0200a0",
+    "apps/guardian-ui/src/lib/theme-manager.ts": "546792c86844d972b6cdae02e50e47e7f9b0c90d",
     "apps/guardian-ui/src/lib/use-setup-done.ts": "24535d9a7ba79dcce16fb3e1f6d2558792d90e44",
     "apps/guardian-ui/src/lib/visit-store.ts": "5dca0e51e50f71a9fb5e22871ba0b08d93d2cb65",
     "apps/guardian-ui/src/lib/visitor-routes.ts": "1783c5106a23c0aec372df18913cc21407224f39",
     "apps/guardian-ui/src/lib/visual-fingerprint.ts": "9d1e44e88a554ed88070762e01522149e9af63fc",
-    "apps/guardian-ui/src/lib/watch-alert-words.ts": "4c4a8d14b08498b622a12769a0af03153818041a",
     "apps/guardian-ui/src/lib/watch-meters.ts": "c6db220ad6e3ee81353a29a8606cc5b73427dc87",
     "apps/guardian-ui/src/lib/watch-session.ts": "888120ed3ff2f59e4b30bc5a4a5290c996ddcb3b",
     "apps/guardian-ui/src/lib/watch-sound.ts": "106f7bde23dc455c808c5273db16fe83793a8b6d",
     "apps/guardian-ui/src/lib/watch-view.ts": "faac6edbc89381ad961349e8c313e87c0911df38",
     "apps/guardian-ui/src/lib/websocket.ts": "2b64830c6b16cd104a69e2ffb88a7608fa8bf4b7",
+    "apps/guardian-ui/src/stores/alert-pictures-store.ts": "1ede5a07e16edcf631ca511be1d408c358afb87c",
     "apps/guardian-ui/src/stores/animal-alert-store.ts": "48d87d2a213299eb20f0b875a9e1a7a510f8eef9",
     "apps/guardian-ui/src/stores/auth-store.ts": "95e1d92f69f398a8adde508fc4342f9605c83ef0",
     "apps/guardian-ui/src/stores/camera-store.ts": "104bd39a62355ab33a3ad70b646c9f8d7faa30b4",
-    "apps/guardian-ui/src/stores/lost-found-store.ts": "a5429eada67542154b6e314a5defb399edb0f4f0",
-    "apps/guardian-ui/src/stores/monitoring-store.ts": "395436021151e9ad1204a7421de42bdaf3337e08",
+    "apps/guardian-ui/src/stores/lost-found-store.ts": "10416758110d61c5cd3570d6e6fe97b28f648fc0",
+    "apps/guardian-ui/src/stores/monitoring-store.ts": "09a6b7aee69325142b5dd2a5fe00bb797eda6ff8",
     "apps/guardian-ui/src/stores/onboarding-store.ts": "28c2b4e3cced34b13c9d3822fd8eda3ffed4ddb5",
     "apps/guardian-ui/src/stores/security-store.ts": "3c6a037efeb713455b74cf0e9ef8f481690c1251",
     "apps/guardian-ui/src/stores/settings-store.ts": "d8abfe48928ee1f40828e7d2b7c308d63b6bb3a1",
     "apps/guardian-ui/src/stores/watch-settings.ts": "7580ad7794d48260f87fe6c1fdd19a182c1ccba5",
+    "apps/guardian-ui/src/styles/alert-pictures.css": "18f269871e7e65fb34cd25b0e988597959669aa1",
     "apps/guardian-ui/src/styles/app.css": "4edec224c211908319f70884bcbc041fc8223501",
     "apps/guardian-ui/src/styles/design-system.css": "77935dde98649c0d82b2f28fdcdf7bfcdcdae42f",
     "apps/guardian-ui/src/styles/keys.css": "cd800f4f881efdc24de1725c03100eec3894d755",
     "apps/guardian-ui/src/styles/settings.css": "faf3537000841a03968865bf9f07ac796e347ccf",
     "apps/guardian-ui/src/styles/touch.css": "b7974008a9345bad3fd019cd872098f585185db5",
-    "apps/guardian-ui/src/styles/visitor.css": "631ed373db103439462373ece68de1e5389abd79",
+    "apps/guardian-ui/src/styles/visitor.css": "a52c6ec97f1799d194026a4243582d7c456b8bef",
     "apps/guardian-ui/src/styles/watch-for.css": "9fad2970273d02274f1d703b8786eb533e8088ed",
-    "apps/guardian-ui/src/styles/watch.css": "68f671be96a3d0c177e2aff7aadc4e32714cbd27",
+    "apps/guardian-ui/src/styles/watch.css": "84fc1941a05e42f6287de07ead169144b624e8fd",
+    "apps/guardian-ui/tailwind.config.js": "a7ed29daa3c5cf6ea507f97dcc7dc22502a957dd",
     "apps/guardian-ui/tsconfig.json": "c1334095f876a408c10f2357faaced969ec090ab"
   },
   "browser": "143.0.7499.4",
@@ -222,1678 +241,14 @@
   "omitted": [
     {
       "id": "alert",
-      "reason": "Requires saved alert pictures and the live box on the Motion and sound page."
+      "reason": "Requires a garden recording with a kept movement picture and its close-up."
     },
     {
       "id": "lost-found",
-      "reason": "Requires the sample photos, the saved pet’s fingerprint and the possible sighting on the watch."
+      "reason": "Requires a recording of a saved pet’s fingerprint and its possible sighting."
     }
   ],
   "runs": [
-    {
-      "id": "dashboard",
-      "key": "Dashboard",
-      "route": "/dashboard/",
-      "state": "B",
-      "clip": "home/sample-clip.mp4",
-      "seconds": 6,
-      "description": "The dashboard after a watch on the kitten clip: its new alerts since you last looked, and the four ways to watch.",
-      "longDescription": [
-        "0–2 seconds. The dashboard shows the four ways to watch after a watch on the kitten clip.",
-        "2–4 seconds. The page scrolls to Since you last looked.",
-        "4–6 seconds. The new movement and sound alerts remain on screen."
-      ],
-      "eventAt": 3.5397000312805176,
-      "posterAt": 1,
-      "visibleWords": [
-        "Motion",
-        "and",
-        "sound",
-        "Alerts",
-        "on",
-        "movement",
-        "or",
-        "sound.",
-        "Lost",
-        "and",
-        "Found",
-        "Watches",
-        "for",
-        "your",
-        "pet’s",
-        "colours.",
-        "People",
-        "Alerts",
-        "when",
-        "someone",
-        "is",
-        "in",
-        "view.",
-        "Wildlife"
-      ],
-      "variants": {
-        "square": {
-          "dark": {
-            "video": {
-              "path": "home/runs/dashboard-square-dark.mp4",
-              "kind": "video",
-              "format": "mp4",
-              "codec": "h264",
-              "width": 1002,
-              "height": 1002,
-              "seconds": 6,
-              "bytes": 124454,
-              "sha256": "6da2153091d54a755e8589ce95dbb283d738bb2bb2434b008321cfe8ee4b71cd"
-            },
-            "poster": {
-              "webp": {
-                "path": "home/runs/dashboard-square-dark.webp",
-                "kind": "poster",
-                "format": "webp",
-                "width": 1002,
-                "height": 1002,
-                "bytes": 37660,
-                "sha256": "ef69671e45360549f8b93265139ff80edffc28df8593b23874c9f89453fcc410"
-              },
-              "avif": {
-                "path": "home/runs/dashboard-square-dark.avif",
-                "kind": "poster",
-                "format": "avif",
-                "width": 1002,
-                "height": 1002,
-                "bytes": 43735,
-                "sha256": "35887b9414fbaa89e270be84c681b99018c2a068b51ed6d5a07211749808f48a"
-              }
-            },
-            "viewport": {
-              "width": 334,
-              "height": 844
-            },
-            "crop": {
-              "x": 0,
-              "y": 446,
-              "width": 334,
-              "height": 334
-            },
-            "scale": 3,
-            "eventAt": 3.5397000312805176,
-            "posterAt": 1,
-            "words": [
-              {
-                "word": "Motion",
-                "size": 20,
-                "x": 76,
-                "y": 16,
-                "width": 68.5625,
-                "height": 26
-              },
-              {
-                "word": "and",
-                "size": 20,
-                "x": 149.625,
-                "y": 16,
-                "width": 36.65625,
-                "height": 26
-              },
-              {
-                "word": "sound",
-                "size": 20,
-                "x": 191.359375,
-                "y": 16,
-                "width": 60.125,
-                "height": 26
-              },
-              {
-                "word": "Alerts",
-                "size": 16.25,
-                "x": 60,
-                "y": 46,
-                "width": 44.734375,
-                "height": 20
-              },
-              {
-                "word": "on",
-                "size": 16.25,
-                "x": 109.296875,
-                "y": 46,
-                "width": 19.359375,
-                "height": 20
-              },
-              {
-                "word": "movement",
-                "size": 16.25,
-                "x": 133.203125,
-                "y": 46,
-                "width": 80.59375,
-                "height": 20
-              },
-              {
-                "word": "or",
-                "size": 16.25,
-                "x": 218.34375,
-                "y": 46,
-                "width": 15.890625,
-                "height": 20
-              },
-              {
-                "word": "sound.",
-                "size": 16.25,
-                "x": 60,
-                "y": 70,
-                "width": 52.171875,
-                "height": 20
-              },
-              {
-                "word": "Lost",
-                "size": 20,
-                "x": 60,
-                "y": 111,
-                "width": 42.484375,
-                "height": 26
-              },
-              {
-                "word": "and",
-                "size": 20,
-                "x": 107.546875,
-                "y": 111,
-                "width": 36.65625,
-                "height": 26
-              },
-              {
-                "word": "Found",
-                "size": 20,
-                "x": 149.265625,
-                "y": 111,
-                "width": 60.265625,
-                "height": 26
-              },
-              {
-                "word": "Watches",
-                "size": 16.25,
-                "x": 60,
-                "y": 141,
-                "width": 66.421875,
-                "height": 20
-              },
-              {
-                "word": "for",
-                "size": 16.25,
-                "x": 130.96875,
-                "y": 141,
-                "width": 21.421875,
-                "height": 20
-              },
-              {
-                "word": "your",
-                "size": 16.25,
-                "x": 156.9375,
-                "y": 141,
-                "width": 34.3125,
-                "height": 20
-              },
-              {
-                "word": "pet’s",
-                "size": 16.25,
-                "x": 195.796875,
-                "y": 141,
-                "width": 36.328125,
-                "height": 20
-              },
-              {
-                "word": "colours.",
-                "size": 16.25,
-                "x": 60,
-                "y": 165,
-                "width": 61.703125,
-                "height": 20
-              },
-              {
-                "word": "People",
-                "size": 20,
-                "x": 60,
-                "y": 206,
-                "width": 65.25,
-                "height": 26
-              },
-              {
-                "word": "Alerts",
-                "size": 16.25,
-                "x": 60,
-                "y": 236,
-                "width": 44.734375,
-                "height": 20
-              },
-              {
-                "word": "when",
-                "size": 16.25,
-                "x": 109.296875,
-                "y": 236,
-                "width": 41.984375,
-                "height": 20
-              },
-              {
-                "word": "someone",
-                "size": 16.25,
-                "x": 155.84375,
-                "y": 236,
-                "width": 70.859375,
-                "height": 20
-              },
-              {
-                "word": "is",
-                "size": 16.25,
-                "x": 231.265625,
-                "y": 236,
-                "width": 12.515625,
-                "height": 20
-              },
-              {
-                "word": "in",
-                "size": 16.25,
-                "x": 248.34375,
-                "y": 236,
-                "width": 13.546875,
-                "height": 20
-              },
-              {
-                "word": "view.",
-                "size": 16.25,
-                "x": 60,
-                "y": 260,
-                "width": 39.03125,
-                "height": 20
-              },
-              {
-                "word": "Wildlife",
-                "size": 20,
-                "x": 60,
-                "y": 301,
-                "width": 71.953125,
-                "height": 26
-              }
-            ],
-            "watchEvents": [
-              {
-                "kind": "audio",
-                "at": "2026-11-24T15:31:10.869Z",
-                "clipAt": 6.666901
-              },
-              {
-                "kind": "motion",
-                "at": "2026-11-24T15:31:30.069Z",
-                "clipAt": 25.866702
-              }
-            ],
-            "notifications": [
-              {
-                "path": "service-worker",
-                "title": "Sound alert",
-                "body": "Medium, 3:31:10 PM."
-              },
-              {
-                "path": "service-worker",
-                "title": "Motion alert",
-                "body": "Medium, 3:31:30 PM."
-              }
-            ]
-          },
-          "light": {
-            "video": {
-              "path": "home/runs/dashboard-square-light.mp4",
-              "kind": "video",
-              "format": "mp4",
-              "codec": "h264",
-              "width": 1002,
-              "height": 1002,
-              "seconds": 6,
-              "bytes": 123962,
-              "sha256": "f880453cd8cc798414097193df80803341d30c50259be0f7b9f0afbdc098f2da"
-            },
-            "poster": {
-              "webp": {
-                "path": "home/runs/dashboard-square-light.webp",
-                "kind": "poster",
-                "format": "webp",
-                "width": 1002,
-                "height": 1002,
-                "bytes": 36666,
-                "sha256": "d19c055f553222192a8609f27bd87444e6f388e533c3dfac46fbdf2ed974f01f"
-              },
-              "avif": {
-                "path": "home/runs/dashboard-square-light.avif",
-                "kind": "poster",
-                "format": "avif",
-                "width": 1002,
-                "height": 1002,
-                "bytes": 45579,
-                "sha256": "4884e473bd96acf75c19419b736fef61536bd2ec0e322bb4c626590d3d94a45a"
-              }
-            },
-            "viewport": {
-              "width": 334,
-              "height": 844
-            },
-            "crop": {
-              "x": 0,
-              "y": 446,
-              "width": 334,
-              "height": 334
-            },
-            "scale": 3,
-            "eventAt": 3.53439998626709,
-            "posterAt": 1,
-            "words": [
-              {
-                "word": "Motion",
-                "size": 20,
-                "x": 76,
-                "y": 16,
-                "width": 68.5625,
-                "height": 26
-              },
-              {
-                "word": "and",
-                "size": 20,
-                "x": 149.625,
-                "y": 16,
-                "width": 36.65625,
-                "height": 26
-              },
-              {
-                "word": "sound",
-                "size": 20,
-                "x": 191.359375,
-                "y": 16,
-                "width": 60.125,
-                "height": 26
-              },
-              {
-                "word": "Alerts",
-                "size": 16.25,
-                "x": 60,
-                "y": 46,
-                "width": 44.734375,
-                "height": 20
-              },
-              {
-                "word": "on",
-                "size": 16.25,
-                "x": 109.296875,
-                "y": 46,
-                "width": 19.359375,
-                "height": 20
-              },
-              {
-                "word": "movement",
-                "size": 16.25,
-                "x": 133.203125,
-                "y": 46,
-                "width": 80.59375,
-                "height": 20
-              },
-              {
-                "word": "or",
-                "size": 16.25,
-                "x": 218.34375,
-                "y": 46,
-                "width": 15.890625,
-                "height": 20
-              },
-              {
-                "word": "sound.",
-                "size": 16.25,
-                "x": 60,
-                "y": 70,
-                "width": 52.171875,
-                "height": 20
-              },
-              {
-                "word": "Lost",
-                "size": 20,
-                "x": 60,
-                "y": 111,
-                "width": 42.484375,
-                "height": 26
-              },
-              {
-                "word": "and",
-                "size": 20,
-                "x": 107.546875,
-                "y": 111,
-                "width": 36.65625,
-                "height": 26
-              },
-              {
-                "word": "Found",
-                "size": 20,
-                "x": 149.265625,
-                "y": 111,
-                "width": 60.265625,
-                "height": 26
-              },
-              {
-                "word": "Watches",
-                "size": 16.25,
-                "x": 60,
-                "y": 141,
-                "width": 66.421875,
-                "height": 20
-              },
-              {
-                "word": "for",
-                "size": 16.25,
-                "x": 130.96875,
-                "y": 141,
-                "width": 21.421875,
-                "height": 20
-              },
-              {
-                "word": "your",
-                "size": 16.25,
-                "x": 156.9375,
-                "y": 141,
-                "width": 34.3125,
-                "height": 20
-              },
-              {
-                "word": "pet’s",
-                "size": 16.25,
-                "x": 195.796875,
-                "y": 141,
-                "width": 36.328125,
-                "height": 20
-              },
-              {
-                "word": "colours.",
-                "size": 16.25,
-                "x": 60,
-                "y": 165,
-                "width": 61.703125,
-                "height": 20
-              },
-              {
-                "word": "People",
-                "size": 20,
-                "x": 60,
-                "y": 206,
-                "width": 65.25,
-                "height": 26
-              },
-              {
-                "word": "Alerts",
-                "size": 16.25,
-                "x": 60,
-                "y": 236,
-                "width": 44.734375,
-                "height": 20
-              },
-              {
-                "word": "when",
-                "size": 16.25,
-                "x": 109.296875,
-                "y": 236,
-                "width": 41.984375,
-                "height": 20
-              },
-              {
-                "word": "someone",
-                "size": 16.25,
-                "x": 155.84375,
-                "y": 236,
-                "width": 70.859375,
-                "height": 20
-              },
-              {
-                "word": "is",
-                "size": 16.25,
-                "x": 231.265625,
-                "y": 236,
-                "width": 12.515625,
-                "height": 20
-              },
-              {
-                "word": "in",
-                "size": 16.25,
-                "x": 248.34375,
-                "y": 236,
-                "width": 13.546875,
-                "height": 20
-              },
-              {
-                "word": "view.",
-                "size": 16.25,
-                "x": 60,
-                "y": 260,
-                "width": 39.03125,
-                "height": 20
-              },
-              {
-                "word": "Wildlife",
-                "size": 20,
-                "x": 60,
-                "y": 301,
-                "width": 71.953125,
-                "height": 26
-              }
-            ],
-            "watchEvents": [
-              {
-                "kind": "audio",
-                "at": "2026-11-24T15:31:45.713Z",
-                "clipAt": 6.666908
-              },
-              {
-                "kind": "motion",
-                "at": "2026-11-24T15:32:04.913Z",
-                "clipAt": 25.866773
-              }
-            ],
-            "notifications": [
-              {
-                "path": "service-worker",
-                "title": "Sound alert",
-                "body": "Medium, 3:31:45 PM."
-              },
-              {
-                "path": "service-worker",
-                "title": "Motion alert",
-                "body": "Medium, 3:32:04 PM."
-              }
-            ]
-          }
-        },
-        "wide": {
-          "dark": {
-            "video": {
-              "path": "home/runs/dashboard-wide-dark.mp4",
-              "kind": "video",
-              "format": "mp4",
-              "codec": "h264",
-              "width": 1920,
-              "height": 1200,
-              "seconds": 6,
-              "bytes": 259069,
-              "sha256": "1deef6328b55c2b19eeb39c814c9891cca4bddc960439e05b37fbe0944a2906e"
-            },
-            "poster": {
-              "webp": {
-                "path": "home/runs/dashboard-wide-dark.webp",
-                "kind": "poster",
-                "format": "webp",
-                "width": 1920,
-                "height": 1200,
-                "bytes": 78080,
-                "sha256": "cd376932712751de33c48c9610c685136ec705768ff92160da3ede2e1f77df98"
-              },
-              "avif": {
-                "path": "home/runs/dashboard-wide-dark.avif",
-                "kind": "poster",
-                "format": "avif",
-                "width": 1920,
-                "height": 1200,
-                "bytes": 105417,
-                "sha256": "b34c176ad5edfa75169f8a43f7ee455f295d248abc3f62e7bb72a3d9bd6a7375"
-              }
-            },
-            "viewport": {
-              "width": 768,
-              "height": 480
-            },
-            "crop": {
-              "x": 0,
-              "y": 0,
-              "width": 768,
-              "height": 480
-            },
-            "scale": 2.5,
-            "eventAt": 3.513000011444092,
-            "posterAt": 1,
-            "words": [
-              {
-                "word": "SafeOS",
-                "size": 16,
-                "x": 74,
-                "y": 12.800000190734863,
-                "width": 65.44375610351562,
-                "height": 20.400001525878906
-              },
-              {
-                "word": "Guardian",
-                "size": 16,
-                "x": 74,
-                "y": 30.80000114440918,
-                "width": 86.63125610351562,
-                "height": 20.399999618530273
-              },
-              {
-                "word": "Dashboard",
-                "size": 16,
-                "x": 176.63125610351562,
-                "y": 22,
-                "width": 82.52499389648438,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "History",
-                "size": 16,
-                "x": 275.15625,
-                "y": 22,
-                "width": 54.149993896484375,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "2",
-                "size": 16,
-                "x": 351.3062438964844,
-                "y": 22,
-                "width": 10.34375,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "Settings",
-                "size": 16,
-                "x": 377.6499938964844,
-                "y": 22,
-                "width": 61.6500244140625,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "Help",
-                "size": 16,
-                "x": 455.3000183105469,
-                "y": 22,
-                "width": 34.89373779296875,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "Ways",
-                "size": 18,
-                "x": 32,
-                "y": 70.80000305175781,
-                "width": 46.287498474121094,
-                "height": 22
-              },
-              {
-                "word": "to",
-                "size": 18,
-                "x": 83.34375,
-                "y": 70.80000305175781,
-                "width": 16.51250457763672,
-                "height": 22
-              },
-              {
-                "word": "watch",
-                "size": 18,
-                "x": 104.9124984741211,
-                "y": 70.80000305175781,
-                "width": 51.48125457763672,
-                "height": 22
-              },
-              {
-                "word": "Motion",
-                "size": 20,
-                "x": 92,
-                "y": 116,
-                "width": 68.5625,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "and",
-                "size": 20,
-                "x": 165.6374969482422,
-                "y": 116,
-                "width": 36.64375305175781,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "sound",
-                "size": 20,
-                "x": 207.3562469482422,
-                "y": 116,
-                "width": 60.12501525878906,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Alerts",
-                "size": 16,
-                "x": 76,
-                "y": 146,
-                "width": 44.04375457763672,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "on",
-                "size": 16,
-                "x": 124.5374984741211,
-                "y": 146,
-                "width": 19.050010681152344,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "movement",
-                "size": 16,
-                "x": 148.0812530517578,
-                "y": 146,
-                "width": 79.34375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "or",
-                "size": 16,
-                "x": 231.9187469482422,
-                "y": 146,
-                "width": 15.625,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "sound.",
-                "size": 16,
-                "x": 252.03750610351562,
-                "y": 146,
-                "width": 51.36248779296875,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "Lost",
-                "size": 20,
-                "x": 444,
-                "y": 116,
-                "width": 42.48126220703125,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "and",
-                "size": 20,
-                "x": 491.5562438964844,
-                "y": 116,
-                "width": 36.643768310546875,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Found",
-                "size": 20,
-                "x": 533.2750244140625,
-                "y": 116,
-                "width": 60.25,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Watches",
-                "size": 16,
-                "x": 444,
-                "y": 146,
-                "width": 65.39376831054688,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "for",
-                "size": 16,
-                "x": 513.8875122070312,
-                "y": 146,
-                "width": 21.07501220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "your",
-                "size": 16,
-                "x": 539.4562377929688,
-                "y": 146,
-                "width": 33.76251220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "pet’s",
-                "size": 16,
-                "x": 577.71875,
-                "y": 146,
-                "width": 35.75,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "colours.",
-                "size": 16,
-                "x": 617.96875,
-                "y": 146,
-                "width": 60.7437744140625,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "People",
-                "size": 20,
-                "x": 76,
-                "y": 190.8000030517578,
-                "width": 65.24375915527344,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Alerts",
-                "size": 16,
-                "x": 76,
-                "y": 220.8000030517578,
-                "width": 44.04375457763672,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "when",
-                "size": 16,
-                "x": 124.5374984741211,
-                "y": 220.8000030517578,
-                "width": 41.337501525878906,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "someone",
-                "size": 16,
-                "x": 170.375,
-                "y": 220.8000030517578,
-                "width": 69.76249694824219,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "is",
-                "size": 16,
-                "x": 244.63125610351562,
-                "y": 220.8000030517578,
-                "width": 12.32501220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "in",
-                "size": 16,
-                "x": 261.45001220703125,
-                "y": 220.8000030517578,
-                "width": 13.33123779296875,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "view.",
-                "size": 16,
-                "x": 279.28125,
-                "y": 220.8000030517578,
-                "width": 38.431243896484375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "Wildlife",
-                "size": 20,
-                "x": 444,
-                "y": 190.8000030517578,
-                "width": 71.94378662109375,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Alerts",
-                "size": 16,
-                "x": 444,
-                "y": 220.8000030517578,
-                "width": 44.04376220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "when",
-                "size": 16,
-                "x": 492.5375061035156,
-                "y": 220.8000030517578,
-                "width": 41.337493896484375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "an",
-                "size": 16,
-                "x": 538.375,
-                "y": 220.8000030517578,
-                "width": 18.4375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "animal",
-                "size": 16,
-                "x": 561.3125,
-                "y": 220.8000030517578,
-                "width": 49.1875,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "is",
-                "size": 16,
-                "x": 615,
-                "y": 220.8000030517578,
-                "width": 12.32501220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "in",
-                "size": 16,
-                "x": 631.8187866210938,
-                "y": 220.8000030517578,
-                "width": 13.33123779296875,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "view.",
-                "size": 16,
-                "x": 649.6437377929688,
-                "y": 220.8000030517578,
-                "width": 38.4375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "Since",
-                "size": 18,
-                "x": 32,
-                "y": 312.6000061035156,
-                "width": 47.32500457763672,
-                "height": 22
-              },
-              {
-                "word": "you",
-                "size": 18,
-                "x": 84.3812484741211,
-                "y": 312.6000061035156,
-                "width": 31.206253051757812,
-                "height": 22
-              },
-              {
-                "word": "last",
-                "size": 18,
-                "x": 120.64375305175781,
-                "y": 312.6000061035156,
-                "width": 29.862503051757812,
-                "height": 22
-              },
-              {
-                "word": "looked",
-                "size": 18,
-                "x": 155.5625,
-                "y": 312.6000061035156,
-                "width": 56.943756103515625,
-                "height": 22
-              },
-              {
-                "word": "Movement",
-                "size": 18,
-                "x": 108,
-                "y": 356.6000061035156,
-                "width": 89.75,
-                "height": 22
-              },
-              {
-                "word": "at",
-                "size": 18,
-                "x": 202.8125,
-                "y": 356.6000061035156,
-                "width": 16,
-                "height": 22
-              },
-              {
-                "word": "3:32",
-                "size": 18,
-                "x": 223.875,
-                "y": 356.6000061035156,
-                "width": 39.850006103515625,
-                "height": 22
-              },
-              {
-                "word": "PM",
-                "size": 18,
-                "x": 268.5562438964844,
-                "y": 356.6000061035156,
-                "width": 27.76251220703125,
-                "height": 22
-              },
-              {
-                "word": "Motion",
-                "size": 16,
-                "x": 108,
-                "y": 383.8000183105469,
-                "width": 52.20625305175781,
-                "height": 19.5999755859375
-              },
-              {
-                "word": "and",
-                "size": 16,
-                "x": 164.6999969482422,
-                "y": 383.8000183105469,
-                "width": 28.237503051757812,
-                "height": 19.5999755859375
-              },
-              {
-                "word": "sound",
-                "size": 16,
-                "x": 197.4375,
-                "y": 383.8000183105469,
-                "width": 46.75,
-                "height": 19.5999755859375
-              },
-              {
-                "word": "Sound",
-                "size": 18,
-                "x": 108,
-                "y": 425.3999938964844,
-                "width": 54.64375305175781,
-                "height": 22
-              },
-              {
-                "word": "at",
-                "size": 18,
-                "x": 167.7062530517578,
-                "y": 425.3999938964844,
-                "width": 16,
-                "height": 22
-              },
-              {
-                "word": "3:32",
-                "size": 18,
-                "x": 188.7687530517578,
-                "y": 425.3999938964844,
-                "width": 39.850006103515625,
-                "height": 22
-              },
-              {
-                "word": "PM",
-                "size": 18,
-                "x": 233.4499969482422,
-                "y": 425.3999938964844,
-                "width": 27.762496948242188,
-                "height": 22
-              },
-              {
-                "word": "Motion",
-                "size": 16,
-                "x": 108,
-                "y": 452.6000061035156,
-                "width": 52.20625305175781,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "and",
-                "size": 16,
-                "x": 164.6999969482422,
-                "y": 452.6000061035156,
-                "width": 28.237503051757812,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "sound",
-                "size": 16,
-                "x": 197.4375,
-                "y": 452.6000061035156,
-                "width": 46.75,
-                "height": 19.600006103515625
-              }
-            ],
-            "watchEvents": [
-              {
-                "kind": "audio",
-                "at": "2026-11-24T15:32:20.423Z",
-                "clipAt": 6.666913
-              },
-              {
-                "kind": "motion",
-                "at": "2026-11-24T15:32:39.622Z",
-                "clipAt": 25.86668
-              }
-            ],
-            "notifications": [
-              {
-                "path": "service-worker",
-                "title": "Sound alert",
-                "body": "Medium, 3:32:20 PM."
-              },
-              {
-                "path": "service-worker",
-                "title": "Motion alert",
-                "body": "Medium, 3:32:39 PM."
-              }
-            ]
-          },
-          "light": {
-            "video": {
-              "path": "home/runs/dashboard-wide-light.mp4",
-              "kind": "video",
-              "format": "mp4",
-              "codec": "h264",
-              "width": 1920,
-              "height": 1200,
-              "seconds": 6,
-              "bytes": 271243,
-              "sha256": "68fb8331c7ca2c9986bbfddd250e6b4db6ad9a79de44ff69951084879a158196"
-            },
-            "poster": {
-              "webp": {
-                "path": "home/runs/dashboard-wide-light.webp",
-                "kind": "poster",
-                "format": "webp",
-                "width": 1920,
-                "height": 1200,
-                "bytes": 79172,
-                "sha256": "ff3835f5a723dffc0f2f921e4f3742d32fc56c78aa6b0afc76841fa8a225e122"
-              },
-              "avif": {
-                "path": "home/runs/dashboard-wide-light.avif",
-                "kind": "poster",
-                "format": "avif",
-                "width": 1920,
-                "height": 1200,
-                "bytes": 112123,
-                "sha256": "7c219516a8e337982395811d516e4546945d5451d4de9c5bd5f0103353cbf6cc"
-              }
-            },
-            "viewport": {
-              "width": 768,
-              "height": 480
-            },
-            "crop": {
-              "x": 0,
-              "y": 0,
-              "width": 768,
-              "height": 480
-            },
-            "scale": 2.5,
-            "eventAt": 3.5138001441955566,
-            "posterAt": 1,
-            "words": [
-              {
-                "word": "SafeOS",
-                "size": 16,
-                "x": 74,
-                "y": 12.800000190734863,
-                "width": 65.44375610351562,
-                "height": 20.400001525878906
-              },
-              {
-                "word": "Guardian",
-                "size": 16,
-                "x": 74,
-                "y": 30.80000114440918,
-                "width": 86.63125610351562,
-                "height": 20.399999618530273
-              },
-              {
-                "word": "Dashboard",
-                "size": 16,
-                "x": 176.63125610351562,
-                "y": 22,
-                "width": 82.52499389648438,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "History",
-                "size": 16,
-                "x": 275.15625,
-                "y": 22,
-                "width": 54.149993896484375,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "2",
-                "size": 16,
-                "x": 351.3062438964844,
-                "y": 22,
-                "width": 10.34375,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "Settings",
-                "size": 16,
-                "x": 377.6499938964844,
-                "y": 22,
-                "width": 61.6500244140625,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "Help",
-                "size": 16,
-                "x": 455.3000183105469,
-                "y": 22,
-                "width": 34.89373779296875,
-                "height": 19.60000228881836
-              },
-              {
-                "word": "Ways",
-                "size": 18,
-                "x": 32,
-                "y": 70.80000305175781,
-                "width": 46.287498474121094,
-                "height": 22
-              },
-              {
-                "word": "to",
-                "size": 18,
-                "x": 83.34375,
-                "y": 70.80000305175781,
-                "width": 16.51250457763672,
-                "height": 22
-              },
-              {
-                "word": "watch",
-                "size": 18,
-                "x": 104.9124984741211,
-                "y": 70.80000305175781,
-                "width": 51.48125457763672,
-                "height": 22
-              },
-              {
-                "word": "Motion",
-                "size": 20,
-                "x": 92,
-                "y": 116,
-                "width": 68.5625,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "and",
-                "size": 20,
-                "x": 165.6374969482422,
-                "y": 116,
-                "width": 36.64375305175781,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "sound",
-                "size": 20,
-                "x": 207.3562469482422,
-                "y": 116,
-                "width": 60.12501525878906,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Alerts",
-                "size": 16,
-                "x": 76,
-                "y": 146,
-                "width": 44.04375457763672,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "on",
-                "size": 16,
-                "x": 124.5374984741211,
-                "y": 146,
-                "width": 19.050010681152344,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "movement",
-                "size": 16,
-                "x": 148.0812530517578,
-                "y": 146,
-                "width": 79.34375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "or",
-                "size": 16,
-                "x": 231.9187469482422,
-                "y": 146,
-                "width": 15.625,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "sound.",
-                "size": 16,
-                "x": 252.03750610351562,
-                "y": 146,
-                "width": 51.36248779296875,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "Lost",
-                "size": 20,
-                "x": 444,
-                "y": 116,
-                "width": 42.48126220703125,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "and",
-                "size": 20,
-                "x": 491.5562438964844,
-                "y": 116,
-                "width": 36.643768310546875,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Found",
-                "size": 20,
-                "x": 533.2750244140625,
-                "y": 116,
-                "width": 60.25,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Watches",
-                "size": 16,
-                "x": 444,
-                "y": 146,
-                "width": 65.39376831054688,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "for",
-                "size": 16,
-                "x": 513.8875122070312,
-                "y": 146,
-                "width": 21.07501220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "your",
-                "size": 16,
-                "x": 539.4562377929688,
-                "y": 146,
-                "width": 33.76251220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "pet’s",
-                "size": 16,
-                "x": 577.71875,
-                "y": 146,
-                "width": 35.75,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "colours.",
-                "size": 16,
-                "x": 617.96875,
-                "y": 146,
-                "width": 60.7437744140625,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "People",
-                "size": 20,
-                "x": 76,
-                "y": 190.8000030517578,
-                "width": 65.24375915527344,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Alerts",
-                "size": 16,
-                "x": 76,
-                "y": 220.8000030517578,
-                "width": 44.04375457763672,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "when",
-                "size": 16,
-                "x": 124.5374984741211,
-                "y": 220.8000030517578,
-                "width": 41.337501525878906,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "someone",
-                "size": 16,
-                "x": 170.375,
-                "y": 220.8000030517578,
-                "width": 69.76249694824219,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "is",
-                "size": 16,
-                "x": 244.63125610351562,
-                "y": 220.8000030517578,
-                "width": 12.32501220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "in",
-                "size": 16,
-                "x": 261.45001220703125,
-                "y": 220.8000030517578,
-                "width": 13.33123779296875,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "view.",
-                "size": 16,
-                "x": 279.28125,
-                "y": 220.8000030517578,
-                "width": 38.431243896484375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "Wildlife",
-                "size": 20,
-                "x": 444,
-                "y": 190.8000030517578,
-                "width": 71.94378662109375,
-                "height": 25.600006103515625
-              },
-              {
-                "word": "Alerts",
-                "size": 16,
-                "x": 444,
-                "y": 220.8000030517578,
-                "width": 44.04376220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "when",
-                "size": 16,
-                "x": 492.5375061035156,
-                "y": 220.8000030517578,
-                "width": 41.337493896484375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "an",
-                "size": 16,
-                "x": 538.375,
-                "y": 220.8000030517578,
-                "width": 18.4375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "animal",
-                "size": 16,
-                "x": 561.3125,
-                "y": 220.8000030517578,
-                "width": 49.1875,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "is",
-                "size": 16,
-                "x": 615,
-                "y": 220.8000030517578,
-                "width": 12.32501220703125,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "in",
-                "size": 16,
-                "x": 631.8187866210938,
-                "y": 220.8000030517578,
-                "width": 13.33123779296875,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "view.",
-                "size": 16,
-                "x": 649.6437377929688,
-                "y": 220.8000030517578,
-                "width": 38.4375,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "Since",
-                "size": 18,
-                "x": 32,
-                "y": 312.6000061035156,
-                "width": 47.32500457763672,
-                "height": 22
-              },
-              {
-                "word": "you",
-                "size": 18,
-                "x": 84.3812484741211,
-                "y": 312.6000061035156,
-                "width": 31.206253051757812,
-                "height": 22
-              },
-              {
-                "word": "last",
-                "size": 18,
-                "x": 120.64375305175781,
-                "y": 312.6000061035156,
-                "width": 29.862503051757812,
-                "height": 22
-              },
-              {
-                "word": "looked",
-                "size": 18,
-                "x": 155.5625,
-                "y": 312.6000061035156,
-                "width": 56.943756103515625,
-                "height": 22
-              },
-              {
-                "word": "Movement",
-                "size": 18,
-                "x": 108,
-                "y": 356.6000061035156,
-                "width": 89.75,
-                "height": 22
-              },
-              {
-                "word": "at",
-                "size": 18,
-                "x": 202.8125,
-                "y": 356.6000061035156,
-                "width": 16,
-                "height": 22
-              },
-              {
-                "word": "3:33",
-                "size": 18,
-                "x": 223.875,
-                "y": 356.6000061035156,
-                "width": 39.850006103515625,
-                "height": 22
-              },
-              {
-                "word": "PM",
-                "size": 18,
-                "x": 268.5562438964844,
-                "y": 356.6000061035156,
-                "width": 27.76251220703125,
-                "height": 22
-              },
-              {
-                "word": "Motion",
-                "size": 16,
-                "x": 108,
-                "y": 383.8000183105469,
-                "width": 52.20625305175781,
-                "height": 19.5999755859375
-              },
-              {
-                "word": "and",
-                "size": 16,
-                "x": 164.6999969482422,
-                "y": 383.8000183105469,
-                "width": 28.237503051757812,
-                "height": 19.5999755859375
-              },
-              {
-                "word": "sound",
-                "size": 16,
-                "x": 197.4375,
-                "y": 383.8000183105469,
-                "width": 46.75,
-                "height": 19.5999755859375
-              },
-              {
-                "word": "Sound",
-                "size": 18,
-                "x": 108,
-                "y": 425.3999938964844,
-                "width": 54.64375305175781,
-                "height": 22
-              },
-              {
-                "word": "at",
-                "size": 18,
-                "x": 167.7062530517578,
-                "y": 425.3999938964844,
-                "width": 16,
-                "height": 22
-              },
-              {
-                "word": "3:32",
-                "size": 18,
-                "x": 188.7687530517578,
-                "y": 425.3999938964844,
-                "width": 39.850006103515625,
-                "height": 22
-              },
-              {
-                "word": "PM",
-                "size": 18,
-                "x": 233.4499969482422,
-                "y": 425.3999938964844,
-                "width": 27.762496948242188,
-                "height": 22
-              },
-              {
-                "word": "Motion",
-                "size": 16,
-                "x": 108,
-                "y": 452.6000061035156,
-                "width": 52.20625305175781,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "and",
-                "size": 16,
-                "x": 164.6999969482422,
-                "y": 452.6000061035156,
-                "width": 28.237503051757812,
-                "height": 19.600006103515625
-              },
-              {
-                "word": "sound",
-                "size": 16,
-                "x": 197.4375,
-                "y": 452.6000061035156,
-                "width": 46.75,
-                "height": 19.600006103515625
-              }
-            ],
-            "watchEvents": [
-              {
-                "kind": "audio",
-                "at": "2026-11-24T15:32:55.748Z",
-                "clipAt": 6.666923
-              },
-              {
-                "kind": "motion",
-                "at": "2026-11-24T15:33:14.947Z",
-                "clipAt": 25.866728
-              }
-            ],
-            "notifications": [
-              {
-                "path": "service-worker",
-                "title": "Sound alert",
-                "body": "Medium, 3:32:55 PM."
-              },
-              {
-                "path": "service-worker",
-                "title": "Motion alert",
-                "body": "Medium, 3:33:14 PM."
-              }
-            ]
-          }
-        }
-      }
-    },
     {
       "id": "watching",
       "key": "Watching",
@@ -1901,25 +256,22 @@
       "state": "starting",
       "clip": "home/sample-clip.mp4",
       "seconds": 10,
-      "description": "A watch starting on the kitten clip: the Motion and Sound meters rise as a dog barks.",
+      "description": "The kitten moves and a bark raises the Sound meter.",
       "longDescription": [
         "0–2 seconds. Start watching opens the camera on a kitten on a grey carpet.",
         "2–6 seconds. The kitten grooms itself and its movement raises the Motion meter.",
         "6–9 seconds. The Sound meter rises over its line as a dog barks off camera.",
         "9–10 seconds. The watch continues on the kitten."
       ],
-      "eventAt": 6.16290020942688,
-      "posterAt": 6.16290020942688,
+      "eventAt": 8.42823600769043,
+      "posterAt": 8.42823600769043,
       "visibleWords": [
         "Motion",
         "Quiet",
         "Sound",
         "Over",
         "the",
-        "line",
-        "Stop",
-        "watching",
-        "Alerts"
+        "line"
       ],
       "meterPeaks": {
         "motion": 9,
@@ -1936,8 +288,8 @@
               "width": 1002,
               "height": 1002,
               "seconds": 10,
-              "bytes": 270636,
-              "sha256": "60439c2d8155cc10774d7ae29766241a0672edf58b3bcbc58b435cf12048ae11"
+              "bytes": 381726,
+              "sha256": "e1d77d6edbed62ec00686d4821095307486753846dc542771673b7bfb3b9fe3b"
             },
             "poster": {
               "webp": {
@@ -1946,8 +298,8 @@
                 "format": "webp",
                 "width": 1002,
                 "height": 1002,
-                "bytes": 32728,
-                "sha256": "9bd679e3d291f703103ecfe9fa15be6471efd7d66cfc9993cde55b7da732c1dd"
+                "bytes": 41980,
+                "sha256": "341ab0228ce628a851d64d012eefe0b21e7dde7684c6161c8d5dc91b25dd7d75"
               },
               "avif": {
                 "path": "home/runs/watching-square-dark.avif",
@@ -1955,8 +307,8 @@
                 "format": "avif",
                 "width": 1002,
                 "height": 1002,
-                "bytes": 22487,
-                "sha256": "68f8c57a779f33943da42a478f08ff489781903b8daff855b8231c8e638a1bf0"
+                "bytes": 34273,
+                "sha256": "ccc24dd46b490674b94203781c15e74027d3d49bd81333398c7d682a13502f89"
               }
             },
             "viewport": {
@@ -1965,99 +317,86 @@
             },
             "crop": {
               "x": 0,
-              "y": 298,
+              "y": 56,
               "width": 334,
               "height": 334
             },
             "scale": 3,
-            "eventAt": 6.16290020942688,
-            "posterAt": 6.16290020942688,
+            "eventAt": 8.42823600769043,
+            "posterAt": 8.42823600769043,
             "words": [
               {
                 "word": "Motion",
                 "size": 16.25,
                 "x": 32,
-                "y": 93.875,
-                "width": 54.71875,
-                "height": 20
+                "y": 209.875,
+                "width": 54.71354675292969,
+                "height": 19.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Quiet",
                 "size": 16.25,
-                "x": 261.234375,
-                "y": 93.875,
-                "width": 40.765625,
-                "height": 20
+                "x": 261.2395935058594,
+                "y": 209.875,
+                "width": 40.760406494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Sound",
                 "size": 16.25,
                 "x": 32,
-                "y": 143.875,
+                "y": 259.875,
                 "width": 50.5,
-                "height": 20
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "Over",
                 "size": 16.25,
-                "x": 204.671875,
-                "y": 143.875,
-                "width": 36.84375,
-                "height": 20
+                "x": 204.6822967529297,
+                "y": 259.875,
+                "width": 36.83332824707031,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "the",
                 "size": 16.25,
-                "x": 246.0625,
-                "y": 143.875,
-                "width": 24.421875,
-                "height": 20
+                "x": 246.08334350585938,
+                "y": 259.875,
+                "width": 24.401031494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "line",
                 "size": 16.25,
-                "x": 275.03125,
-                "y": 143.875,
-                "width": 26.96875,
-                "height": 20
-              },
-              {
-                "word": "Stop",
-                "size": 16.25,
-                "x": 112.078125,
-                "y": 243.875,
-                "width": 35.28125,
-                "height": 20
-              },
-              {
-                "word": "watching",
-                "size": 16.25,
-                "x": 151.921875,
-                "y": 243.875,
-                "width": 69.984375,
-                "height": 20
-              },
-              {
-                "word": "Alerts",
-                "size": 24,
-                "x": 16,
-                "y": 295.875,
-                "width": 68.359375,
-                "height": 31
+                "x": 275.0520935058594,
+                "y": 259.875,
+                "width": 26.947906494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               }
             ],
             "meterPeaks": {
               "motion": 9,
               "sound": 39
             },
+            "posterReading": {
+              "clipAt": 8.368417123355893,
+              "sound": 36,
+              "threshold": 20
+            },
             "barkEndedAt": 9,
-            "sourceSeconds": 10.303999900817871,
-            "startupTrimSeconds": 0.3039999008178711,
+            "sourceSeconds": 10.29609990119934,
+            "startupTrimSeconds": 0.2960999011993408,
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 3:33:52 PM."
+                "body": "Medium, 4:03:05 AM."
               }
             ]
           },
@@ -2070,8 +409,8 @@
               "width": 1002,
               "height": 1002,
               "seconds": 10,
-              "bytes": 399228,
-              "sha256": "bb27366ac7a9942c8e95a9715a04999c414cfbcf1e49d62d9f1571d102cbb270"
+              "bytes": 375990,
+              "sha256": "3ee97e951f117bf42a547770f2bf5ad707015999f27810751632d840b629cc76"
             },
             "poster": {
               "webp": {
@@ -2080,8 +419,8 @@
                 "format": "webp",
                 "width": 1002,
                 "height": 1002,
-                "bytes": 33408,
-                "sha256": "7a4abf751fd85bbe47838efe56fb476399d28469772c900b9931294ac5b10ad0"
+                "bytes": 40432,
+                "sha256": "b8c95803d313f993f5dad1427b5412de71d1ff0c4f579d949123f7278b28ae42"
               },
               "avif": {
                 "path": "home/runs/watching-square-light.avif",
@@ -2089,8 +428,8 @@
                 "format": "avif",
                 "width": 1002,
                 "height": 1002,
-                "bytes": 22657,
-                "sha256": "a3d0be28039d9fc85ba72f509caf6484e4d8d3b5f505c0c60791706241693640"
+                "bytes": 34168,
+                "sha256": "b4601b67d45f6c4389f2d78c48fd209553ad80897a941aa8ad0bf3056df28512"
               }
             },
             "viewport": {
@@ -2099,99 +438,86 @@
             },
             "crop": {
               "x": 0,
-              "y": 298,
+              "y": 56,
               "width": 334,
               "height": 334
             },
             "scale": 3,
-            "eventAt": 6.177199840545654,
-            "posterAt": 6.177199840545654,
+            "eventAt": 8.450095891952515,
+            "posterAt": 8.450095891952515,
             "words": [
               {
                 "word": "Motion",
                 "size": 16.25,
                 "x": 32,
-                "y": 93.875,
-                "width": 54.71875,
-                "height": 20
+                "y": 209.875,
+                "width": 54.71354675292969,
+                "height": 19.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Quiet",
                 "size": 16.25,
-                "x": 261.234375,
-                "y": 93.875,
-                "width": 40.765625,
-                "height": 20
+                "x": 261.2395935058594,
+                "y": 209.875,
+                "width": 40.760406494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Sound",
                 "size": 16.25,
                 "x": 32,
-                "y": 143.875,
+                "y": 259.875,
                 "width": 50.5,
-                "height": 20
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "Over",
                 "size": 16.25,
-                "x": 204.671875,
-                "y": 143.875,
-                "width": 36.84375,
-                "height": 20
+                "x": 204.6822967529297,
+                "y": 259.875,
+                "width": 36.83332824707031,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "the",
                 "size": 16.25,
-                "x": 246.0625,
-                "y": 143.875,
-                "width": 24.421875,
-                "height": 20
+                "x": 246.08334350585938,
+                "y": 259.875,
+                "width": 24.401031494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "line",
                 "size": 16.25,
-                "x": 275.03125,
-                "y": 143.875,
-                "width": 26.96875,
-                "height": 20
-              },
-              {
-                "word": "Stop",
-                "size": 16.25,
-                "x": 112.078125,
-                "y": 243.875,
-                "width": 35.28125,
-                "height": 20
-              },
-              {
-                "word": "watching",
-                "size": 16.25,
-                "x": 151.921875,
-                "y": 243.875,
-                "width": 69.984375,
-                "height": 20
-              },
-              {
-                "word": "Alerts",
-                "size": 24,
-                "x": 16,
-                "y": 295.875,
-                "width": 68.359375,
-                "height": 31
+                "x": 275.0520935058594,
+                "y": 259.875,
+                "width": 26.947906494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               }
             ],
             "meterPeaks": {
               "motion": 9,
               "sound": 39
             },
+            "posterReading": {
+              "clipAt": 8.350289077433475,
+              "sound": 37,
+              "threshold": 20
+            },
             "barkEndedAt": 9,
-            "sourceSeconds": 10.305100202560425,
-            "startupTrimSeconds": 0.3051002025604248,
+            "sourceSeconds": 10.27649998664856,
+            "startupTrimSeconds": 0.27649998664855957,
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 3:34:10 PM."
+                "body": "Medium, 4:03:24 AM."
               }
             ]
           }
@@ -2206,8 +532,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 10,
-              "bytes": 1047543,
-              "sha256": "846a3009691f39920b17ee2643a02b438aada5489e79e52390eed91531a62ea8"
+              "bytes": 1024018,
+              "sha256": "85c2224cf8eb24aff97aade81c89bfcf88887865603b112a9b6824d6b60079ea"
             },
             "poster": {
               "webp": {
@@ -2216,8 +542,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 85526,
-                "sha256": "4a504dcefa1a8520a39eaaf6e69990295b925fecbc5b5916241f1a5b13dc8d92"
+                "bytes": 76060,
+                "sha256": "ce7ffe8d6d79ce281ab7d9f4127d2476f09e0a8dc1a48c696130539bbe246745"
               },
               "avif": {
                 "path": "home/runs/watching-wide-dark.avif",
@@ -2225,8 +551,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 60282,
-                "sha256": "8188b34b9e3d6c9e32425b40fe041edb7f2346cf5b5697ebb06a2a5a5054546f"
+                "bytes": 60285,
+                "sha256": "dc25e1c94b07e219a1a6aa6feb8cc46561912f44445f61075fb828dec98f8a60"
               }
             },
             "viewport": {
@@ -2240,8 +566,8 @@
               "height": 480
             },
             "scale": 2.5,
-            "eventAt": 6.187900066375732,
-            "posterAt": 6.187900066375732,
+            "eventAt": 8.35135817527771,
+            "posterAt": 8.35135817527771,
             "words": [
               {
                 "word": "SafeOS",
@@ -2249,7 +575,8 @@
                 "x": 74,
                 "y": 12.800000190734863,
                 "width": 65.44375610351562,
-                "height": 20.400001525878906
+                "height": 20.400001525878906,
+                "inkHeight": 11
               },
               {
                 "word": "Guardian",
@@ -2257,7 +584,8 @@
                 "x": 74,
                 "y": 30.80000114440918,
                 "width": 86.63125610351562,
-                "height": 20.399999618530273
+                "height": 20.399999618530273,
+                "inkHeight": 11
               },
               {
                 "word": "Dashboard",
@@ -2265,7 +593,8 @@
                 "x": 176.63125610351562,
                 "y": 22,
                 "width": 82.52499389648438,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 12
               },
               {
                 "word": "History",
@@ -2273,53 +602,108 @@
                 "x": 275.15625,
                 "y": 22,
                 "width": 54.149993896484375,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "1",
+                "size": 16,
+                "x": 351.3062438964844,
+                "y": 22,
+                "width": 10.34375,
+                "height": 19.60000228881836,
+                "inkHeight": 12
               },
               {
                 "word": "Settings",
                 "size": 16,
-                "x": 345.3062438964844,
+                "x": 377.6499938964844,
                 "y": 22,
                 "width": 61.6500244140625,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Help",
                 "size": 16,
-                "x": 422.9562683105469,
+                "x": 455.3000183105469,
                 "y": 22,
                 "width": 34.89373779296875,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Motion",
                 "size": 16,
                 "x": 80,
-                "y": 442,
+                "y": 386,
                 "width": 53.86875915527344,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Quiet",
+                "size": 16,
+                "x": 80,
+                "y": 430,
+                "width": 40.13750457763672,
+                "height": 19.600006103515625,
+                "inkHeight": 13
               },
               {
                 "word": "Sound",
                 "size": 16,
                 "x": 396,
-                "y": 442,
+                "y": 386,
                 "width": 49.71875,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Over",
+                "size": 16,
+                "x": 396,
+                "y": 430,
+                "width": 36.268768310546875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "the",
+                "size": 16,
+                "x": 436.76251220703125,
+                "y": 430,
+                "width": 24.03125,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "line",
+                "size": 16,
+                "x": 465.2875061035156,
+                "y": 430,
+                "width": 26.537506103515625,
+                "height": 19.600006103515625,
+                "inkHeight": 12
               }
             ],
             "meterPeaks": {
               "motion": 9,
-              "sound": 38
+              "sound": 39
+            },
+            "posterReading": {
+              "clipAt": 8.34850397328083,
+              "sound": 37,
+              "threshold": 20
             },
             "barkEndedAt": 9,
-            "sourceSeconds": 10.280999898910522,
-            "startupTrimSeconds": 0.28099989891052246,
+            "sourceSeconds": 10.359599828720093,
+            "startupTrimSeconds": 0.3595998287200928,
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 3:34:25 PM."
+                "body": "Medium, 4:03:43 AM."
               }
             ]
           },
@@ -2332,8 +716,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 10,
-              "bytes": 1046738,
-              "sha256": "bc40784c9e37370914049ebdcc0a2b04b15db8cb70f72c335c285093a0ab5a08"
+              "bytes": 1110096,
+              "sha256": "4345137a364cdaca3b17812e600b1b9f53d3a36ea77c35ec7fc21e13e535a76e"
             },
             "poster": {
               "webp": {
@@ -2342,8 +726,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 85514,
-                "sha256": "0c7b3e3e49b4069e565b6a5752e3426bd82770fa1c45a0300e78c5e68efec18c"
+                "bytes": 76702,
+                "sha256": "8147bda7d96cb9a2c37d6f137f27e32fc3a03ef69eefc37b01d39c232c195105"
               },
               "avif": {
                 "path": "home/runs/watching-wide-light.avif",
@@ -2351,8 +735,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 61537,
-                "sha256": "3d5a115597a10986625a2e4d517652bed9d8f317a5fa6305dd48220eaa1e8d4f"
+                "bytes": 62562,
+                "sha256": "4a797ee41c173a79c6f6725b5b63e53e49e03281860edfd4acee53ea17b68635"
               }
             },
             "viewport": {
@@ -2366,8 +750,8 @@
               "height": 480
             },
             "scale": 2.5,
-            "eventAt": 6.133300065994263,
-            "posterAt": 6.133300065994263,
+            "eventAt": 8.451947689056396,
+            "posterAt": 8.451947689056396,
             "words": [
               {
                 "word": "SafeOS",
@@ -2375,7 +759,8 @@
                 "x": 74,
                 "y": 12.800000190734863,
                 "width": 65.44375610351562,
-                "height": 20.400001525878906
+                "height": 20.400001525878906,
+                "inkHeight": 11
               },
               {
                 "word": "Guardian",
@@ -2383,7 +768,8 @@
                 "x": 74,
                 "y": 30.80000114440918,
                 "width": 86.63125610351562,
-                "height": 20.399999618530273
+                "height": 20.399999618530273,
+                "inkHeight": 11
               },
               {
                 "word": "Dashboard",
@@ -2391,7 +777,8 @@
                 "x": 176.63125610351562,
                 "y": 22,
                 "width": 82.52499389648438,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 12
               },
               {
                 "word": "History",
@@ -2399,53 +786,1632 @@
                 "x": 275.15625,
                 "y": 22,
                 "width": 54.149993896484375,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "1",
+                "size": 16,
+                "x": 351.3062438964844,
+                "y": 22,
+                "width": 10.34375,
+                "height": 19.60000228881836,
+                "inkHeight": 12
               },
               {
                 "word": "Settings",
                 "size": 16,
-                "x": 345.3062438964844,
+                "x": 377.6499938964844,
                 "y": 22,
                 "width": 61.6500244140625,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Help",
                 "size": 16,
-                "x": 422.9562683105469,
+                "x": 455.3000183105469,
                 "y": 22,
                 "width": 34.89373779296875,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Motion",
                 "size": 16,
                 "x": 80,
-                "y": 442,
+                "y": 386,
                 "width": 53.86875915527344,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Quiet",
+                "size": 16,
+                "x": 80,
+                "y": 430,
+                "width": 40.13750457763672,
+                "height": 19.600006103515625,
+                "inkHeight": 13
               },
               {
                 "word": "Sound",
                 "size": 16,
                 "x": 396,
-                "y": 442,
+                "y": 386,
                 "width": 49.71875,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Over",
+                "size": 16,
+                "x": 396,
+                "y": 430,
+                "width": 36.268768310546875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "the",
+                "size": 16,
+                "x": 436.76251220703125,
+                "y": 430,
+                "width": 24.03125,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "line",
+                "size": 16,
+                "x": 465.2875061035156,
+                "y": 430,
+                "width": 26.537506103515625,
+                "height": 19.600006103515625,
+                "inkHeight": 12
               }
             ],
             "meterPeaks": {
               "motion": 9,
               "sound": 39
             },
+            "posterReading": {
+              "clipAt": 8.407280243781136,
+              "sound": 37,
+              "threshold": 20
+            },
             "barkEndedAt": 9,
-            "sourceSeconds": 10.291599988937378,
-            "startupTrimSeconds": 0.29159998893737793,
+            "sourceSeconds": 10.283600330352783,
+            "startupTrimSeconds": 0.2836003303527832,
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 3:34:49 PM."
+                "body": "Medium, 4:04:01 AM."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "dashboard",
+      "key": "Dashboard",
+      "route": "/dashboard/",
+      "state": "B",
+      "clip": "home/sample-clip.mp4",
+      "seconds": 6,
+      "description": "Movement and sound alerts from the kitten watch.",
+      "longDescription": [
+        "0–2 seconds. The dashboard shows the four ways to watch after a watch on the kitten clip.",
+        "2–4 seconds. The page scrolls to Since you last looked.",
+        "4–6 seconds. The alerts show with the movement alert’s kept picture."
+      ],
+      "eventAt": 2.0076003074645996,
+      "posterAt": 5.024700164794922,
+      "visibleWords": [
+        "Since",
+        "you",
+        "last",
+        "looked",
+        "Movement",
+        "at",
+        "4:05",
+        "AM",
+        "Motion",
+        "and",
+        "sound",
+        "Sound",
+        "at",
+        "4:05",
+        "AM",
+        "Motion",
+        "and",
+        "sound",
+        "Mark",
+        "all",
+        "as",
+        "seen",
+        "Open",
+        "history"
+      ],
+      "variants": {
+        "square": {
+          "dark": {
+            "video": {
+              "path": "home/runs/dashboard-square-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1002,
+              "height": 1002,
+              "seconds": 6,
+              "bytes": 130745,
+              "sha256": "72b7fd4409134664f2379eabb779430fe82435c9a730901be9fe3cae96aa7389"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/dashboard-square-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1002,
+                "height": 1002,
+                "bytes": 38246,
+                "sha256": "a1fa9a0a9305666db5e5783dee9d0bbc8d1247aff0b7b4dc90ff29c97f1fad1d"
+              },
+              "avif": {
+                "path": "home/runs/dashboard-square-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1002,
+                "height": 1002,
+                "bytes": 28862,
+                "sha256": "d090b64dee2f8705725f96e5b2cdbfec6eec6fe015a0711446d7aabb798ff288"
+              }
+            },
+            "viewport": {
+              "width": 334,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 446,
+              "width": 334,
+              "height": 334
+            },
+            "scale": 3,
+            "eventAt": 2.0076003074645996,
+            "posterAt": 5.024700164794922,
+            "words": [
+              {
+                "word": "Since",
+                "size": 18,
+                "x": 16,
+                "y": 41,
+                "width": 47.32291793823242,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "you",
+                "size": 18,
+                "x": 68.38021087646484,
+                "y": 41,
+                "width": 31.208335876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 14
+              },
+              {
+                "word": "last",
+                "size": 18,
+                "x": 104.64583587646484,
+                "y": 41,
+                "width": 29.85938262939453,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "looked",
+                "size": 18,
+                "x": 139.5625,
+                "y": 41,
+                "width": 56.942718505859375,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Movement",
+                "size": 18,
+                "x": 92,
+                "y": 85,
+                "width": 89.75,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 186.8125,
+                "y": 85,
+                "width": 16,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "4:05",
+                "size": 18,
+                "x": 207.875,
+                "y": 85,
+                "width": 39.85417175292969,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "AM",
+                "size": 18,
+                "x": 252.5572967529297,
+                "y": 85,
+                "width": 28.682296752929688,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 92,
+                "y": 112,
+                "width": 53.020843505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16.25,
+                "x": 149.5885467529297,
+                "y": 112,
+                "width": 28.677078247070312,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 182.83334350585938,
+                "y": 112,
+                "width": 47.484375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Sound",
+                "size": 18,
+                "x": 92,
+                "y": 154,
+                "width": 54.645843505859375,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 151.70834350585938,
+                "y": 154,
+                "width": 16,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "4:05",
+                "size": 18,
+                "x": 172.77084350585938,
+                "y": 154,
+                "width": 39.854156494140625,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "AM",
+                "size": 18,
+                "x": 217.453125,
+                "y": 154,
+                "width": 28.682296752929688,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 92,
+                "y": 181,
+                "width": 53.020843505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16.25,
+                "x": 149.5885467529297,
+                "y": 181,
+                "width": 28.677078247070312,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 182.83334350585938,
+                "y": 181,
+                "width": 47.484375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Mark",
+                "size": 16.25,
+                "x": 32,
+                "y": 239,
+                "width": 39.09375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "all",
+                "size": 16.25,
+                "x": 75.66146087646484,
+                "y": 239,
+                "width": 17,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "as",
+                "size": 16.25,
+                "x": 97.22917175292969,
+                "y": 239,
+                "width": 17.703125,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "seen",
+                "size": 16.25,
+                "x": 119.5,
+                "y": 239,
+                "width": 37.130218505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "Open",
+                "size": 18,
+                "x": 16,
+                "y": 290,
+                "width": 47.145835876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 17
+              },
+              {
+                "word": "history",
+                "size": 18,
+                "x": 67.40625,
+                "y": 290,
+                "width": 62.07292175292969,
+                "height": 21.66668701171875,
+                "inkHeight": 18
+              }
+            ],
+            "watchEvents": [
+              {
+                "kind": "sound",
+                "at": "1795579504491",
+                "clipAt": 6.667026
+              },
+              {
+                "kind": "motion",
+                "at": "1795579512689",
+                "clipAt": 14.866972
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Sound alert",
+                "body": "Medium, 4:05:04 AM."
+              },
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Low, 4:05:12 AM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/dashboard-square-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1002,
+              "height": 1002,
+              "seconds": 6,
+              "bytes": 128401,
+              "sha256": "10a52cd44727da0069cc5cc8ef065dff4a9d3dabe5f8c5742a66ab98133bdfe7"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/dashboard-square-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1002,
+                "height": 1002,
+                "bytes": 37560,
+                "sha256": "c1e2d6ed5bda7f5b57acd6b62d2ed872ac5d32bd94531ac3c4d38439bf1606e6"
+              },
+              "avif": {
+                "path": "home/runs/dashboard-square-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1002,
+                "height": 1002,
+                "bytes": 28105,
+                "sha256": "179fe08343717ff36a45db274d1cda56c9beda083dd8b29479a0cb1c732dfda8"
+              }
+            },
+            "viewport": {
+              "width": 334,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 446,
+              "width": 334,
+              "height": 334
+            },
+            "scale": 3,
+            "eventAt": 2.0074002742767334,
+            "posterAt": 5.035900115966797,
+            "words": [
+              {
+                "word": "Since",
+                "size": 18,
+                "x": 16,
+                "y": 41,
+                "width": 47.32291793823242,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "you",
+                "size": 18,
+                "x": 68.38021087646484,
+                "y": 41,
+                "width": 31.208335876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 14
+              },
+              {
+                "word": "last",
+                "size": 18,
+                "x": 104.64583587646484,
+                "y": 41,
+                "width": 29.85938262939453,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "looked",
+                "size": 18,
+                "x": 139.5625,
+                "y": 41,
+                "width": 56.942718505859375,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Movement",
+                "size": 18,
+                "x": 92,
+                "y": 85,
+                "width": 89.75,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 186.8125,
+                "y": 85,
+                "width": 16,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "4:05",
+                "size": 18,
+                "x": 207.875,
+                "y": 85,
+                "width": 39.85417175292969,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "AM",
+                "size": 18,
+                "x": 252.5572967529297,
+                "y": 85,
+                "width": 28.682296752929688,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 92,
+                "y": 112,
+                "width": 53.020843505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16.25,
+                "x": 149.5885467529297,
+                "y": 112,
+                "width": 28.677078247070312,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 182.83334350585938,
+                "y": 112,
+                "width": 47.484375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Sound",
+                "size": 18,
+                "x": 92,
+                "y": 154,
+                "width": 54.645843505859375,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 151.70834350585938,
+                "y": 154,
+                "width": 16,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "4:05",
+                "size": 18,
+                "x": 172.77084350585938,
+                "y": 154,
+                "width": 39.854156494140625,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "AM",
+                "size": 18,
+                "x": 217.453125,
+                "y": 154,
+                "width": 28.682296752929688,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 92,
+                "y": 181,
+                "width": 53.020843505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16.25,
+                "x": 149.5885467529297,
+                "y": 181,
+                "width": 28.677078247070312,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 182.83334350585938,
+                "y": 181,
+                "width": 47.484375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Mark",
+                "size": 16.25,
+                "x": 32,
+                "y": 239,
+                "width": 39.09375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "all",
+                "size": 16.25,
+                "x": 75.66146087646484,
+                "y": 239,
+                "width": 17,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "as",
+                "size": 16.25,
+                "x": 97.22917175292969,
+                "y": 239,
+                "width": 17.703125,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "seen",
+                "size": 16.25,
+                "x": 119.5,
+                "y": 239,
+                "width": 37.130218505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "Open",
+                "size": 18,
+                "x": 16,
+                "y": 290,
+                "width": 47.145835876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 17
+              },
+              {
+                "word": "history",
+                "size": 18,
+                "x": 67.40625,
+                "y": 290,
+                "width": 62.07292175292969,
+                "height": 21.66668701171875,
+                "inkHeight": 18
+              }
+            ],
+            "watchEvents": [
+              {
+                "kind": "sound",
+                "at": "1795579529493",
+                "clipAt": 6.666991
+              },
+              {
+                "kind": "motion",
+                "at": "1795579537692",
+                "clipAt": 14.866906
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Sound alert",
+                "body": "Medium, 4:05:29 AM."
+              },
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Low, 4:05:37 AM."
+              }
+            ]
+          }
+        },
+        "wide": {
+          "dark": {
+            "video": {
+              "path": "home/runs/dashboard-wide-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 6,
+              "bytes": 220593,
+              "sha256": "d4a6f5e19c03767c01e1dfae22203c1bf38e5ecc0bc1720dc59ce9bfce4a02be"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/dashboard-wide-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 65050,
+                "sha256": "d86f26101ac4cdf04e487746b868d5c855850de3d350448a6f1c0f88770cde3a"
+              },
+              "avif": {
+                "path": "home/runs/dashboard-wide-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 81017,
+                "sha256": "569f17ad7cfdca7e9fec3cd33b13661ebe0fbebec5c448cd636dbf2c1fdc13d6"
+              }
+            },
+            "viewport": {
+              "width": 768,
+              "height": 480
+            },
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 480
+            },
+            "scale": 2.5,
+            "eventAt": 2.0081002712249756,
+            "posterAt": 5.0238001346588135,
+            "words": [
+              {
+                "word": "SafeOS",
+                "size": 16,
+                "x": 74,
+                "y": 12.800000190734863,
+                "width": 65.44375610351562,
+                "height": 20.400001525878906,
+                "inkHeight": 11
+              },
+              {
+                "word": "Guardian",
+                "size": 16,
+                "x": 74,
+                "y": 30.80000114440918,
+                "width": 86.63125610351562,
+                "height": 20.399999618530273,
+                "inkHeight": 11
+              },
+              {
+                "word": "Dashboard",
+                "size": 16,
+                "x": 176.63125610351562,
+                "y": 22,
+                "width": 82.52499389648438,
+                "height": 19.60000228881836,
+                "inkHeight": 12
+              },
+              {
+                "word": "History",
+                "size": 16,
+                "x": 275.15625,
+                "y": 22,
+                "width": 54.149993896484375,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "2",
+                "size": 16,
+                "x": 351.3062438964844,
+                "y": 22,
+                "width": 10.34375,
+                "height": 19.60000228881836,
+                "inkHeight": 12
+              },
+              {
+                "word": "Settings",
+                "size": 16,
+                "x": 377.6499938964844,
+                "y": 22,
+                "width": 61.6500244140625,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Help",
+                "size": 16,
+                "x": 455.3000183105469,
+                "y": 22,
+                "width": 34.89373779296875,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Since",
+                "size": 18,
+                "x": 32,
+                "y": 70.5999984741211,
+                "width": 47.32500457763672,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "you",
+                "size": 18,
+                "x": 84.3812484741211,
+                "y": 70.5999984741211,
+                "width": 31.206253051757812,
+                "height": 22,
+                "inkHeight": 14
+              },
+              {
+                "word": "last",
+                "size": 18,
+                "x": 120.64375305175781,
+                "y": 70.5999984741211,
+                "width": 29.862503051757812,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "looked",
+                "size": 18,
+                "x": 155.5625,
+                "y": 70.5999984741211,
+                "width": 56.943756103515625,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Movement",
+                "size": 18,
+                "x": 108,
+                "y": 114.5999984741211,
+                "width": 89.75,
+                "height": 22.00000762939453,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 202.8125,
+                "y": 114.5999984741211,
+                "width": 16,
+                "height": 22.00000762939453,
+                "inkHeight": 13
+              },
+              {
+                "word": "4:06",
+                "size": 18,
+                "x": 223.875,
+                "y": 114.5999984741211,
+                "width": 39.850006103515625,
+                "height": 22.00000762939453,
+                "inkHeight": 13
+              },
+              {
+                "word": "AM",
+                "size": 18,
+                "x": 268.5562438964844,
+                "y": 114.5999984741211,
+                "width": 28.6812744140625,
+                "height": 22.00000762939453,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 108,
+                "y": 141.8000030517578,
+                "width": 52.20625305175781,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 164.6999969482422,
+                "y": 141.8000030517578,
+                "width": 28.237503051757812,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 197.4375,
+                "y": 141.8000030517578,
+                "width": 46.75,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Sound",
+                "size": 18,
+                "x": 108,
+                "y": 183.40000915527344,
+                "width": 54.64375305175781,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 167.7062530517578,
+                "y": 183.40000915527344,
+                "width": 16,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "4:05",
+                "size": 18,
+                "x": 188.7687530517578,
+                "y": 183.40000915527344,
+                "width": 39.850006103515625,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "AM",
+                "size": 18,
+                "x": 233.4499969482422,
+                "y": 183.40000915527344,
+                "width": 28.681259155273438,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 108,
+                "y": 210.60000610351562,
+                "width": 52.20625305175781,
+                "height": 19.599990844726562,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 164.6999969482422,
+                "y": 210.60000610351562,
+                "width": 28.237503051757812,
+                "height": 19.599990844726562,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 197.4375,
+                "y": 210.60000610351562,
+                "width": 46.75,
+                "height": 19.599990844726562,
+                "inkHeight": 12
+              },
+              {
+                "word": "Mark",
+                "size": 16,
+                "x": 47.79999923706055,
+                "y": 268.6000061035156,
+                "width": 38.49375534057617,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "all",
+                "size": 16,
+                "x": 90.7874984741211,
+                "y": 268.6000061035156,
+                "width": 16.743751525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "as",
+                "size": 16,
+                "x": 112.0250015258789,
+                "y": 268.6000061035156,
+                "width": 17.431251525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 9
+              },
+              {
+                "word": "seen",
+                "size": 16,
+                "x": 133.9562530517578,
+                "y": 268.6000061035156,
+                "width": 36.556243896484375,
+                "height": 19.600006103515625,
+                "inkHeight": 9
+              },
+              {
+                "word": "Open",
+                "size": 18,
+                "x": 210.3125,
+                "y": 267.3999938964844,
+                "width": 47.149993896484375,
+                "height": 22,
+                "inkHeight": 17
+              },
+              {
+                "word": "history",
+                "size": 18,
+                "x": 261.71875,
+                "y": 267.3999938964844,
+                "width": 62.07501220703125,
+                "height": 22,
+                "inkHeight": 18
+              },
+              {
+                "word": "SafeOS",
+                "size": 20,
+                "x": 76,
+                "y": 400.6000061035156,
+                "width": 68.54374694824219,
+                "height": 25.600006103515625,
+                "inkHeight": 14
+              },
+              {
+                "word": "Guardian",
+                "size": 20,
+                "x": 149.61875915527344,
+                "y": 400.6000061035156,
+                "width": 86.64373779296875,
+                "height": 25.600006103515625,
+                "inkHeight": 14
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 32,
+                "y": 439.6000061035156,
+                "width": 52.20625305175781,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 88.70000457763672,
+                "y": 439.6000061035156,
+                "width": 28.23749542236328,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 121.4375,
+                "y": 439.6000061035156,
+                "width": 46.75,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "alerts",
+                "size": 16,
+                "x": 172.6875,
+                "y": 439.6000061035156,
+                "width": 41.98750305175781,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "that",
+                "size": 16,
+                "x": 219.1687469482422,
+                "y": 439.6000061035156,
+                "width": 28.91876220703125,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "run",
+                "size": 16,
+                "x": 252.5812530517578,
+                "y": 439.6000061035156,
+                "width": 24.943740844726562,
+                "height": 19.600006103515625,
+                "inkHeight": 9
+              },
+              {
+                "word": "in",
+                "size": 16,
+                "x": 282.0187683105469,
+                "y": 439.6000061035156,
+                "width": 13.337493896484375,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "your",
+                "size": 16,
+                "x": 299.8500061035156,
+                "y": 439.6000061035156,
+                "width": 33.76251220703125,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "browser.",
+                "size": 16,
+                "x": 338.10626220703125,
+                "y": 439.6000061035156,
+                "width": 65.36248779296875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              }
+            ],
+            "watchEvents": [
+              {
+                "kind": "sound",
+                "at": "1795579554422",
+                "clipAt": 6.666984
+              },
+              {
+                "kind": "motion",
+                "at": "1795579562621",
+                "clipAt": 14.866903
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Sound alert",
+                "body": "Medium, 4:05:54 AM."
+              },
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Low, 4:06:02 AM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/dashboard-wide-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 6,
+              "bytes": 223734,
+              "sha256": "713e5a06ccce0c887abb09fe07ebc47ec949cd975e0155980151300c51608522"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/dashboard-wide-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 65944,
+                "sha256": "49e90277b9ac3e8a6bc8fd09161efbd2c54da7ba1be7d72eb92830dc0cadb0c7"
+              },
+              "avif": {
+                "path": "home/runs/dashboard-wide-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 86421,
+                "sha256": "1c1ca6e4b3a8da64626da4fffacbf5d242405f1611722504070b08ccd2fb5cb2"
+              }
+            },
+            "viewport": {
+              "width": 768,
+              "height": 480
+            },
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 480
+            },
+            "scale": 2.5,
+            "eventAt": 2.0078001022338867,
+            "posterAt": 5.021899938583374,
+            "words": [
+              {
+                "word": "SafeOS",
+                "size": 16,
+                "x": 74,
+                "y": 12.800000190734863,
+                "width": 65.44375610351562,
+                "height": 20.400001525878906,
+                "inkHeight": 11
+              },
+              {
+                "word": "Guardian",
+                "size": 16,
+                "x": 74,
+                "y": 30.80000114440918,
+                "width": 86.63125610351562,
+                "height": 20.399999618530273,
+                "inkHeight": 11
+              },
+              {
+                "word": "Dashboard",
+                "size": 16,
+                "x": 176.63125610351562,
+                "y": 22,
+                "width": 82.52499389648438,
+                "height": 19.60000228881836,
+                "inkHeight": 12
+              },
+              {
+                "word": "History",
+                "size": 16,
+                "x": 275.15625,
+                "y": 22,
+                "width": 54.149993896484375,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "2",
+                "size": 16,
+                "x": 351.3062438964844,
+                "y": 22,
+                "width": 10.34375,
+                "height": 19.60000228881836,
+                "inkHeight": 12
+              },
+              {
+                "word": "Settings",
+                "size": 16,
+                "x": 377.6499938964844,
+                "y": 22,
+                "width": 61.6500244140625,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Help",
+                "size": 16,
+                "x": 455.3000183105469,
+                "y": 22,
+                "width": 34.89373779296875,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Since",
+                "size": 18,
+                "x": 32,
+                "y": 70.5999984741211,
+                "width": 47.32500457763672,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "you",
+                "size": 18,
+                "x": 84.3812484741211,
+                "y": 70.5999984741211,
+                "width": 31.206253051757812,
+                "height": 22,
+                "inkHeight": 14
+              },
+              {
+                "word": "last",
+                "size": 18,
+                "x": 120.64375305175781,
+                "y": 70.5999984741211,
+                "width": 29.862503051757812,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "looked",
+                "size": 18,
+                "x": 155.5625,
+                "y": 70.5999984741211,
+                "width": 56.943756103515625,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Movement",
+                "size": 18,
+                "x": 108,
+                "y": 114.5999984741211,
+                "width": 89.75,
+                "height": 22.00000762939453,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 202.8125,
+                "y": 114.5999984741211,
+                "width": 16,
+                "height": 22.00000762939453,
+                "inkHeight": 13
+              },
+              {
+                "word": "4:06",
+                "size": 18,
+                "x": 223.875,
+                "y": 114.5999984741211,
+                "width": 39.850006103515625,
+                "height": 22.00000762939453,
+                "inkHeight": 13
+              },
+              {
+                "word": "AM",
+                "size": 18,
+                "x": 268.5562438964844,
+                "y": 114.5999984741211,
+                "width": 28.6812744140625,
+                "height": 22.00000762939453,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 108,
+                "y": 141.8000030517578,
+                "width": 52.20625305175781,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 164.6999969482422,
+                "y": 141.8000030517578,
+                "width": 28.237503051757812,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 197.4375,
+                "y": 141.8000030517578,
+                "width": 46.75,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Sound",
+                "size": 18,
+                "x": 108,
+                "y": 183.40000915527344,
+                "width": 54.64375305175781,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 167.7062530517578,
+                "y": 183.40000915527344,
+                "width": 16,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "4:06",
+                "size": 18,
+                "x": 188.7687530517578,
+                "y": 183.40000915527344,
+                "width": 39.850006103515625,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "AM",
+                "size": 18,
+                "x": 233.4499969482422,
+                "y": 183.40000915527344,
+                "width": 28.681259155273438,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 108,
+                "y": 210.60000610351562,
+                "width": 52.20625305175781,
+                "height": 19.599990844726562,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 164.6999969482422,
+                "y": 210.60000610351562,
+                "width": 28.237503051757812,
+                "height": 19.599990844726562,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 197.4375,
+                "y": 210.60000610351562,
+                "width": 46.75,
+                "height": 19.599990844726562,
+                "inkHeight": 12
+              },
+              {
+                "word": "Mark",
+                "size": 16,
+                "x": 47.79999923706055,
+                "y": 268.6000061035156,
+                "width": 38.49375534057617,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "all",
+                "size": 16,
+                "x": 90.7874984741211,
+                "y": 268.6000061035156,
+                "width": 16.743751525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "as",
+                "size": 16,
+                "x": 112.0250015258789,
+                "y": 268.6000061035156,
+                "width": 17.431251525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 9
+              },
+              {
+                "word": "seen",
+                "size": 16,
+                "x": 133.9562530517578,
+                "y": 268.6000061035156,
+                "width": 36.556243896484375,
+                "height": 19.600006103515625,
+                "inkHeight": 9
+              },
+              {
+                "word": "Open",
+                "size": 18,
+                "x": 210.3125,
+                "y": 267.3999938964844,
+                "width": 47.149993896484375,
+                "height": 22,
+                "inkHeight": 17
+              },
+              {
+                "word": "history",
+                "size": 18,
+                "x": 261.71875,
+                "y": 267.3999938964844,
+                "width": 62.07501220703125,
+                "height": 22,
+                "inkHeight": 18
+              },
+              {
+                "word": "SafeOS",
+                "size": 20,
+                "x": 76,
+                "y": 400.6000061035156,
+                "width": 68.54374694824219,
+                "height": 25.600006103515625,
+                "inkHeight": 14
+              },
+              {
+                "word": "Guardian",
+                "size": 20,
+                "x": 149.61875915527344,
+                "y": 400.6000061035156,
+                "width": 86.64373779296875,
+                "height": 25.600006103515625,
+                "inkHeight": 14
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 32,
+                "y": 439.6000061035156,
+                "width": 52.20625305175781,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 88.70000457763672,
+                "y": 439.6000061035156,
+                "width": 28.23749542236328,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 121.4375,
+                "y": 439.6000061035156,
+                "width": 46.75,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "alerts",
+                "size": 16,
+                "x": 172.6875,
+                "y": 439.6000061035156,
+                "width": 41.98750305175781,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "that",
+                "size": 16,
+                "x": 219.1687469482422,
+                "y": 439.6000061035156,
+                "width": 28.91876220703125,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "run",
+                "size": 16,
+                "x": 252.5812530517578,
+                "y": 439.6000061035156,
+                "width": 24.943740844726562,
+                "height": 19.600006103515625,
+                "inkHeight": 9
+              },
+              {
+                "word": "in",
+                "size": 16,
+                "x": 282.0187683105469,
+                "y": 439.6000061035156,
+                "width": 13.337493896484375,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "your",
+                "size": 16,
+                "x": 299.8500061035156,
+                "y": 439.6000061035156,
+                "width": 33.76251220703125,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "browser.",
+                "size": 16,
+                "x": 338.10626220703125,
+                "y": 439.6000061035156,
+                "width": 65.36248779296875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              }
+            ],
+            "watchEvents": [
+              {
+                "kind": "sound",
+                "at": "1795579579247",
+                "clipAt": 6.666991
+              },
+              {
+                "kind": "motion",
+                "at": "1795579587446",
+                "clipAt": 14.866905
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Sound alert",
+                "body": "Medium, 4:06:19 AM."
+              },
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Low, 4:06:27 AM."
               }
             ]
           }
@@ -2459,7 +2425,7 @@
       "state": "list",
       "clip": null,
       "seconds": 6,
-      "description": "Settings say how this device is set: what it watches for and what raises an alert.",
+      "description": "Settings control what the device watches and when it alerts.",
       "longDescription": [
         "0–2 seconds. Settings shows Detection first, then the settings that follow it.",
         "2–5 seconds. The page scrolls through the list of settings.",
@@ -2472,7 +2438,7 @@
         "Your",
         "own,",
         "motion",
-        "80,",
+        "87,",
         "sound",
         "80",
         "Alert",
@@ -2494,8 +2460,8 @@
               "width": 1002,
               "height": 1002,
               "seconds": 6,
-              "bytes": 58629,
-              "sha256": "29ae577784437ad405f51d78ad730ed52216640748d8fbbdd62841f154eefa5f"
+              "bytes": 283372,
+              "sha256": "c641112d2c2db2880b0511668dee81ed9ce4003efa21b3f23202dccc53f8ba90"
             },
             "poster": {
               "webp": {
@@ -2504,8 +2470,8 @@
                 "format": "webp",
                 "width": 1002,
                 "height": 1002,
-                "bytes": 18372,
-                "sha256": "36dbbe4365360284d9ea3ebdcc78e79f1bbeff54f99c76846accb7a75b15169e"
+                "bytes": 18586,
+                "sha256": "55e88f9bc69cc0af04710d5e0a4194862ba3dde44644cb0a5fd7f4f8d7199c0e"
               },
               "avif": {
                 "path": "home/runs/settings-square-dark.avif",
@@ -2513,8 +2479,8 @@
                 "format": "avif",
                 "width": 1002,
                 "height": 1002,
-                "bytes": 20015,
-                "sha256": "54d056ddfe31f2b5da9b070bf4c06516ebe692e4fec5c061fdb4d1837f67aec6"
+                "bytes": 20168,
+                "sha256": "bc5a45f3723d274f53679182600b41b7ec58549eb9985d4ce42cd3250e81abe2"
               }
             },
             "viewport": {
@@ -2536,24 +2502,27 @@
                 "size": 18,
                 "x": 16,
                 "y": 29,
-                "width": 81.65625,
-                "height": 21
+                "width": 81.65104675292969,
+                "height": 21.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Your",
                 "size": 16.25,
                 "x": 16,
                 "y": 60,
-                "width": 35.265625,
-                "height": 20
+                "width": 35.255210876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "own,",
                 "size": 16.25,
-                "x": 55.8125,
+                "x": 55.82291793823242,
                 "y": 60,
-                "width": 37.046875,
-                "height": 20
+                "width": 37.03645706176758,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "motion",
@@ -2561,15 +2530,17 @@
                 "x": 97.421875,
                 "y": 60,
                 "width": 52.578125,
-                "height": 20
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
-                "word": "80,",
+                "word": "87,",
                 "size": 16.25,
-                "x": 154.5625,
+                "x": 154.56771850585938,
                 "y": 60,
-                "width": 24.59375,
-                "height": 20
+                "width": 21.901031494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 15
               },
               {
                 "word": "sound",
@@ -2577,7 +2548,8 @@
                 "x": 16,
                 "y": 84,
                 "width": 47.484375,
-                "height": 20
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "80",
@@ -2585,7 +2557,8 @@
                 "x": 68.046875,
                 "y": 84,
                 "width": 20.3125,
-                "height": 20
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "Alert",
@@ -2593,55 +2566,62 @@
                 "x": 16,
                 "y": 147,
                 "width": 40.21875,
-                "height": 21
+                "height": 21.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "sounds",
                 "size": 18,
                 "x": 61.28125,
                 "y": 147,
-                "width": 62.109375,
-                "height": 21
+                "width": 62.098960876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Volume",
                 "size": 16.25,
                 "x": 16,
                 "y": 178,
-                "width": 57.390625,
-                "height": 20
+                "width": 57.38542175292969,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "100",
                 "size": 16.25,
                 "x": 77.953125,
                 "y": 178,
-                "width": 27.125,
-                "height": 20
+                "width": 27.114585876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "Quiet",
                 "size": 18,
                 "x": 16,
                 "y": 243,
-                "width": 45.15625,
-                "height": 21
+                "width": 45.15104293823242,
+                "height": 21.66668701171875,
+                "inkHeight": 14
               },
               {
                 "word": "hours",
                 "size": 18,
-                "x": 66.203125,
+                "x": 66.20833587646484,
                 "y": 243,
-                "width": 48.375,
-                "height": 21
+                "width": 48.364585876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Off",
                 "size": 16.25,
                 "x": 16,
                 "y": 274,
-                "width": 23.828125,
-                "height": 20
+                "width": 23.822917938232422,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               }
             ]
           },
@@ -2654,8 +2634,8 @@
               "width": 1002,
               "height": 1002,
               "seconds": 6,
-              "bytes": 59887,
-              "sha256": "a75aecb24b3e0ce0582a301968a8b331372cbbbaabd737093d2d21d725b3cfc4"
+              "bytes": 368396,
+              "sha256": "03acd7b59ae3160b7346590aafd3de8fded1189d38af2d2f9a34422158bf91fc"
             },
             "poster": {
               "webp": {
@@ -2664,8 +2644,8 @@
                 "format": "webp",
                 "width": 1002,
                 "height": 1002,
-                "bytes": 18398,
-                "sha256": "cdb4ef5bbeaf8f1493710b595609b03173694c2189aadcd2ab97acee869165fe"
+                "bytes": 19082,
+                "sha256": "80efa6679405d8a7ea687d1c5385f92ea73166938d00245ed791f93579120828"
               },
               "avif": {
                 "path": "home/runs/settings-square-light.avif",
@@ -2673,8 +2653,8 @@
                 "format": "avif",
                 "width": 1002,
                 "height": 1002,
-                "bytes": 22428,
-                "sha256": "333c0aa48427b6cb3c214de83de09f35770d8652aeeb6791e87782677c3608fd"
+                "bytes": 22310,
+                "sha256": "441a4baa2cf4b7df1fd2c88ae5bc741b5ea1082ee60c7cf18989417a816deb7a"
               }
             },
             "viewport": {
@@ -2696,24 +2676,27 @@
                 "size": 18,
                 "x": 16,
                 "y": 29,
-                "width": 81.65625,
-                "height": 21
+                "width": 81.65104675292969,
+                "height": 21.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Your",
                 "size": 16.25,
                 "x": 16,
                 "y": 60,
-                "width": 35.265625,
-                "height": 20
+                "width": 35.255210876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "own,",
                 "size": 16.25,
-                "x": 55.8125,
+                "x": 55.82291793823242,
                 "y": 60,
-                "width": 37.046875,
-                "height": 20
+                "width": 37.03645706176758,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "motion",
@@ -2721,15 +2704,17 @@
                 "x": 97.421875,
                 "y": 60,
                 "width": 52.578125,
-                "height": 20
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
-                "word": "80,",
+                "word": "87,",
                 "size": 16.25,
-                "x": 154.5625,
+                "x": 154.56771850585938,
                 "y": 60,
-                "width": 24.59375,
-                "height": 20
+                "width": 21.901031494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 15
               },
               {
                 "word": "sound",
@@ -2737,7 +2722,8 @@
                 "x": 16,
                 "y": 84,
                 "width": 47.484375,
-                "height": 20
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "80",
@@ -2745,7 +2731,8 @@
                 "x": 68.046875,
                 "y": 84,
                 "width": 20.3125,
-                "height": 20
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "Alert",
@@ -2753,55 +2740,62 @@
                 "x": 16,
                 "y": 147,
                 "width": 40.21875,
-                "height": 21
+                "height": 21.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "sounds",
                 "size": 18,
                 "x": 61.28125,
                 "y": 147,
-                "width": 62.109375,
-                "height": 21
+                "width": 62.098960876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Volume",
                 "size": 16.25,
                 "x": 16,
                 "y": 178,
-                "width": 57.390625,
-                "height": 20
+                "width": 57.38542175292969,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "100",
                 "size": 16.25,
                 "x": 77.953125,
                 "y": 178,
-                "width": 27.125,
-                "height": 20
+                "width": 27.114585876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               },
               {
                 "word": "Quiet",
                 "size": 18,
                 "x": 16,
                 "y": 243,
-                "width": 45.15625,
-                "height": 21
+                "width": 45.15104293823242,
+                "height": 21.66668701171875,
+                "inkHeight": 14
               },
               {
                 "word": "hours",
                 "size": 18,
-                "x": 66.203125,
+                "x": 66.20833587646484,
                 "y": 243,
-                "width": 48.375,
-                "height": 21
+                "width": 48.364585876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 13
               },
               {
                 "word": "Off",
                 "size": 16.25,
                 "x": 16,
                 "y": 274,
-                "width": 23.828125,
-                "height": 20
+                "width": 23.822917938232422,
+                "height": 19.66668701171875,
+                "inkHeight": 12
               }
             ]
           }
@@ -2816,8 +2810,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 6,
-              "bytes": 185432,
-              "sha256": "c54d9a156e6ac4e10b5cbdd3ef1dabe90bd4d9b3511756b56c3fed93a24c9851"
+              "bytes": 236982,
+              "sha256": "f1e49e5bcd0b8e9c35a7ca3c0e85dd4085d03636f31b1b6dbcdfca5cc550614d"
             },
             "poster": {
               "webp": {
@@ -2826,8 +2820,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 42620,
-                "sha256": "f5ab56bcff8d8c66b6c7f5786b8fe131c253c30dfaa0616c34f88ac3ceb13043"
+                "bytes": 42544,
+                "sha256": "614c6260c0e725f4639503b942c10ea670138caebc03e024c24bf5f490fdebe8"
               },
               "avif": {
                 "path": "home/runs/settings-wide-dark.avif",
@@ -2835,8 +2829,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 54832,
-                "sha256": "31948e26fadcacbf8d65792bfab97103b3feb14e0486279a5df1bf0353090a38"
+                "bytes": 54694,
+                "sha256": "b4fbec0672b8f7b163e6e41c8627bdc2b87f49ba6b346e99c4d32836b4016aaf"
               }
             },
             "viewport": {
@@ -2859,7 +2853,8 @@
                 "x": 74,
                 "y": 12.800000190734863,
                 "width": 65.44375610351562,
-                "height": 20.400001525878906
+                "height": 20.400001525878906,
+                "inkHeight": 11
               },
               {
                 "word": "Guardian",
@@ -2867,7 +2862,8 @@
                 "x": 74,
                 "y": 30.80000114440918,
                 "width": 86.63125610351562,
-                "height": 20.399999618530273
+                "height": 20.399999618530273,
+                "inkHeight": 11
               },
               {
                 "word": "Dashboard",
@@ -2875,7 +2871,8 @@
                 "x": 176.63125610351562,
                 "y": 22,
                 "width": 82.52499389648438,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 12
               },
               {
                 "word": "History",
@@ -2883,7 +2880,8 @@
                 "x": 275.15625,
                 "y": 22,
                 "width": 54.149993896484375,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Settings",
@@ -2891,7 +2889,8 @@
                 "x": 345.3062438964844,
                 "y": 22,
                 "width": 61.6500244140625,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Help",
@@ -2899,7 +2898,8 @@
                 "x": 422.9562683105469,
                 "y": 22,
                 "width": 34.89373779296875,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Detection",
@@ -2907,7 +2907,8 @@
                 "x": 64,
                 "y": 86.80000305175781,
                 "width": 81.65625,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "Your",
@@ -2915,7 +2916,8 @@
                 "x": 64,
                 "y": 118,
                 "width": 34.712501525878906,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "own,",
@@ -2923,7 +2925,8 @@
                 "x": 103.20625305175781,
                 "y": 118,
                 "width": 36.46875,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "motion",
@@ -2931,31 +2934,35 @@
                 "x": 144.1687469482422,
                 "y": 118,
                 "width": 51.76875305175781,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
-                "word": "80,",
+                "word": "87,",
                 "size": 16,
                 "x": 200.4375,
                 "y": 118,
-                "width": 24.199996948242188,
-                "height": 19.600006103515625
+                "width": 21.5625,
+                "height": 19.600006103515625,
+                "inkHeight": 15
               },
               {
                 "word": "sound",
                 "size": 16,
-                "x": 229.13125610351562,
+                "x": 226.5,
                 "y": 118,
-                "width": 46.756256103515625,
-                "height": 19.600006103515625
+                "width": 46.75,
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "80",
                 "size": 16,
-                "x": 280.3812561035156,
+                "x": 277.75,
                 "y": 118,
                 "width": 19.993743896484375,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "Alert",
@@ -2963,7 +2970,8 @@
                 "x": 64,
                 "y": 174.8000030517578,
                 "width": 40.21875,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "sounds",
@@ -2971,7 +2979,8 @@
                 "x": 109.28125,
                 "y": 174.8000030517578,
                 "width": 62.100006103515625,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "Volume",
@@ -2979,7 +2988,8 @@
                 "x": 64,
                 "y": 206,
                 "width": 56.5,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "100",
@@ -2987,7 +2997,8 @@
                 "x": 125,
                 "y": 206,
                 "width": 26.699996948242188,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "Quiet",
@@ -2995,7 +3006,8 @@
                 "x": 64,
                 "y": 262.8000183105469,
                 "width": 45.150001525878906,
-                "height": 22
+                "height": 22,
+                "inkHeight": 14
               },
               {
                 "word": "hours",
@@ -3003,7 +3015,8 @@
                 "x": 114.20625305175781,
                 "y": 262.8000183105469,
                 "width": 48.368743896484375,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "Off",
@@ -3011,7 +3024,8 @@
                 "x": 64,
                 "y": 294,
                 "width": 23.456253051757812,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "Alerts",
@@ -3019,7 +3033,8 @@
                 "x": 64,
                 "y": 354.8000183105469,
                 "width": 46.23750305175781,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "Unanswered",
@@ -3027,7 +3042,8 @@
                 "x": 64,
                 "y": 399.6000061035156,
                 "width": 107.16874694824219,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "alerts",
@@ -3035,7 +3051,8 @@
                 "x": 176.22500610351562,
                 "y": 399.6000061035156,
                 "width": 47.23750305175781,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "Wait",
@@ -3043,7 +3060,8 @@
                 "x": 64,
                 "y": 430.8000183105469,
                 "width": 33.05000305175781,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "30",
@@ -3051,7 +3069,8 @@
                 "x": 101.54375457763672,
                 "y": 430.8000183105469,
                 "width": 19.981246948242188,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "s,",
@@ -3059,7 +3078,8 @@
                 "x": 126.01875305175781,
                 "y": 430.8000183105469,
                 "width": 13.0625,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "louder",
@@ -3067,7 +3087,8 @@
                 "x": 143.5749969482422,
                 "y": 430.8000183105469,
                 "width": 48.08125305175781,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "after",
@@ -3075,7 +3096,8 @@
                 "x": 196.15625,
                 "y": 430.8000183105469,
                 "width": 34.79374694824219,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "30",
@@ -3083,7 +3105,8 @@
                 "x": 235.44375610351562,
                 "y": 430.8000183105469,
                 "width": 19.981246948242188,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "s",
@@ -3091,7 +3114,8 @@
                 "x": 259.91876220703125,
                 "y": 430.8000183105469,
                 "width": 8.449981689453125,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 9
               }
             ]
           },
@@ -3104,8 +3128,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 6,
-              "bytes": 217038,
-              "sha256": "0a7b4e909e470c95c4759f30d6940a64b6d16897747d268088fe00286837d5d3"
+              "bytes": 228334,
+              "sha256": "c6b67a34e236e86bdf5caf42f38dd0cf616f0f99d70ad79e8dd46d83fae08ee5"
             },
             "poster": {
               "webp": {
@@ -3114,8 +3138,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 43782,
-                "sha256": "cc39b92fef3c082ee2902795248d5d2dbbb967806277ec9c76c0615f21e92fc4"
+                "bytes": 43666,
+                "sha256": "f98835d967fa952d0a4ccf67dc182dc932dfb3462c26f52d69f9b7487f82351c"
               },
               "avif": {
                 "path": "home/runs/settings-wide-light.avif",
@@ -3123,8 +3147,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 58949,
-                "sha256": "67056aa6ba511a6866ddd236028e574975f5892e705fa70c88a8e0654490caf0"
+                "bytes": 58815,
+                "sha256": "00f68c5b3b51123d0cebcafa443e38c475ad3674e9833c1095f47fc5632d6a99"
               }
             },
             "viewport": {
@@ -3147,7 +3171,8 @@
                 "x": 74,
                 "y": 12.800000190734863,
                 "width": 65.44375610351562,
-                "height": 20.400001525878906
+                "height": 20.400001525878906,
+                "inkHeight": 11
               },
               {
                 "word": "Guardian",
@@ -3155,7 +3180,8 @@
                 "x": 74,
                 "y": 30.80000114440918,
                 "width": 86.63125610351562,
-                "height": 20.399999618530273
+                "height": 20.399999618530273,
+                "inkHeight": 11
               },
               {
                 "word": "Dashboard",
@@ -3163,7 +3189,8 @@
                 "x": 176.63125610351562,
                 "y": 22,
                 "width": 82.52499389648438,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 12
               },
               {
                 "word": "History",
@@ -3171,7 +3198,8 @@
                 "x": 275.15625,
                 "y": 22,
                 "width": 54.149993896484375,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Settings",
@@ -3179,7 +3207,8 @@
                 "x": 345.3062438964844,
                 "y": 22,
                 "width": 61.6500244140625,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Help",
@@ -3187,7 +3216,8 @@
                 "x": 422.9562683105469,
                 "y": 22,
                 "width": 34.89373779296875,
-                "height": 19.60000228881836
+                "height": 19.60000228881836,
+                "inkHeight": 15
               },
               {
                 "word": "Detection",
@@ -3195,7 +3225,8 @@
                 "x": 64,
                 "y": 86.80000305175781,
                 "width": 81.65625,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "Your",
@@ -3203,7 +3234,8 @@
                 "x": 64,
                 "y": 118,
                 "width": 34.712501525878906,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "own,",
@@ -3211,7 +3243,8 @@
                 "x": 103.20625305175781,
                 "y": 118,
                 "width": 36.46875,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "motion",
@@ -3219,31 +3252,35 @@
                 "x": 144.1687469482422,
                 "y": 118,
                 "width": 51.76875305175781,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
-                "word": "80,",
+                "word": "87,",
                 "size": 16,
                 "x": 200.4375,
                 "y": 118,
-                "width": 24.199996948242188,
-                "height": 19.600006103515625
+                "width": 21.5625,
+                "height": 19.600006103515625,
+                "inkHeight": 15
               },
               {
                 "word": "sound",
                 "size": 16,
-                "x": 229.13125610351562,
+                "x": 226.5,
                 "y": 118,
-                "width": 46.756256103515625,
-                "height": 19.600006103515625
+                "width": 46.75,
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "80",
                 "size": 16,
-                "x": 280.3812561035156,
+                "x": 277.75,
                 "y": 118,
                 "width": 19.993743896484375,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "Alert",
@@ -3251,7 +3288,8 @@
                 "x": 64,
                 "y": 174.8000030517578,
                 "width": 40.21875,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "sounds",
@@ -3259,7 +3297,8 @@
                 "x": 109.28125,
                 "y": 174.8000030517578,
                 "width": 62.100006103515625,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "Volume",
@@ -3267,7 +3306,8 @@
                 "x": 64,
                 "y": 206,
                 "width": 56.5,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "100",
@@ -3275,7 +3315,8 @@
                 "x": 125,
                 "y": 206,
                 "width": 26.699996948242188,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "Quiet",
@@ -3283,7 +3324,8 @@
                 "x": 64,
                 "y": 262.8000183105469,
                 "width": 45.150001525878906,
-                "height": 22
+                "height": 22,
+                "inkHeight": 14
               },
               {
                 "word": "hours",
@@ -3291,7 +3333,8 @@
                 "x": 114.20625305175781,
                 "y": 262.8000183105469,
                 "width": 48.368743896484375,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "Off",
@@ -3299,7 +3342,8 @@
                 "x": 64,
                 "y": 294,
                 "width": 23.456253051757812,
-                "height": 19.600006103515625
+                "height": 19.600006103515625,
+                "inkHeight": 12
               },
               {
                 "word": "Alerts",
@@ -3307,7 +3351,8 @@
                 "x": 64,
                 "y": 354.8000183105469,
                 "width": 46.23750305175781,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "Unanswered",
@@ -3315,7 +3360,8 @@
                 "x": 64,
                 "y": 399.6000061035156,
                 "width": 107.16874694824219,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "alerts",
@@ -3323,7 +3369,8 @@
                 "x": 176.22500610351562,
                 "y": 399.6000061035156,
                 "width": 47.23750305175781,
-                "height": 22
+                "height": 22,
+                "inkHeight": 13
               },
               {
                 "word": "Wait",
@@ -3331,7 +3378,8 @@
                 "x": 64,
                 "y": 430.8000183105469,
                 "width": 33.05000305175781,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "30",
@@ -3339,7 +3387,8 @@
                 "x": 101.54375457763672,
                 "y": 430.8000183105469,
                 "width": 19.981246948242188,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "s,",
@@ -3347,7 +3396,8 @@
                 "x": 126.01875305175781,
                 "y": 430.8000183105469,
                 "width": 13.0625,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "louder",
@@ -3355,7 +3405,8 @@
                 "x": 143.5749969482422,
                 "y": 430.8000183105469,
                 "width": 48.08125305175781,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "after",
@@ -3363,7 +3414,8 @@
                 "x": 196.15625,
                 "y": 430.8000183105469,
                 "width": 34.79374694824219,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "30",
@@ -3371,7 +3423,8 @@
                 "x": 235.44375610351562,
                 "y": 430.8000183105469,
                 "width": 19.981246948242188,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 12
               },
               {
                 "word": "s",
@@ -3379,7 +3432,8 @@
                 "x": 259.91876220703125,
                 "y": 430.8000183105469,
                 "width": 8.449981689453125,
-                "height": 19.5999755859375
+                "height": 19.5999755859375,
+                "inkHeight": 9
               }
             ]
           }
