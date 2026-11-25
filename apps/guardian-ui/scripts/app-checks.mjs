@@ -150,7 +150,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     const arrows = await left.isVisible() && await right.isVisible();
     check(arrows, `${selector} has no pair of named scroll buttons`);
     if (!arrows) return;
-    const scroller = row.locator(':scope > .key-row__keys');
+    const scroller = row.locator('.key-row__keys');
     const read = () => scroller.evaluate((el) => ({
       left: el.scrollLeft,
       width: el.clientWidth,
@@ -683,10 +683,10 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (!nav) return null;
         return {
           screen: document.documentElement.clientWidth,
-          scrollWidth: nav.scrollWidth,
-          clientWidth: nav.clientWidth,
+          scrollWidth: nav.querySelector('.key-row__keys').scrollWidth,
+          clientWidth: nav.querySelector('.key-row__keys').clientWidth,
           line: getComputedStyle(nav).boxShadow,
-          edge: getComputedStyle(nav).maskImage,
+          edge: getComputedStyle(nav.querySelector('.key-row__keys')).maskImage,
           places: [...nav.querySelectorAll('a')].map((a) => {
             const box = a.getBoundingClientRect();
             const word = a.querySelector('.phone-bar__word') || a;
@@ -700,19 +700,10 @@ export async function checkApp(browser, baseUrl, outDir) {
       for (const place of seen.places) check(!place.cut, `${place.word} is cut`);
       const width = Math.max(...seen.places.map((place) => place.right)) - Math.min(...seen.places.map((place) => place.left));
       if (width > seen.screen + 0.5) check(seen.scrollWidth > seen.clientWidth, `the places take ${Math.round(width)} px and the bar does not scroll inside itself`);
-      // The bar's top line is drawn inside the bar, where the faded edge
-      // does not cut it away; the edge is faded while places lie past it and
-      // plain once the bar is scrolled to its end.
-      check(/inset/.test(seen.line), `the bar's top line is drawn outside the bar (${seen.line}), where a faded edge cuts it away`);
+      check(/inset/.test(seen.line), `the bar's top line is drawn outside the bar (${seen.line})`);
       if (seen.scrollWidth > seen.clientWidth) {
         check(/gradient/.test(seen.edge), `places lie past the bar's right edge and the edge is not faded (${seen.edge})`);
-        const atEnd = await page.evaluate(async () => {
-          const nav = document.querySelector('nav.phone-bar');
-          nav.scrollTo({ left: nav.scrollWidth, behavior: 'instant' });
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          return getComputedStyle(nav).maskImage;
-        });
-        check(atEnd === 'none', `the bar scrolled to its end keeps a faded edge (${atEnd})`);
+        await pressRowArrows(page, 'nav.phone-bar', check);
       }
       const sideways = await sidewaysScroll(page);
       if (sideways > 0) check(false, `the page scrolls ${sideways} px sideways: ${await widest(page)}`);
@@ -1223,14 +1214,15 @@ export async function checkApp(browser, baseUrl, outDir) {
   const readKeyRow = () => {
     const row = document.querySelector('.way-head__keys');
     if (!row) return null;
+    const keys = row.querySelector('.key-row__keys');
     const box = row.getBoundingClientRect();
     const middle = box.top + box.height / 2;
     return {
       scrolls: row.classList.contains('key-row'),
-      past: row.scrollWidth - row.clientWidth,
-      marked: row.hasAttribute('data-overflow'),
-      mask: getComputedStyle(row).maskImage,
-      offLine: [...row.children].filter((key) => {
+      past: keys.scrollWidth - keys.clientWidth,
+      marked: row.hasAttribute('data-more'),
+      mask: getComputedStyle(keys).maskImage,
+      offLine: [...keys.children].filter((key) => {
         const place = key.getBoundingClientRect();
         return Math.abs(place.top + place.height / 2 - middle) > 1;
       }).map((key) => (key.textContent || '').trim().slice(0, 30)),
@@ -1253,13 +1245,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (route === '/wildlife/' && width === 320) check(row.past > 1, 'the keys fit at 320 px, so their scroll goes unread');
         if (row.past > 1) {
           check(row.marked && row.mask !== 'none', `on ${route} the keys run ${row.past} px past their row with no faded edge`);
-          const atEnd = await page.evaluate(async () => {
-            const keys = document.querySelector('.way-head__keys');
-            keys.scrollTo({ left: keys.scrollWidth, behavior: 'instant' });
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            return getComputedStyle(keys).maskImage;
-          });
-          check(atEnd === 'none', `on ${route} the row scrolled to its end keeps a faded edge (${atEnd})`);
+          await pressRowArrows(page, '.way-head__keys', check);
         } else {
           check(!row.marked, `on ${route} the keys fit and their row is marked as running over`);
         }
