@@ -35,7 +35,7 @@
 //
 // It records and does not judge: a slow number is written down, and a part
 // that could not be measured is written down with the reason. It exits
-// non-zero if results cannot be written or a Wildlife watch cannot run the model.
+// non-zero if results cannot be written or the Wildlife clip check fails.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -773,4 +773,7 @@ console.log(summary);
 if (results.wildlife?.attempts.length !== 2
   || results.wildlife.attempts.some((attempt) => attempt.error || attempt.frameReads < 2 || !attempt.inferences.length)) {
   throw new Error('Wildlife did not complete a model check through its motion gate on both plays of the sample clip.');
+}
+if (results.wildlife.attempts.some((attempt) => attempt.catSecond === null)) {
+  throw new Error('Wildlife did not save a cat sighting on both watches of the sample clip.');
 }

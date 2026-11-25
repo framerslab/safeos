@@ -119,9 +119,10 @@ browser contexts.
   key starts the camera, and Wildlife sees the clip through its own one-second
   timer and motion gate. A picture encoded by the detector after inference
   shows that the gate opened and the model returned. Each watch must finish
-  at least one inference. The job summary and `wildlife-probe.json` in the
+  at least one inference and save a cat sighting. The job summary and
+  `wildlife-probe.json` in the
   `measurements` artifact give the frame's time in the clip and the time
-  of the first cat sighting, if there is one.
+  of the first cat sighting.
 - **Lost & Found.** One pet is enrolled through Lost & Found's own form from
   one frame of the clip (at 1 s). That page's Start Monitoring opens the watch
   with Lost and Found chosen and the pet, and the watch's Start watching
