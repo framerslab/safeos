@@ -99,11 +99,14 @@ async function prepareDashboard({ page, baseUrl }) {
   await markStart(page);
   await pose(page, 'Stop watching').waitFor({ timeout: 15 * SECOND });
   await pose(page, 'Show settings').click();
-  await page.getByRole('button', { name: /Fine-Tune Settings/ }).click();
-  const sensitivity = page.getByText('Motion Sensitivity', { exact: true }).locator('xpath=../..').getByRole('slider');
+  const tune = page.getByRole('button', { name: /Fine-Tune Settings/ });
+  const watchSettings = page.locator('#watch-settings > div').filter({ has: tune });
+  await tune.click();
+  const sensitivity = watchSettings.getByText('Motion Sensitivity', { exact: true })
+    .locator('xpath=../..').getByRole('slider');
   assert.equal(await sensitivity.inputValue(), '0', 'The Dashboard watch starts with Motion at its least sensitive setting');
   await watchEvent(page, 'sound').waitFor({ timeout: 20 * SECOND });
-  await page.waitForFunction((camera) => document.querySelector(camera)?.currentTime >= 22, CAMERA);
+  await page.waitForFunction((camera) => document.querySelector(camera)?.currentTime >= 22, CAMERA, { timeout: 20 * SECOND });
   await sensitivity.fill('97');
   await page.waitForFunction(() => window.homeWatchEvents.some(({ kind }) => kind === 'motion'),
     null, { timeout: 3200 }).catch(() => {});
@@ -113,6 +116,7 @@ async function prepareDashboard({ page, baseUrl }) {
     'The kept movement picture must show the kitten’s face: ' + JSON.stringify(events));
   assert.ok(events.some(({ kind, clipAt }) => kind === 'sound' && clipAt >= 5.5 && clipAt <= 10),
     'No recorded sound alert during the bark');
+  console.log(`Dashboard saved the movement picture at clip ${latestMotion.clipAt.toFixed(3)} s`);
   await pose(page, 'Stop watching').click();
   await pose(page, 'Start watching').waitFor();
   const openPicture = alertCard(page, latestMotion).locator('[data-open-picture]');
