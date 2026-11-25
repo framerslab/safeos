@@ -4908,11 +4908,9 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(await emptyShown(page), `after Mark all as seen the part below reads "${await wordsAt(page, 'section.since')}"`);
     check((await page.locator('p.dash-new').count()) === 0, 'after Mark all as seen the first screen shows p.dash-new');
     checkHistory(check, await historyReads(page, 390, 'History'), 'History');
-    const focused = await page.evaluate(() => {
-      const element = document.activeElement;
-      return element ? `${element.tagName.toLowerCase()} "${(element.textContent || '').trim()}"` : 'nothing';
-    });
-    check(focused === 'h2 "Since you last looked"', `after Mark all as seen focus is on ${focused}`);
+    const focused = await page.locator('h2#since-label:focus').waitFor({ timeout: 5000 })
+      .then(() => true, () => false);
+    check(focused, 'after Mark all as seen focus did not reach the Since you last looked heading');
     await visit(page, '/history/');
     await localTimeline(page);
     await page.getByRole('checkbox', { name: 'Unacknowledged only' }).check();
@@ -5476,11 +5474,9 @@ export async function checkApp(browser, baseUrl, outDir) {
         check(!!on && on.name === 'Mark all as seen', `Shift+Tab from Open history reaches "${on ? on.name : 'nothing'}"`);
         await page.keyboard.press('Enter');
         await emptyShown(page);
-        const focused = await page.evaluate(() => {
-          const element = document.activeElement;
-          return element ? `${element.tagName.toLowerCase()} "${(element.textContent || '').trim()}"` : 'nothing';
-        });
-        check(focused === 'h2 "Since you last looked"', `Enter on Mark all as seen puts focus on ${focused}`);
+        const focused = await page.locator('h2#since-label:focus').waitFor({ timeout: 5000 })
+          .then(() => true, () => false);
+        check(focused, 'Enter on Mark all as seen did not focus the Since you last looked heading');
       }
     }, { state });
   }
