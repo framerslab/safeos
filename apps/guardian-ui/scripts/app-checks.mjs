@@ -733,7 +733,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       await visit(page, route);
       await largerText(page);
       await pressRowArrows(page, selector, check);
-      check(await sidewaysScroll(page) === 0, `${route} scrolls outside the row`);
+      const outside = await sidewaysScroll(page);
+      if (outside > 0) check(false, `${route} scrolls ${outside} px outside the row: ${await widest(page)}`);
     });
   }
 
@@ -790,7 +791,9 @@ export async function checkApp(browser, baseUrl, outDir) {
       order.push(item);
     }
     check(order[0]?.name === 'Skip to content', `the first stop is ${order[0]?.name ?? 'nothing'}`);
-    check(!!order[1]?.inMain, `the second stop, ${order[1]?.name ?? 'nothing'}, is not in the main content`);
+    check(order[1]?.name === githubName && order[1]?.ring === `solid 2px ${ACCENT.dark}`,
+      `the second stop is ${order[1]?.name ?? 'nothing'} with ring ${order[1]?.ring ?? 'none'}`);
+    check(!!order[2]?.inMain, `the third stop, ${order[2]?.name ?? 'nothing'}, is outside the main content`);
     const last = order.slice(-3);
     check(last.length === 3 && last.every((item) => item.inBar) && last.map((item) => item.name).join(', ') === 'Dashboard, History, Settings',
       `the last three stops are ${last.map((item) => `${item.name}${item.inBar ? ' (bar)' : ''}`).join(', ')}`);
@@ -3833,7 +3836,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     /^nav\.phone-bar\..*look-part/, /^a\.phone-bar__place.*::before$/,
   ];
   const FIRST_CONTROLS = [
-    (name) => name === 'Start watching', ...WAY_ROWS.map((way) => (name) => name.startsWith(`${way}:`)),
+    (name) => name === githubName, (name) => name === 'Start watching', ...WAY_ROWS.map((way) => (name) => name.startsWith(`${way}:`)),
     (name) => name === 'Dashboard', (name) => name === 'History', (name) => name === 'Settings',
   ];
   // Each wanted entry matched to one item of `items`, none left over.
@@ -3851,8 +3854,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       await openDash(page);
       await page.evaluate(() => document.fonts.ready);
       const seen = await firstScreen(page);
-      check(seen.controls.length === 8 && matchesAll(seen.controls, FIRST_CONTROLS),
-        `the first screen holds ${seen.controls.length} controls, not 8: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
+      check(matchesAll(seen.controls, FIRST_CONTROLS),
+        `the first screen holds ${seen.controls.length} controls, expected ${FIRST_CONTROLS.length}: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
       check(seen.styles.length === 7, `the first screen holds ${seen.styles.length} text styles, not 7: ${seen.styles.join(' | ')}`);
       check(seen.boxes.length === 8 && matchesAll(seen.boxes, FIRST_BOXES), `the first screen draws ${seen.boxes.length} boxes, not the 8 named: ${seen.boxes.join(', ')}`);
       const tone = TONES[look];
@@ -3982,7 +3985,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       });
       check(before, '"Show alerts outside this tab" does not stand before "Start watching"');
       const counted = await firstScreen(page);
-      check(counted.controls.length === 9, `the first screen holds ${counted.controls.length} controls, not 9: ${counted.controls.map((name) => `"${name}"`).join(', ')}`);
+      const wanted = [...FIRST_CONTROLS, (name) => name === 'Show alerts outside this tab'];
+      check(matchesAll(counted.controls, wanted), `the first screen holds ${counted.controls.length} controls, expected ${wanted.length}: ${counted.controls.map((name) => `"${name}"`).join(', ')}`);
       await page.waitForTimeout(10_000);
       const words = plain(await page.evaluate(() => document.body.innerText));
       for (const gone of ['Enable notifications', 'Install SafeOS']) check(!words.includes(gone), `ten seconds on the page reads "${gone}"`);
@@ -6061,7 +6065,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   // their own Inter 700 at 16 px; the two frame rows' edges, the one rule
   // above a group, the phone bar and its place mark, the rows' small pictures
   // counted as pictures; and five colours.
-  const LIST_FIRST_CONTROLS = [/^Switch to the light look$/, /^Help$/, /^Detection/, /^Alert sounds/, /^Quiet hours/, /^Unanswered alerts/, /^Notifications/,
+  const LIST_FIRST_CONTROLS = [(name) => name === githubName, /^Switch to the light look$/, /^Help$/, /^Detection/, /^Alert sounds/, /^Quiet hours/, /^Unanswered alerts/, /^Notifications/,
     (name) => name === 'Dashboard', (name) => name === 'History', (name) => name === 'Settings'];
   const styleOf = (face, weight, size, colour) => (style) => {
     const [family, ...rest] = style.split(' ');
@@ -6088,8 +6092,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       left.splice(at, 1);
       return true;
     });
-    check(seen.controls.length === 10 && matched && left.length === 0,
-      `the first screen holds ${seen.controls.length} controls, not the 10 named: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
+    check(matched && left.length === 0,
+      `the first screen holds ${seen.controls.length} controls, expected ${LIST_FIRST_CONTROLS.length}: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
     check(seen.styles.length === 7 && matchesAll(seen.styles, LIST_FIRST_STYLES),
       `the first screen holds ${seen.styles.length} text styles, not the 7 named: ${seen.styles.join(' | ')}`);
     check(seen.boxes.length === 5 && matchesAll(seen.boxes, LIST_FIRST_BOXES),

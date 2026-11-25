@@ -146,19 +146,19 @@ function AlertToggle({ label, description, enabled, onChange, icon, color }: Ale
       style={{ borderColor: enabled ? color : '#374151' }}
       onClick={() => onChange(!enabled)}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <div
-          className="w-10 h-10 rounded-lg flex items-center justify-center"
+          className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center"
           style={{ backgroundColor: enabled ? color : '#374151' }}
         >
           {icon}
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 flex-[1_1_10ch]">
           <div className="font-medium text-white">{label}</div>
           <div className="text-xs text-slate-400">{description}</div>
         </div>
         <div
-          className={`w-12 h-6 rounded-full p-1 transition-colors ${
+          className={`ml-auto w-12 h-6 shrink-0 rounded-full p-1 transition-colors ${
             enabled ? 'bg-emerald-500' : 'bg-slate-600'
           }`}
         >
@@ -472,7 +472,7 @@ export default function WildlifePage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 [overflow-wrap:anywhere]">
         <ModelDownloadProgress className="mb-6" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Camera Feed */}
@@ -513,7 +513,7 @@ export default function WildlifePage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,8rem),1fr))] gap-4">
               <StatsCard
                 label="Large Animals"
                 value={getLargeAnimalCount()}
