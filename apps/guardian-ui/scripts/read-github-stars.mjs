@@ -30,9 +30,9 @@
  * success: the pages then show the link's word alone.
  *
  * It needs no token: the repository is public. When the workflow hands it
- * its own token (GITHUB_TOKEN) the request carries it, because a request
- * without one is counted against the runner's shared address and can be
- * refused. The token is never printed.
+ * its own token (GITHUB_TOKEN), the HTTPS request to api.github.com carries
+ * it. An unauthenticated request can be refused because it counts against
+ * the runner's shared address. The token is never printed.
  *
  * SAFEOS_STARS_URL replaces the address asked, for the tests.
  */
@@ -55,12 +55,14 @@ async function readCount() {
     'X-GitHub-Api-Version': '2022-11-28',
     'User-Agent': 'safeos-site-build',
   };
-  const token = process.env.GITHUB_TOKEN;
-  if (token) headers.Authorization = `Bearer ${token}`;
-
   let response;
   try {
-    response = await fetch(ADDRESS, { headers, signal: AbortSignal.timeout(WAIT_MS) });
+    const url = new URL(ADDRESS);
+    const token = process.env.GITHUB_TOKEN;
+    if (token && url.protocol === 'https:' && url.host === 'api.github.com') {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    response = await fetch(url, { headers, signal: AbortSignal.timeout(WAIT_MS) });
   } catch (error) {
     const late = error?.name === 'TimeoutError' || error?.name === 'AbortError';
     return { reason: late ? `GitHub did not answer within ${WAIT_MS / 1000} seconds` : 'GitHub could not be reached' };
