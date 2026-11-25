@@ -126,9 +126,11 @@ export async function captureWatchPages(browser, baseUrl, outDir, routes, openCo
           ? page.getByRole('button', { name: 'DISARM', exact: true }).locator('xpath=../..')
           : page.getByText('Caution', { exact: true }).first().locator('xpath=..');
         await sighting.screenshot({ path: path.join(outDir, `${name}-sighting-${suffix}`) });
-        if (name === 'wildlife' && after) {
-          const size = await page.getByText('Caution', { exact: true }).first().evaluate((badge) => parseFloat(getComputedStyle(badge).fontSize));
-          if (size < 16) throw new Error(`Caution badge text is ${size} px`);
+        if (name === 'wildlife') {
+          const badge = page.getByText('Caution', { exact: true }).first();
+          const size = await badge.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+          if (after && size < 16) throw new Error(`Caution badge text is ${size} px`);
+          await badge.screenshot({ path: path.join(outDir, `wildlife-caution-${suffix}`) });
         }
         // System notifications sit outside the page in Chromium. Capture the
         // exact title and body the watch handed the browser in a small preview.
