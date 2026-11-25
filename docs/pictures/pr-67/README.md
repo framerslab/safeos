@@ -1,7 +1,7 @@
 # People, Wildlife and narrow rows
 
-Paired captures from the [Pictures run](https://github.com/framerslab/safeos/actions/runs/45573907305).
-The before build uses `0e21dda1420742cebd5b8db0444512d37b0c3322`. The proposed build uses `608f3c3c34ee95987f73d0f26a2ad34b57a144c9`.
+Paired captures from the [Pictures run](https://github.com/framerslab/safeos/actions/runs/45690375170).
+The before build uses `0e21dda1420742cebd5b8db0444512d37b0c3322`. The proposed build uses `a56fa62f7e0125a146038ac8eb8665888887389a`.
 The two watch pages use the same stand-in camera and readings in each build.
 Each notification preview shows the title and body passed to the browser.
 
@@ -24,21 +24,21 @@ Each notification preview shows the title and body passed to the browser.
 ## SHA-256
 
 - `d09ab60f29c5a3c5d4276cafb05b3944c4083d138b009c982710217a3c3bc774  before/people-sighting-1280-light.png`
-- `41657e306a6739268809ec95b4efbc412620c855416d283e4018b9fcd7818bfb  after/people-sighting-1280-light.png`
+- `57fa5fbbc99e19e0b8a9184119d32e2d3518eecc38474c68772805d44cd79eb7  after/people-sighting-1280-light.png`
 - `86270380b51c26642e38d2ce89768746b39f5f9923361841ac116dae03c658a5  before/people-sighting-1280-dark.png`
-- `d8e809c73b0f4482ebb7487295198bb1e4c4c2dbd22b95d406a039a1549d1a9d  after/people-sighting-1280-dark.png`
+- `eff63fa63f01810c3a06a9293a85aa7ad108d8da5edb104e4aaf5203abc6d9e7  after/people-sighting-1280-dark.png`
 - `59d97b1f5d428e589c0e96fd1dd3b2d5372e655c5bdbdb8756a72cee66aea1ee  before/people-notification-1280-light.png`
-- `74cf7b2a289075d80714f3ebb0bbbcff7729997be99bc349231d08db4ba6d795  after/people-notification-1280-light.png`
+- `a83398947bec930bcae8b53a6feb7c425557894853918e33dc04ad0d6444ea56  after/people-notification-1280-light.png`
 - `b7d255b62d36d0c7073d04737dd33916251db4084513c2ff6b4d9f2bdf75f8eb  before/people-notification-1280-dark.png`
-- `1876a09d48c85f4e5913386a6b86e7bb137ed5625d72a778aebff1ddef0172d8  after/people-notification-1280-dark.png`
+- `f3d9bf1dd739531a16158e14b089fd8bd4417f860bc47044c5cccce54bfd7af6  after/people-notification-1280-dark.png`
 - `5fee3cc122d9e5c50aa726c4bd0403c04a8c7eace8e494011ace2e4482fc4072  before/wildlife-sighting-1280-light.png`
-- `c49b3a4e8cf41481f37a63634e189294df3c4b6f21404c3d728cd65b9a41c3a8  after/wildlife-sighting-1280-light.png`
+- `535b8f9ae597c565012e636b86f4031d2e5dfadae6b205ba86fb5dfdfca6d12e  after/wildlife-sighting-1280-light.png`
 - `fc0ed8eff25120d3cc0f1ea930754694959c5a70f231c55cddf03e75ba208657  before/wildlife-sighting-1280-dark.png`
-- `6c02ec476e8a622c80d324209d9c95f687d14005b57887be7fcea8bf6d15ab35  after/wildlife-sighting-1280-dark.png`
+- `add9a7630544e1c37e103483762bfbcf83794f0492eb7130489ad05b192cbc20  after/wildlife-sighting-1280-dark.png`
 - `c641233f986b5c00a4fe4594c77f8c3cb951a317559ddbd5179e28578738e42e  before/wildlife-notification-1280-light.png`
-- `3ad2ad37e492012835ad52d255977c8e27f98a958520e66219f34b10a1aea582  after/wildlife-notification-1280-light.png`
+- `2856d74968c33834e729db4a7b32d5e3cab2a4914eb29ff13ddbc33f1e78772a  after/wildlife-notification-1280-light.png`
 - `bd82dff9502fef7a8497f89c22e918d351f201fc649ea4113f38ac031dd94100  before/wildlife-notification-1280-dark.png`
-- `98afa1ac6be8e05a6f66888265474f125f96f716c33bb88dcceedca69ac35e87  after/wildlife-notification-1280-dark.png`
+- `e3abc178e10b7353ee65b37c4e8aec7ceceaca04e40eff4caf5342833b807568  after/wildlife-notification-1280-dark.png`
 - `4688752c6801863e19f65087d247ee4c81e68cd33c3b2dc2d2a1c0a77aedab87  before/wildlife-caution-1280-light.png`
 - `db0249f9911182bf4f2100e61888a0098d7e6b5746e3bed6693462092eca41f4  after/wildlife-caution-1280-light.png`
 - `43883ffab9829c3f7ca31db0dc703e481965959fd44974f0e1c3330d7460b042  before/wildlife-caution-1280-dark.png`
