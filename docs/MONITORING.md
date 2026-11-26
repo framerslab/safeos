@@ -460,9 +460,11 @@ People shows how many people are in view. Above the allowed count, the alert and
 its browser notification say when the watch saw them and that the count is more
 than this watch allows. The alert stays on the page with its **DISARM** key until
 the watch is disarmed, also once the people have left. It gives the count and
-time of the alert the watch saved; a check inside the cooldown that sees more
-people saves nothing and leaves the alert as it is. Saved pictures keep the
-count and the time. The **History** key shows them. Voice warnings play on the
+time of the alert the watch saved. While the count stays above the allowed
+count, a check inside the cooldown saves nothing and leaves the alert as it is.
+When the count falls to the allowed count and then rises above it, the watch
+saves a new picture and the alert takes its count and time. Saved pictures keep
+the count and the time. The **History** key shows them. Voice warnings play on the
 watching device.
 
 Wildlife shows an animal's name and the time of the sighting. The browser
