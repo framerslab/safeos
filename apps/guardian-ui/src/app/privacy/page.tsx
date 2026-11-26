@@ -33,7 +33,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconDatabase,
     title: 'Local-First Storage',
-    description: 'Your settings are stored in your browser\'s localStorage, and saved frames, alert pictures and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends camera frames to that server only. Alert pictures are not sent to that server.',
+    description: 'On this device, SafeOS keeps what it saves in this browser’s own storage: your settings, and Wildlife’s sightings with their pictures, in its localStorage; alerts, alert pictures and Lost & Found’s sightings in its IndexedDB; People’s saved frames and your pets’ photos in both. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends camera frames to that server only. Alert pictures are not sent to that server.',
   },
   {
     icon: IconEye,
@@ -139,8 +139,10 @@ export default function PrivacyPage() {
               </p>
               <p>
                 <strong className="text-white">Data Storage:</strong> Your preferences are stored in
-                your browser&apos;s local storage. Saved frames from Security, Lost &amp; Found, and
-                Wildlife, and your reference photos, are stored in IndexedDB. Alerts on the monitor
+                your browser&apos;s localStorage. Wildlife keeps its sightings, with their pictures, in
+                localStorage too. People keeps its saved frames in both localStorage and IndexedDB, and
+                Lost &amp; Found keeps your pets and their photos in both. Lost &amp; Found&apos;s
+                sightings and the alert pictures are kept in IndexedDB. Alerts on the monitor
                 page are saved in IndexedDB and restored in History after a reload.
                 Alerts saved in this browser are shown to anyone who uses SafeOS in this browser, until
                 someone signs out or clears local data. A session that expires and is replaced does not
@@ -289,7 +291,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: November 24, 2026
+          Last updated: November 26, 2026
         </div>
       </div>
     </main>

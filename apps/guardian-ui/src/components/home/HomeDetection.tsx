@@ -85,7 +85,7 @@ const cards: DetectionCard[] = [
     glyph: <IconDatabase />,
     summary: 'Frames are compared in your browser. Settings, alerts, your pet’s photos and the frames a page saves stay in this browser’s storage.',
     details: [
-      'Settings sit in localStorage; alerts, saved frames and your pet’s photos in IndexedDB; the model in Cache Storage.',
+      'Settings, alerts, saved frames and your pet’s photos are kept in this browser’s own storage, and the model in its Cache Storage.',
     ],
     link: { href: '/privacy/', label: 'Read the privacy page' },
   },

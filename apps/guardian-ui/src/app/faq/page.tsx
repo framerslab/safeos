@@ -70,7 +70,7 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         question: 'Is my video/audio data stored anywhere?',
-        answer: 'Not on any server of ours. Without a server of your own, your video and audio stay in your browser: the monitor compares frames and measures sound levels on your device, and Security and Wildlife run a TensorFlow.js model there. What the app stores stays in your browser: your settings in localStorage, and saved frames and reference photos in IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to that server.',
+        answer: 'Not on any server of ours. Without a server of your own, your video and audio stay in your browser: the monitor compares frames and measures sound levels on your device, and Security and Wildlife run a TensorFlow.js model there. What the app stores is kept in this browser\'s own storage, as the privacy page says. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to that server.',
       },
       {
         question: 'Does Frame.dev have access to my camera?',
@@ -86,7 +86,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'What data is collected by SafeOS Guardian?',
-        answer: 'We collect no personal data, and the app loads no analytics or tracking script. Your settings stay in your browser. Saved frames from Security, Lost & Found, and Wildlife are kept in your browser\'s IndexedDB. Monitor alerts persist in IndexedDB, reload in History, and remain in history after acknowledgement. Nothing is sent to us.',
+        answer: 'We collect no personal data, and the app loads no analytics or tracking script. Your settings stay in your browser. Saved frames from People, Lost & Found and Wildlife are kept in this browser\'s own storage. Monitor alerts persist in IndexedDB, reload in History, and remain in history after acknowledgement. Nothing is sent to us.',
       },
     ],
   },

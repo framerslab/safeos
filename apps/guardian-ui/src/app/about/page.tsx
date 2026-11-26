@@ -323,7 +323,7 @@ export default function AboutPage() {
                 step={4}
                 icon={<IconDatabase size={16} />}
                 title="Local Storage"
-                description="Settings are kept in your browser's localStorage, and saved frames and reference photos in IndexedDB, all on your device."
+                description="Settings, saved frames and your pets’ photos are kept in this browser’s own storage, on your device."
               />
               <ArchitectureStep
                 step={5}

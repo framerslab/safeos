@@ -234,8 +234,9 @@ const blogContent: Record<string, BlogContent> = {
           >
             Zustand
           </a>
-          : its persist middleware writes settings to localStorage, and saved frames and alerts go
-          to IndexedDB. The interface is Next.js 14, React 18 and Tailwind. The files that do the
+          : its persist middleware writes settings, and Wildlife&apos;s sightings with their
+          pictures, to localStorage. Alerts, alert pictures and Lost &amp; Found&apos;s sightings go
+          to IndexedDB, and People&apos;s frames and the pets to both. The interface is Next.js 14, React 18 and Tailwind. The files that do the
           watching are in <code>src/lib/</code>.
         </p>
 
