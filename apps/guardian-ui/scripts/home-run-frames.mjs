@@ -166,7 +166,7 @@ export async function spool(cdp, directory, view) {
 }
 
 export async function readRecordingWords(page, crop, { poster = false, whole = poster, moment = 'The poster' } = {}) {
-  const { words, clipped } = await page.evaluate((crop) => {
+  const { words, clipped, cut } = await page.evaluate((crop) => {
     const bounds = { x: crop.x, y: crop.y, right: crop.x + crop.width, bottom: crop.y + crop.height };
     const words = [];
     const clipped = [];
@@ -204,7 +204,20 @@ export async function readRecordingWords(page, crop, { poster = false, whole = p
         }
       }
     }
-    return { words, clipped };
+    const cut = [];
+    for (const control of document.querySelectorAll('button, a[href], input, select, textarea, [role="switch"], [role="button"]')) {
+      if (getComputedStyle(control).visibility !== 'visible') continue;
+      const rect = control.getBoundingClientRect();
+      if (!rect.width || !rect.height || rect.right <= bounds.x || rect.left >= bounds.right) continue;
+      if (rect.bottom <= bounds.y || rect.top >= bounds.bottom) continue;
+      if (rect.top >= bounds.y - 0.5 && rect.bottom <= bounds.bottom + 0.5) continue;
+      const y = rect.top < bounds.y - 0.5 ? (bounds.y + Math.min(bounds.bottom, rect.bottom)) / 2 : (Math.max(bounds.y, rect.top) + bounds.bottom) / 2;
+      const hit = document.elementFromPoint(Math.min(bounds.right - 0.1, Math.max(bounds.x + 0.1, rect.left + rect.width / 2)), y);
+      if (!hit || (!control.contains(hit) && !hit.contains(control))) continue;
+      cut.push({ control: control.getAttribute('aria-label') || control.textContent.trim() || control.tagName,
+        x: rect.left - crop.x, y: rect.top - crop.y, width: rect.width, height: rect.height });
+    }
+    return { words, clipped, cut };
   }, crop);
   for (const { word } of [...words, ...clipped]) {
     assert.doesNotMatch(word, barredWording, `Recording shows barred wording “${word}”`);
@@ -212,6 +225,7 @@ export async function readRecordingWords(page, crop, { poster = false, whole = p
   if (poster) assert.ok(words.length, 'The poster has no readable words');
   if (whole) {
     assert.ok(!clipped.length, `${moment} cuts off “${clipped[0]?.word}” at the crop's edge: ${JSON.stringify(clipped)}`);
+    assert.ok(!cut.length, `${moment} cuts the control “${cut[0]?.control}” at the crop's edge: ${JSON.stringify(cut)}`);
   }
   return words;
 }
