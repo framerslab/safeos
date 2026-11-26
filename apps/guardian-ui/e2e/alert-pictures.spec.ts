@@ -3843,7 +3843,7 @@ describeInBothLooks('The privacy page and the notices, 1280 px', () => {
     await page.goto('/privacy/', { waitUntil: 'networkidle' });
     const words = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
     for (const sentence of [
-      'saved frames, alert pictures and reference photos in its IndexedDB',
+      'alerts, alert pictures and Lost & Found’s sightings in its IndexedDB; People’s saved frames and your pets’ photos in both.',
       'Alert pictures are not sent to that server.',
       'For each Motion and Picture change alert on the monitor page, SafeOS keeps the camera\'s picture of the moment and, where it can mark what changed, a box round it and a close-up of that box.',
       'A box over more than half of the picture has no close-up, and a Picture change over more than half of the picture has no box.',
@@ -3858,7 +3858,7 @@ describeInBothLooks('The privacy page and the notices, 1280 px', () => {
       'Clear all data on this device, on Settings, Data on this device, also removes recorded sounds, alert pictures and the offline cache.',
       'clears the alerts and their pictures, frames, recordings and personal settings saved in this browser',
       'If you turn on Show the picture in alert notifications, the picture shows in the notification, and on some phones on the lock screen, to anyone who can see this device.',
-      'Last updated: November 24, 2026',
+      'Last updated: November 26, 2026',
     ]) {
       expect(words, `the privacy page says: ${sentence}`).toContain(sentence);
     }
