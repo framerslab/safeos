@@ -55,13 +55,24 @@ it('chooses a voice on the device over the browser’s preferred online voice', 
   tts.dispose();
 });
 
-it('prefers a voice in the language of the page', async () => {
+it('reads a message the person wrote in a voice of the page’s language', async () => {
   document.documentElement.lang = 'fr';
   const synth = speech([local, french]);
   const tts = new TTSManager();
   await tts.initialize();
+  tts.setCustomMessages(['Un chat est visible.']);
   tts.speak('Un chat est visible.');
   expect(synth.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: french }));
+  tts.dispose();
+});
+
+it('reads its own English alert words in an English voice on a page in another language', async () => {
+  document.documentElement.lang = 'fr';
+  const synth = speech([french, local]);
+  const tts = new TTSManager();
+  await tts.initialize();
+  tts.speak('Warning! You are being recorded. Leave immediately.');
+  expect(synth.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: local }));
   tts.dispose();
 });
 
@@ -121,6 +132,24 @@ it('drops a message that waited for the voice list when the alert stops', async 
   await new Promise((resolve) => setTimeout(resolve, 0));
 
   expect(synth.speak).not.toHaveBeenCalled();
+  tts.dispose();
+});
+
+it('never lets a message that waited for the voice list replace a newer one', async () => {
+  // A browser can fill its list without firing voiceschanged; the newer
+  // message then speaks at once, and the older wait ends at its timeout.
+  let listed: SpeechSynthesisVoice[] = [];
+  const synth = speech([]);
+  synth.getVoices = () => listed;
+  const tts = new TTSManager();
+  await tts.initialize();
+  tts.speak('An older alert.');
+  listed = [local];
+  tts.speak('A newer alert.');
+  await new Promise((resolve) => setTimeout(resolve, 1100));
+
+  expect(synth.speak).toHaveBeenCalledTimes(1);
+  expect(synth.speak).toHaveBeenCalledWith(expect.objectContaining({ text: 'A newer alert.' }));
   tts.dispose();
 });
 

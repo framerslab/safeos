@@ -43,6 +43,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { chromium } from '@playwright/test';
 import { probeWildlife } from './wildlife-probe.mjs';
+import { wildlifeShortfall } from './wildlife-shortfall.mjs';
 
 const [baseUrl, outDir, videoFile, audioFile, subjectFile] = process.argv.slice(2);
 if (!baseUrl || !outDir || !videoFile || !audioFile || !subjectFile) {
@@ -770,10 +771,5 @@ console.log(summary);
 
 // Wildlife's real watch must get through its motion gate and finish an inference
 // on each play. Save the measurements and the clip times even if this fails.
-if (results.wildlife?.attempts.length !== 2
-  || results.wildlife.attempts.some((attempt) => attempt.error || attempt.frameReads < 2 || !attempt.inferences.length)) {
-  throw new Error('Wildlife did not complete a model check through its motion gate on both plays of the sample clip.');
-}
-if (results.wildlife.attempts.some((attempt) => attempt.catSecond === null)) {
-  throw new Error('Wildlife did not save a cat sighting on both watches of the sample clip.');
-}
+const shortfall = wildlifeShortfall(results);
+if (shortfall) throw new Error(shortfall);

@@ -156,6 +156,16 @@ it('keeps the newest 100 of 130 unseen People pictures', async () => {
 
   await saveIntrusionFrame(person('unseen-129', 1129, false));
 
+  // The save itself keeps 100; the read below would trim the store too.
+  const database = await openDB('safeos-guardian');
+  try {
+    expect((await database.getAllKeys('intrusion_frame')).sort()).toEqual(
+      Array.from({ length: 100 }, (_, i) => `unseen-${30 + i}`).sort(),
+    );
+  } finally {
+    database.close();
+  }
+
   const kept = await getAllIntrusionFrames();
   expect(kept).toHaveLength(100);
   expect(kept.map((frame) => frame.id)).toEqual(Array.from({ length: 100 }, (_, i) => `unseen-${129 - i}`));
@@ -180,4 +190,21 @@ it('repairs a People picture store already over its limit when the pictures are 
   } finally {
     database.close();
   }
+});
+
+// Removing a seen frame from the middle of a run can leave a gap over 30
+// seconds, which cuts the run in two. Both parts stay seen.
+it("keeps both parts of a People's seen alert seen when the limit removes the frame between them", async () => {
+  await getAllIntrusionFrames();
+  await empty('intrusion_frame');
+  await fill('intrusion_frame', Array.from({ length: 100 }, (_, i) => person(`split-${i}`, 1_000_000 + i * 20_000, i === 50)));
+
+  await saveIntrusionFrame(person('split-100', 1_000_000 + 100 * 20_000, false));
+
+  const frames = await getAllIntrusionFrames();
+  expect(frames.map((frame) => frame.id)).not.toContain('split-50');
+  const alerts = groupAlerts({
+    alerts: [], intrusionFrames: frames, sightings: [], matchFrames: [], alertThreshold: 70, subjects: [],
+  });
+  expect(alerts.filter((alert) => alert.way === 'security').map((alert) => alert.seen)).toEqual([true, true]);
 });

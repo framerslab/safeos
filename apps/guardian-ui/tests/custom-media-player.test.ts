@@ -56,6 +56,7 @@ import {
   type UploadedAudio,
   type PlaybackMode,
 } from '../src/lib/custom-media-player';
+import { SPOKEN_DEFAULT } from '../src/lib/lost-found-words';
 
 describe('CustomMediaPlayer', () => {
   beforeEach(() => {
@@ -382,5 +383,57 @@ it('speaks a Lost and Found message once the browser lists its voices', async ()
     mockSpeechSynthesis.getVoices.mockImplementation(() => []);
     Reflect.deleteProperty(mockSpeechSynthesis, 'addEventListener');
     Reflect.deleteProperty(mockSpeechSynthesis, 'removeEventListener');
+  }
+});
+
+it('speaks a Lost and Found message that waited for the voice list once a pause ends', async () => {
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  let listed: unknown[] = [];
+  const events = new EventTarget();
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => listed);
+  Object.assign(mockSpeechSynthesis, {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+  });
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    player.pause();
+    listed = [local];
+    events.dispatchEvent(new Event('voiceschanged'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
+
+    player.resume();
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(1);
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: local }));
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+    Reflect.deleteProperty(mockSpeechSynthesis, 'addEventListener');
+    Reflect.deleteProperty(mockSpeechSynthesis, 'removeEventListener');
+  }
+});
+
+it("reads Lost and Found's own English line in an English voice on a page in another language", () => {
+  const english = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: false };
+  const french = { name: 'Local French', lang: 'fr-FR', voiceURI: 'local-fr', localService: true, default: true };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [french, english]);
+  (global as any).document = { documentElement: { lang: 'fr' } };
+  const own = new CustomMediaPlayer({ ttsMessages: [SPOKEN_DEFAULT] });
+  const written = new CustomMediaPlayer({ ttsMessages: ['Est-ce Minou ?'] });
+  try {
+    own.start();
+    expect(mockSpeechSynthesis.speak).toHaveBeenLastCalledWith(expect.objectContaining({ voice: english }));
+    own.stop();
+    written.start();
+    expect(mockSpeechSynthesis.speak).toHaveBeenLastCalledWith(expect.objectContaining({ voice: french }));
+  } finally {
+    own.dispose();
+    written.dispose();
+    Reflect.deleteProperty(global, 'document');
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
   }
 });
