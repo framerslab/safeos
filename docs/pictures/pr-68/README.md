@@ -2,15 +2,16 @@
 
 The Pictures workflow opened the same states in Chromium in the base and
 pull request builds. These PNGs come from the `monitoring-pictures-before`
-and `monitoring-pictures-after` artifacts for head `d0efdf8`.
-[Pictures run](https://github.com/framerslab/safeos/actions/runs/45726407836)
+and `monitoring-pictures-after` artifacts for head `559c253`.
+[Pictures run](https://github.com/framerslab/safeos/actions/runs/45743322803)
 
 The picture-change walk uses a camera that changes a small part of a 1280 by
 720 frame. It raises a Critical alert before and a Low alert after. The
 People walk puts 130 unseen pictures in the library, opens the dashboard,
 and reads the saved picture count in Data on this device. The speech walk
 offers an online voice so Alert sounds can show what happens when the
-browser offers no voice on the device.
+browser offers no voice on the device. A second speech walk offers no voice
+at all.
 
 | What the pictures show | Phone, dark | Desktop, light |
 | --- | --- | --- |
@@ -20,3 +21,4 @@ browser offers no voice on the device.
 | Settings > Detection pitch choices | [Before](before/detection-pitch-390-dark.png) · [After](after/detection-pitch-390-dark.png) | [Before](before/detection-pitch-1280-light.png) · [After](after/detection-pitch-1280-light.png) |
 | The watch’s audio settings | [Before](before/watch-audio-settings-390-dark.png) · [After](after/watch-audio-settings-390-dark.png) | [Before](before/watch-audio-settings-1280-light.png) · [After](after/watch-audio-settings-1280-light.png) |
 | Alert sounds and voice choice | [Before](before/spoken-alerts-390-dark.png) · [After](after/spoken-alerts-390-dark.png) | [Before](before/spoken-alerts-1280-light.png) · [After](after/spoken-alerts-1280-light.png) |
+| Alert sounds with no voice | [Before](before/spoken-alerts-no-voice-390-dark.png) · [After](after/spoken-alerts-no-voice-390-dark.png) | [Before](before/spoken-alerts-no-voice-1280-light.png) · [After](after/spoken-alerts-no-voice-1280-light.png) |
