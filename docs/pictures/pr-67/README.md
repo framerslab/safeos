@@ -4,6 +4,7 @@ Paired captures from CI. [Pictures run](https://github.com/framerslab/safeos/act
 The before build uses `1af992b5e408f74b162fe2f99e477209d521d242`. The after build is for the pull request head `0a20ff9d45de4d5f19d4bcee0ec13ba055b294ca`.
 The two watch pages use the same stand-in camera and readings in each build.
 People allows one person and sees two. Each notification preview shows the title and body passed to the browser.
+The two pictures of Wildlife's kept sightings come from the [Pictures run](https://github.com/framerslab/safeos/actions/runs/45740252633) for the head `ecade186fabe0e26a3c66410d5fc44af1b6cfd83`, with the same base.
 
 | View | Before | After |
 | --- | --- | --- |
@@ -25,6 +26,8 @@ People allows one person and sees two. Each notification preview shows the title
 | People notification, 1280 px, dark look | [Before](before/people-notification-1280-dark.png) | [After](after/people-notification-1280-dark.png) |
 | Zebra sighting, light look | [Before](before/wildlife-sighting-1280-light.png) | [After](after/wildlife-sighting-1280-light.png) |
 | Zebra sighting, dark look | [Before](before/wildlife-sighting-1280-dark.png) | [After](after/wildlife-sighting-1280-dark.png) |
+| Wildlife sightings kept until Clear All, light look | [Before](before/wildlife-kept-1280-light.png) | [After](after/wildlife-kept-1280-light.png) |
+| Wildlife sightings kept until Clear All, dark look | [Before](before/wildlife-kept-1280-dark.png) | [After](after/wildlife-kept-1280-dark.png) |
 | Wildlife notification, light look | [Before](before/wildlife-notification-1280-light.png) | [After](after/wildlife-notification-1280-light.png) |
 | Wildlife notification, dark look | [Before](before/wildlife-notification-1280-dark.png) | [After](after/wildlife-notification-1280-dark.png) |
 | Caution badge, light look | [Before](before/wildlife-caution-1280-light.png) | [After](after/wildlife-caution-1280-light.png) |
