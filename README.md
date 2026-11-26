@@ -195,7 +195,7 @@ Every mail the API server sends (alerts, the settings test message, account veri
 ## Privacy guarantees
 
 - **Three frames.** The motion check keeps only the last three frames in memory.
-- **No cloud uploads** in PWA-only mode. Period.
+- **The camera and microphone stay in the browser** in PWA-only mode: no frame or sound is sent anywhere. A spoken alert can go through one of the browser's online voices, which receives the alert's words; the [privacy page](https://safeos.sh/privacy/) lists each connection and how to stop it.
 - **No telemetry.** The app loads no analytics or tracking script and uploads nothing for model training.
 - **Browser storage only.** Settings, saved frames, and reference photos stay in [browser-local storage](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API).
 - **Optional integrations are opt-in.** Twilio, Telegram, Ollama, and cloud fallback fire only when you configure them.

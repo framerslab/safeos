@@ -26,8 +26,10 @@ Setup's **Grant Permissions** also completes with the camera alone.
 
 The GitHub mark in the app's header, on a phone too, opens GitHub in a new tab,
 and its name says so ("SafeOS on GitHub (opens in a new tab)"), so a watch
-running on Monitor, People or Wildlife goes on while GitHub is open. The public
-pages' header opens GitHub in the same tab.
+running on Monitor, People or Wildlife goes on while GitHub is open. The footer
+under an app page opens each of its links to another site in a new tab too,
+its name ending "(opens in a new tab)". The public pages' header and footer
+open them in the same tab.
 
 ## The meters
 

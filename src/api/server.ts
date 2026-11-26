@@ -88,13 +88,25 @@ const MAX_MISSED_HEARTBEATS = 3; // Disconnect after 3 missed heartbeats (90 sec
  * (capacitor.config.ts serves the app from capacitor://localhost on iOS and
  * https://localhost on Android) and http on localhost, 127.0.0.1 and [::1] at
  * any port, for development. With it set: the comma-separated origins it
- * lists and no other. A page on the server's own address needs no CORS answer.
+ * lists and no other, read in small letters as a browser sends them. An entry
+ * that is not an origin (a scheme and a host, with a port if any) can never
+ * be allowed, and the server says so when it starts. A page on the server's
+ * own address needs no CORS answer.
  */
 const DEFAULT_ALLOWED_ORIGINS = ['https://safeos.sh', 'capacitor://localhost', 'https://localhost'];
 const LOCAL_DEVELOPMENT_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/;
+const AN_ORIGIN = /^[a-z][a-z0-9+.-]*:\/\/[^\s/?#@]+$/;
 
 function allowedOrigins(value: string | undefined): (origin: string) => boolean {
-  const listed = (value ?? '').split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean);
+  const entries = (value ?? '').split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean);
+  const listed = entries.map((origin) => origin.toLowerCase());
+  const notOrigins = entries.filter((origin) => !AN_ORIGIN.test(origin.toLowerCase()));
+  if (notOrigins.length) {
+    console.warn(
+      `SAFEOS_ALLOWED_ORIGINS: ${notOrigins.map((origin) => `"${origin}"`).join(', ')} ` +
+        'can never be allowed: an origin is a scheme and a host, with a port if any, such as https://safeos.example.com'
+    );
+  }
   if (listed.length) {
     const allowed = new Set(listed);
     return (origin) => allowed.has(origin);

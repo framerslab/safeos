@@ -3,7 +3,8 @@
  *
  * Chooses the frame by route (lib/app-routes). The home page and the other
  * pages a visitor reads get the visitor header and footer. Every app page
- * gets the app's header, the same site footer and, on a phone, the bar at
+ * gets the app's header, the same site footer (its links to other sites open
+ * a new tab, so a running watch goes on) and, on a phone, the bar at
  * the foot of the screen (on every app page but Setup). A page built in the
  * readable look is marked so its whole body follows the device's light or
  * dark setting before script runs; on the other app pages the header, the
@@ -82,7 +83,7 @@ function AppFrame({ pathname, children }: { pathname: string | null; children: R
         {children}
       </div>
       <div className="app-shell__footer look-part">
-        <VisitorFooter />
+        <VisitorFooter newTab />
       </div>
       {bar && <PhoneBar newAlerts={count} />}
       <NewAlertsSaid count={count} ready={status === 'ready'} />

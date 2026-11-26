@@ -5,9 +5,9 @@
  * is room. The icon-only link has the same accessible name and description. The Menu and
  * footer show the word and count. The count is written into the page at
  * build time and its description gives the date it was read. On the app's
- * pages the icon-only link opens GitHub in a new tab, so a watch running on
- * the page goes on, and its name says so; the public pages open it in the
- * same tab.
+ * pages the icon-only link and the footer's link open GitHub in a new tab, so
+ * a watch running on the page goes on, and their names say so; the public
+ * pages open it in the same tab.
  *
  * @module components/visitor/GitHubLink
  */
@@ -23,7 +23,17 @@ interface GitHubLinkProps {
   place: 'row' | 'menu' | 'footer';
   /** Shows "SafeOS on GitHub" in full, as the footer does; otherwise the word GitHub. */
   full?: boolean;
+  /** Opens GitHub in a new tab, as an app page's footer does, and says so in its name. */
+  newTab?: boolean;
   onClick?: () => void;
+}
+
+/** The words a link that opens a new tab adds to its name. */
+export const NEW_TAB_WORDS = '(opens in a new tab)';
+
+/** Those words for a reader alone, at the end of a link's own words. */
+export function NewTabWords() {
+  return <span className="sr-only" translate="yes">{` ${NEW_TAB_WORDS}`}</span>;
 }
 
 /** A five-pointed star in outline, in the colour of the words beside it. */
@@ -56,15 +66,17 @@ function headerLinkName(stars: StarCount | null) {
   return stars ? `SafeOS on GitHub, ${exactStars(stars.count)}` : githubLinkName(null);
 }
 
-export function GitHubLink({ className, place, full = false, onClick }: GitHubLinkProps) {
+export function GitHubLink({ className, place, full = false, newTab = false, onClick }: GitHubLinkProps) {
   const stars = starCount();
   const inHeader = place === 'row';
+  const tab = newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {};
 
   if (!stars) {
     return full ? (
-      <a href={GITHUB_URL} className={className} onClick={onClick}>
+      <a href={GITHUB_URL} className={className} onClick={onClick} {...tab}>
         {inHeader && <GitHubMark />}
         SafeOS on GitHub
+        {newTab && <NewTabWords />}
       </a>
     ) : (
       <a href={GITHUB_URL} className={className} aria-label={githubLinkName(null)} onClick={onClick}>
@@ -83,6 +95,7 @@ export function GitHubLink({ className, place, full = false, onClick }: GitHubLi
         aria-label={inHeader ? headerLinkName(stars) : undefined}
         aria-describedby={described}
         onClick={onClick}
+        {...tab}
       >
         {inHeader && <GitHubMark />}
         {full ? <>SafeOS on{' '}</> : !inHeader && <span className="sr-only">SafeOS on{' '}</span>}
@@ -98,6 +111,7 @@ export function GitHubLink({ className, place, full = false, onClick }: GitHubLi
             {starWord(stars.count)}
           </span>
         )}
+        {newTab && <NewTabWords />}
       </a>
       <span id={described} hidden>
         {githubLinkDescription(stars)}
@@ -105,9 +119,6 @@ export function GitHubLink({ className, place, full = false, onClick }: GitHubLi
     </>
   );
 }
-
-/** The words a link that opens a new tab adds to its name. */
-export const NEW_TAB_WORDS = '(opens in a new tab)';
 
 export function GitHubIconLink({ className, newTab = false }: { className: string; newTab?: boolean }) {
   const stars = starCount();

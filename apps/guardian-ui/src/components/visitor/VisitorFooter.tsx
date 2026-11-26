@@ -7,7 +7,9 @@
  * make, each by its own mark and its name. When the repository's star count
  * was read as the site was built, the GitHub link is followed by a star and
  * the count, and the last line says the count and the day it was counted.
- * Every link opens in the same tab, so Back returns to the page. It shows no
+ * On a public page every link opens in the same tab, so Back returns to the
+ * page. On an app page, where a watch may be running, a link to another site
+ * opens a new tab, so the watch goes on, and its name says so. It shows no
  * status line: nothing checks one.
  *
  * @module components/visitor/VisitorFooter
@@ -17,7 +19,7 @@ import Link from 'next/link';
 import { SiteMark } from './SiteMark';
 import { StartLink } from './StartLink';
 import { Num } from './Num';
-import { GitHubLink, GITHUB_URL } from './GitHubLink';
+import { GitHubLink, GITHUB_URL, NewTabWords } from './GitHubLink';
 import { MakerMark, type Maker } from './MakerMark';
 import { starCount, starsSentence } from '@/lib/github-stars';
 
@@ -95,20 +97,25 @@ function withNumbers(sentence: string) {
   return sentence.split(/(\d[\d,]*)/).map((part, index) => (index % 2 ? <Num key={index}>{part}</Num> : part));
 }
 
-function FooterAnchor({ link }: { link: FooterLink }) {
-  if (link.href === GITHUB_URL) return <GitHubLink className="site-footer__link site-footer__link--github" place="footer" full />;
+function FooterAnchor({ link, newTab }: { link: FooterLink; newTab: boolean }) {
+  if (link.href === GITHUB_URL) return <GitHubLink className="site-footer__link site-footer__link--github" place="footer" full newTab={newTab} />;
+  // A link to another site, not a mail address, opens a new tab where asked.
+  const opensTab = newTab && /^https?:/.test(link.href);
+  const tab = opensTab ? { target: '_blank', rel: 'noopener noreferrer' } : {};
   if (link.maker) {
     return (
-      <a href={link.href} className="site-footer__link site-footer__link--maker" translate="no">
+      <a href={link.href} className="site-footer__link site-footer__link--maker" translate="no" {...tab}>
         <MakerMark maker={link.maker} size={24} />
         <span>{link.label}</span>
+        {opensTab && <NewTabWords />}
       </a>
     );
   }
   if (link.outside) {
     return (
-      <a href={link.href} className="site-footer__link" translate={link.name ? 'no' : undefined}>
+      <a href={link.href} className="site-footer__link" translate={link.name ? 'no' : undefined} {...tab}>
         {link.label}
+        {opensTab && <NewTabWords />}
       </a>
     );
   }
@@ -119,7 +126,8 @@ function FooterAnchor({ link }: { link: FooterLink }) {
   );
 }
 
-export function VisitorFooter() {
+/** `newTab`: an app page's footer, whose links to other sites open a new tab. */
+export function VisitorFooter({ newTab = false }: { newTab?: boolean } = {}) {
   const stars = starCount();
   return (
     <footer className="site-footer">
@@ -148,7 +156,7 @@ export function VisitorFooter() {
               <ul className="site-footer__list">
                 {group.links.map((link) => (
                   <li key={link.href}>
-                    <FooterAnchor link={link} />
+                    <FooterAnchor link={link} newTab={newTab} />
                   </li>
                 ))}
               </ul>

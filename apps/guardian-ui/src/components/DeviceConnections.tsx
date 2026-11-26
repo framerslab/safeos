@@ -10,7 +10,9 @@
  * model's address in lib/detection-model-facts.ts, fetched only after the
  * agreement (lib/detection-model.ts); the voices in lib/tts-alerts.ts, the
  * Voice Warnings switch in components/SecurityPanel.tsx and Wildlife's Alert
- * Mode in app/wildlife/page.tsx; the monitor's frames in app/monitor/page.tsx
+ * Mode in app/wildlife/page.tsx, and Lost & Found's spoken message in
+ * lib/custom-media-player.ts with its Speak alert message switch in
+ * components/LostFoundSetup.tsx; the monitor's frames in app/monitor/page.tsx
  * and the server's cloud step in src/queues/analysis-queue.ts.
  *
  * @module components/DeviceConnections
@@ -38,9 +40,9 @@ export const CONNECTIONS: Connection[] = [
   },
   {
     name: 'A spoken alert',
-    when: 'Each time People or Wildlife speaks an alert.',
-    sees: 'People and Wildlife speak their alerts through one of the browser’s voices. Some voices are an online service run by the browser’s maker, which receives the words to speak. In Chrome, the voices named Google are.',
-    stop: 'On People, turn off Voice Warnings. On Wildlife, choose Sound or Silent under Alert Mode.',
+    when: 'Each time People, Wildlife or Lost & Found speaks an alert.',
+    sees: 'People, Wildlife and Lost & Found speak their alerts through one of the browser’s voices. Some voices are an online service run by the browser’s maker, which receives the words to speak. In Chrome, the voices named Google are.',
+    stop: 'On People, turn off Voice Warnings. On Wildlife, choose Sound or Silent under Alert Mode. On Lost & Found, turn off Speak alert message under Image Flash Overlay.',
   },
   {
     name: 'A server you connect',
