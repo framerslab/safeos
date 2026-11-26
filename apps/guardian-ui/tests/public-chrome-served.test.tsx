@@ -159,6 +159,13 @@ describe('with 58 stars counted on 18 November 2026', () => {
     expect(link?.hasAttribute('aria-current')).toBe(false);
   });
 
+  it('gives the phone header\'s GitHub mark the count\'s day as its description', () => {
+    const link = header().querySelector('.site-header__github-icon');
+    expect(link?.getAttribute('href')).toBe(REPOSITORY);
+    expect(nameOf(link)).toBe('SafeOS on GitHub, 58 stars');
+    expect(descriptionOf(link)).toBe('Counted 18 November 2026.');
+  });
+
   it('lists the Menu\'s nine rows, the start key first and GitHub with its count last', () => {
     const page = header();
     const rows = Array.from(page.querySelectorAll('#site-menu a'));

@@ -378,6 +378,25 @@ it("keeps People's alert and its DISARM key after the people leave, until the wa
   expect(words()).not.toContain('2 people in view at');
 });
 
+it("keeps the count and time of People's saved alert while a check in the cooldown sees more people", async () => {
+  const { container, at } = await peopleInView();
+  const words = () => container.querySelector('video')?.closest('main')?.textContent ?? '';
+  jest.spyOn(getPersonDetector(), 'forceDetection').mockResolvedValueOnce({
+    personCount: 3,
+    detections: [0, 50, 100].map((x) => ({ bbox: [x, 0, 40, 40] as [number, number, number, number], class: 'person', confidence: 0.82 })),
+    processingTimeMs: 18,
+    timestamp: at + 60_000,
+    motionTriggered: true,
+  });
+  await act(async () => { jest.advanceTimersByTime(DEFAULT_SECURITY_SETTINGS.detectionInterval); });
+  expect(useSecurityStore.getState()).toMatchObject({ armingState: 'triggered', currentPersonCount: 3 });
+  // The check falls inside the cooldown: no new picture and no new notification.
+  expect(useSecurityStore.getState().intrusionFrames).toHaveLength(1);
+  expect(notifications()).toHaveLength(1);
+  expect(words()).toContain(`2 people in view at ${timeWords(at)}`);
+  expect(words()).not.toContain('3 people in view at');
+});
+
 it('names no part of People with a score or a barred word while its camera runs', async () => {
   const { container } = await peopleInView();
   for (const text of homeWordingInputs(container.querySelector('video')!.closest('main')!)) expect(text).not.toMatch(barredWording);
@@ -447,6 +466,17 @@ it('names no part of Wildlife with a score or a barred word while its camera run
   await wildlifeInView();
   for (const text of homeWordingInputs(document.querySelector('video')!.closest('main')!)) expect(text).not.toMatch(barredWording);
   expect(screen.getByRole('status', { name: /movement/i })).toBeTruthy();
+});
+
+it('names the sightings it keeps until Clear All without saying the animal is in view', async () => {
+  await wildlifeInView();
+  // The zebra leaves: the checks that follow see no animal, and its card stays.
+  await act(async () => { jest.advanceTimersByTime(5_000); });
+  expect(useAnimalAlertStore.getState().currentDetections).toHaveLength(1);
+  const clear = screen.getByRole('button', { name: 'Clear All' });
+  const heading = clear.parentElement?.querySelector('h3');
+  expect(heading?.textContent?.trim()).toBe('Sightings to clear');
+  expect(heading?.textContent).not.toMatch(/in view/i);
 });
 
 it("Wildlife's notification names the animal and gives the time", async () => {
