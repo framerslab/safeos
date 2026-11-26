@@ -352,6 +352,13 @@ const UNBACKED_CLAIMS: Phrase[] = [
     why: 'Lost and Found checks every 500 ms only while the device keeps up (monitor/page.tsx setInterval)',
   },
   { pattern: /low-power state/i, why: 'nothing reads or sets the graphics chip\'s power state' },
+  // Spoken alerts: People and Wildlife speak by default (security-store.ts, animal-alert-store.ts),
+  // and tts-alerts.ts picks Chrome's "Google UK English Male", an online voice, where no local
+  // Daniel or Alex voice is installed, so the alert's words reach the browser's maker.
+  {
+    pattern: /No cloud uploads|nothing (is )?uploaded in PWA-only/i,
+    why: 'a spoken alert can go through an online voice run by the browser\'s maker, which receives its words (tts-alerts.ts)',
+  },
 ];
 
 // Lost and Found's screens: setup, the pet's cards, the gallery, the

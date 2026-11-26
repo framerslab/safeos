@@ -8,10 +8,13 @@
  * development addresses on this machine; with it set, the origins it lists
  * and no other. A page on the server's own address needs no such header.
  * Behind the bundled Caddy, its one CORS_ORIGIN replaces the server's header,
- * so an answer never carries two.
+ * so an answer never carries two. A listed origin is read whatever its
+ * capitals, as a browser sends an origin in small letters, and the server
+ * says when it starts which listed entries are not an origin, since none of
+ * them can ever be allowed.
  */
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 import { readFileSync } from 'fs';
 import { SafeOSServer } from '../../src/api/server.js';
@@ -78,6 +81,29 @@ describe('allowed origins', () => {
     expect(await allowedBy(app, 'http://192.168.1.20:3000')).toBe('http://192.168.1.20:3000');
     for (const origin of ['https://safeos.sh', 'http://localhost:3000', 'capacitor://localhost', ...OTHER_SITES]) {
       expect([origin, await allowedBy(app, origin)]).toEqual([origin, null]);
+    }
+  });
+
+  it('reads a listed origin whatever its capitals, as a browser sends it in small letters', async () => {
+    const app = appWith('https://Guardian.Example.test, HTTP://LOCALHOST:8080');
+    expect(await allowedBy(app, 'https://guardian.example.test')).toBe('https://guardian.example.test');
+    expect(await allowedBy(app, 'http://localhost:8080')).toBe('http://localhost:8080');
+    expect(await allowedBy(app, 'https://other.example')).toBeNull();
+  });
+
+  it('says when it starts which listed entries are not an origin, and names no good one', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      appWith('guardian.example.test, https://guardian.example.test/app, *, https://fine.example.test');
+      const said = warn.mock.calls.map((call) => call.map(String).join(' ')).join('\n');
+      // Each entry stands in quotes, so one is not read inside another.
+      for (const entry of ['guardian.example.test', 'https://guardian.example.test/app', '*']) {
+        expect([entry, said.includes(`"${entry}"`)]).toEqual([entry, true]);
+      }
+      expect(said).toContain('SAFEOS_ALLOWED_ORIGINS');
+      expect(said).not.toContain('https://fine.example.test');
+    } finally {
+      warn.mockRestore();
     }
   });
 

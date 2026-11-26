@@ -2,9 +2,10 @@
  * The app header's GitHub link leaves a running watch running
  *
  * Starts a Motion and sound watch on /monitor/ with Chromium's fake camera,
- * then presses the GitHub mark in the app's header. GitHub opens in a new
- * tab; the watch's page stays on /monitor/, still watching, with its camera
- * live. The new tab is answered here, so the walk reaches no other host.
+ * then presses the GitHub mark in the app's header, and then the footer's
+ * link to GitHub. Each opens GitHub in a new tab; the watch's page stays on
+ * /monitor/, still watching, with its camera live. The new tabs are answered
+ * here, so the walk reaches no other host.
  *
  * @module e2e/github-link-new-tab.spec
  */
@@ -54,4 +55,20 @@ test('pressing GitHub in the app header opens a new tab and the watch on Monitor
   expect(tab, 'a new tab opened').not.toBeNull();
   await tab!.waitForLoadState();
   expect(tab!.url()).toBe('https://github.com/framerslab/safeos');
+
+  // The footer's link to GitHub, on the same page, opens a tab of its own too.
+  const another = context.waitForEvent('page', { timeout: 15_000 }).catch(() => null);
+  await page.locator('footer.site-footer').getByRole('link', { name: /^SafeOS on GitHub/ }).click();
+  await expect(page).toHaveURL(/\/monitor\/(\?.*)?$/);
+  await expect(page.getByRole('button', { name: 'Stop watching', exact: true })).toBeVisible();
+  expect(
+    await page.evaluate(() => {
+      const stream = document.querySelector('video')?.srcObject as MediaStream | null | undefined;
+      return stream?.getVideoTracks().map((track) => track.readyState) ?? [];
+    })
+  ).toEqual(['live']);
+  const footerTab = await another;
+  expect(footerTab, 'a new tab opened from the footer').not.toBeNull();
+  await footerTab!.waitForLoadState();
+  expect(footerTab!.url()).toBe('https://github.com/framerslab/safeos');
 });

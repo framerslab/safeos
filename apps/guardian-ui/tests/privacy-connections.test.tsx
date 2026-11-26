@@ -13,8 +13,15 @@
  * The page also names both of the browser's stores that keep the saved
  * pictures: Wildlife's sightings and their pictures are in localStorage,
  * People's frames and the pets in localStorage and IndexedDB.
+ *
+ * The spoken alert's row names every page that hands words to the browser's
+ * voices, found in the code itself, with the switch that stops it: People and
+ * Wildlife through lib/tts-alerts.ts, and Lost & Found's full-screen photos
+ * through lib/custom-media-player.ts. SECURITY.md names the same pages.
  */
 
+import fs from 'fs';
+import path from 'path';
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import PrivacyPage from '@/app/privacy/page';
@@ -47,12 +54,48 @@ it('lists each connection with when it happens, who sees what and how to stop it
   expect(row('The host’s log')).toContain('GitHub, which hosts safeos.sh, logs your IP address');
   expect(row('The detection model')).toContain('Only after you agree');
   expect(row('The detection model')).toContain('Google’s storage (storage.googleapis.com) sees your IP address');
-  expect(row('A spoken alert')).toContain('People and Wildlife speak their alerts through one of the browser’s voices.');
+  expect(row('A spoken alert')).toContain('People, Wildlife and Lost & Found speak their alerts through one of the browser’s voices.');
   expect(row('A spoken alert')).toContain('Some voices are an online service run by the browser’s maker, which receives the words to speak.');
   expect(row('A spoken alert')).toContain('Voice Warnings');
   expect(row('A spoken alert')).toContain('Alert Mode');
   expect(row('A server you connect')).toContain('when Ollama is down or its analysis fails');
   expect(row('A server you connect')).toContain('Local instant');
+});
+
+// Each file that hands words to the browser's voices, with the pages it
+// speaks for and the switch on each that stops it.
+const SPEAKERS: Record<string, { page: string; stop: string }[]> = {
+  'lib/tts-alerts.ts': [
+    { page: 'People', stop: 'Voice Warnings' },
+    { page: 'Wildlife', stop: 'Alert Mode' },
+  ],
+  'lib/custom-media-player.ts': [{ page: 'Lost & Found', stop: 'Speak alert message' }],
+};
+
+function filesUnder(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) return filesUnder(full);
+    return /\.(ts|tsx)$/.test(entry.name) ? [full] : [];
+  });
+}
+
+it('names every page that speaks through the browser’s voices, with the switch that stops it', () => {
+  const src = path.join(__dirname, '..', 'src');
+  const speaking = filesUnder(src)
+    .filter((file) => /new SpeechSynthesisUtterance\(/.test(fs.readFileSync(file, 'utf8')))
+    .map((file) => path.relative(src, file).split(path.sep).join('/'))
+    .sort();
+  expect(speaking).toEqual(Object.keys(SPEAKERS).sort());
+
+  render(<PrivacyPage />);
+  const spoken = connections().row('A spoken alert');
+  const security = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'SECURITY.md'), 'utf8').replace(/\s+/g, ' ');
+  for (const { page, stop } of Object.values(SPEAKERS).flat()) {
+    expect([page, spoken.includes(page)]).toEqual([page, true]);
+    expect([stop, spoken.includes(stop)]).toEqual([stop, true]);
+  }
+  expect(security).toContain('People, Wildlife and Lost & Found speak their alerts through one of the browser');
 });
 
 it('says the spoken alerts can leave the device among what leaves it', () => {
