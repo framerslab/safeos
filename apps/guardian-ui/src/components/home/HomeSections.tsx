@@ -30,7 +30,7 @@ const BENEFITS = [
   },
   {
     title: 'Supplemental alerts',
-    text: 'When something moves or gets loud, the device that watches plays an alert sound, shows a notification and lists the alert in History.',
+    text: 'When something moves or gets loud, the device that watches plays an alert sound, shows a notification if the browser allows it, and lists the alert in History.',
     Glyph: IconBell,
   },
   {
@@ -195,8 +195,8 @@ export function HomeHow({ siteAddress }: { siteAddress: string }) {
               <div>
                 <h3 className="home-h3">Stay within earshot.</h3>
                 <p className="home-p">
-                  When something moves or gets loud, the device plays an alert sound, shows a notification and lists
-                  the alert in History.
+                  When something moves or gets loud, the device plays an alert sound, shows a notification if the browser allows it,
+                  and lists the alert in History.
                 </p>
               </div>
             </li>

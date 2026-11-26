@@ -19,7 +19,7 @@ function generate(files: Record<string, string>) {
   const worker = fs.readFileSync(path.join(root, 'out', 'sw.js'), 'utf8');
   const match = worker.match(/^self\.__SAFEOS_PRECACHE = (.*);$/m);
   fs.rmSync(root, { recursive: true, force: true });
-  return JSON.parse(match![1]) as { version: string; urls: string[] };
+  return JSON.parse(match![1]) as { version: string; urls: string[]; posters: string[] };
 }
 
 it('installs the images the exported pages and notifications show', () => {
@@ -39,29 +39,6 @@ it('installs the images the exported pages and notifications show', () => {
     '/diagrams/how-it-works.svg', '/logos/react.svg', '/icons/icon-192.png',
   ]));
   expect(urls).not.toContain('/sw.js');
-});
-
-it('installs the home page capture the page shows, and not its PNG copies, the card or the install screenshots', () => {
-  const { urls } = generate({
-    'out/index.html': '<picture><source srcset="/home/capture-phone-light.webp"><img src="/home/capture-phone-light.png"></picture>',
-    'out/_next/static/chunks/main.js': '',
-    'out/home/capture-phone-light.webp': 'webp',
-    'out/home/capture-phone-dark.webp': 'webp',
-    'out/home/capture-portrait-light.png': 'png',
-    'out/home/capture-portrait-light.webp': 'webp',
-    'out/home/card.jpg': 'jpeg',
-    'out/screenshots/dashboard.png': 'png',
-    'out/screenshots/monitoring.png': 'png',
-  });
-  // Both looks' WebP crops: the page shows one and the look switch the other, offline too.
-  expect(urls).toEqual(expect.arrayContaining([
-    '/home/capture-phone-light.webp', '/home/capture-phone-dark.webp', '/home/capture-portrait-light.webp',
-  ]));
-  // A browser that shows WebP never asks for the PNG copies; the card is for
-  // a shared link and the screenshots for the install dialog, both online.
-  for (const url of ['/home/capture-portrait-light.png', '/home/card.jpg', '/screenshots/dashboard.png', '/screenshots/monitoring.png']) {
-    expect(urls).not.toContain(url);
-  }
 });
 
 it('leaves the Lost and Found example out until a page shows it', () => {
@@ -86,5 +63,43 @@ it('assigns different cache versions to distinct exported file contents', () => 
   const first = generate({ ...shared, 'out/index.html': '<html/>index.txt', 'out/index.txt': '' });
   const second = generate({ ...shared, 'out/index.html': '<html/>', 'out/index.txt': 'index.txt' });
   expect(first.urls).toEqual(second.urls);
+  expect(first.version).not.toBe(second.version);
+});
+
+
+it('keeps both square WebP looks as optional offline pictures and excludes other home media', () => {
+  const files: Record<string, string> = {
+    'out/index.html': '<main></main>',
+    'out/_next/static/chunks/main.js': '',
+    'out/home/sample-clip.mp4': 'source',
+    'out/home/capture-phone-light.webp': 'retired capture',
+    'out/home/capture-phone-dark.png': 'retired copy',
+    'out/home/card.jpg': 'sharing',
+    'out/screenshots/dashboard.png': 'install',
+    'out/screenshots/monitoring.png': 'install',
+  };
+  const square = [];
+  for (const id of ['dashboard', 'watching', 'settings']) {
+    for (const look of ['dark', 'light']) {
+      square.push('/home/runs/' + id + '-square-' + look + '.webp');
+      for (const size of ['square', 'wide']) {
+        for (const kind of ['mp4', 'webp', 'avif']) {
+          files['out/home/runs/' + id + '-' + size + '-' + look + '.' + kind] = kind;
+        }
+      }
+    }
+  }
+  const { urls, posters } = generate(files);
+  expect(posters).toEqual(square.sort());
+  expect(urls.filter((url) => /^\/(?:home\/(?:runs|capture-|card|sample-clip)|screenshots\/)/.test(url))).toEqual([]);
+});
+
+it('changes the cache version when an optional square poster changes', () => {
+  const shared = { 'out/index.html': '<html/>', 'out/_next/static/chunks/main.js': '' };
+  const file = 'out/home/runs/watching-square-light.webp';
+  const first = generate({ ...shared, [file]: 'first' });
+  const second = generate({ ...shared, [file]: 'second' });
+  expect(first.urls).toEqual(second.urls);
+  expect(first.posters).toEqual(second.posters);
   expect(first.version).not.toBe(second.version);
 });

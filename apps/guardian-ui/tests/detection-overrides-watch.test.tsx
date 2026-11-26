@@ -94,6 +94,35 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); jest.useRealTimers(); jest.restoreAllMocks(); });
 
+it('uses the same plain sound alert on the watch card, in its announcement and in the notification', async () => {
+  Object.defineProperty(Notification, 'permission', { value: 'granted' });
+  const notification = jest.mocked(Notification);
+  useSettingsStore.getState().updateGlobalSettings({ motionDetectionEnabled: false });
+  const view = render(<MonitorPage />);
+  await act(async () => {});
+  await startMonitoring();
+  await act(async () => { jest.advanceTimersByTime(3000); });
+
+  const alert = useMonitoringStore.getState().alerts.find(({ id }) => id.startsWith('audio-'));
+  expect(alert).toBeDefined();
+  const time = new Intl.DateTimeFormat(undefined, {
+    timeStyle: 'medium',
+  }).format(new Date(alert!.timestamp ?? alert!.createdAt!));
+  const watch = view.container.querySelector('.watch-list')!;
+  const level = alert!.severity[0].toUpperCase() + alert!.severity.slice(1);
+  expect({
+    card: watch.querySelector('.watch-list__body')?.textContent,
+    announcement: watch.querySelector('[aria-live="polite"]')?.textContent,
+    notices: notification.mock.calls,
+  }).toEqual({
+    card: expect.stringContaining(`Sound at ${time}`),
+    announcement: expect.stringContaining(`New alert: Sound, ${level}, at ${time}.`),
+    notices: expect.arrayContaining([['Sound alert', expect.objectContaining({
+      body: `${level}, ${time}.`,
+    })]]),
+  });
+});
+
 it('watches a baby with the Motion and Sound set for a baby on Detection', async () => {
   tuneOnDetection('Baby Monitoring', 60, 55);
 

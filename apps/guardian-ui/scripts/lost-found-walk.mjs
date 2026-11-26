@@ -12,7 +12,7 @@ const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 // The capture's preset (scripts/home-capture-settings.json), as the home
 // page's captures seed it: the default preset with pixel detection off.
-const CAPTURE_SETTINGS = JSON.parse(await readFile(path.join(APP_ROOT, 'scripts', 'home-capture-settings.json'), 'utf8'));
+export const CAPTURE_SETTINGS = JSON.parse(await readFile(path.join(APP_ROOT, 'scripts', 'home-capture-settings.json'), 'utf8'));
 
 /**
  * A browser context for a person who has finished setup with the pet use,
@@ -20,9 +20,11 @@ const CAPTURE_SETTINGS = JSON.parse(await readFile(path.join(APP_ROOT, 'scripts'
  * the notice about alert pictures answered, with the camera and microphone
  * allowed. The device is seeded once, so a reload keeps what the walk did.
  */
-export async function seededContext(browser, options) {
-  const context = await browser.newContext({ ...options, permissions: ['camera', 'microphone'] });
-  await context.addInitScript((settings) => {
+export async function seededContext(browser, options, settings = CAPTURE_SETTINGS) {
+  const context = await browser.newContext({ permissions: ['camera', 'microphone'], ...options });
+  const look = ['dark', 'light'].includes(options.colorScheme) ? options.colorScheme : null;
+  await context.addInitScript(({ settings, look }) => {
+    if (window.top !== window) return;
     if (localStorage.getItem('safeos-walk-seeded')) return;
     localStorage.setItem('safeos-walk-seeded', 'true');
     localStorage.setItem('safeos-onboarding', JSON.stringify({ state: {
@@ -31,12 +33,13 @@ export async function seededContext(browser, options) {
     }, version: 0 }));
     localStorage.setItem('guardian-onboarding-complete', 'true');
     localStorage.setItem('safeos-settings', JSON.stringify({ state: settings, version: 0 }));
+    if (look) localStorage.setItem('guardian-theme', JSON.stringify({ state: { themeMode: look, resolvedTheme: look }, version: 0 }));
     localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
     localStorage.setItem('safeos-alert-pictures', JSON.stringify({ state: {
       keep: true, deleteAfterDays: 3, noticeAnswered: true, inNotifications: false,
     }, version: 0 }));
-  }, CAPTURE_SETTINGS);
+  }, { settings, look });
   return context;
 }
 

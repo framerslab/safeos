@@ -242,6 +242,7 @@ export function groupAlerts(records: SavedRecords): DeviceAlert[] {
       recordIds: [record.id],
       seen: record.acknowledged === true,
       what: motionWhat(record.id, record.message),
+      ...(record.pictureId ? { pictureId: record.pictureId } : {}),
     });
   }
 

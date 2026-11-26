@@ -61,6 +61,7 @@ import { skipsInBase } from './base-routes.mjs';
 import { captureWatchPages } from './watch-page-captures.mjs';
 
 const [baseUrl, outDir, ...routes] = process.argv.slice(2);
+const playbackOnly = routes.length === 1 && routes[0] === '--home-playback';
 if (!baseUrl || !outDir || routes.length === 0) {
   console.error('usage: capture-pictures.mjs <base-url> <out-dir> <route> [<route> ...]');
   process.exit(2);
@@ -95,15 +96,33 @@ await mkdir(outDir, { recursive: true });
 const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader'] });
 let failures = 0;
 try {
-  const homeChecks = process.env.PICTURE_VERSION === 'after' && routes.includes('/')
+  const homeChecks = process.env.PICTURE_VERSION === 'after' && (routes.includes('/') || playbackOnly)
     ? await import('./home-checks.mjs')
     : null;
+  let runs;
   if (homeChecks) {
+    const response = await fetch(new URL('/home/runs/runs.json', baseUrl));
+    if (!response.ok) throw Error('Missing exported home recordings');
+    ({ runs } = await response.json());
+  }
+  if (homeChecks && !playbackOnly) {
     const { checkHeaders } = await import('./header-checks.mjs');
     failures += await checkHeaders(browser, baseUrl);
   }
-  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks);
+  if (routes.includes('/') || playbackOnly) {
+    failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs);
+  }
+  if (playbackOnly) {
+    await browser.close();
+    process.exit(failures > 0 ? 1 : 0);
+  }
   failures += await captureWatchPages(browser, baseUrl, outDir, routes, finishedSetupContext);
+  if (homeChecks) {
+    failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
+    const { checkHomeRuns, checkRunPolicies } = await import('./home-run-checks.mjs');
+    failures += await checkHomeRuns(browser, baseUrl, runs);
+    failures += await checkRunPolicies(browser, baseUrl, runs);
+  }
   for (const route of routes) {
     for (const size of WIDTHS) {
       for (const look of LOOKS) {
@@ -230,7 +249,6 @@ try {
   }
   if (homeChecks) {
     failures += await checkFirstVisit(browser, baseUrl, outDir);
-    failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
     failures += await checkHomeUseSetup(browser, baseUrl);
   }
   // The app's own pages, for the pull request's own build. The base build
@@ -498,7 +516,7 @@ function contrastOf(locator) {
   });
 }
 
-async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
+async function captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs) {
   let failures = 0;
   for (const [width, height] of [[390, 844], [1024, 800], [1440, 900]]) {
     for (const look of LOOKS) {
@@ -508,19 +526,85 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks) {
       });
       try {
         const page = await context.newPage();
-        await page.goto(new URL('/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-        await page.evaluate(() => document.fonts.ready);
-        if (width >= 1024) {
-          await page.locator('nav[aria-label="Site"]').screenshot({
-            path: path.join(outDir, `site-header-${width}-${look}.png`), scale: 'css',
-          });
+        const home = new URL('/', baseUrl).href;
+        const release = new Map();
+        if (runs) {
+          for (const id of ['watching', 'dashboard']) {
+            const held = new Promise((resolve) => release.set(id, resolve));
+            await context.route('**/home/runs/' + id + '-*.mp4', async (route) => {
+              await held;
+              await route.continue().catch(() => {});
+            });
+          }
         }
-        if (width === 1024) continue;
-        const first = `home-first-${width}-${look}.png`;
-        await page.screenshot({ path: path.join(outDir, first), scale: 'device', caret: 'hide' });
-        console.log(`captured ${first}`);
+        try {
+          await page.mouse.move(0, 0);
+          await page.goto(home, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+          await page.evaluate(() => document.fonts.ready);
+          if (width >= 1024) {
+            await page.locator('nav[aria-label="Site"]').screenshot({
+              path: path.join(outDir, `site-header-${width}-${look}.png`), scale: 'css',
+            });
+          }
+          if (width === 1024) continue;
+          if (runs) {
+            await page.waitForFunction(() => {
+              const image = document.querySelector('.home-run__poster img');
+              return image?.complete && image.naturalWidth > 0 && !image.closest('picture').hidden;
+            }, null, { timeout: 15000 });
+          } else {
+            await page.waitForLoadState('networkidle');
+          }
+          const save = (name) => page.screenshot({
+            path: path.join(outDir, name), scale: 'device', caret: 'hide',
+          });
+          const first = 'home-first-' + width + '-' + look + '.png';
+          await save(first);
+          console.log('captured ' + first);
+          if (!runs) continue;
 
-        if (!homeChecks) continue;
+          for (const id of ['watching', 'dashboard']) {
+            const key = page.locator('button[data-run="' + id + '"]');
+            if (await key.getAttribute('aria-current') !== 'step') await key.click();
+            await page.waitForFunction((id) => {
+              const image = document.querySelector('.home-run__poster img');
+              return image?.currentSrc.includes('/' + id + '-') && image.complete
+                && image.naturalWidth > 0 && !image.closest('picture').hidden;
+            }, id, { timeout: 15000 });
+            await save('home-' + id + '-' + width + '-' + look + '.png');
+
+            const run = runs.find((entry) => entry.id === id);
+            const variant = run.variants[width === 390 ? 'square' : 'wide'][look];
+            if (variant.pictureAt === undefined && (width !== 1440 || look !== 'dark')) continue;
+            const { waitForPlaying } = await import('./home-run-checks.mjs');
+            release.get(id)();
+            if (id === 'watching' && variant.motionOverAt !== undefined && look === 'dark') {
+              await waitForPlaying(page, variant.motionOverAt + 0.16, 15000);
+              await save('home-watching-motion-' + width + '-' + look + '.png');
+            }
+            // Follow real playback so the screenshot holds a painted frame
+            // after the alert picture appears.
+            const at = variant.pictureAt === undefined ? (id === 'watching' ? 8.3 : 4)
+              : run.seconds - 1.5;
+            await waitForPlaying(page, at, 15000);
+            await page.locator('.home-run__frame video').evaluate((movie) => new Promise((resolve, reject) => {
+              const callback = movie.requestVideoFrameCallback(() => {
+                clearTimeout(timeout);
+                resolve();
+              });
+              const timeout = setTimeout(() => {
+                movie.cancelVideoFrameCallback(callback);
+                reject(new Error('The video did not present a playback frame'));
+              }, 5000);
+            }));
+            await save('home-' + id + '-playing-' + width + '-' + look + '.png');
+          }
+        } finally {
+          for (const resume of release.values()) resume();
+        }
+
+        if (playbackOnly) continue;
+
         const hideBar = 'nav[aria-label="Site"] { visibility: hidden !important; }';
         const picture = async (locator, name) => {
           const file = `home-${name}-${width}-${look}.png`;

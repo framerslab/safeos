@@ -407,7 +407,7 @@ function AlertCard({ alert, form, escalationLevel, onAcknowledge }: AlertCardPro
   const sighting = kind === 'sighting';
 
   return (
-    <div className="alert-card" data-alert-card="" data-form={kind ? form : undefined} data-kind={kind ?? undefined} data-severity={alert.severity}>
+    <div className="alert-card" data-alert-card="" data-form={kind ? form : undefined} data-kind={kind ?? undefined} data-alert-at={alertMoment(alert)} data-severity={alert.severity}>
       {/* Escalation indicator: the fourth level pulses until the card is acknowledged */}
       {!sighting && (
         <div

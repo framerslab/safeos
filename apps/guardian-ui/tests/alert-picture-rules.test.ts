@@ -14,7 +14,7 @@ import {
   boxFromHotspots,
   boxFromRegion,
   closeUpRect,
-  coverBox,
+  mapLiveBox,
   coversOverHalf,
   expiredPictureIds,
   forgetOldNotes,
@@ -28,26 +28,31 @@ import {
   staleNote,
 } from '@/lib/alert-pictures/rules';
 
-describe('the live picture is the frame drawn object-cover', () => {
+describe('mapping a box onto the live picture', () => {
   test('a box maps through the crop and the scale', () => {
-    expect(coverBox({ x: 100, y: 100, width: 200, height: 100 }, 640, 480, 320, 180)).toEqual({ x: 50, y: 20, width: 100, height: 50 });
+    expect(mapLiveBox({ x: 100, y: 100, width: 200, height: 100 }, 640, 480, 320, 180, 'cover')).toEqual({ x: 50, y: 20, width: 100, height: 50 });
+  });
+
+  it('maps a box onto a whole 4:3 camera image centred in a 16:9 view', () => {
+    expect(mapLiveBox({ x: 100, y: 100, width: 200, height: 100 }, 640, 480, 320, 180, 'contain'))
+      .toEqual({ x: 78, y: 38, width: 75, height: 38 });
   });
 
   test('a box above the crop shows nothing', () => {
-    expect(coverBox({ x: 0, y: 0, width: 640, height: 40 }, 640, 480, 320, 180)).toBeNull();
+    expect(mapLiveBox({ x: 0, y: 0, width: 640, height: 40 }, 640, 480, 320, 180, 'cover')).toBeNull();
   });
 
   test('a box three quarters inside is clipped to the picture', () => {
-    expect(coverBox({ x: 0, y: 40, width: 640, height: 80 }, 640, 480, 320, 180)).toEqual({ x: 0, y: 0, width: 320, height: 30 });
+    expect(mapLiveBox({ x: 0, y: 40, width: 640, height: 80 }, 640, 480, 320, 180, 'cover')).toEqual({ x: 0, y: 0, width: 320, height: 30 });
   });
 
   test('a small box grows round its centre to 24 px a side', () => {
     // 18 by 13.5 at (135, 67.5)
-    expect(coverBox({ x: 600, y: 300, width: 80, height: 60 }, 1280, 720, 288, 162)).toEqual({ x: 132, y: 62, width: 24, height: 24 });
+    expect(mapLiveBox({ x: 600, y: 300, width: 80, height: 60 }, 1280, 720, 288, 162, 'cover')).toEqual({ x: 132, y: 62, width: 24, height: 24 });
   });
 
   test('a frame of unknown size shows nothing', () => {
-    expect(coverBox({ x: 0, y: 0, width: 10, height: 10 }, 0, 0, 320, 180)).toBeNull();
+    expect(mapLiveBox({ x: 0, y: 0, width: 10, height: 10 }, 0, 0, 320, 180, 'cover')).toBeNull();
   });
 });
 

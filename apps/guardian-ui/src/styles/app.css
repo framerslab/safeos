@@ -43,6 +43,12 @@
    A part built in the look
    ============================================================================= */
 
+@media (max-width: 21.25em) {
+  .app-shell--look {
+    --type-word-size: 1.015625rem; /* 16.25px labels on the narrowest phones */
+  }
+}
+
 .look-part {
   background: var(--color-steel-950);
   color: var(--color-steel-50);

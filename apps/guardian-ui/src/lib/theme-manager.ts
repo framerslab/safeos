@@ -141,7 +141,7 @@ export function useTheme() {
   // a default state value before localStorage has been read.
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (!useThemeStore.persist.hasHydrated()) return;
+    if (!useThemeStore.persist.hasHydrated() || resolvedTheme !== useThemeStore.getState().resolvedTheme) return;
 
     const root = document.documentElement;
     // The look changes in one frame. A key's fill eases under the pointer;
