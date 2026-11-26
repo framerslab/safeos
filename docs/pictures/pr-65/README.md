@@ -2,48 +2,48 @@
 
 The first-screen captures use fresh browsers at 390 × 844 and 1440 × 900 CSS pixels, at 2× in both looks.
 
-- `before/` comes from [Pictures](https://github.com/framerslab/safeos/actions/runs/45746080634), artifact `pictures-before`, at base `1af992b5e408f74b162fe2f99e477209d521d242`.
-- `after/` comes from [Pictures](https://github.com/framerslab/safeos/actions/runs/45746080634), artifact `pictures`, at head `a288fb3c8ffdcb00d4ea3ce4712e7803af7a097b`.
-- The recordings come from the [producer run](https://github.com/framerslab/safeos/actions/runs/45743428931) at `7185bd87f9f98184cbdfc6da8da120cb8fc935be`.
+- `before/` comes from [Pictures](https://github.com/framerslab/safeos/actions/runs/45755564216), artifact `pictures-before`, at base `ab7512f5f292046522062cd4c1fdf2e056a85c59`.
+- `after/` comes from [Pictures](https://github.com/framerslab/safeos/actions/runs/45755564216), artifact `pictures`, at head `7ce2b8cd7900a99946956b3d5ca4ac2022196e20`.
+- The recordings come from the [producer run](https://github.com/framerslab/safeos/actions/runs/45753859186) at `f4b4f48649c8604d5ed242b588365e4272aca08c`.
 
 | Image | View | SHA-256 |
 | --- | --- | --- |
-| [`before/home-first-390-dark.png`](before/home-first-390-dark.png) | Phone first screen with its still, dark look | `3ca0ca6c8778e988118db2182a4b24e32be3759a79b841209dd2fd739d474a19` |
-| [`before/home-first-390-light.png`](before/home-first-390-light.png) | Phone first screen with its still, light look | `1d57576de5703e88a8d66ee5fbfb785698e3bef5c2d1c52926238a08a694d4ce` |
-| [`before/home-first-1440-dark.png`](before/home-first-1440-dark.png) | Desktop first screen with its still, dark look | `3d303c8830bb0f7ab5500eed54384169ee0c18b5832073d7ab666973b5ed81dd` |
-| [`before/home-first-1440-light.png`](before/home-first-1440-light.png) | Desktop first screen with its still, light look | `03a776e686f338c9d7d44b443431ade0b6388a1dc836d35061d229e98f7dea6b` |
-| [`after/home-first-390-dark.png`](after/home-first-390-dark.png) | Phone first screen with the Watching poster, dark look | `6a3ccbff0108895df424b9a4b85f2ff59c3b00a349d2230a3c8ac9a7c2132367` |
-| [`after/home-first-390-light.png`](after/home-first-390-light.png) | Phone first screen with the Watching poster, light look | `d6d1ede544fb535360471b7edfdb6d7c7c9a89727e0148a8ff188dfd75e17471` |
-| [`after/home-first-1440-dark.png`](after/home-first-1440-dark.png) | Desktop first screen with the Watching poster, dark look | `e2bbdd42e5d51605f073cc8a26fb67de633d6486a02793a38fed39ac41e73465` |
-| [`after/home-first-1440-light.png`](after/home-first-1440-light.png) | Desktop first screen with the Watching poster, light look | `50426e472123a59f4894f42fa9a16db78d7951629a9c17f66e2d9f10bb976bb4` |
-| [`after/home-dashboard-390-dark.png`](after/home-dashboard-390-dark.png) | Phone Dashboard list with both alerts, dark look | `ed4640df52fc4611c22a68425d77f4a9142b27e1fefed29b7d3da750c54e17dd` |
-| [`after/home-watching-playing-390-dark.png`](after/home-watching-playing-390-dark.png) | Phone Watching showing the motion alert and its picture, dark look | `45f5553d3890e4149b7e839a2a0640fabf70525b3b490697bde7bbe2b3a152eb` |
-| [`after/home-dashboard-playing-390-dark.png`](after/home-dashboard-playing-390-dark.png) | Phone Dashboard playback showing the opened movement picture, dark look | `2edb8fa96f7d92931bfac315fc2cae6572c31a3f131e670e7deb89a169335bac` |
-| [`after/home-dashboard-390-light.png`](after/home-dashboard-390-light.png) | Phone Dashboard list with both alerts, light look | `cd5b7d273f1579484befbcc9f312c3aeabffa278b1f9b363f77fc7af878d48ec` |
-| [`after/home-watching-playing-390-light.png`](after/home-watching-playing-390-light.png) | Phone Watching showing the motion alert and its picture, light look | `6fc0841e9cea3b4f4416c72915a5c8263887792b68a657efb57c99a4e9944ec0` |
-| [`after/home-dashboard-playing-390-light.png`](after/home-dashboard-playing-390-light.png) | Phone Dashboard playback showing the opened movement picture, light look | `8e07da1ea5b330697215977099aca1b5ee6a364bb3dc2827ce3dd27b2895d87b` |
-| [`after/home-watching-motion-390-dark.png`](after/home-watching-motion-390-dark.png) | Phone Watching as Motion crosses its line, dark look | `2ea971dd57dd7a7771325eebd616a9c2ae45fd58dc81f07a78db8d4d49a39cfa` |
-| [`after/home-dashboard-1440-dark.png`](after/home-dashboard-1440-dark.png) | Desktop Dashboard list with both alerts, dark look | `caffb9f8d7264d81ca1d2f1d01af579be61a1cd0536a8dc7604811cdea6a07e1` |
-| [`after/home-watching-playing-1440-dark.png`](after/home-watching-playing-1440-dark.png) | Desktop Watching showing the motion alert and its picture, dark look | `628ed934d7a5540d2b0ce302352109355cebbaff7f3cd3a06ff9e892f41cf1d4` |
-| [`after/home-dashboard-playing-1440-dark.png`](after/home-dashboard-playing-1440-dark.png) | Desktop Dashboard playback showing the opened movement picture, dark look | `73404b274c7af9a617b30b05454182e275dfb82f5339a20118c8172ebc45c12b` |
-| [`after/home-dashboard-1440-light.png`](after/home-dashboard-1440-light.png) | Desktop Dashboard list with both alerts, light look | `e08bb8d6e919fda0bd7cbeb69e7ff4d0d30d612994dcaa59dfeb37262aab2dc2` |
-| [`after/home-watching-playing-1440-light.png`](after/home-watching-playing-1440-light.png) | Desktop Watching showing the motion alert and its picture, light look | `0e379a8bbc1f1e68af01b2fa86099fe5dbc7be662be5936dff4a77176505d8f4` |
-| [`after/home-dashboard-playing-1440-light.png`](after/home-dashboard-playing-1440-light.png) | Desktop Dashboard playback showing the opened movement picture, light look | `94e8bc814c0fa4c47cbf80aebef80002033220b3451fa9af2ed75d82e806096a` |
-| [`after/home-watching-motion-1440-dark.png`](after/home-watching-motion-1440-dark.png) | Desktop Watching as Motion crosses its line, dark look | `7d2db13a7410f962ac3d464db38ee970b9c0a5070af52ae4bbe0ecbc520edc22` |
-| [`after/home-watching-1440-dark.png`](after/home-watching-1440-dark.png) | Desktop Watching poster with the kitten facing the camera, dark look | `5eeb94ad0ef2fd0d71b43e39fd67ac99410324320fc54dd81451968ff50bd59f` |
+| [`before/home-first-390-dark.png`](before/home-first-390-dark.png) | Phone first screen with its still, dark look | `cb2297af31b826bc6517420e4c5ac9ad3c53e0dc277eb9e77dd188679556928e` |
+| [`before/home-first-390-light.png`](before/home-first-390-light.png) | Phone first screen with its still, light look | `4f004da7ba04b5956a90fe73ebe4cf221210d9e61e1fc1ad3742fb749ebef916` |
+| [`before/home-first-1440-dark.png`](before/home-first-1440-dark.png) | Desktop first screen with its still, dark look | `df8a45bb8ea5bf6d263599660de0f8213f7a479509ea57fe075f72b8bd510108` |
+| [`before/home-first-1440-light.png`](before/home-first-1440-light.png) | Desktop first screen with its still, light look | `9af328fe8129e08fcaa17365fa00e15327a64ede7fe002f975f25230a93f7029` |
+| [`after/home-first-390-dark.png`](after/home-first-390-dark.png) | Phone first screen with the Watching poster, dark look | `60b9ccb315b4f8b6ce50cc3b55a43092838585f79dc19b815635db9404e736a0` |
+| [`after/home-first-390-light.png`](after/home-first-390-light.png) | Phone first screen with the Watching poster, light look | `adb783404576a1ae5dce69eef2aee3a105e6d29a7b44aa381884d54dcaeb87b5` |
+| [`after/home-first-1440-dark.png`](after/home-first-1440-dark.png) | Desktop first screen with the Watching poster, dark look | `65aa221a07984bd34ec77cdd0e7a83b23798164b56facdc61ab3c94937d20112` |
+| [`after/home-first-1440-light.png`](after/home-first-1440-light.png) | Desktop first screen with the Watching poster, light look | `899adf887439cc6ea83ddd4b7ccecf11edfb53c27079b1d3e62c8d49580d31fe` |
+| [`after/home-dashboard-390-dark.png`](after/home-dashboard-390-dark.png) | Phone Dashboard list with both alerts, dark look | `93b8fcfd4f0c7788a968088f9400d9c90105cd56a59c41da4755860933ba18dc` |
+| [`after/home-watching-playing-390-dark.png`](after/home-watching-playing-390-dark.png) | Phone Watching showing the motion alert and its picture, dark look | `fab3847e23fe04559bd032ff14a204e0f66fcf009d38e19ccf286b4b14f69645` |
+| [`after/home-dashboard-playing-390-dark.png`](after/home-dashboard-playing-390-dark.png) | Phone Dashboard playback showing the opened movement picture, dark look | `e4d88bc170aeb69c8f2bea5de95557cda14034de564167a87ccc13d2a2f3c128` |
+| [`after/home-dashboard-390-light.png`](after/home-dashboard-390-light.png) | Phone Dashboard list with both alerts, light look | `471e6ff4acb97680f83913a9ae00a8591712caf3b41a6e91a8b54ab7b0f560e7` |
+| [`after/home-watching-playing-390-light.png`](after/home-watching-playing-390-light.png) | Phone Watching showing the motion alert and its picture, light look | `feb77e74322fbe6c2b8861b3cf256fe07ae23600e0612b07850667d1988d3bef` |
+| [`after/home-dashboard-playing-390-light.png`](after/home-dashboard-playing-390-light.png) | Phone Dashboard playback showing the opened movement picture, light look | `ae3ffe7e0a53dbe217b251aca0f7b101568e92d32bdc8bcaf640ba380a2ec9e5` |
+| [`after/home-watching-motion-390-dark.png`](after/home-watching-motion-390-dark.png) | Phone Watching as Motion crosses its line, dark look | `ce46e091e0bf65602272e69927bb3ee11d442d347845d88f7e564203c5162939` |
+| [`after/home-dashboard-1440-dark.png`](after/home-dashboard-1440-dark.png) | Desktop Dashboard list with both alerts, dark look | `2125750a9ef777c72ceda018a9dcd9e6f3824f2e89f28696060c6e5f59230be4` |
+| [`after/home-watching-playing-1440-dark.png`](after/home-watching-playing-1440-dark.png) | Desktop Watching showing the motion alert and its picture, dark look | `80eb2fcbade2086ffae0178eaf7859d5ef91e18ac0d91f38b4ea30a624124294` |
+| [`after/home-dashboard-playing-1440-dark.png`](after/home-dashboard-playing-1440-dark.png) | Desktop Dashboard playback showing the opened movement picture, dark look | `a7b6a3b0357ebeaf48f634450a4f6e4b22e40ce08666522ac6b398d7353e2fa1` |
+| [`after/home-dashboard-1440-light.png`](after/home-dashboard-1440-light.png) | Desktop Dashboard list with both alerts, light look | `3339dcf8522791658fab573ca1fccb9d5a5ae1ff95d8ac2cf5b3ab2a7b137503` |
+| [`after/home-watching-playing-1440-light.png`](after/home-watching-playing-1440-light.png) | Desktop Watching showing the motion alert and its picture, light look | `0dd753ce59e5230ef042a117bb571541dacf9ca619a0debffeed2a63d14e57a5` |
+| [`after/home-dashboard-playing-1440-light.png`](after/home-dashboard-playing-1440-light.png) | Desktop Dashboard playback showing the opened movement picture, light look | `03aa1015d0f049f8ca9045582403cdd0b166d5a4392f6e18614615a20a77c3aa` |
+| [`after/home-watching-motion-1440-dark.png`](after/home-watching-motion-1440-dark.png) | Desktop Watching as Motion crosses its line, dark look | `c99a89d05c924cacedde443dcb7c6b238652d76ff6a1a2de5abb7c4720c50838` |
+| [`after/home-watching-1440-dark.png`](after/home-watching-1440-dark.png) | Desktop Watching poster with the kitten facing the camera, dark look | `20a18c172e959f7baf7f823172aa92ed973cd11ac36ccd1bae865352193e4d58` |
 
 ## Recorded events
 
 | Run | Variant | Playback event | Motion alert in the source clip | Poster | Picture held to end |
 | --- | --- | --- | ---: | --- | ---: |
-| Watching | square, dark | Motion peak 35, line 13 | 25.87 s | 22.27 s | 4.98 s |
-| Watching | square, light | Motion peak 35, line 13 | 25.87 s | 22.28 s | 4.96 s |
-| Watching | wide, dark | Motion peak 35, line 13 | 25.87 s | 22.30 s | 4.76 s |
-| Watching | wide, light | Motion peak 35, line 13 | 25.87 s | 22.30 s | 4.78 s |
-| Dashboard | square, dark | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.44 s |
-| Dashboard | square, light | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.53 s |
-| Dashboard | wide, dark | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.53 s |
-| Dashboard | wide, light | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.67 s |
+| Watching | square, dark | Motion peak 35, line 13 | 25.87 s | 22.27 s | 4.86 s |
+| Watching | square, light | Motion peak 35, line 13 | 25.87 s | 22.31 s | 4.92 s |
+| Watching | wide, dark | Motion peak 35, line 13 | 25.87 s | 22.34 s | 4.76 s |
+| Watching | wide, light | Motion peak 35, line 13 | 25.87 s | 22.34 s | 4.75 s |
+| Dashboard | square, dark | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.39 s |
+| Dashboard | square, light | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.75 s |
+| Dashboard | wide, dark | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.65 s |
+| Dashboard | wide, light | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.48 s |
 
 ## Readability
 
