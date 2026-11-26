@@ -439,8 +439,9 @@ it("reads Lost and Found's own English line in an English voice on a page in ano
 });
 
 it('does not play a finished sound again when a pause ends between a sound and a message', async () => {
-  // The player's own Howler module, with a sound that records its plays.
-  const howler = require('howler') as { Howl: unknown };
+  // The player loads Howler before the mock above is set, so the sound is
+  // made through the module it holds; this sound records its plays.
+  const howler = jest.requireActual('howler') as { Howl: unknown };
   const sound = { play: jest.fn(), pause: jest.fn(), stop: jest.fn(), unload: jest.fn() };
   let options: { onend: () => void } | undefined;
   const made = jest.spyOn(howler as any, 'Howl').mockImplementation((given: any) => {
