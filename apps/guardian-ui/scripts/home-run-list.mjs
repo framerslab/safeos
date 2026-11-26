@@ -271,12 +271,13 @@ async function settleEdges(page, crop, keep, scroller = null) {
     for (let step = 0; step <= 160; step += 1) {
       for (const to of step ? [from - step, from + step] : [from]) {
         if (to < 0 || to > max) continue;
-        box.scrollTop = to;
+        // The page asks for smooth scrolling; a held frame must not glide.
+        box.scrollTo({ top: to, behavior: 'instant' });
         if (Math.abs(box.scrollTop - to) > 0.5) continue;
         if (!crossing()) return { from, to };
       }
     }
-    box.scrollTop = from;
+    box.scrollTo({ top: from, behavior: 'instant' });
     return { from, to: null, word: crossing() };
   }, { crop, keep, scroller });
   assert.ok(settled.to !== null,
