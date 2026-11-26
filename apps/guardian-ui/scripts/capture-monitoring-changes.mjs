@@ -174,6 +174,15 @@ try {
       await page.getByRole('slider', { name: 'Alert volume' }).waitFor();
       return page.locator('.set-on-page').first();
     });
+
+    await capture('spoken-alerts-no-voice', view, scheme, async (page) => {
+      await page.addInitScript(() => {
+        window.speechSynthesis.getVoices = () => [];
+      });
+      await open(page, '/settings/sounds/');
+      await page.getByRole('slider', { name: 'Alert volume' }).waitFor();
+      return page.locator('.set-on-page').first();
+    });
   }
 } finally {
   await browser.close();

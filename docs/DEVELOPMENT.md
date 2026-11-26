@@ -453,7 +453,8 @@ need to be identified separately in the pull request. The
 `monitoring-pictures-before` and `monitoring-pictures-after` artifacts show
 the same Wildlife movement control, Picture change alert, People picture
 count, detection pitch settings, watch audio settings and spoken alert
-settings at 390 px in dark and 1280 px in light. A route the base commit's
+settings, with an online voice and with no voice, at 390 px in dark and
+1280 px in light. A route the base commit's
 build answers 404 for, and whose page the base commit lacks (a page the pull
 request adds), is logged as `not in the base build: <route>` and skipped in the
 base capture, not failed (`apps/guardian-ui/scripts/base-routes.mjs`). A 404 for
