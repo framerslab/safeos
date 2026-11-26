@@ -247,6 +247,10 @@ async function settleEdges(page, crop, keep, { scroller = null, shrink = null } 
         words.push({ range, parent, word: word[0] });
       }
     }
+    // A key or a switch cut at the edge reads as broken as a cut word.
+    const controls = [...(scroller ? box : document.body).querySelectorAll(
+      'button, a[href], input, select, textarea, [role="switch"], [role="button"]',
+    )].filter((control) => getComputedStyle(control).visibility === 'visible');
     const parts = keep.map((selector) => {
       const part = document.querySelector(selector);
       if (!part) throw Error(`Missing held part ${selector}`);
@@ -256,6 +260,16 @@ async function settleEdges(page, crop, keep, { scroller = null, shrink = null } 
       for (const part of parts) {
         const rect = part.getBoundingClientRect();
         if (rect.top < top - 0.5 || rect.bottom > bottom + 0.5) return 'part';
+      }
+      for (const control of controls) {
+        const rect = control.getBoundingClientRect();
+        if (!rect.width || !rect.height || rect.right <= crop.x || rect.left >= crop.x + crop.width) continue;
+        for (const edge of [top, bottom]) {
+          if (rect.top >= edge - 0.5 || rect.bottom <= edge + 0.5) continue;
+          const y = edge === top ? (top + Math.min(bottom, rect.bottom)) / 2 : (Math.max(top, rect.top) + bottom) / 2;
+          const hit = document.elementFromPoint(Math.min(crop.x + crop.width - 0.1, Math.max(crop.x + 0.1, rect.left + rect.width / 2)), y);
+          if (hit && (control.contains(hit) || hit.contains(control))) return control.getAttribute('aria-label') || control.textContent.trim() || control.tagName;
+        }
       }
       for (const { range, parent, word } of words) {
         for (const rect of range.getClientRects()) {
