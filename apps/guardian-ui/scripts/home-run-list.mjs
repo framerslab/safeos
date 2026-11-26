@@ -222,17 +222,19 @@ function fits(box, { x, y, width, height }) {
 
 // Move a held page by the fewest CSS pixels so that no visible line of words
 // crosses the crop's top or bottom edge, keeping the named parts inside it.
-// The search runs in one task, so no in-between position is ever painted.
-async function settleEdges(page, crop, keep, scroller = null) {
-  const settled = await page.evaluate(({ crop, keep, scroller }) => {
+// With shrink, a part (the opened picture) may also narrow step by step until
+// such a position exists. The search runs in one task, so no in-between
+// position or size is ever painted.
+async function settleEdges(page, crop, keep, { scroller = null, shrink = null } = {}) {
+  const settled = await page.evaluate(({ crop, keep, scroller, shrink }) => {
     const box = scroller ? document.querySelector(scroller) : document.scrollingElement;
     if (!box) throw Error(`Missing scrolling part ${scroller}`);
     const from = box.scrollTop;
-    const max = box.scrollHeight - box.clientHeight;
     const top = crop.y;
     const bottom = crop.y + crop.height;
     const words = [];
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    // A scrolling panel moves only its own words; the page behind it stays put.
+    const walker = document.createTreeWalker(scroller ? box : document.body, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const parent = node.parentElement;
       if (!parent || parent.closest('script, style, [hidden], template, noscript, .sr-only')) continue;
@@ -268,20 +270,33 @@ async function settleEdges(page, crop, keep, scroller = null) {
       }
       return null;
     };
-    for (let step = 0; step <= 160; step += 1) {
-      for (const to of step ? [from - step, from + step] : [from]) {
-        if (to < 0 || to > max) continue;
-        // The page asks for smooth scrolling; a held frame must not glide.
-        box.scrollTo({ top: to, behavior: 'instant' });
-        if (Math.abs(box.scrollTop - to) > 0.5) continue;
-        if (!crossing()) return { from, to };
+    const narrowed = shrink && document.querySelector(shrink.selector);
+    if (shrink && !narrowed) throw Error(`Missing part to narrow ${shrink.selector}`);
+    const widths = [null];
+    if (narrowed) {
+      const full = narrowed.getBoundingClientRect().width;
+      for (let width = Math.floor(full) - 8; width >= full * shrink.least; width -= 8) widths.push(width);
+    }
+    for (const width of widths) {
+      if (width !== null) narrowed.style.maxWidth = `${width}px`;
+      const max = box.scrollHeight - box.clientHeight;
+      for (let step = 0; step <= 160; step += 1) {
+        for (const to of step ? [from - step, from + step] : [from]) {
+          if (to < 0 || to > max) continue;
+          // The page asks for smooth scrolling; a held frame must not glide.
+          box.scrollTo({ top: to, behavior: 'instant' });
+          if (Math.abs(box.scrollTop - to) > 0.5) continue;
+          if (!crossing()) return { from, to, width };
+        }
       }
     }
+    if (narrowed) narrowed.style.maxWidth = '';
     box.scrollTo({ top: from, behavior: 'instant' });
     return { from, to: null, word: crossing() };
-  }, { crop, keep, scroller });
+  }, { crop, keep, scroller, shrink });
   assert.ok(settled.to !== null,
     `No position within 160 px keeps every word whole at the crop's edges: ${JSON.stringify({ ...settled, keep })}`);
+  if (settled.to !== settled.from || settled.width) console.log(`Held page settled: ${JSON.stringify(settled)}`);
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   return settled;
 }
@@ -329,7 +344,10 @@ async function dashboard({ page, crop, view, prepared, sample, whole, nextFrameA
   await page.locator(openPicture).click();
   const picture = page.getByRole('dialog').locator('.alert-picture-dialog__picture img');
   await readPicture(picture);
-  await settleEdges(page, crop, ['.alert-picture-dialog__picture img'], '.alert-picture-dialog');
+  await settleEdges(page, crop, ['.alert-picture-dialog__picture img'], {
+    scroller: '.alert-picture-dialog',
+    shrink: { selector: '.alert-picture-dialog__picture .alert-picture__frame', least: 0.6 },
+  });
   assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture does not fit the recording');
   const pictureAt = await frameAfter(page, { nextFrameAfter, captureFrame }, await browserTime(page));
   const end = start + view.seconds;
