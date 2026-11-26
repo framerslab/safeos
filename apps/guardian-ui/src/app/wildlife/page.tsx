@@ -682,7 +682,10 @@ export default function WildlifePage() {
                   </div>
                   <div>
                     <label htmlFor="wildlife-movement" className="text-sm text-slate-300">Movement to start the check</label>
-                    <p id="wildlife-movement-help" className="text-sm text-slate-400">
+                    <p
+                      id="wildlife-movement-help"
+                      className="text-[length:var(--type-word-size)] leading-[var(--type-word-line)] text-[var(--color-steel-200)]"
+                    >
                       The check reads a grid. It starts when the average change in any one part of the picture reaches this line.
                     </p>
                     <input
