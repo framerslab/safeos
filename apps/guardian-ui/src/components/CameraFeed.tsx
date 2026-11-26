@@ -618,6 +618,7 @@ export function CameraFeed({
           frameWidth={alertBox.frameWidth}
           frameHeight={alertBox.frameHeight}
           lines={alertBox.lines}
+          fit={bare ? 'contain' : 'cover'}
         />
       )}
 

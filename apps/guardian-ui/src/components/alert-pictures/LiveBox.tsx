@@ -4,7 +4,7 @@
  * plate that says the kind, the word "here" and the time.
  *
  * The box is the alert's frame's: its numbers are mapped through the live
- * picture's own crop (the frame drawn to cover a 16:9 box), so it lies on
+ * picture's displayed frame, so it lies on
  * the thing whatever the camera's shape. It is fixed, takes no press and is
  * not read by a screen reader: the alert itself is read once from the alert
  * list's status. Nothing slides or fades, under any motion setting.
@@ -16,7 +16,7 @@
 
 import { useLayoutEffect, useRef, useState } from 'react';
 
-import { coverBox, type Box } from '../../lib/alert-pictures/rules';
+import { mapLiveBox, type Box } from '../../lib/alert-pictures/rules';
 
 export interface LiveAlertBox {
   /** The alert's picture id: a newer alert's box takes the place of this one. */
@@ -39,9 +39,9 @@ interface Rect { left: number; top: number; right: number; bottom: number }
 
 const meets = (a: Rect, b: Rect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
-type LiveBoxProps = Omit<LiveAlertBox, 'key'>;
+type LiveBoxProps = Omit<LiveAlertBox, 'key'> & { fit: 'cover' | 'contain' };
 
-export function LiveBox({ box, frameWidth, frameHeight, lines }: LiveBoxProps) {
+export function LiveBox({ box, frameWidth, frameHeight, lines, fit }: LiveBoxProps) {
   const root = useRef<HTMLDivElement>(null);
   const plate = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<{ width: number; height: number } | null>(null);
@@ -64,7 +64,7 @@ export function LiveBox({ box, frameWidth, frameHeight, lines }: LiveBoxProps) {
 
   // Where the frame's size is not known, or less than a quarter of the box falls inside the
   // part of the frame the live picture shows, nothing is drawn here; the card's picture has the box.
-  const shown = view ? coverBox(box, frameWidth, frameHeight, view.width, view.height) : null;
+  const shown = view ? mapLiveBox(box, frameWidth, frameHeight, view.width, view.height, fit) : null;
   // From a tablet's width the plate is at most 420 px wide and 12 px clear of the picture's edges.
   const tablet = typeof window !== 'undefined' && window.innerWidth >= 768;
   const edge = tablet ? 12 : CLEAR;

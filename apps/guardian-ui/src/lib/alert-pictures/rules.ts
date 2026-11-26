@@ -236,16 +236,18 @@ export function isDark(mean: number): boolean {
 }
 
 /**
- * Where a box in the frame's pixels lands on the live picture, which shows
- * the frame scaled to cover the view and cropped at its middle. Null when
+ * Where a box in the frame's pixels lands on a centred live picture. Null when
  * the frame's size is not known, or when under a quarter of the mapped box
  * lies inside the view. A box under 24 px a side grows round its centre to
  * 24 and is moved back inside the view.
  */
-export function coverBox(box: Box, frameWidth: number, frameHeight: number, viewWidth: number, viewHeight: number): Box | null {
+export function mapLiveBox(
+  box: Box, frameWidth: number, frameHeight: number, viewWidth: number, viewHeight: number, fit: 'cover' | 'contain',
+): Box | null {
   if (!finite(box.x, box.y, box.width, box.height, frameWidth, frameHeight, viewWidth, viewHeight)) return null;
   if (frameWidth <= 0 || frameHeight <= 0 || viewWidth <= 0 || viewHeight <= 0) return null;
-  const scale = Math.max(viewWidth / frameWidth, viewHeight / frameHeight);
+  const scaleForFit = fit === 'contain' ? Math.min : Math.max;
+  const scale = scaleForFit(viewWidth / frameWidth, viewHeight / frameHeight);
   const offsetX = (viewWidth - frameWidth * scale) / 2;
   const offsetY = (viewHeight - frameHeight * scale) / 2;
   const mapped = {

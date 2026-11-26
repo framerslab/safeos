@@ -274,6 +274,13 @@ const watchSighting = (
   ...(pictureId ? { pictureId } : {}),
 });
 
+it('keeps the picture reference on a movement alert saved by the watch', () => {
+  const [alert] = groupAlerts(records({
+    alerts: [{ ...motion('motion-1000-a', 1000), pictureId: 'kept-frame' }],
+  }));
+  expect(alert).toMatchObject({ way: 'monitor', what: 'Movement', pictureId: 'kept-frame' });
+});
+
 it("reads a sighting the watch saved in its alert list as a Lost and Found alert of its pet, never as Motion and sound", () => {
   const alerts = groupAlerts(records({
     subjects: [pet('a', 'Mittens'), pet('k', 'Keys', 'other'), pet('sam', 'Sam', 'person')],
