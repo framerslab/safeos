@@ -292,6 +292,43 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     await waitForPlaying(page, at);
   });
 
+  await inContext('the toggle key reads Play while hover or focus holds the recording, and one press plays', {
+    serviceWorkers: 'block',
+  }, async (page) => {
+    const toggle = player(page).locator('.home-run__toggle');
+    const reads = async (name, reason) => {
+      const key = await toggle.evaluate((element) => ({ label: element.getAttribute('aria-label'), text: element.textContent }));
+      assert.deepEqual(key, { label: name + ' the recordings', text: name }, reason);
+    };
+    await open(page);
+    await waitForPlaying(page);
+    await reads('Pause', 'A playing recording offers Pause');
+    await toggle.hover();
+    let at = await timeStaysPut(page, 'The pointer on the key held the recording');
+    await reads('Play', 'A recording held under the pointer offers Play');
+    await toggle.click();
+    await waitForPlaying(page, at).catch(() => { throw Error('One press on Play must play under the pointer'); });
+    await reads('Pause', 'The pressed key offers Pause while the recording plays');
+    await toggle.click();
+    at = await timeStaysPut(page, 'Pause held the frame under the pointer');
+    await reads('Play', 'A paused recording offers Play');
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => document.activeElement.blur());
+    assert.equal(await timeStaysPut(page, 'Leaving a paused player cannot start it'), at);
+
+    await page.reload({ waitUntil: 'load' });
+    await waitForPlaying(page);
+    await toggle.focus();
+    at = await timeStaysPut(page, 'Keyboard focus on the key held the recording');
+    await reads('Play', 'A recording held by keyboard focus offers Play');
+    await page.keyboard.press('Enter');
+    await waitForPlaying(page, at).catch(() => { throw Error('One Enter on Play must play while the key has focus'); });
+    await reads('Pause', 'The focused key offers Pause while the recording plays');
+    await page.keyboard.press('Enter');
+    await timeStaysPut(page, 'Enter on Pause held the frame');
+    await reads('Play', 'A paused recording offers Play to the keyboard');
+  });
+
   await inContext('manual loop, arrows and polite selection', { serviceWorkers: 'block' }, async (page) => {
     await open(page);
     await waitForPlaying(page);

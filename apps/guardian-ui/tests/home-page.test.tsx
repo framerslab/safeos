@@ -24,6 +24,7 @@ import * as detector from '@/lib/animal-detection';
 import { MODEL_BYTES, MODEL_MANIFEST_BYTES, MODEL_SIZE_MB, MODEL_URL, MODEL_WEIGHTS_BYTES } from '@/lib/detection-model-facts';
 import { STILLNESS_ALERT_MAX_MINUTES, STILLNESS_ALERT_MIN_MINUTES } from '@/lib/stillness-bounds';
 import { mediaPath, type HomeRunManifest } from '@/lib/home-runs';
+import { HOME_LAST_CHANGED } from '@/lib/page-last-changed';
 import { homeRunPreloadScript, homeRunPreloads } from '@/lib/capture-preload';
 import { barredWording, homeWordingInputs } from '../scripts/home-wording.cjs';
 import { bare, served, words } from './helpers/served-html';
@@ -275,8 +276,9 @@ it('publishes the People and Wildlife name in the home structured data', () => {
   );
 });
 
-it('publishes the November 24 home update date', () => {
-  expect(one('script[type="application/ld+json"]')?.textContent).toContain('"dateModified":"2026-11-24"');
+it('publishes the day the home page last changed', () => {
+  expect(HOME_LAST_CHANGED).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(one('script[type="application/ld+json"]')?.textContent).toContain('"dateModified":"' + HOME_LAST_CHANGED + '"');
 });
 
 describe('headline and benefits', () => {
