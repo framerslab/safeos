@@ -4,7 +4,7 @@
  *
  * Renders both to the HTML a browser gets before any script runs. The header
  * is a navigation named "Site" with the brand, five links,
- * the GitHub link and the start key as working links, and Menu as a link to
+ * the two forms of the GitHub link and the start key as working links, and Menu as a link to
  * the footer's links; the look switch has only its place held.
  * The footer is six small groups of links in a navigation named
  * "Site links" and one last line.
@@ -32,7 +32,7 @@ const header = (pathname = '/') => {
 };
 
 describe('visitor header, before script runs', () => {
-  it('is a navigation named "Site" whose controls are five links, GitHub, the start key and Menu, in that order', () => {
+  it('is a navigation named "Site" whose controls are five links, both forms of GitHub, the start key and Menu, in that order', () => {
     const page = header();
     const nav = page.querySelector('nav');
     expect(nav?.getAttribute('aria-label')).toBe('Site');
@@ -44,10 +44,13 @@ describe('visitor header, before script runs', () => {
       'FAQ /faq',
       'Privacy /privacy',
       'SafeOS on GitHub https://github.com/framerslab/safeos',
+      'SafeOS on GitHub https://github.com/framerslab/safeos',
       'Start setup /setup',
       'Menu #site-links',
     ]);
-    // Every item is a working link before script: none is a button.
+    expect(bar[5].classList.contains('site-header__github-icon')).toBe(true);
+    expect(bar[6].classList.contains('site-header__github')).toBe(true);
+    // Every item is a working link before script.
     expect(page.querySelectorAll('.site-header__bar button')).toHaveLength(0);
   });
 
@@ -76,11 +79,12 @@ describe('visitor header, before script runs', () => {
     expect(current('/about/')).toEqual([]);
   });
 
-  it('names the GitHub link "SafeOS on GitHub", shows the word alone with no logo, and opens it in the same tab', () => {
+  it('shows the GitHub mark and word without a count and opens the link in the same tab', () => {
     const link = header().querySelector('.site-header__github');
     expect(link?.getAttribute('aria-label')).toBe('SafeOS on GitHub');
     expect(words(link)).toBe('GitHub');
-    expect(link?.querySelector('svg, img')).toBeNull();
+    expect(link?.querySelector('svg.github-mark')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link?.querySelector('.star-count, img')).toBeNull();
     expect(link?.hasAttribute('target')).toBe(false);
   });
 

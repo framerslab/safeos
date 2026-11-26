@@ -24,6 +24,7 @@ import {
   IconChevronDown,
   IconChevronUp,
 } from './icons';
+import { peopleInView } from '../lib/alert-pictures/words';
 import { useSecurityStore, AlertMode, getAlertModeLabel, getArmingStateLabel } from '../stores/security-store';
 import { getTTSManager, PRESET_MESSAGES } from '../lib/tts-alerts';
 
@@ -58,7 +59,7 @@ function PersonCountSlider({ value, onChange, disabled }: PersonCountSliderProps
         <span>10 (Crowded)</span>
       </div>
       <p className="text-xs text-slate-500">
-        Alert triggers when more than {value} person{value !== 1 ? 's' : ''} detected
+        Alerts above {peopleInView(value)}.
       </p>
     </div>
   );
@@ -221,7 +222,7 @@ function StatusIndicator({ armingState, currentPersonCount, allowedPersons }: St
         </div>
       </div>
       <div className="p-4 bg-slate-800/50 rounded-lg border border-slate-700">
-        <div className="text-xs text-slate-500 uppercase mb-1">Detected</div>
+        <div className="text-xs text-slate-500 uppercase mb-1">People in view / allowed</div>
         <div className={`text-lg font-bold ${isExcess ? 'text-red-500' : 'text-emerald-500'}`}>
           {currentPersonCount} / {allowedPersons}
         </div>
@@ -548,8 +549,8 @@ export function SecurityPanel({ className = '', onTrigger, armBlockedReason, gua
         {settings.alertMode === 'silent' && (
           <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
             <p className="text-sm text-blue-300">
-              <strong>Silent Mode:</strong> Intrusions will be recorded without sound or visual alerts.
-              You can review captured frames in the Intrusion Gallery.
+              <strong>Silent Mode:</strong> Each alert saves a picture, with no siren, voice, flash or notification.
+              The History key shows the pictures.
             </p>
           </div>
         )}

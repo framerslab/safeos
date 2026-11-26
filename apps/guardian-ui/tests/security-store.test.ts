@@ -415,7 +415,7 @@ describe('Helper Functions', () => {
       expect(getArmingStateLabel('disarmed')).toBe('Disarmed');
       expect(getArmingStateLabel('arming')).toBe('Arming...');
       expect(getArmingStateLabel('armed')).toBe('Armed');
-      expect(getArmingStateLabel('triggered')).toContain('INTRUDER');
+      expect(getArmingStateLabel('triggered')).toBe('Alert');
     });
   });
 

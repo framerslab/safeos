@@ -57,6 +57,7 @@ export function KeyRow({ children, className }: { children: ReactNode; className
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(read) : null;
     observer?.observe(row);
     observer?.observe(keys);
+    Array.from(keys.children).forEach((key) => observer?.observe(key));
     document.fonts?.ready?.then(read).catch(() => undefined);
     return () => {
       keys.removeEventListener('scroll', read);
@@ -69,7 +70,7 @@ export function KeyRow({ children, className }: { children: ReactNode; className
     const keys = keysRef.current;
     if (!keys) return;
     const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    keys.scrollBy?.({ left: way * Math.max(keys.clientWidth * 0.8, 44), behavior: still ? 'auto' : 'smooth' });
+    keys.scrollBy?.({ left: way * Math.max(keys.clientWidth * 0.8, 44), behavior: still ? 'instant' : 'smooth' });
   };
 
   const scrolls = more !== 'none';

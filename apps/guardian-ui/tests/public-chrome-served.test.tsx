@@ -136,21 +136,20 @@ describe('with 58 stars counted on 18 November 2026', () => {
     expect(current('/')).toEqual([]);
   });
 
-  it('shows GitHub with a star and 58 as one link, named "SafeOS on GitHub 58 stars" by its own content', () => {
+  it('serves the desktop GitHub mark and the star count of 58 in one link', () => {
     const page = header();
     const html = page.body.innerHTML;
     const link = page.querySelector('.site-header__bar .site-header__github');
     expect(link?.getAttribute('href')).toBe(REPOSITORY);
     expect(link?.hasAttribute('target')).toBe(false);
     expect(shown(link)).toBe('GitHub 58');
-    expect(link?.hasAttribute('aria-label')).toBe(false);
-    expect(nameOf(link)).toBe('SafeOS on GitHub 58 stars');
+    expect(nameOf(link)).toBe('SafeOS on GitHub, 58 stars');
     expect(descriptionOf(link)).toBe('Counted 18 November 2026.');
     // The number is in the served HTML, in tabular figures.
     expect(html).toMatch(/<span class="num">58<\/span>/);
-    // One drawn star, hidden from assistive technology; no image and no mark of GitHub.
-    expect(link?.querySelectorAll('svg')).toHaveLength(1);
-    expect(link?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link?.querySelectorAll('svg')).toHaveLength(2);
+    expect(link?.querySelector('svg.github-mark')?.getAttribute('aria-hidden')).toBe('true');
+    expect(link?.querySelector('svg.star-count__star')?.getAttribute('aria-hidden')).toBe('true');
     expect(link?.querySelector('img')).toBeNull();
     // It stands between the links and the look switch's place, and is never the page being read.
     const order = Array.from(page.querySelectorAll('.site-header__bar .site-header__links, .site-header__bar .site-header__github, .site-header__bar .look-switch-place')).map((item) =>
@@ -158,6 +157,13 @@ describe('with 58 stars counted on 18 November 2026', () => {
     );
     expect(order).toEqual(['the links', 'GitHub', 'the look switch']);
     expect(link?.hasAttribute('aria-current')).toBe(false);
+  });
+
+  it('gives the phone header\'s GitHub mark the count\'s day as its description', () => {
+    const link = header().querySelector('.site-header__github-icon');
+    expect(link?.getAttribute('href')).toBe(REPOSITORY);
+    expect(nameOf(link)).toBe('SafeOS on GitHub, 58 stars');
+    expect(descriptionOf(link)).toBe('Counted 18 November 2026.');
   });
 
   it('lists the Menu\'s nine rows, the start key first and GitHub with its count last', () => {
@@ -290,7 +296,7 @@ describe('with a larger count', () => {
     handed('1234', '2026-11-18');
     const row = header().querySelector('.site-header__bar .site-header__github');
     expect(shown(row)).toBe('GitHub 1.2k');
-    expect(nameOf(row)).toBe('SafeOS on GitHub 1.2k stars');
+    expect(nameOf(row)).toBe('SafeOS on GitHub, 1,234 stars');
     expect(descriptionOf(row)).toBe('1,234 stars, counted 18 November 2026.');
     expect(words(footer().querySelector('.site-footer__last'))).toMatch(/MIT-licensed\. 1,234 stars on GitHub, counted 18 November 2026\.$/);
   });
@@ -298,7 +304,7 @@ describe('with a larger count', () => {
   it('says "1 star" of one', () => {
     handed('1', '2026-01-02');
     const row = header().querySelector('.site-header__bar .site-header__github');
-    expect(nameOf(row)).toBe('SafeOS on GitHub 1 star');
+    expect(nameOf(row)).toBe('SafeOS on GitHub, 1 star');
     expect(descriptionOf(row)).toBe('Counted 2 January 2026.');
     expect(words(footer().querySelector('.site-footer__last'))).toMatch(/MIT-licensed\. 1 star on GitHub, counted 2 January 2026\.$/);
   });
@@ -315,14 +321,17 @@ describe.each([
 ])('with %s', (_name, count, day) => {
   beforeEach(() => handed(count, day));
 
-  it('shows the word GitHub alone in the row and in the Menu, named "SafeOS on GitHub", with no star', () => {
+  it('shows the header mark and names the header and Menu links "SafeOS on GitHub" with no star', () => {
     const page = header();
-    const links = [page.querySelector('.site-header__bar .site-header__github'), page.querySelector(`#site-menu a[href="${REPOSITORY}"]`)];
-    for (const link of links) {
+    const row = page.querySelector('.site-header__bar .site-header__github');
+    const menu = page.querySelector(`#site-menu a[href="${REPOSITORY}"]`);
+    expect(row?.querySelector('svg.github-mark')).not.toBeNull();
+    expect(menu?.querySelector('svg')).toBeNull();
+    for (const link of [row, menu]) {
       expect(shown(link)).toBe('GitHub');
       expect(nameOf(link)).toBe('SafeOS on GitHub');
       expect(descriptionOf(link)).toBe('');
-      expect(link?.querySelector('svg, img')).toBeNull();
+      expect(link?.querySelector('.star-count__star, img')).toBeNull();
     }
     expect(page.body.innerHTML).not.toMatch(/\bstars?\b|Counted/i);
   });

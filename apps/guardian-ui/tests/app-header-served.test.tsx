@@ -35,7 +35,7 @@ it('is a banner whose row holds the mark as a link to the dashboard and a naviga
   const page = header();
   expect(page.querySelectorAll('header.app-header')).toHaveLength(1);
   expect(page.querySelector('header nav')?.getAttribute('aria-label')).toBe('App');
-  const row = Array.from(page.querySelectorAll('.app-header__bar a'));
+  const row = Array.from(page.querySelectorAll('.app-header__bar a[data-section], .app-header__brand--link'));
   expect(row.map((item) => `${item.getAttribute('aria-label') || words(item)} ${bare(item.getAttribute('href'))}`)).toEqual([
     'SafeOS Guardian, dashboard /dashboard',
     'Dashboard /dashboard',
@@ -43,7 +43,10 @@ it('is a banner whose row holds the mark as a link to the dashboard and a naviga
     'Settings /settings',
     'Help /help',
   ]);
-  // Every item works before script: none is a button.
+  const github = page.querySelector('.app-header__github');
+  expect(github?.getAttribute('href')).toBe('https://github.com/framerslab/safeos');
+  expect(github?.getAttribute('aria-label')).toMatch(/^SafeOS on GitHub(?:, [\d,]+ stars?)?$/);
+  expect(github?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
   expect(page.querySelectorAll('.app-header__bar button')).toHaveLength(0);
 });
 

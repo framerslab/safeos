@@ -2,8 +2,8 @@
  * Visitor header
  *
  * The header of the home page and the other public pages: the mark and the
- * wordmark, four links with Privacy as the fifth from 1024 px, GitHub with
- * its star count from 1024 px, the look switch and the start key, in one row
+ * wordmark, four links with Privacy as the fifth from 1024 px, GitHub,
+ * the look switch and the start key, in one row
  * at every width from 320 px. On a phone, and whenever the links do not fit
  * the row (a narrow window or larger text), the links and the start key are
  * rows of the Menu. Before script runs every link works and Menu is a link to
@@ -22,7 +22,7 @@ import { useSetupDone } from '@/lib/use-setup-done';
 import { SiteMark } from './SiteMark';
 import { LookSwitch } from './LookSwitch';
 import { StartLink } from './StartLink';
-import { GitHubLink, GITHUB_URL } from './GitHubLink';
+import { GitHubIconLink, GitHubLink, GITHUB_URL } from './GitHubLink';
 
 export { GITHUB_URL };
 
@@ -67,7 +67,7 @@ export function VisitorHeader() {
   const [collapsed, setCollapsed] = useState(false);
   // 'small': the wordmark keeps its own size; 'true': the wordmark leaves the row.
   const [compact, setCompact] = useState<'small' | 'true' | null>(null);
-  // 'github': GitHub has left a row that ran short; 'privacy': Privacy has too.
+  // A short row folds the star count to the GitHub mark, then drops Privacy.
   const [short, setShort] = useState<'github' | 'privacy' | null>(null);
   const [scrolled, setScrolled] = useState(false);
   const navRef = useRef<HTMLElement>(null);
@@ -141,6 +141,7 @@ export function VisitorHeader() {
     const bar = barRef.current;
     if (!nav || !bar) return;
     const measure = () => {
+      const focused = document.activeElement;
       const wasCollapsed = nav.getAttribute('data-collapsed');
       const wasCompact = nav.getAttribute('data-compact');
       const wasShort = nav.getAttribute('data-short');
@@ -148,9 +149,8 @@ export function VisitorHeader() {
       nav.removeAttribute('data-collapsed');
       nav.removeAttribute('data-compact');
       nav.removeAttribute('data-short');
-      // A row that runs short gives up GitHub first, then Privacy: the footer
-      // holds both at every width. Only a row that is short without them
-      // moves its links and the start key into the Menu.
+      // Fold the star count to the GitHub mark, then give up Privacy.
+      // The remaining links move into the Menu if the row still overflows.
       let shortRow: 'github' | 'privacy' | null = null;
       for (const leaves of ['github', 'privacy'] as const) {
         if (!overflows()) break;
@@ -179,23 +179,22 @@ export function VisitorHeader() {
       setCollapsed(rowOverflows);
       setCompact(compactRow);
       setShort(shortRow);
-      // A link the short row gives up cannot keep focus: focus moves to the
-      // start key in the row. The footer holds both links at every width.
-      if (shortRow) {
-        const focused = document.activeElement;
-        const givenUp = focused instanceof HTMLElement && nav.contains(focused)
-          && (!!focused.closest('.site-header__github') || (shortRow === 'privacy' && !!focused.closest('.site-header__link--wide')));
-        if (givenUp) nav.querySelector<HTMLElement>('.site-header__start')?.focus();
-      }
-      // A row that collapses hides its links, GitHub and the start key: focus
-      // on one of them moves to the Menu key, which shows with the collapsed row.
-      if (rowOverflows && menuKeyRef.current) {
-        const focused = document.activeElement;
-        const hidden = focused instanceof HTMLElement && nav.contains(focused)
-          && !!focused.closest('.site-header__links, .site-header__github, .site-header__start');
-        if (hidden) {
+      if (focused instanceof HTMLElement && nav.contains(focused)) {
+        const showMark = rowOverflows || shortRow !== null || !window.matchMedia?.('(min-width: 64em)').matches;
+        if (focused.matches('.site-header__github, .site-header__github-icon')) {
+          const next = nav.querySelector<HTMLElement>(showMark ? '.site-header__github-icon' : '.site-header__github');
+          if (next && next !== focused) {
+            if (rowOverflows) nav.setAttribute('data-collapsed', 'true');
+            else nav.removeAttribute('data-collapsed');
+            if (shortRow) nav.setAttribute('data-short', shortRow);
+            else nav.removeAttribute('data-short');
+            next.focus();
+          }
+        } else if (rowOverflows && focused.closest('.site-header__links, .site-header__start')) {
           nav.setAttribute('data-collapsed', 'true');
-          menuKeyRef.current.focus();
+          menuKeyRef.current?.focus();
+        } else if (shortRow === 'privacy' && focused.closest('.site-header__link--wide')) {
+          nav.querySelector<HTMLElement>('.site-header__start')?.focus();
         }
       }
       // From the tablet width a row that holds the links shows no Menu and
@@ -241,6 +240,13 @@ export function VisitorHeader() {
     <nav
       ref={navRef}
       aria-label="Site"
+      // Focus that moves to what stands behind the open Menu closes it. Focus
+      // that goes to nothing on the page (another window, a press between two
+      // rows) leaves it open, so a row being pressed stays under the press.
+      onBlur={(event) => {
+        const next = event.relatedTarget;
+        if (menuInUse && next instanceof Node && !event.currentTarget.contains(next)) setOpen(false);
+      }}
       className="site-header"
       data-script={scriptArrived ? 'true' : undefined}
       data-collapsed={collapsed ? 'true' : undefined}
@@ -269,6 +275,7 @@ export function VisitorHeader() {
         </div>
 
         <div className="site-header__actions">
+          <GitHubIconLink className="site-header__github-icon" />
           <GitHubLink className="site-header__link site-header__github" place="row" />
           <LookSwitch />
           <StartLink className="key key--solid site-header__start" />

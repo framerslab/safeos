@@ -12,7 +12,7 @@
 // - the start key at 820 and 1280 pixels: one width for "Start setup" and
 //   "Open dashboard", so nothing beside it moves once setup is done;
 // - a row that runs short, text growing step by step at 1100 pixels: GitHub
-//   leaves first, then Privacy, then the links move into the Menu, and the
+//   folds to its mark, then Privacy leaves and the links move into the Menu. The
 //   row never runs off the screen;
 // - the Menu's start row and its GitHub row at 390 pixels;
 // - every request each public page and each app page makes while it loads
@@ -82,6 +82,7 @@ export function starsHanded(env = process.env) {
     word,
     exact,
     name: `SafeOS on GitHub ${short} ${word}`,
+    headerName: `SafeOS on GitHub, ${exact}`,
     description: n < 1_000 ? `Counted ${counted}.` : `${exact}, counted ${counted}.`,
     sentence: `${exact} on GitHub, counted ${counted}.`,
   };
@@ -361,10 +362,10 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
       short: nav.getAttribute('data-short'),
       collapsed: nav.getAttribute('data-collapsed'),
       lookSwitch: box(nav.querySelector('.look-switch, .look-switch-place')),
+      githubMark: visible(bar.querySelector('.site-header__github-icon')),
       github: visible(github) ? {
         ...box(github),
         ...type(github),
-        label: github.getAttribute('aria-label'),
         href: github.getAttribute('href'),
         target: github.getAttribute('target'),
         current: github.getAttribute('aria-current'),
@@ -372,6 +373,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
         described: described ? document.getElementById(described)?.textContent.trim() ?? null : null,
         pictures: github.querySelectorAll('img').length,
         glyphs: github.querySelectorAll('svg').length,
+        mark: visible(github.querySelector('svg.github-mark')),
         word: word ? box(word) : null,
         star: star ? { ...box(star), hidden: star.getAttribute('aria-hidden'), stroke: getComputedStyle(star.querySelector('path')).stroke, fill: getComputedStyle(star.querySelector('path')).fill } : null,
         number: number ? { ...box(number), ...type(number), words: number.textContent } : null,
@@ -395,7 +397,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
           expect(link.height >= 43.5, `${at}: "${link.words}" is ${link.height} px tall`);
         }
         if (width < 1024) {
-          expect(!row.github, `${at}: the row holds a GitHub link`);
+          expect(row.githubMark && !row.github, `${at}: the row does not show GitHub as an icon`);
           return;
         }
         const github = row.github;
@@ -406,15 +408,17 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
         expect(github.href === REPOSITORY && !github.target && !github.current, `${at}: the GitHub link opens ${github.href}${github.target ? ` in ${github.target}` : ''}${github.current ? ', marked as the page being read' : ''}`);
         expect(github.pictures === 0 && github.height >= 43.5, `${at}: the GitHub link holds a picture or is ${github.height} px tall`);
         expect(github.colour === tone.quiet && inter(github.face) && github.size === '16px' && github.weight === '400', `${at}: the GitHub link is ${github.colour} in ${github.face} ${github.weight} at ${github.size}`);
-        const named = page.locator('nav[aria-label="Site"] .site-header__bar').getByRole('link', { name: stars ? stars.name : 'SafeOS on GitHub', exact: true });
-        expect((await named.count()) === 1, `${at}: no link of the row is named "${stars ? stars.name : 'SafeOS on GitHub'}"`);
+        const name = stars?.headerName ?? 'SafeOS on GitHub';
+        const named = page.locator('nav[aria-label="Site"] .site-header__bar').getByRole('link', { name, exact: true });
+        expect((await named.count()) === 1, `${at}: no link of the row is named "${name}"`);
+        expect(github.mark, `${at}: GitHub has no visible mark`);
         if (!stars) {
-          expect(github.label === 'SafeOS on GitHub' && github.words === 'GitHub' && github.glyphs === 0, `${at}: with no count the GitHub link reads "${github.words}" with ${github.glyphs} glyphs`);
+          expect(github.words === 'GitHub' && github.glyphs === 1, `${at}: with no count the GitHub link reads "${github.words}" with ${github.glyphs} glyphs`);
           return;
         }
-        expect(github.label === null && github.words === stars.name, `${at}: the GitHub link's own content reads "${github.words}"`);
+        expect(github.words === `GitHub ${stars.short}`, `${at}: the GitHub link's own content reads "${github.words}"`);
         expect(github.described === stars.description, `${at}: the GitHub link is described as "${github.described}"`);
-        expect(github.glyphs === 1 && github.star?.hidden === 'true', `${at}: the GitHub link holds ${github.glyphs} glyphs`);
+        expect(github.glyphs === 2 && github.star?.hidden === 'true', `${at}: the GitHub link holds ${github.glyphs} glyphs`);
         expect(github.width >= 88, `${at}: the GitHub link is ${github.width} px wide`);
         const missing = [['word', github.word], ['star', github.star], ['count', github.number]].filter(([, part]) => !part).map(([name]) => name);
         expect(missing.length === 0, `${at}: the GitHub link shows no ${missing.join(', no ')}`);
@@ -482,7 +486,7 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
   }
 
   // A row that runs short: with the window at 1100 px the text grows in
-  // steps of 2 per cent. GitHub leaves first, then Privacy, then the links
+  // steps of 2 per cent. GitHub folds to its mark, then Privacy leaves and the links
   // and the start key move into the Menu; the row never runs off the screen.
   await open({ name: 'row, running short', width: 1100 }, async (page) => {
     await visit(page);
@@ -498,12 +502,13 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
       const stage = row.menuKey ? 3 : !names.includes('Privacy') ? 2 : !row.github ? 1 : 0;
       stages.push(stage);
       expect(!row.over, `row running short, text at ${size} per cent: the row runs off the screen`);
+      if (stage > 0) expect(row.githubMark, `row running short, text at ${size} per cent: GitHub has no mark`);
       if (stage === 2) expect(!row.github && names.join(', ') === 'How it works, Uses, Guides, FAQ', `row running short, text at ${size} per cent: with Privacy out the row holds ${names.join(', ')}${row.github ? ' and GitHub' : ''}`);
       if (stage === 3) expect(names.length === 0 && !row.github, `row running short, text at ${size} per cent: the Menu key shows beside ${names.join(', ')}`);
     }
     expect(stages[0] === 0, `row running short: at the usual text size the row is at stage ${stages[0]}`);
     expect(stages.every((stage, index) => index === 0 || stage >= stages[index - 1]), `row running short: the stages went ${stages.join('')}`);
-    expect([0, 1, 2, 3].every((stage) => stages.includes(stage)), `row running short: not every stage was seen (GitHub out, then Privacy out, then the Menu): ${stages.join('')}`);
+    expect([0, 1, 2, 3].every((stage) => stages.includes(stage)), `row running short: not every stage was seen (GitHub mark, then Privacy out, then the Menu): ${stages.join('')}`);
   });
 
   // ---------------------------------------------------------------------------
@@ -548,6 +553,18 @@ export async function checkPublicChrome(browser, baseUrl, outDir) {
       }
     });
   }
+
+  await open({ name: 'Tab out of Menu', width: 390, height: 844, look: 'light' }, async (page) => {
+    await visit(page);
+    const key = page.locator('button.site-header__menu-key');
+    const panel = page.locator('#site-menu');
+    await key.click();
+    await panel.waitFor({ timeout: 5_000 });
+    await panel.getByRole('link').last().focus();
+    await page.keyboard.press('Tab');
+    const covered = await panel.evaluate((menu) => !menu.hidden && !menu.contains(document.activeElement));
+    expect(!covered, 'Tab leaves focus outside the open Menu');
+  });
 
   // ---------------------------------------------------------------------------
   // No page asks another host anything
