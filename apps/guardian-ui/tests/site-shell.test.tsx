@@ -133,6 +133,14 @@ it('marks the document once its script has started', () => {
   expect(document.documentElement.getAttribute('data-app-started')).toBe('true');
 });
 
+it('notes each address it shows, so a page knows the page before it', async () => {
+  const { pathBefore } = await import('@/lib/visit-trail');
+  open('/');
+  cleanup();
+  open('/setup/');
+  expect(pathBefore('/setup')).toBe('/');
+});
+
 it('shows no notification card and no install sheet on any page, however long a person stays', () => {
   jest.useFakeTimers();
   // A browser that can notify and has not been asked yet.

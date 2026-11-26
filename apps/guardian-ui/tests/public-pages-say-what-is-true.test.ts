@@ -130,7 +130,16 @@ const CHANGELOG = path.join(REPO_ROOT, 'CHANGELOG.md');
 
 // Every file of the components built in the readable look is read, so one
 // added there is read too.
-const LOOK_COMPONENT_DIRS = [component('home'), component('visitor'), component('app'), component('settings'), component('dashboard'), component('watch')];
+const LOOK_COMPONENT_DIRS = [
+  component('home'),
+  component('visitor'),
+  component('app'),
+  component('settings'),
+  component('dashboard'),
+  component('watch'),
+  // Setup's parts are built in the readable look.
+  component('setup'),
+];
 
 const SCANNED = Array.from(new Set([
   ...PUBLIC_FILES,
