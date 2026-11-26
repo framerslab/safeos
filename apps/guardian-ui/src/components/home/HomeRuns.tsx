@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { HOME_RUN_WIDE, mediaPath, type HomeRun, type RunLook, type RunSize } from '@/lib/home-runs';
+import styles from './HomeRuns.module.css';
 
 type Intent = 'auto' | 'loop' | 'pause' | 'stop';
 type Connection = EventTarget & { effectiveType?: string; saveData?: boolean };
@@ -370,7 +371,7 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
         <button type="button" className="home-run__control" aria-label="Next run"
           disabled={!environment || index === runs.length - 1} onClick={() => choose(index + 1)}><Arrow /></button>
       </div>
-      <p className="home-run__caption" data-run-caption>{run.description}</p>
+      <p className={`home-run__caption ${styles.caption}`} data-run-caption>{run.description}</p>
       <div className="home-run__status" role="status">
         {status && <>{failed && <Trouble />}<span>{status}</span></>}
       </div>
