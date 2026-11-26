@@ -41,8 +41,10 @@
 // the pull request's own build is checked to show Lost and Found checked with
 // "No pet saved" or the pet's count of photos.
 //
-// When /setup/ is captured, both versions also capture setup's camera step
-// after a refused camera request (setup-camera-refused-<width>-<look>.png).
+// When /setup/ is captured, both versions also capture setup with the camera
+// refused (setup-camera-refused-<width>-<look>.png): the two-step setup names
+// the block on its first step, the earlier six-step setup on its camera step
+// after a request.
 // The pull request's own build is then walked from a first visit to the
 // dashboard with no camera: after a refused request, with no camera found and
 // with the runner's own browser, which has no camera and nothing answering
@@ -1265,6 +1267,16 @@ async function cameraContext(browser, options, answer) {
       if (!media) return;
       media.getUserMedia = () => Promise.reject(new DOMException(
         name === 'NotAllowedError' ? 'Permission denied' : 'Requested device not found', name));
+      // The two-step setup reads the camera's permission before any press: a
+      // refused camera reads as blocked for the site, a camera that is not
+      // there as not asked.
+      if (navigator.permissions && navigator.permissions.query) {
+        const query = navigator.permissions.query.bind(navigator.permissions);
+        const state = name === 'NotAllowedError' ? 'denied' : 'prompt';
+        navigator.permissions.query = (asked) => (asked && asked.name === 'camera'
+          ? Promise.resolve({ state, onchange: null, addEventListener() {}, removeEventListener() {} })
+          : query(asked));
+      }
       if (name === 'NotFoundError') media.enumerateDevices = () => Promise.resolve([]);
     }, answer);
   }
@@ -1342,6 +1354,23 @@ async function settleForPicture(page) {
   await page.waitForTimeout(400);
 }
 
+// Setup with the camera refused, on either setup this script may meet: the
+// two-step setup names the block on its first step before any press; the
+// earlier six-step setup is walked to its camera step and asked.
+async function openSetupCameraRefused(page, baseUrl) {
+  await page.goto(new URL('/setup/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
+  const twoSteps = page.getByRole('heading', { level: 1, name: 'Use this device to watch a place', exact: true });
+  const sixSteps = page.getByRole('button', { name: /Begin Setup/ });
+  await Promise.any([twoSteps.waitFor({ timeout: 20_000 }), sixSteps.waitFor({ timeout: 20_000 })]);
+  if (await twoSteps.count()) {
+    await page.getByText(/^The camera is blocked for safeos\.sh in this browser\./).waitFor({ timeout: 10_000 });
+    return;
+  }
+  await openCameraStep(page, baseUrl);
+  await setupStep(page).getByRole('button', { name: 'Grant Permissions', exact: true }).click();
+  await setupStep(page).getByText(/^(Permission denied\.|The browser blocked the camera for this site\.)/).waitFor({ timeout: 10_000 });
+}
+
 // Both versions: the camera step after a refused request, at each of the four
 // widths in both looks, so the pull request has before and after.
 async function captureCameraStepRefused(browser, baseUrl, outDir) {
@@ -1354,11 +1383,7 @@ async function captureCameraStepRefused(browser, baseUrl, outDir) {
       }, 'NotAllowedError');
       const page = await context.newPage();
       try {
-        await openCameraStep(page, baseUrl);
-        const step = setupStep(page);
-        await step.getByRole('button', { name: 'Grant Permissions', exact: true }).click();
-        // The base build has its own words for a refused request.
-        await step.getByText(/^(Permission denied\.|The browser blocked the camera for this site\.)/).waitFor({ timeout: 10_000 });
+        await openSetupCameraRefused(page, baseUrl);
         const file = path.join(outDir, `setup-camera-refused-${size.width}-${look}.png`);
         await settleForPicture(page);
         await page.screenshot({ path: file, fullPage: true });
