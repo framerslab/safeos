@@ -220,6 +220,86 @@ function fits(box, { x, y, width, height }) {
     && box.y >= y - 0.5 && box.y + box.height <= y + height + 0.5;
 }
 
+// Move a held page by the fewest CSS pixels so that no visible line of words
+// crosses the crop's top or bottom edge, keeping the named parts inside it.
+// The search runs in one task, so no in-between position is ever painted.
+async function settleEdges(page, crop, keep, scroller = null) {
+  const settled = await page.evaluate(({ crop, keep, scroller }) => {
+    const box = scroller ? document.querySelector(scroller) : document.scrollingElement;
+    if (!box) throw Error(`Missing scrolling part ${scroller}`);
+    const from = box.scrollTop;
+    const max = box.scrollHeight - box.clientHeight;
+    const top = crop.y;
+    const bottom = crop.y + crop.height;
+    const words = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest('script, style, [hidden], template, noscript, .sr-only')) continue;
+      const style = getComputedStyle(parent);
+      if (style.visibility !== 'visible' || style.opacity === '0') continue;
+      for (const word of node.textContent.matchAll(/\S+/g)) {
+        const range = document.createRange();
+        range.setStart(node, word.index);
+        range.setEnd(node, word.index + word[0].length);
+        words.push({ range, parent, word: word[0] });
+      }
+    }
+    const parts = keep.map((selector) => {
+      const part = document.querySelector(selector);
+      if (!part) throw Error(`Missing held part ${selector}`);
+      return part;
+    });
+    const crossing = () => {
+      for (const part of parts) {
+        const rect = part.getBoundingClientRect();
+        if (rect.top < top - 0.5 || rect.bottom > bottom + 0.5) return 'part';
+      }
+      for (const { range, parent, word } of words) {
+        for (const rect of range.getClientRects()) {
+          if (!rect.width || !rect.height || rect.right <= crop.x || rect.left >= crop.x + crop.width) continue;
+          for (const edge of [top, bottom]) {
+            if (rect.top >= edge - 0.5 || rect.bottom <= edge + 0.5) continue;
+            const y = edge === top ? (top + Math.min(bottom, rect.bottom)) / 2 : (Math.max(top, rect.top) + bottom) / 2;
+            const hit = document.elementFromPoint(Math.min(crop.x + crop.width - 0.1, Math.max(crop.x + 0.1, rect.left + rect.width / 2)), y);
+            if (hit && (parent.contains(hit) || hit.contains(parent))) return word;
+          }
+        }
+      }
+      return null;
+    };
+    for (let step = 0; step <= 160; step += 1) {
+      for (const to of step ? [from - step, from + step] : [from]) {
+        if (to < 0 || to > max) continue;
+        box.scrollTop = to;
+        if (Math.abs(box.scrollTop - to) > 0.5) continue;
+        if (!crossing()) return { from, to };
+      }
+    }
+    box.scrollTop = from;
+    return { from, to: null, word: crossing() };
+  }, { crop, keep, scroller });
+  assert.ok(settled.to !== null,
+    `No position within 160 px keeps every word whole at the crop's edges: ${JSON.stringify({ ...settled, keep })}`);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  return settled;
+}
+
+// Wait for a screencast frame painted at or after a moment. A page that stops
+// changing sends no frame, so an unseen last change is repainted until one comes.
+async function frameAfter(page, nextFrameAfter, at) {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const frame = await nextFrameAfter(at);
+    if (frame) return frame;
+    await page.evaluate(() => new Promise((resolve) => {
+      const root = document.documentElement;
+      root.style.outline = root.style.outline ? '' : '1px solid transparent';
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+  }
+  throw Error('DevTools sent no frame of the held page');
+}
+
 async function holdThrough(page, end, check) {
   for (let at = await browserTime(page); at < end; at = await browserTime(page)) {
     await check();
@@ -228,7 +308,7 @@ async function holdThrough(page, end, check) {
   await check();
 }
 
-async function dashboard({ page, crop, view, prepared, sample, whole }) {
+async function dashboard({ page, crop, view, prepared, sample, whole, nextFrameAfter }) {
   const since = page.getByRole('region', { name: 'Since you last looked' });
   const motion = since.getByRole('link', { name: /Movement at/ }).first();
   const sound = since.getByRole('link', { name: /Sound at/ }).first();
@@ -255,8 +335,9 @@ async function dashboard({ page, crop, view, prepared, sample, whole }) {
   await page.locator(openPicture).click();
   const picture = page.getByRole('dialog').locator('.alert-picture-dialog__picture img');
   await readPicture(picture);
+  await settleEdges(page, crop, ['.alert-picture-dialog__picture img'], '.alert-picture-dialog');
   assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture does not fit the recording');
-  const pictureAt = await browserTime(page);
+  const pictureAt = await frameAfter(page, nextFrameAfter, await browserTime(page));
   const end = start + view.seconds;
   assert.ok(end - pictureAt >= 3.5, 'The Dashboard must hold the opened picture through the end');
   await holdThrough(page, end, async () => {
@@ -393,6 +474,8 @@ async function watching({ page, crop, view, sample, whole, nextFrameAfter }) {
     })));
     throw Error('The new motion card did not show its picture: ' + JSON.stringify(cards), { cause });
   });
+  const card = `.watch-list__body [data-alert-card][data-kind="${arrival.kind}"][data-alert-at="${arrival.at}"]`;
+  await settleEdges(page, crop, ['.watch-list__head', card, `${card} .alert-picture__frame img`]);
   const checkAlert = async () => {
     const heading = page.getByRole('heading', { name: 'Alerts', exact: true });
     const boxes = await Promise.all([heading, alert, picture].map((part) => part.boundingBox()));
@@ -401,7 +484,8 @@ async function watching({ page, crop, view, sample, whole, nextFrameAfter }) {
     await whole('The held Watching alert');
   };
   await checkAlert();
-  const pictureAt = await browserTime(page);
+  // The alert counts as shown from the first recorded frame that holds it.
+  const pictureAt = await frameAfter(page, nextFrameAfter, await browserTime(page));
   assert.ok(end - pictureAt >= ALERT_HOLD_SECONDS,
     'The motion alert and its picture did not stay in frame for 2.5 seconds');
   await holdThrough(page, end, checkAlert);
@@ -423,6 +507,7 @@ async function siteSettings({ page, view, top, sample, whole }) {
   await sleepUntil(page, start, 2);
   const selector = 'nav[aria-label="Settings pages"]';
   await scrollSubject(page, selector, top, 3, 'end', view.size === 'square' ? view.width : view.height);
+  await settleEdges(page, { x: 0, y: top, width: view.width, height: view.size === 'square' ? view.width : view.height }, []);
   await whole('The foot of Settings');
   await sleepUntil(page, start, 6);
   return { start, words, poster: start + 1, event: start + 2 };

@@ -663,6 +663,14 @@ cp "$artifact_dir"/* apps/guardian-ui/public/home/runs/
 This keeps the garden source files, which live beside the recorded outputs.
 **Check the committed home runs** checks the content digest and the producer
 record. It compares the available artifact with every committed byte.
+It then reads the encoded frames of each committed Watching recording with
+`scripts/home-run-held.mjs`: the last 2.5 seconds must show the alert the
+watch scrolled to, not the camera from the moment Motion crossed its line,
+and must hold still. While recording, the producer moves each held page (the
+opened Dashboard picture, the Watching alert, the foot of Settings) by the
+fewest pixels that keep every line of words whole at the crop's edges, and
+fails a held frame that still cuts a word. It also waits for a recorded
+frame of each held page, repainting it when the screencast sent none.
 A source change requires a new recording. Evidence and documentation edits
 are outside the recording inputs. Pages checks the exported media before
 uploading a deployable build.
