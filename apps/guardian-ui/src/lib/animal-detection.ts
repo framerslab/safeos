@@ -7,6 +7,7 @@
  * @module lib/animal-detection
  */
 
+import { animalAtTime } from './alert-pictures/words';
 import { loadDetectionModel } from './detection-model';
 import { COCO_TO_ANIMAL, COCO_ANIMAL_CLASSES } from './animal-kinds';
 
@@ -423,6 +424,17 @@ export function getDangerColor(level: DangerLevel): string {
   }
 }
 
+// Each badge carries its own opaque backing in both looks.
+const DANGER_BADGE_COLORS: Record<DangerLevel, { backgroundColor: string; color: string }> = {
+  extreme: { backgroundColor: '#5c1221', color: '#fff' },
+  high: { backgroundColor: '#702906', color: '#fff' },
+  medium: { backgroundColor: '#ffcc00', color: '#14171a' },
+  low: { backgroundColor: '#98e997', color: '#14171a' },
+  none: { backgroundColor: '#d7dce2', color: '#14171a' },
+};
+
+export const getDangerBadgeColors = (level: DangerLevel) => DANGER_BADGE_COLORS[level] ?? DANGER_BADGE_COLORS.none;
+
 /**
  * Get danger level label
  */
@@ -452,18 +464,17 @@ export function getSizeIcon(size: SizeCategory): string {
  */
 export function createAnimalAnnouncement(detection: AnimalDetection): string {
   const danger = detection.dangerLevel;
-  const name = detection.displayName;
-  const confidence = Math.round(detection.confidence * 100);
+  const sighting = `${animalAtTime(detection.displayName, detection.timestamp)}.`;
 
   if (danger === 'extreme' || danger === 'high') {
-    return `Warning! ${name} detected with ${confidence}% confidence. ${getDangerLabel(danger)}. Exercise extreme caution.`;
+    return `Warning. ${sighting} Exercise extreme caution.`;
   }
 
   if (danger === 'medium') {
-    return `${name} detected nearby. Confidence ${confidence}%. Please be cautious.`;
+    return `${sighting} Please be cautious.`;
   }
 
-  return `${name} detected. Confidence ${confidence}%.`;
+  return sighting;
 }
 
 /**

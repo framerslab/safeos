@@ -158,6 +158,25 @@ describe('the Menu', () => {
     expect(document.activeElement).toBe(elsewhere);
   });
 
+  it('stays open when focus goes to nothing on the page, and closes when focus moves to what stands behind it', () => {
+    const { container } = render(
+      <>
+        <VisitorHeader />
+        <button type="button">Behind</button>
+      </>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Menu' }));
+    const menu = container.querySelector('#site-menu') as HTMLElement;
+    const row = within(menu).getByRole('link', { name: 'FAQ' });
+    act(() => row.focus());
+    // Another window takes the keyboard, or a press lands between two rows.
+    fireEvent.blur(row, { relatedTarget: null });
+    expect(menu.hidden).toBe(false);
+    act(() => screen.getByRole('button', { name: 'Behind' }).focus());
+    expect(menu.hidden).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Behind' }));
+  });
+
   it('closes when one of its rows is pressed', () => {
     const { container } = render(<VisitorHeader />);
     const menu = container.querySelector('#site-menu') as HTMLElement;
@@ -347,9 +366,9 @@ describe('a row that runs short', () => {
   }
 
   it.each([
-    ['Privacy', '.site-header__link--wide'],
-    ['GitHub', '.site-header__github'],
-  ])('moves focus from %s to the start key when the row gives that link up', (_name, selector) => {
+    ['Privacy', '.site-header__link--wide', '.site-header__start'],
+    ['GitHub', '.site-header__github', '.site-header__github-icon'],
+  ])('keeps focus in the row when %s folds', (_name, selector, next) => {
     let narrow = false;
     const restore = giveWidths(() => narrow);
     try {
@@ -363,7 +382,7 @@ describe('a row that runs short', () => {
         window.dispatchEvent(new Event('resize'));
       });
       expect(container.querySelector('.site-header')?.getAttribute('data-short')).toBe('privacy');
-      expect(document.activeElement).toBe(container.querySelector('.site-header__start'));
+      expect(document.activeElement).toBe(container.querySelector(next));
     } finally {
       restore();
     }

@@ -15,7 +15,7 @@ import { useMonitoringStore } from '@/stores/monitoring-store';
 import { useAnimalAlertStore } from '@/stores/animal-alert-store';
 import { cardTime } from '@/lib/alert-event';
 import { kindOfAlert } from '@/lib/alert-pictures/rules';
-import { kindWords, levelWords, pictureName, sightingQuestion } from '@/lib/alert-pictures/words';
+import { kindWords, levelWords, moreThanWatchAllows, peopleInView, pictureName, sightingQuestion } from '@/lib/alert-pictures/words';
 import { petNameOf } from '@/lib/alert-pictures/pet-photo';
 import { sweepPicturesByAge } from '@/lib/alert-pictures/keeper';
 import { OpenPictureKey, PictureBlock } from '@/components/alert-pictures/PictureBlock';
@@ -385,7 +385,7 @@ export default function HistoryPage() {
         acknowledged: frame.acknowledged,
         severity,
         title: 'Security Intrusion',
-        description: `${frame.personCount} detected • ${excess} unauthorized`,
+        description: `${peopleInView(frame.personCount ?? 0)}.${excess > 0 ? ` ${moreThanWatchAllows}` : ''}`,
         thumbnailData: frame.thumbnailData,
         meta: {
           personCount: frame.personCount,
@@ -1020,7 +1020,7 @@ export default function HistoryPage() {
                                 {event.type === 'intrusion' && (
                                   <>
                                     <div>
-                                      <span className="text-slate-500">Detected:</span> {String(event.meta?.personCount ?? 'n/a')}
+                                      <span className="text-slate-500">In view:</span> {String(event.meta?.personCount ?? 'n/a')}
                                     </div>
                                     <div>
                                       <span className="text-slate-500">Allowed:</span> {String(event.meta?.allowedCount ?? 'n/a')}

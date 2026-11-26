@@ -116,7 +116,9 @@ export async function checkApp(browser, baseUrl, outDir) {
   const LARGER_TEXT = 'html { font-size: 200% !important; } * { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }';
   const IPHONE_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
   const DESTINATION_WORDS = ['Dashboard', 'History', 'Settings', 'Help'];
-  const rowNames = (look) => ['SafeOS Guardian, dashboard', ...DESTINATION_WORDS, `Switch to the ${OTHER[look]} look`];
+  const stars = starsHanded();
+  const githubName = stars ? `SafeOS on GitHub, ${stars.exact}` : 'SafeOS on GitHub';
+  const rowNames = (look) => ['SafeOS Guardian, dashboard', ...DESTINATION_WORDS, githubName, `Switch to the ${OTHER[look]} look`];
   const face = (family) => (family || '').split(',')[0].replace(/["']/g, '').trim();
   const isInter = (family) => /Inter/i.test(face(family));
 
@@ -142,6 +144,54 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
     return found ? `${found.name} ends at ${Math.round(found.right)} px` : 'nothing found past the edge';
   });
+
+  const pressRowArrows = async (page, selector, check) => {
+    const row = page.locator(selector);
+    const left = row.getByRole('button', { name: 'Scroll left', exact: true });
+    const right = row.getByRole('button', { name: 'Scroll right', exact: true });
+    const arrows = await left.isVisible() && await right.isVisible();
+    check(arrows, `${selector} has no pair of named scroll buttons`);
+    if (!arrows) return;
+    const scroller = row.locator('.key-row__keys');
+    const read = () => scroller.evaluate((el) => ({
+      left: el.scrollLeft,
+      width: el.clientWidth,
+      end: el.scrollWidth - el.clientWidth,
+    }));
+    const start = await read();
+    check(start.end > 1, `${selector} has arrows but no scroll range`);
+    check(await left.isDisabled() && await right.isEnabled(), `${selector} has the wrong arrows available at its start`);
+    if (start.end <= 1 || !(await right.isEnabled())) return;
+
+    const node = await scroller.elementHandle();
+    const toEdge = async (button, direction) => {
+      for (let i = 0; i < 12; i += 1) {
+        const current = await read();
+        const edge = direction === 1 ? current.end : 0;
+        if (Math.abs(current.left - edge) <= 1) return true;
+        const step = direction * Math.max(current.width * 0.8, 44);
+        const target = Math.max(0, Math.min(current.end, current.left + step));
+        await button.click({ timeout: 4_000 });
+        // The scroll and the arrow's state must settle before another press.
+        const moved = await page.waitForFunction(({ el, x }) => Math.abs(el.scrollLeft - x) <= 1,
+          { el: node, x: target }, { timeout: 2_000 }).then(() => true, () => false);
+        if (!moved) return false;
+      }
+      return false;
+    };
+    const reachedEnd = await toEdge(right, 1);
+    check(reachedEnd, `${selector} did not reach its end with Scroll right`);
+    if (!reachedEnd) return;
+    await page.waitForFunction((button) => button.getAttribute('aria-disabled') === 'true',
+      await right.elementHandle(), { timeout: 2_000 });
+    check(await left.isEnabled(), `${selector} leaves Scroll left inactive at its end`);
+    const reachedStart = await toEdge(left, -1);
+    check(reachedStart, `${selector} did not reach its start with Scroll left`);
+    if (!reachedStart) return;
+    await page.waitForFunction((button) => button.getAttribute('aria-disabled') === 'true',
+      await left.elementHandle(), { timeout: 2_000 });
+    check(await right.isEnabled(), `${selector} leaves Scroll right inactive at its start`);
+  };
 
   // The header's row as drawn: each shown item, left to right, with its box.
   const readRow = () => {
@@ -180,12 +230,12 @@ export async function checkApp(browser, baseUrl, outDir) {
       fold: header.getAttribute('data-fold'),
       wordmark: shown(wordmark),
       bar: { top: barBox.top, bottom: barBox.bottom, left: barBox.left, right: barBox.right, height: barBox.height, scroll: bar.scrollWidth - bar.clientWidth },
-      items: [...bar.querySelectorAll('a.app-header__brand--link, span.app-header__brand--plain, a.app-header__link, button.app-header__more, button.look-switch, .look-switch-place')]
+      items: [...bar.querySelectorAll('a.app-header__brand--link, span.app-header__brand--plain, a.app-header__link, a.app-header__github, button.app-header__more, button.look-switch, .look-switch-place')]
         .filter(shown)
         .map((node) => {
           const box = node.getBoundingClientRect();
           const kind = node.matches('.app-header__link') ? 'link' : node.matches('.app-header__more') ? 'more'
-            : node.matches('.look-switch, .look-switch-place') ? 'switch' : 'brand';
+            : node.matches('.look-switch, .look-switch-place') ? 'switch' : node.matches('.app-header__github') ? 'github' : 'brand';
           return {
             kind,
             name: node.getAttribute('aria-label') || node.textContent.trim(),
@@ -332,8 +382,8 @@ export async function checkApp(browser, baseUrl, outDir) {
     }, { state });
   }
 
-  // The phone's top bar: the brand alone, plain, on one row; from 768 px the
-  // row with the four links, all on one line and inside the screen.
+  // The phone's top bar holds the plain brand and GitHub. From 768 px the
+  // destinations join them on the same line.
   for (const width of ROW_WIDTHS) {
     for (const look of LOOKS) {
       await open({ name: 'phone top bar', width, look }, async (page, context, check) => {
@@ -363,11 +413,11 @@ export async function checkApp(browser, baseUrl, outDir) {
           });
           return { mark: !!plain.querySelector('svg'), lines, controls: links.map((control) => control.getAttribute('aria-label') || control.textContent.trim()) };
         });
-        check(row.items.length === 1 && row.items[0].kind === 'brand', `the top bar shows ${row.items.map((item) => item.name).join(', ')}, not the brand alone`);
+        check(row.items.map((item) => item.kind).join(',') === 'brand,github', `the top bar shows ${row.items.map((item) => item.name).join(', ')}`);
         check(brand.mark, 'the top bar has no mark');
         check(brand.lines.map((line) => line.words).join(' / ') === 'SAFEOS / GUARDIAN' && brand.lines.length === 2 && brand.lines[1].top > brand.lines[0].top,
           `the wordmark reads ${brand.lines.map((line) => line.words).join(' / ')}`);
-        check(brand.controls.length === 0, `the top bar holds the controls ${brand.controls.join(', ')}`);
+        check(brand.controls.length === 1 && brand.controls[0] === githubName, `the top bar holds the controls ${brand.controls.join(', ')}`);
         const before = page.url();
         await page.locator('header.app-header .app-header__brand--plain').click();
         await page.waitForTimeout(500);
@@ -470,8 +520,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
   }
 
-  // What leaves the header: no bell, no Help key, no GitHub, no reading
-  // pages, no ways.
+  // The header excludes the shortcuts, reading pages and ways to watch.
   for (const width of [390, 1280]) {
     for (const look of LOOKS) {
       await open({ name: 'header, what it leaves out', width, look }, async (page, context, check) => {
@@ -486,7 +535,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         });
         if (!controls) throw new Error('no app header');
         for (const control of controls) {
-          check(!/Notifications|GitHub|About|FAQ|Blog|Monitor|Lost & Found|Security|Wildlife/i.test(control.name), `the header holds ${control.button ? 'a button' : 'a link'} named "${control.name}"`);
+          check(!/Notifications|About|FAQ|Blog|Monitor|Lost & Found|Security|Wildlife/i.test(control.name), `the header holds ${control.button ? 'a button' : 'a link'} named "${control.name}"`);
           check(!(control.button && /^(Help|\?)$/i.test(control.name)), `the header holds a button named "${control.name}"`);
         }
       });
@@ -554,7 +603,9 @@ export async function checkApp(browser, baseUrl, outDir) {
       const links = row.items.filter((item) => item.kind === 'link');
       const last = links[links.length - 1];
       const lookKey = row.items.find((item) => item.kind === 'switch');
-      check(!!last && more.left >= last.right - 0.5, `More starts at ${Math.round(more.left)} px, before the last link's end at ${last ? Math.round(last.right) : '?'} px`);
+      const github = row.items.find((item) => item.kind === 'github');
+      check(!!last && !!github && github.left >= last.right - 0.5 && more.left >= github.right - 0.5,
+        'GitHub must sit between the destinations and More');
       check(!!lookKey && lookKey.left >= more.right - 0.5 && lookKey.right >= Math.max(...row.items.map((item) => item.right)) - 0.5,
         'the look switch is not the row\'s right-most item after More');
       check(Math.max(...row.items.map((item) => item.top)) < Math.min(...row.items.map((item) => item.bottom)), 'the row is more than one line');
@@ -646,10 +697,10 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (!nav) return null;
         return {
           screen: document.documentElement.clientWidth,
-          scrollWidth: nav.scrollWidth,
-          clientWidth: nav.clientWidth,
+          scrollWidth: nav.querySelector('.key-row__keys').scrollWidth,
+          clientWidth: nav.querySelector('.key-row__keys').clientWidth,
           line: getComputedStyle(nav).boxShadow,
-          edge: getComputedStyle(nav).maskImage,
+          edge: getComputedStyle(nav.querySelector('.key-row__keys')).maskImage,
           places: [...nav.querySelectorAll('a')].map((a) => {
             const box = a.getBoundingClientRect();
             const word = a.querySelector('.phone-bar__word') || a;
@@ -663,24 +714,43 @@ export async function checkApp(browser, baseUrl, outDir) {
       for (const place of seen.places) check(!place.cut, `${place.word} is cut`);
       const width = Math.max(...seen.places.map((place) => place.right)) - Math.min(...seen.places.map((place) => place.left));
       if (width > seen.screen + 0.5) check(seen.scrollWidth > seen.clientWidth, `the places take ${Math.round(width)} px and the bar does not scroll inside itself`);
-      // The bar's top line is drawn inside the bar, where the faded edge
-      // does not cut it away; the edge is faded while places lie past it and
-      // plain once the bar is scrolled to its end.
-      check(/inset/.test(seen.line), `the bar's top line is drawn outside the bar (${seen.line}), where a faded edge cuts it away`);
+      check(/inset/.test(seen.line), `the bar's top line is drawn outside the bar (${seen.line})`);
       if (seen.scrollWidth > seen.clientWidth) {
         check(/gradient/.test(seen.edge), `places lie past the bar's right edge and the edge is not faded (${seen.edge})`);
-        const atEnd = await page.evaluate(async () => {
-          const nav = document.querySelector('nav.phone-bar');
-          nav.scrollTo({ left: nav.scrollWidth, behavior: 'instant' });
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          return getComputedStyle(nav).maskImage;
-        });
-        check(atEnd === 'none', `the bar scrolled to its end keeps a faded edge (${atEnd})`);
+        await pressRowArrows(page, 'nav.phone-bar', check);
       }
       const sideways = await sidewaysScroll(page);
       if (sideways > 0) check(false, `the page scrolls ${sideways} px sideways: ${await widest(page)}`);
     });
   }
+
+  for (const [route, selector] of [
+    ['/wildlife/', '.way-head__keys'],
+    ['/dashboard/', 'nav.phone-bar'],
+    ['/404.html', 'main .key-row'],
+  ]) {
+    await open({ name: `sideways keys on ${route}`, width: 320, look: 'light', reducedMotion: 'reduce' }, async (page, context, check) => {
+      await visit(page, route);
+      await largerText(page);
+      await pressRowArrows(page, selector, check);
+      const outside = await sidewaysScroll(page);
+      if (outside > 0) check(false, `${route} scrolls ${outside} px outside the row: ${await widest(page)}`);
+    });
+  }
+
+  await open({ name: 'header keeps focus on a narrower window', width: 1280, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/history/');
+    await largerText(page);
+    await page.setViewportSize({ width: 1920, height: 800 });
+    const header = page.locator('header.app-header');
+    const help = header.locator('.app-header__links').getByRole('link', { name: 'Help', exact: true });
+    await help.focus();
+    check(await help.evaluate((link) => link === document.activeElement), 'Help did not start with focus');
+    await page.setViewportSize({ width: 820, height: 800 });
+    const more = header.getByRole('button', { name: 'More', exact: true });
+    await more.waitFor({ timeout: 5_000 });
+    check(await more.evaluate((key) => key === document.activeElement), 'focus did not move to More when Help folded into it');
+  });
 
   // The order of focus: the skip link, the header row, the page, the footer
   // and, on a phone, the bar's places last; Enter on the skip link moves
@@ -702,7 +772,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   await open({ name: 'focus order', width: 1280, look: 'dark' }, async (page, context, check) => {
     await visit(page, '/dashboard/');
     const order = [];
-    for (let i = 0; i < 7; i += 1) {
+    for (let i = 0; i <= rowNames('dark').length; i += 1) {
       await page.keyboard.press('Tab');
       order.push(await page.evaluate(stop));
     }
@@ -721,7 +791,9 @@ export async function checkApp(browser, baseUrl, outDir) {
       order.push(item);
     }
     check(order[0]?.name === 'Skip to content', `the first stop is ${order[0]?.name ?? 'nothing'}`);
-    check(!!order[1]?.inMain, `the second stop, ${order[1]?.name ?? 'nothing'}, is not in the main content`);
+    check(order[1]?.name === githubName && order[1]?.ring === `solid 2px ${ACCENT.dark}`,
+      `the second stop is ${order[1]?.name ?? 'nothing'} with ring ${order[1]?.ring ?? 'none'}`);
+    check(!!order[2]?.inMain, `the third stop, ${order[2]?.name ?? 'nothing'}, is outside the main content`);
     const last = order.slice(-3);
     check(last.length === 3 && last.every((item) => item.inBar) && last.map((item) => item.name).join(', ') === 'Dashboard, History, Settings',
       `the last three stops are ${last.map((item) => `${item.name}${item.inBar ? ' (bar)' : ''}`).join(', ')}`);
@@ -1159,14 +1231,15 @@ export async function checkApp(browser, baseUrl, outDir) {
   const readKeyRow = () => {
     const row = document.querySelector('.way-head__keys');
     if (!row) return null;
+    const keys = row.querySelector('.key-row__keys');
     const box = row.getBoundingClientRect();
     const middle = box.top + box.height / 2;
     return {
       scrolls: row.classList.contains('key-row'),
-      past: row.scrollWidth - row.clientWidth,
-      marked: row.hasAttribute('data-overflow'),
-      mask: getComputedStyle(row).maskImage,
-      offLine: [...row.children].filter((key) => {
+      past: keys.scrollWidth - keys.clientWidth,
+      marked: row.hasAttribute('data-more'),
+      mask: getComputedStyle(keys).maskImage,
+      offLine: [...keys.children].filter((key) => {
         const place = key.getBoundingClientRect();
         return Math.abs(place.top + place.height / 2 - middle) > 1;
       }).map((key) => (key.textContent || '').trim().slice(0, 30)),
@@ -1189,13 +1262,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (route === '/wildlife/' && width === 320) check(row.past > 1, 'the keys fit at 320 px, so their scroll goes unread');
         if (row.past > 1) {
           check(row.marked && row.mask !== 'none', `on ${route} the keys run ${row.past} px past their row with no faded edge`);
-          const atEnd = await page.evaluate(async () => {
-            const keys = document.querySelector('.way-head__keys');
-            keys.scrollTo({ left: keys.scrollWidth, behavior: 'instant' });
-            await new Promise((resolve) => setTimeout(resolve, 300));
-            return getComputedStyle(keys).maskImage;
-          });
-          check(atEnd === 'none', `on ${route} the row scrolled to its end keeps a faded edge (${atEnd})`);
+          await pressRowArrows(page, '.way-head__keys', check);
         } else {
           check(!row.marked, `on ${route} the keys fit and their row is marked as running over`);
         }
@@ -1330,7 +1397,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         if (width >= 768) {
           check(names === rowNames(look).join(', '), `the row holds ${names}`);
         } else {
-          check(row.items.length === 1 && row.items[0].kind === 'brand', `the top bar shows ${names}, not the brand alone`);
+          check(row.items.map((item) => item.kind).join(',') === 'brand,github', `the top bar shows ${names}`);
         }
       }, { state: 'new' });
     }
@@ -1414,8 +1481,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
-  // Settings' first rows on a phone. The phone's top bar holds the brand
-  // alone, so Settings opens with the look row and then the Help row; from
+  // Settings' first rows on a phone are the look row and the Help row. From
   // the tablet width the header row holds both and the rows are not shown.
   const SETTINGS_LOOK_ROW = '.settings-phone-rows button.settings-row';
   const SETTINGS_HELP_ROW = '.settings-phone-rows a.settings-row';
@@ -2584,7 +2650,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         const word = history ? history.textContent.replace(/\s+/g, ' ').trim() : '';
         if (want && word !== want) return false;
         const bar = document.querySelector('header.app-header .app-header__bar');
-        const items = bar ? [...bar.querySelectorAll('a.app-header__brand--link, a.app-header__link, button.app-header__more, button.look-switch, .look-switch-place')]
+        const items = bar ? [...bar.querySelectorAll('a.app-header__brand--link, a.app-header__link, a.app-header__github, button.app-header__more, button.look-switch, .look-switch-place')]
           .filter((node) => node.getBoundingClientRect().width > 0) : [];
         return {
           word,
@@ -3770,7 +3836,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     /^nav\.phone-bar\..*look-part/, /^a\.phone-bar__place.*::before$/,
   ];
   const FIRST_CONTROLS = [
-    (name) => name === 'Start watching', ...WAY_ROWS.map((way) => (name) => name.startsWith(`${way}:`)),
+    (name) => name === githubName, (name) => name === 'Start watching', ...WAY_ROWS.map((way) => (name) => name.startsWith(`${way}:`)),
     (name) => name === 'Dashboard', (name) => name === 'History', (name) => name === 'Settings',
   ];
   // Each wanted entry matched to one item of `items`, none left over.
@@ -3788,8 +3854,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       await openDash(page);
       await page.evaluate(() => document.fonts.ready);
       const seen = await firstScreen(page);
-      check(seen.controls.length === 8 && matchesAll(seen.controls, FIRST_CONTROLS),
-        `the first screen holds ${seen.controls.length} controls, not 8: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
+      check(matchesAll(seen.controls, FIRST_CONTROLS),
+        `the first screen holds ${seen.controls.length} controls, expected ${FIRST_CONTROLS.length}: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
       check(seen.styles.length === 7, `the first screen holds ${seen.styles.length} text styles, not 7: ${seen.styles.join(' | ')}`);
       check(seen.boxes.length === 8 && matchesAll(seen.boxes, FIRST_BOXES), `the first screen draws ${seen.boxes.length} boxes, not the 8 named: ${seen.boxes.join(', ')}`);
       const tone = TONES[look];
@@ -3919,7 +3985,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       });
       check(before, '"Show alerts outside this tab" does not stand before "Start watching"');
       const counted = await firstScreen(page);
-      check(counted.controls.length === 9, `the first screen holds ${counted.controls.length} controls, not 9: ${counted.controls.map((name) => `"${name}"`).join(', ')}`);
+      const wanted = [...FIRST_CONTROLS, (name) => name === 'Show alerts outside this tab'];
+      check(matchesAll(counted.controls, wanted), `the first screen holds ${counted.controls.length} controls, expected ${wanted.length}: ${counted.controls.map((name) => `"${name}"`).join(', ')}`);
       await page.waitForTimeout(10_000);
       const words = plain(await page.evaluate(() => document.body.innerText));
       for (const gone of ['Enable notifications', 'Install SafeOS']) check(!words.includes(gone), `ten seconds on the page reads "${gone}"`);
@@ -4558,8 +4625,9 @@ export async function checkApp(browser, baseUrl, outDir) {
   // The dialog's two keys on one row at every phone width, and with larger
   // text a row that scrolls inside itself where the two do not fit.
   const dialogRow = (page) => page.evaluate(() => {
-    const row = document.querySelector('[role="dialog"] .app-dialog__keys');
-    if (!row) return null;
+    const place = document.querySelector('[role="dialog"] .app-dialog__keys');
+    if (!place) return null;
+    const row = place.querySelector('.key-row__keys') ?? place;
     return {
       keys: [...row.querySelectorAll('button')].map((key) => {
         const box = key.getBoundingClientRect();
@@ -4599,6 +4667,15 @@ export async function checkApp(browser, baseUrl, outDir) {
     const tops = row.keys.map((key) => key.top);
     check(Math.max(...tops) - Math.min(...tops) <= 0.5, `with larger text the keys' tops are ${tops.map((top) => top.toFixed(1)).join(' and ')} px`);
     check(row.scrolls || row.keys.every((key) => key.whole), `with larger text the keys do not fit and the row does not scroll inside itself (${row.keys.filter((key) => !key.whole).map((key) => key.name).join(', ')} cut)`);
+    if (row.scrolls) {
+      await pressRowArrows(second, '[role="dialog"] .app-dialog__keys', check);
+      // Focus goes round the dialog's keys, the arrows among them, and stays inside it.
+      const buttons = await second.locator('[role="dialog"] button').count();
+      for (let i = 0; i <= buttons; i += 1) {
+        await second.keyboard.press('Tab');
+        check(await second.evaluate(() => !!document.querySelector('[role="dialog"]')?.contains(document.activeElement)), 'with larger text Tab left the dialog');
+      }
+    }
     const sideways = await sidewaysScroll(second);
     check(sideways <= 0, `with larger text the page scrolls ${sideways} px sideways`);
   }, { script: FAKE_CAMERA });
@@ -5994,7 +6071,7 @@ export async function checkApp(browser, baseUrl, outDir) {
   // their own Inter 700 at 16 px; the two frame rows' edges, the one rule
   // above a group, the phone bar and its place mark, the rows' small pictures
   // counted as pictures; and five colours.
-  const LIST_FIRST_CONTROLS = [/^Switch to the light look$/, /^Help$/, /^Detection/, /^Alert sounds/, /^Quiet hours/, /^Unanswered alerts/, /^Notifications/,
+  const LIST_FIRST_CONTROLS = [(name) => name === githubName, /^Switch to the light look$/, /^Help$/, /^Detection/, /^Alert sounds/, /^Quiet hours/, /^Unanswered alerts/, /^Notifications/,
     (name) => name === 'Dashboard', (name) => name === 'History', (name) => name === 'Settings'];
   const styleOf = (face, weight, size, colour) => (style) => {
     const [family, ...rest] = style.split(' ');
@@ -6021,8 +6098,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       left.splice(at, 1);
       return true;
     });
-    check(seen.controls.length === 10 && matched && left.length === 0,
-      `the first screen holds ${seen.controls.length} controls, not the 10 named: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
+    check(matched && left.length === 0,
+      `the first screen holds ${seen.controls.length} controls, expected ${LIST_FIRST_CONTROLS.length}: ${seen.controls.map((name) => `"${name}"`).join(', ')}`);
     check(seen.styles.length === 7 && matchesAll(seen.styles, LIST_FIRST_STYLES),
       `the first screen holds ${seen.styles.length} text styles, not the 7 named: ${seen.styles.join(' | ')}`);
     check(seen.boxes.length === 5 && matchesAll(seen.boxes, LIST_FIRST_BOXES),

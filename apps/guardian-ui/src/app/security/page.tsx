@@ -9,6 +9,7 @@
  * @module app/security/page
  */
 
+import { peopleWords, peopleAtTime, moreThanWatchAllows } from '@/lib/alert-pictures/words';
 import { showBrowserNotification } from '@/lib/browser-notification';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
@@ -165,14 +166,14 @@ function PersonCountDisplay({ count, allowed, isArmed }: PersonCountDisplayProps
             isExcess && isArmed ? 'text-red-500' : 'text-slate-300'
           }`}
         >
-          {count}
+          {count}{' '}
         </div>
         <div className="text-sm text-slate-500 mt-2">
-          Persons Detected
+          {peopleWords(count)} in view
         </div>
         {isExcess && isArmed && (
-          <div className="mt-3 px-3 py-1 bg-red-500 text-white text-sm font-bold rounded-full inline-block animate-bounce">
-            +{count - allowed} INTRUDER{count - allowed > 1 ? 'S' : ''}
+          <div className="mt-3 px-3 py-1 bg-red-700 text-white text-sm font-bold rounded-full inline-block animate-bounce">
+            {moreThanWatchAllows}
           </div>
         )}
       </div>
@@ -205,7 +206,9 @@ export default function SecurityPage() {
   const modelStatus = !download.setupComplete ? 'idle' : download.status === 'ready' && !detectorReady ? 'loading' : download.status;
   // Arming without a ready model would show an armed system that checks no frame.
   const armBlockedReason = modelStatus === 'ready' ? undefined : 'Download the detection model above before arming.';
-  const [lastDetection, setLastDetection] = useState<PersonDetectionResult | null>(null);
+  // The last check that went over the watch's line. Its alert stands with its
+  // DISARM key until the watch is disarmed, also once the people have left.
+  const [overLine, setOverLine] = useState<{ count: number; at: number } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const detectionLoopBusyRef = useRef(false);
@@ -276,7 +279,8 @@ export default function SecurityPage() {
       result.detections.map(d => ({
         bbox: d.bbox,
         confidence: d.confidence,
-      }))
+      })),
+      result.timestamp
     );
 
     // Save to IndexedDB
@@ -301,8 +305,10 @@ export default function SecurityPage() {
       return;
     }
 
-    // Trigger intrusion in store
+    // Trigger intrusion in store; the alert line keeps this check's count
+    // and time, the ones its picture and notification carry.
     triggerIntrusion(intrusionFrame);
+    setOverLine({ count: result.personCount, at: result.timestamp });
 
     // Activate alerts based on mode
     if (settings.alertMode === 'extreme' && !alertActiveRef.current) {
@@ -329,8 +335,8 @@ export default function SecurityPage() {
       // Browser notification
       if (settings.alerts.notificationEnabled && 'Notification' in window) {
         if (Notification.permission === 'granted') {
-          void showBrowserNotification('INTRUDER ALERT!', {
-            body: `${result.personCount} person(s) detected. ${result.personCount - settings.allowedPersons} unauthorized.`,
+          void showBrowserNotification('People alert', {
+            body: `${peopleAtTime(result.personCount, result.timestamp)}. ${moreThanWatchAllows}`,
             icon: '/icons/icon-192.png',
             tag: 'intrusion-alert',
             requireInteraction: true,
@@ -348,6 +354,7 @@ export default function SecurityPage() {
       setIsSirenPlaying(false);
       stopSecurityAlert();
       previousCountRef.current = 0;
+      setOverLine(null);
     }
   }, [armingState]);
 
@@ -429,7 +436,6 @@ export default function SecurityPage() {
         if (!result) return;
         if (shouldForce) lastForceDetectionRef.current = now;
 
-        setLastDetection(result);
         setCurrentPersonCount(result.personCount);
         recordDetection(result.personCount);
 
@@ -551,15 +557,9 @@ export default function SecurityPage() {
                     <IconCamera size={18} />
                     Live Camera
                   </h2>
-                  {lastDetection && (
-                    <span className="text-xs text-slate-500">
-                      {lastDetection.processingTimeMs.toFixed(0)}ms
-                    </span>
-                  )}
                 </div>
                 <CameraFeed
                   scenario="security"
-                  showDebug={true}
                   enabled={isArmed && modelStatus === 'ready'}
                   audioEnabled={false}
                   onVideoReady={(video) => {
@@ -577,16 +577,16 @@ export default function SecurityPage() {
               />
 
               {/* Quick Status */}
-              {armingState === 'triggered' && (
+              {armingState === 'triggered' && overLine && (
                 <div className="p-4 bg-red-500/20 border border-red-500 rounded-xl animate-pulse">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <IconAlertTriangle size={24} className="text-red-500" />
                       <div>
-                        <div className="font-bold text-red-400">INTRUDER DETECTED!</div>
-                        <div className="text-sm text-red-300">
-                          {currentPersonCount - settings.allowedPersons} unauthorized person(s)
+                        <div className="font-bold text-red-400">
+                          {peopleAtTime(overLine.count, overLine.at)}
                         </div>
+                        <div className="text-sm text-red-300">{moreThanWatchAllows}</div>
                       </div>
                     </div>
                     <button

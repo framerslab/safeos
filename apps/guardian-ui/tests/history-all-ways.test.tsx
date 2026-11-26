@@ -15,6 +15,7 @@ import { openDB } from 'idb';
 import { IDBFactory } from 'fake-indexeddb';
 import { stored } from './helpers/saved-history';
 import { installTabChannel, type OtherTab } from './helpers/tab-channel-stand-in';
+import { barredWording, homeWordingInputs } from '../scripts/home-wording.cjs';
 
 require('fake-indexeddb/auto');
 jest.setTimeout(60000);
@@ -224,6 +225,16 @@ it('opens on Local Timeline when the device holds new alerts, and marks them see
   await waitFor(() => expect(m.animals.getState().detectionHistory.map((e) => e.acknowledged)).toEqual([true]), SLOW);
   // The server's Alerts stays one press away.
   expect(screen.getAllByRole('button').some((key) => key.textContent?.trim() === 'Alerts')).toBe(true);
+});
+
+it('says how many people were in view and that the watch allows fewer, in plain words', async () => {
+  const m = await app();
+  await act(() => m.save.person('intrusion-1'));
+  m.openHistory();
+  const entry = await waitFor(() => entryOf('Security Intrusion'), SLOW);
+  expect(entry.textContent).toContain('1 person in view. More than this watch allows.');
+  expect(entry.textContent).not.toMatch(/unauthorized/i);
+  for (const text of homeWordingInputs(entry)) expect(text).not.toMatch(barredWording);
 });
 
 it("lists only Wildlife's sightings under the Type filter's Wildlife", async () => {

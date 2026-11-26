@@ -99,6 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The header menu scrolls inside itself on a short screen, Escape closes it, and focus goes back to the Menu button when it closes.
 - The quick-start links name only presets that exist.
 - Lost & Found offers a pet or an item; subjects saved with the person type keep showing. The processing choice that only slowed the same matcher is gone.
+- GitHub stands in both headers at every width: its mark in a 44 px link named with the star count when the build read one, with the word and count alongside the mark in the public header from 1024 px. On a phone the app's header holds the brand and GitHub, and the bar at the foot of the screen is the one navigation named "App".
+- People says how many people are in view, when, and that it is more than the watch allows, in its alert, its notification, its spoken lines, its saved pictures and History. The alert stays with its DISARM key until the watch is disarmed, also once the people have left. Wildlife names the animal and the time with no score, and its setting shows the **Alert line** as a plain number. The camera's two indicators on both pages are named in words.
 
 ### Removed
 - From the Motion and sound page: the five number tiles, the modes menu in its header, the Camera Feed box, the floating quick settings, the Lost and Found panel of scores and its tag on the live picture, and the processing tag on the preset card. Photos are added to a pet on the Lost & Found page, and its saved frames stay in its match history.
@@ -207,6 +209,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An answer to set-up's saved session check, or to an earlier session request, changes nothing once the tab holds a session made in the meantime, whether or not local data was cleared in between: the newer session stays. A profile change that Log Out or Clear All Local Data cancelled is not put back, so the cleared session's token is not written to local storage again. Session set-up, session requests, the session refresh, profile saves and Log Out change the tab's session state through one guarded writer. A profile change that waits its turn behind another is refused when a reload notice is set by then.
 - Log Out or Clear All Local Data in one tab signs the other open tabs out: each drops its session and profile when the browser tells it of the clear and is done loading at once, its session requests and profile saves in flight change nothing, and a profile change made there once the clear has finished writes nothing, also before the browser has told that tab. A session a tab made after the clear is kept when the tab is told of that clear late.
 - Log Out waits at most 15 seconds for the server to end the session; with no answer by then it goes on and clears the browser.
+- Every Wildlife badge's words stand at 7:1 or more against their own ground, at 16 px, and the animal's name keeps its words whole beside them.
+- The rows of keys on People and Wildlife, the phone navigation, the keys of the page that is not found and the question before a second watch carry Scroll left and Scroll right where they do not fit, at any text size.
+- Focus on Help moves to More when the app's header folds and back to Help when More leaves; Tab out of the public header's open Menu closes it, and a press on the Menu's own ground or a change of window leaves it open.
+- The star reader sends its token to `api.github.com` over HTTPS alone.
 
 ## [0.1.0] - 2025-01-08
 

@@ -2,18 +2,15 @@
 /**
  * The phone bar's faded edge and its top line
  *
- * With much larger text the three places are wider than the bar, and the bar
- * scrolls inside itself. While places lie past its right edge the bar says so
- * in an attribute, and the stylesheet fades the edge by that attribute, so
- * the fade shows in every browser. At the bar's end, and while the places
- * fit, the attribute is not there. The bar's top line is drawn inside the
- * bar, where a faded edge does not cut it away.
+ * The fixed phone bar carries a scrollable row when the places are wider
+ * than it. The row fades its clipped edges and the top line stays across
+ * the fixed bar.
  */
 
 import React from 'react';
 import fs from 'fs';
 import path from 'path';
-import { cleanup, fireEvent, render } from '@testing-library/react';
+import { cleanup, fireEvent, render, within } from '@testing-library/react';
 import { PhoneBar } from '@/components/app/PhoneBar';
 
 jest.mock('next/navigation', () => ({
@@ -41,34 +38,34 @@ afterEach(() => {
   while (spies.length) spies.pop()?.mockRestore();
 });
 
-it('says that places lie past its right edge while it scrolls inside itself, and stops at its end', () => {
+it('uses the shared arrows and fades only the edge with more places', () => {
   barIs(600, 390);
   const { container } = render(<PhoneBar />);
-  const bar = theBar(container);
-  expect(bar.hasAttribute('data-overflow')).toBe(true);
+  const row = theBar(container).querySelector('.key-row') as HTMLElement;
+  const keys = row.querySelector('.key-row__keys') as HTMLElement;
+  const { getByRole } = within(row);
+  expect(row.getAttribute('data-more')).toBe('end');
+  expect(getByRole('button', { name: 'Scroll left' }).getAttribute('aria-disabled')).toBe('true');
   scrolled = 210;
-  fireEvent.scroll(bar);
-  expect(bar.hasAttribute('data-overflow')).toBe(false);
+  fireEvent.scroll(keys);
+  expect(row.getAttribute('data-more')).toBe('start');
+  expect(getByRole('button', { name: 'Scroll right' }).getAttribute('aria-disabled')).toBe('true');
   scrolled = 100;
-  fireEvent.scroll(bar);
-  expect(bar.hasAttribute('data-overflow')).toBe(true);
+  fireEvent.scroll(keys);
+  expect(row.getAttribute('data-more')).toBe('both');
 });
 
-it('says nothing while its three places fit', () => {
+it('shows the three places without arrows when they fit', () => {
   barIs(390, 390);
   const { container } = render(<PhoneBar />);
-  expect(theBar(container).hasAttribute('data-overflow')).toBe(false);
+  const bar = within(theBar(container));
+  expect(bar.getAllByRole('link')).toHaveLength(3);
+  expect(bar.queryByRole('button', { name: 'Scroll right' })).toBeNull();
 });
 
-it('fades the edge by that attribute in every browser, and draws the top line inside the bar', () => {
-  const css = fs
-    .readFileSync(path.join(__dirname, '..', 'src', 'styles', 'app.css'), 'utf8')
-    .replace(/\/\*[\s\S]*?\*\//g, '');
-  const rule = (selector: string) => {
-    const found = css.match(new RegExp(`(?:^|})\\s*${selector.replace(/[.[\]]/g, '\\$&')}\\s*{([^}]*)}`));
-    return found ? found[1].replace(/\s+/g, ' ').trim() : '';
-  };
-  expect(rule('.phone-bar[data-overflow]')).toContain('mask-image: linear-gradient(to right, black calc(100% - 24px), transparent);');
-  expect(css).not.toContain('animation-timeline');
-  expect(rule('.phone-bar')).toContain('box-shadow: inset 0 1px 0 var(--color-steel-300);');
+it('draws the top line across the fixed bar', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'styles', 'app.css'), 'utf8');
+  const bar = css.match(/\.phone-bar\s*\{([^}]*)}/)?.[1];
+  expect(bar).toContain('position: fixed;');
+  expect(bar).toContain('box-shadow: inset 0 1px 0 var(--color-steel-300);');
 });

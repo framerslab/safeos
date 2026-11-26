@@ -3,23 +3,24 @@
  *
  * One row on every app page: the mark and the wordmark as a link to the
  * dashboard, then a navigation named "App" with the four destinations
- * (Dashboard, History, Settings and Help) and the look switch. On a phone the
- * row shows the brand alone, plain, and the bar at the foot of the screen
- * carries the destinations. When the row runs short (a narrow window or
- * larger text) it folds: the wordmark leaves first, then Help moves into
- * More, then Settings, and only when nothing else is left does the row scroll
- * inside itself. Before script runs every link works and the look switch has
- * only its place held.
+ * (Dashboard, History, Settings and Help), then GitHub and the look switch.
+ * On a phone the header holds the plain brand and GitHub, and the bar at the
+ * foot of the screen is the navigation named "App". When the row runs short
+ * (a narrow window or larger text) it folds: the wordmark leaves first, then
+ * Help moves into More, then Settings, and only when nothing else is left
+ * does the row scroll inside itself. Before script runs every link works and
+ * the look switch has only its place held.
  *
  * @module components/app/AppHeader
  */
 
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { DESTINATIONS, destinationOf, type Destination } from '@/lib/app-routes';
+import { GitHubIconLink } from '../visitor/GitHubLink';
 import { SiteMark } from '../visitor/SiteMark';
 import { LookSwitch } from '../visitor/LookSwitch';
 import { NewAlertsCount, historyName } from './NewAlertsCount';
@@ -60,6 +61,8 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
   const headerRef = useRef<HTMLElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
+  const foldingLink = useRef<HTMLElement | null>(null);
+  const returning = useRef<string | null>(null);
 
   // Closing More, by Escape, by a press outside or by one of its rows, puts
   // focus back on the More key.
@@ -87,12 +90,25 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
     if (!header || !bar) return;
     const measure = () => {
       const was = header.getAttribute('data-fold');
+      const focused = document.activeElement;
+      const section = focused instanceof HTMLElement && bar.contains(focused)
+        && focused.classList.contains('app-header__link') ? focused.dataset.section : undefined;
+      const movesAt = section ? MOVES[section] : undefined;
       const next = foldFor((at) => {
         header.setAttribute('data-fold', String(at));
         return bar.scrollWidth > bar.clientWidth + 0.5;
       });
       if (was !== null) header.setAttribute('data-fold', was);
       else header.removeAttribute('data-fold');
+      if (movesAt !== undefined && Number(was) < movesAt && next >= movesAt && focused instanceof HTMLElement) {
+        foldingLink.current = focused;
+      }
+      // A row of More whose link goes back into the row takes its focus with
+      // it; More leaving the row with focus on its key gives focus to Help.
+      const row = focused instanceof HTMLElement && focused.classList.contains('app-more__row')
+        ? focused.dataset.section : undefined;
+      returning.current = row && next < (MOVES[row] ?? 0) ? row
+        : Number(was) >= 2 && next < 2 && focused === moreRef.current ? '/help' : null;
       setFold(next);
       if (next < 2) setOpen(false);
     };
@@ -106,6 +122,20 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
       window.removeEventListener('resize', measure);
     };
   }, [newAlerts, fold]);
+
+  // Focus follows Help and Settings into More as the row folds, and back into
+  // the row as it widens; it goes to Help when More leaves the row.
+  useLayoutEffect(() => {
+    const previous = foldingLink.current;
+    const back = returning.current;
+    foldingLink.current = null;
+    returning.current = null;
+    if (previous && (document.activeElement === previous || document.activeElement === document.body)) {
+      moreRef.current?.focus();
+    } else if (back) {
+      headerRef.current?.querySelector<HTMLElement>(`.app-header__link[data-section="${back}"]`)?.focus();
+    }
+  }, [fold]);
 
   useEffect(() => {
     if (!open) return;
@@ -171,22 +201,23 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
         </span>
         <nav aria-label="App" className="app-header__nav">
           <div className="app-header__links">{DESTINATIONS.map((d) => link(d, 'app-header__link'))}</div>
-          <div className="app-header__actions">
-            {fold >= 2 && (
-              <button
-                ref={moreRef}
-                type="button"
-                className="app-header__more"
-                aria-expanded={open}
-                aria-controls="app-more"
-                onClick={() => (open ? close() : setOpen(true))}
-              >
-                More
-              </button>
-            )}
-            <LookSwitch />
-          </div>
         </nav>
+        <div className="app-header__actions">
+          <GitHubIconLink className="app-header__github" />
+          {fold >= 2 && (
+            <button
+              ref={moreRef}
+              type="button"
+              className="app-header__more"
+              aria-expanded={open}
+              aria-controls="app-more"
+              onClick={() => (open ? close() : setOpen(true))}
+            >
+              More
+            </button>
+          )}
+          <LookSwitch />
+        </div>
       </div>
       <div id="app-more" className="app-more" hidden={!open}>
         {DESTINATIONS.filter((d) => (MOVES[d.section] ?? 9) <= Math.min(fold, 3)).map((d) => link(d, 'app-more__row', close))}

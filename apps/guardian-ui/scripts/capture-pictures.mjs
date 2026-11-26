@@ -58,6 +58,7 @@ import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 import { skipsInBase } from './base-routes.mjs';
+import { captureWatchPages } from './watch-page-captures.mjs';
 
 const [baseUrl, outDir, ...routes] = process.argv.slice(2);
 const playbackOnly = routes.length === 1 && routes[0] === '--home-playback';
@@ -92,7 +93,7 @@ function slug(route) {
 }
 
 await mkdir(outDir, { recursive: true });
-const browser = await chromium.launch();
+const browser = await chromium.launch({ args: ['--enable-unsafe-swiftshader'] });
 let failures = 0;
 try {
   const homeChecks = process.env.PICTURE_VERSION === 'after' && (routes.includes('/') || playbackOnly)
@@ -104,6 +105,10 @@ try {
     if (!response.ok) throw Error('Missing exported home recordings');
     ({ runs } = await response.json());
   }
+  if (homeChecks && !playbackOnly) {
+    const { checkHeaders } = await import('./header-checks.mjs');
+    failures += await checkHeaders(browser, baseUrl);
+  }
   if (routes.includes('/') || playbackOnly) {
     failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs);
   }
@@ -111,6 +116,7 @@ try {
     await browser.close();
     process.exit(failures > 0 ? 1 : 0);
   }
+  failures += await captureWatchPages(browser, baseUrl, outDir, routes, finishedSetupContext);
   if (homeChecks) {
     failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
     const { checkHomeRuns, checkRunPolicies } = await import('./home-run-checks.mjs');
@@ -512,7 +518,7 @@ function contrastOf(locator) {
 
 async function captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs) {
   let failures = 0;
-  for (const [width, height] of [[390, 844], [1440, 900]]) {
+  for (const [width, height] of [[390, 844], [1024, 800], [1440, 900]]) {
     for (const look of LOOKS) {
       const context = await browser.newContext({
         viewport: { width, height }, deviceScaleFactor: 2, reducedMotion: 'no-preference',
@@ -535,6 +541,12 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs) {
           await page.mouse.move(0, 0);
           await page.goto(home, { waitUntil: 'domcontentloaded', timeout: 60_000 });
           await page.evaluate(() => document.fonts.ready);
+          if (width >= 1024) {
+            await page.locator('nav[aria-label="Site"]').screenshot({
+              path: path.join(outDir, `site-header-${width}-${look}.png`), scale: 'css',
+            });
+          }
+          if (width === 1024) continue;
           if (runs) {
             await page.waitForFunction(() => {
               const image = document.querySelector('.home-run__poster img');

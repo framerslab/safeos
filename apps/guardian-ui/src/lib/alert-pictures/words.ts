@@ -41,6 +41,12 @@ export function timeWords(at: number | Date): string {
   return clock.format(at);
 }
 
+export const peopleWords = (count: number): string => count === 1 ? 'person' : 'people';
+export const peopleInView = (count: number): string => `${count} ${peopleWords(count)} in view`;
+export const moreThanWatchAllows = 'More than this watch allows.';
+export const peopleAtTime = (count: number, at: number): string => `${peopleInView(count)} at ${timeWords(at)}`;
+export const animalAtTime = (name: string, at: number): string => `${name} in view at ${timeWords(at)}`;
+
 /** "Motion at 9:42:40 PM". */
 export const kindAtTime = (kind: AlertKind, at: number | Date): string => `${kindWords(kind)} at ${timeWords(at)}`;
 

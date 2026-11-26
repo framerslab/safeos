@@ -47,7 +47,8 @@ it('serves an app page with its header, its phone bar and its footer, none of th
   const header = page.querySelector('header.app-header');
   const bar = page.querySelector('nav.phone-bar');
   const footer = page.querySelector('footer nav[aria-label="Site links"]');
-  expect(header?.querySelectorAll('a')).toHaveLength(5);
+  expect(header?.querySelectorAll('a')).toHaveLength(6);
+  expect(header?.querySelector('.app-header__github')?.getAttribute('href')).toBe('https://github.com/framerslab/safeos');
   expect(Array.from(bar?.querySelectorAll('a') || []).map((link) => bare(link.getAttribute('href')))).toEqual([
     '/dashboard',
     '/history',
