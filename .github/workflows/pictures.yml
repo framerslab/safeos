@@ -448,3 +448,11 @@ jobs:
 
       - name: Check source and file hashes of the committed runs
         run: node scripts/home-run-inputs.mjs --verify-committed public
+
+      - name: Install ffmpeg
+        if: ${{ !cancelled() }}
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+
+      - name: Check that each Watching recording holds its alert at the end
+        if: ${{ !cancelled() }}
+        run: node scripts/home-run-held.mjs public
