@@ -5,6 +5,8 @@
  * (lib/detection-model-facts): COCO-SSD on SSDLite MobileNet V2, whose
  * manifest lists 239 float32 weight tensors and no quantized ones, about 4.5
  * million weights in all. The post called it quantized.
+ *
+ * Where it cites lines of the source, those lines hold the code it quotes.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -37,4 +39,28 @@ it('cites the lines of person-detection.ts that hold the motion gate', () => {
   expect(lines).toContain('const motionTriggered = motionLevel >= this.config.motionThreshold;');
   expect(lines).toContain('if (!motionTriggered) {');
   expect(lines).toContain('return null;');
+});
+
+it('cites the lines of CameraFeed.tsx that hold the check intervals', () => {
+  const html = renderToStaticMarkup(<BlogArticlePage params={{ slug: 'how-safeos-guardian-works' }} />);
+  const cited = / at lines (\d+)\u2013(\d+):/.exec(html);
+  expect(cited).not.toBeNull();
+
+  const source = readFileSync(path.join(__dirname, '../src/components/CameraFeed.tsx'), 'utf8').split('\n');
+  const lines = source.slice(Number(cited?.[1]) - 1, Number(cited?.[2])).join('\n');
+  expect(lines).toContain('const FRAME_INTERVAL = 1000;');
+  expect(lines).toContain('const MOTION_INTERVAL = 200;');
+  expect(lines).toContain('const AUDIO_INTERVAL = 100;');
+});
+
+it('cites the lines of monitor/page.tsx that hold the Lost & Found loop', () => {
+  const html = renderToStaticMarkup(<BlogArticlePage params={{ slug: 'how-safeos-guardian-works' }} />);
+  const cited = /around lines (\d+)\u2013(\d+)\./.exec(html);
+  expect(cited).not.toBeNull();
+
+  const source = readFileSync(path.join(__dirname, '../src/app/monitor/page.tsx'), 'utf8').split('\n');
+  const lines = source.slice(Number(cited?.[1]) - 1, Number(cited?.[2])).join('\n');
+  expect(lines).toContain('const interval = setInterval(() => {');
+  expect(lines).toContain('processLostFoundFrame(video);');
+  expect(lines).toContain('return () => clearInterval(interval);');
 });
