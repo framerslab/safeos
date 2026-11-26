@@ -287,18 +287,11 @@ async function settleEdges(page, crop, keep, scroller = null) {
 }
 
 // Wait for a screencast frame painted at or after a moment. A page that stops
-// changing sends no frame, so an unseen last change is repainted until one comes.
-async function frameAfter(page, nextFrameAfter, at) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const frame = await nextFrameAfter(at);
-    if (frame) return frame;
-    await page.evaluate(() => new Promise((resolve) => {
-      const root = document.documentElement;
-      root.style.outline = root.style.outline ? '' : '1px solid transparent';
-      requestAnimationFrame(() => requestAnimationFrame(resolve));
-    }));
-  }
-  throw Error('DevTools sent no frame of the held page');
+// changing sends none, so its held state is then read by a screenshot.
+async function frameAfter(page, { nextFrameAfter, captureFrame }, at) {
+  const frame = await nextFrameAfter(at);
+  if (frame) return frame;
+  return captureFrame(await browserTime(page));
 }
 
 async function holdThrough(page, end, check) {
@@ -309,7 +302,7 @@ async function holdThrough(page, end, check) {
   await check();
 }
 
-async function dashboard({ page, crop, view, prepared, sample, whole, nextFrameAfter }) {
+async function dashboard({ page, crop, view, prepared, sample, whole, nextFrameAfter, captureFrame }) {
   const since = page.getByRole('region', { name: 'Since you last looked' });
   const motion = since.getByRole('link', { name: /Movement at/ }).first();
   const sound = since.getByRole('link', { name: /Sound at/ }).first();
@@ -338,7 +331,7 @@ async function dashboard({ page, crop, view, prepared, sample, whole, nextFrameA
   await readPicture(picture);
   await settleEdges(page, crop, ['.alert-picture-dialog__picture img'], '.alert-picture-dialog');
   assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture does not fit the recording');
-  const pictureAt = await frameAfter(page, nextFrameAfter, await browserTime(page));
+  const pictureAt = await frameAfter(page, { nextFrameAfter, captureFrame }, await browserTime(page));
   const end = start + view.seconds;
   assert.ok(end - pictureAt >= 3.5, 'The Dashboard must hold the opened picture through the end');
   await holdThrough(page, end, async () => {
@@ -401,7 +394,7 @@ function readWatch(page) {
   }, { camera: CAMERA, offset: WATCH_CLIP_START });
 }
 
-async function watching({ page, crop, view, sample, whole, nextFrameAfter }) {
+async function watching({ page, crop, view, sample, whole, nextFrameAfter, captureFrame }) {
   const camera = page.locator(CAMERA).first();
   const cameraBox = await camera.boundingBox();
   const meters = await page.locator('.watch-meters').boundingBox();
@@ -486,7 +479,7 @@ async function watching({ page, crop, view, sample, whole, nextFrameAfter }) {
   };
   await checkAlert();
   // The alert counts as shown from the first recorded frame that holds it.
-  const pictureAt = await frameAfter(page, nextFrameAfter, await browserTime(page));
+  const pictureAt = await frameAfter(page, { nextFrameAfter, captureFrame }, await browserTime(page));
   assert.ok(end - pictureAt >= ALERT_HOLD_SECONDS,
     'The motion alert and its picture did not stay in frame for 2.5 seconds');
   await holdThrough(page, end, checkAlert);
@@ -501,7 +494,7 @@ async function watching({ page, crop, view, sample, whole, nextFrameAfter }) {
   };
 }
 
-async function siteSettings({ page, view, top, sample, whole }) {
+async function siteSettings({ page, view, top, sample, whole, nextFrameAfter, captureFrame }) {
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
   const words = await sample();
@@ -510,6 +503,7 @@ async function siteSettings({ page, view, top, sample, whole }) {
   await scrollSubject(page, selector, top, 3, 'end', view.size === 'square' ? view.width : view.height);
   await settleEdges(page, { x: 0, y: top, width: view.width, height: view.size === 'square' ? view.width : view.height }, []);
   await whole('The foot of Settings');
+  await frameAfter(page, { nextFrameAfter, captureFrame }, await browserTime(page));
   await sleepUntil(page, start, 6);
   return { start, words, poster: start + 1, event: start + 2 };
 }

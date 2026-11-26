@@ -125,6 +125,27 @@ export async function spool(cdp, directory, view) {
         frameListeners.add(listen);
       });
     },
+    // A page that stops changing sends no screencast frame, so its last change
+    // can go unrecorded. Read that state with a DevTools screenshot of the same
+    // native size and keep it as the frame at that moment.
+    async capture(at) {
+      assert.ok(accepting && !failure, 'The screencast stopped before the held page was read');
+      const { data } = await cdp.send('Page.captureScreenshot', { format: 'png' });
+      const bytes = Buffer.from(data, 'base64');
+      assert.ok(bytes.length >= 24 && bytes.subarray(0, 8).equals(PNG), 'DevTools sent a screenshot without a PNG header');
+      const w = bytes.readUInt32BE(16);
+      const h = bytes.readUInt32BE(20);
+      assert.ok(w === width && h === height, `DevTools screenshot is ${w}×${h} pixels, expected native ${width}×${height}`);
+      const stamp = Math.max(at, latest + 0.001);
+      latest = stamp;
+      const filename = `frame-${String(frames.length).padStart(4, '0')}.png`;
+      frames.push({ filename, at: stamp });
+      const write = writeFile(path.join(directory, filename), bytes);
+      pending.add(write);
+      void write.catch((error) => { failure ??= error; }).finally(() => pending.delete(write));
+      console.log(`Held page read by screenshot at ${stamp.toFixed(3)}`);
+      return stamp;
+    },
     async stop() {
       accepting = false;
       try {

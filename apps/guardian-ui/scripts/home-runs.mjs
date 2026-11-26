@@ -84,7 +84,7 @@ async function recordVariant(browser, recipe, view, avif) {
     let frames;
     try {
       cut = await recipe.record({
-        page, view, top, crop, prepared, nextFrameAfter: recording.nextFrameAfter,
+        page, view, top, crop, prepared, nextFrameAfter: recording.nextFrameAfter, captureFrame: recording.capture,
         sample: () => readRecordingWords(page, crop, { poster: true }),
         whole: (moment) => readRecordingWords(page, crop, { whole: true, moment }),
       });
