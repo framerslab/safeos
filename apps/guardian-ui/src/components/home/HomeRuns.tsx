@@ -99,7 +99,6 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   const [explicit, setExplicit] = useState(false);
   const [attached, setAttached] = useState<string>();
   const [frame, setFrame] = useState<string>();
-  const [playing, setPlaying] = useState(false);
   const [error, setError] = useState<string>();
   const [posterError, setPosterError] = useState<string>();
   const [posterReady, setPosterReady] = useState<string>();
@@ -137,7 +136,9 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   const allowed = Boolean(environment?.online && environment.visible && inView && (intent === 'loop'
     || (intent === 'auto' && (explicit || (!environment.reduced && !environment.limited && !hover && !focus)))));
   const starting = allowed && !failed && !showFrame;
-  const toggleActive = playing || starting || Boolean(shownMovie && !failed && (intent === 'auto' || intent === 'loop'));
+  // The key follows the video. Hover, focus, the viewport and a hidden page
+  // hold playback, so a held recording offers Play and one press plays it.
+  const toggleActive = allowed && !failed;
   const messageId = 'home-run-description-' + run.id;
 
   useEffect(() => {
@@ -171,7 +172,6 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
     const element = movie.current;
     setAttached(undefined);
     setFrame(undefined);
-    setPlaying(false);
     setError(undefined);
     return () => {
       if (element?.hasAttribute('src')) {
@@ -219,7 +219,6 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
     } else {
       setIndex(index + 1);
     }
-    setPlaying(false);
     initialWebp.current = false;
   }
 
@@ -273,7 +272,6 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
     if (step !== index) {
       setAttached(undefined);
       setFrame(undefined);
-      setPlaying(false);
     }
     setError(undefined);
     setPlayTriedOffline(false);
@@ -340,12 +338,10 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
           src={shownMovie ? videoUrl : undefined} loop={intent === 'loop'}
           onPlaying={() => {
             setFrame(videoUrl);
-            setPlaying(true);
             failures.current = 0;
           }}
-          onPause={() => setPlaying(false)}
           onEnded={() => { if (intent === 'auto') advance(); }}
-          onError={() => { if (shownMovie) { setPlaying(false); setError(videoUrl); } }}
+          onError={() => { if (shownMovie) setError(videoUrl); }}
         />
         {posterFailed && !showFrame && <Trouble />}
         <span className="corner-ticks" aria-hidden="true"><i /><i /><i /><i /></span>

@@ -39,6 +39,10 @@ export async function checkHomeRuns(browser, baseUrl, [opening, following]) {
     assert.equal(first.source, firstVideo);
     await waitForPlaying(page, first.time);
     const video = region.locator('video');
+    await region.locator('.home-run__toggle').hover();
+    await page.waitForFunction((selector) => document.querySelector(selector + ' video')?.paused, PLAYER, { timeout: 5000 });
+    await region.getByRole('button', { name: 'Play the recordings' }).click();
+    await waitForPlaying(page).catch(() => { throw Error('Play must start the recording held under the pointer'); });
     await region.getByRole('button', { name: 'Pause the recordings' }).click();
     const held = await video.evaluate((movie) => movie.currentTime);
     await page.waitForTimeout(300);
@@ -331,6 +335,9 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
 
   await inContext('manual loop, arrows and polite selection', { serviceWorkers: 'block' }, async (page) => {
     await open(page);
+    await waitForPlaying(page);
+    await player(page).locator('.home-run__toggle').hover();
+    await button(page, 'Play the recordings').click();
     await waitForPlaying(page);
     await button(page, 'Pause the recordings').click();
     const held = await timeStaysPut(page, 'Explicit Pause held the frame');
