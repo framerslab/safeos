@@ -2,7 +2,7 @@
  * The link to SafeOS's code, with the repository's star count
  *
  * The header pairs the GitHub mark with the word and star count when there
- * is room. The icon-only link has the same accessible name. The Menu and
+ * is room. The icon-only link has the same accessible name and description. The Menu and
  * footer show the word and count. The count is written into the page at
  * build time and its description gives the date it was read.
  *
@@ -104,10 +104,23 @@ export function GitHubLink({ className, place, full = false, onClick }: GitHubLi
 }
 
 export function GitHubIconLink({ className }: { className: string }) {
+  const stars = starCount();
   return (
-    <a href={GITHUB_URL} className={`key--icon ${className}`} aria-label={headerLinkName(starCount())}>
-      <GitHubMark />
-    </a>
+    <>
+      <a
+        href={GITHUB_URL}
+        className={`key--icon ${className}`}
+        aria-label={headerLinkName(stars)}
+        aria-describedby={stars ? 'github-count-icon' : undefined}
+      >
+        <GitHubMark />
+      </a>
+      {stars && (
+        <span id="github-count-icon" hidden>
+          {githubLinkDescription(stars)}
+        </span>
+      )}
+    </>
   );
 }
 

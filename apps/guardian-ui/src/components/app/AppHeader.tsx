@@ -62,7 +62,7 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
   const barRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLButtonElement>(null);
   const foldingLink = useRef<HTMLElement | null>(null);
-  const unfolding = useRef(false);
+  const returning = useRef<string | null>(null);
 
   // Closing More, by Escape, by a press outside or by one of its rows, puts
   // focus back on the More key.
@@ -103,9 +103,12 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
       if (movesAt !== undefined && Number(was) < movesAt && next >= movesAt && focused instanceof HTMLElement) {
         foldingLink.current = focused;
       }
-      // More and its panel leave the row with focus on one of them.
-      unfolding.current = Number(was) >= 2 && next < 2 && focused instanceof HTMLElement
-        && (focused === moreRef.current || focused.classList.contains('app-more__row'));
+      // A row of More whose link goes back into the row takes its focus with
+      // it; More leaving the row with focus on its key gives focus to Help.
+      const row = focused instanceof HTMLElement && focused.classList.contains('app-more__row')
+        ? focused.dataset.section : undefined;
+      returning.current = row && next < (MOVES[row] ?? 0) ? row
+        : Number(was) >= 2 && next < 2 && focused === moreRef.current ? '/help' : null;
       setFold(next);
       if (next < 2) setOpen(false);
     };
@@ -120,17 +123,17 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
     };
   }, [newAlerts, fold]);
 
-  // Focus follows Help and Settings into More as the row folds, and goes back
-  // to Help when More leaves the row.
+  // Focus follows Help and Settings into More as the row folds, and back into
+  // the row as it widens; it goes to Help when More leaves the row.
   useLayoutEffect(() => {
     const previous = foldingLink.current;
-    const unfolded = unfolding.current;
+    const back = returning.current;
     foldingLink.current = null;
-    unfolding.current = false;
+    returning.current = null;
     if (previous && (document.activeElement === previous || document.activeElement === document.body)) {
       moreRef.current?.focus();
-    } else if (unfolded) {
-      headerRef.current?.querySelector<HTMLElement>('.app-header__link[data-section="/help"]')?.focus();
+    } else if (back) {
+      headerRef.current?.querySelector<HTMLElement>(`.app-header__link[data-section="${back}"]`)?.focus();
     }
   }, [fold]);
 

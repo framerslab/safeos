@@ -305,8 +305,10 @@ export default function SecurityPage() {
       return;
     }
 
-    // Trigger intrusion in store
+    // Trigger intrusion in store; the alert line keeps this check's count
+    // and time, the ones its picture and notification carry.
     triggerIntrusion(intrusionFrame);
+    setOverLine({ count: result.personCount, at: result.timestamp });
 
     // Activate alerts based on mode
     if (settings.alertMode === 'extreme' && !alertActiveRef.current) {
@@ -434,7 +436,6 @@ export default function SecurityPage() {
         if (!result) return;
         if (shouldForce) lastForceDetectionRef.current = now;
 
-        if (result.personCount > settings.allowedPersons) setOverLine({ count: result.personCount, at: result.timestamp });
         setCurrentPersonCount(result.personCount);
         recordDetection(result.personCount);
 

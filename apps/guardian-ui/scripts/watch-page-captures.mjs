@@ -116,6 +116,14 @@ async function captureNotice(page, notice, file) {
   await page.locator('[data-captured-notification]').screenshot({ path: file });
 }
 
+// The People count's words, as the page shows them: the base commit of a pull
+// request made before the plain words shows the old ones, and one made after
+// shows the new ones, so the capture reads either in both runs.
+export const peopleCountText = {
+  heading: /^(people in view|Persons Detected)$/,
+  over: /^(More than this watch allows\.|\+1 INTRUDER)$/,
+};
+
 export async function captureWatchPages(browser, baseUrl, outDir, routes, openContext) {
   const after = process.env.PICTURE_VERSION === 'after';
   let failures = 0;
@@ -155,10 +163,9 @@ export async function captureWatchPages(browser, baseUrl, outDir, routes, openCo
             : page.getByText('Caution', { exact: true }).first().locator('xpath=..');
           await sighting.screenshot({ path: path.join(outDir, `${name}-sighting-${suffix}`) });
           if (name === 'people' && width !== 1280) {
-            const count = page.getByText(after ? 'people in view' : 'Persons Detected', { exact: true })
-              .locator('xpath=../..');
+            const count = page.getByText(peopleCountText.heading).locator('xpath=../..');
             await count.getByText('2', { exact: true }).waitFor();
-            await count.getByText(after ? 'More than this watch allows.' : '+1 INTRUDER', { exact: true }).waitFor();
+            await count.getByText(peopleCountText.over).waitFor();
             await count.screenshot({ path: path.join(outDir, `people-count-${suffix}`) });
           }
           if (after && name === 'people') {

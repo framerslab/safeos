@@ -564,12 +564,12 @@ export default function WildlifePage() {
 
           {/* Sidebar */}
           <div className="space-y-4">
-            {/* Current Detections */}
+            {/* Sightings kept until Clear All or the watch's end */}
             {currentDetections.length > 0 && (
               <div className="bg-slate-900 border border-red-500/50 rounded-xl p-4">
                 <h3 className="font-semibold text-red-400 mb-3 flex items-center gap-2">
                   <IconAlertTriangle size={18} />
-                  In view
+                  Sightings to clear
                 </h3>
                 <div className="space-y-2">
                   {currentDetections.slice(0, 3).map((detection) => (
