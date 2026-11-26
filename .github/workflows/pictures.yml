@@ -213,6 +213,7 @@ jobs:
             ${{ runner.temp }}/pictures/people-count-*.png
             ${{ runner.temp }}/pictures/people-notification-*.png
             ${{ runner.temp }}/pictures/wildlife-sighting-*.png
+            ${{ runner.temp }}/pictures/wildlife-kept-*.png
             ${{ runner.temp }}/pictures/wildlife-notification-*.png
             ${{ runner.temp }}/pictures/wildlife-caution-*.png
             ${{ runner.temp }}/pictures/*-keys-320-light.png

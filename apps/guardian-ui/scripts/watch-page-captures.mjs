@@ -175,6 +175,9 @@ export async function captureWatchPages(browser, baseUrl, outDir, routes, openCo
             }
           }
           if (name === 'wildlife') {
+            // The sightings kept until Clear All, with their heading.
+            await page.getByRole('button', { name: 'Clear All', exact: true }).locator('xpath=..')
+              .screenshot({ path: path.join(outDir, `wildlife-kept-${suffix}`) });
             const badge = page.getByText('Caution', { exact: true }).first();
             const size = await badge.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
             if (after && size < 16) throw new Error(`Caution badge text is ${size} px`);
