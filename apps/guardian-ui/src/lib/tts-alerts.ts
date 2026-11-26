@@ -94,16 +94,23 @@ export function voicesWhenListed(synth: SpeechSynthesis): Promise<SpeechSynthesi
   });
 }
 
-/** A named online voice is used only when the person chose that voice on this browser. */
-export function findSpokenAlertVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
+/**
+ * A named online voice is used only when the person chose that voice on this
+ * browser. Otherwise a voice on this device in `language`, which is the page's
+ * language unless the words are SafeOS's own English ones.
+ */
+export function findSpokenAlertVoice(
+  voices: SpeechSynthesisVoice[],
+  language = (typeof document !== 'undefined' && document.documentElement.lang) || 'en',
+): SpeechSynthesisVoice | undefined {
   const chosenURI = useSettingsStore.getState().spokenAlertVoiceURI;
   const chosen = chosenURI ? voices.find((voice) => voice.localService === false && voice.voiceURI === chosenURI) : undefined;
   if (chosen) return chosen;
 
-  const language = (typeof document !== 'undefined' && document.documentElement.lang || 'en').toLowerCase();
-  const primaryLanguage = language.split('-')[0];
+  const wanted = language.toLowerCase();
+  const primaryLanguage = wanted.split('-')[0];
   const local = voices.filter((voice) => voice.localService === true);
-  return local.find((voice) => voice.lang.toLowerCase() === language)
+  return local.find((voice) => voice.lang.toLowerCase() === wanted)
     ?? local.find((voice) => voice.lang.toLowerCase().split('-')[0] === primaryLanguage)
     ?? local[0];
 }
@@ -122,8 +129,9 @@ export class TTSManager {
   private isRepeating: boolean = false;
   private isSpeaking: boolean = false;
   private currentMessage: string | null = null;
-  // Counts stops, so a message that waited for the voice list is dropped after one.
-  private stops = 0;
+  // Counts messages and stops, so a message that waited for the voice list is
+  // dropped after a stop or a newer message.
+  private requests = 0;
 
   constructor(config: Partial<TTSConfig> = {}) {
     this.config = { ...DEFAULT_TTS_CONFIG, ...config };
@@ -192,20 +200,22 @@ export class TTSManager {
       return;
     }
 
+    this.requests += 1;
     const voices = this.getVoices();
     if (voices.length > 0) {
       this.speakWith(message, voices);
       return;
     }
     const synth = this.synth;
-    const stops = this.stops;
+    const request = this.requests;
     void voicesWhenListed(synth).then((listed) => {
-      if (this.synth === synth && this.stops === stops) this.speakWith(message, listed);
+      if (this.synth === synth && this.requests === request) this.speakWith(message, listed);
     });
   }
 
   private speakWith(message: string, voices: SpeechSynthesisVoice[]): void {
-    const voice = findSpokenAlertVoice(voices);
+    // People's and Wildlife's own words are English; a message the person wrote takes the page's language.
+    const voice = findSpokenAlertVoice(voices, this.customMessages.includes(message) ? undefined : 'en');
     if (!voice || !this.synth) return;
 
     // Cancel any ongoing speech
@@ -293,7 +303,7 @@ export class TTSManager {
    */
   stopContinuousAlert(): void {
     this.isRepeating = false;
-    this.stops += 1;
+    this.requests += 1;
 
     if (this.repeatInterval) {
       clearInterval(this.repeatInterval);

@@ -110,6 +110,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - People keeps up to 100 pictures on the device. It makes room with the oldest seen pictures first, then the oldest unseen pictures.
 - Removed unused age values from People, Wildlife and the older Lost and Found picture store.
 - Spoken alerts use a voice on the device if available. Alert sounds lets you choose an online voice and says that some voices send the alert’s words to the browser maker.
+- SafeOS’s own spoken alert words, which are English, take an English voice on a page in another language; a message you write takes a voice in the page’s language.
+- A spoken alert that waits for the browser’s voice list never replaces a newer alert. A Lost and Found message that waits through a pause speaks once the pause ends.
+- A seen People or Lost and Found alert stays seen when the frame limit removes a frame from its middle and the gap cuts it in two.
+- Measure says when Wildlife’s watch did not start because the laptop model measurement stopped first, with that measurement’s error, in place of blaming the motion gate.
 - The blog post on how SafeOS Guardian works cites the lines that hold the code it quotes: the interval constants at lines 99 to 101 of `CameraFeed.tsx`, and the Lost & Found loop at lines 324 to 336 of `monitor/page.tsx`.
 - Lost and Found's full-screen pictures are readable in both looks: the question at 12:1 or more, every other word at 7:1 or more and 18 px. They fill the window at every width, and a tall photo leaves their keys in view. They take focus when they open, keep Tab on their keys and give focus back when they close, and Space presses the key that holds focus.
 - **Mark all as seen** on the dashboard moves focus to **Since you last looked** as it is pressed, so focus stays on the list when the key leaves.

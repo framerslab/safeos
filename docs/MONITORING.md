@@ -264,8 +264,11 @@ Emergency mode and the Emergency trigger always play.
 ## Spoken alerts
 
 People, Wildlife and Lost and Found’s custom spoken messages use a voice on
-this device by default, preferring the language of the page. A browser can take
-a moment to list its voices, so an alert waits up to a second for the list. If
+this device by default. SafeOS’s own alert words are English and take an
+English voice; a message you write takes a voice in the language of the page.
+A browser can take a moment to list its voices, so an alert waits up to a
+second for the list. A newer alert replaces one that is still waiting, and a
+Lost and Found message that waits through a pause speaks once the pause ends. If
 the browser offers no voice on this device, spoken alerts stay quiet. **Settings > Alert sounds > Spoken alert voice** lets you
 choose a specific online voice when the browser offers one. Some browsers'
 voices send the alert's words to the browser maker. Choose **Use a voice on

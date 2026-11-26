@@ -119,7 +119,9 @@ browser contexts.
   key starts the camera, and Wildlife sees the clip through its own one-second
   timer and motion gate. A picture encoded by the detector after inference
   shows that the gate opened and the model returned. Each watch must finish
-  at least one inference and save a cat sighting. The job summary and
+  at least one inference and save a cat sighting. When the laptop model
+  measurement stops first, the Wildlife watch never starts, and the run
+  fails with that measurement's error. The job summary and
   `wildlife-probe.json` in the
   `measurements` artifact give the frame's time in the clip and the time
   of the first cat sighting.

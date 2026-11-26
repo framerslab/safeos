@@ -181,17 +181,20 @@ function groupBy<T>(records: T[], key: (record: T) => string): Map<string, T[]> 
 /**
  * The frames to mark as seen so that each alert keeps its seen state when the
  * frames in `removed` go (the frame limit removes the oldest seen frames): a
- * run that is seen and keeps frames, none of them marked, has its first kept
- * frame marked. `frames` is one group, as groupAlerts counts it (one pet's
- * frames that raised an alert, or People's), cut into runs as groupAlerts
- * cuts them.
+ * run that is seen keeps its seen state in every run its kept frames make,
+ * since a removed frame can leave a gap that cuts the run in two. Each such
+ * run with no frame marked has its first frame marked. `frames` is one group,
+ * as groupAlerts counts it (one pet's frames that raised an alert, or
+ * People's), cut into runs as groupAlerts cuts them.
  */
 export function seenAfterRemoval<T extends { id: string; acknowledged: boolean }>(frames: T[], removed: ReadonlySet<string>): T[] {
   const marks: T[] = [];
   for (const run of runsOf(frames)) {
     if (!run.some((timed) => timed.record.acknowledged === true)) continue;
-    const kept = run.filter((timed) => !removed.has(timed.record.id));
-    if (kept.length > 0 && !kept.some((timed) => timed.record.acknowledged === true)) marks.push(kept[0].record);
+    const kept = run.filter((timed) => !removed.has(timed.record.id)).map((timed) => timed.record);
+    for (const part of runsOf(kept)) {
+      if (!part.some((timed) => timed.record.acknowledged === true)) marks.push(part[0].record);
+    }
   }
   return marks;
 }

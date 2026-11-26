@@ -3,7 +3,12 @@
 
 /** Wildlife's real watch must get through its motion gate, finish an inference and save a cat on each play. */
 export function wildlifeShortfall(results) {
-  if (results.wildlife?.attempts.length !== 2
+  // The watch runs in the laptop's model measurement, once the model is in; when that stops, it never starts.
+  if (!results.wildlife) {
+    const laptop = results.runs?.find((run) => run.class === 'laptop' && run.cpuThrottlingRate?.value === 1);
+    return `Wildlife’s watch did not run: the laptop’s model measurement stopped first (${laptop?.model?.error ?? 'no result'}).`;
+  }
+  if (results.wildlife.attempts?.length !== 2
     || results.wildlife.attempts.some((attempt) => attempt.error || attempt.frameReads < 2 || !attempt.inferences.length)) {
     return 'Wildlife did not complete a model check through its motion gate on both plays of the sample clip.';
   }

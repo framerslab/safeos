@@ -8,6 +8,7 @@
  */
 
 import { Howl } from 'howler';
+import { SPOKEN_DEFAULT } from './lost-found-words';
 import { findSpokenAlertVoice, voicesWhenListed } from './tts-alerts';
 
 // =============================================================================
@@ -98,6 +99,8 @@ export class CustomMediaPlayer {
   private speechSynth: SpeechSynthesis | null = null;
   // Counts starts, so a wait for the voice list ends with the playback that began it.
   private playbacks = 0;
+  // A sound or message that came due during a pause; it plays once the pause ends.
+  private pausedStep: { voicesAwaited: boolean } | null = null;
 
   constructor(
     config: Partial<CustomMediaConfig> = {},
@@ -147,6 +150,7 @@ export class CustomMediaPlayer {
     if (this.state.isPlaying) return;
 
     this.playbacks += 1;
+    this.pausedStep = null;
     this.state = {
       ...this.getInitialState(),
       isPlaying: true,
@@ -173,6 +177,7 @@ export class CustomMediaPlayer {
     
     this.state.isPlaying = false;
     this.state.isPaused = false;
+    this.pausedStep = null;
     
     this.callbacks.onPlaybackEnd?.(reason);
   }
@@ -204,6 +209,10 @@ export class CustomMediaPlayer {
     if (this.config.playbackMode === 'timer') {
       this.startPlaybackTimer();
     }
+
+    const step = this.pausedStep;
+    this.pausedStep = null;
+    if (step) this.playNextMedia(step.voicesAwaited);
   }
 
   /**
@@ -262,7 +271,11 @@ export class CustomMediaPlayer {
    * Play next media item
    */
   private playNextMedia(voicesAwaited = false): void {
-    if (!this.state.isPlaying || this.state.isPaused) return;
+    if (!this.state.isPlaying) return;
+    if (this.state.isPaused) {
+      this.pausedStep = { voicesAwaited };
+      return;
+    }
 
     // Alternate between audio and TTS
     const hasAudio = this.config.audioEnabled && this.config.audioFiles.length > 0;
@@ -277,7 +290,11 @@ export class CustomMediaPlayer {
       });
       return;
     }
-    const voice = wantsSpeech ? findSpokenAlertVoice(voices) : undefined;
+    // Lost and Found's own line is English; a line the person wrote takes the page's language.
+    const next = wantsSpeech
+      ? this.config.ttsMessages[(this.state.currentMessageIndex + 1) % this.config.ttsMessages.length]
+      : undefined;
+    const voice = next === undefined ? undefined : findSpokenAlertVoice(voices, next === SPOKEN_DEFAULT ? 'en' : undefined);
 
     if (hasAudio && voice) {
       // Alternate
