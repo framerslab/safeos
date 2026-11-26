@@ -357,3 +357,30 @@ it('keeps a Lost and Found spoken alert quiet when only an online voice is avail
     player.dispose();
   }
 });
+
+it('speaks a Lost and Found message once the browser lists its voices', async () => {
+  // A browser may list no voices until it has read them, then fire voiceschanged.
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  let listed: unknown[] = [];
+  const events = new EventTarget();
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => listed);
+  Object.assign(mockSpeechSynthesis, {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+  });
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    listed = [local];
+    events.dispatchEvent(new Event('voiceschanged'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: local }));
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+    Reflect.deleteProperty(mockSpeechSynthesis, 'addEventListener');
+    Reflect.deleteProperty(mockSpeechSynthesis, 'removeEventListener');
+  }
+});

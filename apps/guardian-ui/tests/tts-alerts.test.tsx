@@ -88,3 +88,29 @@ it('speaks through an online voice only after it is chosen in Settings', async (
 
   expect(synth.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: remote }));
 });
+
+it('speaks the first alert once the browser lists its voices', async () => {
+  // A browser may list no voices until it has read them, then fire voiceschanged.
+  let listed: SpeechSynthesisVoice[] = [];
+  const synth = speech([]);
+  synth.getVoices = () => listed;
+  const tts = new TTSManager();
+  await tts.initialize();
+  tts.speak('A cat is in view.');
+
+  listed = [remote, local];
+  synth.dispatchEvent(new Event('voiceschanged'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(synth.speak).toHaveBeenCalledTimes(1);
+  expect(synth.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: local }));
+  tts.dispose();
+});
+
+it('says spoken alerts stay quiet when the browser offers no voice at all', async () => {
+  speech([]);
+  await act(async () => { render(<SoundsSettingsPage />); });
+
+  expect(screen.getByText('This browser offers no voice, so spoken alerts stay quiet.')).toBeTruthy();
+  expect(screen.queryByText(/unless you choose an online voice/)).toBeNull();
+});
