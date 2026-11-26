@@ -667,9 +667,11 @@ It then reads the encoded frames of each committed Watching recording with
 `scripts/home-run-held.mjs`: the last 2.5 seconds must show the alert the
 watch scrolled to, not the camera from the moment Motion crossed its line,
 and must hold still. While recording, the producer moves each held page (the
-opened Dashboard picture, the Watching alert, the foot of Settings) by the
-fewest pixels that keep every line of words whole at the crop's edges, and
-fails a held frame that still cuts a word. It also waits for a recorded
+opened Dashboard picture, the Watching alert, the first rows and the foot of
+Settings) by the fewest pixels that keep every line of words whole at the
+crop's edges, and fails a held frame that still cuts a word. The Watching
+alert and the Dashboard picture also keep every key, link and switch whole;
+the opened picture narrows in 8 px steps when no scroll position does. It also waits for a recorded
 frame of each held page; when the screencast sends none, because the page
 stopped changing, a DevTools screenshot of the same size is kept as that
 frame.
