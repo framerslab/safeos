@@ -1,9 +1,12 @@
 # People, Wildlife and alert settings
 
 The Pictures workflow opened the same states in Chromium in the base and
-pull request builds. These PNGs come from the `monitoring-pictures-before`
+pull request builds. The monitoring PNGs come from the `monitoring-pictures-before`
 and `monitoring-pictures-after` artifacts for head `559c253`.
 [Pictures run](https://github.com/framerslab/safeos/actions/runs/45743322803)
+
+The Wildlife movement control pictures use those artifacts from head `acce843`.
+[Wildlife pictures run](https://github.com/framerslab/safeos/actions/runs/45886962780)
 
 The picture-change walk uses a camera that changes a small part of a 1280 by
 720 frame. It raises a Critical alert before and a Low alert after. The
