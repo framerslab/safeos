@@ -3892,6 +3892,42 @@ describeInBothLooks('The privacy page and the notices, 1280 px', () => {
   });
 });
 
+describeInBothLooks('What leaves this device on a phone, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('each connection reads whole in the window, with no sideways scroll, and each part says what it is', async ({ page }) => {
+    await page.goto('/privacy/', { waitUntil: 'networkidle' });
+    const table = page.getByRole('table', { name: 'What leaves this device' });
+    await table.scrollIntoViewIfNeeded();
+
+    const region = page.getByRole('region', { name: 'What leaves this device' });
+    const sideways = await region.evaluate((element) => element.scrollWidth - element.clientWidth);
+    expect(sideways, 'pixels the table scrolls sideways').toBeLessThanOrEqual(0);
+
+    // Every name and every cell lies inside the 390 px window.
+    const outside = await table.locator('tbody th, tbody td').evaluateAll((cells) =>
+      cells
+        .map((cell) => ({ words: (cell.textContent ?? '').trim().slice(0, 40), box: cell.getBoundingClientRect() }))
+        .filter(({ box }) => box.left < 0 || box.right > window.innerWidth)
+        .map(({ words, box }) => `${words} (${Math.round(box.left)} to ${Math.round(box.right)} px)`)
+    );
+    expect(outside, 'cells outside the window').toEqual([]);
+
+    // The table keeps its header, rows and cells for a screen reader.
+    await expect(table.getByRole('columnheader')).toHaveCount(4);
+    await expect(table.getByRole('rowheader')).toHaveCount(4);
+    await expect(table.getByRole('cell')).toHaveCount(12);
+
+    // With the header row out of sight, each part of a connection says what it is.
+    for (const row of await table.locator('tbody tr').all()) {
+      const words = (await row.innerText()).replace(/\s+/g, ' ');
+      for (const label of ['When', 'Who sees what', 'How to stop it']) {
+        expect(words, `a connection names its part ${label}`).toContain(label);
+      }
+    }
+  });
+});
+
 // =============================================================================
 // Edges of the save, the sweeps and the notification
 // =============================================================================
