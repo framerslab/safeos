@@ -165,7 +165,7 @@ jobs:
             fi
             python3 -m venv "$RUNNER_TEMP/home-pixels"
             "$RUNNER_TEMP/home-pixels/bin/python3" -m pip install --quiet Pillow==11.3.0
-            "$RUNNER_TEMP/home-pixels/bin/python3" -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures"
+            "$RUNNER_TEMP/home-pixels/bin/python3" -I scripts/contrast-sample.py "$RUNNER_TEMP/pictures" --runs out/home/runs/runs.json
             break
           done
 
@@ -177,6 +177,7 @@ jobs:
           path: |
             ${{ runner.temp }}/pictures/*.png
             ${{ runner.temp }}/pictures/home-readability.json
+            ${{ runner.temp }}/pictures/home-first-bounds.json
           if-no-files-found: error
           retention-days: 14
 
@@ -365,3 +366,140 @@ jobs:
           path: ${{ runner.temp }}/alert-pictures
           if-no-files-found: error
           retention-days: 14
+
+  record-home-runs:
+    name: Record the home page runs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apps/guardian-ui
+    steps:
+      - name: Check out the recording source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/guardian-ui/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Read the repository's star count
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/read-github-stars.mjs
+
+      - name: Build static site
+        run: npm run build
+        env:
+          NEXT_PUBLIC_STATIC_MODE: 'true'
+          NEXT_PUBLIC_API_URL: ''
+          NEXT_PUBLIC_WS_URL: ''
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install chromium
+
+      - name: Install ffmpeg
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+
+      - name: Prepare the sample clip for the camera and microphone
+        run: |
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -an -pix_fmt yuv420p "$RUNNER_TEMP/sample.y4m"
+          ffmpeg -nostdin -v error -y -i public/home/sample-clip.mp4 -vn -ac 1 -ar 48000 -c:a pcm_s16le "$RUNNER_TEMP/sample.wav"
+
+      - name: Serve the static site and record
+        env:
+          CAPTURE_RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          export CAPTURE_COMMIT="$(git rev-parse HEAD)"
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >"$RUNNER_TEMP/home-run-server.log" 2>&1 &
+          for attempt in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:4173/ >/dev/null || exit 1
+          node scripts/home-runs.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/home-runs" "$RUNNER_TEMP/sample.y4m" "$RUNNER_TEMP/sample.wav"
+
+      - name: Upload the recorded runs
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-runs
+          path: ${{ runner.temp }}/home-runs
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload recording diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: home-run-diagnostics
+          path: ${{ runner.temp }}/home-run-diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+
+  check-home-runs:
+    name: Check the committed home runs
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    defaults:
+      run:
+        working-directory: apps/guardian-ui
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/guardian-ui/package-lock.json
+
+      - run: npm ci
+
+      - name: Check which files change the recording input digest
+        run: node scripts/home-run-inputs.mjs --prove-input-digest public
+
+      - name: Check the source commit and producer artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRODUCER_COMMIT="$(node -p "require('./public/home/runs/runs.json').commit")"
+          PRODUCER_RUN_ID="$(node -p "new URL(require('./public/home/runs/runs.json').run).pathname.split('/').pop()")"
+          git merge-base --is-ancestor "$PRODUCER_COMMIT" HEAD
+          RECORD_JOB="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRODUCER_RUN_ID/jobs" --jq             '.jobs[] | select(.name == "Record the home page runs" and .conclusion == "success") | .id')"
+          test -n "$RECORD_JOB"
+          LIVE_ARTIFACT="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PRODUCER_RUN_ID/artifacts" --jq             '.artifacts[] | select(.name == "home-runs" and .expired == false) | .id')"
+          if [ -n "$LIVE_ARTIFACT" ]; then
+            gh run download "$PRODUCER_RUN_ID" --repo "$GITHUB_REPOSITORY" --name home-runs --dir "$RUNNER_TEMP/producer"
+            node scripts/home-run-inputs.mjs --compare-artifact public "$RUNNER_TEMP/producer"
+          else
+            echo "The producer artifact is no longer retained. The successful job and committed hashes still apply."
+          fi
+
+      - name: Check source and file hashes of the committed runs
+        run: node scripts/home-run-inputs.mjs --verify-committed public
+
+      - name: Install ffmpeg
+        if: ${{ !cancelled() }}
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+
+      - name: Test the recording scripts
+        if: ${{ !cancelled() }}
+        run: node --test scripts/home-run-scripts.test.mjs
+
+      - name: Check that each Watching recording holds its alert at the end
+        if: ${{ !cancelled() }}
+        run: node scripts/home-run-held.mjs public

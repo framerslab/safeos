@@ -107,11 +107,17 @@ describe('the capture job', () => {
 
   it('drives the monitor through Chromium\'s fake camera and saves after the alert list holds a motion alert', () => {
     const script = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'home-captures.mjs'), 'utf8');
+    const seed = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'home-run-seed.mjs'), 'utf8');
+    const sharedSeed = fs.readFileSync(path.resolve(__dirname, '..', 'scripts', 'lost-found-walk.mjs'), 'utf8');
     for (const part of [
       '--use-fake-device-for-media-stream',
       '--use-file-for-fake-video-capture=',
       '--use-file-for-fake-audio-capture=',
-      "permissions: ['camera', 'microphone']",
+      "permissions: ['camera', 'microphone', 'notifications']",
+    ]) expect(seed).toContain(part);
+    expect(seed).toContain("seededContext as seedWatchedDevice");
+    expect(sharedSeed).toContain('noticeAnswered: true');
+    for (const part of [
       "name: 'Start watching'",
       'Motion at \\d',
       'Sound at \\d',

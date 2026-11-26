@@ -18,7 +18,7 @@ import path from 'node:path';
 
 import { test, expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
-import { coverBox } from '../src/lib/alert-pictures/rules';
+import { mapLiveBox } from '../src/lib/alert-pictures/rules';
 import {
   BLOCK_READABILITY,
   CUSTOM_PRESET,
@@ -2103,7 +2103,7 @@ for (const look of ['dark', 'light'] as const) {
         expect(plate.ratio).toBeGreaterThanOrEqual(12);
       });
 
-      test(`the live box lands where the frame's numbers fall through the picture's crop, ${width} px, ${look}`, async ({ page, context }) => {
+      test(`the live box stays aligned on the full camera image, ${width} px, ${look}`, async ({ page, context }) => {
         test.setTimeout(120_000);
         await watchWith(page, context, { settings: MOTION_ONLY, camera: MIDDLE_BAND });
         await timeOf(cards(page).first(), 'Motion');
@@ -2114,16 +2114,15 @@ for (const look of ['dark', 'light'] as const) {
         await expect.poll(() => keptCount(page), { timeout: 15_000 }).toBe(1);
         const [row] = keptRows(await readDatabase(page));
         expect([row.sourceWidth, row.sourceHeight, row.box]).toEqual([640, 480, { x: 0, y: 120, width: 640, height: 240 }]);
-        const want = coverBox(row.box, 640, 480, view.width, view.height)!;
-        expect(want, 'the box falls inside the live picture’s crop').not.toBeNull();
+        const want = mapLiveBox(row.box, 640, 480, view.width, view.height, 'contain')!;
+        expect(want, 'the box falls inside the full camera image').not.toBeNull();
         for (const key of ['x', 'y'] as const) {
           expect(Math.abs(drawn[key] - (view[key] + want[key])), `the box's ${key} (${drawn[key]} against ${view[key] + want[key]})`).toBeLessThanOrEqual(2);
         }
         for (const key of ['width', 'height'] as const) {
           expect(Math.abs(drawn[key] - want[key]), `the box's ${key} (${drawn[key]} against ${want[key]})`).toBeLessThanOrEqual(2);
         }
-        // Not the per cents of the 16:9 box, where a quarter of the way down a 4:3 frame stands lower.
-        expect(Math.abs(drawn.y - (view.y + view.height * 0.25)), 'the box is not placed by per cents of the 16:9 box').toBeGreaterThan(4);
+        expect(drawn.x - view.x, 'the box starts at the camera image inside the 16:9 frame').toBeGreaterThan(4);
       });
     });
   }
@@ -2245,10 +2244,10 @@ describeInBothLooks('The live box: one at a time, never for a sound, clear of th
   }
 
   for (const width of [390, 1280]) {
-    test(`a change along the top of a 4:3 camera outside the live picture draws nothing there and the card’s picture keeps its box, ${width} px`, async ({ page, context }) => {
+    test(`a change along the top of a 4:3 camera shows on the full live image and its saved picture, ${width} px`, async ({ page, context }) => {
       await page.setViewportSize({ width, height: 900 });
       test.setTimeout(120_000);
-      // One zone over the top tenth of a 640 by 480 frame: the 16:9 live picture cuts the frame's top eighth.
+      // One zone over the top tenth of a 640 by 480 frame.
       await watchWith(page, context, {
         settings: { ...MOTION_ONLY, detectionZones: [{ id: 'top', name: 'Top', enabled: true, x: 0, y: 0, width: 100, height: 10 }] },
         camera: { width: 640, height: 480, background: 128, moving: { x: 0, y: 0, width: 1, height: 0.1 }, levels: [0, 85, 170, 255] },
@@ -2258,8 +2257,14 @@ describeInBothLooks('The live box: one at a time, never for a sound, clear of th
       await expect(card.getByRole('img', { name: pictureName(time, true), exact: true })).toBeVisible();
       await expect(card.locator('.alert-picture__box')).toHaveCount(1);
       await expect(card.getByText('in Top', { exact: true })).toBeVisible();
-      await expect(liveBox(page)).toHaveCount(0);
-      await expect(livePlate(page)).toHaveCount(0);
+      await expect(liveBox(page)).toBeVisible();
+      await expect(livePlate(page)).toBeVisible();
+      const view = (await livePicture(page).boundingBox())!;
+      const drawn = (await liveBox(page).boundingBox())!;
+      const imageWidth = view.height * 4 / 3;
+      expect(imageWidth).toBeLessThan(view.width);
+      expect(Math.abs(drawn.y - view.y)).toBeLessThanOrEqual(2);
+      expect(Math.abs(drawn.x - (view.x + (view.width - imageWidth) / 2))).toBeLessThanOrEqual(2);
     });
   }
 

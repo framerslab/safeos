@@ -1,0 +1,2971 @@
+{
+  "schemaVersion": 1,
+  "commit": "38cd1101a8b83b10473ab32826c42741b28251c6",
+  "run": "https://github.com/framerslab/safeos/actions/runs/45872883261",
+  "inputDigest": "a062b7d934427e3795eb03975974ce3772177288e4d5721b02da6598b7995255",
+  "inputs": {
+    ".github/workflows/pictures.yml#record-home-runs": "5f18cbe7c55be3c92fb9c5e617d1d532d6fd3e28",
+    "apps/guardian-ui/next.config.js": "99fd32331c349da96aea4e32dfb61f4a5c1f8fc5",
+    "apps/guardian-ui/package-lock.json": "18247d9e41b40c6b55f5997429be331275f601a5",
+    "apps/guardian-ui/package.json": "fb0876cce8813b5fc463c3b8c3de00767cdc302c",
+    "apps/guardian-ui/postcss.config.js": "12a703d900da8159c30e75acbd2c4d87ae177f62",
+    "apps/guardian-ui/public/home/sample-clip.captions.vtt": "5bd5fd7e15d5e606348caa50183894542a4beaec",
+    "apps/guardian-ui/public/home/sample-clip.descriptions.vtt": "5cc13ab76dd9d6e0e5d6533045e07fe6799ef2db",
+    "apps/guardian-ui/public/home/sample-clip.json": "56ba674a51e44abb5829a58f03b8085284677db7",
+    "apps/guardian-ui/public/home/sample-clip.mp4": "8eea7180768cd8b18072eb55b5946875e49969f5",
+    "apps/guardian-ui/public/home/sample-clip.wide.json": "0c046a870e1dad0178ff59655551c869ffc9838d",
+    "apps/guardian-ui/public/home/sample-clip.wide.mp4": "0700688916b3f755ea18138c1dbba926276b9c3b",
+    "apps/guardian-ui/public/logo.svg": "1393fff0a2489daa9ec0a754dd53e2b5c1f46318",
+    "apps/guardian-ui/public/sw.js": "979a0f8fefec264eb356d1609c885375e41bac98",
+    "apps/guardian-ui/scripts/generate-offline-manifest.mjs": "9c049ef1790e9ec62cf1ea6052aa8784b4091f99",
+    "apps/guardian-ui/scripts/home-capture-settings.json": "a8eb81bac091e53b173a4c1d729cd138b06fabe8",
+    "apps/guardian-ui/scripts/home-run-frames.mjs": "66c77919d79761179049124a461e72fab63b2d22",
+    "apps/guardian-ui/scripts/home-run-inputs.mjs": "fcb15ed4dff1fe03c8ed3bd894c681a228352118",
+    "apps/guardian-ui/scripts/home-run-list.mjs": "580a09a4a5154da056aa9ef4bc697ec0a241e8b8",
+    "apps/guardian-ui/scripts/home-run-seed.mjs": "5238552335fb64610e0add934bc12e0eff324018",
+    "apps/guardian-ui/scripts/home-runs.mjs": "22f383ab0a0d280b1623db56908c7ef74302ab71",
+    "apps/guardian-ui/scripts/home-wording.cjs": "cfa8293ad63b8ed13ff9fbcd8d1fb4aa5c70f764",
+    "apps/guardian-ui/scripts/lost-found-walk.mjs": "2bee934bca444cc76f2bc92e39ef473258f6ddc1",
+    "apps/guardian-ui/scripts/read-github-stars.mjs": "945b75c9628de295ca4d15c3b545c5900eff9127",
+    "apps/guardian-ui/src/app/dashboard/layout.tsx": "38fc66c8f9c4706135abf72af9e1aca162564567",
+    "apps/guardian-ui/src/app/dashboard/page.tsx": "acaf7048cba8c2bab8a3a676c7cf64dc732f0053",
+    "apps/guardian-ui/src/app/globals.css": "6c5f1e65c2354f15a09a41391ac42a93b95a7a94",
+    "apps/guardian-ui/src/app/history/layout.tsx": "87a0553b3d75d2f1efb02967863c62042e7f331a",
+    "apps/guardian-ui/src/app/history/page.tsx": "4fe4d41ba1a28efcda86ae9ab62c242c0bdc1830",
+    "apps/guardian-ui/src/app/layout.tsx": "501d62f880a95479d9ce21b37354b8688b370737",
+    "apps/guardian-ui/src/app/monitor/layout.tsx": "5beafd70b1186aded21bad1e2caab62cc6943ba2",
+    "apps/guardian-ui/src/app/monitor/page.tsx": "c8789d373ca944709315c79d5f51f1f6d15f5c56",
+    "apps/guardian-ui/src/app/settings/layout.tsx": "980fbce4ff2e77a935a397b702f351d4633dbf3f",
+    "apps/guardian-ui/src/app/settings/page.tsx": "1d9cb66a8b50927786923ac0a937434dcd0ef0af",
+    "apps/guardian-ui/src/components/AlertPanel.tsx": "d1983b215f20ecbb4b881407f6cbb5f42de29788",
+    "apps/guardian-ui/src/components/BackendSettings.tsx": "f09378fb800b5ecc622ae66f0a388038773e5254",
+    "apps/guardian-ui/src/components/CameraFeed.tsx": "ff6ac1196e156657e1f3566be9e1fd5949ce8eb3",
+    "apps/guardian-ui/src/components/CameraPicker.tsx": "feac17ec3fb0428308570a62a232fb68055a068e",
+    "apps/guardian-ui/src/components/ErrorBoundary.tsx": "6ad44a8bb148a483879cbcfc10d4df2a636e1668",
+    "apps/guardian-ui/src/components/KeyRow.tsx": "6acd17fb8e321466c927e1df827893377884a942",
+    "apps/guardian-ui/src/components/KeyboardShortcutsModal.tsx": "0fc99a3764f320916f0a7bd52bd8fda7ded911ea",
+    "apps/guardian-ui/src/components/KeyboardShortcutsProvider.tsx": "0fd75fa64611f79e9fea9cbad5bee08f8a803cdd",
+    "apps/guardian-ui/src/components/LostFoundMediaOverlay.tsx": "cf3126808aa3a7c6341bec3b06345f157f4c0bf3",
+    "apps/guardian-ui/src/components/Providers.tsx": "544d2dd1798442a030c3d60728bb769a028a4f57",
+    "apps/guardian-ui/src/components/StatusBanner.tsx": "774062a5f7d2a5aab4b5c966773c19b08d98a34e",
+    "apps/guardian-ui/src/components/ThemeProvider.tsx": "93895feb1b8dceae5e9caa76415522d250b953c3",
+    "apps/guardian-ui/src/components/Toast.tsx": "1834250e36fe40962d8b1e481eb7c0c1c9a82aab",
+    "apps/guardian-ui/src/components/alert-pictures/AlertPicturesGroup.tsx": "780ff6b336ba2aea4516e5c230ad4b0e6af38222",
+    "apps/guardian-ui/src/components/alert-pictures/Glyphs.tsx": "cf6398fe64c63ab9032933befa465d3282a4f5e3",
+    "apps/guardian-ui/src/components/alert-pictures/KeyRow.tsx": "0778453792a2555084d9bbe99d4d04ec4170a421",
+    "apps/guardian-ui/src/components/alert-pictures/ListLine.tsx": "c959137ddb293ca8816c9a9f58b8ec6058f34c60",
+    "apps/guardian-ui/src/components/alert-pictures/LiveBox.tsx": "86f315fa76422664274eff674911ddb7009f95f8",
+    "apps/guardian-ui/src/components/alert-pictures/PictureBlock.tsx": "d5d40282034301dae2f0ea065b7a1361eb15a9ff",
+    "apps/guardian-ui/src/components/alert-pictures/PictureDialog.tsx": "fde627c04a5319ff7d49e0b43c919b1c4a04823e",
+    "apps/guardian-ui/src/components/alert-pictures/PicturesNotice.tsx": "4e9f6fd6f7ea73cabba904bfaa9f3dffad320a33",
+    "apps/guardian-ui/src/components/app/AppHeader.tsx": "163d21a797ffd251fdd45643f57aed0fb63f9256",
+    "apps/guardian-ui/src/components/app/NewAlertsCount.tsx": "e01033d8747cad00b0227de4f3eab0240723189b",
+    "apps/guardian-ui/src/components/app/PhoneBar.tsx": "228391a7ff342e78bf9ba3bc897c1609c54c507d",
+    "apps/guardian-ui/src/components/dashboard/Dashboard.tsx": "2252361b751c6f98ed91ce5b0bdadad4e7b7a567",
+    "apps/guardian-ui/src/components/dashboard/Drawn.tsx": "546f1395fd88afa918c5d52e5a2b63de9f529384",
+    "apps/guardian-ui/src/components/dashboard/OtherTabDialog.tsx": "f38d6e2572c18a9398aa8cb36fc84409e0505f03",
+    "apps/guardian-ui/src/components/dashboard/SinceYouLastLooked.tsx": "25cf44f4faf094fd263aafbb53f8dae11db1deeb",
+    "apps/guardian-ui/src/components/dashboard/WatchState.tsx": "3113c5bb71f61dcfb08fe63772e80a31c5ba3c86",
+    "apps/guardian-ui/src/components/dashboard/WaysToWatch.tsx": "9dcb6727c58ff206f2415f49269ce8d72544cc69",
+    "apps/guardian-ui/src/components/home/Brand.tsx": "a3b0831ca6fa5dde5c14bda7b9f2af78137650dc",
+    "apps/guardian-ui/src/components/icons/WayGlyph.tsx": "4b703be6b273887c813285a37a3a27b6c9c7b4de",
+    "apps/guardian-ui/src/components/icons/index.tsx": "99b6cba5c9746f6439496c6eca12c89efd72ab7c",
+    "apps/guardian-ui/src/components/layout/SiteShell.tsx": "e5f39e770af8635c36ae9288ee7bc4f51dd764db",
+    "apps/guardian-ui/src/components/layout/index.tsx": "c276b18e5c62fcd10d2ae546f1d853986909c0e7",
+    "apps/guardian-ui/src/components/monitor/ExpandableSection.tsx": "a126f05007492c0f652114ef0dbc834f122dbebc",
+    "apps/guardian-ui/src/components/monitor/InlineSettingsPanel.tsx": "a27ddaaf66c364480b1f8fe9b736204cf4d23524",
+    "apps/guardian-ui/src/components/monitor/Tooltip.tsx": "419d61b2e06d51857de7656b0f11f813f20f6f02",
+    "apps/guardian-ui/src/components/monitor/WatchFor.tsx": "dd0817603e9c5370d6abe183029cebc14b67fa9c",
+    "apps/guardian-ui/src/components/monitor/index.ts": "78bd6085a434af9d98fc0872c2b469faae27973d",
+    "apps/guardian-ui/src/components/settings/Group.tsx": "bfa8af1906e86cd26235017011e863a734e8fd43",
+    "apps/guardian-ui/src/components/settings/LinkRow.tsx": "8d3485be85202a64bc439aaae8fd9aaf0d717572",
+    "apps/guardian-ui/src/components/settings/ListPictures.tsx": "11348d074ff3c0a4c0f223262cdb33c5fd66e3fd",
+    "apps/guardian-ui/src/components/settings/PageHead.tsx": "b330edf450f4337c169106fe1a80ae6d8cab98b1",
+    "apps/guardian-ui/src/components/settings/PageStorageLine.tsx": "b3e48646dadc45ab40ff22417a22e4657deb5012",
+    "apps/guardian-ui/src/components/settings/PhoneRows.tsx": "e01110b0e6102c76ddb17b44f95b58e536a0030b",
+    "apps/guardian-ui/src/components/settings/SettingsList.tsx": "809a610f1dfd34d1d6738093b8bcb7924916a286",
+    "apps/guardian-ui/src/components/settings/StorageLine.tsx": "befbefe03b7167c63d08e48705d40fed3eafc82d",
+    "apps/guardian-ui/src/components/settings/glyphs.tsx": "73074b479b274ed269d4e8f4ba2eda3af949d683",
+    "apps/guardian-ui/src/components/visitor/GitHubLink.tsx": "e72f1fa33c175afa6d247e0e3bafe82ecb3fd17a",
+    "apps/guardian-ui/src/components/visitor/LookSwitch.tsx": "6381f0db00ec56237a2c6707b66a5f6014263e32",
+    "apps/guardian-ui/src/components/visitor/MakerMark.tsx": "99b977e9916008d5b101e21a792f2b1da3e7e0ef",
+    "apps/guardian-ui/src/components/visitor/Num.tsx": "b04f4792a7af1d41d4b73226bf67ce28b6dfaab6",
+    "apps/guardian-ui/src/components/visitor/SiteMark.tsx": "fffa29eb181fb27cb858fdb86c808c5da25febee",
+    "apps/guardian-ui/src/components/visitor/StartLink.tsx": "c5d41a1c5198d6e57d4cb4186e1aba7669777da8",
+    "apps/guardian-ui/src/components/visitor/VisitorFooter.tsx": "0ea2215dacb1bf1c29335335def1985860e9f054",
+    "apps/guardian-ui/src/components/visitor/VisitorHeader.tsx": "aa34b3728b89eec3c03d40e55c6cfc427c673225",
+    "apps/guardian-ui/src/components/watch/Glyphs.tsx": "07fc2f885899e201509fa116c981bbacd28c51af",
+    "apps/guardian-ui/src/components/watch/Meters.tsx": "4dcd9a906d4816703e39d3c00aa9062b119748b3",
+    "apps/guardian-ui/src/components/watch/MuteAlerts.tsx": "b394234142771925482d4aca25d4dfef9a99645b",
+    "apps/guardian-ui/src/components/watch/SettingsFold.tsx": "6f7ea843617dd6a2728d9cb532a536e15cd3422d",
+    "apps/guardian-ui/src/components/watch/WatchFrame.tsx": "3e4a41235a6c1506d8982d556f69f6731fb2173c",
+    "apps/guardian-ui/src/contexts/BackendStatusContext.tsx": "14b66f815d21433dee7e3d195e7a1630617cd97f",
+    "apps/guardian-ui/src/lib/alert-event.ts": "c4090e45ee7a1d0e3b335e35654bc9b7625d5ff8",
+    "apps/guardian-ui/src/lib/alert-groups.ts": "24a70054509f490ea95699fe079d9d102ce54223",
+    "apps/guardian-ui/src/lib/alert-id.ts": "19b03187fc21009b69427d560feb919ff70f8984",
+    "apps/guardian-ui/src/lib/alert-pictures/capture.ts": "08bf8f9224fe86ffc8a9bb908e69dacb96e13d18",
+    "apps/guardian-ui/src/lib/alert-pictures/channel.ts": "cbd97a1252e22d73ff8ce8518700946f3ceb791f",
+    "apps/guardian-ui/src/lib/alert-pictures/keeper.ts": "95fd278dfd1074fd201cb10dc6dc26cb1c877037",
+    "apps/guardian-ui/src/lib/alert-pictures/opened.ts": "317e33431cdf0394ce25d7892a1d0e524bce6a4b",
+    "apps/guardian-ui/src/lib/alert-pictures/pet-photo.ts": "ec5c01de973823a07820ca317e2a6f33ace2e9bf",
+    "apps/guardian-ui/src/lib/alert-pictures/rules.ts": "cf73451c838df2cff405b09b129ebfe7fad1c1ac",
+    "apps/guardian-ui/src/lib/alert-pictures/words.ts": "08747096638ffc1ddbb0d5ca376e03c5c8b232dc",
+    "apps/guardian-ui/src/lib/animal-detection.ts": "482874b555f42d3253c51a9ba3814ded0a3dcf40",
+    "apps/guardian-ui/src/lib/animal-kinds.ts": "7b77673ce6a058038dc08b12d5a9528a339610b2",
+    "apps/guardian-ui/src/lib/app-routes.ts": "7d0dc8dd872b7ae71c75a8ada5adb7252c3be3b3",
+    "apps/guardian-ui/src/lib/audio-levels.ts": "490e403805c62bfb544aa384dd7504819831cb66",
+    "apps/guardian-ui/src/lib/browser-asks.ts": "de1119900141339ad7ed922653218eb031b9c848",
+    "apps/guardian-ui/src/lib/browser-notification.ts": "d7e30ccd49656488d7308f1a961156137e3ad57a",
+    "apps/guardian-ui/src/lib/camera-constraints.ts": "cc73d282a0f0d9833bc5497b1fb63da1ae17b93c",
+    "apps/guardian-ui/src/lib/camera-failure.ts": "4175a5a71a017740e7c3ff27b1f53b72f9e8301f",
+    "apps/guardian-ui/src/lib/camera-handoff.ts": "a15da41ed3928f1f308fdc4335e8ae532adf33d4",
+    "apps/guardian-ui/src/lib/client-db.ts": "6cb6d0edb43aca7f35c746dc8841c04c7560db44",
+    "apps/guardian-ui/src/lib/clock-time.ts": "ac288bb0ddde4af21ad6727649f4080b1270be3a",
+    "apps/guardian-ui/src/lib/custom-media-player.ts": "5a271cbf96d000754eca845727bff5a0ad304c77",
+    "apps/guardian-ui/src/lib/custom-sounds-db.ts": "84ae6fabf0fb056cd36a59fb850a12c6f2b2b490",
+    "apps/guardian-ui/src/lib/detection-model-facts.ts": "57da03c22280c25dcade8f7de667803ad21333e3",
+    "apps/guardian-ui/src/lib/detection-model.ts": "9bfa630d1789859ebb0d9e538eef2da6dc00f6ef",
+    "apps/guardian-ui/src/lib/device-alerts.tsx": "9e4d3306a44bafc7cfc6a3ae572fd2e66db54b7f",
+    "apps/guardian-ui/src/lib/env.ts": "111cd82851756fde76fe1df959fc8234f56eda6d",
+    "apps/guardian-ui/src/lib/github-stars.ts": "364da6d9a0f23bccc0d2f5461b5e8a1a0324916e",
+    "apps/guardian-ui/src/lib/history-seen.ts": "ba6d273081a45d4873a1f897fe894cfd2e7cc566",
+    "apps/guardian-ui/src/lib/keyboard-shortcuts.ts": "d8a64e03e198da341eb1c46128dddb8238b00b1c",
+    "apps/guardian-ui/src/lib/local-alert-engine.ts": "f8e696db736da3f6011806d906a0638f4c4a16bb",
+    "apps/guardian-ui/src/lib/local-data-generation.ts": "0fbd19588fdf44ac8fdb5585223b74b9922f5745",
+    "apps/guardian-ui/src/lib/local-data.ts": "8f65bfd16e7bb78d65d4b0858d39d5dce0f08bfd",
+    "apps/guardian-ui/src/lib/look-colours.ts": "8b8b88c8c0438793600bee37f5722a3f33adabf1",
+    "apps/guardian-ui/src/lib/lost-found-words.ts": "217a2db3a1db3e03ed09887b3426862e1ecfff26",
+    "apps/guardian-ui/src/lib/model-on-device.ts": "cf4cc0235c7df2ab7d397c95c76b02d800df812c",
+    "apps/guardian-ui/src/lib/motion-detection.ts": "11b3bc160e544b8062ec119afadc3b9ac0878357",
+    "apps/guardian-ui/src/lib/name-on-device.ts": "567df9fdc1a9abce468d30c93f1ad1f9ca36bad8",
+    "apps/guardian-ui/src/lib/nap-session.ts": "9279af68e53ba343a181f8931c6e2dcf7b153ea7",
+    "apps/guardian-ui/src/lib/needs-script.ts": "145e1b856268ca7628e4d53a26f5e40ad7315520",
+    "apps/guardian-ui/src/lib/next-way.ts": "8ef00d5c66ef9ac5858189d7783b6181070fc3d8",
+    "apps/guardian-ui/src/lib/notification-choices.ts": "e627dd261e51acf4f9369c3af5484a5209cf163f",
+    "apps/guardian-ui/src/lib/notification-manager.ts": "70b66ce008e1427a79c2106b499867fed26b8cb2",
+    "apps/guardian-ui/src/lib/page-metadata.ts": "9f4c317e674a9a78a77e4d2c8ec68fa0da321766",
+    "apps/guardian-ui/src/lib/pet-photo-limits.ts": "ce8ebd521646b8b81a3dc273e5df0a69f5a51db0",
+    "apps/guardian-ui/src/lib/pixel-detection.ts": "75e1ee061176ca185fd290eb5c7c0280030ee4a4",
+    "apps/guardian-ui/src/lib/schedule-manager.ts": "9aa0e2ea573366fd6eee41859e9843bdc3c12cb2",
+    "apps/guardian-ui/src/lib/server-model-status.ts": "0d29f3c3af46faf0919b2c03a8220e4d8f7f6971",
+    "apps/guardian-ui/src/lib/setting-names.ts": "b08a7a757f6b18b85f9a40f5b8401bff437ca13f",
+    "apps/guardian-ui/src/lib/settings-hydration.ts": "a5cdfd38f348c800051fa8efc6200c998e6e1405",
+    "apps/guardian-ui/src/lib/settings-save.ts": "e1a0609414b633ee84dbacc7d03a80ba94c78965",
+    "apps/guardian-ui/src/lib/settings-values.ts": "261b46c3d8afeed599c4a109d61937596f983f41",
+    "apps/guardian-ui/src/lib/short-lived-storage.ts": "3ca347749550425f537791bd1b3fe9f03932f82a",
+    "apps/guardian-ui/src/lib/sound-manager.ts": "9c4a272949a4fbceb465e62d185df9a7de6112e9",
+    "apps/guardian-ui/src/lib/stale-build-script.ts": "1c6e79c6902a09f55f29b4dcfa9645095ba4cec0",
+    "apps/guardian-ui/src/lib/start-guard.tsx": "b4f0e5c3599f50ab72b0b298c870269e0dc45ec4",
+    "apps/guardian-ui/src/lib/start-watch.ts": "d085907f4eff8ee8dd2dc78cb1bf89950127f851",
+    "apps/guardian-ui/src/lib/stillness-bounds.ts": "21f28076e54abfb3092ac614ece3855f1338c843",
+    "apps/guardian-ui/src/lib/storage-full.ts": "13b4dbd272eeeb4249539f4fb4d902b8bb493fcd",
+    "apps/guardian-ui/src/lib/subject-matcher.ts": "590ad5f6bbfb1ebb4f555adeb076f6b5821d720f",
+    "apps/guardian-ui/src/lib/tab-channel.ts": "3292a20b9e39ade3a3cd727a93dd60d21e0200a0",
+    "apps/guardian-ui/src/lib/theme-manager.ts": "546792c86844d972b6cdae02e50e47e7f9b0c90d",
+    "apps/guardian-ui/src/lib/use-setup-done.ts": "24535d9a7ba79dcce16fb3e1f6d2558792d90e44",
+    "apps/guardian-ui/src/lib/visit-store.ts": "5dca0e51e50f71a9fb5e22871ba0b08d93d2cb65",
+    "apps/guardian-ui/src/lib/visitor-routes.ts": "1783c5106a23c0aec372df18913cc21407224f39",
+    "apps/guardian-ui/src/lib/visual-fingerprint.ts": "9d1e44e88a554ed88070762e01522149e9af63fc",
+    "apps/guardian-ui/src/lib/watch-meters.ts": "c6db220ad6e3ee81353a29a8606cc5b73427dc87",
+    "apps/guardian-ui/src/lib/watch-session.ts": "888120ed3ff2f59e4b30bc5a4a5290c996ddcb3b",
+    "apps/guardian-ui/src/lib/watch-sound.ts": "106f7bde23dc455c808c5273db16fe83793a8b6d",
+    "apps/guardian-ui/src/lib/watch-view.ts": "faac6edbc89381ad961349e8c313e87c0911df38",
+    "apps/guardian-ui/src/lib/websocket.ts": "2b64830c6b16cd104a69e2ffb88a7608fa8bf4b7",
+    "apps/guardian-ui/src/stores/alert-pictures-store.ts": "1ede5a07e16edcf631ca511be1d408c358afb87c",
+    "apps/guardian-ui/src/stores/animal-alert-store.ts": "48d87d2a213299eb20f0b875a9e1a7a510f8eef9",
+    "apps/guardian-ui/src/stores/auth-store.ts": "95e1d92f69f398a8adde508fc4342f9605c83ef0",
+    "apps/guardian-ui/src/stores/camera-store.ts": "104bd39a62355ab33a3ad70b646c9f8d7faa30b4",
+    "apps/guardian-ui/src/stores/lost-found-store.ts": "10416758110d61c5cd3570d6e6fe97b28f648fc0",
+    "apps/guardian-ui/src/stores/monitoring-store.ts": "09a6b7aee69325142b5dd2a5fe00bb797eda6ff8",
+    "apps/guardian-ui/src/stores/onboarding-store.ts": "28c2b4e3cced34b13c9d3822fd8eda3ffed4ddb5",
+    "apps/guardian-ui/src/stores/security-store.ts": "882493c58b3aa668df04796d2750a8184b61d1ca",
+    "apps/guardian-ui/src/stores/settings-store.ts": "d8abfe48928ee1f40828e7d2b7c308d63b6bb3a1",
+    "apps/guardian-ui/src/stores/watch-settings.ts": "7580ad7794d48260f87fe6c1fdd19a182c1ccba5",
+    "apps/guardian-ui/src/styles/alert-pictures.css": "18f269871e7e65fb34cd25b0e988597959669aa1",
+    "apps/guardian-ui/src/styles/app.css": "e71c689ce2e8c7fdccf35b6c940299ea0d2b27f8",
+    "apps/guardian-ui/src/styles/design-system.css": "77935dde98649c0d82b2f28fdcdf7bfcdcdae42f",
+    "apps/guardian-ui/src/styles/keys.css": "cd800f4f881efdc24de1725c03100eec3894d755",
+    "apps/guardian-ui/src/styles/settings.css": "faf3537000841a03968865bf9f07ac796e347ccf",
+    "apps/guardian-ui/src/styles/touch.css": "b7974008a9345bad3fd019cd872098f585185db5",
+    "apps/guardian-ui/src/styles/visitor.css": "db5c5229a2b716c4d3f1c542afff52c60e5d9a8c",
+    "apps/guardian-ui/src/styles/watch-for.css": "9fad2970273d02274f1d703b8786eb533e8088ed",
+    "apps/guardian-ui/src/styles/watch.css": "84fc1941a05e42f6287de07ead169144b624e8fd",
+    "apps/guardian-ui/tailwind.config.js": "a7ed29daa3c5cf6ea507f97dcc7dc22502a957dd",
+    "apps/guardian-ui/tsconfig.json": "c1334095f876a408c10f2357faaced969ec090ab"
+  },
+  "browser": "143.0.7499.4",
+  "encoder": "ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers",
+  "clips": [
+    {
+      "path": "home/sample-clip.wide.mp4",
+      "sha256": "badf25ed58e24d08733701eb374deab331429be2c0fc65c6e3088fe956101d57",
+      "clipOffset": 20,
+      "credit": "Burmese Kitten Grooming Itself by Alistair Findlay (https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm), CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). Trimmed to 37.0–45.2 seconds and scaled without cropping.",
+      "sources": [
+        {
+          "role": "picture",
+          "title": "Burmese Kitten Grooming Itself",
+          "author": "Alistair Findlay",
+          "page": "https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm",
+          "file": "https://upload.wikimedia.org/wikipedia/commons/e/ed/Burmese_Kitten_Grooming_Itself.webm",
+          "date": "2019-07-05",
+          "licence": "CC0 1.0",
+          "statement": "Source: Own work. Author: Alistair Findlay. I, the copyright holder of this work, hereby publish it under the following license: This file is made available under the Creative Commons CC0 1.0 Universal Public Domain Dedication.",
+          "original": {
+            "format": "VP9 3840x2160 at 120 frames a second, Opus mono 48 kHz, 45.234 s",
+            "bytes": 256322864,
+            "sha256": "4dd694e1de0851f40083ea799a5cd42710affde3f5da1291bbe829baa78f6641",
+            "sha1": "037b53ec53ddd5e7fb325bfc37fc620ca23b12e8"
+          },
+          "used": "37.0 to 45.2 s of the original (8.2 s)"
+        }
+      ]
+    },
+    {
+      "path": "home/sample-clip.mp4",
+      "sha256": "c0da07fcc37fb35fd843e1c7c8380ccd4342dd6a8f79eb0a5d41800f20796b5a",
+      "tracks": {
+        "captions": "sample-clip.captions.vtt",
+        "descriptions": "sample-clip.descriptions.vtt"
+      },
+      "credit": "Sample clip: \"Burmese Kitten Grooming Itself\" by Alistair Findlay (https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm), CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/). Changed: trimmed to 28 seconds, cropped and scaled to 640 by 480, cut to 15 frames a second, re-encoded with added noise. The bark at 0:06 is from \"PARQUE PERROS 7 30 AM\" by ALWA198426 (https://commons.wikimedia.org/wiki/File:PARQUE_PERROS_7_30_AM.wav), CC0 1.0, mixed in.",
+      "sources": [
+        {
+          "role": "picture",
+          "title": "Burmese Kitten Grooming Itself",
+          "author": "Alistair Findlay",
+          "page": "https://commons.wikimedia.org/wiki/File:Burmese_Kitten_Grooming_Itself.webm",
+          "file": "https://upload.wikimedia.org/wikipedia/commons/e/ed/Burmese_Kitten_Grooming_Itself.webm",
+          "date": "2019-07-05",
+          "licence": "CC0 1.0",
+          "statement": "Source: Own work. Author: Alistair Findlay. I, the copyright holder of this work, hereby publish it under the following license: This file is made available under the Creative Commons CC0 1.0 Universal Public Domain Dedication.",
+          "original": {
+            "format": "VP9 3840x2160 at 120 frames a second, Opus mono 48 kHz, 45.234 s",
+            "bytes": 256322864,
+            "sha256": "4dd694e1de0851f40083ea799a5cd42710affde3f5da1291bbe829baa78f6641",
+            "sha1": "037b53ec53ddd5e7fb325bfc37fc620ca23b12e8"
+          },
+          "used": "17.0 to 45.2 s of the original (28.2 s)"
+        },
+        {
+          "role": "added sound",
+          "title": "PARQUE PERROS 7 30 AM.wav",
+          "author": "ALWA198426",
+          "page": "https://commons.wikimedia.org/wiki/File:PARQUE_PERROS_7_30_AM.wav",
+          "file": "https://upload.wikimedia.org/wikipedia/commons/b/b2/PARQUE_PERROS_7_30_AM.wav",
+          "date": "2026-02-02",
+          "licence": "CC0 1.0",
+          "statement": "Source: Own work. Author: ALWA198426. I, the copyright holder of this work, hereby publish it under the following license: This file is made available under the Creative Commons CC0 1.0 Universal Public Domain Dedication.",
+          "original": {
+            "format": "WAV, PCM 24-bit, 96 kHz, stereo, 88.584 s",
+            "bytes": 51024428,
+            "sha256": "8a9875f56d39bd08011e509dd8376e2bb933939be0df1a0ffd33e22651bfc31f",
+            "sha1": "08022938db02dcf39c240e93db7a476741116c0c"
+          },
+          "used": "74.40 to 77.40 s of the recording, placed at 6.0 to 9.0 s of the clip"
+        }
+      ]
+    }
+  ],
+  "omitted": [
+    {
+      "id": "alert",
+      "reason": "Requires a garden recording with a kept movement picture and its close-up."
+    },
+    {
+      "id": "lost-found",
+      "reason": "Requires a recording of a saved pet’s fingerprint and its possible sighting."
+    }
+  ],
+  "runs": [
+    {
+      "id": "watching",
+      "key": "Watching",
+      "route": "/monitor/",
+      "state": "motion-alert",
+      "clip": "home/sample-clip.wide.mp4",
+      "seconds": 9,
+      "description": "On a kitten clip, the kitten walks past, Motion crosses its line and the alert arrives.",
+      "longDescription": [
+        "The kitten faces the camera on a grey carpet, then gets up and walks past.",
+        "Motion crosses its line and a movement alert arrives.",
+        "The watch scrolls to Alerts and holds the movement alert and its picture in view."
+      ],
+      "eventAt": 3.8707997798919678,
+      "posterAt": 0.3288757801055908,
+      "visibleWords": [
+        "Motion",
+        "Quiet",
+        "Sound",
+        "Quiet"
+      ],
+      "meterPeaks": {
+        "motion": 35,
+        "sound": 8
+      },
+      "variants": {
+        "square": {
+          "dark": {
+            "video": {
+              "path": "home/runs/watching-square-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 984,
+              "height": 984,
+              "seconds": 9,
+              "bytes": 280115,
+              "sha256": "c4ff1974503b6339b1d60736d41a5047cf4f201c13a77357a9e7a89eb47b8d97"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/watching-square-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 984,
+                "height": 984,
+                "bytes": 48642,
+                "sha256": "43924828ad4389ebdf661e5261904eda6290bbf2b5afb1576d0ce204558f6513"
+              },
+              "avif": {
+                "path": "home/runs/watching-square-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 984,
+                "height": 984,
+                "bytes": 33629,
+                "sha256": "a85afdb62ac2d50912abf85a3b5980f57d80fc717a9b4e1e590cfbae23bfbb5d"
+              }
+            },
+            "viewport": {
+              "width": 328,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 60,
+              "width": 328,
+              "height": 328
+            },
+            "scale": 3,
+            "eventAt": 3.8707997798919678,
+            "posterAt": 0.3288757801055908,
+            "words": [
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 16,
+                "y": 241,
+                "width": 54.71354675292969,
+                "height": 19.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Quiet",
+                "size": 16.25,
+                "x": 16,
+                "y": 285,
+                "width": 40.76041793823242,
+                "height": 19.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Sound",
+                "size": 16.25,
+                "x": 170,
+                "y": 241,
+                "width": 50.5,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 16.25,
+                "x": 170,
+                "y": 285,
+                "width": 40.76042175292969,
+                "height": 19.66668701171875,
+                "inkHeight": 13
+              }
+            ],
+            "meterPeaks": {
+              "motion": 35,
+              "sound": 8
+            },
+            "posterReading": {
+              "clipAt": 22.31175398826599
+            },
+            "motionLine": 13,
+            "motionOverAt": 3.271725654602051,
+            "pictureAt": 4.074943780899048,
+            "watchEvents": [
+              {
+                "kind": "motion",
+                "at": "1795716399109",
+                "clipAt": 25.866936
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Medium, 6:06:39 PM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/watching-square-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 984,
+              "height": 984,
+              "seconds": 9,
+              "bytes": 277796,
+              "sha256": "4be856194d228f208a9d3c06dbd9267aa1dbf159878f79bdefabb16ff90a60d7"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/watching-square-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 984,
+                "height": 984,
+                "bytes": 49818,
+                "sha256": "8331374463e6d612230087dc9ef3c1fb1a1cc95d292068459b4810c9e8008878"
+              },
+              "avif": {
+                "path": "home/runs/watching-square-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 984,
+                "height": 984,
+                "bytes": 34120,
+                "sha256": "adc77b59b4ad1e76c699985b7d3db46850cfd9a5511bdc8d7b23f8e6dd7b1153"
+              }
+            },
+            "viewport": {
+              "width": 328,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 60,
+              "width": 328,
+              "height": 328
+            },
+            "scale": 3,
+            "eventAt": 3.8653998374938965,
+            "posterAt": 0.2558879852294922,
+            "words": [
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 16,
+                "y": 241,
+                "width": 54.71354675292969,
+                "height": 19.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Quiet",
+                "size": 16.25,
+                "x": 16,
+                "y": 285,
+                "width": 40.76041793823242,
+                "height": 19.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Sound",
+                "size": 16.25,
+                "x": 170,
+                "y": 241,
+                "width": 50.5,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 16.25,
+                "x": 170,
+                "y": 285,
+                "width": 40.76042175292969,
+                "height": 19.66668701171875,
+                "inkHeight": 13
+              }
+            ],
+            "meterPeaks": {
+              "motion": 35,
+              "sound": 8
+            },
+            "posterReading": {
+              "clipAt": 22.27474284172058
+            },
+            "motionLine": 13,
+            "motionOverAt": 3.3198418617248535,
+            "pictureAt": 4.050895929336548,
+            "watchEvents": [
+              {
+                "kind": "motion",
+                "at": "1795716416311",
+                "clipAt": 25.866913
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Medium, 6:06:56 PM."
+              }
+            ]
+          }
+        },
+        "wide": {
+          "dark": {
+            "video": {
+              "path": "home/runs/watching-wide-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 9,
+              "bytes": 1168265,
+              "sha256": "c1219a28d5cfd9d9d9e1c76de18fc19bea07e12c5dd1ec5295b626d7ae1afc30"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/watching-wide-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 101886,
+                "sha256": "5d731002f38b60a5b37072f557b4b4ab5ef0dc7267f35afd039012a425c5edce"
+              },
+              "avif": {
+                "path": "home/runs/watching-wide-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 65942,
+                "sha256": "1a73f84b912057752aa0f65cb3f6973a733ba054b7fee152ccbd9ec2bfbbc00e"
+              }
+            },
+            "viewport": {
+              "width": 768,
+              "height": 548
+            },
+            "crop": {
+              "x": 0,
+              "y": 68,
+              "width": 768,
+              "height": 480
+            },
+            "scale": 2.5,
+            "eventAt": 3.8113999366760254,
+            "posterAt": 1.4802989959716797,
+            "words": [
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 16,
+                "y": 442.8000183105469,
+                "width": 53.868751525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Quiet",
+                "size": 16,
+                "x": 331.8625183105469,
+                "y": 442.8000183105469,
+                "width": 40.137481689453125,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Sound",
+                "size": 16,
+                "x": 396,
+                "y": 442.8000183105469,
+                "width": 49.71875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 16,
+                "x": 711.8624877929688,
+                "y": 442.8000183105469,
+                "width": 40.13751220703125,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              }
+            ],
+            "meterPeaks": {
+              "motion": 35,
+              "sound": 7
+            },
+            "posterReading": {
+              "clipAt": 23.53764009475708
+            },
+            "motionLine": 13,
+            "motionOverAt": 3.2951948642730713,
+            "pictureAt": 4.2320568561553955,
+            "watchEvents": [
+              {
+                "kind": "motion",
+                "at": "1795716433674",
+                "clipAt": 25.866956000000002
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Medium, 6:07:13 PM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/watching-wide-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 9,
+              "bytes": 1196885,
+              "sha256": "1e15fccad45a6e143feb68e8f0a5a1ef8278535482b8320cbc18087f08e99ffa"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/watching-wide-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 101772,
+                "sha256": "d3117a1a65b11c972f2d27cabde1b9b2cbe712883e5bea6dfc2cc9e3a796a5f9"
+              },
+              "avif": {
+                "path": "home/runs/watching-wide-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 66047,
+                "sha256": "bece47742e7cf09242421e0f05b28cf55cdc7bb102fc5c05ca4f60537bd4363e"
+              }
+            },
+            "viewport": {
+              "width": 768,
+              "height": 548
+            },
+            "crop": {
+              "x": 0,
+              "y": 68,
+              "width": 768,
+              "height": 480
+            },
+            "scale": 2.5,
+            "eventAt": 3.865999937057495,
+            "posterAt": 0.29344677925109863,
+            "words": [
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 16,
+                "y": 442.8000183105469,
+                "width": 53.868751525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Quiet",
+                "size": 16,
+                "x": 331.8625183105469,
+                "y": 442.8000183105469,
+                "width": 40.137481689453125,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Sound",
+                "size": 16,
+                "x": 396,
+                "y": 442.8000183105469,
+                "width": 49.71875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 16,
+                "x": 711.8624877929688,
+                "y": 442.8000183105469,
+                "width": 40.13751220703125,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              }
+            ],
+            "meterPeaks": {
+              "motion": 35,
+              "sound": 7
+            },
+            "posterReading": {
+              "clipAt": 22.30403780937195
+            },
+            "motionLine": 13,
+            "motionOverAt": 3.359506845474243,
+            "pictureAt": 4.234786748886108,
+            "watchEvents": [
+              {
+                "kind": "motion",
+                "at": "1795716453040",
+                "clipAt": 25.866934999999998
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Medium, 6:07:33 PM."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "dashboard",
+      "key": "Dashboard",
+      "route": "/dashboard/",
+      "state": "B",
+      "clip": "home/sample-clip.mp4",
+      "seconds": 7,
+      "description": "The kitten clip's movement and sound alerts, and the picture one of them kept.",
+      "longDescription": [
+        "0–2 seconds. Since you last looked shows movement and sound alerts from the kitten clip.",
+        "2–7 seconds. The movement alert opens its kept picture of the kitten with its face in view."
+      ],
+      "eventAt": 2.001199960708618,
+      "posterAt": 0,
+      "visibleWords": [
+        "Since",
+        "you",
+        "last",
+        "looked",
+        "Movement",
+        "at",
+        "6:09",
+        "PM",
+        "Motion",
+        "and",
+        "sound",
+        "Sound",
+        "at",
+        "6:08",
+        "PM",
+        "Motion",
+        "and",
+        "sound",
+        "Mark",
+        "all",
+        "as",
+        "seen",
+        "Open",
+        "history"
+      ],
+      "variants": {
+        "square": {
+          "dark": {
+            "video": {
+              "path": "home/runs/dashboard-square-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 984,
+              "height": 984,
+              "seconds": 7,
+              "bytes": 300202,
+              "sha256": "9ff9ab0151c8a2760f12460a08ea15b2d4243b487177accb1560545e24845e5a"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/dashboard-square-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 984,
+                "height": 984,
+                "bytes": 38732,
+                "sha256": "73c365b8b76f5529dd8cadd73ce774e0fe0fb7699b5161311dd181bc0dd51c72"
+              },
+              "avif": {
+                "path": "home/runs/dashboard-square-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 984,
+                "height": 984,
+                "bytes": 29098,
+                "sha256": "a5f6fc1bad28d616ff235a746a6d1c9d7fdeaaf0504d3e5eef322691619b5db3"
+              }
+            },
+            "viewport": {
+              "width": 328,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 64,
+              "width": 328,
+              "height": 328
+            },
+            "scale": 3,
+            "eventAt": 2.001199960708618,
+            "posterAt": 0,
+            "words": [
+              {
+                "word": "Since",
+                "size": 18,
+                "x": 16,
+                "y": 37,
+                "width": 47.32291793823242,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "you",
+                "size": 18,
+                "x": 68.38021087646484,
+                "y": 37,
+                "width": 31.208335876464844,
+                "height": 21.666671752929688,
+                "inkHeight": 14
+              },
+              {
+                "word": "last",
+                "size": 18,
+                "x": 104.64583587646484,
+                "y": 37,
+                "width": 29.85938262939453,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "looked",
+                "size": 18,
+                "x": 139.5625,
+                "y": 37,
+                "width": 56.942718505859375,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Movement",
+                "size": 18,
+                "x": 92,
+                "y": 81,
+                "width": 89.75,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 186.8125,
+                "y": 81,
+                "width": 16,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "6:09",
+                "size": 18,
+                "x": 207.875,
+                "y": 81,
+                "width": 39.85417175292969,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "PM",
+                "size": 18,
+                "x": 252.5572967529297,
+                "y": 81,
+                "width": 27.760421752929688,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 92,
+                "y": 108,
+                "width": 53.020843505859375,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16.25,
+                "x": 149.5885467529297,
+                "y": 108,
+                "width": 28.677078247070312,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 182.83334350585938,
+                "y": 108,
+                "width": 47.484375,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "Sound",
+                "size": 18,
+                "x": 92,
+                "y": 150,
+                "width": 54.645843505859375,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 151.70834350585938,
+                "y": 150,
+                "width": 16,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "6:08",
+                "size": 18,
+                "x": 172.77084350585938,
+                "y": 150,
+                "width": 39.854156494140625,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "PM",
+                "size": 18,
+                "x": 217.453125,
+                "y": 150,
+                "width": 27.760421752929688,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 92,
+                "y": 177,
+                "width": 53.020843505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16.25,
+                "x": 149.5885467529297,
+                "y": 177,
+                "width": 28.677078247070312,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 182.83334350585938,
+                "y": 177,
+                "width": 47.484375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Mark",
+                "size": 16.25,
+                "x": 32,
+                "y": 235,
+                "width": 39.09375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "all",
+                "size": 16.25,
+                "x": 75.66146087646484,
+                "y": 235,
+                "width": 17,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "as",
+                "size": 16.25,
+                "x": 97.22917175292969,
+                "y": 235,
+                "width": 17.703125,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "seen",
+                "size": 16.25,
+                "x": 119.5,
+                "y": 235,
+                "width": 37.130218505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "Open",
+                "size": 18,
+                "x": 16,
+                "y": 286,
+                "width": 47.145835876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 17
+              },
+              {
+                "word": "history",
+                "size": 18,
+                "x": 67.40625,
+                "y": 286,
+                "width": 62.07292175292969,
+                "height": 21.66668701171875,
+                "inkHeight": 18
+              }
+            ],
+            "pictureAt": 2.5485997200012207,
+            "watchEvents": [
+              {
+                "kind": "sound",
+                "at": "1795716534056",
+                "clipAt": 6.267043
+              },
+              {
+                "kind": "motion",
+                "at": "1795716550054",
+                "clipAt": 22.266897
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Sound alert",
+                "body": "Medium, 6:08:54 PM."
+              },
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Low, 6:09:10 PM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/dashboard-square-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 984,
+              "height": 984,
+              "seconds": 7,
+              "bytes": 307716,
+              "sha256": "3eb6568f1148b0f6678a4fbf79d762b41e830ad5ae2175e0d62acde244122a57"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/dashboard-square-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 984,
+                "height": 984,
+                "bytes": 38842,
+                "sha256": "c83a6658f3d55d124165a53d4c97be6a28f4b7904b4d48cbb5ec68b79754bd9b"
+              },
+              "avif": {
+                "path": "home/runs/dashboard-square-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 984,
+                "height": 984,
+                "bytes": 29654,
+                "sha256": "e08f174bff216c1d866159f2c46a1c9ef5f76fb0e049c61ac914263d53766f80"
+              }
+            },
+            "viewport": {
+              "width": 328,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 64,
+              "width": 328,
+              "height": 328
+            },
+            "scale": 3,
+            "eventAt": 2.0009000301361084,
+            "posterAt": 0,
+            "words": [
+              {
+                "word": "Since",
+                "size": 18,
+                "x": 16,
+                "y": 37,
+                "width": 47.32291793823242,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "you",
+                "size": 18,
+                "x": 68.38021087646484,
+                "y": 37,
+                "width": 31.208335876464844,
+                "height": 21.666671752929688,
+                "inkHeight": 14
+              },
+              {
+                "word": "last",
+                "size": 18,
+                "x": 104.64583587646484,
+                "y": 37,
+                "width": 29.85938262939453,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "looked",
+                "size": 18,
+                "x": 139.5625,
+                "y": 37,
+                "width": 56.942718505859375,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Movement",
+                "size": 18,
+                "x": 92,
+                "y": 81,
+                "width": 89.75,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 186.8125,
+                "y": 81,
+                "width": 16,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "6:09",
+                "size": 18,
+                "x": 207.875,
+                "y": 81,
+                "width": 39.85417175292969,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "PM",
+                "size": 18,
+                "x": 252.5572967529297,
+                "y": 81,
+                "width": 27.760421752929688,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 92,
+                "y": 108,
+                "width": 53.020843505859375,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16.25,
+                "x": 149.5885467529297,
+                "y": 108,
+                "width": 28.677078247070312,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 182.83334350585938,
+                "y": 108,
+                "width": 47.484375,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "Sound",
+                "size": 18,
+                "x": 92,
+                "y": 150,
+                "width": 54.645843505859375,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 151.70834350585938,
+                "y": 150,
+                "width": 16,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "6:09",
+                "size": 18,
+                "x": 172.77084350585938,
+                "y": 150,
+                "width": 39.854156494140625,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "PM",
+                "size": 18,
+                "x": 217.453125,
+                "y": 150,
+                "width": 27.760421752929688,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16.25,
+                "x": 92,
+                "y": 177,
+                "width": 53.020843505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16.25,
+                "x": 149.5885467529297,
+                "y": 177,
+                "width": 28.677078247070312,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 182.83334350585938,
+                "y": 177,
+                "width": 47.484375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Mark",
+                "size": 16.25,
+                "x": 32,
+                "y": 235,
+                "width": 39.09375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "all",
+                "size": 16.25,
+                "x": 75.66146087646484,
+                "y": 235,
+                "width": 17,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "as",
+                "size": 16.25,
+                "x": 97.22917175292969,
+                "y": 235,
+                "width": 17.703125,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "seen",
+                "size": 16.25,
+                "x": 119.5,
+                "y": 235,
+                "width": 37.130218505859375,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "Open",
+                "size": 18,
+                "x": 16,
+                "y": 286,
+                "width": 47.145835876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 17
+              },
+              {
+                "word": "history",
+                "size": 18,
+                "x": 67.40625,
+                "y": 286,
+                "width": 62.07292175292969,
+                "height": 21.66668701171875,
+                "inkHeight": 18
+              }
+            ],
+            "pictureAt": 2.472899913787842,
+            "watchEvents": [
+              {
+                "kind": "sound",
+                "at": "1795716567226",
+                "clipAt": 6.267028
+              },
+              {
+                "kind": "motion",
+                "at": "1795716583223",
+                "clipAt": 22.266813
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Sound alert",
+                "body": "Medium, 6:09:27 PM."
+              },
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Low, 6:09:43 PM."
+              }
+            ]
+          }
+        },
+        "wide": {
+          "dark": {
+            "video": {
+              "path": "home/runs/dashboard-wide-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 7,
+              "bytes": 450811,
+              "sha256": "6e02475bc5c0d0af9490e591ead14c62558efa34dda259b3c905c8ba6daeeb06"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/dashboard-wide-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 44146,
+                "sha256": "374c668476a96ffd487e4fcbdf872e44c3178f1f3e3785dcf72ec98f5fcefa02"
+              },
+              "avif": {
+                "path": "home/runs/dashboard-wide-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 49951,
+                "sha256": "ae2b7d0298d78335b63920eca646c19c8ab0f775fbbe64ce1e2843f0ec25fef0"
+              }
+            },
+            "viewport": {
+              "width": 640,
+              "height": 640
+            },
+            "crop": {
+              "x": 0,
+              "y": 64,
+              "width": 640,
+              "height": 400
+            },
+            "scale": 3,
+            "eventAt": 2.0007998943328857,
+            "posterAt": 0,
+            "words": [
+              {
+                "word": "Since",
+                "size": 18,
+                "x": 16,
+                "y": 86,
+                "width": 47.32291793823242,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "you",
+                "size": 18,
+                "x": 68.38021087646484,
+                "y": 86,
+                "width": 31.208335876464844,
+                "height": 21.666671752929688,
+                "inkHeight": 14
+              },
+              {
+                "word": "last",
+                "size": 18,
+                "x": 104.64583587646484,
+                "y": 86,
+                "width": 29.85938262939453,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "looked",
+                "size": 18,
+                "x": 139.5625,
+                "y": 86,
+                "width": 56.942718505859375,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Movement",
+                "size": 18,
+                "x": 92,
+                "y": 130,
+                "width": 89.75,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 186.8125,
+                "y": 130,
+                "width": 16,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "6:10",
+                "size": 18,
+                "x": 207.875,
+                "y": 130,
+                "width": 39.85417175292969,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "PM",
+                "size": 18,
+                "x": 252.5572967529297,
+                "y": 130,
+                "width": 27.760421752929688,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 92,
+                "y": 157,
+                "width": 52.203125,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 148.703125,
+                "y": 157,
+                "width": 28.234375,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 181.4375,
+                "y": 157,
+                "width": 46.75,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "Sound",
+                "size": 18,
+                "x": 92,
+                "y": 199,
+                "width": 54.645843505859375,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 151.70834350585938,
+                "y": 199,
+                "width": 16,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "6:10",
+                "size": 18,
+                "x": 172.77084350585938,
+                "y": 199,
+                "width": 39.854156494140625,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "PM",
+                "size": 18,
+                "x": 217.453125,
+                "y": 199,
+                "width": 27.760421752929688,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 92,
+                "y": 226,
+                "width": 52.203125,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 148.703125,
+                "y": 226,
+                "width": 28.234375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 181.4375,
+                "y": 226,
+                "width": 46.75,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Mark",
+                "size": 16,
+                "x": 32,
+                "y": 284,
+                "width": 38.49479675292969,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "all",
+                "size": 16,
+                "x": 74.98958587646484,
+                "y": 284,
+                "width": 16.739585876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "as",
+                "size": 16,
+                "x": 96.22396087646484,
+                "y": 284,
+                "width": 17.432289123535156,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "seen",
+                "size": 16,
+                "x": 118.15625,
+                "y": 284,
+                "width": 36.55729675292969,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "Open",
+                "size": 18,
+                "x": 16,
+                "y": 335,
+                "width": 47.145835876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 17
+              },
+              {
+                "word": "history",
+                "size": 18,
+                "x": 67.40625,
+                "y": 335,
+                "width": 62.07292175292969,
+                "height": 21.66668701171875,
+                "inkHeight": 18
+              }
+            ],
+            "pictureAt": 2.58709979057312,
+            "watchEvents": [
+              {
+                "kind": "sound",
+                "at": "1795716600337",
+                "clipAt": 6.266988
+              },
+              {
+                "kind": "motion",
+                "at": "1795716616334",
+                "clipAt": 22.266814
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Sound alert",
+                "body": "Medium, 6:10:00 PM."
+              },
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Low, 6:10:16 PM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/dashboard-wide-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 7,
+              "bytes": 444146,
+              "sha256": "2b784e1555e3e87df44b295c8566fe26bae743ece87bd2380105746d5308e5e4"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/dashboard-wide-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 44684,
+                "sha256": "a9333967b79832cf1cef21d54d0517be4780777dc231e95dcaf8be0d9dfa8492"
+              },
+              "avif": {
+                "path": "home/runs/dashboard-wide-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 52489,
+                "sha256": "2b5337b68ebc0bb0a7306fac1f8b50a0c4288b4aab19a3bc427c9f9ef9487440"
+              }
+            },
+            "viewport": {
+              "width": 640,
+              "height": 640
+            },
+            "crop": {
+              "x": 0,
+              "y": 64,
+              "width": 640,
+              "height": 400
+            },
+            "scale": 3,
+            "eventAt": 2.0020999908447266,
+            "posterAt": 0,
+            "words": [
+              {
+                "word": "Since",
+                "size": 18,
+                "x": 16,
+                "y": 86,
+                "width": 47.32291793823242,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "you",
+                "size": 18,
+                "x": 68.38021087646484,
+                "y": 86,
+                "width": 31.208335876464844,
+                "height": 21.666671752929688,
+                "inkHeight": 14
+              },
+              {
+                "word": "last",
+                "size": 18,
+                "x": 104.64583587646484,
+                "y": 86,
+                "width": 29.85938262939453,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "looked",
+                "size": 18,
+                "x": 139.5625,
+                "y": 86,
+                "width": 56.942718505859375,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Movement",
+                "size": 18,
+                "x": 92,
+                "y": 130,
+                "width": 89.75,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 186.8125,
+                "y": 130,
+                "width": 16,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "6:10",
+                "size": 18,
+                "x": 207.875,
+                "y": 130,
+                "width": 39.85417175292969,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "PM",
+                "size": 18,
+                "x": 252.5572967529297,
+                "y": 130,
+                "width": 27.760421752929688,
+                "height": 21.666671752929688,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 92,
+                "y": 157,
+                "width": 52.203125,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 148.703125,
+                "y": 157,
+                "width": 28.234375,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 181.4375,
+                "y": 157,
+                "width": 46.75,
+                "height": 19.666671752929688,
+                "inkHeight": 12
+              },
+              {
+                "word": "Sound",
+                "size": 18,
+                "x": 92,
+                "y": 199,
+                "width": 54.645843505859375,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "at",
+                "size": 18,
+                "x": 151.70834350585938,
+                "y": 199,
+                "width": 16,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "6:10",
+                "size": 18,
+                "x": 172.77084350585938,
+                "y": 199,
+                "width": 39.854156494140625,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "PM",
+                "size": 18,
+                "x": 217.453125,
+                "y": 199,
+                "width": 27.760421752929688,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 92,
+                "y": 226,
+                "width": 52.203125,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "and",
+                "size": 16,
+                "x": 148.703125,
+                "y": 226,
+                "width": 28.234375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 181.4375,
+                "y": 226,
+                "width": 46.75,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Mark",
+                "size": 16,
+                "x": 32,
+                "y": 284,
+                "width": 38.49479675292969,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "all",
+                "size": 16,
+                "x": 74.98958587646484,
+                "y": 284,
+                "width": 16.739585876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "as",
+                "size": 16,
+                "x": 96.22396087646484,
+                "y": 284,
+                "width": 17.432289123535156,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "seen",
+                "size": 16,
+                "x": 118.15625,
+                "y": 284,
+                "width": 36.55729675292969,
+                "height": 19.66668701171875,
+                "inkHeight": 9
+              },
+              {
+                "word": "Open",
+                "size": 18,
+                "x": 16,
+                "y": 335,
+                "width": 47.145835876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 17
+              },
+              {
+                "word": "history",
+                "size": 18,
+                "x": 67.40625,
+                "y": 335,
+                "width": 62.07292175292969,
+                "height": 21.66668701171875,
+                "inkHeight": 18
+              }
+            ],
+            "pictureAt": 2.522599935531616,
+            "watchEvents": [
+              {
+                "kind": "sound",
+                "at": "1795716633584",
+                "clipAt": 6.266952
+              },
+              {
+                "kind": "motion",
+                "at": "1795716649582",
+                "clipAt": 22.266841
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Sound alert",
+                "body": "Medium, 6:10:33 PM."
+              },
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Low, 6:10:49 PM."
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "settings",
+      "key": "Settings",
+      "route": "/settings/",
+      "state": "list",
+      "clip": null,
+      "seconds": 6,
+      "description": "Settings say what the device watches for and what raises an alert.",
+      "longDescription": [
+        "0–2 seconds. Settings shows Detection first, then the settings that follow it.",
+        "2–5 seconds. The page scrolls through the list of settings.",
+        "5–6 seconds. The final settings remain on screen."
+      ],
+      "eventAt": 2,
+      "posterAt": 1,
+      "visibleWords": [
+        "Detection",
+        "Your",
+        "own,",
+        "motion",
+        "87,",
+        "sound",
+        "80",
+        "Alert",
+        "sounds",
+        "Volume",
+        "100",
+        "Quiet",
+        "hours",
+        "Off"
+      ],
+      "variants": {
+        "square": {
+          "dark": {
+            "video": {
+              "path": "home/runs/settings-square-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 984,
+              "height": 984,
+              "seconds": 6,
+              "bytes": 396874,
+              "sha256": "0670006fe5b4362beb9e493d9837345c7d22bc45434a3fd3ca426c36ae1de67b"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/settings-square-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 984,
+                "height": 984,
+                "bytes": 18480,
+                "sha256": "2ccb738539dbf488d70cb2dfc651f0ff8600948b90130598c04c15f415db35ca"
+              },
+              "avif": {
+                "path": "home/runs/settings-square-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 984,
+                "height": 984,
+                "bytes": 20005,
+                "sha256": "f267a343f91b6a54683805c9d96cef31d510322f84d5eb8d730210f1ef3685a7"
+              }
+            },
+            "viewport": {
+              "width": 328,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 260,
+              "width": 328,
+              "height": 328
+            },
+            "scale": 3,
+            "eventAt": 2,
+            "posterAt": 1,
+            "words": [
+              {
+                "word": "Detection",
+                "size": 18,
+                "x": 16,
+                "y": 29,
+                "width": 81.65104675292969,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Your",
+                "size": 16.25,
+                "x": 16,
+                "y": 60,
+                "width": 35.255210876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "own,",
+                "size": 16.25,
+                "x": 55.82291793823242,
+                "y": 60,
+                "width": 37.03645706176758,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "motion",
+                "size": 16.25,
+                "x": 97.421875,
+                "y": 60,
+                "width": 52.578125,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "87,",
+                "size": 16.25,
+                "x": 154.56771850585938,
+                "y": 60,
+                "width": 21.901031494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 15
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 16,
+                "y": 84,
+                "width": 47.484375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "80",
+                "size": 16.25,
+                "x": 68.046875,
+                "y": 84,
+                "width": 20.3125,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Alert",
+                "size": 18,
+                "x": 16,
+                "y": 147,
+                "width": 40.21875,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "sounds",
+                "size": 18,
+                "x": 61.28125,
+                "y": 147,
+                "width": 62.098960876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Volume",
+                "size": 16.25,
+                "x": 16,
+                "y": 178,
+                "width": 57.38542175292969,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "100",
+                "size": 16.25,
+                "x": 77.953125,
+                "y": 178,
+                "width": 27.114585876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 18,
+                "x": 16,
+                "y": 243,
+                "width": 45.15104293823242,
+                "height": 21.66668701171875,
+                "inkHeight": 14
+              },
+              {
+                "word": "hours",
+                "size": 18,
+                "x": 66.20833587646484,
+                "y": 243,
+                "width": 48.364585876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Off",
+                "size": 16.25,
+                "x": 16,
+                "y": 274,
+                "width": 23.822917938232422,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/settings-square-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 984,
+              "height": 984,
+              "seconds": 6,
+              "bytes": 372201,
+              "sha256": "8a07a27a05393bf225ce099986769c5d2b3173d2643ca847e191bf459b24ca9c"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/settings-square-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 984,
+                "height": 984,
+                "bytes": 18916,
+                "sha256": "716356146674163f6dc25fe1729034394949712ade2044196b154ec86ab10496"
+              },
+              "avif": {
+                "path": "home/runs/settings-square-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 984,
+                "height": 984,
+                "bytes": 22170,
+                "sha256": "6e4834e018b95deb979f2b83be611d54ca2f45baa7c47ddb2f177809bf8e4b50"
+              }
+            },
+            "viewport": {
+              "width": 328,
+              "height": 844
+            },
+            "crop": {
+              "x": 0,
+              "y": 260,
+              "width": 328,
+              "height": 328
+            },
+            "scale": 3,
+            "eventAt": 2,
+            "posterAt": 1,
+            "words": [
+              {
+                "word": "Detection",
+                "size": 18,
+                "x": 16,
+                "y": 29,
+                "width": 81.65104675292969,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Your",
+                "size": 16.25,
+                "x": 16,
+                "y": 60,
+                "width": 35.255210876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "own,",
+                "size": 16.25,
+                "x": 55.82291793823242,
+                "y": 60,
+                "width": 37.03645706176758,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "motion",
+                "size": 16.25,
+                "x": 97.421875,
+                "y": 60,
+                "width": 52.578125,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "87,",
+                "size": 16.25,
+                "x": 154.56771850585938,
+                "y": 60,
+                "width": 21.901031494140625,
+                "height": 19.66668701171875,
+                "inkHeight": 15
+              },
+              {
+                "word": "sound",
+                "size": 16.25,
+                "x": 16,
+                "y": 84,
+                "width": 47.484375,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "80",
+                "size": 16.25,
+                "x": 68.046875,
+                "y": 84,
+                "width": 20.3125,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Alert",
+                "size": 18,
+                "x": 16,
+                "y": 147,
+                "width": 40.21875,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "sounds",
+                "size": 18,
+                "x": 61.28125,
+                "y": 147,
+                "width": 62.098960876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Volume",
+                "size": 16.25,
+                "x": 16,
+                "y": 178,
+                "width": 57.38542175292969,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "100",
+                "size": 16.25,
+                "x": 77.953125,
+                "y": 178,
+                "width": 27.114585876464844,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 18,
+                "x": 16,
+                "y": 243,
+                "width": 45.15104293823242,
+                "height": 21.66668701171875,
+                "inkHeight": 14
+              },
+              {
+                "word": "hours",
+                "size": 18,
+                "x": 66.20833587646484,
+                "y": 243,
+                "width": 48.364585876464844,
+                "height": 21.66668701171875,
+                "inkHeight": 13
+              },
+              {
+                "word": "Off",
+                "size": 16.25,
+                "x": 16,
+                "y": 274,
+                "width": 23.822917938232422,
+                "height": 19.66668701171875,
+                "inkHeight": 12
+              }
+            ]
+          }
+        },
+        "wide": {
+          "dark": {
+            "video": {
+              "path": "home/runs/settings-wide-dark.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 6,
+              "bytes": 233919,
+              "sha256": "ea4d3b4d2c8cc467e2d8dcd762e9c74adf7077b3d565a6d026a3a479946390ed"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/settings-wide-dark.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 43260,
+                "sha256": "7b9bf8fb11de94e2fbe99ee7ed556d765a4dccfdc0650cd5c88f4c53b1535eb5"
+              },
+              "avif": {
+                "path": "home/runs/settings-wide-dark.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 55730,
+                "sha256": "ceb27d4d9b2ccc736459ca018ed3e81b552f9d8ce47329fcbff4aa9d5bf299b2"
+              }
+            },
+            "viewport": {
+              "width": 768,
+              "height": 480
+            },
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 480
+            },
+            "scale": 2.5,
+            "eventAt": 2,
+            "posterAt": 1,
+            "words": [
+              {
+                "word": "SafeOS",
+                "size": 16,
+                "x": 74,
+                "y": 12.800000190734863,
+                "width": 65.44375610351562,
+                "height": 20.400001525878906,
+                "inkHeight": 11
+              },
+              {
+                "word": "Guardian",
+                "size": 16,
+                "x": 74,
+                "y": 30.80000114440918,
+                "width": 86.63125610351562,
+                "height": 20.399999618530273,
+                "inkHeight": 11
+              },
+              {
+                "word": "Dashboard",
+                "size": 16,
+                "x": 176.63125610351562,
+                "y": 22,
+                "width": 82.52499389648438,
+                "height": 19.60000228881836,
+                "inkHeight": 12
+              },
+              {
+                "word": "History",
+                "size": 16,
+                "x": 275.15625,
+                "y": 22,
+                "width": 54.149993896484375,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Settings",
+                "size": 16,
+                "x": 345.3062438964844,
+                "y": 22,
+                "width": 61.6500244140625,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Help",
+                "size": 16,
+                "x": 422.9562683105469,
+                "y": 22,
+                "width": 34.89373779296875,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Detection",
+                "size": 18,
+                "x": 64,
+                "y": 86.80000305175781,
+                "width": 81.65625,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Your",
+                "size": 16,
+                "x": 64,
+                "y": 118,
+                "width": 34.712501525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "own,",
+                "size": 16,
+                "x": 103.20625305175781,
+                "y": 118,
+                "width": 36.46875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "motion",
+                "size": 16,
+                "x": 144.1687469482422,
+                "y": 118,
+                "width": 51.76875305175781,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "87,",
+                "size": 16,
+                "x": 200.4375,
+                "y": 118,
+                "width": 21.5625,
+                "height": 19.600006103515625,
+                "inkHeight": 15
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 226.5,
+                "y": 118,
+                "width": 46.75,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "80",
+                "size": 16,
+                "x": 277.75,
+                "y": 118,
+                "width": 19.993743896484375,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Alert",
+                "size": 18,
+                "x": 64,
+                "y": 174.8000030517578,
+                "width": 40.21875,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "sounds",
+                "size": 18,
+                "x": 109.28125,
+                "y": 174.8000030517578,
+                "width": 62.100006103515625,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Volume",
+                "size": 16,
+                "x": 64,
+                "y": 206,
+                "width": 56.5,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "100",
+                "size": 16,
+                "x": 125,
+                "y": 206,
+                "width": 26.699996948242188,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 18,
+                "x": 64,
+                "y": 262.8000183105469,
+                "width": 45.150001525878906,
+                "height": 22,
+                "inkHeight": 14
+              },
+              {
+                "word": "hours",
+                "size": 18,
+                "x": 114.20625305175781,
+                "y": 262.8000183105469,
+                "width": 48.368743896484375,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Off",
+                "size": 16,
+                "x": 64,
+                "y": 294,
+                "width": 23.456253051757812,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Alerts",
+                "size": 16,
+                "x": 64,
+                "y": 354.8000183105469,
+                "width": 46.23750305175781,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "Unanswered",
+                "size": 18,
+                "x": 64,
+                "y": 399.6000061035156,
+                "width": 107.16874694824219,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "alerts",
+                "size": 18,
+                "x": 176.22500610351562,
+                "y": 399.6000061035156,
+                "width": 47.23750305175781,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Wait",
+                "size": 16,
+                "x": 64,
+                "y": 430.8000183105469,
+                "width": 33.05000305175781,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "30",
+                "size": 16,
+                "x": 101.54375457763672,
+                "y": 430.8000183105469,
+                "width": 19.981246948242188,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "s,",
+                "size": 16,
+                "x": 126.01875305175781,
+                "y": 430.8000183105469,
+                "width": 13.0625,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "louder",
+                "size": 16,
+                "x": 143.5749969482422,
+                "y": 430.8000183105469,
+                "width": 48.08125305175781,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "after",
+                "size": 16,
+                "x": 196.15625,
+                "y": 430.8000183105469,
+                "width": 34.79374694824219,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "30",
+                "size": 16,
+                "x": 235.44375610351562,
+                "y": 430.8000183105469,
+                "width": 19.981246948242188,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "s",
+                "size": 16,
+                "x": 259.91876220703125,
+                "y": 430.8000183105469,
+                "width": 8.449981689453125,
+                "height": 19.5999755859375,
+                "inkHeight": 9
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/settings-wide-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 6,
+              "bytes": 213775,
+              "sha256": "5e7d51c68958c24be7faa14045a9c5fb4c5f2e2bb00a0633dfadc094e6cc095d"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/settings-wide-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 44320,
+                "sha256": "db86e389264240f6b54f606fd34f2a5ca38f616be1c85702e7445ac0cfce4a18"
+              },
+              "avif": {
+                "path": "home/runs/settings-wide-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 59785,
+                "sha256": "c17ed373877ae3a9e60e44b1f01280c3dc3840c8d91a84bf6a7858427f8753c8"
+              }
+            },
+            "viewport": {
+              "width": 768,
+              "height": 480
+            },
+            "crop": {
+              "x": 0,
+              "y": 0,
+              "width": 768,
+              "height": 480
+            },
+            "scale": 2.5,
+            "eventAt": 2,
+            "posterAt": 1,
+            "words": [
+              {
+                "word": "SafeOS",
+                "size": 16,
+                "x": 74,
+                "y": 12.800000190734863,
+                "width": 65.44375610351562,
+                "height": 20.400001525878906,
+                "inkHeight": 11
+              },
+              {
+                "word": "Guardian",
+                "size": 16,
+                "x": 74,
+                "y": 30.80000114440918,
+                "width": 86.63125610351562,
+                "height": 20.399999618530273,
+                "inkHeight": 11
+              },
+              {
+                "word": "Dashboard",
+                "size": 16,
+                "x": 176.63125610351562,
+                "y": 22,
+                "width": 82.52499389648438,
+                "height": 19.60000228881836,
+                "inkHeight": 12
+              },
+              {
+                "word": "History",
+                "size": 16,
+                "x": 275.15625,
+                "y": 22,
+                "width": 54.149993896484375,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Settings",
+                "size": 16,
+                "x": 345.3062438964844,
+                "y": 22,
+                "width": 61.6500244140625,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Help",
+                "size": 16,
+                "x": 422.9562683105469,
+                "y": 22,
+                "width": 34.89373779296875,
+                "height": 19.60000228881836,
+                "inkHeight": 15
+              },
+              {
+                "word": "Detection",
+                "size": 18,
+                "x": 64,
+                "y": 86.80000305175781,
+                "width": 81.65625,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Your",
+                "size": 16,
+                "x": 64,
+                "y": 118,
+                "width": 34.712501525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "own,",
+                "size": 16,
+                "x": 103.20625305175781,
+                "y": 118,
+                "width": 36.46875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "motion",
+                "size": 16,
+                "x": 144.1687469482422,
+                "y": 118,
+                "width": 51.76875305175781,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "87,",
+                "size": 16,
+                "x": 200.4375,
+                "y": 118,
+                "width": 21.5625,
+                "height": 19.600006103515625,
+                "inkHeight": 15
+              },
+              {
+                "word": "sound",
+                "size": 16,
+                "x": 226.5,
+                "y": 118,
+                "width": 46.75,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "80",
+                "size": 16,
+                "x": 277.75,
+                "y": 118,
+                "width": 19.993743896484375,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Alert",
+                "size": 18,
+                "x": 64,
+                "y": 174.8000030517578,
+                "width": 40.21875,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "sounds",
+                "size": 18,
+                "x": 109.28125,
+                "y": 174.8000030517578,
+                "width": 62.100006103515625,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Volume",
+                "size": 16,
+                "x": 64,
+                "y": 206,
+                "width": 56.5,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "100",
+                "size": 16,
+                "x": 125,
+                "y": 206,
+                "width": 26.699996948242188,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 18,
+                "x": 64,
+                "y": 262.8000183105469,
+                "width": 45.150001525878906,
+                "height": 22,
+                "inkHeight": 14
+              },
+              {
+                "word": "hours",
+                "size": 18,
+                "x": 114.20625305175781,
+                "y": 262.8000183105469,
+                "width": 48.368743896484375,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Off",
+                "size": 16,
+                "x": 64,
+                "y": 294,
+                "width": 23.456253051757812,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Alerts",
+                "size": 16,
+                "x": 64,
+                "y": 354.8000183105469,
+                "width": 46.23750305175781,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "Unanswered",
+                "size": 18,
+                "x": 64,
+                "y": 399.6000061035156,
+                "width": 107.16874694824219,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "alerts",
+                "size": 18,
+                "x": 176.22500610351562,
+                "y": 399.6000061035156,
+                "width": 47.23750305175781,
+                "height": 22,
+                "inkHeight": 13
+              },
+              {
+                "word": "Wait",
+                "size": 16,
+                "x": 64,
+                "y": 430.8000183105469,
+                "width": 33.05000305175781,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "30",
+                "size": 16,
+                "x": 101.54375457763672,
+                "y": 430.8000183105469,
+                "width": 19.981246948242188,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "s,",
+                "size": 16,
+                "x": 126.01875305175781,
+                "y": 430.8000183105469,
+                "width": 13.0625,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "louder",
+                "size": 16,
+                "x": 143.5749969482422,
+                "y": 430.8000183105469,
+                "width": 48.08125305175781,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "after",
+                "size": 16,
+                "x": 196.15625,
+                "y": 430.8000183105469,
+                "width": 34.79374694824219,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "30",
+                "size": 16,
+                "x": 235.44375610351562,
+                "y": 430.8000183105469,
+                "width": 19.981246948242188,
+                "height": 19.5999755859375,
+                "inkHeight": 12
+              },
+              {
+                "word": "s",
+                "size": 16,
+                "x": 259.91876220703125,
+                "y": 430.8000183105469,
+                "width": 8.449981689453125,
+                "height": 19.5999755859375,
+                "inkHeight": 9
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

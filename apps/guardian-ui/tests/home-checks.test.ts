@@ -30,24 +30,38 @@ it('fails the Pictures readability step when the home was requested without word
 it('polls again after a transient navigation failure and reports the last HTTP response', async () => {
   const script = readFileSync(path.join(app, 'scripts/check-published-home.mjs'), 'utf8');
   const expected = 'a'.repeat(64);
+  const manifest = readFileSync(path.join(app, 'public/home/runs/runs.json'));
+  const source = JSON.parse(manifest.toString()).commit;
+  const get = jest.fn().mockResolvedValue({ ok: () => false, status: () => 503 });
+  const move = jest.fn();
   const goto = jest.fn().mockRejectedValueOnce(new Error('Navigation timed out'))
     .mockResolvedValue({ ok: () => false, status: () => 503 });
   const close = jest.fn().mockResolvedValue(undefined);
   const wait = jest.fn().mockResolvedValue(undefined);
-  // Run the entry point with its browser and timer imports supplied by the test.
-  const entry = script.replace(/^import .*;\n/gm, '');
+  // Run the entry point with its dependencies supplied by the test.
+  const entry = script.replace('import.meta.url', 'scriptUrl').replace(/^import .*;\n/gm, '');
   const check: Promise<void> = runInNewContext(`(async () => { ${entry} })()`, {
     chromium: { launch: async () => ({
-      newContext: async () => ({ newPage: async () => ({ goto }), close }),
+      newContext: async () => ({
+        newPage: async () => ({ goto, mouse: { move } }),
+        request: { get },
+        close,
+      }),
       close: jest.fn(),
     }) },
     assert,
     wait,
+    URL,
+    readFile: async () => manifest,
+    scriptUrl: 'file:///app/scripts/check-published-home.mjs',
     console: { log: jest.fn() },
     process: { argv: ['', '', expected] },
   });
 
-  await expect(check).rejects.toThrow(`expected ${expected}, served HTTP 503`);
+  await expect(check).rejects.toThrow(
+    `expected source ${source} and HTML ${expected}, served source HTTP 503 and HTML HTTP 503`
+  );
+  expect(get).toHaveBeenCalledTimes(6);
   expect(goto).toHaveBeenCalledTimes(6);
   expect(close).toHaveBeenCalledTimes(6);
   expect(wait).toHaveBeenCalledTimes(5);

@@ -58,6 +58,29 @@ it('delivers an alert while its save is held back', async () => {
   expect(listener).toHaveBeenCalledWith(alert);
 });
 
+it('uses the watch notification wording for motion above the engine threshold', async () => {
+  const wording = jest.requireActual<typeof import('@/lib/alert-pictures/words')>('@/lib/alert-pictures/words');
+  const title = jest.fn(wording.notificationTitle);
+  const body = jest.fn(wording.notificationBody);
+  jest.doMock('@/lib/alert-pictures/words', () => ({ ...wording, notificationTitle: title, notificationBody: body }));
+  try {
+    const { engine, notification } = await engineTab();
+    await engine.updateConfig({ notificationsEnabled: true });
+    const alert = await engine.handleMotionDetection(1);
+    await engine.whenSaved();
+
+    expect(alert).toMatchObject({ type: 'motion', severity: 'emergency' });
+    expect(title).toHaveBeenCalledWith('motion');
+    expect(body).toHaveBeenCalledWith('critical', alert!.timestamp);
+    expect(notification).toHaveBeenCalledWith('Motion alert', expect.objectContaining({
+      body: wording.notificationBody('critical', alert!.timestamp),
+      tag: alert!.id,
+    }));
+  } finally {
+    jest.dontMock('@/lib/alert-pictures/words');
+  }
+});
+
 /**
  * A `cacheAlert` the test steers: it answers false without saving while `failures` lasts, and
  * otherwise waits for `gate` and saves for real. Every call is recorded.

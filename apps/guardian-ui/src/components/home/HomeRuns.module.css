@@ -1,0 +1,6 @@
+@media (max-width: 22em) {
+  .caption {
+    letter-spacing: -0.03em;
+    word-spacing: -0.04em;
+  }
+}
