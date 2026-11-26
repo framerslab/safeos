@@ -17,7 +17,7 @@ import { isCurrentFingerprint } from './visual-fingerprint';
 import { expiredPictureIds, type AlertKind, type Box } from './alert-pictures/rules';
 import { alertsChanged } from './tab-channel';
 import { noteStorageFull } from './storage-full';
-import { recordTime, seenAfterRemoval } from './alert-groups';
+import { matchFrameAlerted, recordTime, seenAfterRemoval } from './alert-groups';
 
 // =============================================================================
 // Database Schema
@@ -2064,12 +2064,14 @@ async function cleanupExcessMatchFrames(): Promise<void> {
       
       const toDelete = sortedByTime.slice(0, count - MAX_MATCH_FRAMES);
       // An alert whose only seen frames go stays seen: its first kept frame is marked.
-      // An alert is made of the frames that raised it, so a frame saved under the alert
-      // threshold (`alerted: false`) neither joins a run nor takes the mark.
+      // An alert is made of the frames that raised it, as History counts them, so a
+      // frame under the alert threshold neither joins a run nor takes the mark.
+      const { useLostFoundStore } = await import('../stores/lost-found-store');
+      const alertThreshold = useLostFoundStore.getState().settings.minConfidenceForAlert;
       const removed = new Set(toDelete.map((frame) => frame.id));
       const bySubject = new Map<string, MatchFrameDB[]>();
       for (const frame of frames) {
-        if (frame.alerted === false) continue;
+        if (!matchFrameAlerted(frame, alertThreshold)) continue;
         const group = bySubject.get(frame.subjectId);
         if (group) group.push(frame);
         else bySubject.set(frame.subjectId, [frame]);

@@ -328,6 +328,8 @@ export class CustomMediaPlayer {
         src: [audio.data],
         format: [audio.mimeType.split('/')[1] || 'mp3'],
         onend: () => {
+          // A finished sound is let go, so ending a pause never plays it again.
+          this.stopCurrentAudio();
           this.callbacks.onAudioPlay?.(audio, this.state.currentAudioIndex);
           setTimeout(() => this.playNextMedia(), 500);
         },

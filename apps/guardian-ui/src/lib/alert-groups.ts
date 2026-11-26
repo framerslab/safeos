@@ -199,6 +199,16 @@ export function seenAfterRemoval<T extends { id: string; acknowledged: boolean }
   return marks;
 }
 
+/**
+ * Whether a Lost and Found frame is part of an alert: it raised the alert, or,
+ * saved before the `alerted` field, it reaches the alert threshold as it is
+ * set now (0 to 100).
+ */
+export function matchFrameAlerted(frame: Pick<MatchFrameDB, 'alerted' | 'confidence'>, alertThreshold: number): boolean {
+  if (typeof frame.alerted === 'boolean') return frame.alerted;
+  return frame.confidence >= alertThreshold;
+}
+
 const animalWord = (type: unknown) => (type === 'unknown_animal' || typeof type !== 'string' || type === '' ? 'animal' : type);
 
 /** Every alert the records hold, seen or not, newest first. Changes no record. */
@@ -239,11 +249,9 @@ export function groupAlerts(records: SavedRecords): DeviceAlert[] {
   // is saved, is a pet or another thing, and the frame raised the alert. A
   // frame saved before the `alerted` field is judged by the threshold as it
   // is set now.
-  const counted = records.matchFrames.filter((frame) => {
-    if (!subjects.has(frame.subjectId)) return false;
-    if (typeof frame.alerted === 'boolean') return frame.alerted;
-    return frame.confidence >= records.alertThreshold;
-  });
+  const counted = records.matchFrames.filter((frame) => (
+    subjects.has(frame.subjectId) && matchFrameAlerted(frame, records.alertThreshold)
+  ));
   for (const [subjectId, frames] of groupBy(counted, (frame) => frame.subjectId)) {
     const name = subjects.get(subjectId)?.name ?? '';
     for (const run of runsOf(frames)) alerts.push(alertOfRun(run, 'lost-found', `Colours like ${name}’s`, pictureOf(run[0].record)));
