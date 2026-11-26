@@ -22,3 +22,11 @@ at all.
 | The watch’s audio settings | [Before](before/watch-audio-settings-390-dark.png) · [After](after/watch-audio-settings-390-dark.png) | [Before](before/watch-audio-settings-1280-light.png) · [After](after/watch-audio-settings-1280-light.png) |
 | Alert sounds and voice choice | [Before](before/spoken-alerts-390-dark.png) · [After](after/spoken-alerts-390-dark.png) | [Before](before/spoken-alerts-1280-light.png) · [After](after/spoken-alerts-1280-light.png) |
 | Alert sounds with no voice | [Before](before/spoken-alerts-no-voice-390-dark.png) · [After](after/spoken-alerts-no-voice-390-dark.png) | [Before](before/spoken-alerts-no-voice-1280-light.png) · [After](after/spoken-alerts-no-voice-1280-light.png) |
+| The blog post’s cited code lines | [Before](before/blog-code-lines-390-dark.png) · [After](after/blog-code-lines-390-dark.png) | [Before](before/blog-code-lines-1280-light.png) · [After](after/blog-code-lines-1280-light.png) |
+
+The blog post pictures are the full-page captures of
+`/blog/how-safeos-guardian-works/` from the `pictures-before` and `pictures`
+artifacts for head `eb32fb3`.
+[Pictures run](https://github.com/framerslab/safeos/actions/runs/45757517143)
+The post cites lines 74 to 76 of `CameraFeed.tsx` and 258 to 271 of
+`monitor/page.tsx` before, and 99 to 101 and 324 to 336 after.
