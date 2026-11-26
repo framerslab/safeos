@@ -77,6 +77,12 @@ async function waitForPoster(page, id, size, look, format = 'webp') {
   }, { id, size, look, format }, { timeout: 15000 });
 }
 
+async function toggleReads(page, name, reason) {
+  const key = await player(page).locator('.home-run__toggle')
+    .evaluate((element) => ({ label: element.getAttribute('aria-label'), text: element.textContent }));
+  assert.deepEqual(key, { label: name + ' the recordings', text: name }, reason);
+}
+
 async function timeStaysPut(page, reason) {
   const video = player(page).locator('video');
   await page.waitForFunction((selector) => document.querySelector(selector + ' video')?.paused,
@@ -284,6 +290,16 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     at = await timeStaysPut(page, 'Leaving the viewport paused the recording');
     await page.evaluate(() => window.scrollTo(0, 0));
     await waitForPlaying(page, at);
+    const shown = await player(page).evaluate((section) => {
+      const top = section.getBoundingClientRect().top;
+      window.scrollTo(0, window.scrollY + top + section.offsetHeight * 0.9);
+      const box = section.getBoundingClientRect();
+      return (Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0)) / box.height;
+    });
+    assert.ok(shown > 0 && shown < 0.25, 'The scroll must leave under a quarter of the player in view, left ' + shown);
+    at = await timeStaysPut(page, 'Under a quarter of the player in view paused the recording');
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await waitForPlaying(page, at);
     await page.evaluate(() => {
       Object.defineProperty(document, 'hidden', { configurable: true, value: true });
       document.dispatchEvent(new Event('visibilitychange'));
@@ -300,10 +316,7 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     serviceWorkers: 'block',
   }, async (page) => {
     const toggle = player(page).locator('.home-run__toggle');
-    const reads = async (name, reason) => {
-      const key = await toggle.evaluate((element) => ({ label: element.getAttribute('aria-label'), text: element.textContent }));
-      assert.deepEqual(key, { label: name + ' the recordings', text: name }, reason);
-    };
+    const reads = (name, reason) => toggleReads(page, name, reason);
     await open(page);
     await waitForPlaying(page);
     await reads('Pause', 'A playing recording offers Pause');
@@ -331,6 +344,41 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     await page.keyboard.press('Enter');
     await timeStaysPut(page, 'Enter on Pause held the frame');
     await reads('Play', 'A paused recording offers Play to the keyboard');
+  });
+
+  await inContext('a tap on the key does what the key reads on a touch screen', {
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, serviceWorkers: 'block',
+  }, async (page) => {
+    const toggle = player(page).locator('.home-run__toggle');
+    await open(page);
+    await waitForPlaying(page);
+    await toggleReads(page, 'Pause', 'A playing recording offers Pause to a tap');
+    await toggle.tap();
+    const at = await timeStaysPut(page, 'A tap on Pause held the frame').catch((error) => {
+      throw Error('A tap on Pause must pause the recording: ' + error.message.split('\n')[0]);
+    });
+    await toggleReads(page, 'Play', 'A tap on Pause leaves the key offering Play');
+    await toggle.tap();
+    await waitForPlaying(page, at).catch(() => { throw Error('A tap on Play must play the recording'); });
+    await toggleReads(page, 'Pause', 'A tap on Play leaves the key offering Pause');
+  });
+
+  await inContext('Play loads a chosen recording again after it failed', { serviceWorkers: 'block' }, async (page, context) => {
+    let blocked = true;
+    await context.route('**/home/runs/' + ids[1] + '-wide-dark.mp4', async (route) => {
+      if (blocked) await route.abort().catch(() => {});
+      else await route.continue().catch(() => {});
+    });
+    await open(page);
+    await waitForPlaying(page);
+    await selector(page, ids[1]).click();
+    await player(page).getByText('This recording did not load. Its picture shows the moment it records.', { exact: true }).waitFor();
+    await toggleReads(page, 'Play', 'A failed recording offers Play');
+    blocked = false;
+    await player(page).locator('.home-run__toggle').click();
+    await waitForPlaying(page).catch(() => { throw Error('Play must load the failed recording again'); });
+    assert.equal(await player(page).locator('video').evaluate((movie) => movie.currentSrc.endsWith('/' + ids[1] + '-wide-dark.mp4')), true);
+    await toggleReads(page, 'Pause', 'A recording loaded again offers Pause');
   });
 
   await inContext('manual loop, arrows and polite selection', { serviceWorkers: 'block' }, async (page) => {
