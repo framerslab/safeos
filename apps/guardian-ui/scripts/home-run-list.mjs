@@ -228,7 +228,7 @@ async function holdThrough(page, end, check) {
   await check();
 }
 
-async function dashboard({ page, crop, view, prepared, sample }) {
+async function dashboard({ page, crop, view, prepared, sample, whole }) {
   const since = page.getByRole('region', { name: 'Since you last looked' });
   const motion = since.getByRole('link', { name: /Movement at/ }).first();
   const sound = since.getByRole('link', { name: /Sound at/ }).first();
@@ -261,6 +261,7 @@ async function dashboard({ page, crop, view, prepared, sample }) {
   assert.ok(end - pictureAt >= 3.5, 'The Dashboard must hold the opened picture through the end');
   await holdThrough(page, end, async () => {
     assert.ok(fits(await picture.boundingBox(), crop), 'The Dashboard alert picture left the frame');
+    await whole('The opened Dashboard picture');
   });
   return {
     start, end, poster: start, event, words, pictureAt,
@@ -318,7 +319,7 @@ function readWatch(page) {
   }, { camera: CAMERA, offset: WATCH_CLIP_START });
 }
 
-async function watching({ page, crop, view, sample, nextFrameAfter }) {
+async function watching({ page, crop, view, sample, whole, nextFrameAfter }) {
   const camera = page.locator(CAMERA).first();
   const cameraBox = await camera.boundingBox();
   const meters = await page.locator('.watch-meters').boundingBox();
@@ -397,6 +398,7 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
     const boxes = await Promise.all([heading, alert, picture].map((part) => part.boundingBox()));
     assert.ok(boxes.every((box) => fits(box, crop)),
       'The motion alert and its picture were not in frame: ' + JSON.stringify({ boxes, crop }));
+    await whole('The held Watching alert');
   };
   await checkAlert();
   const pictureAt = await browserTime(page);
@@ -414,13 +416,14 @@ async function watching({ page, crop, view, sample, nextFrameAfter }) {
   };
 }
 
-async function siteSettings({ page, view, top, sample }) {
+async function siteSettings({ page, view, top, sample, whole }) {
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
   const words = await sample();
   await sleepUntil(page, start, 2);
   const selector = 'nav[aria-label="Settings pages"]';
   await scrollSubject(page, selector, top, 3, 'end', view.size === 'square' ? view.width : view.height);
+  await whole('The foot of Settings');
   await sleepUntil(page, start, 6);
   return { start, words, poster: start + 1, event: start + 2 };
 }
