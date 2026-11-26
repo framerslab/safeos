@@ -292,7 +292,8 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     await waitForPlaying(page, at);
     const shown = await player(page).evaluate((section) => {
       const top = section.getBoundingClientRect().top;
-      window.scrollTo(0, window.scrollY + top + section.offsetHeight * 0.9);
+      // The page scrolls smoothly; jump so the share is read where the scroll ends.
+      window.scrollTo({ top: window.scrollY + top + section.offsetHeight * 0.9, behavior: 'instant' });
       const box = section.getBoundingClientRect();
       return (Math.min(box.bottom, window.innerHeight) - Math.max(box.top, 0)) / box.height;
     });
