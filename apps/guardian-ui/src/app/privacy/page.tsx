@@ -11,6 +11,7 @@ import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/page-metadata';
 import type { ComponentType } from 'react';
 import { IconShield, IconLock, IconEye, IconDatabase, IconCheck } from '@/components/icons';
+import { DeviceConnections } from '@/components/DeviceConnections';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Privacy',
@@ -226,6 +227,19 @@ export default function PrivacyPage() {
               </p>
             </div>
           </div>
+        </section>
+
+        {/* What leaves this device */}
+        <section className="mb-12">
+          <h2 className="text-xl font-semibold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
+            What leaves this device
+          </h2>
+          <p className="text-slate-400 mb-4">
+            A spoken alert can leave this device too: People and Wildlife speak their alerts through
+            one of the browser&apos;s voices, and some voices are an online service. The table lists
+            each connection SafeOS makes or leads to, when it happens, who sees what and how to stop it.
+          </p>
+          <DeviceConnections />
         </section>
 
         {/* What We Don't Do */}
