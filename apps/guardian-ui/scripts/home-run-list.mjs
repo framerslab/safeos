@@ -530,13 +530,16 @@ async function watching({ page, crop, view, sample, whole, nextFrameAfter, captu
 }
 
 async function siteSettings({ page, view, top, sample, whole, nextFrameAfter, captureFrame }) {
+  const frame = { x: 0, y: top, width: view.width, height: view.size === 'square' ? view.width : view.height };
+  // The first rows stand still for two seconds and give the poster.
+  await settleEdges(page, frame, []);
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
   const words = await sample();
   await sleepUntil(page, start, 2);
   const selector = 'nav[aria-label="Settings pages"]';
   await scrollSubject(page, selector, top, 3, 'end', view.size === 'square' ? view.width : view.height);
-  await settleEdges(page, { x: 0, y: top, width: view.width, height: view.size === 'square' ? view.width : view.height }, []);
+  await settleEdges(page, frame, []);
   await whole('The foot of Settings');
   await frameAfter(page, { nextFrameAfter, captureFrame }, await browserTime(page));
   await sleepUntil(page, start, 6);
