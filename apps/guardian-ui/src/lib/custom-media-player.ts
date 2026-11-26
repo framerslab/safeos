@@ -8,7 +8,7 @@
  */
 
 import { Howl } from 'howler';
-import { findSpokenAlertVoice } from './tts-alerts';
+import { findSpokenAlertVoice, voicesWhenListed } from './tts-alerts';
 
 // =============================================================================
 // Types
@@ -96,6 +96,8 @@ export class CustomMediaPlayer {
   private imageTimer: ReturnType<typeof setInterval> | null = null;
   private playbackTimer: ReturnType<typeof setInterval> | null = null;
   private speechSynth: SpeechSynthesis | null = null;
+  // Counts starts, so a wait for the voice list ends with the playback that began it.
+  private playbacks = 0;
 
   constructor(
     config: Partial<CustomMediaConfig> = {},
@@ -144,6 +146,7 @@ export class CustomMediaPlayer {
   start(): void {
     if (this.state.isPlaying) return;
 
+    this.playbacks += 1;
     this.state = {
       ...this.getInitialState(),
       isPlaying: true,
@@ -258,14 +261,23 @@ export class CustomMediaPlayer {
   /**
    * Play next media item
    */
-  private playNextMedia(): void {
+  private playNextMedia(voicesAwaited = false): void {
     if (!this.state.isPlaying || this.state.isPaused) return;
 
     // Alternate between audio and TTS
     const hasAudio = this.config.audioEnabled && this.config.audioFiles.length > 0;
-    const voice = this.config.ttsEnabled && this.config.ttsMessages.length > 0
-      ? findSpokenAlertVoice(this.speechSynth?.getVoices() ?? [])
-      : undefined;
+    const wantsSpeech = this.config.ttsEnabled && this.config.ttsMessages.length > 0;
+    const voices = wantsSpeech ? this.speechSynth?.getVoices() ?? [] : [];
+    // A browser may list no voices until it has read them. With no sound to
+    // play first, the message waits for the list once.
+    if (wantsSpeech && !hasAudio && voices.length === 0 && this.speechSynth && !voicesAwaited) {
+      const playback = this.playbacks;
+      void voicesWhenListed(this.speechSynth).then(() => {
+        if (this.playbacks === playback) this.playNextMedia(true);
+      });
+      return;
+    }
+    const voice = wantsSpeech ? findSpokenAlertVoice(voices) : undefined;
 
     if (hasAudio && voice) {
       // Alternate

@@ -98,7 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lost & Found offers a pet or an item; subjects saved with the person type keep showing. The processing choice that only slowed the same matcher is gone.
 
 ### Removed
-- Removed the unused Background Noise Filter from Detection and the watch’s audio settings. Saved pitch ranges still load.
+- Removed the unused Background Noise Filter from Detection and the watch’s audio settings. Saved pitch ranges load as before.
 - From the Motion and sound page: the five number tiles, the modes menu in its header, the Camera Feed box, the floating quick settings, the Lost and Found panel of scores and its tag on the live picture, and the processing tag on the preset card. Photos are added to a pet on the Lost & Found page, and its saved frames stay in its match history.
 - The bell and its panel; the dashboard's second setup wizard, its number tiles, its streams and system panels, its own header strip and its own footer; the header's menu, its GitHub key and its "?" key (the keyboard's ? key opens the list of keys as before); and the floating "Enable notifications" and "Install SafeOS" cards. The browser's own install entry stays.
 

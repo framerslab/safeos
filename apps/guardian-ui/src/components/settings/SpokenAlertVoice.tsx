@@ -48,7 +48,9 @@ export function SpokenAlertVoice() {
         <p id="spoken-alert-availability" className="set-line">
           {choiceIsAvailable
             ? 'This browser offers no voice that stays on this device.'
-            : 'This browser offers no voice that stays on this device. Spoken alerts stay quiet unless you choose an online voice.'}
+            : online.length > 0
+              ? 'This browser offers no voice that stays on this device. Spoken alerts stay quiet unless you choose an online voice.'
+              : 'This browser offers no voice, so spoken alerts stay quiet.'}
         </p>
       )}
     </div>

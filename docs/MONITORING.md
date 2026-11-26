@@ -264,8 +264,9 @@ Emergency mode and the Emergency trigger always play.
 ## Spoken alerts
 
 People, Wildlife and Lost and Found’s custom spoken messages use a voice on
-this device by default, preferring the language of the page. If the browser offers no voice on this device, spoken
-alerts stay quiet. **Settings > Alert sounds > Spoken alert voice** lets you
+this device by default, preferring the language of the page. A browser can take
+a moment to list its voices, so an alert waits up to a second for the list. If
+the browser offers no voice on this device, spoken alerts stay quiet. **Settings > Alert sounds > Spoken alert voice** lets you
 choose a specific online voice when the browser offers one. Some browsers'
 voices send the alert's words to the browser maker. Choose **Use a voice on
 this device** to return to the default.

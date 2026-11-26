@@ -72,6 +72,28 @@ export const PRESET_MESSAGES: Record<MessageCategory, string[]> = {
   custom: [],
 };
 
+/** How long a spoken alert waits for a browser to list its voices. */
+const VOICE_LIST_WAIT_MS = 1000;
+
+/**
+ * The browser's voices. A browser may list none until it has read them, and
+ * then fires voiceschanged, so an empty list waits for that event once, for
+ * up to a second.
+ */
+export function voicesWhenListed(synth: SpeechSynthesis): Promise<SpeechSynthesisVoice[]> {
+  const voices = synth.getVoices();
+  if (voices.length > 0 || typeof synth.addEventListener !== 'function') return Promise.resolve(voices);
+  return new Promise((resolve) => {
+    const listed = () => {
+      clearTimeout(timer);
+      synth.removeEventListener('voiceschanged', listed);
+      resolve(synth.getVoices());
+    };
+    const timer = setTimeout(listed, VOICE_LIST_WAIT_MS);
+    synth.addEventListener('voiceschanged', listed);
+  });
+}
+
 /** A named online voice is used only when the person chose that voice on this browser. */
 export function findSpokenAlertVoice(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice | undefined {
   const chosenURI = useSettingsStore.getState().spokenAlertVoiceURI;
@@ -100,6 +122,8 @@ export class TTSManager {
   private isRepeating: boolean = false;
   private isSpeaking: boolean = false;
   private currentMessage: string | null = null;
+  // Counts stops, so a message that waited for the voice list is dropped after one.
+  private stops = 0;
 
   constructor(config: Partial<TTSConfig> = {}) {
     this.config = { ...DEFAULT_TTS_CONFIG, ...config };
@@ -115,6 +139,8 @@ export class TTSManager {
     }
 
     this.synth = window.speechSynthesis;
+    // Ask for the list now, so a browser that reads it late has it by the first alert.
+    this.synth.getVoices();
   }
 
   /** Update configuration. */
@@ -166,8 +192,21 @@ export class TTSManager {
       return;
     }
 
-    const voice = findSpokenAlertVoice(this.getVoices());
-    if (!voice) return;
+    const voices = this.getVoices();
+    if (voices.length > 0) {
+      this.speakWith(message, voices);
+      return;
+    }
+    const synth = this.synth;
+    const stops = this.stops;
+    void voicesWhenListed(synth).then((listed) => {
+      if (this.synth === synth && this.stops === stops) this.speakWith(message, listed);
+    });
+  }
+
+  private speakWith(message: string, voices: SpeechSynthesisVoice[]): void {
+    const voice = findSpokenAlertVoice(voices);
+    if (!voice || !this.synth) return;
 
     // Cancel any ongoing speech
     this.synth.cancel();
@@ -254,6 +293,7 @@ export class TTSManager {
    */
   stopContinuousAlert(): void {
     this.isRepeating = false;
+    this.stops += 1;
 
     if (this.repeatInterval) {
       clearInterval(this.repeatInterval);

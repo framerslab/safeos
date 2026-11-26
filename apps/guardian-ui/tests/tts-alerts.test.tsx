@@ -107,6 +107,23 @@ it('speaks the first alert once the browser lists its voices', async () => {
   tts.dispose();
 });
 
+it('drops a message that waited for the voice list when the alert stops', async () => {
+  let listed: SpeechSynthesisVoice[] = [];
+  const synth = speech([]);
+  synth.getVoices = () => listed;
+  const tts = new TTSManager();
+  await tts.initialize();
+  tts.speak('A cat is in view.');
+  tts.stop();
+
+  listed = [local];
+  synth.dispatchEvent(new Event('voiceschanged'));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  expect(synth.speak).not.toHaveBeenCalled();
+  tts.dispose();
+});
+
 it('says spoken alerts stay quiet when the browser offers no voice at all', async () => {
   speech([]);
   await act(async () => { render(<SoundsSettingsPage />); });
