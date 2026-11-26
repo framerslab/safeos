@@ -11,8 +11,12 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 export const HELD_SECONDS = 2.5;
+// The watch page's alert list lies on flat page colours, so one band of four
+// grey levels covers about a third of its frame or more. A camera picture
+// spreads over many bands: a fifth of the frame or less, with the meter strip.
+export const FLAT = 0.3;
+export const FLATTER = 0.08;
 // Mean difference of 0 to 255 grey levels between two frames scaled to 160 × 100.
-export const SCROLLED = 20;
 export const STILL = 12;
 const WIDTH = 160;
 const HEIGHT = 100;
@@ -32,6 +36,12 @@ export function difference(a, b) {
   return sum / a.length;
 }
 
+export function flatShare(frame) {
+  const bands = new Array(64).fill(0);
+  for (const level of frame) bands[level >> 2] += 1;
+  return Math.max(...bands) / frame.length;
+}
+
 export function checkHeldAlert(file, { motionOverAt, pictureAt, seconds }) {
   assert.ok(Number.isFinite(motionOverAt) && Number.isFinite(pictureAt), `${file} has no motion or alert time`);
   assert.ok(seconds - pictureAt >= HELD_SECONDS, `${file} reaches the alert ${(seconds - pictureAt).toFixed(2)} s before its end`);
@@ -39,12 +49,13 @@ export function checkHeldAlert(file, { motionOverAt, pictureAt, seconds }) {
   const held = grey(file, seconds - HELD_SECONDS);
   const last = grey(file, seconds - 0.1);
   const result = {
-    heldFromCamera: difference(camera, held),
-    lastFromCamera: difference(camera, last),
+    camera: flatShare(camera),
+    held: flatShare(held),
+    last: flatShare(last),
     heldToLast: difference(held, last),
   };
   console.log(`${file}: ${JSON.stringify(Object.fromEntries(Object.entries(result).map(([k, v]) => [k, Number(v.toFixed(2))])))}`);
-  assert.ok(result.heldFromCamera >= SCROLLED && result.lastFromCamera >= SCROLLED,
+  assert.ok(Math.min(result.held, result.last) >= Math.max(FLAT, result.camera + FLATTER),
     `${file} still shows the camera from ${motionOverAt.toFixed(2)} s in its last ${HELD_SECONDS} s; the alert never comes into view: ${JSON.stringify(result)}`);
   assert.ok(result.heldToLast <= STILL,
     `${file} does not hold the alert still for its last ${HELD_SECONDS} s: ${JSON.stringify(result)}`);
