@@ -24,7 +24,7 @@ The first-screen captures use fresh browsers at 390 × 844 and 1440 × 900 CSS p
 | [`after/home-dashboard-playing-390-light.png`](after/home-dashboard-playing-390-light.png) | Phone Dashboard playback showing the opened movement picture, light look | `7c32b15f3ef2a99f4343934ab4780c8a83526b51f8d8b5b71f39f089b0a0d8e9` |
 | [`after/home-watching-motion-390-dark.png`](after/home-watching-motion-390-dark.png) | Phone Watching as Motion crosses its line, dark look | `3725292c6a0557554629485332f1617031a276428919e78528cf2fd211bef2b1` |
 | [`after/home-dashboard-1440-dark.png`](after/home-dashboard-1440-dark.png) | Desktop Dashboard list with both alerts, dark look | `fa6ec4e71e818f09cffad523e8e73a3983b7ed41fd28f9ce9aed74de4f117740` |
-| [`after/home-watching-playing-1440-dark.png`](after/home-watching-playing-1440-dark.png) | Desktop Watching showing the motion alert and its picture, dark look | `d38c2d3c032b32f324d58baf7c1e838b52ab9652f1dbdbe3faea93a51f288ba3` |
+| [`after/home-watching-playing-1440-dark.png`](after/home-watching-playing-1440-dark.png) | Desktop Watching playback with Motion over the line, dark look | `d38c2d3c032b32f324d58baf7c1e838b52ab9652f1dbdbe3faea93a51f288ba3` |
 | [`after/home-dashboard-playing-1440-dark.png`](after/home-dashboard-playing-1440-dark.png) | Desktop Dashboard playback showing the opened movement picture, dark look | `e2a185679736b3d2ac6f0df63d4db600bf0e7a62284e61361f91b1eb023caa91` |
 | [`after/home-dashboard-1440-light.png`](after/home-dashboard-1440-light.png) | Desktop Dashboard list with both alerts, light look | `c715c0acee13899c9fc92ee841b2083f27425b41a65e4e7e5f4256c1219a4096` |
 | [`after/home-watching-playing-1440-light.png`](after/home-watching-playing-1440-light.png) | Desktop Watching showing the motion alert and its picture, light look | `cbde79397bf1cb36bc4620d7109bcf4f1fd52b0bd10cbf1b95270135dd149bb6` |
@@ -44,6 +44,8 @@ The first-screen captures use fresh browsers at 390 × 844 and 1440 × 900 CSS p
 | Dashboard | square, light | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.73 s |
 | Dashboard | wide, dark | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.66 s |
 | Dashboard | wide, light | Opened the movement alert at 2.00 s | 22.27 s | Alert list | 4.77 s |
+
+The producer reported a 4.94 s alert hold for wide dark Watching. In the built player, the wide dark video still shows the camera and meter at 7.5 s. The focused capture reproduced this at the same app and media revision. [Playback capture](https://github.com/framerslab/safeos/actions/runs/45732990360/job/139619313662)
 
 ## Readability
 
