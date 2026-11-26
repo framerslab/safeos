@@ -126,7 +126,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How does TensorFlow.js work in the browser?',
-        answer: 'TensorFlow.js is a JavaScript library that brings machine learning to the browser. SafeOS runs it on WebGL, which uses your graphics chip. This means AI inference runs directly on your device, enabling real-time analysis without sending data to external servers.',
+        answer: 'TensorFlow.js is a JavaScript library that brings machine learning to the browser. SafeOS asks it for WebGL, which runs the model on your graphics chip; without hardware WebGL it runs the model on the processor, slower. Either way the model runs on your device.',
       },
       {
         question: 'Can I export my data?',

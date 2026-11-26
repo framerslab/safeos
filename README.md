@@ -57,7 +57,7 @@ docker pull ghcr.io/framerslab/safeos-ui:latest
 
 The two images run together: `safeos-ui` is the interface you open, `safeos-api` is the backend it talks to for notifications and the local-AI bridge. The compose starts both, plus Ollama, and wires them on one network. (`docker run … safeos-api` on its own gives you just the headless API.)
 
-**Local AI with Ollama:** the compose runs an Ollama container and pre-pulls its models on first start, so local scene analysis works with no extra setup. To use an Ollama instance you already run, set `OLLAMA_HOST` in `.env` (e.g. `http://192.168.1.50:11434`). Choose which models to cache with `OLLAMA_MODELS` (default `moondream llava:7b`; add `llama3.2-vision:11b` if you have ~16 GB RAM). Frames reach the server, and so Ollama, only in a processing mode that uses the server. With no cloud AI key in `.env` they stay on your network; with one, the server sends a frame to that provider when Ollama is down or its analysis fails. Details in [docs/DOCKER.md](docs/DOCKER.md).
+**Local AI with Ollama:** the compose runs an Ollama container and pre-pulls its models on first start, so local scene analysis works with no extra setup. To use an Ollama instance you already run, set `OLLAMA_HOST` in `.env` (e.g. `http://192.168.1.50:11434`). Choose which models to cache with `OLLAMA_MODELS` (default `moondream llava:7b`, the two models the server uses). Frames reach the server, and so Ollama, only in a processing mode that uses the server. With no cloud AI key in `.env` they stay on your network; with one, the server sends a frame to that provider when Ollama is down or its analysis fails. Details in [docs/DOCKER.md](docs/DOCKER.md).
 
 **Build from source instead:**
 
@@ -101,7 +101,7 @@ If you want to dig deeper:
 | **Lost and Found** | Watch your own camera for an animal with a lost pet's colouring, from 1–5 reference photos (color + edge fingerprints). Chosen on Monitor under **Watch for**, or in setup. It does not identify a pet. |
 | **Wildlife & outdoor** | Backyard trail-cam, livestock, and animal detection with COCO-SSD. |
 | **Authority / emergency** | At-risk areas or shelters; severity-routed alerts via the optional server. |
-| **Small-business security** | Perimeter watch, after-hours intrusion, customer-traffic counts. Escalating push + audio. |
+| **Small-business security** | Perimeter watch, after-hours intrusion, customer-traffic counts. Escalating notifications + audio. |
 | **Personal safety** | Lone-worker check-ins; doorbell detection for d/Deaf households; live-in caregiving. |
 
 SafeOS is a **supplemental** tool. It augments human attention; it does not replace it. Privacy laws around recording vary by jurisdiction — only deploy on premises and people you have authority to monitor.
@@ -114,38 +114,37 @@ The solid path runs in the browser; offline starts require completed app install
 
 ## How the deep learning runs in your browser
 
-1. **First load.** The Next.js app shell loads from any static host (GitHub Pages, Vercel, Netlify, Cloudflare Pages). The service worker registers after the first page loads and installs a build-specific set of HTML, scripts (including lazy chunks), styles, fonts, and the images the pages show. A new build activates after tabs using the previous worker close.
+1. **First load.** The Next.js app shell loads from any static host (GitHub Pages, Vercel, Netlify, Cloudflare Pages). The service worker registers after the first page loads and installs a build-specific set of HTML, scripts (including lazy chunks), styles, fonts, and the images the pages show. A new build takes over as soon as its worker has stored it whole (the worker skips waiting); a page already open keeps the scripts it loaded.
 2. **Model fetch.** After setup and explicit agreement, TensorFlow.js downloads COCO-SSD `lite_mobilenet_v2` from Google's [`tfjs-models`](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) storage (18.6 MB including the manifest). One shared loader saves the manifest and every weight shard in Cache Storage and reuses them offline. Failed attempts can be retried without reloading the page.
-3. **Backend.** SafeOS sets TF.js to the [WebGL](https://www.khronos.org/webgl/) backend (`tf.setBackend('webgl')`).
+3. **Backend.** SafeOS sets TF.js to the [WebGL](https://www.khronos.org/webgl/) backend (`tf.setBackend('webgl')`), which runs the model on the graphics chip, or on the processor, slower, without hardware WebGL: TF.js 4.22 turns down a software WebGL context ([`failIfMajorPerformanceCaveat`](https://github.com/tensorflow/tfjs/blob/tfjs-v4.22.0/tfjs-backend-webgl/src/canvas_util.ts#L29)) and [`tf.ready()`](https://github.com/tensorflow/tfjs/blob/tfjs-v4.22.0/tfjs-core/src/engine.ts#L188-L207) then picks its CPU backend.
 4. **Per-frame screening.** A `setInterval` loop at 200 ms samples the `<video>` element into a hidden `<canvas>`, runs pixel-diff motion detection and an FFT pass over the Web Audio `AnalyserNode`, and tracks pixel-change counts. Cheap enough to run continuously without a GPU context. Code: [`apps/guardian-ui/src/components/CameraFeed.tsx`](apps/guardian-ui/src/components/CameraFeed.tsx).
 5. **Gated inference.** In People mode, when motion crosses the threshold the frame is handed to TF.js; COCO-SSD's `model.detect()` returns bounding boxes, class labels, and confidence, at most once every 500 ms. The monitor page runs no model. Gate: [`apps/guardian-ui/src/lib/person-detection.ts`](apps/guardian-ui/src/lib/person-detection.ts).
 6. **Model settings.** Settings → Models downloads the same COCO-SSD model used by People and Wildlife. It offers no separate scene classifier download.
 7. **Audio parallel path.** The Web Audio API's [`AnalyserNode`](https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode) samples FFT bins from the microphone every ~100 ms; a loudness threshold raises the sound alert, and a crying pattern shows in the camera overlay without raising an alert of its own. No model needed.
-8. **Lost and Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), an 8×8 grid of edge strengths taken from differences between neighbouring pixels, and a size estimate. Several photos of one subject merge into one fingerprint: histogram buckets whose colours are closer than one bucket is wide are put together, and each photo counts the same in the histogram and in the averaged colour, size and edges, whatever its size, also when photos are added to a saved subject. A subject saved by an earlier version is rebuilt from its saved photos the first time it is watched or a photo is added to it. The matcher samples the live feed at 1–2 FPS and scores each frame on average colour, then region by region on a weighted mix (histogram 40%, dominant colours 35%, edges 15%, size 10%); a region's edges are read on the same 8×8 grid as the photos and on the same fixed scale, where a cell whose pixels step 60 levels in each colour to their neighbours reads 100 (black to white is 765), so the same pixels read the same on both sides and the camera's noise on a blank wall reads as weak edges. With motion priority on, from the second frame only regions that cover a moving part of the frame are scored. With adaptive lighting on, the scene's settled brightness and texture are kept for each cell of an 8×8 grid, and a change of light is judged among the background cells: a cell more than 10 levels from where it settled that did not move with the light is foreground and stays out of the judging and the settled brightness. When seven in eight of the background cells turn brighter together, or darker together, or half of them do and keep their texture (a lamp lights the room while the window stays), the frame is first moved back by the median of their differences, up to 64 levels, and both steps score the corrected frame. A subject in view is scored as the camera gives it, and the settled brightness follows the background slowly, so a scene whose light holds is scored as the camera gives it; another camera, or the camera started again, sets it afresh. Color Sensitivity at 50 leaves scores as they are; lower settings raise them, and higher settings lower near matches while an exact match stays at 100. It matches colours, so another animal or an object of similar colour matches too. Under 1 KB per photo. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
-9. **Alert engine.** Matches feed a severity router (info / low / medium / high / critical). Each severity has its own escalation: volume-ramping local audio, browser push, optional fan-out to email / SMS / Telegram via the API server.
+8. **Lost and Found fingerprinting.** Reference photos reduce to a 32-bin color histogram, top-5 dominant colors (k-means), an 8×8 grid of edge strengths taken from differences between neighbouring pixels, and a size estimate. Several photos of one subject merge into one fingerprint: histogram buckets whose colours are closer than one bucket is wide are put together, and each photo counts the same in the histogram and in the averaged colour, size and edges, whatever its size, also when photos are added to a saved subject. A subject saved by an earlier version is rebuilt from its saved photos the first time it is watched or a photo is added to it. The matcher samples the live feed up to twice a second (every 500 ms, or 900 ms in hybrid mode), fewer times when the device cannot keep up, and scores each frame on average colour, then region by region on a weighted mix (histogram 40%, dominant colours 35%, edges 15%, size 10%); a region's edges are read on the same 8×8 grid as the photos and on the same fixed scale, where a cell whose pixels step 60 levels in each colour to their neighbours reads 100 (black to white is 765), so the same pixels read the same on both sides and the camera's noise on a blank wall reads as weak edges. With motion priority on, from the second frame only regions that cover a moving part of the frame are scored. With adaptive lighting on, the scene's settled brightness and texture are kept for each cell of an 8×8 grid, and a change of light is judged among the background cells: a cell more than 10 levels from where it settled that did not move with the light is foreground and stays out of the judging and the settled brightness. When seven in eight of the background cells turn brighter together, or darker together, or half of them do and keep their texture (a lamp lights the room while the window stays), the frame is first moved back by the median of their differences, up to 64 levels, and both steps score the corrected frame. A subject in view is scored as the camera gives it, and the settled brightness follows the background slowly, so a scene whose light holds is scored as the camera gives it; another camera, or the camera started again, sets it afresh. Color Sensitivity at 50 leaves scores as they are; lower settings raise them, and higher settings lower near matches while an exact match stays at 100. It matches colours, so another animal or an object of similar colour matches too. Code: [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts).
+9. **Alert engine.** Matches feed a severity router (info / low / medium / high / critical). Each severity has its own escalation: volume-ramping local audio, a browser notification, optional fan-out to email / SMS / Telegram via the API server.
 10. **Storage stays local.** Settings, and Wildlife's sightings with their pictures, persist in local storage; alerts, alert pictures and Lost and Found's sightings in [IndexedDB](https://developer.mozilla.org/en-US/docs/Web/API/IndexedDB_API); People's saved frames and the pets with their fingerprints in both. Monitor-page alerts are saved in IndexedDB and restored in History after a reload. The motion check keeps only the last three frames in memory.
 
 The optional API server (`src/`) only enters the picture when you opt into fan-out channels (Resend, Twilio, Telegram), multi-device WebSocket sync, or a bridge to a local [Ollama](https://ollama.com) install for richer scene reasoning.
 
 ## Models
 
-Every model runs client-side. Sizes are the download sizes measured on 11 Nov 2026.
+The detection model and the fingerprints run in the browser; the optional server runs the Ollama and cloud models below. Sizes are the download sizes measured on 11 Nov 2026.
 
 | Job | Model | Framework | Size | Source |
 |---|---|---|---|---|
 | Object detection (People and Wildlife modes) | COCO-SSD (`lite_mobilenet_v2`) | [TensorFlow.js Models](https://github.com/tensorflow/tfjs-models/tree/master/coco-ssd) | 18.6 MB | tfjs-models |
 | Audio analysis | FFT bins via [Web Audio API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API) | native | 0 KB | MDN |
-| Visual fingerprinting | Color histograms + edge grid | hand-rolled | < 1 KB / photo | [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts) |
+| Visual fingerprinting | Color histograms + edge grid | hand-rolled | 0 KB (made in the browser) | [`apps/guardian-ui/src/lib/visual-fingerprint.ts`](apps/guardian-ui/src/lib/visual-fingerprint.ts) |
 
 ### Optional: local LLM for harder scenes
 
-In a processing mode that uses the server, the monitor sends camera frames to the API server, which analyses them with a local [Ollama](https://ollama.com) install. With no cloud AI key set, frames stay on your LAN.
+In a processing mode that uses the server, the monitor sends camera frames to the API server, which analyses them with a local [Ollama](https://ollama.com) install. With no cloud AI key set, frames stay on your LAN. The server uses these two models ([`src/lib/ollama/client.ts`](src/lib/ollama/client.ts)); download sizes as ollama.com lists them:
 
-| Model | Size | Latency | Use |
-|---|---|---|---|
-| [`moondream`](https://ollama.com/library/moondream) | ~1.7 GB | ~500 ms | Fast triage |
-| [`llava:7b`](https://ollama.com/library/llava) | ~4 GB | 2–5 s | Detailed analysis |
-| [`llama3.2-vision:11b`](https://ollama.com/library/llama3.2-vision) | ~7 GB | 5–10 s | Complex reasoning |
+| Model | Download | Use |
+|---|---|---|
+| [`moondream`](https://ollama.com/library/moondream) | 1.7 GB | A first look at each frame |
+| [`llava:7b`](https://ollama.com/library/llava) | 4.7 GB | A closer look when the first one finds a concern |
 
 ### Optional: cloud fallback
 
@@ -161,14 +160,14 @@ With none of these keys set, no frame goes to a cloud provider.
 
 SafeOS Guardian fans out alerts across four channels, routed by severity:
 
-| Severity | Browser push | Email (Resend) | SMS (Twilio) | Telegram |
+| Severity | Browser notification | Email (Resend) | SMS (Twilio) | Telegram |
 |---|:---:|:---:|:---:|:---:|
 | info / low | ✓ | — | — | — |
 | medium | ✓ | ✓ | — | ✓ |
 | high | ✓ | ✓ | ✓ | ✓ |
 | critical | ✓ | ✓ | ✓ | ✓ |
 
-Browser push works straight from the static PWA. Email via [Resend](https://resend.com), SMS via [Twilio](https://www.twilio.com), and Telegram via a [bot](https://core.telegram.org/bots) fan out from the optional API server — those three providers can't be called safely from the browser (no CORS, and the keys would leak in client JS), so the server is what holds the credentials and makes the outbound calls. All three integrations are opt-in.
+Browser notifications come from the open page through the browser's notification API; the web app makes no push subscription, so they need SafeOS open in a tab. Email via [Resend](https://resend.com), SMS via [Twilio](https://www.twilio.com), and Telegram via a [bot](https://core.telegram.org/bots) fan out from the optional API server — those three providers can't be called safely from the browser (no CORS, and the keys would leak in client JS), so the server is what holds the credentials and makes the outbound calls. All three integrations are opt-in.
 
 ### Email alerts via Resend
 

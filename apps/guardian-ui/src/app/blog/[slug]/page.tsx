@@ -85,20 +85,20 @@ const blogContent: Record<string, BlogContent> = {
           that reads the sound&apos;s frequencies every 100 ms. Both are arithmetic on the CPU, and
           neither loads a model. The intervals are constants in{' '}
           <a
-            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/components/CameraFeed.tsx"
+            href="https://github.com/framerslab/safeos/blob/ab7512f5f292046522062cd4c1fdf2e056a85c59/apps/guardian-ui/src/components/CameraFeed.tsx#L99-L101"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
           >
             <code>CameraFeed.tsx</code>
-          </a>{' '}
-          at lines 74&ndash;76:
+          </a>
+          :
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
-          <div className="text-emerald-400">const FRAME_INTERVAL = 1000;<span className="text-slate-500">{' // gated frame capture'}</span></div>
-          <div className="text-emerald-400">const MOTION_INTERVAL = 200;<span className="text-slate-500">{' // pixel-diff every 200ms'}</span></div>
-          <div className="text-emerald-400">const AUDIO_INTERVAL = 100;<span className="text-slate-500">{' // FFT every 100ms'}</span></div>
+          <div className="text-emerald-400">const FRAME_INTERVAL = 1000;<span className="text-slate-500">{' // Check every second'}</span></div>
+          <div className="text-emerald-400">const MOTION_INTERVAL = 200;<span className="text-slate-500">{' // Motion detection every 200ms'}</span></div>
+          <div className="text-emerald-400">const AUDIO_INTERVAL = 100;<span className="text-slate-500">{' // Audio level every 100ms'}</span></div>
         </div>
 
         <h2>The gate</h2>
@@ -106,7 +106,7 @@ const blogContent: Record<string, BlogContent> = {
         <p>
           Object detection waits for the check to report a change. The gate is in{' '}
           <a
-            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
+            href="https://github.com/framerslab/safeos/blob/ab7512f5f292046522062cd4c1fdf2e056a85c59/apps/guardian-ui/src/lib/person-detection.ts#L258-L264"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
@@ -117,14 +117,13 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
-          <div className="text-slate-500">{`// lines 258-264: run detection when the motion level crosses its threshold`}</div>
+          <div className="text-slate-500">{`// Only run AI detection if motion detected`}</div>
           <div className="text-emerald-400">const motionTriggered = motionLevel &gt;= this.config.motionThreshold;</div>
           <div className="text-emerald-400">if (!motionTriggered) return null;</div>
         </div>
 
         <p>
-          While nothing moves, the model does not run and the GPU stays in its low-power state.
-          COCO-SSD&apos;s <code>model.detect()</code> runs only in Security and Wildlife, when
+          While nothing moves, the model does not run. COCO-SSD&apos;s <code>model.detect()</code> runs only in Security and Wildlife, when
           something in the frame moved enough to cross the motion threshold, at most twice a second
           in Security (<code>minDetectionInterval: 500</code>). One exception: while Security is
           triggered or sounding an alert, it runs the model every five seconds whether or not
@@ -169,9 +168,10 @@ const blogContent: Record<string, BlogContent> = {
           >
             Ollama
           </a>{' '}
-          install on the same network (moondream, llava:7b or llama3.2-vision), which describes the
-          scene in words. If you also give that server your own OpenAI / Anthropic / Gemini key, it
-          sends a frame to that provider when the local analysis is unavailable.
+          install on the same network: moondream takes a first look at each frame, and llava:7b a
+          closer one when the first finds a concern, and they describe the scene in words. If you also
+          give that server your own OpenRouter, OpenAI or Anthropic key, it sends a frame to that
+          provider when Ollama is down or its analysis fails.
         </p>
 
         <h2>The sound check</h2>
@@ -192,9 +192,9 @@ const blogContent: Record<string, BlogContent> = {
         <p>
           The matcher uses no trained model. Each reference photo reduces to three
           signatures: a 32-bin color histogram, the top-5 dominant colors via k-means, and an 8&times;8
-          grid of edge strengths taken from differences between neighbouring pixels. Together they
-          take under 1 KB a photo. The matcher samples the live feed at 1&ndash;2 FPS, scores each
-          frame on average colour first, then region by region on a weighted mix: histogram 40%,
+          grid of edge strengths taken from differences between neighbouring pixels. The matcher
+          samples the live feed up to twice a second (every 500 ms, or 900 ms in hybrid mode), fewer
+          times when the device cannot keep up, and scores each frame on average colour first, then region by region on a weighted mix: histogram 40%,
           dominant colours 35%, edges 15%, size 10%. The code is in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/visual-fingerprint.ts"
@@ -212,14 +212,14 @@ const blogContent: Record<string, BlogContent> = {
           same colour. It needs no model download, and it costs little enough to run on every
           sample. The Lost &amp; Found loop is in{' '}
           <a
-            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/app/monitor/page.tsx"
+            href="https://github.com/framerslab/safeos/blob/ab7512f5f292046522062cd4c1fdf2e056a85c59/apps/guardian-ui/src/app/monitor/page.tsx#L324-L336"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
           >
             <code>monitor/page.tsx</code>
-          </a>{' '}
-          around lines 258&ndash;271.
+          </a>
+          .
         </p>
 
         <h2>State and storage</h2>

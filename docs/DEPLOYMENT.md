@@ -201,7 +201,7 @@ Edit `.env`. Docker Compose reads it from the project folder when it starts the 
 |---|---|
 | `SAFEOS_DOMAIN` | The name from step 1, without `https://`, for example `safeos-api.example.com`. Caddy serves this name, and the API builds the unsubscribe links in its mail from it. Leaving the placeholder `safeos-api.yourdomain.com` means no certificate and no mail. |
 | `CORS_ORIGIN` | The origin you serve the web app from (see [Connect the web app](#connect-the-web-app)), for example `https://safeos.example.com`; `https://safeos.sh` when unset. Caddy answers preflight requests itself and sends this one origin as `Access-Control-Allow-Origin` on every answer, in place of the API's own header (`SAFEOS_ALLOWED_ORIGINS`, see [CONFIGURATION.md](./CONFIGURATION.md#server-configuration)). |
-| `OLLAMA_MODELS` | The models to download on first start. The default `moondream llava:7b` is about 6 GB. |
+| `OLLAMA_MODELS` | The models to download on first start. The default `moondream llava:7b` is about 6.4 GB (1.7 GB and 4.7 GB). |
 | Alert keys (optional) | `RESEND_API_KEY`, `EMAIL_FROM`, `TWILIO_*`, `TELEGRAM_BOT_TOKEN`, `VAPID_*`: see [CONFIGURATION.md](./CONFIGURATION.md). |
 
 `.env` holds secrets: keep it out of version control (the repository's `.gitignore` already excludes it) and readable only by you (`chmod 600 .env`).
@@ -449,9 +449,8 @@ curl -fsSL https://ollama.com/install.sh | sh
 ollama serve &
 
 # Pull models (one-time)
-ollama pull moondream    # Fast triage (~1.7GB)
-ollama pull llava:7b     # Detailed analysis (~4GB)
-ollama pull llama3.2-vision:11b  # Complex reasoning (~7GB)
+ollama pull moondream    # A first look at each frame (1.7 GB)
+ollama pull llava:7b     # A closer look when the first finds a concern (4.7 GB)
 ```
 
 In the compose stacks, the `ollama-pull` service downloads the models in `OLLAMA_MODELS` for you.

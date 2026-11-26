@@ -306,7 +306,7 @@ short window and its severity's cooldown.
 
 ## A Lost and Found sighting
 
-While the watch compares, each check (twice a second) scores what the camera sees against the
+While the watch compares, each check (up to twice a second, fewer on a slow device) scores what the camera sees against the
 pet's photos. A check at or over the alert line is a sighting. A run of sightings is one alert
 entry: its first sighting raises the alert, and while sightings go on the same entry alerts
 again each time the **Cooldown Period** has passed, with "Repeated N times". A run ends after
