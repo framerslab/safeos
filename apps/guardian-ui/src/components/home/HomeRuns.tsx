@@ -73,6 +73,17 @@ function Arrow({ backward = false }: { backward?: boolean }) {
   );
 }
 
+// Most browsers focus a pressed or tapped button before its click. Only focus
+// the browser shows a ring for (keyboard focus) holds playback, so a tap on
+// Pause pauses.
+function keyboardFocus(target: EventTarget) {
+  try {
+    return target instanceof Element && target.matches(':focus-visible');
+  } catch {
+    return true;
+  }
+}
+
 const attribute = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 function posterTemplate(entry: HomeRun) {
@@ -136,8 +147,9 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   const allowed = Boolean(environment?.online && environment.visible && inView && (intent === 'loop'
     || (intent === 'auto' && (explicit || (!environment.reduced && !environment.limited && !hover && !focus)))));
   const starting = allowed && !failed && !showFrame;
-  // The key follows the video. Hover, focus, the viewport and a hidden page
-  // hold playback, so a held recording offers Play and one press plays it.
+  // The key follows the video. Hover, keyboard focus, the viewport and a
+  // hidden page hold playback, so a held recording offers Play and one press
+  // plays it.
   const toggleActive = allowed && !failed;
   const messageId = 'home-run-description-' + run.id;
 
@@ -148,7 +160,8 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
   useEffect(() => {
     const box = region.current;
     if (!box) return;
-    const observer = new IntersectionObserver(([entry]) => setInView(entry.isIntersecting), { threshold: 0.25 });
+    // isIntersecting is true for any overlap; the threshold only times the call.
+    const observer = new IntersectionObserver(([entry]) => setInView(entry.intersectionRatio >= 0.25), { threshold: 0.25 });
     observer.observe(box);
     return () => observer.disconnect();
   }, []);
@@ -296,6 +309,12 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
       passes.current = 0;
       failures.current = 0;
     }
+    if (failed) {
+      // A media element keeps its error until its source is loaded again, so
+      // the source is detached and attached anew.
+      setAttached(undefined);
+      setFrame(undefined);
+    }
     setError(undefined);
     setPlayTriedOffline(false);
     setIntent(environment.limited || environment.reduced ? 'loop' : resume.current);
@@ -312,7 +331,7 @@ export function HomeRuns({ runs }: { runs: HomeRun[] }) {
       data-paused={intent === 'pause' || intent === 'stop' || environment?.visible === false || undefined}
       onPointerEnter={(event) => { if (event.pointerType === 'mouse') setHover(true); }}
       onPointerLeave={() => setHover(false)}
-      onFocusCapture={() => setFocus(true)}
+      onFocusCapture={(event) => { if (keyboardFocus(event.target)) setFocus(true); }}
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget)) setFocus(false);
       }}
