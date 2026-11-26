@@ -60,6 +60,7 @@ import { chromium } from '@playwright/test';
 import { skipsInBase } from './base-routes.mjs';
 
 const [baseUrl, outDir, ...routes] = process.argv.slice(2);
+const playbackOnly = routes.length === 1 && routes[0] === '--home-playback';
 if (!baseUrl || !outDir || routes.length === 0) {
   console.error('usage: capture-pictures.mjs <base-url> <out-dir> <route> [<route> ...]');
   process.exit(2);
@@ -94,7 +95,7 @@ await mkdir(outDir, { recursive: true });
 const browser = await chromium.launch();
 let failures = 0;
 try {
-  const homeChecks = process.env.PICTURE_VERSION === 'after' && routes.includes('/')
+  const homeChecks = process.env.PICTURE_VERSION === 'after' && (routes.includes('/') || playbackOnly)
     ? await import('./home-checks.mjs')
     : null;
   let runs;
@@ -103,7 +104,13 @@ try {
     if (!response.ok) throw Error('Missing exported home recordings');
     ({ runs } = await response.json());
   }
-  if (routes.includes('/')) failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs);
+  if (routes.includes('/') || playbackOnly) {
+    failures += await captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs);
+  }
+  if (playbackOnly) {
+    await browser.close();
+    process.exit(failures > 0 ? 1 : 0);
+  }
   if (homeChecks) {
     failures += await homeChecks.checkHomePage(browser, baseUrl, outDir);
     const { checkHomeRuns, checkRunPolicies } = await import('./home-run-checks.mjs');
@@ -566,13 +573,25 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs) {
             // Follow real playback so the screenshot holds a painted frame
             // after the alert picture appears.
             const at = variant.pictureAt === undefined ? (id === 'watching' ? 8.3 : 4)
-              : Math.min(run.seconds - 1, variant.pictureAt + 1);
+              : run.seconds - 1.5;
             await waitForPlaying(page, at, 15000);
+            await page.locator('.home-run__frame video').evaluate((movie) => new Promise((resolve, reject) => {
+              const callback = movie.requestVideoFrameCallback(() => {
+                clearTimeout(timeout);
+                resolve();
+              });
+              const timeout = setTimeout(() => {
+                movie.cancelVideoFrameCallback(callback);
+                reject(new Error('The video did not present a playback frame'));
+              }, 5000);
+            }));
             await save('home-' + id + '-playing-' + width + '-' + look + '.png');
           }
         } finally {
           for (const resume of release.values()) resume();
         }
+
+        if (playbackOnly) continue;
 
         const hideBar = 'nav[aria-label="Site"] { visibility: hidden !important; }';
         const picture = async (locator, name) => {
