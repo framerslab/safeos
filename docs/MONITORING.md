@@ -459,12 +459,16 @@ waits its turn behind an earlier one of its event, it sends that notification wi
 People shows how many people are in view. Above the allowed count, the alert and
 its browser notification say when the watch saw them and that the count is more
 than this watch allows. The alert stays on the page with its **DISARM** key until
-the watch is disarmed, also once the people have left. Saved pictures keep the
+the watch is disarmed, also once the people have left. It gives the count and
+time of the alert the watch saved; a check inside the cooldown that sees more
+people saves nothing and leaves the alert as it is. Saved pictures keep the
 count and the time. The **History** key shows them. Voice warnings play on the
 watching device.
 
 Wildlife shows an animal's name and the time of the sighting. The browser
-notification gives the same information. The **Alert line** in Wildlife Settings
+notification gives the same information. Each sighting that alerts stays under
+**Sightings to clear** until **Clear All** or the end of the watch, also once the
+animal has left. The **Alert line** in Wildlife Settings
 shows a number. Raising it makes the watch more selective about which sightings
 it shows.
 
