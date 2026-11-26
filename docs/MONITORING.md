@@ -24,6 +24,11 @@ missing or blocked microphone while Motion goes on; a microphone lost while watc
 A polite status says the microphone's problem once, and never a reading.
 Setup's **Grant Permissions** also completes with the camera alone.
 
+The GitHub mark in the app's header, on a phone too, opens GitHub in a new tab,
+and its name says so ("SafeOS on GitHub (opens in a new tab)"), so a watch
+running on Monitor, People or Wildlife goes on while GitHub is open. The public
+pages' header opens GitHub in the same tab.
+
 ## The meters
 
 Under the live picture, a strip holds a meter for each kind the setting in use

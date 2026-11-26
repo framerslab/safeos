@@ -117,7 +117,8 @@ export async function checkApp(browser, baseUrl, outDir) {
   const IPHONE_SAFARI = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
   const DESTINATION_WORDS = ['Dashboard', 'History', 'Settings', 'Help'];
   const stars = starsHanded();
-  const githubName = stars ? `SafeOS on GitHub, ${stars.exact}` : 'SafeOS on GitHub';
+  // The app header's GitHub link opens a new tab, and its name says so.
+  const githubName = `${stars ? `SafeOS on GitHub, ${stars.exact}` : 'SafeOS on GitHub'} (opens in a new tab)`;
   const rowNames = (look) => ['SafeOS Guardian, dashboard', ...DESTINATION_WORDS, githubName, `Switch to the ${OTHER[look]} look`];
   const face = (family) => (family || '').split(',')[0].replace(/["']/g, '').trim();
   const isInter = (family) => /Inter/i.test(face(family));

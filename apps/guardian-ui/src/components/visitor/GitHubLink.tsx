@@ -4,7 +4,10 @@
  * The header pairs the GitHub mark with the word and star count when there
  * is room. The icon-only link has the same accessible name and description. The Menu and
  * footer show the word and count. The count is written into the page at
- * build time and its description gives the date it was read.
+ * build time and its description gives the date it was read. On the app's
+ * pages the icon-only link opens GitHub in a new tab, so a watch running on
+ * the page goes on, and its name says so; the public pages open it in the
+ * same tab.
  *
  * @module components/visitor/GitHubLink
  */
@@ -103,15 +106,21 @@ export function GitHubLink({ className, place, full = false, onClick }: GitHubLi
   );
 }
 
-export function GitHubIconLink({ className }: { className: string }) {
+/** The words a link that opens a new tab adds to its name. */
+export const NEW_TAB_WORDS = '(opens in a new tab)';
+
+export function GitHubIconLink({ className, newTab = false }: { className: string; newTab?: boolean }) {
   const stars = starCount();
+  const name = headerLinkName(stars);
   return (
     <>
       <a
         href={GITHUB_URL}
         className={`key--icon ${className}`}
-        aria-label={headerLinkName(stars)}
+        aria-label={newTab ? `${name} ${NEW_TAB_WORDS}` : name}
         aria-describedby={stars ? 'github-count-icon' : undefined}
+        target={newTab ? '_blank' : undefined}
+        rel={newTab ? 'noopener noreferrer' : undefined}
       >
         <GitHubMark />
       </a>
