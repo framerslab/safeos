@@ -35,7 +35,7 @@ export default function NotFound() {
         <KeyRow>
           <Link
             href="/"
-            className="key key--solid"
+            className="key key--solid whitespace-nowrap"
           >
             Go to the home page
           </Link>

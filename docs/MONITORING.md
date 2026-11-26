@@ -468,6 +468,26 @@ the switch usable with no reload. Turning the switch in one tab holds in every o
 next notification. Turned off while a notification's picture is drawn, or while the notification
 waits its turn behind an earlier one of its event, it sends that notification with its words alone.
 
+## People and Wildlife alerts
+
+People shows how many people are in view. Above the allowed count, the alert and
+its browser notification say when the watch saw them and that the count is more
+than this watch allows. The alert stays on the page with its **DISARM** key until
+the watch is disarmed, also once the people have left. It gives the count and
+time of the alert the watch saved. While the count stays above the allowed
+count, a check inside the cooldown saves nothing and leaves the alert as it is.
+When the count falls to or below the allowed count and then rises above it, the
+watch saves a new picture and the alert takes its count and time. Saved pictures
+keep the count and the time. The **History** key shows them. Voice warnings play
+on the watching device.
+
+Wildlife shows an animal's name and the time of the sighting. The browser
+notification gives the same information. Each sighting that alerts stays under
+**Sightings to clear** until **Clear All** or the end of the watch, also once the
+animal has left. The **Alert line** in Wildlife Settings
+shows a number. Raising it makes the watch more selective about which sightings
+it shows.
+
 ## Processing and connection
 
 The Monitor preset's **Local** processing mode keeps camera frames on the device,

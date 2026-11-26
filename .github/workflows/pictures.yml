@@ -93,6 +93,7 @@ jobs:
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/capture-pictures.mjs" > scripts/capture-pictures.mjs
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/base-routes.mjs" > scripts/base-routes.mjs
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/capture-monitoring-changes.mjs" > scripts/capture-monitoring-changes.mjs
+          git show "$CAPTURE_REF:apps/guardian-ui/scripts/watch-page-captures.mjs" > scripts/watch-page-captures.mjs
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -199,6 +200,48 @@ jobs:
             ${{ runner.temp }}/pictures/*.png
             ${{ runner.temp }}/pictures/home-readability.json
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Check the People alert pictures at 390 and 1440 px
+        if: ${{ !cancelled() }}
+        env:
+          ROUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.routes || env.DEFAULT_ROUTES }}
+        run: |
+          case " $ROUTES " in
+            *" /security/ "*) ;;
+            *) exit 0 ;;
+          esac
+          missing=0
+          for width in 390 1440; do
+            for look in light dark; do
+              for view in sighting count notification; do
+                file="people-$view-$width-$look.png"
+                if [ ! -s "$RUNNER_TEMP/pictures/$file" ]; then
+                  echo "::error::Missing People alert picture: $file"
+                  missing=1
+                fi
+              done
+            done
+          done
+          exit "$missing"
+
+      - name: Upload watch page and desktop header pictures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.version == 'before' && 'watch-pages-before' || 'watch-pages' }}
+          path: |
+            ${{ runner.temp }}/pictures/people-sighting-*.png
+            ${{ runner.temp }}/pictures/people-count-*.png
+            ${{ runner.temp }}/pictures/people-notification-*.png
+            ${{ runner.temp }}/pictures/wildlife-sighting-*.png
+            ${{ runner.temp }}/pictures/wildlife-kept-*.png
+            ${{ runner.temp }}/pictures/wildlife-notification-*.png
+            ${{ runner.temp }}/pictures/wildlife-caution-*.png
+            ${{ runner.temp }}/pictures/*-keys-320-light.png
+            ${{ runner.temp }}/pictures/site-header-1024-*.png
+            ${{ runner.temp }}/pictures/site-header-1440-*.png
+          if-no-files-found: ignore
           retention-days: 14
 
   home-captures:

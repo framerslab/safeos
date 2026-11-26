@@ -10,7 +10,7 @@
  */
 
 import React from 'react';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { AppHeader, foldFor } from '@/components/app/AppHeader';
 import { PhoneBar } from '@/components/app/PhoneBar';
 
@@ -91,6 +91,34 @@ it('keeps the mark of the page being read on a link that moved into More', () =>
   const panel = container.querySelector('#app-more') as HTMLElement;
   expect(panel.hidden).toBe(false);
   expect(within(panel).getByRole('link', { name: 'Help' }).getAttribute('aria-current')).toBe('page');
+});
+
+it('puts focus back on Settings in the row when the window widens until Settings leaves More', () => {
+  mockPath = '/dashboard/';
+  // The row's width at each fold, in a bar as wide as room: Settings leaves
+  // More at fold 2, in a bar of 800 px; at 500 px both links are in More.
+  const widths = [1000, 900, 700, 400, 400];
+  let room = 500;
+  spies.push(
+    jest.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(() =>
+      widths[Number(document.querySelector('header.app-header')?.getAttribute('data-fold') ?? 0)]
+    ),
+    jest.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(() => room)
+  );
+  const { container } = render(<AppHeader />);
+  const header = container.querySelector('header.app-header') as HTMLElement;
+  expect(header.getAttribute('data-fold')).toBe('3');
+  fireEvent.click(screen.getByRole('button', { name: 'More' }));
+  const panel = container.querySelector('#app-more') as HTMLElement;
+  within(panel).getByRole('link', { name: 'Settings' }).focus();
+
+  room = 800;
+  act(() => {
+    window.dispatchEvent(new Event('resize'));
+  });
+  expect(header.getAttribute('data-fold')).toBe('2');
+  expect(within(panel).getAllByRole('link').map((row) => row.textContent)).toEqual(['Help']);
+  expect(document.activeElement).toBe(header.querySelector('.app-header__link[data-section="/settings"]'));
 });
 
 it('contacts no other host', () => {

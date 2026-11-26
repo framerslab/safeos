@@ -11,11 +11,14 @@ import { readSavedPets } from '@/lib/client-db';
 import SecurityPage from '@/app/security/page';
 import WildlifePage from '@/app/wildlife/page';
 import { announceWatch } from '@/lib/tab-channel';
-import { getTTSManager } from '@/lib/tts-alerts';
+import { showBrowserNotification } from '@/lib/browser-notification';
+import { timeWords } from '@/lib/alert-pictures/words';
+import { getPersonDetector } from '@/lib/person-detection';
+import { getTTSManager, PRESET_MESSAGES } from '@/lib/tts-alerts';
 import { forgetVisit } from '@/lib/visit-store';
 import { readLastWay, readWatchSession } from '@/lib/watch-session';
 import { raisedByThisWatch } from '@/lib/watch-sound';
-import type { AnimalDetection } from '@/lib/animal-detection';
+import { getAnimalDetector, getDangerLabel, type AnimalDetection, type DangerLevel } from '@/lib/animal-detection';
 import {
   calculateAverageColor,
   estimateSizeRatio,
@@ -30,6 +33,9 @@ import { DEFAULT_SECURITY_SETTINGS, useSecurityStore } from '@/stores/security-s
 import { DEFAULT_ANIMAL_SETTINGS, useAnimalAlertStore } from '@/stores/animal-alert-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser, startMonitoring } from './helpers/camera-browser';
+import { barredWording, homeWordingInputs } from '../scripts/home-wording.cjs';
+
+jest.mock('@/lib/browser-notification', () => ({ showBrowserNotification: jest.fn() }));
 
 jest.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(),
@@ -58,7 +64,7 @@ jest.mock('@/lib/person-detection', () => {
     initialize: async () => {},
     dispose() {},
     updateConfig() {},
-    processFrame: async () => null,
+    processFrame: jest.fn(async () => null),
     forceDetection: async () => null,
   };
   return { ...jest.requireActual('@/lib/person-detection'), getPersonDetector: () => detector };
@@ -68,7 +74,7 @@ jest.mock('@/lib/animal-detection', () => {
     initialize: async () => {},
     dispose() {},
     updateConfig() {},
-    processFrame: async () => null,
+    processFrame: jest.fn(async () => null),
     forceDetection: async () => null,
   };
   return { ...jest.requireActual('@/lib/animal-detection'), getAnimalDetector: () => detector };
@@ -140,6 +146,8 @@ beforeEach(() => {
   localStorage.clear();
   forgetVisit();
   jest.clearAllMocks();
+  jest.mocked(getPersonDetector().processFrame).mockReset().mockResolvedValue(null);
+  jest.mocked(getAnimalDetector().processFrame).mockReset().mockResolvedValue(null);
   jest.mocked(announceWatch).mockImplementation(() => mockEndAnnounce);
   useMonitoringStore.getState().reset();
   useSettingsStore.setState({ globalMute: true });
@@ -148,8 +156,11 @@ beforeEach(() => {
   useOnboardingStore.setState({ selectedScenario: null, lostFoundChosen: false });
   useLostFoundStore.setState({ isWatching: false, activeSubject: null, chosenPetId: null });
   jest.mocked(readSavedPets).mockResolvedValue([]);
-  useSecurityStore.setState({ armingState: 'disarmed', armingTimeRemaining: 0, settings: DEFAULT_SECURITY_SETTINGS });
-  useAnimalAlertStore.setState({ isMonitoring: false, currentDetections: [], settings: DEFAULT_ANIMAL_SETTINGS });
+  useSecurityStore.getState().reset();
+  useSecurityStore.setState({ settings: DEFAULT_SECURITY_SETTINGS, intrusionFrames: [] });
+  useAnimalAlertStore.setState({
+    isMonitoring: false, currentDetections: [], detectionHistory: [], settings: DEFAULT_ANIMAL_SETTINGS,
+  });
   browser = installCameraBrowser();
 });
 afterEach(() => { cleanup(); jest.useRealTimers(); jest.restoreAllMocks(); });
@@ -300,3 +311,218 @@ it("another tab's takeover ends Wildlife's watch in full", async () => {
   // The page is still on screen, ready to start again.
   expect(screen.getByRole('button', { name: 'Start Monitoring' })).toBeTruthy();
 });
+
+const notifications = () => jest.mocked(showBrowserNotification).mock.calls;
+const allowNotifications = () => {
+  Object.defineProperty(Notification, 'permission', { configurable: true, value: 'granted' });
+};
+
+async function peopleInView() {
+  const at = new Date('2026-11-18T21:42:40Z').getTime();
+  const settings = {
+    ...DEFAULT_SECURITY_SETTINGS,
+    allowedPersons: 1,
+    alerts: { ...DEFAULT_SECURITY_SETTINGS.alerts, flashEnabled: false, sirenEnabled: false },
+  };
+  useSecurityStore.setState({ settings });
+  jest.mocked(getPersonDetector().processFrame).mockResolvedValueOnce({
+    personCount: 2,
+    detections: [
+      { bbox: [0, 0, 40, 40], class: 'person', confidence: 0.82 },
+      { bbox: [60, 0, 40, 40], class: 'person', confidence: 0.82 },
+    ],
+    processingTimeMs: 18,
+    timestamp: at,
+    motionTriggered: true,
+  });
+  allowNotifications();
+  const view = render(<SecurityPage />);
+  await act(async () => {});
+  await act(async () => useSecurityStore.getState().setArmingState('armed'));
+  await act(async () => { jest.advanceTimersByTime(settings.detectionInterval); });
+  expect(useSecurityStore.getState().armingState).toBe('triggered');
+  return { ...view, at };
+}
+
+it('shows the number of people in view, the time and that the watch allows fewer', async () => {
+  const { container, at } = await peopleInView();
+  const words = container.querySelector('video')?.closest('main')?.textContent ?? '';
+  expect(words).not.toMatch(barredWording);
+  expect(words).toContain('2 people in view');
+  expect(words).toContain('More than this watch allows.');
+  expect(words).toContain(timeWords(at));
+});
+
+it("People's notification gives the count, the time and what went over the line", async () => {
+  const { at } = await peopleInView();
+  expect(notifications()).toHaveLength(1);
+  const [title, options] = notifications()[0];
+  expect(`${title} ${options?.body}`).not.toMatch(barredWording);
+  expect(options?.body).toContain('2 people in view');
+  expect(options?.body).toContain('More than this watch allows.');
+  expect(options?.body).toContain(timeWords(at));
+});
+
+it("keeps People's alert and its DISARM key after the people leave, until the watch is disarmed", async () => {
+  const { container, at } = await peopleInView();
+  const words = () => container.querySelector('video')?.closest('main')?.textContent ?? '';
+  jest.spyOn(getPersonDetector(), 'forceDetection').mockResolvedValueOnce({
+    personCount: 0, detections: [], processingTimeMs: 18, timestamp: at + 5_000, motionTriggered: true,
+  });
+  await act(async () => { jest.advanceTimersByTime(DEFAULT_SECURITY_SETTINGS.detectionInterval); });
+  expect(useSecurityStore.getState()).toMatchObject({ armingState: 'triggered', currentPersonCount: 0 });
+  expect(words()).toContain('0 people in view');
+  expect(words()).toContain(`2 people in view at ${timeWords(at)}`);
+  fireEvent.click(screen.getByRole('button', { name: 'DISARM' }));
+  expect(useSecurityStore.getState().armingState).toBe('disarmed');
+  expect(words()).not.toContain('2 people in view at');
+});
+
+it("keeps the count and time of People's saved alert while a check in the cooldown sees more people", async () => {
+  const { container, at } = await peopleInView();
+  const words = () => container.querySelector('video')?.closest('main')?.textContent ?? '';
+  jest.spyOn(getPersonDetector(), 'forceDetection').mockResolvedValueOnce({
+    personCount: 3,
+    detections: [0, 50, 100].map((x) => ({ bbox: [x, 0, 40, 40] as [number, number, number, number], class: 'person', confidence: 0.82 })),
+    processingTimeMs: 18,
+    timestamp: at + 60_000,
+    motionTriggered: true,
+  });
+  await act(async () => { jest.advanceTimersByTime(DEFAULT_SECURITY_SETTINGS.detectionInterval); });
+  expect(useSecurityStore.getState()).toMatchObject({ armingState: 'triggered', currentPersonCount: 3 });
+  // The check falls inside the cooldown: no new picture and no new notification.
+  expect(useSecurityStore.getState().intrusionFrames).toHaveLength(1);
+  expect(notifications()).toHaveLength(1);
+  expect(words()).toContain(`2 people in view at ${timeWords(at)}`);
+  expect(words()).not.toContain('3 people in view at');
+});
+
+it('names no part of People with a score or a barred word while its camera runs', async () => {
+  const { container } = await peopleInView();
+  for (const text of homeWordingInputs(container.querySelector('video')!.closest('main')!)) expect(text).not.toMatch(barredWording);
+  expect(screen.getByRole('status', { name: /movement/i })).toBeTruthy();
+});
+
+it('says in Silent Mode where the pictures are kept, by the name of the key that shows them', async () => {
+  useSecurityStore.setState({ settings: { ...DEFAULT_SECURITY_SETTINGS, alertMode: 'silent' } });
+  render(<SecurityPage />);
+  await act(async () => {});
+  const line = screen.getByText('Silent Mode:').parentElement?.textContent ?? '';
+  expect(line).not.toMatch(/intrusion/i);
+  expect(line).toContain('History');
+  expect(screen.getByRole('button', { name: 'History' })).toBeTruthy();
+});
+
+it.each([...PRESET_MESSAGES.authoritative, ...PRESET_MESSAGES.alarm])('speaks People\'s "%s" in plain words', (message) => {
+  expect(message).not.toMatch(barredWording);
+  expect(message).not.toMatch(/unauthorized/i);
+});
+
+it('shows truthful preset examples when Custom TTS Messages is expanded on People', async () => {
+  render(<SecurityPage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: /Custom TTS Messages/ }));
+  expect(screen.getByText(/^Preset examples:/).textContent).not.toMatch(/authorities/i);
+});
+
+it.each(PRESET_MESSAGES.authoritative)(
+  'the built-in People warning "%s" makes no claim about authorities',
+  (message) => expect(message).not.toMatch(/authorities/i),
+);
+
+const zebra = (): AnimalDetection => ({
+  ...sighting(), id: 'zebra-1', type: 'zebra', displayName: 'Zebra', dangerLevel: 'medium',
+  confidence: 0.82, timestamp: new Date('2026-11-18T21:42:40Z').getTime(),
+});
+
+async function wildlifeInView() {
+  const animal = zebra();
+  useAnimalAlertStore.setState({
+    settings: { ...DEFAULT_ANIMAL_SETTINGS, alertMode: 'silent', flashScreen: false },
+  });
+  jest.mocked(getAnimalDetector().processFrame).mockResolvedValueOnce({
+    animals: [animal], largeAnimals: [], smallAnimals: [], dangerousAnimals: [], processingTimeMs: 18,
+  });
+  allowNotifications();
+  render(<WildlifePage />);
+  await act(async () => {});
+  await act(async () => useAnimalAlertStore.getState().setMonitoring(true));
+  await act(async () => { jest.advanceTimersByTime(1_000); });
+  return animal;
+}
+
+it('shows a zebra sighting without a score beside its name', async () => {
+  const animal = await wildlifeInView();
+  const sightings = screen.getAllByText('Zebra', { exact: true });
+  expect(sightings).toHaveLength(2);
+  for (const name of sightings) {
+    const words = name.parentElement?.textContent ?? '';
+    expect(words).not.toMatch(barredWording);
+    expect(words).toContain(timeWords(animal.timestamp));
+  }
+});
+
+it('names no part of Wildlife with a score or a barred word while its camera runs', async () => {
+  await wildlifeInView();
+  for (const text of homeWordingInputs(document.querySelector('video')!.closest('main')!)) expect(text).not.toMatch(barredWording);
+  expect(screen.getByRole('status', { name: /movement/i })).toBeTruthy();
+});
+
+it('names the sightings it keeps until Clear All without saying the animal is in view', async () => {
+  await wildlifeInView();
+  // The zebra leaves: the checks that follow see no animal, and its card stays.
+  await act(async () => { jest.advanceTimersByTime(5_000); });
+  expect(useAnimalAlertStore.getState().currentDetections).toHaveLength(1);
+  const clear = screen.getByRole('button', { name: 'Clear All' });
+  const heading = clear.parentElement?.querySelector('h3');
+  expect(heading?.textContent?.trim()).toBe('Sightings to clear');
+  expect(heading?.textContent).not.toMatch(/in view/i);
+});
+
+it("Wildlife's notification names the animal and gives the time", async () => {
+  const animal = await wildlifeInView();
+  expect(notifications()).toHaveLength(1);
+  const [title, options] = notifications()[0];
+  expect(`${title} ${options?.body}`).not.toMatch(barredWording);
+  expect(options?.body).toBe(`Zebra in view at ${timeWords(animal.timestamp)}.`);
+});
+
+it('shows the Wildlife alert line as a plain number', async () => {
+  render(<WildlifePage />);
+  await act(async () => {});
+  fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+  const slider = screen.getAllByRole('slider')[0];
+  expect(slider.parentElement?.textContent).not.toMatch(/%/);
+  expect(slider.parentElement?.textContent).toContain('50');
+});
+
+function luminance(rgb: string) {
+  const channels = rgb.match(/\d+/g)?.map((value) => {
+    const s = Number(value) / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  if (!channels || channels.length !== 3) throw new Error(`Expected an opaque RGB colour, got "${rgb}"`);
+  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+}
+
+it.each<DangerLevel>(['medium', 'none', 'low', 'high', 'extreme'])(
+  'gives the %s Wildlife badge 7:1 contrast in both looks',
+  async (level) => {
+    useAnimalAlertStore.setState({ currentDetections: [{ ...zebra(), dangerLevel: level }] });
+    render(<WildlifePage />);
+    await act(async () => {});
+    const badge = screen.getByText(getDangerLabel(level), { exact: true });
+    const original = document.documentElement.className;
+    try {
+      for (const look of ['light', 'dark']) {
+        document.documentElement.className = look;
+        const { color, backgroundColor } = getComputedStyle(badge);
+        const ink = luminance(color);
+        const ground = luminance(backgroundColor);
+        expect((Math.max(ink, ground) + 0.05) / (Math.min(ink, ground) + 0.05)).toBeGreaterThanOrEqual(7);
+      }
+    } finally {
+      document.documentElement.className = original;
+    }
+  }
+);

@@ -46,3 +46,21 @@ it('the base build takes only the capture scripts from the pull request, never i
   expect(taken.filter((file) => !file.startsWith('apps/guardian-ui/scripts/'))).toEqual([]);
   expect(workflow).not.toMatch(/npx playwright test/);
 });
+
+it('finds the People count in the words of either build, whichever the run is', () => {
+  // The base commit of a later pull request shows the same words as its head,
+  // so the base capture reads the words on the page, not the run's label.
+  const words = ['people in view', 'Persons Detected', 'More than this watch allows.', '+1 INTRUDER'];
+  for (const version of ['before', 'after']) {
+    const script = [
+      `import { peopleCountText } from ${JSON.stringify(path.join(APP_ROOT, 'scripts', 'watch-page-captures.mjs'))};`,
+      `const words = ${JSON.stringify(words)};`,
+      `console.log(JSON.stringify(words.map((w) => [peopleCountText.heading.test(w), peopleCountText.over.test(w)])));`,
+    ].join('\n');
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+      encoding: 'utf8', env: { ...process.env, PICTURE_VERSION: version },
+    });
+    expect(result.stderr).toBe('');
+    expect(JSON.parse(result.stdout.trim())).toEqual([[true, false], [true, false], [false, true], [false, true]]);
+  }
+});

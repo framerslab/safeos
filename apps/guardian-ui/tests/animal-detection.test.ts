@@ -45,6 +45,9 @@ import {
   type DangerLevel,
 } from '../src/lib/animal-detection';
 
+import { timeWords } from '@/lib/alert-pictures/words';
+import { barredWording } from '../scripts/home-wording.cjs';
+
 describe('AnimalDetector', () => {
   beforeEach(() => {
     resetAnimalDetector();
@@ -214,9 +217,8 @@ describe('Announcement Functions', () => {
 
       const announcement = createAnimalAnnouncement(detection);
       expect(announcement).toContain('Warning');
-      expect(announcement).toContain('Bear');
-      expect(announcement).toContain('90%');
-      expect(announcement).toContain('EXTREME DANGER');
+      expect(announcement).toContain(`Bear in view at ${timeWords(detection.timestamp)}`);
+      expect(announcement).not.toMatch(barredWording);
     });
 
     it('should create casual announcement for safe animals', () => {
@@ -232,8 +234,8 @@ describe('Announcement Functions', () => {
       };
 
       const announcement = createAnimalAnnouncement(detection);
-      expect(announcement).toContain('Cat');
-      expect(announcement).toContain('80%');
+      expect(announcement).toBe(`Cat in view at ${timeWords(detection.timestamp)}.`);
+      expect(announcement).not.toMatch(barredWording);
       expect(announcement).not.toContain('Warning');
     });
   });

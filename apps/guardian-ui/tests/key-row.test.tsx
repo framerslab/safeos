@@ -129,7 +129,7 @@ it('moves the row at once for a person who asked for reduced motion', () => {
   try {
     twoKeys();
     fireEvent.click(screen.getByRole('button', { name: 'Scroll right' }));
-    expect(scrollBy).toHaveBeenCalledWith({ left: 240, behavior: 'auto' });
+    expect(scrollBy).toHaveBeenCalledWith({ left: 240, behavior: 'instant' });
   } finally {
     restore();
   }

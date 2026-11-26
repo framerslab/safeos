@@ -12,9 +12,9 @@
 'use client';
 
 import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { KeyRow } from '@/components/KeyRow';
 
 export function OtherTabDialog({ onWatchHere, onCancel, keep = 'Cancel' }: { onWatchHere: () => void; onCancel: () => void; keep?: string }) {
-  const watchRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -28,20 +28,22 @@ export function OtherTabDialog({ onWatchHere, onCancel, keep = 'Cancel' }: { onW
       return;
     }
     if (event.key !== 'Tab') return;
-    // Two keys: Tab and Shift+Tab each move to the other one, never out.
+    // Tab and Shift+Tab go round the dialog's keys, never out: its two
+    // choices, and the row's arrows while it scrolls.
     event.preventDefault();
-    const next = document.activeElement === watchRef.current ? cancelRef.current : watchRef.current;
-    next?.focus();
+    const keys = Array.from(event.currentTarget.querySelectorAll('button'));
+    const at = keys.indexOf(document.activeElement as HTMLButtonElement);
+    keys[(at + (event.shiftKey ? -1 : 1) + keys.length) % keys.length]?.focus();
   };
 
   return (
     <div className="app-dialog__veil look-part">
       <div className="app-dialog" role="dialog" aria-modal="true" aria-labelledby="other-tab-question" onKeyDown={onKeyDown}>
         <p id="other-tab-question" className="app-dialog__question">Watch here instead? The other tab stops.</p>
-        <div className="app-dialog__keys">
-          <button ref={watchRef} type="button" className="key key--outline" onClick={onWatchHere}>Watch here</button>
+        <KeyRow className="app-dialog__keys">
+          <button type="button" className="key key--outline" onClick={onWatchHere}>Watch here</button>
           <button ref={cancelRef} type="button" className="key key--outline" onClick={onCancel}>{keep}</button>
-        </div>
+        </KeyRow>
       </div>
     </div>
   );
