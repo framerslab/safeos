@@ -225,8 +225,8 @@ function fits(box, { x, y, width, height }) {
 // With shrink, a part (the opened picture) may also narrow step by step until
 // such a position exists. The search runs in one task, so no in-between
 // position or size is ever painted.
-async function settleEdges(page, crop, keep, { scroller = null, shrink = null } = {}) {
-  const settled = await page.evaluate(({ crop, keep, scroller, shrink }) => {
+async function settleEdges(page, crop, keep, { scroller = null, shrink = null, controls: whole = true } = {}) {
+  const settled = await page.evaluate(({ crop, keep, scroller, shrink, whole }) => {
     const box = scroller ? document.querySelector(scroller) : document.scrollingElement;
     if (!box) throw Error(`Missing scrolling part ${scroller}`);
     const from = box.scrollTop;
@@ -248,7 +248,7 @@ async function settleEdges(page, crop, keep, { scroller = null, shrink = null } 
       }
     }
     // A key or a switch cut at the edge reads as broken as a cut word.
-    const controls = [...(scroller ? box : document.body).querySelectorAll(
+    const controls = !whole ? [] : [...(scroller ? box : document.body).querySelectorAll(
       'button, a[href], input, select, textarea, [role="switch"], [role="button"]',
     )].filter((control) => getComputedStyle(control).visibility === 'visible');
     const parts = keep.map((selector) => {
@@ -307,7 +307,7 @@ async function settleEdges(page, crop, keep, { scroller = null, shrink = null } 
     if (narrowed) narrowed.style.maxWidth = '';
     box.scrollTo({ top: from, behavior: 'instant' });
     return { from, to: null, word: crossing() };
-  }, { crop, keep, scroller, shrink });
+  }, { crop, keep, scroller, shrink, whole });
   assert.ok(settled.to !== null,
     `No position within 160 px keeps every word whole at the crop's edges: ${JSON.stringify({ ...settled, keep })}`);
   if (settled.to !== settled.from || settled.width) console.log(`Held page settled: ${JSON.stringify(settled)}`);
@@ -531,16 +531,17 @@ async function watching({ page, crop, view, sample, whole, nextFrameAfter, captu
 
 async function siteSettings({ page, view, top, sample, whole, nextFrameAfter, captureFrame }) {
   const frame = { x: 0, y: top, width: view.width, height: view.size === 'square' ? view.width : view.height };
-  // The first rows stand still for two seconds and give the poster.
-  await settleEdges(page, frame, []);
+  // The first rows stand still for two seconds and give the poster. A list
+  // row's box may run past an edge, as any scrolled list does; its words may not.
+  await settleEdges(page, frame, [], { controls: false });
   const start = await browserTime(page);
   await sleepUntil(page, start, 1);
   const words = await sample();
   await sleepUntil(page, start, 2);
   const selector = 'nav[aria-label="Settings pages"]';
   await scrollSubject(page, selector, top, 3, 'end', view.size === 'square' ? view.width : view.height);
-  await settleEdges(page, frame, []);
-  await whole('The foot of Settings');
+  await settleEdges(page, frame, [], { controls: false });
+  await whole('The foot of Settings', { controls: false });
   await frameAfter(page, { nextFrameAfter, captureFrame }, await browserTime(page));
   await sleepUntil(page, start, 6);
   return { start, words, poster: start + 1, event: start + 2 };

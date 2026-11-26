@@ -86,7 +86,7 @@ async function recordVariant(browser, recipe, view, avif) {
       cut = await recipe.record({
         page, view, top, crop, prepared, nextFrameAfter: recording.nextFrameAfter, captureFrame: recording.capture,
         sample: () => readRecordingWords(page, crop, { poster: true }),
-        whole: (moment) => readRecordingWords(page, crop, { whole: true, moment }),
+        whole: (moment, { controls = true } = {}) => readRecordingWords(page, crop, { whole: true, controls, moment }),
       });
     } catch (error) {
       // Keep the failing step when stopping the screencast also reports an error.

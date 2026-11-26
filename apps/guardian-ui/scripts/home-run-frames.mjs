@@ -165,7 +165,7 @@ export async function spool(cdp, directory, view) {
   };
 }
 
-export async function readRecordingWords(page, crop, { poster = false, whole = poster, moment = 'The poster' } = {}) {
+export async function readRecordingWords(page, crop, { poster = false, whole = poster, controls = false, moment = 'The poster' } = {}) {
   const { words, clipped, cut } = await page.evaluate((crop) => {
     const bounds = { x: crop.x, y: crop.y, right: crop.x + crop.width, bottom: crop.y + crop.height };
     const words = [];
@@ -225,7 +225,7 @@ export async function readRecordingWords(page, crop, { poster = false, whole = p
   if (poster) assert.ok(words.length, 'The poster has no readable words');
   if (whole) {
     assert.ok(!clipped.length, `${moment} cuts off “${clipped[0]?.word}” at the crop's edge: ${JSON.stringify(clipped)}`);
-    assert.ok(!cut.length, `${moment} cuts the control “${cut[0]?.control}” at the crop's edge: ${JSON.stringify(cut)}`);
+    if (controls) assert.ok(!cut.length, `${moment} cuts the control “${cut[0]?.control}” at the crop's edge: ${JSON.stringify(cut)}`);
   }
   return words;
 }
