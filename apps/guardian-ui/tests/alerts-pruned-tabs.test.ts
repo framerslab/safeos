@@ -208,3 +208,36 @@ it("keeps both parts of a People's seen alert seen when the limit removes the fr
   });
   expect(alerts.filter((alert) => alert.way === 'security').map((alert) => alert.seen)).toEqual([true, true]);
 });
+
+// A frame saved before `alerted` counts in its alert only when it reaches the
+// alert threshold as it is set now (70 by default). The limit cuts runs from
+// the same frames, so a frame under the threshold never joins a seen run to
+// another alert, and an unseen alert never takes the seen mark.
+it('keeps an unseen Lost and Found alert new when an older frame under the threshold sat between it and a seen one', async () => {
+  await getAllMatchFrames();
+  await empty('match_frame');
+  const start = 2_000_000;
+  await fill('match_frame', [
+    ...Array.from({ length: 498 }, (_, i) => ({ ...match(`other-${i}`, 1000 + i, false), subjectId: 'pet-2' })),
+    match('older-1', start, true),
+    match('older-2', start + 20_000, false),
+    { ...match('older-3', start + 40_000, true), confidence: 10 },
+  ]);
+
+  await saveMatchFrame(match('older-4', start + 60_000, false));
+
+  const frames = await getAllMatchFrames();
+  expect(frames.map((frame) => frame.id)).not.toContain('older-1');
+  expect(frames.map((frame) => frame.id)).not.toContain('older-3');
+  const alerts = groupAlerts({
+    alerts: [], intrusionFrames: [], sightings: [], matchFrames: frames, alertThreshold: 70,
+    subjects: [{
+      id: 'pet-1', name: 'Mittens', type: 'pet', description: '', fingerprint: null, referenceImages: [],
+      createdAt: '2026-01-01T00:00:00.000Z', lastActiveAt: null, matchCount: 0,
+    }],
+  });
+  expect(alerts.filter((alert) => alert.way === 'lost-found').map((alert) => [alert.id, alert.seen])).toEqual([
+    ['older-4', false],
+    ['older-2', true],
+  ]);
+});

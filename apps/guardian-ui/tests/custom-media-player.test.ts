@@ -437,3 +437,31 @@ it("reads Lost and Found's own English line in an English voice on a page in ano
     mockSpeechSynthesis.getVoices.mockImplementation(() => []);
   }
 });
+
+it('does not play a finished sound again when a pause ends between a sound and a message', async () => {
+  const { Howl } = jest.requireMock('howler') as { Howl: jest.Mock };
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  const clip: UploadedAudio = { id: 'a1', name: 'bark.mp3', data: 'data:audio/mpeg;base64,AA', mimeType: 'audio/mpeg', uploadedAt: 0 };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [local]);
+  Howl.mockClear();
+  const player = new CustomMediaPlayer({ audioFiles: [clip], ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    const sound = Howl.mock.results[0].value as { play: jest.Mock };
+    const options = Howl.mock.calls[0][0] as { onend: () => void };
+    expect(sound.play).toHaveBeenCalledTimes(1);
+
+    // The sound ends; the next step comes due 500 ms later, during a pause.
+    options.onend();
+    player.pause();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    player.resume();
+
+    expect(sound.play).toHaveBeenCalledTimes(1);
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(1);
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});
