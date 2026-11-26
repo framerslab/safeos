@@ -92,7 +92,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             <code>CameraFeed.tsx</code>
           </a>{' '}
-          at lines 74&ndash;76:
+          at lines 99&ndash;101:
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
@@ -219,7 +219,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             <code>monitor/page.tsx</code>
           </a>{' '}
-          around lines 258&ndash;271.
+          around lines 324&ndash;336.
         </p>
 
         <h2>State and storage</h2>
