@@ -58,8 +58,15 @@ export function DeviceConnections() {
       tabIndex={0}
       className="overflow-x-auto rounded-xl border border-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
     >
-      <table className="w-full min-w-[40rem] text-left text-sm text-slate-300">
+      {/* Fixed columns, and no break inside a word: the first column keeps its names whole. */}
+      <table className="w-full min-w-[44rem] table-fixed text-left text-sm text-slate-300 [overflow-wrap:normal] [word-break:normal]">
         <caption className="sr-only">What leaves this device</caption>
+        <colgroup>
+          <col className="w-36" />
+          <col className="w-[22%]" />
+          <col className="w-[36%]" />
+          <col />
+        </colgroup>
         <thead className="bg-slate-800/60 text-white">
           <tr>
             <th scope="col" className="p-3 font-semibold">Connection</th>
