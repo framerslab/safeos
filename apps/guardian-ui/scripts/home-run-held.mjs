@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 export const HELD_SECONDS = 2.5;
 // The watch page's alert list lies on flat page colours, so one band of four
@@ -30,6 +31,17 @@ export function grey(file, at) {
   return bytes;
 }
 
+// Every frame from `from` seconds to the end, decoded in one pass.
+export function greyFrames(file, from) {
+  const size = WIDTH * HEIGHT;
+  const bytes = execFileSync('ffmpeg', [
+    '-nostdin', '-v', 'error', '-ss', from.toFixed(3), '-i', file,
+    '-vf', `scale=${WIDTH}:${HEIGHT},format=gray`, '-f', 'rawvideo', 'pipe:1',
+  ], { maxBuffer: 64 * 1024 * 1024 });
+  assert.ok(bytes.length >= size && bytes.length % size === 0, `${file} has no whole frames after ${from.toFixed(3)} s`);
+  return Array.from({ length: bytes.length / size }, (_, index) => bytes.subarray(index * size, (index + 1) * size));
+}
+
 export function difference(a, b) {
   let sum = 0;
   for (let i = 0; i < a.length; i += 1) sum += Math.abs(a[i] - b[i]);
@@ -46,13 +58,16 @@ export function checkHeldAlert(file, { motionOverAt, pictureAt, seconds }) {
   assert.ok(Number.isFinite(motionOverAt) && Number.isFinite(pictureAt), `${file} has no motion or alert time`);
   assert.ok(seconds - pictureAt >= HELD_SECONDS, `${file} reaches the alert ${(seconds - pictureAt).toFixed(2)} s before its end`);
   const camera = grey(file, motionOverAt);
-  const held = grey(file, seconds - HELD_SECONDS);
-  const last = grey(file, seconds - 0.1);
+  // Compare every frame of the hold with its first, so an alert that gives
+  // way to the camera between the two ends of the hold fails.
+  const hold = greyFrames(file, seconds - HELD_SECONDS);
+  const held = hold[0];
+  const last = hold.at(-1);
   const result = {
     camera: flatShare(camera),
     held: flatShare(held),
     last: flatShare(last),
-    heldToLast: difference(held, last),
+    heldToLast: Math.max(...hold.map((frame) => difference(held, frame))),
   };
   console.log(`${file}: ${JSON.stringify(Object.fromEntries(Object.entries(result).map(([k, v]) => [k, Number(v.toFixed(2))])))}`);
   assert.ok(Math.min(result.held, result.last) >= Math.max(FLAT, result.camera + FLATTER),
@@ -62,7 +77,7 @@ export function checkHeldAlert(file, { motionOverAt, pictureAt, seconds }) {
   return result;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   const publicDir = path.resolve(process.argv[2] ?? 'public');
   const manifest = JSON.parse(readFileSync(path.join(publicDir, 'home/runs/runs.json'), 'utf8'));
   const run = manifest.runs.find(({ id }) => id === 'watching');

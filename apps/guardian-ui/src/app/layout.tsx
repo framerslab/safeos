@@ -209,30 +209,7 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  var workers = navigator.serviceWorker;
-                  workers.register('/sw.js').then(function() {
-                    if (location.pathname !== '/') return;
-                    var connection = navigator.connection;
-                    var motion = matchMedia('(prefers-reduced-motion: reduce)');
-                    function savePosters() {
-                      if (!navigator.onLine || motion.matches || document.documentElement.classList.contains('reduce-motion')
-                          || (connection && (connection.saveData || /^(slow-)?2g$/.test(connection.effectiveType)))) return;
-                      workers.ready.then(function(registration) {
-                        var worker = workers.controller || registration.active;
-                        if (worker && navigator.onLine && !motion.matches
-                            && !document.documentElement.classList.contains('reduce-motion')
-                            && !(connection && (connection.saveData || /^(slow-)?2g$/.test(connection.effectiveType)))) {
-                          worker.postMessage({ type: 'save-home-posters' });
-                        }
-                      });
-                    }
-                    workers.addEventListener('controllerchange', savePosters);
-                    window.addEventListener('online', savePosters);
-                    motion.addEventListener('change', savePosters);
-                    if (connection) connection.addEventListener('change', savePosters);
-                    new MutationObserver(savePosters).observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-                    requestAnimationFrame(function() { requestAnimationFrame(savePosters); });
-                  }).catch(function(e) {
+                  navigator.serviceWorker.register('/sw.js').catch(function(e) {
                     console.log('ServiceWorker registration failed: ', e);
                   });
                 });

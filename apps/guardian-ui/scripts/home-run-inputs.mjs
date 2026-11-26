@@ -64,7 +64,7 @@ function variableImports(code, name) {
 
 // The files a stylesheet names through @import or url().
 export function cssReferences(css) {
-  return [...css.matchAll(/(?:@import\s+|url\(\s*)["']?([^"'()\s;]+)["']?/g)].map(([, specifier]) => specifier);
+  return [...css.matchAll(/(?:@import\s+(?:url\(\s*)?|url\(\s*)["']?([^"'()\s;]+)["']?/g)].map(([, specifier]) => specifier);
 }
 
 export function recordingInputs(ids) {

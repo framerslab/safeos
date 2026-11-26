@@ -12,6 +12,7 @@
  */
 import type { Metadata } from 'next';
 import { HomeRuns } from '@/components/home/HomeRuns';
+import { HomePosterSave } from '@/components/home/HomePosterSave';
 import { HomeDetection } from '@/components/home/HomeDetection';
 import { HomeStart } from '@/components/home/HomeStart';
 import { HomeBenefits, HomeUses, HomeHow, HomeFree, HomeClosing } from '@/components/home/HomeSections';
@@ -122,6 +123,7 @@ export default function HomePage() {
           </div>
 
           <HomeRuns runs={RECORD.runs} />
+          <HomePosterSave />
         </div>
       </section>
 

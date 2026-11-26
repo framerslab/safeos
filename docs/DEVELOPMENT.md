@@ -626,7 +626,8 @@ sound alert from the bark and the movement picture from 22 to 25.25
 seconds. It opens that picture from the alert in History. The player holds
 the poster for reduced motion and data saving until Play. Once the service worker has
 saved the app, an eligible visit saves both looks' square WebP posters as
-an optional batch. Visitors can step through the saved pictures offline.
+an optional batch, whether it loads the home page or reaches it through a
+link inside the app. Visitors can step through the saved pictures offline.
 Save-Data, 2g, slow-2g and reduced motion defer the poster batch. The
 player fetches each recording separately, and the worker leaves video
 and range requests to the network.
@@ -666,7 +667,7 @@ record. It compares the available artifact with every committed byte.
 It then reads the encoded frames of each committed Watching recording with
 `scripts/home-run-held.mjs`: the last 2.5 seconds must show the alert the
 watch scrolled to, not the camera from the moment Motion crossed its line,
-and must hold still. While recording, the producer moves each held page (the
+and every frame of them must hold still. While recording, the producer moves each held page (the
 opened Dashboard picture, the Watching alert, the first rows and the foot of
 Settings) by the fewest pixels that keep every line of words whole at the
 crop's edges, and fails a held frame that still cuts a word. The Watching

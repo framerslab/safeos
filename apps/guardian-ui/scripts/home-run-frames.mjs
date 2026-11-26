@@ -48,6 +48,9 @@ export async function spool(cdp, directory, view) {
   const height = Math.round(view.height * view.scale);
   let failure;
   let earliest = Number.POSITIVE_INFINITY;
+  // The newest DevTools frame bounds transport reordering; a held-page
+  // screenshot only takes its place in the output after it.
+  let latestFrame = Number.NEGATIVE_INFINITY;
   let latest = Number.NEGATIVE_INFINITY;
   let accepting = true;
   let settleFirst;
@@ -75,12 +78,13 @@ export async function spool(cdp, directory, view) {
     const at = metadata.timestamp;
     // PNG encodes can finish in a different order than Chromium sampled
     // them. Preserve their times and bound the allowed transport reordering.
-    if (!Number.isFinite(at) || latest - at > 0.15) {
-      failure = Error(`Out-of-order DevTools timestamp: ${at} after ${latest}`);
+    if (!Number.isFinite(at) || latestFrame - at > 0.15) {
+      failure = Error(`Out-of-order DevTools timestamp: ${at} after ${latestFrame}`);
       settleFirst();
       return;
     }
     earliest = Math.min(earliest, at);
+    latestFrame = Math.max(latestFrame, at);
     latest = Math.max(latest, at);
     if (at - earliest > view.seconds + 4) {
       failure = Error(`Screencast passed its ${view.seconds + 4} second spool window`);
@@ -366,6 +370,18 @@ export function checkFlashFrames(frames, size) {
   const paired = [[], []];
   const red = (r, g, b) => r / (r + g + b || 1);
   const luminance = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  // WCAG measures a luminance flash between a peak and a valley, so each pixel
+  // follows its current rise or fall from the extreme where it turned. A rise
+  // in two small steps is one transition.
+  const turnedAt = new Float64Array(pixels);
+  const reached = new Float64Array(pixels);
+  const heading = new Int8Array(pixels);
+  const transitioned = new Uint8Array(pixels);
+  for (let px = 0; px < pixels && stride <= frames.length; px++) {
+    const level = luminance(srgb[frames[px * 3]], srgb[frames[px * 3 + 1]], srgb[frames[px * 3 + 2]]);
+    turnedAt[px] = level;
+    reached[px] = level;
+  }
   for (let frame = 1; (frame + 1) * stride <= frames.length; frame++) {
     const masks = [new Uint8Array(pixels), new Uint8Array(pixels)];
     const areas = [0, 0];
@@ -374,9 +390,18 @@ export function checkFlashFrames(frames, size) {
       const b = a + stride;
       const [r0, g0, b0] = [srgb[frames[a]], srgb[frames[a + 1]], srgb[frames[a + 2]]];
       const [r1, g1, b1] = [srgb[frames[b]], srgb[frames[b + 1]], srgb[frames[b + 2]]];
-      const l0 = luminance(r0, g0, b0);
       const l1 = luminance(r1, g1, b1);
-      const difference = l1 - l0;
+      const step = Math.sign(l1 - reached[px]);
+      if (step && step !== heading[px]) {
+        if (heading[px]) turnedAt[px] = reached[px];
+        heading[px] = step;
+        transitioned[px] = 0;
+      }
+      if (step) reached[px] = l1;
+      const swing = reached[px] - turnedAt[px];
+      const luminanceDirection = !transitioned[px] && Math.abs(swing) >= 0.1
+        && Math.min(reached[px], turnedAt[px]) < 0.8 ? Math.sign(swing) : 0;
+      if (luminanceDirection) transitioned[px] = 1;
       const red0 = red(r0, g0, b0);
       const red1 = red(r1, g1, b1);
       let redDirection = 0;
@@ -385,10 +410,7 @@ export function checkFlashFrames(frames, size) {
         const [u1, v1] = chromaticity(r1, g1, b1);
         if (Math.hypot(u1 - u0, v1 - v0) > 0.2) redDirection = Math.sign(red1 - red0 || u1 - u0);
       }
-      const directions = [
-        Math.abs(difference) >= 0.1 && Math.min(l0, l1) < 0.8 ? Math.sign(difference) : 0,
-        redDirection,
-      ];
+      const directions = [luminanceDirection, redDirection];
       for (let kind = 0; kind < directions.length; kind++) {
         if (!directions[kind]) continue;
         const closes = previous[kind][px] === -directions[kind] && frame - previousAt[kind][px] < FPS;
