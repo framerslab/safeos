@@ -496,6 +496,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
 
+      - name: Test the recording scripts
+        if: ${{ !cancelled() }}
+        run: node --test scripts/home-run-scripts.test.mjs
+
       - name: Check that each Watching recording holds its alert at the end
         if: ${{ !cancelled() }}
         run: node scripts/home-run-held.mjs public

@@ -62,6 +62,11 @@ function variableImports(code, name) {
   return variable;
 }
 
+// The files a stylesheet names through @import or url().
+export function cssReferences(css) {
+  return [...css.matchAll(/(?:@import\s+|url\(\s*)["']?([^"'()\s;]+)["']?/g)].map(([, specifier]) => specifier);
+}
+
 export function recordingInputs(ids) {
   const result = new Map();
   const tracked = new Set(execFileSync('git', ['ls-files', '-z'], { cwd: repo, encoding: 'utf8' }).split('\0'));
@@ -99,9 +104,7 @@ export function recordingInputs(ids) {
       }
     }
     if (/\.css$/.test(name)) {
-      for (const [, specifier] of bytes.toString().matchAll(/(?:@import\s+|url\(\s*)["']?([^"'()\s;]+)["']?/g)) {
-        add(local(specifier, name));
-      }
+      for (const specifier of cssReferences(bytes.toString())) add(local(specifier, name));
     }
   };
 

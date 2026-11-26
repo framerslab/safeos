@@ -610,7 +610,7 @@ Missing or unreadable word boxes fail the check.
 | --- | ---: | ---: |
 | An MP4 | 400,000 bytes | 1,200,000 bytes |
 | A poster | 60,000 bytes | 120,000 bytes |
-| Watching and its poster | 460,000 bytes | 1,300,000 bytes |
+| One run and its largest poster | 460,000 bytes | 1,300,000 bytes |
 | Complete set in one look | 2,300,000 bytes | 6,600,000 bytes |
 
 The first poster shows the kitten facing the camera between 22 and 25
@@ -675,6 +675,9 @@ the opened picture narrows in 8 px steps when no scroll position does. It also w
 frame of each held page; when the screencast sends none, because the page
 stopped changing, a DevTools screenshot of the same size is kept as that
 frame.
+The same job runs `scripts/home-run-scripts.test.mjs` with `node --test`:
+tests of the screencast timing, the flash check, the held-alert check and
+the stylesheet inputs, on generated frames and clips.
 A source change requires a new recording. Evidence and documentation edits
 are outside the recording inputs. Pages checks the exported media before
 uploading a deployable build.

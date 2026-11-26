@@ -1604,7 +1604,17 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       navigator.serviceWorker.ready,
       new Promise((_, reject) => setTimeout(() => reject(new Error('the installed copy was not ready within 60 seconds')), 60_000)),
     ]));
-    await page.waitForFunction(async (url) => Boolean(await caches.match(url)), '/' + firstRun.variants.square.dark.poster.webp.path);
+    // waitForFunction tests the returned value at once, and a promise is always
+    // truthy, so poll the cache in the page until the poster is there.
+    await page.evaluate((url) => new Promise((resolve, reject) => {
+      const until = Date.now() + 30_000;
+      const look = () => caches.match(url).then((saved) => {
+        if (saved) resolve();
+        else if (Date.now() > until) reject(new Error('the first poster was not saved within 30 seconds'));
+        else setTimeout(look, 100);
+      }, reject);
+      look();
+    }), '/' + firstRun.variants.square.dark.poster.webp.path);
     await context.setOffline(true);
     await page.reload({ waitUntil: 'load' });
     await page.waitForFunction(() => document.querySelector('.home-run__poster img')?.naturalWidth > 0);

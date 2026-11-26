@@ -342,14 +342,21 @@ function chromaticity(r, g, b) {
   return [4 * x / sum, 9 * y / sum];
 }
 
+const FLASH_EDGE = 96;
+
 // Checks decoded video at its highest displayed size. The 341×256 CSS px
 // field estimates 10 degrees at a typical viewing distance.
 function checkFlashes(file, size) {
-  const edge = 96;
+  const edge = FLASH_EDGE;
+  checkFlashFrames(ffmpeg(['-i', file, '-vf', `scale=${edge}:${edge}:flags=area,format=rgb24`,
+    '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { maxBuffer: 24 * 1024 * 1024 }), size);
+}
+
+// Reads 96 by 96 RGB frames at 15 frames a second, one after another.
+export function checkFlashFrames(frames, size) {
+  const edge = FLASH_EDGE;
   const pixels = edge * edge;
   const stride = pixels * 3;
-  const frames = ffmpeg(['-i', file, '-vf', `scale=${edge}:${edge}:flags=area,format=rgb24`,
-    '-f', 'rawvideo', '-pix_fmt', 'rgb24', 'pipe:1'], { maxBuffer: 24 * 1024 * 1024 });
   const [displayWidth, displayHeight] = size === 'square' ? [560, 560] : [820, 512.5];
   const fieldWidth = Math.ceil(341 / displayWidth * edge);
   const fieldHeight = Math.ceil(256 / displayHeight * edge);

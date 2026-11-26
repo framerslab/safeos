@@ -26,6 +26,9 @@ export async function checkHomeRuns(browser, baseUrl, [opening, following]) {
     const nextVideo = new URL('/' + following.variants.wide.dark.video.path, baseUrl).href;
     const requested = page.waitForResponse((response) => response.url() === firstVideo
       && [200, 206].includes(response.status()), { timeout: 15000 });
+    // A walk that fails before it reads the video closes the context, which
+    // rejects this wait. Handle that here so the failure is the one reported.
+    requested.catch(() => {});
     const response = await page.goto(new URL('/', baseUrl).href, { waitUntil: 'domcontentloaded' });
     assert.ok(response?.ok(), 'Home must serve the exported page');
     const region = page.getByRole('region', { name: RUNS_NAME, exact: true });
@@ -246,6 +249,19 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     }
   }
 
+  await inContext('a visit that reaches home through a link saves the posters', {}, async (page) => {
+    await page.goto(new URL('/about/', baseUrl).href, { waitUntil: 'load', timeout: 30000 });
+    await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 45000 });
+    await page.evaluate(() => { window.homeLinkVisit = true; });
+    await page.getByRole('link', { name: 'SafeOS Guardian, home', exact: true }).first().click();
+    await player(page).waitFor({ timeout: 15000 });
+    assert.equal(new URL(page.url()).pathname, '/');
+    assert.equal(await page.evaluate(() => window.homeLinkVisit), true, 'The brand link must open home without a page load');
+    await installedPosters(page, paths).catch(() => {
+      throw Error('A visit that opens home through a link must save the posters');
+    });
+  });
+
   const nextVersion = 'home-poster-rollover';
   const exportWorker = new URL('../out/sw.js', import.meta.url);
   const nextWorker = new URL('sw-rollover.js', exportWorker);
@@ -378,7 +394,8 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     blocked = false;
     await player(page).locator('.home-run__toggle').click();
     await waitForPlaying(page).catch(() => { throw Error('Play must load the failed recording again'); });
-    assert.equal(await player(page).locator('video').evaluate((movie) => movie.currentSrc.endsWith('/' + ids[1] + '-wide-dark.mp4')), true);
+    assert.equal(await player(page).locator('video').evaluate((movie, ending) => movie.currentSrc.endsWith(ending),
+      '/' + ids[1] + '-wide-dark.mp4'), true, 'Play must load the chosen recording, not another');
     await toggleReads(page, 'Pause', 'A recording loaded again offers Pause');
   });
 
