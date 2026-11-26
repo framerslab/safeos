@@ -559,21 +559,15 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs) {
             if (variant.pictureAt === undefined && (width !== 1440 || look !== 'dark')) continue;
             const { waitForPlaying } = await import('./home-run-checks.mjs');
             release.get(id)();
-            await waitForPlaying(page, 0, 15000);
-            const movie = page.locator('.home-run__frame video');
-            const freeze = (time) => movie.evaluate(async (video, time) => {
-              video.pause();
-              const seeked = new Promise((resolve) => video.addEventListener('seeked', resolve, { once: true }));
-              video.currentTime = time;
-              await seeked;
-              await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-            }, time);
             if (id === 'watching' && variant.motionOverAt !== undefined && look === 'dark') {
-              // Step to the first encoded frame at or after the above-line reading.
-              await freeze(Math.ceil(variant.motionOverAt * 15) / 15 + 0.001);
+              await waitForPlaying(page, variant.motionOverAt + 0.16, 15000);
               await save('home-watching-motion-' + width + '-' + look + '.png');
             }
-            await freeze(variant.pictureAt === undefined ? (id === 'watching' ? 8.3 : 4) : run.seconds - 0.5);
+            // Follow real playback so the screenshot holds a painted frame
+            // after the alert picture appears.
+            const at = variant.pictureAt === undefined ? (id === 'watching' ? 8.3 : 4)
+              : Math.min(run.seconds - 1, variant.pictureAt + 1);
+            await waitForPlaying(page, at, 15000);
             await save('home-' + id + '-playing-' + width + '-' + look + '.png');
           }
         } finally {
