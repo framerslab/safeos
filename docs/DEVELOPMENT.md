@@ -670,7 +670,9 @@ and must hold still. While recording, the producer moves each held page (the
 opened Dashboard picture, the Watching alert, the foot of Settings) by the
 fewest pixels that keep every line of words whole at the crop's edges, and
 fails a held frame that still cuts a word. It also waits for a recorded
-frame of each held page, repainting it when the screencast sent none.
+frame of each held page; when the screencast sends none, because the page
+stopped changing, a DevTools screenshot of the same size is kept as that
+frame.
 A source change requires a new recording. Evidence and documentation edits
 are outside the recording inputs. Pages checks the exported media before
 uploading a deployable build.

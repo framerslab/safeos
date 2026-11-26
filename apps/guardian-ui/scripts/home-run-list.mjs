@@ -332,7 +332,10 @@ async function dashboard({ page, crop, view, prepared, sample, whole, nextFrameA
   await motion.click();
   await page.waitForURL((url) => url.pathname === '/history/');
   // Fit the complete saved camera frame inside the capture of History's picture viewer.
+  // The phone panel fills the screen from its top, above the recording's crop,
+  // so its title starts at the crop's top, as on a screen of that height.
   await page.addStyleTag({ content: `
+    .alert-picture-dialog { padding-top: ${crop.y + 16}px; }
     .alert-picture-dialog__picture .alert-picture__frame {
       max-width: ${Math.floor((crop.y + crop.height - 108) * 4 / 3)}px;
       margin-inline: auto;
