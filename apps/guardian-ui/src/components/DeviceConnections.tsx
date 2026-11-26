@@ -50,6 +50,9 @@ export const CONNECTIONS: Connection[] = [
   },
 ];
 
+/** The column names a phone shows inside each connection, where the header row is out of sight. */
+const PARTS = ['When', 'Who sees what', 'How to stop it'] as const;
+
 export function DeviceConnections() {
   return (
     <div
@@ -58,30 +61,50 @@ export function DeviceConnections() {
       tabIndex={0}
       className="overflow-x-auto rounded-xl border border-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
     >
-      {/* Fixed columns, and no break inside a word: the first column keeps its names whole. */}
-      <table className="w-full min-w-[44rem] table-fixed text-left text-sm text-slate-300 [overflow-wrap:normal] [word-break:normal]">
+      {/*
+        From 640 px: fixed columns, and no break inside a word, so the first
+        column keeps its names whole. On a phone each connection stands as one
+        block, its parts one under another, each with its column's name; the
+        header row stays for a screen reader. The roles are written out, so
+        the table stays a table to a screen reader whatever the display.
+      */}
+      <table
+        role="table"
+        className="block w-full text-left text-sm text-slate-300 sm:table sm:min-w-[44rem] sm:table-fixed [overflow-wrap:normal] [word-break:normal]"
+      >
         <caption className="sr-only">What leaves this device</caption>
-        <colgroup>
+        <colgroup className="hidden sm:table-column-group">
           <col className="w-36" />
           <col className="w-[22%]" />
           <col className="w-[36%]" />
           <col />
         </colgroup>
-        <thead className="bg-slate-800/60 text-white">
-          <tr>
-            <th scope="col" className="p-3 font-semibold">Connection</th>
-            <th scope="col" className="p-3 font-semibold">When</th>
-            <th scope="col" className="p-3 font-semibold">Who sees what</th>
-            <th scope="col" className="p-3 font-semibold">How to stop it</th>
+        <thead role="rowgroup" className="sr-only bg-slate-800/60 text-white sm:not-sr-only sm:table-header-group">
+          <tr role="row">
+            <th role="columnheader" scope="col" className="p-3 font-semibold">Connection</th>
+            {PARTS.map((part) => (
+              <th key={part} role="columnheader" scope="col" className="p-3 font-semibold">{part}</th>
+            ))}
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup" className="block sm:table-row-group">
           {CONNECTIONS.map((connection) => (
-            <tr key={connection.name} className="border-t border-white/10 align-top">
-              <th scope="row" className="p-3 font-semibold text-white">{connection.name}</th>
-              <td className="p-3">{connection.when}</td>
-              <td className="p-3">{connection.sees}</td>
-              <td className="p-3">{connection.stop}</td>
+            <tr
+              key={connection.name}
+              role="row"
+              className="block border-t border-white/10 py-2 align-top first:border-t-0 sm:table-row sm:py-0 sm:first:border-t"
+            >
+              <th role="rowheader" scope="row" className="block px-3 py-1 font-semibold text-white sm:table-cell sm:p-3">
+                {connection.name}
+              </th>
+              {[connection.when, connection.sees, connection.stop].map((words, index) => (
+                <td key={PARTS[index]} role="cell" className="block px-3 py-1 sm:table-cell sm:p-3">
+                  <span aria-hidden="true" className="block font-semibold text-slate-400 sm:hidden">
+                    {PARTS[index]}
+                  </span>
+                  {words}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
