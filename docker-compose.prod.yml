@@ -52,8 +52,10 @@ services:
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY:-}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY:-}
       - VAPID_EMAIL=${VAPID_EMAIL:-}
-      # CORS - GitHub Pages origin
-      - CORS_ORIGIN=${CORS_ORIGIN:-https://safeos.sh}
+      # Origins whose pages may read the API's answers, comma-separated; empty means
+      # https://safeos.sh, the phone app shells and localhost. Caddy's CORS_ORIGIN
+      # below replaces this header on every answer it passes on.
+      - SAFEOS_ALLOWED_ORIGINS=${SAFEOS_ALLOWED_ORIGINS:-}
     volumes:
       - safeos-data:/app/db_data
     healthcheck:

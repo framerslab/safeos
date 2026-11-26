@@ -98,7 +98,7 @@ describe('allowed origins', () => {
     expect(other.headers['access-control-allow-origin']).toBeUndefined();
   });
 
-  it('a request with no Origin, as from the server\'s own page or a script, is answered as before', async () => {
+  it('a request with no Origin, as from a script or a same-origin page load, is answered with no CORS header', async () => {
     const app = appWith(undefined);
     const answer = await request(app).get('/health');
     expect(answer.status).toBe(200);

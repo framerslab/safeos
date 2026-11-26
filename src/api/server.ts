@@ -82,6 +82,27 @@ const MAX_CONCURRENT_FRAME_DECODES = 2;
 let activeFrameDecodes = 0;
 const MAX_MISSED_HEARTBEATS = 3; // Disconnect after 3 missed heartbeats (90 seconds)
 
+/**
+ * The origins whose pages a browser lets read the server's answers. With
+ * SAFEOS_ALLOWED_ORIGINS unset or empty: the hosted app, the phone shells
+ * (capacitor.config.ts serves the app from capacitor://localhost on iOS and
+ * https://localhost on Android) and http on localhost, 127.0.0.1 and [::1] at
+ * any port, for development. With it set: the comma-separated origins it
+ * lists and no other. A page on the server's own address needs no CORS answer.
+ */
+const DEFAULT_ALLOWED_ORIGINS = ['https://safeos.sh', 'capacitor://localhost', 'https://localhost'];
+const LOCAL_DEVELOPMENT_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/;
+
+function allowedOrigins(value: string | undefined): (origin: string) => boolean {
+  const listed = (value ?? '').split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean);
+  if (listed.length) {
+    const allowed = new Set(listed);
+    return (origin) => allowed.has(origin);
+  }
+  const allowed = new Set(DEFAULT_ALLOWED_ORIGINS);
+  return (origin) => allowed.has(origin) || LOCAL_DEVELOPMENT_ORIGIN.test(origin);
+}
+
 /** Only explicit proxy IP addresses are trusted; invalid settings fail closed. */
 function parseTrustedProxies(value: string | undefined): string[] | false {
   if (!value?.trim()) return false;
@@ -142,7 +163,10 @@ export class SafeOSServer {
     // Caddy a fixed address on its dedicated proxy network instead.
     this.app.set('trust proxy', parseTrustedProxies(process.env['SAFEOS_TRUST_PROXY']));
 
-    this.app.use(cors());
+    // An answer names the page's origin only when it is allowed; an answer to
+    // any other page, or to a request with no Origin, carries no CORS header.
+    const allowed = allowedOrigins(process.env['SAFEOS_ALLOWED_ORIGINS']);
+    this.app.use(cors({ origin: (origin, callback) => callback(null, !!origin && allowed(origin)) }));
     this.app.use(express.json({ limit: '10mb' }));
     this.app.use(express.urlencoded({ extended: true }));
 

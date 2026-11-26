@@ -200,7 +200,7 @@ Edit `.env`. Docker Compose reads it from the project folder when it starts the 
 | Variable | Set it to |
 |---|---|
 | `SAFEOS_DOMAIN` | The name from step 1, without `https://`, for example `safeos-api.example.com`. Caddy serves this name, and the API builds the unsubscribe links in its mail from it. Leaving the placeholder `safeos-api.yourdomain.com` means no certificate and no mail. |
-| `CORS_ORIGIN` | The origin you serve the web app from (see [Connect the web app](#connect-the-web-app)), for example `https://safeos.example.com`. Caddy sends it as `Access-Control-Allow-Origin`. |
+| `CORS_ORIGIN` | The origin you serve the web app from (see [Connect the web app](#connect-the-web-app)), for example `https://safeos.example.com`; `https://safeos.sh` when unset. Caddy answers preflight requests itself and sends this one origin as `Access-Control-Allow-Origin` on every answer, in place of the API's own header (`SAFEOS_ALLOWED_ORIGINS`, see [CONFIGURATION.md](./CONFIGURATION.md#server-configuration)). |
 | `OLLAMA_MODELS` | The models to download on first start. The default `moondream llava:7b` is about 6 GB. |
 | Alert keys (optional) | `RESEND_API_KEY`, `EMAIL_FROM`, `TWILIO_*`, `TELEGRAM_BOT_TOKEN`, `VAPID_*`: see [CONFIGURATION.md](./CONFIGURATION.md). |
 
@@ -243,7 +243,7 @@ curl --max-time 5 http://safeos-api.example.com:11434/api/version
 
 #### Connect the web app
 
-The web app decides at load time whether it may use a server. The copy on safeos.sh, and any copy served from a `*.github.io`, `*.pages.dev`, `*.netlify.app` or `*.vercel.app` address, runs in browser-only mode and ignores a server URL entered in Settings. To use your server, serve your own build of the web app from a domain of your own:
+The web app decides at load time whether it may use a server. The copy on safeos.sh, and any copy served from a `*.github.io`, `*.pages.dev`, `*.netlify.app` or `*.vercel.app` address, runs in browser-only mode until a server address is saved in that browser (`apps/guardian-ui/src/lib/env.ts`); with `CORS_ORIGIN` left at `https://safeos.sh`, the copy on safeos.sh can then use your server. To use your server from a domain of your own, serve your own build of the web app from it:
 
 ```bash
 cd apps/guardian-ui

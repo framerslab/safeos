@@ -21,8 +21,10 @@
     }
     reverse_proxy @websocket api:3001
 
-    # CORS headers for GitHub Pages frontend
+    # CORS headers for the web app's origin. Deferred, so they replace the
+    # API's own CORS header on each answer instead of adding a second value.
     header {
+        defer
         Access-Control-Allow-Origin {$CORS_ORIGIN:https://safeos.sh}
         Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         Access-Control-Allow-Headers "Content-Type, Authorization, X-Session-Token, X-Requested-With"

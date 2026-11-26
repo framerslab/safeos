@@ -38,7 +38,7 @@ We will answer as soon as we can and keep you updated while we look into it.
 
 - The browser keeps the settings, alerts, saved frames, pets and recorded sounds in its own storage for this site (localStorage and IndexedDB), and the detection model in its Cache Storage. The [privacy page](https://safeos.sh/privacy/) says which store keeps what.
 - Anyone who can open SafeOS in this browser can see what it keeps.
-- A server you run keeps its records in its SQLite database (`SAFEOS_DB_PATH`).
+- A server you run keeps its records in its own SQLite database, on that server.
 
 ## Authentication (server)
 
@@ -49,7 +49,8 @@ We will answer as soon as we can and keep you updated while we look into it.
 
 ## Network
 
-- The server's CORS answers name any origin (`cors()` with no options).
+- The server's CORS answers tell a browser which web pages may read its replies. An answer names the page's origin only when that origin is allowed. With `SAFEOS_ALLOWED_ORIGINS` unset or empty, the allowed origins are the hosted app (`https://safeos.sh`), the phone app shells (`capacitor://localhost` and `https://localhost`, from `capacitor.config.ts`) and `http://localhost`, `http://127.0.0.1` and `http://[::1]` at any port. Set `SAFEOS_ALLOWED_ORIGINS` to a comma-separated list, for example `https://safeos.example.com`, to allow those origins and no other. A page served from the server's own address needs no CORS answer.
+- To have a proxy decide instead, put the server behind it and publish only the proxy. The bundled Caddy (`docker-compose.prod.yml`) answers preflight requests itself and sends the one origin in `CORS_ORIGIN` on every answer, in place of the server's own header.
 - The app saves any server address it is given and does not require https. Serve your server over https, and its WebSocket over wss: the bundled Caddy gets a certificate for `SAFEOS_DOMAIN` (see [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)).
 - `docker-compose.prod.yml` publishes only Caddy's ports, 80 and 443.
 
@@ -57,8 +58,9 @@ We will answer as soon as we can and keep you updated while we look into it.
 
 1. **Keep dependencies updated** - Run `npm audit` regularly
 2. **Use https** - Serve the server only over https and wss
-3. **Monitor logs** - Check for unusual access patterns
-4. **Back up the server** - Follow the backup steps in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+3. **Allow only your web app's origin** - Set `SAFEOS_ALLOWED_ORIGINS`, or `CORS_ORIGIN` behind the bundled Caddy, to the origin you serve the web app from
+4. **Monitor logs** - Check for unusual access patterns
+5. **Back up the server** - Follow the backup steps in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
 
 ## Known Limitations
 
