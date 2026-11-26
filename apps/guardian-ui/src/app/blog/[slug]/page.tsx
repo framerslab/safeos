@@ -262,7 +262,7 @@ const blogContent: Record<string, BlogContent> = {
         <p>
           The motion gate keeps the model idle while nothing moves. Its code is in{' '}
           <a
-            href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/person-detection.ts"
+            href="https://github.com/framerslab/safeos/blob/ab7512f5f292046522062cd4c1fdf2e056a85c59/apps/guardian-ui/src/lib/person-detection.ts#L258-L264"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
