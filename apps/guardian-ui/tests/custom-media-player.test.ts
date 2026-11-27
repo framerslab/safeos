@@ -563,3 +563,57 @@ it('ignores a late message error from a stopped playback', async () => {
   }
 });
 
+
+it("keeps the next playback's sound when a stopped playback's sound ends late", () => {
+  // Howler reports a sound's end from a timer, so the end of a sound from a
+  // stopped playback can arrive after the next playback began its own.
+  const howler = jest.requireActual('howler') as { Howl: unknown };
+  const sounds: any[] = [];
+  const ends: Array<() => void> = [];
+  const made = jest.spyOn(howler as any, 'Howl').mockImplementation((given: any) => {
+    ends.push(given.onend);
+    const sound = { play: jest.fn(), pause: jest.fn(), stop: jest.fn(), unload: jest.fn() };
+    sounds.push(sound);
+    return sound;
+  });
+  const onAudioPlay = jest.fn();
+  const clip: UploadedAudio = { id: 'a1', name: 'bark.mp3', data: 'data:audio/mpeg;base64,AA', mimeType: 'audio/mpeg', uploadedAt: 0 };
+  const player = new CustomMediaPlayer({ audioFiles: [clip], ttsEnabled: false }, { onAudioPlay });
+  try {
+    player.start();
+    player.stop();
+    player.start();
+    expect(sounds).toHaveLength(2);
+
+    ends[0]();
+
+    expect(sounds[1].stop).not.toHaveBeenCalled();
+    expect(sounds[1].unload).not.toHaveBeenCalled();
+    expect(onAudioPlay).not.toHaveBeenCalled();
+  } finally {
+    player.dispose();
+    made.mockRestore();
+  }
+});
+
+it('does not report the next playback\'s message for a late message end from a stopped playback', () => {
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [local]);
+  const onMessageSpeak = jest.fn();
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] }, { onMessageSpeak });
+  try {
+    player.start();
+    const first = mockSpeechSynthesis.speak.mock.calls[0][0] as { onend: () => void };
+    player.stop();
+    player.start();
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(2);
+
+    first.onend();
+
+    expect(onMessageSpeak).not.toHaveBeenCalled();
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});
