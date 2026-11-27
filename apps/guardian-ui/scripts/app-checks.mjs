@@ -2211,7 +2211,8 @@ export async function checkApp(browser, baseUrl, outDir) {
         pen.fillStyle = '#808080';
         pen.fillRect((tick * 16) % 320, 40, 80, 80);
       };
-      const start = () => { draw(); setInterval(draw, 150); };
+      // The first drawing comes 150 ms in, as it always has, or later where a walk asks.
+      const start = () => setInterval(draw, 150);
       if (camera.firstFrameMs) setTimeout(start, camera.firstFrameMs);
       else start();
       const stream = canvas.captureStream(10);
