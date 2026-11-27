@@ -646,6 +646,11 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   const petPhoto = entry.getByRole('img', { name: `${PET}’s saved photo`, exact: true });
   await petPhoto.waitFor({ timeout: 2 * SECOND });
   await petPhoto.evaluate((image) => image.decode());
+  // The close-up and the camera's picture come into the entry a moment after the sighting, from the
+  // alert's own copies; until then the pair holds the saved photo alone.
+  const kept = [`${card} .alert-picture__pair img`, ...(view.size === 'wide' ? [`${card} .alert-picture__frame img`] : [])];
+  await page.waitForFunction((selectors) => selectors.every((selector) => document.querySelector(selector)?.getAttribute('src')?.startsWith('blob:')),
+    kept, { timeout: 3 * SECOND, polling: 50 });
   await readPicture(entry.locator('.alert-picture__pair img').first());
   const keep = view.size === 'wide'
     ? [`${card} .alert-picture__frame img`, `${card} .alert-picture__pair`, `${card} .alert-picture__words`]
