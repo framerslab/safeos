@@ -2979,7 +2979,8 @@ export async function checkApp(browser, baseUrl, outDir) {
   // Setup's walks count inside a root of their own, with their own bar, and
   // name the parts whose parent's box holds them and the drawings counted as
   // one box each.
-  const firstScreen = (page, { root = 'body', bar: barAt = 'nav.phone-bar', inside = '.drawn-frame, .key--solid', drawn = '' } = {}) => page.evaluate(({ root, barAt, inside, drawn }) => {
+  // `choices`: the boxes of a question's answers in view, each counted as one control beside the links and buttons.
+  const firstScreen = (page, { root = 'body', bar: barAt = 'nav.phone-bar', inside = '.drawn-frame, .key--solid', drawn = '', choices = '' } = {}) => page.evaluate(({ root, barAt, inside, drawn, choices }) => {
     const foot = window.innerHeight;
     const bar = document.querySelector(barAt);
     const barTop = bar ? bar.getBoundingClientRect().top : foot;
@@ -2994,7 +2995,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         && style.visibility !== 'hidden' && parseFloat(style.opacity) > 0;
     };
     const parts = [...(document.querySelector(root) || document.body).querySelectorAll('*')].filter(seen);
-    const controls = parts.filter((el) => el.matches('a[href], button'))
+    const controls = parts.filter((el) => el.matches('a[href], button') || (choices !== '' && el.matches(choices)))
       .map((el) => (el.getAttribute('aria-label') || el.textContent || '').trim());
     const styles = new Set();
     const colours = new Set();
@@ -3028,7 +3029,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       }
     }
     return { controls, styles: [...styles], colours: [...colours], boxes };
-  }, { root, barAt, inside, drawn });
+  }, { root, barAt, inside, drawn, choices });
 
   // ---------------------------------------------------------------------------
   // The dashboard
@@ -5535,14 +5536,14 @@ export async function checkApp(browser, baseUrl, outDir) {
   }
 
   await open({ name: 'setup, Back on step 1 after the browser came back', width: 390, look: 'light' }, async (page, context, check) => {
-    // The input: another site opened setup, the header opened the dashboard, and the browser's back button returned to setup.
+    // The input: another site opened setup, a link in setup's footer opened the FAQ in the page, and the browser's back button returned to setup.
     await page.goto('data:text/html,<title>Another site</title><p>Another site</p>');
     await visit(page, '/setup/');
     await step1Shown(page);
-    const toDashboard = page.locator('header a[href="/dashboard/"]').first();
-    if (!(await toDashboard.isVisible())) { check(false, "setup's header shows no link to the dashboard"); return; }
-    await pressTo(page, toDashboard, '/dashboard');
-    check(pathOf(page) === '/dashboard', `the header's link opened ${pathOf(page)}, not /dashboard`);
+    const toFaq = page.locator('footer a[href="/faq/"]').first();
+    if (!(await toFaq.count())) { check(false, "setup's footer shows no link to the FAQ"); return; }
+    await pressTo(page, toFaq, '/faq');
+    check(pathOf(page) === '/faq', `the footer's link opened ${pathOf(page)}, not /faq`);
     await page.goBack();
     check(await step1Shown(page, 10_000), `the browser's back button does not show "${STEP1_H1}"`);
     await setupMain(page).getByRole('link', { name: 'Back', exact: true }).click();
@@ -6959,7 +6960,7 @@ export async function checkApp(browser, baseUrl, outDir) {
 
   for (const look of LOOKS) {
     await open({ name: 'setup, first screen counted', width: 390, height: 844, look }, async (page, context, check) => {
-      const OPTIONS = { root: '#main-content', bar: '.setup-last', inside: '.key--solid, .corner-ticks, .setup-camera-drawing', drawn: 'svg.setup-progress' };
+      const OPTIONS = { root: '#main-content', bar: '.setup-last', inside: '.key--solid, .corner-ticks, .setup-camera-drawing', drawn: 'svg.setup-progress', choices: '.setup-use__box' };
       await visit(page, '/setup/');
       await step1Shown(page);
       await page.waitForTimeout(500);
