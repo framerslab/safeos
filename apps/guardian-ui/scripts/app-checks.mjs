@@ -5405,6 +5405,9 @@ export async function checkApp(browser, baseUrl, outDir) {
   };
   const USE_NAMES = Object.keys(USE_WORDS);
   const useWords = async (page) => plain(await page.locator('#setup-use-words').innerText());
+  // Setup's words hold the sentence, read with a straight and a curly apostrophe as one.
+  const says = (page, sentence, ms = 10_000) => page.waitForFunction((want) => (document.querySelector('main.setup')?.innerText || '')
+    .replace(/\u2019/g, "'").replace(/\s+/g, ' ').includes(want), sentence, { timeout: ms }).then(() => true, () => false);
 
   for (const look of LOOKS) {
     await open({ name: 'setup, the frame', width: 390, look }, async (page, context, check) => {
@@ -5800,7 +5803,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         await visit(page, '/setup/');
         await step1Shown(page);
         if (!more.noPress) await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
-        const named = await page.getByText(sentence, { exact: false }).first().waitFor({ timeout: 10_000 }).then(() => true, () => false);
+        const named = await says(page, sentence);
         check(named, `${more.what}: step 1 does not read "${sentence}"`);
         const skip = await setupMain(page).getByRole('button', { name: 'Continue without the camera', exact: true }).count();
         check(skip === 1, `${more.what}: no Continue without the camera`);
@@ -6293,6 +6296,993 @@ export async function checkApp(browser, baseUrl, outDir) {
     const line = await lineOf(page);
     check(line.startsWith(MOTION_LINE), `the dashboard's line reads "${line}"`);
   }, { ...NEW_DEVICE, script: SET_UP_WITH('baby', true) });
+
+  // Where the focus stands, and its ring.
+  const focusOf = (page) => page.evaluate(() => {
+    const el = document.activeElement;
+    if (!el || el === document.body) return null;
+    const style = getComputedStyle(el);
+    const box = el.getBoundingClientRect();
+    return {
+      name: (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim(),
+      tag: el.tagName, type: el.getAttribute('type'), id: el.id,
+      inFooter: Boolean(el.closest('footer, [role="contentinfo"]')), inBanner: Boolean(el.closest('header, [role="banner"]')),
+      outline: `${style.outlineWidth} ${style.outlineStyle} ${style.outlineColor}`,
+      inside: box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth,
+    };
+  });
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, keyboard', width: 1280, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await page.keyboard.press('Tab');
+      const first = await focusOf(page);
+      check(first && first.name === 'Skip to content', `the first Tab focuses "${first && first.name}"`);
+      const ring = `2px solid ${ACCENT[look]}`;
+      const want = ['Back', 'Turn on the camera', 'Continue without the camera'];
+      let seen = [];
+      for (let i = 0; i < 30 && seen.length < want.length; i += 1) {
+        await page.keyboard.press('Tab');
+        const at = await focusOf(page);
+        if (!at || at.inBanner) continue;
+        seen.push(at.name);
+        check(at.outline === ring && at.inside, `${at.name} is focused with ${at.outline}${at.inside ? '' : ', outside the screen'}`);
+      }
+      check(JSON.stringify(seen) === JSON.stringify(want), `Tab on step 1 focuses ${seen.join(', ')}`);
+      await page.keyboard.press('Tab');
+      const after = await focusOf(page);
+      check(after && after.inFooter, `after Continue, Tab focuses "${after && after.name}", not a link in the footer`);
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Enter');
+      await step2Shown(page);
+      const heading2 = await focusOf(page);
+      check(heading2 && heading2.tag === 'H1', `on step 2 the focus is on ${heading2 && heading2.tag} "${heading2 && heading2.name}"`);
+      seen = [];
+      for (const name of ['Turn on the camera', 'A pet', 'Open dashboard']) {
+        await page.keyboard.press('Tab');
+        const at = await focusOf(page);
+        seen.push(at ? (at.type === 'radio' ? (await page.evaluate(() => document.activeElement.closest('label').textContent.trim())) : at.name) : 'nothing');
+        if (at && name !== 'A pet') check(at.outline === ring, `${at.name} is focused with ${at.outline}`);
+      }
+      check(JSON.stringify(seen) === JSON.stringify(['Turn on the camera', 'A pet', 'Open dashboard']), `Tab on step 2 focuses ${seen.join(', ')}`);
+      await page.keyboard.press('Tab');
+      const foot = await focusOf(page);
+      check(foot && foot.inFooter, `after the last key, Tab focuses "${foot && foot.name}"`);
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Shift+Tab');
+      const back1 = await focusOf(page);
+      check(back1 && back1.name === 'Turn on the camera', `Shift+Tab back reaches "${back1 && back1.name}"`);
+      await page.keyboard.press('Shift+Tab');
+      const back2 = await focusOf(page);
+      check(back2 && back2.name === 'Back', `Shift+Tab once more reaches "${back2 && back2.name}"`);
+    }, NEW_DEVICE);
+  }
+
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'setup, skip link', width, look }, async (page, context, check) => {
+        await visit(page, '/setup/');
+        await step1Shown(page);
+        await page.keyboard.press('Tab');
+        const skip = await focusOf(page);
+        check(skip && skip.name === 'Skip to content', `the first Tab focuses "${skip && skip.name}"`);
+        const shownAbove = await page.evaluate(() => {
+          const el = document.activeElement.getBoundingClientRect();
+          return el.width > 1 && el.height > 1 && el.top >= 0;
+        });
+        check(shownAbove, 'the skip link does not show when focused');
+        await page.keyboard.press('Enter');
+        const landed = await page.evaluate(() => document.activeElement && document.activeElement.id);
+        check(landed === 'main-content', `Enter on the skip link focuses #${landed}`);
+        await page.keyboard.press('Tab');
+        const next = await focusOf(page);
+        check(next && next.name === 'Back', `the Tab after the skip link focuses "${next && next.name}"`);
+        check((await page.getByText('Skip to main content', { exact: true }).count()) === 0, 'the page holds "Skip to main content"');
+      }, NEW_DEVICE);
+    }
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, names and roles', width: 390, look }, async (page, context, check) => {
+      if (look === 'dark') {
+        // The blocked state: one sentence in the frame's status, focus kept on Try again, a link to Help.
+        await visit(page, '/setup/');
+        await step1Shown(page);
+        await page.locator('.setup-frame[data-state="failed"]').waitFor({ timeout: 10_000 });
+        const said = plain(await page.locator('.setup-frame-says').innerText());
+        check(said === BLOCKED_WORDS, `the frame's status reads "${said}"`);
+        const again = setupMain(page).getByRole('button', { name: 'Try again', exact: true });
+        await again.focus();
+        await again.press('Enter');
+        await page.waitForTimeout(800);
+        const focus = await focusOf(page);
+        check(focus && focus.name === 'Try again', `after Try again the focus is on "${focus && focus.name}"`);
+        check((await setupMain(page).getByRole('link', { name: 'How to allow the camera', exact: true }).count()) === 1, 'How to allow the camera is not a link');
+        return;
+      }
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      check((await page.getByRole('heading', { level: 1 }).count()) === 1, 'step 1 holds more than one h1');
+      check((await setupMain(page).getByRole('img', { name: 'Step 1 of 2', exact: true }).count()) >= 1, 'step 1 holds no image named "Step 1 of 2"');
+      check((await setupMain(page).getByRole('link', { name: 'Back', exact: true }).count()) === 1, 'step 1 holds no link Back');
+      const key = setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true });
+      check((await key.getAttribute('aria-describedby')) === 'setup-frame-line', 'Turn on the camera is not described by the frame line');
+      check((await setupMain(page).getByRole('button', { name: 'Continue without the camera', exact: true }).count()) === 1, 'step 1 holds no Continue');
+      await turnOn(page);
+      await step2Shown(page);
+      const video = await page.evaluate(() => {
+        const v = document.querySelector('video.setup-video');
+        return v ? { name: v.getAttribute('aria-label'), muted: v.muted, controls: v.controls } : null;
+      });
+      check(video && video.name === 'Live picture from this device’s camera' && video.muted && !video.controls, `the video is ${JSON.stringify(video)}`);
+      const meters = await page.evaluate(() => [...document.querySelectorAll('[role="meter"]')].map((m) => ({
+        name: m.getAttribute('aria-label'), min: m.getAttribute('aria-valuemin'), max: m.getAttribute('aria-valuemax'), text: m.getAttribute('aria-valuetext'),
+      })));
+      check(meters.length === 2 && meters[0].name === 'Motion' && meters[1].name === 'Sound', `the meters are ${JSON.stringify(meters)}`);
+      for (const meter of meters) {
+        check(meter.min === '0' && meter.max === '100' && ['below its line', 'at its line or past it', 'no alert for this use'].includes(meter.text), `the ${meter.name} meter is ${JSON.stringify(meter)}`);
+      }
+      const group = setupMain(page).getByRole('radiogroup', { name: STEP2_H1, exact: true });
+      check((await group.count()) === 1, `no radiogroup named "${STEP2_H1}"`);
+      const radios = await group.getByRole('radio').count();
+      check(radios === 5, `the group holds ${radios} radios`);
+      await choose(page, 'A pet');
+      const described = await page.evaluate(() => {
+        const group = document.querySelector('[role="radiogroup"]');
+        const id = group && group.getAttribute('aria-describedby');
+        const words = id && document.getElementById(id);
+        return words ? words.textContent.replace(/\s+/g, ' ').trim() : '';
+      });
+      check(plain(described).startsWith(USE_WORDS['A pet']), `the group is described by "${described}"`);
+      check((await setupMain(page).getByRole('button', { name: 'Open dashboard', exact: true }).count()) === 1, 'step 2 holds no Open dashboard');
+      const crossed = await page.waitForFunction(() => [...document.querySelectorAll('[role="status"]')].some((s) => s.textContent.trim() === 'Motion reached its line.'), null, { timeout: 8_000 }).then(() => true, () => false);
+      check(crossed, 'Motion reaching its line is not said');
+      await visit(page, '/setup/?next=lost-found');
+      await step1Shown(page);
+      await continueOn(page);
+      check((await setupMain(page).getByRole('button', { name: 'Open Lost and Found', exact: true }).count()) === 1, 'from Lost and Found\'s row the key is not "Open Lost and Found"');
+    }, { ...NEW_DEVICE, script: look === 'dark' ? setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }) : FAKE_CAMERA });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, waiting for the answer', width: 390, look }, async (page, context, check) => {
+      const waits = async (selector, where) => {
+        const seen = await page.evaluate((s) => {
+          const key = document.querySelector(s);
+          if (!key) return null;
+          const style = getComputedStyle(key);
+          return { words: key.textContent.trim(), busy: key.getAttribute('aria-busy'), ground: style.backgroundColor, edge: `${style.borderTopWidth} ${style.borderTopStyle} ${style.borderTopColor}`, ink: style.color };
+        }, selector);
+        check(seen && seen.words === 'Waiting for your answer…' && seen.busy === 'true', `${where} the key is ${JSON.stringify(seen)}`);
+        check(seen && seen.ground === 'rgba(0, 0, 0, 0)' && seen.edge === `2px solid ${LINE[look]}` && seen.ink === QUIET[look], `${where} the waiting key is drawn ${JSON.stringify(seen)}`);
+      };
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      await page.waitForTimeout(300);
+      await waits('.setup-key', 'while the browser asks');
+      await page.locator('.setup-key').click();
+      check((await cameraRequests(page)) === 1, `a second press made ${await cameraRequests(page)} requests`);
+      check(await setupMain(page).getByRole('button', { name: 'Continue without the camera', exact: true }).isEnabled(), 'Continue is not enabled while the browser asks');
+      check(await step2Shown(page, 8_000), 'step 2 does not open once the browser answers');
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await continueOn(page);
+      await page.evaluate(() => { window.__camera.waitMs = 2000; });
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      await page.waitForTimeout(300);
+      await waits('.setup-again', 'on step 2');
+    }, { ...NEW_DEVICE, script: setupScript({ set: { waitMs: 3000 } }) });
+
+    await open({ name: 'setup, waiting for the answer', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      const closed = await says(page, FAILURE_SENTENCES.closed);
+      check(closed, 'the question closed is not named');
+      await page.evaluate(() => { window.__camera.waitMs = 2000; });
+      await setupMain(page).getByRole('button', { name: 'Try again', exact: true }).click();
+      await page.waitForTimeout(300);
+      const key = plain(await page.locator('.setup-key').innerText());
+      check(key === 'Waiting for your answer…', `while Try again waits the key reads "${key}"`);
+      await page.locator('.setup-key').click();
+      check((await cameraRequests(page)) === 2, `a second press made ${await cameraRequests(page)} requests in all, not 2`);
+      check(await setupMain(page).getByRole('button', { name: 'Continue without the camera', exact: true }).isEnabled(), 'Continue is not enabled while Try again waits');
+    }, { ...NEW_DEVICE, script: setupScript({ status: 'prompt', set: { answers: ['NotAllowedError'] } }) });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, allowed', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      const pressed = Date.now();
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      await step2Shown(page);
+      const starting = await page.evaluate(() => {
+        const picture = document.querySelector('.setup-picture[data-state="starting"]');
+        if (!picture) return null;
+        const after = getComputedStyle(picture, '::after');
+        const names = [...document.styleSheets].flatMap((sheet) => { try { return [...sheet.cssRules]; } catch (e) { return []; } })
+          .filter((rule) => rule instanceof CSSKeyframesRule).map((rule) => rule.name);
+        return { words: picture.innerText.replace(/\s+/g, ' ').trim(), animation: after.animationName, display: after.display, defined: names.includes(after.animationName) };
+      });
+      check(starting && starting.words.includes('Starting the camera…'), `while the camera starts the picture reads ${JSON.stringify(starting)}`);
+      check(starting && starting.animation === 'setup-loading' && starting.defined && starting.display !== 'none', `the loading bar is ${JSON.stringify(starting)}`);
+      const on = await page.locator('.setup-picture[data-state="on"]').waitFor({ timeout: 3_000 + 1_500 }).then(() => true, () => false);
+      check(on && Date.now() - pressed <= 4_500, `the picture was on ${((Date.now() - pressed) / 1000).toFixed(1)} s after the press`);
+    }, { ...NEW_DEVICE, script: setupScript({ set: { firstFrameMs: 1500 } }) });
+
+    await open({ name: 'setup, allowed', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      const pressed = Date.now();
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      const on = await page.locator('.setup-picture[data-state="on"]').waitFor({ timeout: 2_000 }).then(() => true, () => false);
+      check(on, `the picture was not on within 2 s of the press (${((Date.now() - pressed) / 1000).toFixed(1)} s)`);
+    }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, key states', width: 1280, look }, async (page, context, check) => {
+      const keyLook = (locator) => locator.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { ground: style.backgroundColor, edge: style.borderTopColor, transform: style.transform, outline: `${style.outlineWidth} ${style.outlineStyle} ${style.outlineColor}` };
+      });
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      const again = setupMain(page).getByRole('button', { name: 'Try again', exact: true });
+      await again.waitFor({ timeout: 10_000 });
+      await again.hover();
+      await page.waitForTimeout(300);
+      const hovered = await keyLook(again);
+      check(hovered.ground === ACCENT_HOVER[look], `over Try again its background is ${hovered.ground}, not ${ACCENT_HOVER[look]}`);
+      await page.mouse.move(0, 0);
+      await again.focus();
+      await page.keyboard.press('Shift+Tab');
+      await page.keyboard.press('Tab');
+      const focused = await keyLook(again);
+      check(focused.outline === `2px solid ${ACCENT[look]}`, `Try again focused by Tab has ${focused.outline}`);
+      const box = await again.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(200);
+      const held = await keyLook(again);
+      await page.mouse.up();
+      check(held.transform === 'matrix(1, 0, 0, 1, 0, 1)', `Try again held down is ${held.transform}`);
+    }, { ...NEW_DEVICE, script: setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }) });
+
+    await open({ name: 'setup, key states', width: 1280, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await continueOn(page);
+      const key = setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true });
+      await key.hover();
+      await page.waitForTimeout(300);
+      const seen = await key.evaluate((el) => ({ ground: getComputedStyle(el).backgroundColor, edge: getComputedStyle(el).borderTopColor }));
+      check(seen.ground === PANEL[look] && seen.edge === INK[look], `over step 2's Turn on the camera it is ${JSON.stringify(seen)}`);
+    }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+  }
+
+  for (const [width, look] of [[390, 'light'], [390, 'dark'], [1280, 'light']]) {
+    await open({ name: 'setup, the test', width, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await turnOn(page);
+      const over = await page.waitForFunction(() => {
+        const fill = document.querySelector('[role="meter"][aria-label="Motion"] .setup-track__fill');
+        return fill && fill.getAttribute('data-over') === 'true';
+      }, null, { timeout: 5_000 }).then(() => true, () => false);
+      check(over, 'Motion does not reach its line within 5 s');
+      if (over) {
+        const drawn = await page.evaluate(() => {
+          const meter = document.querySelector('[role="meter"][aria-label="Motion"]');
+          const row = meter.closest('.setup-meter').querySelector('.setup-meter__label');
+          return { fill: getComputedStyle(meter.querySelector('.setup-track__fill')).backgroundColor, mark: Boolean(row.querySelector('svg.problem-mark')), words: row.textContent };
+        });
+        check(drawn.fill === ALERT[look] && drawn.mark && drawn.words.includes('Alert'), `Motion past its line is drawn ${JSON.stringify(drawn)}`);
+      }
+      check(await page.evaluate(() => [...document.querySelectorAll('audio')].every((a) => a.paused)), 'an alert sound plays during the test');
+      const loud = await page.waitForFunction(() => Number(document.querySelector('[role="meter"][aria-label="Sound"]').getAttribute('aria-valuenow')) >= 20, null, { timeout: 5_000 }).then(() => true, () => false);
+      check(loud, 'Sound does not reach 20 within 5 s of noise');
+      for (const [name, motion, sound] of [['A pet', '10%', 'none'], ['A baby', '2%', '5%'], ['An elderly relative', '20%', '20%'], ['An empty place', '60%', '40%'], ['A lost pet', '10%', 'none']]) {
+        await choose(page, name);
+        const seen = [await lineLeft(page, 'Motion'), await lineLeft(page, 'Sound')];
+        check(seen[0] === motion && seen[1] === sound, `with ${name} the lines stand at ${seen.join(' and ')}, not ${motion} and ${sound}`);
+        if (sound === 'none') {
+          const row = await page.evaluate(() => {
+            const meter = document.querySelector('[role="meter"][aria-label="Sound"]');
+            return { words: meter.closest('.setup-meter').querySelector('.setup-meter__label').textContent, text: meter.getAttribute('aria-valuetext'), over: meter.querySelector('.setup-track__fill').getAttribute('data-over') };
+          });
+          check(row.words.includes('No alert') && row.text === 'no alert for this use' && row.over !== 'true', `with ${name} the Sound row is ${JSON.stringify(row)}`);
+        }
+      }
+      if (width === 390) {
+        await choose(page, 'A pet');
+        await page.waitForFunction(() => document.querySelector('[role="meter"][aria-label="Motion"] .setup-track__fill').getAttribute('data-over') === 'true', null, { timeout: 5_000 }).catch(() => {});
+        await page.screenshot({ path: path.join(outDir, `setup-alert-390-${look}.png`) });
+        console.log(`captured setup-alert-390-${look}.png`);
+      }
+      const line = plain(await page.locator('.setup-test-line').innerText());
+      check(line === "Prop this device where it sees the spot to watch, plugged in. Wave or clap to test it. While SafeOS watches, a bar past its line sounds an alert on this device.", `the test line reads "${line}"`);
+    }, { ...NEW_DEVICE, script: setupScript({ set: { sound: 'noise' } }) });
+  }
+
+  await open({ name: 'setup, 320', width: 320, look: 'dark' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    await step1Shown(page);
+    await turnOn(page);
+    const seen = await page.evaluate(() => {
+      const video = document.querySelector('.setup-video').getBoundingClientRect();
+      const meters = [...document.querySelectorAll('.setup-meter')].map((m) => {
+        const box = m.getBoundingClientRect();
+        const label = m.querySelector('.setup-meter__label').getBoundingClientRect();
+        const track = m.querySelector('.setup-track').getBoundingClientRect();
+        return { top: box.top, width: box.width, labelAbove: label.bottom <= track.top + 0.5 };
+      });
+      const options = [...document.querySelectorAll('.setup-use__box')].map((o) => {
+        const box = o.getBoundingClientRect();
+        const name = o.querySelector('.setup-use__name');
+        const range = document.createRange();
+        range.selectNodeContents(name);
+        return { height: box.height, width: box.width, lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size, name: name.textContent };
+      });
+      return { video: video.width, meters, options };
+    });
+    check(Math.abs(seen.video - 288) <= 1, `the picture is ${seen.video} px wide, not 288`);
+    check(seen.meters.length === 2 && Math.abs(seen.meters[0].top - seen.meters[1].top) <= 0.5, `the meters' tops are ${seen.meters.map((m) => m.top).join(', ')}`);
+    for (const meter of seen.meters) check(Math.abs(meter.width - 136) <= 2 && meter.labelAbove, `a meter is ${meter.width} px wide${meter.labelAbove ? '' : ' with its label beside its track'}`);
+    for (const option of seen.options) {
+      check(option.height >= 56 && Math.abs(option.width - 288) <= 1 && option.lines === 1, `"${option.name}" is ${option.width} by ${option.height} px on ${option.lines} lines`);
+    }
+    check((await sidewaysScroll(page)) <= 0, 'step 2 at 320 px scrolls sideways');
+  }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, the saved camera gone', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      const named = await says(page, FAILURE_SENTENCES.savedGone);
+      check(named, 'the saved camera gone is not named');
+      await page.evaluate(() => { window.__camera.answer = 'ok'; window.__camera.waitMs = 2000; });
+      await setupMain(page).getByRole('button', { name: 'Use the default camera', exact: true }).click();
+      await page.waitForTimeout(300);
+      const waiting = plain(await page.locator('.setup-default').innerText().catch(() => ''));
+      check(waiting === 'Waiting for your answer…', `Use the default camera reads "${waiting}" while it waits`);
+      const again = await setupMain(page).getByRole('button', { name: 'Try again', exact: true }).getAttribute('aria-disabled').catch(() => null);
+      check(again === 'true', `Try again's aria-disabled is ${again} while the default camera is asked for`);
+      await step2Shown(page, 8_000);
+      const last = await page.evaluate(() => window.__camera.asked[window.__camera.asked.length - 1]);
+      check(last && last.video && last.video.facingMode === 'environment' && !last.video.deviceId, `the default camera was asked as ${JSON.stringify(last)}`);
+      check((await cameraOf(page)).deviceId === '', `a first setup kept the saved camera ${(await cameraOf(page)).deviceId}`);
+    }, { ...NEW_DEVICE, script: setupScript({ set: { answer: 'OverconstrainedError' }, more: "localStorage.setItem('safeos-camera', JSON.stringify({ state: { deviceId: 'usb' }, version: 0 }));" }) });
+  }
+
+  await open({ name: 'setup, the question closed three times', width: 1280, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    await step1Shown(page);
+    for (let i = 0; i < 3; i += 1) {
+      await setupMain(page).getByRole('button', { name: i === 0 ? 'Turn on the camera' : 'Try again', exact: true }).click();
+      const named = await says(page, FAILURE_SENTENCES.closed);
+      check(named, `closing ${i + 1} is not named`);
+      check((await setupMain(page).getByRole('button', { name: 'Continue without the camera', exact: true }).count()) === 1, `after closing ${i + 1} there is no Continue`);
+    }
+    await page.evaluate(() => { window.__setCameraState('denied'); window.__camera.answers = ['NotAllowedError']; });
+    await setupMain(page).getByRole('button', { name: 'Try again', exact: true }).click();
+    const blocked = await says(page, BLOCKED_WORDS);
+    check(blocked, 'a fourth refusal with the camera blocked is not named blocked');
+    check((await setupMain(page).getByRole('button', { name: 'Continue without the camera', exact: true }).count()) === 1, 'the blocked state has no Continue');
+  }, { ...NEW_DEVICE, script: setupScript({ status: 'prompt', set: { answers: ['NotAllowedError', 'NotAllowedError', 'NotAllowedError'] } }) });
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, opening', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await throughSetup(page, 'A pet');
+      let routeData = 0;
+      await page.route('**/dashboard/**', async (route) => {
+        if (route.request().url().includes('index.txt')) routeData += 1;
+        await new Promise((resolve) => setTimeout(resolve, 2_000));
+        await route.continue().catch(() => {});
+      });
+      await lastKey(page).click();
+      await page.waitForTimeout(400);
+      const seen = await lastKey(page).evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { words: el.textContent.trim(), busy: el.getAttribute('aria-busy'), ground: style.backgroundColor, edge: `${style.borderTopWidth} ${style.borderTopStyle} ${style.borderTopColor}` };
+      }).catch(() => null);
+      check(seen && seen.words === 'Opening the dashboard…' && seen.busy === 'true', `while the dashboard opens the key is ${JSON.stringify(seen)}`);
+      check(seen && seen.ground === 'rgba(0, 0, 0, 0)' && seen.edge === `2px solid ${LINE[look]}`, `the opening key is drawn ${JSON.stringify(seen)}`);
+      await lastKey(page).click({ timeout: 1_000 }).catch(() => {});
+      await page.locator('main.dash h1').waitFor({ timeout: 20_000 }).catch(() => {});
+      check(routeData <= 1, `the dashboard's route data was asked for ${routeData} times`);
+    }, NEW_DEVICE);
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: "setup, the phone's step 2", width: 390, height: 844, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await turnOn(page);
+      const seen = await page.evaluate(() => {
+        const bar = document.querySelector('.setup-last');
+        const top = bar.getBoundingClientRect().top;
+        const before = getComputedStyle(bar, '::before');
+        const options = [...document.querySelectorAll('.setup-use')].map((o) => o.getBoundingClientRect());
+        const across = options.filter((o) => o.top < top && o.bottom > top).length;
+        const whole = options.filter((o) => o.bottom <= top);
+        const lastWhole = whole.length ? whole[whole.length - 1].bottom : null;
+        return { top, across, lastWhole, before: { display: before.display, height: before.height, content: before.content } };
+      });
+      check(seen.across === 1, `${seen.across} options stand across the bar's top line, not 1`);
+      check(seen.before.content !== 'none' && seen.before.height === '24px', `the fade over the bar is ${JSON.stringify(seen.before)}`);
+      check(seen.lastWhole !== null && seen.top - seen.lastWhole <= 32, `the last whole option ends ${seen.lastWhole === null ? 'nowhere' : seen.top - seen.lastWhole} px above the bar`);
+      await choose(page, 'A baby');
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await page.waitForTimeout(300);
+      const end = await page.evaluate(() => {
+        const top = document.querySelector('.setup-last').getBoundingClientRect().top;
+        const words = document.querySelector('#setup-use-words').getBoundingClientRect();
+        const options = [...document.querySelectorAll('.setup-use')].map((o) => o.getBoundingClientRect().bottom);
+        return { top, words: words.bottom, options: Math.max(...options) };
+      });
+      check(end.options <= end.top + 0.5 && end.words <= end.top + 0.5, `scrolled to the end, the options end at ${end.options} and the words at ${end.words}, under the bar at ${end.top}`);
+    }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+  }
+
+  await open({ name: 'setup, the uses by keyboard', width: 1280, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    await step1Shown(page);
+    await turnOn(page);
+    await step2Shown(page);
+    await setupMain(page).getByRole('link', { name: 'Back', exact: true }).focus();
+    const radio = async () => page.evaluate(() => {
+      const el = document.activeElement;
+      return el && el.type === 'radio' ? { name: el.closest('label').textContent.trim(), checked: el.checked } : { name: (el && el.textContent || '').trim(), checked: false };
+    });
+    await page.keyboard.press('Tab');
+    let at = await radio();
+    check(at.name === 'A pet', `one Tab from Back focuses "${at.name}"`);
+    for (const name of ['A baby', 'An elderly relative', 'An empty place', 'A lost pet']) {
+      await page.keyboard.press('ArrowDown');
+      at = await radio();
+      check(at.name === name && at.checked, `ArrowDown reaches ${at.name}${at.checked ? '' : ', not checked'}, not ${name}`);
+    }
+    check((await useWords(page)) === USE_WORDS['A lost pet'], 'A lost pet chosen by keyboard does not show its words');
+    await page.keyboard.press('Tab');
+    const key = await focusOf(page);
+    check(key && key.name === 'Open Lost and Found', `Tab after the answers focuses "${key && key.name}"`);
+  }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+
+  for (const look of LOOKS) {
+    await open({ name: "setup, the baby's links", width: 390, look }, async (page, context, check) => {
+      await context.route('https://safetosleep.nichd.nih.gov/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>NIH</title>' }));
+      await context.route('https://www.cpsc.gov/**', (route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<title>CPSC</title>' }));
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await continueOn(page);
+      await choose(page, 'A baby');
+      for (const [name, url] of [['Safe-sleep guidance from the NIH', 'https://safetosleep.nichd.nih.gov/reduce-risk/reduce'], ['Cord safety from the CPSC', 'https://www.cpsc.gov/content/baby-monitor-cords-have-strangled-children']]) {
+        const [opened] = await Promise.all([
+          context.waitForEvent('page', { timeout: 10_000 }),
+          setupMain(page).getByRole('link', { name: `${name}, opens in a new tab`, exact: true }).click(),
+        ]);
+        await opened.waitForLoadState('domcontentloaded').catch(() => {});
+        check(opened.url() === url, `${name} opened ${opened.url()}`);
+        await opened.close();
+        check(await isChosen(page, 'A baby'), `after ${name} A baby is not chosen`);
+      }
+    }, NEW_DEVICE);
+  }
+
+  await open({ name: 'setup, reduced motion', width: 390, look: 'light', reducedMotion: 'reduce' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    await step1Shown(page);
+    await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+    await page.locator('.setup-picture[data-state="starting"]').waitFor({ timeout: 5_000 }).catch(() => {});
+    const bar = await page.evaluate(() => {
+      const picture = document.querySelector('.setup-picture[data-state="starting"]');
+      return picture ? getComputedStyle(picture, '::after').display : 'not starting';
+    });
+    check(bar === 'none', `under reduced motion the loading bar's display is ${bar}`);
+    await page.locator('.setup-picture[data-state="on"]').waitFor({ timeout: 10_000 });
+    const duration = await page.evaluate(() => getComputedStyle(document.querySelector('.setup-track__fill')).transitionDuration);
+    check(duration === '0s', `under reduced motion the bars move over ${duration}`);
+    const values = [];
+    for (let i = 0; i < 40; i += 1) {
+      values.push(await page.evaluate(() => document.querySelector('[role="meter"][aria-label="Motion"]').getAttribute('aria-valuenow')));
+      await page.waitForTimeout(50);
+    }
+    let changes = 0;
+    for (let i = 1; i < values.length; i += 1) if (values[i] !== values[i - 1]) changes += 1;
+    check(changes <= 9, `under reduced motion Motion changed ${changes} times in 2 s`);
+  }, { ...NEW_DEVICE, script: setupScript({ set: { firstFrameMs: 1500 } }) });
+
+  await open({ name: 'setup, a run again keeps a tuned setting', width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    await throughSetup(page, 'A baby');
+    await pressTo(page, lastKey(page), '/dashboard');
+    await page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem('safeos-settings'));
+      saved.state.scenarioOverrides = { ...(saved.state.scenarioOverrides || {}), baby: { motionSensitivity: 60 } };
+      localStorage.setItem('safeos-settings', JSON.stringify(saved));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await visit(page, '/setup/?again=1');
+    await step1Shown(page);
+    await turnOn(page);
+    check((await lineLeft(page, 'Motion')) === '40%' && (await lineLeft(page, 'Sound')) === '5%', `with A baby tuned the lines stand at ${await lineLeft(page, 'Motion')} and ${await lineLeft(page, 'Sound')}`);
+    await pressTo(page, lastKey(page), '/dashboard');
+    let saved = await settingsOf(page);
+    check(saved.activePresetId === 'infant_sleep' && saved.globalSettings.motionSensitivity === 98 && saved.scenarioOverrides.baby.motionSensitivity === 60, `after the last key the settings are ${saved.activePresetId}, ${saved.globalSettings.motionSensitivity}, ${JSON.stringify(saved.scenarioOverrides)}`);
+    await visit(page, '/setup/?again=1');
+    await step1Shown(page);
+    await turnOn(page);
+    await choose(page, 'A pet');
+    check((await lineLeft(page, 'Motion')) === '10%', `with A pet the Motion line stands at ${await lineLeft(page, 'Motion')}`);
+    await pressTo(page, lastKey(page), '/dashboard');
+    saved = await settingsOf(page);
+    check(saved.activePresetId === 'pet_sleep' && saved.globalSettings.motionSensitivity === 90 && saved.scenarioOverrides.baby.motionSensitivity === 60, `after A pet the settings are ${saved.activePresetId}, ${saved.globalSettings.motionSensitivity}, ${JSON.stringify(saved.scenarioOverrides)}`);
+  }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, first screen counted', width: 390, height: 844, look }, async (page, context, check) => {
+      const OPTIONS = { root: '#main-content', bar: '.setup-last', inside: '.key--solid, .corner-ticks, .setup-camera-drawing', drawn: 'svg.setup-progress' };
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await page.waitForTimeout(500);
+      const one = await firstScreen(page, OPTIONS);
+      console.log(`counted setup step 1 at 390 by 844, ${look}: ${JSON.stringify(one)}`);
+      check(JSON.stringify(one.controls.map(plain)) === JSON.stringify(['Back', 'Turn on the camera', 'Continue without the camera']), `step 1's first screen holds the controls ${one.controls.join(', ')}`);
+      check(one.styles.length <= 6, `step 1 shows ${one.styles.length} text styles`);
+      check(one.boxes.length <= 7, `step 1 shows ${one.boxes.length} rules and boxes`);
+      check(one.colours.length <= 12, `step 1 shows ${one.colours.length} colours`);
+      const picture = await page.evaluate(() => document.querySelector('.setup-picture-line').getBoundingClientRect().bottom);
+      check(picture < 844, `the picture line ends at ${picture}, under 844`);
+      await turnOn(page);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.waitForTimeout(500);
+      const two = await firstScreen(page, OPTIONS);
+      console.log(`counted setup step 2 at 390 by 844, ${look}: ${JSON.stringify(two)}`);
+      check(two.controls.length <= 6, `step 2's first screen holds ${two.controls.length} controls`);
+      check(two.styles.length <= 6, `step 2 shows ${two.styles.length} text styles`);
+      check(two.boxes.length <= 11, `step 2 shows ${two.boxes.length} rules and boxes`);
+      check(two.colours.length <= 9, `step 2 shows ${two.colours.length} colours`);
+    }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup to watching, press by press', width: 390, look }, async (page, context, check) => {
+      let presses = 0;
+      const press = async (locator) => { await locator.click(); presses += 1; };
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await press(setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }));
+      await step2Shown(page);
+      await press(setupMain(page).getByRole('radio', { name: 'A pet', exact: true }));
+      await press(lastKey(page));
+      await stateShown(page);
+      await dashRead(page);
+      await press(startKey(page));
+      await reaches(page, '/monitor', 20_000);
+      await press(noticeStart(page));
+      const runs = await watchRuns(page);
+      check(runs && presses === 5, `the watch ${runs ? 'runs' : 'does not run'} after ${presses} presses`);
+      if (!runs) return;
+      await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+      await openDash(page);
+      await startKey(page).click();
+      await reaches(page, '/monitor', 20_000);
+      const again = await watchRuns(page);
+      check(again && (await page.getByRole('dialog', { name: 'Each alert keeps a picture', exact: true }).count()) === 0, 'the second watch does not start with no notice');
+    }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, script held', width: 390, look }, async (page, context, check) => {
+      await context.route('**/_next/static/chunks/**', async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 3_000));
+        await route.continue().catch(() => {});
+      });
+      await page.goto(address('/setup/'), { waitUntil: 'commit', timeout: 60_000 });
+      await page.waitForSelector('main.setup .setup-statement', { timeout: 10_000 });
+      await page.waitForTimeout(1_000);
+      const parts = ['.setup-back', '.setup-back-row svg.setup-progress', 'main.setup h1', '.setup-lead', '.setup-key', '.setup-skip', '.setup-statement'];
+      const tops = {};
+      for (const part of parts) {
+        const opacity = await opacityOf(page, part);
+        check(opacity === 1, `while the script is held ${part} is ${opacity === -1 ? 'not served' : `drawn at opacity ${opacity}`}`);
+        tops[part] = await page.evaluate((s) => { const el = document.querySelector(s); return el ? el.getBoundingClientRect().top : null; }, part);
+      }
+      const ground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      check(ground === PAGE[look], `while the script is held the page is ${ground}, not ${PAGE[look]}`);
+      const started = await page.waitForSelector('[data-app-started]', { state: 'attached', timeout: 30_000 }).then(() => true, () => false);
+      check(started, 'the app did not start');
+      await page.waitForTimeout(500);
+      for (const part of parts) {
+        const top = await page.evaluate((s) => { const el = document.querySelector(s); return el ? el.getBoundingClientRect().top : null; }, part);
+        check(top !== null && tops[part] !== null && Math.abs(top - tops[part]) <= 0.5, `${part} moved from ${tops[part]} to ${top} when the script ran`);
+      }
+    }, NEW_DEVICE);
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, offline', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      if (!(await installed(page))) { check(false, 'the installed copy is not whole after a visit to setup'); return; }
+      await context.setOffline(true);
+      await page.reload({ waitUntil: 'load', timeout: 60_000 });
+      check(await step1Shown(page), `offline, setup does not show "${STEP1_H1}"`);
+      const one = await setupWords(page);
+      for (const part of [STEP1_LEAD, 'Turn on the camera', 'Continue without the camera', STEP1_STATEMENT, 'The picture stays on this device.']) {
+        check(one.includes(part), `offline, step 1 does not read "${part}"`);
+      }
+      await turnOn(page);
+      check(await step2Shown(page), 'offline, Turn on the camera does not open step 2');
+      const first = await page.evaluate(() => document.querySelector('[role="meter"][aria-label="Motion"]')?.getAttribute('aria-valuenow'));
+      const moved = await page.waitForFunction((was) => document.querySelector('[role="meter"][aria-label="Motion"]')?.getAttribute('aria-valuenow') !== was, first, { timeout: 3_000 }).then(() => true, () => false);
+      check(moved, 'offline, the Motion bar does not move');
+      await choose(page, 'A baby');
+      const [opened] = await Promise.all([
+        context.waitForEvent('page', { timeout: 10_000 }).catch(() => null),
+        setupMain(page).getByRole('link', { name: 'Safe-sleep guidance from the NIH, opens in a new tab', exact: true }).click(),
+      ]);
+      check(Boolean(opened), 'offline, the NIH link opened no new page');
+      if (opened) await opened.close();
+      check(await isChosen(page, 'A baby'), 'after the NIH link A baby is not chosen');
+      await choose(page, 'A pet');
+      await pressTo(page, lastKey(page), '/dashboard', 20_000);
+      check(pathOf(page) === '/dashboard', `offline, the last key opened ${pathOf(page)}`);
+      check((await onboardingOf(page)).isComplete === true, 'offline, setup was not marked done');
+    }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, offline and blocked', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      if (!(await installed(page))) { check(false, 'the installed copy is not whole after a visit to setup'); return; }
+      await visit(page, '/help/');
+      await installed(page);
+      await context.setOffline(true);
+      await visit(page, '/setup/').catch(() => {});
+      await step1Shown(page);
+      check(await says(page, BLOCKED_WORDS), 'offline, the blocked camera is not named');
+      await setupMain(page).getByRole('link', { name: 'How to allow the camera', exact: true }).click();
+      await page.waitForURL((url) => url.pathname === '/help/' && url.hash === '#camera', { timeout: 15_000 }).catch(() => {});
+      const at = new URL(page.url());
+      check(at.pathname === '/help/' && at.hash === '#camera', `offline, How to allow the camera opened ${at.pathname}${at.hash}`);
+      const seen = await page.getByRole('heading', { name: 'Camera not working', exact: true }).isVisible().catch(() => false);
+      check(seen, 'offline, Help does not show "Camera not working" in view');
+    }, { ...NEW_DEVICE, script: setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }) });
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, a page not stored', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      if (!(await installed(page))) { check(false, 'the installed copy is not whole after a visit to setup'); return; }
+      await page.evaluate(async () => {
+        const name = (await caches.keys()).find((key) => key.startsWith('safeos-shell-'));
+        const cache = await caches.open(name);
+        for (const request of await cache.keys()) {
+          const at = new URL(request.url).pathname;
+          if (at === '/setup/' || at === '/setup/index.txt' || at === '/setup') await cache.delete(request);
+        }
+      });
+      await context.setOffline(true);
+      await visit(page, '/setup/').catch(() => {});
+      const offline = await heading(page, OFFLINE_H1).waitFor({ timeout: 15_000 }).then(() => true, () => false);
+      check(offline, `offline with setup not stored the page does not read "${OFFLINE_H1}"`);
+      check((await page.getByRole('button', { name: 'Try again', exact: true }).count()) === 1, 'the offline page has no Try again');
+      check((await page.getByRole('link', { name: 'Open dashboard', exact: true }).count()) + (await page.getByRole('button', { name: 'Open dashboard', exact: true }).count()) >= 1, 'the offline page has no Open dashboard');
+      await context.setOffline(false);
+      await page.getByRole('button', { name: 'Try again', exact: true }).click();
+      check(await step1Shown(page), `online again, Try again does not show "${STEP1_H1}"`);
+    }, NEW_DEVICE);
+  }
+
+  for (const look of LOOKS) {
+    await open({ name: 'setup, a new tab offline', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/');
+      if (!(await installed(page))) { check(false, 'the installed copy is not whole after a visit to the home page'); return; }
+      await visit(page, '/setup/');
+      await installed(page);
+      await context.setOffline(true);
+      const second = await context.newPage();
+      await visit(second, '/setup/').catch(() => {});
+      check(await step1Shown(second), 'offline, a new tab does not open setup from the installed copy');
+      await setupMain(second).getByRole('link', { name: 'Back', exact: true }).click();
+      await reaches(second, '/', 10_000);
+      check(pathOf(second) === '/', `offline, Back in a new tab opened ${pathOf(second)}`);
+      await second.evaluate(async () => {
+        const name = (await caches.keys()).find((key) => key.startsWith('safeos-shell-'));
+        const cache = await caches.open(name);
+        for (const request of await cache.keys()) {
+          const at = new URL(request.url).pathname;
+          if (at === '/' || at === '/index.txt' || at === '/index.html') await cache.delete(request);
+        }
+      });
+      const third = await context.newPage();
+      await visit(third, '/setup/').catch(() => {});
+      await step1Shown(third);
+      await setupMain(third).getByRole('link', { name: 'Back', exact: true }).click();
+      const offline = await heading(third, OFFLINE_H1).waitFor({ timeout: 15_000 }).then(() => true, () => false);
+      check(offline, `offline with the home page not stored, Back does not show "${OFFLINE_H1}"`);
+    }, NEW_DEVICE);
+  }
+
+  for (const width of [820, 1280, 1920]) {
+    for (const look of LOOKS) {
+      await open({ name: 'setup, the header at each width', width, look }, async (page, context, check) => {
+        await visit(page, '/setup/');
+        await step1Shown(page);
+        const row = await page.evaluate(() => {
+          const header = document.querySelector('header.app-header');
+          const box = header.getBoundingClientRect();
+          const items = [...header.querySelectorAll('a[href], button')].filter((el) => {
+            const b = el.getBoundingClientRect();
+            return b.width > 0 && b.height > 0 && getComputedStyle(el).visibility !== 'hidden';
+          }).map((el) => {
+            const b = el.getBoundingClientRect();
+            return { name: (el.getAttribute('aria-label') || el.textContent || '').replace(/\s+/g, ' ').trim(), middle: b.top + b.height / 2, left: b.left, right: b.right };
+          });
+          const back = document.querySelector('.setup-back-row').getBoundingClientRect();
+          const glyph = document.querySelector('.setup-back-row svg.setup-progress').getBoundingClientRect();
+          const lookRow = document.querySelector('.setup-look');
+          return { height: box.height, items, back: { left: back.left, right: back.right, width: back.width }, glyph: glyph.right,
+            lookShown: Boolean(lookRow && lookRow.getBoundingClientRect().height > 0 && getComputedStyle(lookRow).display !== 'none'), page: window.innerWidth };
+        });
+        const middles = row.items.map((item) => item.middle);
+        check(Math.max(...middles) - Math.min(...middles) <= 2, `the header's controls stand at ${middles.join(', ')}`);
+        const names = row.items.map((item) => item.name);
+        for (const want of rowNames(look)) {
+          check(names.includes(want) || names.includes('More'), `the header does not hold "${want}": ${names.join(', ')}`);
+        }
+        check(Math.abs(row.glyph - row.back.right) <= 1, `the glyph ends at ${row.glyph}, not the Back row's right end ${row.back.right}`);
+        if (width === 820) {
+          check(Math.abs(row.height - 64) <= 1, `the header row is ${row.height} px tall, not 64`);
+          check(!row.lookShown, 'at 820 px the look row shows in setup');
+          check(row.back.width <= 704 + 1, `the Back row is ${row.back.width} px wide, wider than the 704 px column`);
+        }
+        if (width === 1280) check(Math.abs(row.back.width - 1200) <= 1, `the Back row is ${row.back.width} px wide, not 1200`);
+        if (width === 1920) {
+          const links = row.items.filter((item) => ['Dashboard', 'History', 'Settings', 'Help'].includes(item.name));
+          const middle = links.length ? (links[0].left + links[links.length - 1].right) / 2 : 0;
+          check(Math.abs(middle - row.page / 2) <= 2, `the four links' middle is ${middle}, not the page's ${row.page / 2}`);
+        }
+      }, NEW_DEVICE);
+    }
+  }
+
+  try {
+    const real = await browser.browserType().launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
+    try {
+      const context = await real.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light' });
+      await context.grantPermissions(['camera', 'microphone'], { origin: new URL(baseUrl).origin });
+      const page = await context.newPage();
+      const what = (text) => `setup, Chromium's own camera at 390 px, light: ${text}`;
+      try {
+        await visit(page, '/setup/');
+        await step1Shown(page);
+        const on = await turnOn(page);
+        expect(on, what('Turn on the camera does not show the picture'));
+        const motion = new Set();
+        const sound = new Set();
+        for (let i = 0; i < 30; i += 1) {
+          const now = await page.evaluate(() => ({
+            motion: document.querySelector('[role="meter"][aria-label="Motion"]')?.getAttribute('aria-valuenow'),
+            sound: document.querySelector('[role="meter"][aria-label="Sound"]')?.getAttribute('aria-valuenow'),
+          }));
+          motion.add(now.motion);
+          sound.add(now.sound);
+          await page.waitForTimeout(100);
+        }
+        expect(motion.size >= 2, what(`Motion took ${motion.size} values in 3 s`));
+        expect(sound.size >= 2, what(`Sound took ${sound.size} values in 3 s`));
+      } catch (err) {
+        fail(what(err.message.split('\n')[0]));
+      } finally {
+        await context.close();
+      }
+    } finally {
+      await real.close();
+    }
+  } catch (err) {
+    fail(`setup, Chromium's own camera at 390 px, light: its browser did not start: ${err.message.split('\n')[0]}`);
+  }
+
+  await open({ name: "setup, a pet's alert in History", width: 390, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    await throughSetup(page, 'A pet');
+    await pressTo(page, lastKey(page), '/dashboard');
+    await stateShown(page);
+    await dashRead(page);
+    await pressTo(page, startKey(page), '/monitor');
+    await noticeStart(page).click({ timeout: 20_000 }).catch(() => check(false, 'the notice before the first watch does not show'));
+    if (!(await watchRuns(page))) { check(false, 'the watch does not run'); return; }
+    const alerted = await page.waitForFunction(async () => {
+      const db = await new Promise((resolve) => { const r = indexedDB.open('safeos-guardian'); r.onsuccess = () => resolve(r.result); r.onerror = () => resolve(null); });
+      if (!db || !db.objectStoreNames.contains('alert_cache')) return false;
+      const count = await new Promise((resolve) => { const r = db.transaction('alert_cache').objectStore('alert_cache').count(); r.onsuccess = () => resolve(r.result); r.onerror = () => resolve(0); });
+      db.close();
+      return count > 0;
+    }, null, { timeout: 20_000, polling: 1_000 }).then(() => true, () => false);
+    check(alerted, 'no alert within 20 s of watching');
+    await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
+    await visit(page, '/history/');
+    const listed = await page.locator('#main-content').getByText(/\d{1,2}:\d{2}/).first().waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    check(listed, 'History lists no alert with its time');
+  }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+
+  const FIT_STATES = [
+    ['blocked', { status: 'denied', set: { answer: 'NotAllowedError' } }, false],
+    ['the question closed', { status: 'prompt', set: { answer: 'NotAllowedError' } }, true],
+    ['in use', { set: { answer: 'NotReadableError' } }, true],
+    ['no camera', { set: { answer: 'NotFoundError' } }, true],
+    ['the saved camera gone', { set: { answer: 'OverconstrainedError' }, more: "localStorage.setItem('safeos-camera', JSON.stringify({ state: { deviceId: 'usb' }, version: 0 }));" }, true],
+    ['no camera request', { camera: false, noRequest: true }, false],
+    ['another failure', { set: { answer: 'TypeError' } }, true],
+  ];
+  const bottomOf = (page, selector) => page.evaluate((s) => { const el = document.querySelector(s); return el ? el.getBoundingClientRect().bottom : null; }, selector);
+  for (const look of LOOKS) {
+    for (const height of [660, 844]) {
+      await open({ name: "setup, the first screen's fit", width: 390, height, look }, async (page, context, check) => {
+        await visit(page, '/setup/');
+        await step1Shown(page);
+        const key = await bottomOf(page, '.setup-key');
+        const skip = await bottomOf(page, '.setup-skip');
+        check(key !== null && key <= height && skip !== null && skip <= height, `at ${height} px the keys end at ${key} and ${skip}`);
+        if (height === 660) {
+          const statement = await page.evaluate(() => document.querySelector('.setup-statement').getBoundingClientRect().top);
+          check(statement < 660, `at 660 px the statement starts at ${statement}`);
+        } else {
+          const line = await bottomOf(page, '.setup-picture-line');
+          check(line !== null && line <= 844, `at 844 px the picture line ends at ${line}`);
+        }
+      }, NEW_DEVICE);
+      for (const [state, made, press] of FIT_STATES) {
+        await open({ name: "setup, the first screen's fit", width: 390, height, look }, async (page, context, check) => {
+          await visit(page, '/setup/');
+          await step1Shown(page);
+          if (press) await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+          await page.locator('.setup-frame[data-state="failed"]').waitFor({ timeout: 10_000 }).catch(() => {});
+          await page.waitForTimeout(300);
+          const again = await bottomOf(page, '.setup-frame .setup-key');
+          const skip = await bottomOf(page, '.setup-skip');
+          check(again === null || again <= height, `${state}: at ${height} px Try again ends at ${again}`);
+          check(skip !== null && skip <= height, `${state}: at ${height} px Continue ends at ${skip}`);
+        }, { ...NEW_DEVICE, script: setupScript(made) });
+      }
+    }
+  }
+
+  // No two blocks of words of setup's column overlap.
+  const overlaps = (page) => page.evaluate(() => {
+    const blocks = [...document.querySelectorAll('main.setup p, main.setup h1, main.setup button, main.setup a, main.setup .setup-use__name, main.setup .setup-meter__label')]
+      .filter((el) => el.offsetParent !== null && el.textContent.trim())
+      .map((el) => ({ el, box: el.getBoundingClientRect() }))
+      .filter(({ box }) => box.width > 0 && box.height > 0);
+    const found = [];
+    for (let i = 0; i < blocks.length; i += 1) {
+      for (let j = i + 1; j < blocks.length; j += 1) {
+        const a = blocks[i];
+        const b = blocks[j];
+        if (a.el.contains(b.el) || b.el.contains(a.el)) continue;
+        const x = Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left);
+        const y = Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top);
+        if (x > 1 && y > 1) found.push(`${a.el.textContent.trim().slice(0, 24)} / ${b.el.textContent.trim().slice(0, 24)}`);
+      }
+    }
+    return found;
+  });
+  const keysWhole = (page) => page.evaluate(() => [...document.querySelectorAll('main.setup button, main.setup a.key')]
+    .filter((el) => el.offsetParent !== null && el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent.trim()));
+  const optionsStacked = (page) => page.evaluate(() => {
+    const lefts = [...document.querySelectorAll('.setup-use__box')].map((o) => o.getBoundingClientRect().left);
+    return lefts.length > 0 && Math.max(...lefts) - Math.min(...lefts) <= 0.5;
+  });
+  for (const look of LOOKS) {
+    await open({ name: 'setup, larger text', width: 320, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await largerText(page);
+      check((await sidewaysScroll(page)) <= 0, 'at 200 per cent text step 1 scrolls sideways');
+      const glyphs = await page.evaluate(() => {
+        const shown = (el) => el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
+        return { row: shown(document.querySelector('.setup-back-row svg.setup-progress')), under: shown(document.querySelector('svg.setup-progress--under')) };
+      });
+      check(!glyphs.row && glyphs.under, `at 200 per cent text the glyph stands ${glyphs.row ? 'in the Back row' : 'nowhere in the row'}${glyphs.under ? ' and under the heading' : ', not under the heading'}`);
+      const cut = await keysWhole(page);
+      check(cut.length === 0, `at 200 per cent text these keys cut their words: ${cut.join(', ')}`);
+      const solid = await page.evaluate(() => document.querySelector('.setup-key').getBoundingClientRect().height);
+      check(solid > 52, `at 200 per cent text the solid key is ${solid} px tall`);
+      const over = await overlaps(page);
+      check(over.length === 0, `at 200 per cent text these words overlap: ${over.join('; ')}`);
+      await turnOn(page);
+      await step2Shown(page);
+      check(await optionsStacked(page), 'at 200 per cent text the options do not stand one under another');
+      const cut2 = await keysWhole(page);
+      check(cut2.length === 0, `at 200 per cent text on step 2 these keys cut their words: ${cut2.join(', ')}`);
+      check((await sidewaysScroll(page)) <= 0, 'at 200 per cent text step 2 scrolls sideways');
+    }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+  }
+  await open({ name: 'setup, larger text', width: 1920, look: 'light' }, async (page, context, check) => {
+    await visit(page, '/setup/');
+    await step1Shown(page);
+    await turnOn(page);
+    await step2Shown(page);
+    await largerText(page);
+    check(await optionsStacked(page), 'at 200 per cent text at 1920 px the options do not stand one under another');
+    const cut = await keysWhole(page);
+    check(cut.length === 0, `at 200 per cent text at 1920 px these keys cut their words: ${cut.join(', ')}`);
+  }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+
+  const boxOf = (page, selector) => page.evaluate((s) => {
+    const el = document.querySelector(s);
+    if (!el) return null;
+    const b = el.getBoundingClientRect();
+    return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, width: b.width, height: b.height };
+  }, selector);
+  for (const width of [820, 1280, 1920]) {
+    for (const look of LOOKS) {
+      await open({ name: 'setup, layouts', width, look }, async (page, context, check) => {
+        await visit(page, '/setup/');
+        await step1Shown(page);
+        const column = await boxOf(page, '.setup-step');
+        const frame = await boxOf(page, '.setup-frame');
+        const key = await boxOf(page, '.setup-key');
+        const skip = await boxOf(page, '.setup-skip');
+        const h1 = await boxOf(page, 'main.setup h1');
+        check(skip.top >= frame.bottom - 0.5, `at ${width} px Continue stands at ${skip.top}, not under the frame (${frame.bottom})`);
+        if (width === 820) {
+          check(Math.abs(frame.width - column.width) <= 1, `at 820 px the frame is ${frame.width} px wide in a column of ${column.width}`);
+          check(key.width <= 400, `at 820 px the key is ${key.width} px wide`);
+        } else {
+          check(frame.left > h1.left + column.width / 3, `at ${width} px the frame starts at ${frame.left}, not in the right columns`);
+          check(Math.abs(frame.top - h1.top) <= 2, `at ${width} px the frame's top is ${frame.top}, not the heading's ${h1.top}`);
+          if (width === 1280) check(skip.width <= 320, `at 1280 px Continue is ${skip.width} px wide`);
+          if (width === 1920) {
+            const lead = await page.evaluate(() => getComputedStyle(document.querySelector('.setup-lead')).fontSize);
+            check(lead === '20px', `at 1920 px the lead is ${lead}`);
+          }
+        }
+        await turnOn(page);
+        await step2Shown(page);
+        const picture = await boxOf(page, '.setup-picture');
+        const answers = await boxOf(page, '.setup-uses');
+        const lastBar = await page.evaluate(() => getComputedStyle(document.querySelector('.setup-last')).position);
+        check(lastBar === 'static', `at ${width} px the last key's bar is ${lastBar}`);
+        const columns = await page.evaluate(() => new Set([...document.querySelectorAll('.setup-use__box')].map((o) => Math.round(o.getBoundingClientRect().left))).size);
+        const lastKeyBox = await boxOf(page, '.setup-last-key');
+        if (width === 820) {
+          check(Math.abs(picture.width / picture.height - 16 / 9) <= 0.05 || picture.height > picture.width * 9 / 16, `at 820 px the picture is ${picture.width} by ${picture.height}`);
+          check(columns === 2, `at 820 px the options stand in ${columns} columns`);
+          check(lastKeyBox.width <= 400, `at 820 px the last key is ${lastKeyBox.width} px wide`);
+        } else {
+          check(picture.right <= answers.left, `at ${width} px the picture (to ${picture.right}) and the answers (from ${answers.left}) overlap`);
+          if (width === 1280) check(columns === 1, `at 1280 px the options stand in ${columns} columns`);
+          if (width === 1920) {
+            check(Math.abs(picture.width - 760) <= 12 && Math.abs(picture.height - 428) <= 12, `at 1920 px the picture is ${picture.width} by ${picture.height}, not about 760 by 428`);
+            check(columns === 2, `at 1920 px the options stand in ${columns} columns`);
+            check(lastKeyBox.height >= 56 - 0.5, `at 1920 px the last key is ${lastKeyBox.height} px tall`);
+          }
+        }
+      }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+
+      await open({ name: 'setup, layouts', width, look }, async (page, context, check) => {
+        await visit(page, '/setup/');
+        await step1Shown(page);
+        await page.locator('.setup-frame[data-state="failed"]').waitFor({ timeout: 10_000 }).catch(() => {});
+        const inside = await page.evaluate(() => {
+          const frame = document.querySelector('.setup-frame').getBoundingClientRect();
+          const within = (s) => { const el = document.querySelector(s); if (!el) return false; const b = el.getBoundingClientRect(); return b.top >= frame.top - 0.5 && b.bottom <= frame.bottom + 0.5; };
+          const skip = document.querySelector('.setup-skip').getBoundingClientRect();
+          return { sentence: within('.setup-frame-says'), key: within('.setup-frame .setup-key'), under: skip.top >= frame.bottom - 0.5 };
+        });
+        check(inside.sentence && inside.key && inside.under, `at ${width} px the blocked state is laid out ${JSON.stringify(inside)}`);
+      }, { ...NEW_DEVICE, script: setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }) });
+    }
+  }
 
   // The three parts on the grid at each width, from the page's top.
   const layoutOf = (page) => page.evaluate(() => {
