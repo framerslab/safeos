@@ -10,7 +10,7 @@ import {
   outputTime, readRecordingWords, sha256, spool, testPosterEncoders, wideView,
 } from './home-run-frames.mjs';
 import { recordingInputs } from './home-run-inputs.mjs';
-import { omittedRuns, placeSubject, recipes } from './home-run-list.mjs';
+import { omittedRuns, placeSubject, recipes, recordAgainOnSlowStart } from './home-run-list.mjs';
 import { launchSampleDevice, recordingSettings, seededContext } from './home-run-seed.mjs';
 
 const [baseUrl, outDir, video, audio, gardenVideo, gardenAudio] = process.argv.slice(2);
@@ -148,7 +148,7 @@ async function recordSet(browsers, recipe, avif) {
   while (true) {
     let narrower = width;
     for (const look of looks) {
-      const result = await recordVariant(browsers.square, recipe, { size: 'square', look, width, height: 844, scale: 3, seconds: recipe.seconds }, avif);
+      const result = await recordAgainOnSlowStart(() => recordVariant(browsers.square, recipe, { size: 'square', look, width, height: 844, scale: 3, seconds: recipe.seconds }, avif));
       if (result.narrower) narrower = Math.min(narrower, result.narrower);
       else variants.square[look] = result;
     }
@@ -158,9 +158,9 @@ async function recordSet(browsers, recipe, avif) {
   const wide = wideView(recipe.id);
   const wideBrowser = wide.scale === 3 ? browsers.square : browsers.wide;
   for (const look of looks) {
-    variants.wide[look] = await recordVariant(wideBrowser, recipe, {
+    variants.wide[look] = await recordAgainOnSlowStart(() => recordVariant(wideBrowser, recipe, {
       ...wide, size: 'wide', look, seconds: recipe.seconds,
-    }, avif);
+    }, avif));
   }
   const { id, key, route, state, clip, seconds, description, longDescription } = recipe;
   const first = variants.square.dark;

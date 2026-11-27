@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { checkFlashFrames, spool } from './home-run-frames.mjs';
 import { checkHeldAlert } from './home-run-held.mjs';
 import { cssReferences } from './home-run-inputs.mjs';
-import { omittedRuns, recipes } from './home-run-list.mjs';
+import { omittedRuns, recipes, recordAgainOnSlowStart } from './home-run-list.mjs';
 import { barredWording } from './home-wording.cjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
@@ -166,4 +166,30 @@ test('the Lost and Found run enrols photo 1 alone, plays the sample clip and com
   spans.slice(1).forEach(([from], index) => assert.equal(from, spans[index][1]));
   assert.equal(spans.at(-1)[1], run.seconds);
   assert.ok(run.seconds >= 6 && run.seconds <= 9, 'A run lasts 6 to 9 seconds');
+});
+
+test('a variant whose camera starts slowly is recorded again, at most twice, and any other failure is not', async () => {
+  const slow = () => new Error('lost-found /monitor/ wide-dark 768×548: The camera took 3.90 s to start',
+    { cause: Object.assign(new Error('The camera took 3.90 s to start'), { slowStart: true }) });
+  const lines = [];
+  let tries = 0;
+  assert.equal(await recordAgainOnSlowStart(async () => {
+    tries += 1;
+    if (tries < 3) throw slow();
+    return 'recorded';
+  }, (line) => lines.push(line)), 'recorded');
+  assert.equal(tries, 3);
+  assert.equal(lines.length, 2);
+  tries = 0;
+  await assert.rejects(recordAgainOnSlowStart(async () => {
+    tries += 1;
+    throw slow();
+  }, () => {}), /The camera took 3\.90 s to start/);
+  assert.equal(tries, 3, 'A third slow start fails the recording');
+  tries = 0;
+  await assert.rejects(recordAgainOnSlowStart(async () => {
+    tries += 1;
+    throw new Error('The possible sighting left the frame');
+  }, () => {}), /left the frame/);
+  assert.equal(tries, 1, 'Only a slow camera start is recorded again');
 });

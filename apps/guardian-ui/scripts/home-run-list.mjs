@@ -41,6 +41,19 @@ async function openWatch(page, baseUrl) {
 }
 
 // The page and DevTools use the same wall-clock time base.
+// A fake camera that is slow to start is the runner's, not the app's: a recipe marks the failure
+// with slowStart and the variant is recorded again in a new context, at most twice.
+export async function recordAgainOnSlowStart(record, log = console.log) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await record();
+    } catch (error) {
+      if (!(error.slowStart || error.cause?.slowStart) || attempt === 3) throw error;
+      log(`${error.message}; recording again, ${attempt} of 2`);
+    }
+  }
+}
+
 export const browserTime = (page) => page.evaluate(() => (performance.timeOrigin + performance.now()) / 1000);
 
 function sleepUntil(page, start, offset) {
@@ -585,7 +598,7 @@ async function prepareLostFound({ page, baseUrl, view }) {
   await pose(page, 'Start watching').waitFor();
   // Open the fake camera and microphone once and close them before the recording. The first
   // open in a new browser starts Chromium's capture service, which took up to 2.3 s on a CI
-  // runner; with it running, Start watching shows the camera within the run's 1.5 seconds.
+  // runner. A start slower than the run's 1.5 seconds is recorded again.
   await page.evaluate(async () => {
     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     const video = document.createElement('video');
@@ -627,7 +640,9 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   await pose(page, 'Start watching').click();
   await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 3 * SECOND });
   const liveAt = await browserTime(page);
-  assert.ok(liveAt - start <= LOST_FOUND_START_AT + 1.5, `The camera took ${(liveAt - start).toFixed(2)} s to start`);
+  if (liveAt - start > LOST_FOUND_START_AT + 1.5) {
+    throw Object.assign(new Error(`The camera took ${(liveAt - start).toFixed(2)} s to start`), { slowStart: true });
+  }
 
   // 2–5 seconds: the watch compares the clip with Toffee's photo; the possible sighting arrives.
   const sightingBy = start + LOST_FOUND_HOLD_AT - 0.25;

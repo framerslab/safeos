@@ -78,11 +78,11 @@ describe('the page reads before any script runs and asks for nothing', () => {
     expect(all('#how-it-works details')).toHaveLength(6);
   });
 
-  it('opens on Watching and offers Dashboard and Settings next', () => {
+  it('opens on Watching and offers Dashboard, Lost and Found and Settings next', () => {
     const region = one('section[aria-label="Recorded runs of SafeOS Guardian"]');
     expect(region).not.toBeNull();
     const keys = Array.from(region!.querySelectorAll('button[data-run]')).map(words);
-    expect(keys).toEqual(['Watching', 'Dashboard', 'Settings']);
+    expect(keys).toEqual(['Watching', 'Dashboard', 'Lost and Found', 'Settings']);
     expect(region!.querySelector('[aria-current="step"]')?.getAttribute('data-run')).toBe('watching');
   });
 
