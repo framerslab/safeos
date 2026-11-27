@@ -1,6 +1,6 @@
 # Setup in two steps
 
-Both folders come from Pictures run 45955321966: the after pictures from its jobs Capture pictures and Walk setup on commit d4faa54b1536cbb09075972909193a6ed31af652, the before pictures from its job Capture before pictures on the base commit d70ec8f0e4bcbf315c90d66243aaa9ff50fb8141.
+Both folders come from Pictures run 46021397733: the after pictures from its jobs Capture pictures and Walk setup on commit a87b116dc2c98914de710095065acd6721ab080d, the before pictures from its job Capture before pictures on the base commit d70ec8f0e4bcbf315c90d66243aaa9ff50fb8141.
 
 - `before/setup-390-light.png`: Setup's first screen at 390 px, light, before.
 - `after/setup-390-light.png`: Setup's first screen at 390 px, light, after.
