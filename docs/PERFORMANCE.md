@@ -8,6 +8,7 @@ Chromium with the CPU slowed. It runs on each push to `master` and when it is
 started by hand (Actions, Measure, Run workflow). It does not run on pull
 requests. It records and does not judge: a slow number never fails the run,
 and a part that could not be measured is written down with the reason.
+The Wildlife watch below also checks that the page can run the model on the clip.
 
 Each run shows a table in its summary and keeps the `measurements` artifact:
 `measurements.json` holds one object per device class and slow-down, and
@@ -112,6 +113,20 @@ browser contexts.
   says whether the browser kept them. A model part that has
   not finished in 300 s is written down as not measured, with that reason,
   and the run goes on to Lost & Found.
+- **Wildlife on the sample clip.** After the unthrottled laptop model measurement,
+  two new Wildlife tabs use the same browser context and its model cache.
+  The model host is blocked during both watches. The page's Start Monitoring
+  key starts the camera, and Wildlife sees the clip through its own one-second
+  timer and motion gate. A picture encoded by the detector after inference
+  shows that the gate opened and the model returned. Each watch must finish
+  at least one inference and save a cat sighting. When the laptop model
+  measurement stops first, the Wildlife watch never starts, and the run
+  fails with that measurement's error. When the watch itself stops, for
+  example because its page closes or its folder cannot be written, the model
+  measurement keeps its result and the run fails with the watch's error. The job summary and
+  `wildlife-probe.json` in the
+  `measurements` artifact give the frame's time in the clip and the time
+  of the first cat sighting.
 - **Lost & Found.** One pet is enrolled through Lost & Found's own form from
   one frame of the clip (at 1 s). That page's Start Monitoring opens the watch
   with Lost and Found chosen and the pet, and the watch's Start watching
@@ -125,5 +140,5 @@ The table is on the run's summary page on GitHub. From a terminal:
 
 ```bash
 gh run list --workflow measure.yml
-gh run download <run-id> -n measurements  # measurements.json and summary.md
+gh run download <run-id> -n measurements  # measurements.json, wildlife-probe.json and summary.md
 ```

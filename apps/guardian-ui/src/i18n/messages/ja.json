@@ -248,7 +248,7 @@
     "status": { "detected": "検知", "status": "状態", "excess": "超過", "intruder": "侵入者", "intruders": "侵入者", "unauthorized": "不正な人物", "personsDetected": "検知された人物" },
     "gallery": { "title": "侵入履歴", "noEvents": "イベントなし", "noEventsDesc": "検知された侵入者はここに表示されます。", "totalEvents": "合計", "unreviewed": "未確認", "last24h": "過去24時間", "avgPersons": "平均人数", "acknowledge": "確認", "delete": "削除", "exportJson": "JSONエクスポート", "exportCsv": "CSVエクスポート", "deleteSelected": "選択を削除", "selectAll": "すべて選択", "clear": "クリア" },
     "tts": { "authoritative": { "warning1": "警告！録画されています。直ちに立ち去ってください。", "warning2": "セキュリティアラート。当局に通報しました。", "warning3": "侵入者を検知。このエリアは監視下にあります。", "warning4": "不正侵入を検知。" }, "alarm": { "alert1": "侵入者アラート！助けて！", "alert2": "出て行け！", "alert3": "アラート！侵入者！", "alert4": "危険！" } },
-    "settings": { "confidenceThreshold": "検知信頼度", "motionThreshold": "動き感度", "armingCountdown": "警戒カウントダウン", "triggerCooldown": "トリガークールダウン", "maxStoredFrames": "最大フレーム数", "autoDeleteDays": "自動削除（日後）" },
+    "settings": { "confidenceThreshold": "検知信頼度", "motionThreshold": "動き感度", "armingCountdown": "警戒カウントダウン", "triggerCooldown": "トリガークールダウン", "maxStoredFrames": "最大フレーム数" },
     "notifications": { "intruderDetected": "侵入者アラート！", "intruderBody": "{count}人検知。{excess}人が不正。" },
     "silentModeInfo": "サイレントモード：侵入は音声警告なしで記録されます。ギャラリーでキャプチャされたフレームを確認できます。"
   },

@@ -18,6 +18,20 @@ Security's **Arm system** button stays disabled until the model is ready, so the
 page never shows an armed system that checks no frame. Wildlife's **Start**
 button works the same way.
 
+People and Wildlife compare consecutive camera pictures before running the model.
+They split the 320 by 240 picture into an 8 by 6 grid of 40 by 40 pixel cells.
+The reading is the average absolute change in red, green and blue in the cell
+that changes most, on a scale from 0 to 100. A cell reaching 15 starts the
+model check by default. In Wildlife settings, **Movement to start the check**
+sets that line from 5 to 50.
+
+In Measure, the Wildlife page watches the committed kitten clip through its
+own camera and timer twice with the model already saved. Each watch must run
+the model and save a cat sighting. In the two watches that established the
+check, the first model check used the frame at 1.93 seconds in both, and the
+first cat sightings appeared at 4.22 and 4.26 seconds.
+[Measure run](https://github.com/framerslab/safeos/actions/runs/45717609196)
+
 Offline starts require two completed preparations:
 
 1. The service worker installs the exported HTML and all generated scripts,

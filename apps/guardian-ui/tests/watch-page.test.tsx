@@ -16,6 +16,7 @@ import { useSettingsStore } from '@/stores/settings-store';
 import { useCameraStore } from '@/stores/camera-store';
 import { BrowserTrack, installCameraBrowser, startMonitoring } from './helpers/camera-browser';
 import { clockTime } from '@/lib/clock-time';
+import { PixelDetectionEngine } from '@/lib/pixel-detection';
 
 jest.mock('next/navigation', () => ({ useSearchParams: () => new URLSearchParams() }));
 const mockBackendConfig = { wsUrl: 'wss://monitor.example.test' };
@@ -303,6 +304,34 @@ it('shows no Picture change meter where the setting does not check it', async ()
   await act(async () => {});
   await startMonitoring();
   expect(screen.queryByRole('meter', { name: 'Picture change level' })).toBeNull();
+});
+
+describe.each([false, true])('Picture change severity (count mode: %s)', (useAbsoluteThreshold) => {
+  it.each([
+    [1.2, 'low'],
+    [3, 'medium'],
+    [6, 'high'],
+    [11, 'critical'],
+  ])('reads %s times the active line as %s', async (multiple, severity) => {
+    useSettingsStore.setState({
+      activePresetId: 'custom',
+      globalSettings: { ...MOTION_ONLY, motionDetectionEnabled: false, pixelDetectionEnabled: true, useAbsoluteThreshold },
+    });
+    const pixels = 1280 * 720;
+    const changedPixelCount = Math.round(multiple * (useAbsoluteThreshold ? 50 : pixels / 100));
+    jest.spyOn(PixelDetectionEngine.prototype, 'analyzeImageData').mockImplementation(() => ({
+      changed: true, difference: changedPixelCount / pixels * 100, changedPixelCount,
+      totalPixels: pixels, hotspots: [], timestamp: Date.now(), processingTimeMs: 0,
+      triggeredBy: useAbsoluteThreshold ? 'absolute' : 'percentage',
+    }));
+
+    render(<MonitorPage />);
+    await act(async () => {});
+    await startMonitoring();
+    await act(async () => { jest.advanceTimersByTime(2000); });
+
+    expect(useMonitoringStore.getState().alerts.find((alert) => alert.kind === 'picture-change')?.severity).toBe(severity);
+  });
 });
 
 it('shows the names over empty tracks with no state word until the first reading', async () => {

@@ -49,6 +49,9 @@ On a phone the camera menu moves from under the alert list to under the frame, s
 focus on it moves to the frame's key too. **Picture change** reads on the scale its check uses: the
 changed pixels against the pixel count, or, where the setting checks a share of the
 picture, the changed share against the check's 1 per cent.
+The alert's severity uses the same line. From that line up to twice it the
+alert is low. It is medium at twice the line, high at five times, and critical
+at ten times. In a pixel-count zone the alert uses the line for that zone.
 A screen reader reads each meter's value as "{n} per cent, line at {line}, {state}";
 a change of state is not announced. Under reduced motion a meter's shown reading
 changes at most once a second. While Lost and Found compares, the pet's meter names
@@ -223,6 +226,7 @@ With a range set the analyser uses 2,048 points (about 23 Hz a bin at 48 kHz) in
 place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
 read every pitch, as the root mean square of every bin, so a sensitivity saved
 for them means what it did.
+The old noise filter switch is gone. Devices that used it keep their pitch settings.
 
 **Scheduled Presets** on **Settings > Quiet Hours** apply on every page: the app
 checks once a minute and whenever a set time or the Scheduled Presets switch
@@ -263,6 +267,27 @@ Silent quiet hours, in Emergency Only quiet hours for an alert that is not
 critical, and with the alert volume at 0. The volume is read at the instant the
 saved sound starts, so quiet hours that began or ended a moment ago hold for it.
 Emergency mode and the Emergency trigger always play.
+
+## Spoken alerts
+
+People, Wildlife and Lost and Found’s custom spoken messages use a voice on
+this device by default. SafeOS’s own alert words are English and take an
+English voice when the device has one; a device with no English voice reads
+them with a voice it has, so the alert is heard. A message you write takes a
+voice in the language of the page.
+A browser can take a moment to list its voices, so an alert waits up to a
+second for the list. A newer alert replaces one that is still waiting, and a
+Lost and Found message that waits through a pause speaks once the pause ends. If
+the browser offers no voice on this device, spoken alerts stay quiet. A Lost
+and Found message with no voice to read it waits, and speaks once the browser
+lists one. **Settings > Alert sounds > Spoken alert voice** lets you
+choose a specific online voice when the browser offers one. When the chosen
+voice speaks another language, SafeOS's English words take an English voice on
+this device, if there is one. Some browsers'
+voices send the alert's words to the browser maker. Choose **Use a voice on
+this device** to return to the default. Settings reads the browser's voice
+list again after a second, for a browser that fills it without saying so, and
+a screen reader hears when the voices on offer change.
 
 ## When an alert comes again
 
@@ -493,6 +518,14 @@ running. Metric updates keep the same socket; leaving the page cancels its heart
 and reconnect timer.
 
 ## Alert history
+
+People keeps up to 100 saved pictures on this device. When it saves a picture
+or opens an older library over the limit, it removes the oldest seen pictures
+first, then the oldest unseen pictures. An alert stays seen if its only marked picture makes room and it still has
+other pictures.
+The People picture library, Wildlife sightings and pictures kept by an
+earlier version of Lost and Found have no automatic deletion by age. The
+**Delete pictures after** choice applies to the alert pictures described above.
 
 Monitor alerts are written to the `safeos-guardian` IndexedDB alert cache. Saved alerts
 belong to the browser, not to a session or a profile: Monitor, **History → Local

@@ -89,7 +89,7 @@ async function walk(
       settings: {
         activePresetId: 'custom',
         globalSettings: { ...OWN_SETTING, audioSensitivity: watch.audioSensitivity },
-        audioSettings: { frequencyRange: 'custom', customLowFreq: watch.low, customHighFreq: watch.high, backgroundNoiseFilter: true },
+        audioSettings: { frequencyRange: 'custom', customLowFreq: watch.low, customHighFreq: watch.high },
       },
     });
     const page = await context.newPage();

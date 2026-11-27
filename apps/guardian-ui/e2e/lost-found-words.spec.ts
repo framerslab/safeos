@@ -129,11 +129,28 @@ async function keepNotificationsAndSpeech(context: BrowserContext) {
         record(title, options);
       };
     }
-    const speak = (utterance: SpeechSynthesisUtterance) => {
-      kept.spoken.push(utterance.text);
-    };
-    if ('SpeechSynthesis' in window) SpeechSynthesis.prototype.speak = speak;
-    if (window.speechSynthesis) Object.defineProperty(window.speechSynthesis, 'speak', { value: speak, configurable: true });
+    // The runner offers no installed voices. Supply a local voice and
+    // record speech addressed to it, so the walk checks the spoken words.
+    const synth = window.speechSynthesis;
+    if (synth) {
+      const voice: SpeechSynthesisVoice = {
+        name: 'Local English', lang: 'en-US', voiceURI: 'local-en',
+        localService: true, default: true,
+      };
+      class RecordedUtterance {
+        constructor(public text: string) {}
+      }
+      Object.defineProperty(window, 'SpeechSynthesisUtterance', { value: RecordedUtterance, configurable: true });
+      Object.defineProperties(synth, {
+        getVoices: { value: () => [voice], configurable: true },
+        speak: {
+          value: (utterance: SpeechSynthesisUtterance) => {
+            if (utterance.voice === voice) kept.spoken.push(utterance.text);
+          },
+          configurable: true,
+        },
+      });
+    }
   });
 }
 

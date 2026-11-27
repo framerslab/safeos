@@ -35,13 +35,15 @@
 //
 // It records and does not judge: a slow number is written down, and a part
 // that could not be measured is written down with the reason. It exits
-// non-zero only when it could not write its results.
+// non-zero if results cannot be written or the Wildlife clip check fails.
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { chromium } from '@playwright/test';
+import { probeWildlife } from './wildlife-probe.mjs';
+import { wildlifeShortfall } from './wildlife-shortfall.mjs';
 
 const [baseUrl, outDir, videoFile, audioFile, subjectFile] = process.argv.slice(2);
 if (!baseUrl || !outDir || !videoFile || !audioFile || !subjectFile) {
@@ -537,6 +539,13 @@ async function measureModel(browser, cls, rate, name) {
       };
     }, { modelUrl: MODEL_URL, route: MODEL_ROUTE, cacheName: MODEL_CACHE, inferences: INFERENCES, limitMs: INFERENCE_LIMIT_MS }), MODEL_LIMIT_MS, 'the model measurement');
 
+    // Reuse this context's model cache for both Wildlife watch starts.
+    if (cls.id === 'laptop' && rate === 1) {
+      await page.close();
+      page = null;
+      results.wildlife = await probeWildlife({ context, baseUrl, modelHost: MODEL_HOST, outDir, seed, settings: SETTINGS });
+    }
+
     const files = [...requests.values()];
     const wire = files.reduce((sum, r) => sum + r.wire, 0);
     const body = files.reduce((sum, r) => sum + r.body, 0);
@@ -744,7 +753,24 @@ try {
   await browser.close();
 }
 
-const summary = table(results);
+const wildlifeLines = (results.wildlife?.attempts ?? []).map((attempt) => {
+  if (attempt.error) return `- Watch ${attempt.attempt}: ${attempt.error}`;
+  const first = attempt.inferences[0];
+  const gate = first === undefined ? 'no model check finished' : `first model check on the frame at ${first} s`;
+  const cat = attempt.catSecond === null ? 'no cat sighting' : `first cat sighting at ${attempt.catSecond} s`;
+  return `- Watch ${attempt.attempt}: ${gate}, ${cat}.`;
+});
+if (results.wildlife?.error) wildlifeLines.push(`- The watch stopped: ${results.wildlife.error}`);
+const summary = `${table(results)}
+### Wildlife on the sample clip
+
+${wildlifeLines.join('\n')}
+`;
 await writeFile(path.join(outDir, 'measurements.json'), `${JSON.stringify(results, null, 2)}\n`);
 await writeFile(path.join(outDir, 'summary.md'), summary);
 console.log(summary);
+
+// Wildlife's real watch must get through its motion gate and finish an inference
+// on each play. Save the measurements and the clip times even if this fails.
+const shortfall = wildlifeShortfall(results);
+if (shortfall) throw new Error(shortfall);

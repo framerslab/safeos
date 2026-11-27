@@ -40,7 +40,7 @@
  * selects, that every public page has its own title, description, canonical
  * address and social card, that every internal link and every link into
  * the repository on GitHub has a destination, and that the blog's links to
- * lines of code are pinned to a commit.
+ * lines of code are pinned to a commit and open the lines their words name.
  *
  * One sentence is allowed to name breathing and SIDS: the statement that
  * SafeOS is not a medical device. It is removed before the check.
@@ -677,8 +677,13 @@ describe('the public pages say what the software does', () => {
       .map((m) => m[1]);
     expect(toLines.length).toBeGreaterThanOrEqual(3);
     expect(toLines.filter((link) => !/\/blob\/[0-9a-f]{40}\/[^#]+#L\d+-L\d+$/.test(link))).toEqual([]);
-    // The line numbers live in the links, not in the words beside them.
-    expect(blog).not.toMatch(/at lines \d|around lines \d|\/\/ lines \d/);
+    // The lines a link opens are the lines its words name, and the reverse.
+    const linked = new Set(toLines.map((link) => link.replace(/^.*#L(\d+)-L(\d+)$/, '$1-$2')));
+    const named = new Set(Array.from(blog.matchAll(/(?:at lines|around lines|\/\/ lines) (\d+)(?:&ndash;|-)(\d+)/g))
+      .map((m) => `${m[1]}-${m[2]}`));
+    expect(named.size).toBeGreaterThanOrEqual(3);
+    expect(Array.from(named).filter((range) => !linked.has(range))).toEqual([]);
+    expect(Array.from(linked).filter((range) => !named.has(range))).toEqual([]);
   });
 
   it('every public page has its own title, description, canonical address and social card', () => {

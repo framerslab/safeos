@@ -1387,6 +1387,23 @@ export async function checkApp(browser, baseUrl, outDir) {
     });
   }
 
+  for (const width of [390, 1280]) {
+    for (const look of LOOKS) {
+      await open({ name: 'Wildlife movement help', width, look }, async (page, context, check) => {
+        await visit(page, '/wildlife/');
+        await page.getByRole('button', { name: 'Settings', exact: true }).click();
+        const slider = page.getByRole('slider', { name: 'Movement to start the check' });
+        const descriptionId = await slider.getAttribute('aria-describedby');
+        const help = page.locator(`#${descriptionId}`);
+        await help.waitFor();
+        const [text] = await help.evaluate(measureText);
+        if (!text) throw new Error('the slider has no visible help text');
+        check(text.size >= 15, `the help text is ${text.size} px, under 15`);
+        check(text.contrast >= 7, `the help text has contrast ${text.contrast.toFixed(2)}:1, under 7:1`);
+      });
+    }
+  }
+
   // Before setup the header is the same as after it.
   for (const width of [390, 1280]) {
     for (const look of LOOKS) {

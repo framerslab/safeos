@@ -85,14 +85,14 @@ const blogContent: Record<string, BlogContent> = {
           that reads the sound&apos;s frequencies every 100 ms. Both are arithmetic on the CPU, and
           neither loads a model. The intervals are constants in{' '}
           <a
-            href="https://github.com/framerslab/safeos/blob/ab7512f5f292046522062cd4c1fdf2e056a85c59/apps/guardian-ui/src/components/CameraFeed.tsx#L99-L101"
+            href="https://github.com/framerslab/safeos/blob/b53259885dbdb3ccbe955810227400a8071877c0/apps/guardian-ui/src/components/CameraFeed.tsx#L99-L101"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
           >
             <code>CameraFeed.tsx</code>
-          </a>
-          :
+          </a>{' '}
+          at lines 99&ndash;101:
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
@@ -106,7 +106,7 @@ const blogContent: Record<string, BlogContent> = {
         <p>
           Object detection waits for the check to report a change. The gate is in{' '}
           <a
-            href="https://github.com/framerslab/safeos/blob/ab7512f5f292046522062cd4c1fdf2e056a85c59/apps/guardian-ui/src/lib/person-detection.ts#L258-L264"
+            href="https://github.com/framerslab/safeos/blob/b53259885dbdb3ccbe955810227400a8071877c0/apps/guardian-ui/src/lib/person-detection.ts#L233-L240"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
@@ -117,7 +117,7 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
-          <div className="text-slate-500">{`// Only run AI detection if motion detected`}</div>
+          <div className="text-slate-500">{`// lines 233-240: run detection when the motion level crosses its threshold`}</div>
           <div className="text-emerald-400">const motionTriggered = motionLevel &gt;= this.config.motionThreshold;</div>
           <div className="text-emerald-400">if (!motionTriggered) return null;</div>
         </div>
@@ -212,14 +212,14 @@ const blogContent: Record<string, BlogContent> = {
           same colour. It needs no model download, and it costs little enough to run on every
           sample. The Lost &amp; Found loop is in{' '}
           <a
-            href="https://github.com/framerslab/safeos/blob/ab7512f5f292046522062cd4c1fdf2e056a85c59/apps/guardian-ui/src/app/monitor/page.tsx#L324-L336"
+            href="https://github.com/framerslab/safeos/blob/b53259885dbdb3ccbe955810227400a8071877c0/apps/guardian-ui/src/app/monitor/page.tsx#L324-L336"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"
           >
             <code>monitor/page.tsx</code>
-          </a>
-          .
+          </a>{' '}
+          around lines 324&ndash;336.
         </p>
 
         <h2>State and storage</h2>
@@ -262,7 +262,7 @@ const blogContent: Record<string, BlogContent> = {
         <p>
           The motion gate keeps the model idle while nothing moves. Its code is in{' '}
           <a
-            href="https://github.com/framerslab/safeos/blob/ab7512f5f292046522062cd4c1fdf2e056a85c59/apps/guardian-ui/src/lib/person-detection.ts#L258-L264"
+            href="https://github.com/framerslab/safeos/blob/b53259885dbdb3ccbe955810227400a8071877c0/apps/guardian-ui/src/lib/person-detection.ts#L233-L240"
             target="_blank"
             rel="noopener noreferrer"
             className="text-emerald-400 hover:text-emerald-300"

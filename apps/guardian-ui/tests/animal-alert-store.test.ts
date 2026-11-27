@@ -48,7 +48,6 @@ interface AnimalAlertSettings {
   flashScreen: boolean;
   captureFrames: boolean;
   maxStoredFrames: number;
-  autoDeleteDays: number;
 }
 
 // =============================================================================
@@ -70,7 +69,6 @@ const DEFAULT_ANIMAL_SETTINGS: AnimalAlertSettings = {
   flashScreen: true,
   captureFrames: true,
   maxStoredFrames: 100,
-  autoDeleteDays: 7,
 };
 
 // =============================================================================
@@ -343,9 +341,6 @@ describe('Animal Alert Store', () => {
       expect(DEFAULT_ANIMAL_SETTINGS.maxStoredFrames).toBe(100);
     });
 
-    it('should auto delete after 7 days', () => {
-      expect(DEFAULT_ANIMAL_SETTINGS.autoDeleteDays).toBe(7);
-    });
   });
 
   describe('shouldAlert', () => {
