@@ -1,6 +1,7 @@
 // Checks the app's pages on the built static site in a real browser.
 //
-// scripts/capture-pictures.mjs runs it for the pull request's own build. Each
+// scripts/capture-pictures.mjs runs it for the pull request's own build, and
+// scripts/setup-checks.mjs runs its walks of setup in a job of their own. Each
 // block walks one part of the app as a person would: the header and the bar
 // on a phone, the page before any script runs, the dashboard in each state,
 // the old addresses and the page a device shows offline. Every finding is
@@ -23,10 +24,16 @@ export async function checkApp(browser, baseUrl, outDir) {
   const expect = (ok, message) => { if (!ok) fail(message); };
   const address = (route) => new URL(route, baseUrl).toString();
 
+  // APP_CHECKS_PART=setup runs setup's walks alone, in a job of their own;
+  // APP_CHECKS_PART=rest runs every other walk; unset, every walk runs.
+  const PART = process.env.APP_CHECKS_PART || 'all';
+  const partRuns = (name) => PART === 'all' || (PART === 'setup') === /^setup\b/.test(name);
+
   // One walk, timed: `start` makes its context and its page, `run` walks
   // them. Anything that throws, the context's own setup included, is a
   // finding of this walk; whatever was made is closed, and the next walk runs.
   const walk = async ({ name, width, look }, start, run, check) => {
+    if (!partRuns(name)) return;
     const made = {};
     let limit;
     const ranOver = new Promise((_, reject) => {
@@ -75,7 +82,10 @@ export async function checkApp(browser, baseUrl, outDir) {
       // storage is kept.
       if (windowStorage === 'kept') await made.context.addInitScript(() => { try { sessionStorage.setItem('safeos-window-storage', 'kept'); } catch (e) { /* storage refused */ } });
       if (script) await made.context.addInitScript(script);
-      return made.context.newPage();
+      const page = await made.context.newPage();
+      // A setup walk that meets the wrong screen says so in seconds, not in half a minute a press.
+      if (/^setup\b/.test(name)) page.setDefaultTimeout(15_000);
+      return page;
     }, run, check);
   };
 
@@ -7054,7 +7064,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
-  try {
+  if (partRuns("setup, Chromium's own camera")) try {
     const real = await browser.browserType().launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
     try {
       const context = await real.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light' });

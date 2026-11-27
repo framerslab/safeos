@@ -45,7 +45,7 @@
 // refused (setup-camera-refused-<width>-<look>.png): the two-step setup names
 // the block on its first step, the earlier six-step setup on its camera step
 // after a request. The pull request's own build walks setup's two steps in
-// scripts/app-checks.mjs.
+// the job Walk setup (scripts/setup-checks.mjs).
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
