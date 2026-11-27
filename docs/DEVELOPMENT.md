@@ -636,8 +636,7 @@ it, so from the press of Start watching to the hold at five seconds the page
 moves up, before each paint, by the fewest pixels that keep the pet's row,
 "Comparing with Toffee’s photos", whole above the crop's foot; the camera's
 picture gives up its top. A Lost and Found recording that cuts a word at the
-crop's edges when the camera starts or when the possible sighting arrives
-fails. Settings uses the full 768 by 480 viewport at 2.5×.
+crop's edges when the camera's live picture comes fails. Settings uses the full 768 by 480 viewport at 2.5×.
 
 The pull request's capture also walks the home's run keys at 320, 360, 390,
 430, 480 and 768 px (`scripts/home-run-checks.mjs`): the keys read Watching,

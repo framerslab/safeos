@@ -700,7 +700,6 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   assert.ok(arrival && arrival.observedAt <= sightingBy,
     `No possible sighting ${LOST_FOUND_HOLD_AT - LOST_FOUND_START_AT} s after Start watching: ` + JSON.stringify({ liveAt: liveAt - start, events }));
   console.log(`Lost and Found: Start watching pressed at ${(pressAt - start).toFixed(2)} s, camera live at ${(liveAt - start).toFixed(2)} s, possible sighting at ${(arrival.observedAt - start).toFixed(2)} s, clip ${arrival.clipAt.toFixed(3)} s`);
-  await whole('The watch comparing, with the possible sighting’s box', { controls: false });
 
   // The entry's pictures are read before the hold, so the move into view is the hold's first step.
   const card = `.watch-list__body [data-alert-card][data-kind="sighting"][data-alert-at="${arrival.at}"]`;
