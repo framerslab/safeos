@@ -7023,11 +7023,14 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(offline, `offline with setup not stored the page does not read "${OFFLINE_H1}"`);
       check((await page.getByRole('button', { name: 'Try again', exact: true }).count()) === 1, 'the offline page has no Try again');
       check((await page.getByRole('link', { name: 'Open dashboard', exact: true }).count()) + (await page.getByRole('button', { name: 'Open dashboard', exact: true }).count()) >= 1, 'the offline page has no Open dashboard');
-      await context.setOffline(false);
+      // The worker gets its requests back before the window goes online: the
+      // offline page loads the address again the moment it is online, and that
+      // load would otherwise meet the worker's failing requests.
       if (worker) await worker.evaluate(() => { if (self.__fetch) self.fetch = self.__fetch; });
+      await context.setOffline(false);
       // The offline page may try again by itself once the window is online; otherwise its key does.
       const again = page.getByRole('button', { name: 'Try again', exact: true });
-      if (await again.count()) await again.click({ force: true, timeout: 5_000 }).catch(() => {});
+      if (!(await step1Shown(page, 5_000)) && await again.count()) await again.click({ force: true, timeout: 5_000 }).catch(() => {});
       check(await step1Shown(page), `online again, Try again does not show "${STEP1_H1}"`);
     }, NEW_DEVICE);
   }
