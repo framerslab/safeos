@@ -11,7 +11,6 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
 import { CornerTicks } from '../dashboard/Drawn';
 import { useMicrophoneAsk, type Ask } from '@/lib/browser-asks';
 import type { CameraFailure } from '@/lib/setup-camera';
@@ -19,7 +18,6 @@ import type { Asking } from '@/lib/use-camera-request';
 import { hideUntilNeeded, NEEDS_SCRIPT } from '@/lib/needs-script';
 import { StepHeading } from './StepFrame';
 import { CameraDrawing } from './drawings';
-import { FailureSentence, FailureWays } from './FailureWays';
 
 export interface CameraStepProps {
   ask: Ask;
@@ -39,43 +37,11 @@ export const STEP1_LEAD =
 export const WINDOW_LINE = 'This browser forgets SafeOS when the window closes. Your settings and alerts last for this visit.';
 const FRAME_LINE = 'Your browser will ask you to allow the camera and microphone.';
 
-export function CameraStep({
-  ask,
-  asking,
-  failure,
-  savedCamera,
-  serverSaved,
-  storageEnds,
-  focus,
-  onTurnOn,
-  onDefaultCamera,
-  onContinue,
-}: CameraStepProps) {
+export function CameraStep({ ask, asking, failure, serverSaved, storageEnds, focus, onTurnOn, onContinue }: CameraStepProps) {
   const microphone = useMicrophoneAsk();
   const waiting = asking === 'turn-on' || asking === 'try-again';
-  const state = failure ? 'failed' : waiting ? 'asking' : 'rest';
-  const showLine = state !== 'failed' && !(ask === 'granted' && microphone === 'granted');
-  const keyFocused = useRef(false);
-  const skip = useRef<HTMLButtonElement>(null);
-  const key = useRef<HTMLButtonElement>(null);
-
-  // Which element holds focus, kept past the key's leaving the page.
-  useEffect(() => {
-    const moved = (event: FocusEvent) => {
-      keyFocused.current = event.target === key.current;
-    };
-    document.addEventListener('focusin', moved);
-    return () => document.removeEventListener('focusin', moved);
-  }, []);
-
-  // A browser that cannot use a camera leaves no key in the frame: focus goes on to Continue.
-  useEffect(() => {
-    const lost = !document.activeElement || document.activeElement === document.body;
-    if (failure === 'unsupported' && keyFocused.current && lost) {
-      keyFocused.current = false;
-      skip.current?.focus();
-    }
-  }, [failure]);
+  const showLine = !(ask === 'granted' && microphone === 'granted');
+  const state = waiting ? 'asking' : failure ? 'failed' : 'rest';
 
   return (
     <div className="setup-step--1">
@@ -96,33 +62,26 @@ export function CameraStep({
       <div className="setup-camera">
         <div className="setup-frame" data-state={state}>
           <CornerTicks />
-          {state !== 'failed' ? <CameraDrawing /> : null}
-          <div className="setup-frame-says" role="status" aria-live="polite">
-            {failure ? <FailureSentence failure={failure} /> : null}
-          </div>
-          {failure !== 'unsupported' ? (
-            <button
-              type="button"
-              className={waiting ? 'key key--solid key--start setup-key setup-key--waiting' : 'key key--solid key--start setup-key'}
-              aria-describedby={showLine ? 'setup-frame-line' : undefined}
-              aria-busy={waiting ? 'true' : undefined}
-              aria-disabled={asking !== null ? 'true' : undefined}
-              ref={key}
-              onClick={() => {
-                if (asking === null) onTurnOn();
-              }}
-            >
-              {waiting ? 'Waiting for your answer…' : failure ? 'Try again' : 'Turn on the camera'}
-            </button>
-          ) : null}
+          <CameraDrawing />
+          <button
+            type="button"
+            className={waiting ? 'key key--solid key--start setup-key setup-key--waiting' : 'key key--solid key--start setup-key'}
+            aria-describedby={showLine ? 'setup-frame-line' : undefined}
+            aria-busy={waiting ? 'true' : undefined}
+            aria-disabled={waiting ? 'true' : undefined}
+            onClick={() => {
+              if (!waiting) onTurnOn();
+            }}
+          >
+            {waiting ? 'Waiting for your answer…' : 'Turn on the camera'}
+          </button>
           {showLine ? (
             <p id="setup-frame-line" className="setup-body setup-frame-line">
               {FRAME_LINE}
             </p>
           ) : null}
-          <FailureWays failure={failure} savedCamera={savedCamera} asking={asking} onDefaultCamera={onDefaultCamera} />
         </div>
-        <button ref={skip} type="button" className="key key--outline setup-skip" onClick={onContinue}>
+        <button type="button" className="key key--outline setup-skip" onClick={onContinue}>
           Continue without the camera
         </button>
       </div>

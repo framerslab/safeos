@@ -17,11 +17,10 @@ import { useEffect, useRef, useState } from 'react';
 import { CornerTicks, ProblemMark } from '../dashboard/Drawn';
 import type { AlertLines } from '@/lib/alert-lines';
 import { useLiveLevels } from '@/lib/live-levels';
-import { FAILURE_WORDS, type CameraFailure } from '@/lib/setup-camera';
+import type { CameraFailure } from '@/lib/setup-camera';
 import type { Asking } from '@/lib/use-camera-request';
 import { useSettingsStore } from '@/stores/settings-store';
 import { CameraDrawing } from './drawings';
-import { FailureSentence, FailureWays } from './FailureWays';
 
 export interface PlaceCheckProps {
   stream: MediaStream | null;
@@ -78,17 +77,17 @@ function Meter({ label, level, line }: { label: 'Motion' | 'Sound'; level: numbe
   );
 }
 
-/** The key that turns the camera on again: it waits for its own request, and does nothing while any request waits. */
+/** The key that turns the camera on again: inactive, with its waiting words, while the browser asks. */
 export function AgainKey({ asking, words, onPress }: { asking: Asking | null; words: string; onPress: () => void }) {
-  const waiting = asking === 'turn-on' || asking === 'try-again';
+  const waiting = asking !== null;
   return (
     <button
       type="button"
       className={waiting ? 'key key--outline setup-again setup-key--waiting' : 'key key--outline setup-again'}
       aria-busy={waiting ? 'true' : undefined}
-      aria-disabled={asking !== null ? 'true' : undefined}
+      aria-disabled={waiting ? 'true' : undefined}
       onClick={() => {
-        if (asking === null) onPress();
+        if (!waiting) onPress();
       }}
     >
       {waiting ? 'Waiting for your answer…' : words}
@@ -96,7 +95,7 @@ export function AgainKey({ asking, words, onPress }: { asking: Asking | null; wo
   );
 }
 
-export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines, savedCamera, onStopped, onTurnOn, onDefaultCamera }: PlaceCheckProps) {
+export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines, onStopped, onTurnOn }: PlaceCheckProps) {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [drawn, setDrawn] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -163,8 +162,8 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
   // The frame's sentence, said once the state becomes off, stopped or failed.
   const [frameSaid, setFrameSaid] = useState('');
   useEffect(() => {
-    setFrameSaid(state === 'off' ? OFF : state === 'stopped' ? STOPPED : state === 'failed' && failure ? FAILURE_WORDS[failure] : '');
-  }, [state, failure]);
+    setFrameSaid(state === 'off' ? OFF : state === 'stopped' ? STOPPED : '');
+  }, [state]);
 
   // A bar reaching its line, said at most once in 5 seconds for each bar.
   const [barSaid, setBarSaid] = useState('');
@@ -230,12 +229,6 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
               )}
             </div>
           </>
-        ) : state === 'failed' && failure ? (
-          <div className="setup-off">
-            <FailureSentence failure={failure} />
-            {failure !== 'unsupported' ? <AgainKey asking={asking} words="Try again" onPress={onTurnOn} /> : null}
-            <FailureWays failure={failure} savedCamera={savedCamera} asking={asking} onDefaultCamera={onDefaultCamera} />
-          </div>
         ) : state === 'stopped' ? (
           <div className="setup-off">
             <p className="setup-body setup-problem">
