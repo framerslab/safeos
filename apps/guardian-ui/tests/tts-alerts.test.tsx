@@ -76,6 +76,23 @@ it('reads its own English alert words in an English voice on a page in another l
   tts.dispose();
 });
 
+it('reads its own English alert words in an English device voice when the chosen online voice speaks another language', async () => {
+  document.documentElement.lang = 'fr';
+  const remoteFrench = { name: 'Google français', lang: 'fr-FR', voiceURI: 'remote-fr', localService: false, default: false };
+  const synth = speech([remoteFrench, local]);
+  useSettingsStore.getState().setSpokenAlertVoice(remoteFrench.voiceURI);
+  const tts = new TTSManager();
+  await tts.initialize();
+  tts.speak('Warning! You are being recorded. Leave immediately.');
+  expect(synth.speak).toHaveBeenLastCalledWith(expect.objectContaining({ voice: local }));
+
+  // A message the person wrote is in the page's language, so it keeps the chosen voice.
+  tts.setCustomMessages(['Un chat est visible.']);
+  tts.speak('Un chat est visible.');
+  expect(synth.speak).toHaveBeenLastCalledWith(expect.objectContaining({ voice: remoteFrench }));
+  tts.dispose();
+});
+
 it('keeps spoken alerts silent with online voices alone and explains the choice in Settings', async () => {
   const synth = speech([remote]);
   const tts = getTTSManager();
@@ -159,4 +176,15 @@ it('says spoken alerts stay quiet when the browser offers no voice at all', asyn
 
   expect(screen.getByText('This browser offers no voice, so spoken alerts stay quiet.')).toBeTruthy();
   expect(screen.queryByText(/unless you choose an online voice/)).toBeNull();
+});
+
+it('reads the voice list again in Settings when the browser fills it without voiceschanged', async () => {
+  let listed: SpeechSynthesisVoice[] = [];
+  const synth = speech([]);
+  synth.getVoices = () => listed;
+  await act(async () => { render(<SoundsSettingsPage />); });
+  listed = [local];
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)); });
+
+  expect(screen.queryByText('This browser offers no voice, so spoken alerts stay quiet.')).toBeNull();
 });

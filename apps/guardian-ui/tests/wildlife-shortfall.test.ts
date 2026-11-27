@@ -36,3 +36,8 @@ it('blames the motion gate only when the watch ran and made no model check', () 
     .toBe('Wildlife did not save a cat sighting on both watches of the sample clip.');
   expect(shortfall({ runs: [laptop({})], wildlife: { attempts: [play(3.76), play(4.03)] } })).toBeNull();
 });
+
+it('gives the watch’s own error when the watch stopped, and keeps the model measurement out of it', () => {
+  expect(shortfall({ runs: [laptop({})], wildlife: { attempts: [], error: 'Error: Target page, context or browser has been closed' } }))
+    .toBe('Wildlife’s watch stopped before both plays of the sample clip (Error: Target page, context or browser has been closed).');
+});
