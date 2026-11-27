@@ -7294,6 +7294,189 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
+  // The contrast of a glyph's or an edge's colour against the colour behind
+  // it: the nearest ancestor with a background that is not see-through.
+  const edgeContrast = (page, selector, property) => page.locator(selector).first().evaluate((el, prop) => {
+    const parse = (value) => (value.match(/[\d.]+/g) || ['0', '0', '0']).slice(0, 3).map(Number);
+    const lum = ([r, g, b]) => [r, g, b].map((v) => v / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+    let ground = el.parentElement;
+    while (ground && getComputedStyle(ground).backgroundColor.replace(/\s/g, '').match(/rgba\(.*,0\)$|transparent/)) ground = ground.parentElement;
+    const back = lum(parse(getComputedStyle(ground || document.body).backgroundColor));
+    const fore = lum(parse(getComputedStyle(el)[prop]));
+    return (Math.max(back, fore) + 0.05) / (Math.min(back, fore) + 0.05);
+  }, property);
+
+  // Setup's figures against the readable look: the type, every word's
+  // contrast, the edges and glyphs, and the targets, in four states.
+  const HEADING_SIZES = { 390: ['30px', '46px'], 820: ['40px', '60px'], 1280: ['48px', '72px'], 1920: ['48px', '72px'] };
+  const READABLE_STATES = [
+    ['step1', 'step 1 at rest', FAKE_CAMERA, async () => {}],
+    ['blocked', 'step 1 blocked', setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }), async (page) => {
+      await page.locator('.setup-frame[data-state="failed"]').waitFor({ timeout: 10_000 });
+    }],
+    ['baby', 'step 2 with the camera on and A baby chosen', FAKE_CAMERA, async (page) => {
+      await turnOn(page);
+      await choose(page, 'A baby');
+    }],
+    ['waiting', 'step 2 with the camera off while Turn on the camera waits', setupScript({ set: { waitMs: 30000 } }), async (page) => {
+      await continueOn(page);
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      await page.waitForTimeout(300);
+    }],
+  ];
+  for (const width of LAYOUT_WIDTHS) {
+    for (const look of LOOKS) {
+      for (const [state, named, script, reach] of READABLE_STATES) {
+        await open({ name: 'setup, readable', width, look }, async (page, context, check) => {
+          await visit(page, '/setup/');
+          await step1Shown(page);
+          await reach(page);
+          await page.waitForTimeout(400);
+          const where = `${named}:`;
+          const count = (selector) => page.locator(selector).count();
+          const styleOf = (selector) => page.locator(selector).first().evaluate((el) => {
+            const style = getComputedStyle(el);
+            return { face: style.fontFamily.split(',')[0].replace(/["']/g, '').trim(), weight: style.fontWeight, size: style.fontSize, line: style.lineHeight };
+          });
+          const typed = async (selector, face, weight, size, line) => {
+            if ((await count(selector)) === 0) { check(false, `${where} ${selector} not shown`); return; }
+            const seen = await styleOf(selector);
+            check(new RegExp(face, 'i').test(seen.face.replace(/_/g, ' ')) && seen.weight === weight && seen.size === size && (!line || seen.line === line),
+              `${where} ${selector} is ${seen.face} ${seen.weight} at ${seen.size}/${seen.line}, not ${face} ${weight} at ${size}/${line || 'any'}`);
+          };
+          const [h1Size, h1Line] = HEADING_SIZES[width];
+          await typed('main.setup h1', 'Space Grotesk', '700', h1Size, h1Line);
+          const bodies = await page.evaluate(() => [...document.querySelectorAll('main.setup p.setup-body')]
+            .filter((p) => p.offsetParent !== null && p.textContent.trim())
+            .map((p) => { const s = getComputedStyle(p); return { words: p.textContent.trim().slice(0, 30), face: s.fontFamily, weight: s.fontWeight, size: s.fontSize, line: s.lineHeight }; }));
+          const [bodySize, bodyLine] = width === 1920 ? ['20px', '30px'] : ['18px', '28px'];
+          for (const body of bodies) {
+            check(/Inter/i.test(body.face) && body.weight === '400' && body.size === bodySize && body.line === bodyLine, `${where} "${body.words}" is ${body.weight} at ${body.size}/${body.line}, not 400 at ${bodySize}/${bodyLine}`);
+          }
+          await typed('.setup-back', 'Inter', '700', '16px', '24px');
+          if (state === 'step1' || state === 'blocked') {
+            await typed('.setup-skip', 'Inter', '700', '16px', '24px');
+            await typed('.setup-key', 'Inter', '700', '18px');
+          }
+          if (state === 'baby' || state === 'waiting') {
+            await typed('.setup-use__name', 'Inter', '700', '16px', '24px');
+            await typed('.setup-last-key', 'Inter', '700', '18px');
+          }
+          if (state === 'baby') await typed('.setup-meter__label', 'Inter', '700', '16px', '24px');
+
+          const texts = await page.evaluate(measureText, await page.$('main.setup'));
+          for (const text of texts) {
+            check(text.size >= 16, `${where} "${text.words}" is ${text.size} px`);
+            check(/Inter|Space.Grotesk/i.test(text.face), `${where} "${text.words}" is set in ${text.face}`);
+            check(text.weight === '400' || text.weight === '700', `${where} "${text.words}" is at weight ${text.weight}`);
+            check(!/mono/i.test(text.face), `${where} "${text.words}" is set in a monospaced face`);
+            const need = text.body || text.tag === 'h1' ? 12 : 7;
+            check(text.contrast >= need, `${where} "${text.words}" reads at ${text.contrast.toFixed(2)}:1, under ${need}:1`);
+          }
+
+          const edges = [['.corner-ticks > i', 'borderTopColor'], ['.setup-back svg', 'stroke']];
+          if (state === 'step1') edges.push(['.setup-skip', 'borderTopColor'], ['.setup-camera-drawing', 'color'], ['rect.setup-progress__off', 'stroke']);
+          if (state === 'blocked') edges.push(['.setup-skip', 'borderTopColor'], ['svg.problem-mark', 'fill'], ['rect.setup-progress__off', 'stroke']);
+          if (state === 'baby') {
+            edges.push(['.setup-use__box', 'borderTopColor'], ['.setup-track', 'borderTopColor']);
+            if (width === 390) edges.push(['.setup-last', 'borderTopColor']);
+          }
+          if (state === 'waiting') {
+            edges.push(['.setup-again', 'borderTopColor'], ['.setup-camera-drawing', 'color'], ['.setup-use__box', 'borderTopColor']);
+            if (width === 390) edges.push(['.setup-last', 'borderTopColor']);
+          }
+          for (const [selector, property] of edges) {
+            if ((await count(selector)) === 0) { check(false, `${where} ${selector} not shown`); continue; }
+            const ratio = await edgeContrast(page, selector, property);
+            check(ratio >= 4.5, `${where} ${selector}'s ${property} reads at ${ratio.toFixed(2)}:1, under 4.5:1`);
+          }
+
+          const ring = state === 'baby' || state === 'waiting' ? '.setup-last-key' : '.setup-key';
+          if ((await count(ring)) > 0) {
+            await page.locator(ring).first().focus();
+            await page.keyboard.press('Shift+Tab');
+            await page.keyboard.press('Tab');
+            const ratio = await edgeContrast(page, ring, 'outlineColor');
+            check(ratio >= 4.5, `${where} the focus ring on ${ring} reads at ${ratio.toFixed(2)}:1`);
+            await page.evaluate(() => document.activeElement && document.activeElement.blur());
+          }
+
+          const tall = async (selector, least, what) => {
+            if ((await count(selector)) === 0) { check(false, `${where} ${selector} not shown`); return; }
+            const box = await page.locator(selector).first().boundingBox();
+            check(box && box.height >= least - 0.5, `${where} ${what || selector} is ${box ? box.height : 0} px tall, under ${least}`);
+          };
+          const solid = width === 1920 ? 56 : 52;
+          const back = await page.locator('.setup-back').boundingBox();
+          check(back && back.height >= 44 && back.width >= 64, `${where} Back is ${back ? `${back.width} by ${back.height}` : 'not shown'}, under 64 by 44`);
+          if (width === 390) await tall('.setup-look-row', 44, 'the look row');
+          if (state === 'step1' || state === 'blocked') {
+            await tall('.setup-key', solid);
+            await tall('.setup-skip', 44);
+          }
+          if (state === 'blocked') await tall('.setup-frame a.link-row', 44, 'How to allow the camera');
+          if (state === 'baby' || state === 'waiting') {
+            await tall('.setup-use__box', 56, 'an option');
+            await tall('.setup-last-key', solid);
+          }
+          if (state === 'baby') await tall('#setup-use-words a.link-row', 44, "the baby's links");
+          if (state === 'waiting') await tall('.setup-again', 44);
+          if ((await count('svg.problem-mark')) > 0) {
+            const shapes = await page.locator('svg.problem-mark').first().evaluate((svg) => svg.children.length);
+            check(shapes === 1, `${where} the problem glyph holds ${shapes} shapes`);
+          }
+          if (state === 'waiting') {
+            const words = page.locator('.setup-again');
+            const picture = await words.screenshot();
+            const scratch = await context.newPage();
+            const read = await scratch.evaluate(readStrokes, picture.toString('base64')).catch(() => null);
+            await scratch.close();
+            check(read !== null && read.strokes >= 7, `${where} the waiting key's words read at ${read ? read.strokes.toFixed(2) : 'nothing'}:1 on their strokes`);
+          }
+          await page.evaluate(() => window.scrollTo(0, 0));
+          await page.screenshot({ path: path.join(outDir, `setup-readable-${state}-${width}-${look}.png`), fullPage: true });
+        }, { ...NEW_DEVICE, script });
+      }
+    }
+  }
+
+  // The pictures the look is judged on, at twice the pixels.
+  const LOOK_STATES = [
+    ['step1', FAKE_CAMERA, async () => {}],
+    ['blocked', setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }), async (page) => {
+      await page.locator('.setup-frame[data-state="failed"]').waitFor({ timeout: 10_000 });
+    }],
+    ['alert', setupScript({ set: { sound: 'noise' } }), async (page) => {
+      await turnOn(page);
+      await choose(page, 'A pet');
+      await page.waitForFunction(() => document.querySelector('[role="meter"][aria-label="Motion"] .setup-track__fill')?.getAttribute('data-over') === 'true', null, { timeout: 5_000 }).catch(() => {});
+    }],
+    ['baby', FAKE_CAMERA, async (page) => {
+      await turnOn(page);
+      await choose(page, 'A baby');
+    }],
+    ['lost-pet', FAKE_CAMERA, async (page) => {
+      await turnOn(page);
+      await choose(page, 'A lost pet');
+      await page.locator('.setup-uses').scrollIntoViewIfNeeded();
+    }],
+  ];
+  for (const width of [390, 820, 1280, 1440, 1920]) {
+    for (const look of LOOKS) {
+      for (const [state, script, reach] of LOOK_STATES) {
+        await open({ name: 'setup, the look', width, look, deviceScaleFactor: 2 }, async (page) => {
+          await visit(page, '/setup/');
+          await step1Shown(page);
+          await reach(page);
+          await page.waitForTimeout(400);
+          if (width !== 390) await page.evaluate(() => window.scrollTo(0, 0));
+          await page.screenshot({ path: path.join(outDir, `setup-look-${state}-${width}-${look}.png`), fullPage: width !== 390 });
+        }, { ...NEW_DEVICE, script });
+      }
+    }
+  }
+
   // The three parts on the grid at each width, from the page's top.
   const layoutOf = (page) => page.evaluate(() => {
     const box = (element) => {
