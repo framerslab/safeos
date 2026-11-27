@@ -48,3 +48,25 @@ export function ProgressGlyph({ step, under = false }: { step: 1 | 2; under?: bo
     </svg>
   );
 }
+
+/** The camera drawn at rest in step 1's frame: a body, a lens and a raised top. */
+export function CameraDrawing() {
+  return (
+    <svg
+      className="setup-camera-drawing"
+      viewBox="0 0 32 32"
+      width="32"
+      height="32"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinejoin="round"
+    >
+      <rect x="4" y="10" width="24" height="16" rx="3" />
+      <circle cx="16" cy="18" r="5" />
+      <path d="M11 10l2-4h6l2 4" />
+    </svg>
+  );
+}

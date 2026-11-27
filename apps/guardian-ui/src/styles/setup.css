@@ -220,3 +220,191 @@
     transform: none;
   }
 }
+
+/* =============================================================================
+   Setup: step 1
+   ============================================================================= */
+
+.setup-body {
+  margin: 0;
+  max-width: 40rem;
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+  text-wrap: pretty;
+}
+
+.setup-lead {
+  margin-top: 8px;
+}
+
+.setup-limit {
+  margin-top: 8px;
+}
+
+.setup-limit:empty {
+  display: none;
+}
+
+.setup-statement {
+  margin-top: 16px;
+}
+
+.setup-picture-line {
+  margin-top: 12px;
+}
+
+.setup .needs-script {
+  margin-top: 8px;
+}
+
+.setup-camera {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+}
+
+.setup-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--color-steel-900);
+}
+
+.setup-camera-drawing {
+  width: 32px;
+  height: 32px;
+  color: var(--color-steel-300);
+}
+
+.setup-frame-line {
+  text-align: center;
+  max-width: 30rem;
+}
+
+.setup-key {
+  width: 100%;
+}
+
+/* A waiting key keeps a solid edge in the line colour. */
+.setup .key[aria-disabled='true'],
+.setup .key.setup-key--waiting {
+  border: 2px solid var(--color-steel-300);
+}
+
+/* A key grows taller with its words wrapped inside at large text. */
+.setup .key {
+  white-space: normal;
+}
+
+.setup .key--outline:not([aria-disabled='true']) {
+  font-weight: var(--weight-bold);
+}
+
+.setup-skip {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+}
+
+@media (min-width: 48em) {
+  .setup-frame {
+    aspect-ratio: 16 / 9;
+  }
+
+  .setup-key {
+    max-width: 25rem;
+  }
+
+  .setup-skip {
+    align-self: center;
+    max-width: 25rem;
+  }
+}
+
+@media (min-width: 64em) {
+  .setup-key {
+    max-width: 20rem;
+  }
+
+  .setup-skip {
+    max-width: 20rem;
+    margin-top: 16px;
+  }
+
+  .setup-step--1 {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: repeat(7, auto) 1fr;
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  .setup-step--1 > .setup-heading {
+    grid-column: 1 / span 6;
+    grid-row: 1;
+  }
+
+  .setup-step--1 > .setup-progress--under {
+    grid-column: 1 / span 6;
+    grid-row: 2;
+  }
+
+  .setup-step--1 > .setup-lead {
+    grid-column: 1 / span 6;
+    grid-row: 3;
+  }
+
+  .setup-step--1 > .setup-limit {
+    grid-column: 1 / span 6;
+    grid-row: 4;
+  }
+
+  .setup-step--1 > .needs-script {
+    grid-column: 1 / span 6;
+    grid-row: 5;
+  }
+
+  .setup-step--1 > .setup-statement {
+    grid-column: 1 / span 6;
+    grid-row: 6;
+  }
+
+  .setup-step--1 > .setup-picture-line {
+    grid-column: 1 / span 6;
+    grid-row: 7;
+  }
+
+  .setup-step--1 > .setup-camera {
+    grid-column: 7 / span 6;
+    grid-row: 1 / span 8;
+    margin-top: 8px;
+  }
+}
+
+@media (min-width: 90em) {
+  .setup-key,
+  .setup-skip {
+    max-width: 25rem;
+  }
+
+  .setup-step--1 > .setup-heading,
+  .setup-step--1 > .setup-progress--under,
+  .setup-step--1 > .setup-lead,
+  .setup-step--1 > .setup-limit,
+  .setup-step--1 > .needs-script,
+  .setup-step--1 > .setup-statement,
+  .setup-step--1 > .setup-picture-line {
+    grid-column: 1 / span 5;
+  }
+
+  .setup-step--1 > .setup-camera {
+    grid-column: 6 / span 7;
+  }
+}

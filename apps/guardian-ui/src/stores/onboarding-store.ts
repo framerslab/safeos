@@ -62,6 +62,8 @@ export interface OnboardingState {
   setNotifications: (settings: Partial<NotificationSettings>) => void;
   setCameraPermission: (granted: boolean) => void;
   setMicrophonePermission: (granted: boolean) => void;
+  /** Records that setup's statement stood on the step the person went on from: the two flags the done-check reads, and the time. */
+  recordStatement: () => void;
   reset: () => void;
 }
 
@@ -159,6 +161,12 @@ export const useOnboardingStore = create<OnboardingState>()(
       setCameraPermission: (granted) => set({ cameraPermissionGranted: granted }),
 
       setMicrophonePermission: (granted) => set({ microphonePermissionGranted: granted }),
+
+      recordStatement: () =>
+        set((state) => ({
+          acceptedDisclaimers: { ...state.acceptedDisclaimers, main: true, scenario: true },
+          disclaimerAcceptedAt: new Date().toISOString(),
+        })),
 
       reset: () =>
         set({

@@ -22,8 +22,18 @@ function asAsk(state: string | undefined): Ask {
   return 'unknown';
 }
 
-/** The browser's answer for the camera on this site, kept up to date. 'unknown' where the browser will not say. */
-export function useCameraAsk(): Ask {
+/** The camera's permission read once now, mapped as useCameraAsk maps it. */
+export async function cameraAskNow(): Promise<Ask> {
+  try {
+    const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+    return asAsk(status.state);
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** One permission's answer, read and followed; 'unknown' until the read answers or where the browser will not say. */
+function usePermissionAsk(name: 'camera' | 'microphone'): Ask {
   const [ask, setAsk] = useState<Ask>('unknown');
   useEffect(() => {
     let live = true;
@@ -32,7 +42,7 @@ export function useCameraAsk(): Ask {
       if (live && status) setAsk(asAsk(status.state));
     };
     try {
-      void navigator.permissions.query({ name: 'camera' as PermissionName }).then(
+      void navigator.permissions.query({ name: name as PermissionName }).then(
         (answer) => {
           if (!live) return;
           status = answer;
@@ -50,8 +60,18 @@ export function useCameraAsk(): Ask {
       live = false;
       if (status) status.onchange = null;
     };
-  }, []);
+  }, [name]);
   return ask;
+}
+
+/** The browser's answer for the camera on this site, kept up to date. 'unknown' where the browser will not say. */
+export function useCameraAsk(): Ask {
+  return usePermissionAsk('camera');
+}
+
+/** The microphone's permission, read and followed as useCameraAsk reads the camera's; 'unknown' until the read answers. */
+export function useMicrophoneAsk(): Ask {
+  return usePermissionAsk('microphone');
 }
 
 function notificationAnswer(): Ask {
