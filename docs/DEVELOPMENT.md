@@ -621,10 +621,12 @@ dimensions at 3×. The wide recordings and posters are 1920 by 1200 native
 pixels. Watching crops a 768 by 480 CSS pixel window below the app header
 in a 768 by 548 viewport at 2.5×. Dashboard crops a 640 by 400 window of the
 alert list between the watch links and the app footer in a 640 by 640
-viewport at 3×. Lost and Found crops the same window as Watching; in it the
-entry sets the camera's picture beside the pair of pictures and the words,
-while the square crop holds the close-up and the saved photo with the
-question under them. Settings uses the full 768 by 480 viewport at 2.5×.
+viewport at 3×. Lost and Found crops a 640 by 400 window below the app header
+in a 640 by 640 viewport at 3×, so its entry's words show a fifth larger in
+the home's frame than a 768 px window would show them; in it the entry sets
+the camera's picture beside the pair of pictures and the words, while the
+square crop holds the close-up and the saved photo with the question under
+them. Settings uses the full 768 by 480 viewport at 2.5×.
 
 The pull request's capture also walks the home's run keys at 320, 360, 390,
 430, 480 and 768 px (`scripts/home-run-checks.mjs`): the keys read Watching,
@@ -647,6 +649,10 @@ Missing or unreadable word boxes fail the check.
 | A poster | 60,000 bytes | 120,000 bytes |
 | One run and its largest poster | 460,000 bytes | 1,300,000 bytes |
 | Complete set in one look | 2,300,000 bytes | 6,600,000 bytes |
+
+An MP4 that leaves less of its run's limit than a whole poster's limit is
+encoded once more at a lower quality, so a wide MP4 over 1,180,000 bytes is
+made smaller before its posters are made.
 
 The first poster shows the kitten facing the camera between 22 and 25
 seconds of the sample clip. Watching uses the uncropped view of the same
