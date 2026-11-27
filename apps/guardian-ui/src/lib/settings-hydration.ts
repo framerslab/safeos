@@ -21,8 +21,9 @@ const isNumber = (value: unknown): value is number => typeof value === 'number' 
 
 /** Older versions of Settings wrote this record on each save on this browser. */
 function readBrowserSettings(): SavedSettings | null {
-  if (typeof localStorage === 'undefined') return null;
   try {
+    // A browser that gives the site no storage throws on this first read.
+    if (typeof localStorage === 'undefined') return null;
     return JSON.parse(localStorage.getItem('safeos_user_settings') || 'null');
   } catch {
     return null; // Unreadable older preferences are ignored.
