@@ -111,7 +111,7 @@ it('gives Setup the app header and no phone bar', () => {
 });
 
 it('marks a page built in the readable look, so its whole body follows the device before script', () => {
-  for (const pathname of ['/dashboard/', '/tutorial/', '/monitor/']) {
+  for (const pathname of ['/dashboard/', '/tutorial/', '/monitor/', '/setup/']) {
     const { container } = open(pathname);
     expect([pathname, container.querySelector('.app-shell--look.look-part') !== null]).toEqual([pathname, true]);
     cleanup();
@@ -131,6 +131,16 @@ it('marks the document once its script has started', () => {
   expect(document.documentElement.hasAttribute('data-app-started')).toBe(false);
   open('/');
   expect(document.documentElement.getAttribute('data-app-started')).toBe('true');
+});
+
+it('notes each address it shows, so a page knows the page before it', async () => {
+  const { pathBefore } = await import('@/lib/visit-trail');
+  open('/');
+  cleanup();
+  // A press on a link to setup: a new entry of the browser's history.
+  window.history.pushState(null, '', '/setup/');
+  open('/setup/');
+  expect(pathBefore('/setup')).toBe('/');
 });
 
 it('shows no notification card and no install sheet on any page, however long a person stays', () => {

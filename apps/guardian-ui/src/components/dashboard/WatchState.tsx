@@ -6,7 +6,9 @@
  * with its fix, one key, and the statement of what SafeOS does not replace.
  * Before setup the one key is Start setup. Until this device's setup record
  * and its saved subjects are read, the heading's and the key's places are
- * held, so nothing moves when the state appears.
+ * held, so nothing moves when the state appears. With Lost and Found chosen
+ * in setup and no pet saved yet, the line says to add the pet's photos first
+ * and the key opens the Lost and Found page.
  *
  * @module components/dashboard/WatchState
  */
@@ -25,7 +27,7 @@ import { clockTime } from '@/lib/clock-time';
 import { NEEDS_SCRIPT, hideUntilNeeded } from '@/lib/needs-script';
 import { useStorageEnds } from '@/lib/short-lived-storage';
 import { useStartGuard } from '@/lib/start-guard';
-import { startChoice, startLine, startWatch, type StartOutcome } from '@/lib/start-watch';
+import { startAddress, startChoice, startLine, startWatch, type StartOutcome } from '@/lib/start-watch';
 import { useOtherTabWatch } from '@/lib/tab-channel';
 import { readLastWay, readWatchSession, type LastWay, type WatchSession } from '@/lib/watch-session';
 import { CameraFrame, ProblemMark } from './Drawn';
@@ -94,6 +96,7 @@ export function WatchState({ setUp, subjects, newAlerts }: WatchStateProps) {
   };
 
   const choice = startChoice(kept.last, subjects ?? []);
+  const opensPage = choice.way === 'lost-found' && !choice.pet;
 
   const start = async () => {
     setOutcome(null);
@@ -118,6 +121,11 @@ export function WatchState({ setUp, subjects, newAlerts }: WatchStateProps) {
 
   const press = async (event: MouseEvent<HTMLButtonElement>) => {
     if (starting || asking.current) return;
+    // No pet saved yet: the Lost and Found page, where the photos are added; no camera, no question to the other tabs.
+    if (opensPage) {
+      go(startAddress(choice));
+      return;
+    }
     asking.current = true;
     try {
       await guard(start, event.currentTarget);

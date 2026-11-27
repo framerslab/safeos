@@ -1,271 +1,170 @@
 /** @jest-environment jsdom */
 /**
- * Running setup again
- *
- * The home page's "Run setup again" links /setup/?again=1. Setup sends a
- * visitor whose setup is done on to the dashboard, unless they arrive with
- * that parameter; then it opens at its first step and stays there. Arriving
- * that way, and going on through the steps, resets nothing: the saved setup
- * stays done until the last step is finished. The camera step's "Continue
- * without the camera" is one of those answers, and so is the camera step's
- * choice of what an alert keeps; a camera request answered after the visitor
- * went on, or after a newer request, keeps nothing.
+ * Running setup again (/setup/?again=1) keeps every answer on the page and
+ * saves them all with the last key, so a device left part way keeps the
+ * setup it had. A device whose setup is done and opens /setup/ is sent on, in
+ * place of setup in the browser's history.
  */
 
-import React from 'react';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import SetupPage from '@/app/setup/page';
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { useStorageEnds } from '@/lib/short-lived-storage';
+import { forgetStorageFull } from '@/lib/storage-full';
+import { forgetVisit } from '@/lib/visit-store';
 import { useAlertPicturesStore } from '@/stores/alert-pictures-store';
-import { canSkipOnboarding, useOnboardingStore } from '@/stores/onboarding-store';
+import { useCameraStore } from '@/stores/camera-store';
+import { useOnboardingStore } from '@/stores/onboarding-store';
+import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser } from './helpers/camera-browser';
+import { chooseUse, continueWithoutCamera, finishedSetup, openSetup, pressLastKey } from './helpers/setup-route';
 
-const mockRouter = { push: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn() };
 jest.mock('next/navigation', () => ({ useRouter: () => mockRouter }));
 
-function finishSetup() {
-  useOnboardingStore.setState({
-    isComplete: true,
-    selectedScenario: 'pet',
-    acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
-  });
-}
+const BLANK_CONFIG = { apiUrl: '', wsUrl: '', ollamaUrl: '', configured: false };
+const mockBackend = { config: { ...BLANK_CONFIG } };
+jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => mockBackend }));
+
+jest.mock('@/lib/short-lived-storage', () => ({
+  ...jest.requireActual('@/lib/short-lived-storage'),
+  useStorageEnds: jest.fn(() => false),
+}));
+
+const permissionsAtStart = Object.getOwnPropertyDescriptor(navigator, 'permissions');
+const setupMatchMedia = window.matchMedia;
+
+let camera: ReturnType<typeof installCameraBrowser>;
 
 beforeEach(() => {
+  mockBackend.config = { ...BLANK_CONFIG };
+  jest.mocked(useStorageEnds).mockReturnValue(false);
+  if (permissionsAtStart) Object.defineProperty(navigator, 'permissions', permissionsAtStart);
+  else delete (navigator as unknown as { permissions?: unknown }).permissions;
   localStorage.clear();
   useOnboardingStore.getState().reset();
+  useSettingsStore.getState().resetToDefaults();
+  useCameraStore.getState().setDeviceId('');
+  camera = installCameraBrowser();
+  window.matchMedia = ((query: string) => ({ ...setupMatchMedia(query), matches: false })) as typeof window.matchMedia;
   mockRouter.push.mockClear();
-  installCameraBrowser();
+  mockRouter.replace.mockClear();
 });
+
 afterEach(() => {
+  jest.restoreAllMocks();
+  forgetStorageFull();
+  forgetVisit();
   cleanup();
-  window.history.replaceState({}, '', '/');
+  window.matchMedia = setupMatchMedia;
+  window.history.replaceState(null, '', '/');
 });
 
-it('sends a visitor whose setup is done on to the dashboard when the address has no parameter', () => {
-  window.history.replaceState({}, '', '/setup/');
-  finishSetup();
-  render(<SetupPage />);
-  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
-});
+const STEP1 = 'Use this device to watch a place';
+const OFF = 'The camera is off. SafeOS cannot watch until you turn it on.';
+const words = (element: Element | null | undefined) =>
+  (element?.textContent || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
 
-it('opens at its first step and stays there for a visitor who arrives with again=1', async () => {
-  window.history.replaceState({}, '', '/setup/?again=1');
-  finishSetup();
-  render(<SetupPage />);
+it('sends a device whose setup is done on to the dashboard, in place of setup', async () => {
+  finishedSetup('pet');
+  openSetup('/setup/');
   await act(async () => {});
+  expect(mockRouter.replace).toHaveBeenCalledWith('/dashboard');
   expect(mockRouter.push).not.toHaveBeenCalled();
-  expect(screen.getByRole('button', { name: /Begin Setup/ })).toBeTruthy();
 });
 
-it('resets nothing while the visitor goes on to step 3: setup is still done on this device', async () => {
-  window.history.replaceState({}, '', '/setup/?again=1');
-  finishSetup();
-  const before = JSON.stringify(useOnboardingStore.getState());
-  render(<SetupPage />);
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
+it('opens step 1 and stays there for a device that runs setup again', async () => {
+  finishedSetup('pet');
+  openSetup('/setup/?again=1');
   await act(async () => {});
-  // Step 3 asks what is being watched.
-  expect(screen.getByRole('button', { name: /Baby/ })).toBeTruthy();
+  expect(screen.getByRole('heading', { level: 1, name: STEP1 })).toBeTruthy();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
   expect(mockRouter.push).not.toHaveBeenCalled();
-  const after = useOnboardingStore.getState();
-  expect(canSkipOnboarding(after)).toBe(true);
-  expect(after.isComplete).toBe(true);
-  expect(after.selectedScenario).toBe('pet');
-  expect(JSON.parse(before).acceptedDisclaimers).toEqual(after.acceptedDisclaimers);
-
-  // The visitor leaves and opens setup with no parameter: master's forwarding stands.
-  cleanup();
-  window.history.replaceState({}, '', '/setup/');
-  render(<SetupPage />);
-  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
 });
 
-it('keeps each answer on the page until the last step: a visitor who leaves part way keeps the saved setup', async () => {
-  window.history.replaceState({}, '', '/setup/?again=1');
-  finishSetup();
-  useOnboardingStore.setState({ disclaimerAcceptedAt: '2026-11-01T00:00:00.000Z', cameraPermissionGranted: false });
-  render(<SetupPage />);
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
-  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
-  fireEvent.click(await screen.findByRole('button', { name: /Grant Permissions/ }));
-  await screen.findByRole('button', { name: /^Continue$/ });
-
-  // The visitor leaves before the last step.
-  cleanup();
-  const saved = useOnboardingStore.getState();
-  expect(saved.isComplete).toBe(true);
-  expect(saved.selectedScenario).toBe('pet');
-  expect(saved.disclaimerAcceptedAt).toBe('2026-11-01T00:00:00.000Z');
-  expect(saved.cameraPermissionGranted).toBe(false);
-});
-
-it('saves the new answers when the visitor finishes the last step', async () => {
-  window.history.replaceState({}, '', '/setup/?again=1');
-  finishSetup();
-  useOnboardingStore.setState({ disclaimerAcceptedAt: '2026-11-01T00:00:00.000Z', cameraPermissionGranted: false });
-  render(<SetupPage />);
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
-  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
-  fireEvent.click(await screen.findByRole('button', { name: /Grant Permissions/ }));
-  fireEvent.click(await screen.findByRole('button', { name: /^Continue$/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Skip & Continue/ }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Open dashboard' }));
-
-  const saved = useOnboardingStore.getState();
-  expect(saved.isComplete).toBe(true);
-  expect(saved.selectedScenario).toBe('baby');
-  expect(saved.disclaimerAcceptedAt).not.toBe('2026-11-01T00:00:00.000Z');
-  expect(saved.cameraPermissionGranted).toBe(true);
-  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
-});
-
-// Through the first three steps of a second run, to the camera step.
-async function openCameraStepAgain() {
-  window.history.replaceState({}, '', '/setup/?again=1');
-  finishSetup();
-  useOnboardingStore.setState({ cameraPermissionGranted: true, microphonePermissionGranted: true });
-  render(<SetupPage />);
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
-  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
-  await screen.findByRole('heading', { name: /Device Access/ });
-}
-
-// From the notification step to the end of setup.
-async function finishFromNotifications() {
-  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Skip & Continue/ }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Open dashboard' }));
-}
-
-it('Continue without the camera keeps its answer on the page: a visitor who leaves part way keeps the saved camera and microphone', async () => {
-  await openCameraStepAgain();
-  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+it('keeps every answer on the page until the last key: leaving part way keeps the saved setup', async () => {
+  finishedSetup('pet');
+  useOnboardingStore.setState({ disclaimerAcceptedAt: '2026-11-01T10:00:00.000Z' });
+  const { unmount } = openSetup('/setup/?again=1');
   await act(async () => {});
-  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
-
-  // The visitor leaves before the last step.
-  cleanup();
-  const saved = useOnboardingStore.getState();
-  expect(saved.isComplete).toBe(true);
-  expect(saved.selectedScenario).toBe('pet');
-  expect(saved.cameraPermissionGranted).toBe(true);
-  expect(saved.microphonePermissionGranted).toBe(true);
+  await continueWithoutCamera();
+  chooseUse('A baby');
+  unmount();
+  const kept = useOnboardingStore.getState();
+  expect(kept.selectedScenario).toBe('pet');
+  expect(kept.cameraPermissionGranted).toBe(true);
+  expect(kept.microphonePermissionGranted).toBe(true);
+  expect(kept.disclaimerAcceptedAt).toBe('2026-11-01T10:00:00.000Z');
 });
 
-it('Continue without the camera saves the camera and microphone as off when the visitor finishes the last step', async () => {
-  await openCameraStepAgain();
-  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+it('saves the new answers with the last key', async () => {
+  finishedSetup('pet');
+  useOnboardingStore.setState({ disclaimerAcceptedAt: '2026-11-01T10:00:00.000Z' });
+  openSetup('/setup/?again=1');
   await act(async () => {});
-  await finishFromNotifications();
-
+  await continueWithoutCamera();
+  chooseUse('A baby');
+  await pressLastKey();
   const saved = useOnboardingStore.getState();
-  expect(saved.isComplete).toBe(true);
   expect(saved.selectedScenario).toBe('baby');
   expect(saved.cameraPermissionGranted).toBe(false);
   expect(saved.microphonePermissionGranted).toBe(false);
-  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
+  expect(useSettingsStore.getState().activePresetId).toBe('infant_sleep');
+  expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+  expect(mockRouter.replace).toHaveBeenCalledWith('/dashboard');
 });
 
-it('a camera request allowed after Continue without the camera keeps nothing: the saved setup stays, and finishing saves both as off', async () => {
-  const browser = installCameraBrowser();
-  // The browser's prompt stays open while the visitor goes on.
+it('a camera allowed after Continue without the camera keeps nothing', async () => {
   let allow!: (stream: MediaStream) => void;
-  browser.getUserMedia.mockReturnValue(new Promise<MediaStream>((resolve) => { allow = resolve; }));
-  await openCameraStepAgain();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+  camera.getUserMedia.mockReturnValue(new Promise<MediaStream>((resolve) => { allow = resolve; }));
+  finishedSetup('pet');
+  openSetup('/setup/?again=1');
   await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Turn on the camera' }));
   await act(async () => {});
-
-  // The prompt is answered only now; the camera it opened is released.
-  await act(async () => { allow(browser.stream); });
-  expect(browser.video.stop).toHaveBeenCalled();
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(true);
-  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(true);
-
-  // Finishing saves what the visitor chose, not the late answer.
-  await finishFromNotifications();
-  const saved = useOnboardingStore.getState();
-  expect(saved.cameraPermissionGranted).toBe(false);
-  expect(saved.microphonePermissionGranted).toBe(false);
+  await continueWithoutCamera();
+  await act(async () => { allow(camera.stream); });
+  await act(async () => {});
+  expect(camera.video.stop).toHaveBeenCalled();
+  expect(camera.audio.stop).toHaveBeenCalled();
+  expect(words(document.querySelector('main.setup'))).toContain(OFF);
+  chooseUse('A pet');
+  await pressLastKey();
+  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
 });
 
-it('an older camera request answered after a newer one failed keeps nothing', async () => {
-  const browser = installCameraBrowser();
-  let allowFirst!: (stream: MediaStream) => void;
-  browser.getUserMedia
-    .mockReturnValueOnce(new Promise<MediaStream>((resolve) => { allowFirst = resolve; }))
-    .mockRejectedValue(new DOMException('', 'NotReadableError'));
-  await openCameraStepAgain();
-  // Two presses while the first prompt is open; the second request fails.
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+it('shows the saved use chosen and finishes with no other press', async () => {
+  finishedSetup('baby');
+  openSetup('/setup/?again=1');
   await act(async () => {});
-  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-  await act(async () => { allowFirst(browser.stream); });
-  // The step keeps the newest answer and offers no Continue for a granted camera.
-  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
-  expect(browser.video.stop).toHaveBeenCalled();
-
-  expect(screen.getByRole('button', { name: 'Continue without the camera' })).toBeTruthy();
-
-  // The visitor leaves: the saved setup is as it was.
-  cleanup();
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(true);
-  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(true);
+  await continueWithoutCamera();
+  const baby = screen.getByRole('radio', { name: 'A baby' }) as HTMLInputElement;
+  expect(baby.checked).toBe(true);
+  expect(words(document.getElementById('setup-use-words'))).toContain('For a nap while you stay close enough to hear this device.');
+  await pressLastKey();
+  expect(mockRouter.replace).toHaveBeenCalledWith('/dashboard');
+  expect(useOnboardingStore.getState().selectedScenario).toBe('baby');
 });
 
-// The camera step's choice of what an alert keeps: keeping off and 7 days.
-function chooseKeepingOffFor7Days() {
-  const choice = screen.getByRole('group', { name: 'Each alert keeps a picture' });
-  const select = within(choice).getByLabelText('Delete pictures after') as HTMLSelectElement;
-  const sevenDays = within(choice).getByRole('option', { name: '7 days' }) as HTMLOptionElement;
-  fireEvent.change(select, { target: { value: sevenDays.value } });
-  fireEvent.click(within(choice).getByRole('switch', { name: 'Keep alert pictures' }));
-}
-
-it('keeps the camera step’s choice of what an alert keeps on the page: a visitor who leaves part way keeps the saved choice', async () => {
-  useAlertPicturesStore.setState({ keep: true, deleteAfterDays: 3, noticeAnswered: false });
-  await openCameraStepAgain();
-  chooseKeepingOffFor7Days();
-  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
-  await act(async () => {});
-  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
-
-  // The visitor leaves before the last step.
-  cleanup();
-  expect(useAlertPicturesStore.getState()).toMatchObject({ keep: true, deleteAfterDays: 3, noticeAnswered: false });
-});
-
-it('saves the camera step’s choice of what an alert keeps as the notice’s answer when the visitor finishes the last step', async () => {
-  useAlertPicturesStore.setState({ keep: true, deleteAfterDays: 3, noticeAnswered: false });
-  await openCameraStepAgain();
-  chooseKeepingOffFor7Days();
-  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
-  await act(async () => {});
-  await finishFromNotifications();
-
-  expect(useAlertPicturesStore.getState()).toMatchObject({ keep: false, deleteAfterDays: 7, noticeAnswered: true });
-  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
-});
-
-it('still opens at its first step for a first visit, with or without the parameter', () => {
+it('opens step 1 for a first visit, with or without the parameter', async () => {
   for (const address of ['/setup/', '/setup/?again=1']) {
-    window.history.replaceState({}, '', address);
-    render(<SetupPage />);
-    expect(mockRouter.push).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: /Begin Setup/ })).toBeTruthy();
+    openSetup(address);
+    await act(async () => {});
+    expect(screen.getByRole('heading', { level: 1, name: STEP1 })).toBeTruthy();
     cleanup();
   }
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+});
+
+it('leaves the notice about alert pictures for the first watch', async () => {
+  useAlertPicturesStore.getState().reset();
+  openSetup('/setup/');
+  await act(async () => {});
+  expect(screen.queryByRole('group', { name: 'Each alert keeps a picture' })).toBeNull();
+  await continueWithoutCamera();
+  expect(screen.queryByRole('group', { name: 'Each alert keeps a picture' })).toBeNull();
+  chooseUse('A pet');
+  await pressLastKey();
+  const pictures = useAlertPicturesStore.getState();
+  expect(pictures.noticeAnswered).toBe(false);
+  expect(pictures.keep).toBe(true);
+  expect(pictures.deleteAfterDays).toBe(3);
 });

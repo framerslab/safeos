@@ -74,10 +74,10 @@ it('shows the phone bar on every app page but Setup', () => {
 });
 
 it('names the pages whose whole body is built in the readable look', () => {
-  for (const pathname of ['/dashboard/', '/tutorial/', '/analytics', '/profiles/']) {
+  for (const pathname of ['/dashboard/', '/tutorial/', '/analytics', '/profiles/', '/setup/']) {
     expect([pathname, isLookBuiltRoute(pathname)]).toEqual([pathname, true]);
   }
-  for (const pathname of ['/history/', '/help/', '/setup/', '/nap/']) {
+  for (const pathname of ['/history/', '/help/', '/nap/']) {
     expect([pathname, isLookBuiltRoute(pathname)]).toEqual([pathname, false]);
   }
 });

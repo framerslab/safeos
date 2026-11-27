@@ -1,0 +1,918 @@
+/* =============================================================================
+   Setup: the frame
+   Setup's two steps share one column: Back and the step's glyph in one row,
+   the step, and on a phone the look row under the first screen. Every
+   colour and size comes from the look's tokens.
+   ============================================================================= */
+
+.setup {
+  container: setup / inline-size;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-inline: auto;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+@media (min-width: 48em) {
+  .setup {
+    max-width: 48rem;
+    padding-inline: max(32px, env(safe-area-inset-left, 0px)) max(32px, env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (min-width: 64em) {
+  .setup {
+    max-width: 79rem;
+  }
+}
+
+@media (min-width: 90em) {
+  .setup {
+    max-width: 90.5rem;
+    padding-inline: max(64px, env(safe-area-inset-left, 0px)) max(64px, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* The screen's height under the top bar holds the Back row and the step alone. */
+.setup-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100svh - var(--site-header-height) - env(safe-area-inset-top, 0px));
+}
+
+.setup-step {
+  flex: 1 0 auto;
+}
+
+.setup-step[data-entered='change'] {
+  animation: setup-in 200ms ease-out;
+}
+
+@keyframes setup-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.setup-back-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+}
+
+.setup-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 64px;
+  padding: 0 8px 0 0;
+  border-radius: 4px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.setup-back:hover {
+  background: var(--color-steel-900);
+}
+
+.setup-back:active {
+  transform: translateY(1px);
+}
+
+.setup-back svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.setup-progress {
+  display: block;
+  flex: none;
+  width: 52px;
+  height: 4px;
+}
+
+.setup-progress__on {
+  fill: var(--look-accent);
+}
+
+.setup-progress__off {
+  fill: none;
+  stroke: var(--color-steel-300);
+  stroke-width: 1;
+}
+
+.setup-progress--under {
+  display: none;
+  margin-top: 8px;
+}
+
+/* At large text the glyph leaves the Back row and stands under the heading. */
+@container setup (max-width: 12em) {
+  .setup-back-row .setup-progress {
+    display: none;
+  }
+
+  .setup-progress--under {
+    display: block;
+  }
+}
+
+.setup-heading {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: 1.875rem;
+  line-height: 2.875rem;
+  color: var(--color-steel-50);
+  text-wrap: balance;
+}
+
+@media (min-width: 48em) {
+  .setup-heading {
+    font-size: 2.5rem;
+    line-height: 3.75rem;
+  }
+}
+
+@media (min-width: 64em) {
+  .setup-heading {
+    font-size: 3rem;
+    line-height: 4.5rem;
+  }
+}
+
+/* Focus moved by script is not a ring a person asked for; the next Tab shows it. */
+.setup-heading:focus {
+  outline: none;
+}
+
+.setup-look {
+  margin-top: 32px;
+}
+
+@media (min-width: 48em) {
+  .setup-look {
+    display: none;
+  }
+}
+
+.setup-look-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  text-align: left;
+}
+
+.setup-look-row:hover {
+  background: var(--color-steel-900);
+}
+
+.setup-look-row:active {
+  transform: translateY(1px);
+}
+
+.setup-look-row__glyph {
+  display: inline-flex;
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+
+.setup-look-row--place {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-step[data-entered='change'] {
+    animation: none;
+  }
+
+  .setup-back:active,
+  .setup-look-row:active {
+    transform: none;
+  }
+}
+
+/* =============================================================================
+   Setup: step 1
+   ============================================================================= */
+
+.setup-body {
+  margin: 0;
+  max-width: 40rem;
+  font-family: var(--font-sans);
+  font-size: var(--type-body-size);
+  line-height: var(--type-body-line);
+  font-weight: var(--weight-regular);
+  color: var(--color-steel-50);
+  text-wrap: pretty;
+}
+
+.setup-lead {
+  margin-top: 8px;
+}
+
+.setup-limit {
+  margin-top: 8px;
+}
+
+.setup-limit:empty {
+  display: none;
+}
+
+.setup-statement {
+  margin-top: 16px;
+}
+
+.setup-picture-line {
+  margin-top: 12px;
+}
+
+.setup .needs-script {
+  margin-top: 8px;
+}
+
+.setup-camera {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+}
+
+.setup-frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 20px;
+  background: var(--color-steel-900);
+}
+
+.setup-camera-drawing {
+  width: 32px;
+  height: 32px;
+  color: var(--color-steel-300);
+}
+
+.setup-frame-line {
+  text-align: center;
+  max-width: 30rem;
+}
+
+.setup-key {
+  width: 100%;
+}
+
+/* A waiting key keeps a solid edge in the line colour, and its words their
+   weight, so the quiet tone reads at 7:1 on the strokes themselves. */
+.setup .key[aria-disabled='true'],
+.setup .key.setup-key--waiting {
+  border: 2px solid var(--color-steel-300);
+  font-weight: var(--weight-bold);
+}
+
+/* A key grows taller with its words wrapped inside at large text. */
+.setup .key {
+  white-space: normal;
+}
+
+.setup .key--outline:not([aria-disabled='true']) {
+  font-weight: var(--weight-bold);
+}
+
+.setup-skip {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 12px;
+}
+
+@media (min-width: 48em) {
+  .setup-frame {
+    aspect-ratio: 16 / 9;
+  }
+
+  .setup-key {
+    max-width: 25rem;
+  }
+
+  .setup-skip {
+    align-self: center;
+    max-width: 25rem;
+  }
+}
+
+@media (min-width: 64em) {
+  .setup-key {
+    max-width: 20rem;
+  }
+
+  .setup-skip {
+    max-width: 20rem;
+    margin-top: 16px;
+  }
+
+  .setup-step--1 {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: repeat(7, auto) 1fr;
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  .setup-step--1 > .setup-heading {
+    grid-column: 1 / span 6;
+    grid-row: 1;
+  }
+
+  .setup-step--1 > .setup-progress--under {
+    grid-column: 1 / span 6;
+    grid-row: 2;
+  }
+
+  .setup-step--1 > .setup-lead {
+    grid-column: 1 / span 6;
+    grid-row: 3;
+  }
+
+  .setup-step--1 > .setup-limit {
+    grid-column: 1 / span 6;
+    grid-row: 4;
+  }
+
+  .setup-step--1 > .needs-script {
+    grid-column: 1 / span 6;
+    grid-row: 5;
+  }
+
+  .setup-step--1 > .setup-statement {
+    grid-column: 1 / span 6;
+    grid-row: 6;
+  }
+
+  .setup-step--1 > .setup-picture-line {
+    grid-column: 1 / span 6;
+    grid-row: 7;
+  }
+
+  .setup-step--1 > .setup-camera {
+    grid-column: 7 / span 6;
+    grid-row: 1 / span 8;
+    margin-top: 8px;
+  }
+}
+
+@media (min-width: 90em) {
+  .setup-key,
+  .setup-skip {
+    max-width: 25rem;
+  }
+
+  .setup-step--1 > .setup-heading,
+  .setup-step--1 > .setup-progress--under,
+  .setup-step--1 > .setup-lead,
+  .setup-step--1 > .setup-limit,
+  .setup-step--1 > .needs-script,
+  .setup-step--1 > .setup-statement,
+  .setup-step--1 > .setup-picture-line {
+    grid-column: 1 / span 5;
+  }
+
+  .setup-step--1 > .setup-camera {
+    grid-column: 6 / span 7;
+  }
+}
+
+/* =============================================================================
+   Setup: the place and its test
+   ============================================================================= */
+
+.setup-place {
+  margin-top: 16px;
+}
+
+/* The picture and the strip under it are one panel inside the corner ticks. */
+.setup-picture {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-steel-900);
+}
+
+.setup-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+}
+
+.setup-starting {
+  position: absolute;
+  inset: 0 0 auto 0;
+  aspect-ratio: 4 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  max-width: none;
+  background: var(--color-steel-900);
+}
+
+.setup-starting::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 3px;
+  background: var(--look-accent);
+  transform-origin: left center;
+  animation: setup-loading 1.6s ease-in-out infinite;
+}
+
+@keyframes setup-loading {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.setup-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 12px;
+  padding: 12px 0 16px;
+}
+
+.setup-meter__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  color: var(--color-steel-50);
+}
+
+.setup-meter__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.setup-track {
+  position: relative;
+  height: 16px;
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid var(--color-steel-300);
+  background: var(--color-steel-800);
+}
+
+.setup-track__fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--look-accent);
+  transition: width 100ms linear;
+}
+
+.setup-track__fill[data-over='true'] {
+  background: var(--look-alert);
+}
+
+.setup-track__line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--color-steel-50);
+}
+
+.setup-meter__flat {
+  display: block;
+  height: 1px;
+  margin-top: 15px;
+  background: var(--color-steel-300);
+}
+
+.setup-no-mic {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.setup-off {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 20px;
+  min-height: 0;
+  aspect-ratio: 4 / 3;
+  text-align: center;
+}
+
+.setup-off .setup-body {
+  max-width: 30rem;
+}
+
+.setup-problem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-align: left;
+}
+
+.setup-again {
+  width: 100%;
+  min-height: 44px;
+}
+
+.setup-test-line {
+  margin-top: 16px;
+}
+
+@media (min-width: 48em) {
+  .setup-video,
+  .setup-starting,
+  .setup-off {
+    aspect-ratio: 16 / 9;
+  }
+
+  .setup-again {
+    max-width: 25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-starting::after {
+    display: none;
+  }
+
+  .setup-track__fill {
+    transition: none;
+  }
+}
+
+/* =============================================================================
+   Setup: when the camera does not turn on
+   ============================================================================= */
+
+.setup-frame[data-state='failed'] {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.setup-frame-says:empty {
+  display: none;
+}
+
+.setup-failure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-align: left;
+}
+
+.setup-failure .problem-mark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.setup-default {
+  width: 100%;
+  min-height: 44px;
+}
+
+.setup-frame .link-row,
+.setup-off .link-row {
+  align-self: flex-start;
+}
+
+.setup-picture[data-state='failed'] .setup-off {
+  align-items: stretch;
+  text-align: left;
+}
+
+@media (max-width: 47.99em) {
+  .setup-frame[data-state='failed'] {
+    gap: 8px;
+    padding-block: 12px;
+  }
+}
+
+@media (min-width: 48em) {
+  .setup-frame[data-state='failed'] .setup-key,
+  .setup-picture[data-state='failed'] .setup-again,
+  .setup-default {
+    align-self: center;
+    max-width: 25rem;
+  }
+}
+
+/* =============================================================================
+   Setup: the last key
+   ============================================================================= */
+
+.setup-last {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  border-top: 1px solid var(--color-steel-300);
+  background: var(--color-steel-950);
+}
+
+/* The page colour comes up to the bar's top line over the answer cut under it. */
+.setup-last::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 1px);
+  height: 24px;
+  background: linear-gradient(to bottom, transparent, var(--color-steel-950));
+  pointer-events: none;
+}
+
+html.setup-bar-fixed {
+  scroll-padding-bottom: var(--setup-bar);
+}
+
+html.setup-bar-fixed body {
+  padding-bottom: var(--setup-bar);
+}
+
+.setup-last-key {
+  width: 100%;
+}
+
+.setup-last-says:empty {
+  display: none;
+}
+
+.setup-unsaved {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.setup-unsaved .problem-mark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+@media (min-width: 48em) {
+  .setup-last {
+    position: static;
+    z-index: auto;
+    margin-top: 24px;
+    padding: 0;
+    border-top: 0;
+    background: none;
+  }
+
+  .setup-last::before {
+    display: none;
+  }
+
+  .setup-last-key {
+    max-width: 25rem;
+  }
+}
+
+@media (min-width: 90em) {
+  .setup-last-key {
+    min-height: 56px;
+  }
+}
+
+/* =============================================================================
+   Setup: what it watches
+   Five answers as native radios in a grid of tracks at least 16rem wide, so
+   a phone shows one column and a wider column two; a track never outgrows
+   the group, so at 200 per cent text an option shrinks and nothing scrolls
+   sideways. The chosen answer's words fade in under the group.
+   ============================================================================= */
+
+.setup-uses {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.setup-use {
+  position: relative;
+  display: block;
+}
+
+.setup-use__input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.setup-use__box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 0 16px;
+  border: 1px solid var(--color-steel-300);
+  border-radius: 4px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+}
+
+.setup-use__slot {
+  flex: none;
+  display: inline-flex;
+  width: 12px;
+  height: 12px;
+}
+
+.setup-use__square {
+  width: 12px;
+  height: 12px;
+  background: var(--look-accent);
+}
+
+.setup-use__glyph {
+  flex: none;
+  width: 24px;
+  height: 24px;
+}
+
+.setup-use__name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.setup-use:hover .setup-use__box {
+  background: var(--color-steel-900);
+}
+
+.setup-use__input:focus-visible + .setup-use__box {
+  outline: 2px solid var(--look-accent);
+  outline-offset: 2px;
+}
+
+/* One px less padding under the 2 px edge, so the name keeps its place. */
+.setup-use__input:checked + .setup-use__box {
+  padding: 0 15px;
+  border: 2px solid var(--look-accent);
+  background: var(--color-steel-800);
+}
+
+.setup-use:active .setup-use__box {
+  transform: translateY(1px);
+}
+
+.setup-use-words > div {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 40rem;
+  margin-top: 16px;
+  animation: setup-in 150ms ease-out;
+}
+
+.setup-use-words .link-row {
+  align-self: flex-start;
+  min-height: 44px;
+}
+
+.setup-use-says:empty {
+  display: none;
+}
+
+.setup-use-missing {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 16px 0 0;
+}
+
+.setup-use-missing .problem-mark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-use:active .setup-use__box {
+    transform: none;
+  }
+
+  .setup-use-words > div {
+    animation: none;
+  }
+}
+
+/* =============================================================================
+   Setup: step 2
+   One column on a phone and a tablet, in the page's order: the heading, the
+   picture with its strip and test line, the answers, their words and the
+   key. From 64em the picture takes the left 7 columns and the answers the
+   right 5, with the key at the foot of the right columns: level with the
+   test line's foot when the words are shorter, 24 px under them when longer.
+   ============================================================================= */
+
+.setup-answer {
+  margin-top: 24px;
+}
+
+/* On a phone the answers start a little lower, so the row the bar cuts shows
+   its top above the bar and the last whole row ends close over it. */
+@media (max-width: 47.99em) {
+  .setup-answer {
+    margin-top: 40px;
+  }
+}
+
+@media (min-width: 64em) {
+  .setup-step--2 {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: stretch;
+  }
+
+  .setup-step--2 > .setup-heading,
+  .setup-step--2 > .setup-progress--under {
+    grid-column: 1 / -1;
+  }
+
+  .setup-check {
+    grid-column: 1 / span 7;
+  }
+
+  .setup-answer {
+    grid-column: 8 / span 5;
+    display: flex;
+    flex-direction: column;
+    margin-top: 16px;
+  }
+
+  .setup-answer .setup-uses {
+    margin-top: 0;
+  }
+
+  .setup-answer .setup-last {
+    margin-top: auto;
+    padding-top: 24px;
+  }
+}

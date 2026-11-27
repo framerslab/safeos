@@ -1,7 +1,8 @@
 # Camera monitoring
 
-Choose a camera in **Setup → Device Access** or under the camera's frame on
-**Monitor**. The choice is shared between these pages and saved in this browser.
+Choose a camera under the camera's frame on **Monitor**; setup uses the camera
+chosen there, otherwise the back camera where the device has one. The choice is
+saved in this browser.
 Camera names may become available only after permission is granted. Device changes
 refresh the list. If a saved camera is unavailable, reconnect it or choose another;
 SafeOS does not silently replace an explicitly selected camera.
@@ -22,7 +23,7 @@ one whose camera is allowed and whose microphone is blocked, watches video alone
 from the watch's own key and from the dashboard's, and the Sound meter names the
 missing or blocked microphone while Motion goes on; a microphone lost while watching is named there as missing.
 A polite status says the microphone's problem once, and never a reading.
-Setup's **Grant Permissions** also completes with the camera alone.
+Setup's **Turn on the camera** also goes on with the camera alone.
 
 ## The meters
 
@@ -100,10 +101,10 @@ camera's picture has no key of its own: Watch for is the one place the compariso
 starts and stops. The page's title reads "Motion and sound | SafeOS" or "Lost and
 Found | SafeOS".
 
-The choice is setup's Lost & Found choice (`lostFoundChosen` in the onboarding
-store): setup and Monitor show the same one, whatever the use setup saved, and
-the Lost & Found page's **Start Monitoring** opens Monitor with Lost and Found
-and the pet it shows.
+The choice is the one setup's **A lost pet** saves (`lostFoundChosen` in the
+onboarding store): setup and Monitor show the same one, whatever the use setup
+saved, and the Lost & Found page's **Start Monitoring** opens Monitor with Lost
+and Found and the pet it shows.
 
 The address names the way and the pet: `/monitor/?way=lost-found&pet=<id>` opens
 Lost and Found with that saved pet, `/monitor/?way=monitor` opens Motion and sound,
@@ -121,8 +122,8 @@ Found page as an object is the watch's only once it is chosen there or in
 watch's pet, and the Lost & Found page offers no **Start Monitoring** for it;
 opening such a person there, or closing it again, leaves the chosen pet as it
 is. Setup run again on a device with another use (a baby device with Lost and
-Found chosen on Monitor) shows Lost & Found chosen, and its **Continue** keeps
-the device's use: only a press of a use's card changes it.
+Found chosen on Monitor) shows **A lost pet** chosen, and its last key keeps the
+device's use: only a press on another answer changes it.
 
 With Lost and Found chosen, Monitor shows the pet's first saved photo, its name,
 its count of photos, **Change pet** and the line "It can alert on an animal that
@@ -162,19 +163,20 @@ goes on watching for motion and sound. A read of the saved pets on its way at
 that moment shows none of them. The watch hears of the clear from the account marker
 in local storage, which a browser may show to another tab a moment late.
 
-Setup does not need the camera. Until access is granted, its **Device Access**
-step shows **Continue without the camera**, which records camera and microphone
-access as off and goes on; **Start watching** asks for them later. After a
-failed request the step says what happened and its key reads **Try again**:
+Setup does not need the camera. Its first step offers **Continue without the
+camera**, which records camera and microphone access as off and goes on; **Start
+watching** asks for them later. When a request fails, the step names what
+happened inside the camera's frame:
 
 | What happened | What the step says |
 |---------------|--------------------|
-| The browser or the person refused | The browser blocked the camera for this site. To allow it, open the site settings from the address bar, set Camera to Allow, then press Try again. |
-| The camera did not start | The camera did not start. Another app or tab may be using it. Close it, then press Try again. |
-| No camera, with **Default camera** chosen | No camera was found on this device. |
-| The camera chosen in the menu is gone | The selected camera is unavailable. Choose another camera. |
-| The browser has no camera support on the page | This browser cannot use a camera on this page. |
-| Anything else | Unable to access the camera or microphone. Check the device and try again. |
+| The camera is blocked for the site | The camera is blocked for safeos.sh in this browser. Allow it in the site’s settings, then press Try again. |
+| The browser's question closed without an answer | The browser’s question closed without an answer. Press Try again to see it again. |
+| Another app or tab holds the camera | The camera did not start. Another app or tab may be using it. Close it, then press Try again. |
+| No camera on the device | No camera was found on this device. Connect one, then press Try again. |
+| The camera chosen on this device is not connected, with **Use the default camera** | The camera chosen on this device is not connected. Connect it, then press Try again. |
+| The browser has no camera request on the page | This browser cannot use a camera on this page. |
+| Anything else | The camera did not start. Check the device, then press Try again. |
 
 On the watch, a selected camera that is unavailable and is connected again clears
 its failure once the browser lists it, and the frame offers **Start watching**.
@@ -416,11 +418,7 @@ for that start and ends the Lost and Found watch for the pet that start began. N
 kept before it is answered. A first watch from Nap Mode or **Resume nap** opens the notice
 before starting the camera. An answer given in one tab holds in every open tab, also where the
 browser keeps no choices: the other tabs start their watch with no notice.
-Setup's camera step shows the same title, switch, choice and lines: going on past that step
-(**Continue**, or **Continue without the camera**) answers the notice with the choice as set
-there, so the first watch starts with no notice, and deletes the pictures past the age chosen
-there; **Back** answers nothing. Running setup again
-keeps that choice with the step's other answers until its last step is finished. The
+Setup shows no such choice: a device set up there meets the notice at its first watch. The
 same switch, choice and lines stand in **Alert pictures** under **Settings for this watch**
 and on **Settings > Detection**, with the count of pictures kept and **Delete all pictures**,
 which asks first. While the pictures are deleted, focus stays on that key or wherever the

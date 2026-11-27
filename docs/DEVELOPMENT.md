@@ -463,18 +463,21 @@ base capture, not failed (`apps/guardian-ui/scripts/base-routes.mjs`). A 404 for
 a page the base commit holds fails, as does any 404 in the pull request's own
 capture or in a run without `PICTURE_VERSION`.
 
-When `/setup/` is among the routes, both versions also capture setup's camera
-step after a refused camera request (`setup-camera-refused-<width>-<look>.png`).
-For the pull request's own build the script then walks setup from a first visit
-to the dashboard with no camera: after a refused request, with no camera found,
-and in the runner's own browser, which has no camera. Each walk reads what the
-step says, presses **Continue without the camera**, finishes setup, lands on the
-dashboard and reloads it. At 320, 390 and 1280 pixels it checks that Back, the
-request key and the new key are whole and on screen, that the new key is reached
-with Tab and pressed with Enter, and that the scenario step shows **Continue**
-beside Back for a scenario already chosen. The headless browser has no prompt,
-so the refused and none-found answers are given to the page's camera request by
-the script; the third walk uses the browser's own answer. A finding fails the run.
+When `/setup/` is among the routes, both versions also capture setup with the
+camera refused (`setup-camera-refused-<width>-<look>.png`): the two-step setup
+names the block on its first step, the earlier six-step setup on its camera step
+after a request. For the pull request's own build the job **Walk setup** walks
+setup's two steps (`apps/guardian-ui/scripts/setup-checks.mjs` runs the setup
+walks of `apps/guardian-ui/scripts/app-checks.mjs`): each state of the camera
+(allowed, blocked before and after a press, the question closed, in use,
+missing, a saved camera gone, no camera request in the browser, stopped), each of
+the five answers and its words, the last key to the dashboard, to each way's page
+and to Lost and Found for a lost pet, the dashboard's line and key after a lost
+pet with and without a saved pet, a run again, storage refused, offline, the
+layouts at every width, sizes and contrast against the readable look's figures,
+and the pictures the look is judged on. The camera in these walks is a stand-in
+that draws a changing picture with a quiet track or noise, and one walk uses
+Chromium's own fake camera and microphone. A finding fails the run.
 
 When `/dashboard/` is captured, both versions also capture the dashboard after
 setup (`dashboard-setup-<width>-<look>.png`), and the pull request's own build
@@ -525,7 +528,7 @@ stands.
 The walk in `apps/guardian-ui/scripts/home-checks.mjs` checks the playable hero,
 poster placement and the header and Menu, native disclosure grouping, QR,
 and the anchored sections before and after setup. Fresh browsers follow the
-lost-pet and wildlife links through six setup steps and open the chosen way
+lost-pet and wildlife links through setup's two steps and open the chosen way
 without a camera. The first visit checks that requests stay on the site's
 origin and records any camera, microphone or notification permission
 requests. The starting page and disclosures also have offline and script-off
@@ -746,7 +749,7 @@ answered, raises alerts from the sample clip and saves each state at 390 by 844
 and 1440 by 900, in both looks, at a device scale factor of 2, clipped to the
 state's own part of the page: `card`, `sound-card`, `card-failed`, `opened`, `history`,
 `watch-group`, `settings-group`, the count at the top of Data on this device as
-`data-count`, `notice`, `notification-setting`, `live-box` and, on a first visit, setup's camera step as `setup-choice`, then, with a striped pet enrolled and a striped clip it writes,
+`data-count`, `notice`, `notification-setting`, `live-box`, then, with a striped pet enrolled and a striped clip it writes,
 `sighting` and, in the same visit, the dashboard's Since you last looked as
 `dashboard-sighting`. Each file is `alert-<state>-<width>-<look>.png`. A state it cannot
 reach fails the step and names the state. The files are the run's

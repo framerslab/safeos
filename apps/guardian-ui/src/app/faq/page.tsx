@@ -48,7 +48,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How do I set up my first monitor?',
-        answer: 'Open safeos.sh and press Start Setup. Setup has six steps: a welcome, the safety notice, choosing what you are watching (baby, pet, or elderly relative), allowing the camera and microphone, choosing notifications, and a summary. Then start monitoring. You can change sensitivity in Settings at any time.',
+        answer: 'Open safeos.sh and press Start setup. Setup has two steps: turn on the camera, then say what the device is watching (a pet, a baby, an elderly relative, an empty place or a lost pet). Then press Start watching on the dashboard. You can change sensitivity in Settings at any time.',
       },
       {
         question: 'Does it work offline?',
