@@ -471,6 +471,9 @@ export async function encodeVariant({ frames, cut, view, crop, directory, outDir
   checkFastStart(await readFile(movie));
   checkFlashes(movie, view.size);
 
+  // A poster over its budget, one full of photographs, is encoded once more at a lower quality.
+  const lower = (encoder) => encoder.map((arg, index) => encoder[index - 1] === '-crf' ? String(Number(arg) + 8)
+    : encoder[index - 1] === '-quality' ? String(Number(arg) - 10) : arg);
   const stills = [
     ['webp', ['-c:v', 'libwebp', '-quality', '86', '-compression_level', '6']],
     ...(avif ? [['avif', avif]] : []),
@@ -478,8 +481,11 @@ export async function encodeVariant({ frames, cut, view, crop, directory, outDir
   const posters = {};
   for (const [extension, encoder] of stills) {
     const file = prefix + '.' + extension;
-    ffmpeg(['-i', poster, ...(filters.length ? ['-vf', filters.join(',')] : []),
-      '-frames:v', '1', '-map_metadata', '-1', ...encoder, file]);
+    for (const tried of [encoder, lower(encoder)]) {
+      ffmpeg(['-i', poster, ...(filters.length ? ['-vf', filters.join(',')] : []),
+        '-frames:v', '1', '-map_metadata', '-1', ...tried, file]);
+      if ((await readFile(file)).length <= budget.poster) break;
+    }
     const [picture] = probe(file).streams;
     assert.deepEqual([picture.width, picture.height], [width, height], `${extension} poster differs from the crop`);
     posters[extension] = await fileRecord(file, { kind: 'poster', format: extension, width, height }, budget.poster);
