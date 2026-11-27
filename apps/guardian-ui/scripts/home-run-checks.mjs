@@ -417,8 +417,11 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
     const polite = player(page).locator('[aria-live="polite"]');
     assert.equal(await polite.count(), 1);
     assert.equal(await polite.textContent(), 'Showing ' + runs[1].key + ', 2 of ' + runs.length);
-    await button(page, 'Next run').click();
-    await waitForPlaying(page);
+    for (let step = 2; step < ids.length; step += 1) {
+      await button(page, 'Next run').click();
+      await waitForPlaying(page);
+      assert.equal(await selector(page, ids[step]).getAttribute('aria-current'), 'step');
+    }
     assert.equal(await button(page, 'Next run').isDisabled(), true);
     const video = player(page).locator('video');
     assert.equal(await video.evaluate((movie) => movie.loop), true);
@@ -493,6 +496,46 @@ export async function checkRunPolicies(browser, baseUrl, runs) {
       release();
     }
   });
+
+  // The run keys stay one row at every phone and tablet width: a key that
+  // does not fit scrolls the row sideways behind its fade, with the previous
+  // and next arrows either side; nothing wraps to a second line.
+  for (const width of [320, 360, 390, 430, 480, 768]) {
+    await inContext('the run keys keep one row at ' + width + ' px', {
+      viewport: { width, height: 844 }, isMobile: width < 768, hasTouch: width < 768, reducedMotion: 'reduce', serviceWorkers: 'block',
+    }, async (page) => {
+      await open(page);
+      await player(page).locator('.home-run__strip button[data-run]').first().waitFor();
+      const row = await player(page).locator('.home-run__controls').evaluate((controls) => {
+        const middle = (element) => {
+          const box = element.getBoundingClientRect();
+          return box.top + box.height / 2;
+        };
+        const strip = controls.querySelector('.home-run__strip');
+        const keys = [...strip.querySelectorAll('button[data-run]')];
+        const middles = [...controls.children, ...keys].map(middle);
+        return {
+          keys: keys.map((key) => key.textContent.trim()),
+          spread: Math.max(...middles) - Math.min(...middles),
+          tall: keys.filter((key) => {
+            const range = document.createRange();
+            range.selectNodeContents(key);
+            return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size > 1;
+          }).map((key) => key.textContent.trim()),
+          arrows: ['Previous run', 'Next run'].map((name) => Boolean(controls.querySelector('[aria-label="' + name + '"]'))),
+          overflows: strip.scrollWidth > strip.clientWidth + 1,
+          fadeAfter: strip.parentElement.hasAttribute('data-more-after'),
+          page: document.documentElement.scrollWidth,
+        };
+      });
+      assert.deepEqual(row.keys, ['Watching', 'Dashboard', 'Lost and Found', 'Settings'], 'The run keys at ' + width + ' px');
+      assert.ok(row.spread <= 2, 'The run keys and arrows sit on more than one row at ' + width + ' px: ' + JSON.stringify(row));
+      assert.deepEqual(row.tall, [], 'A run key wraps at ' + width + ' px');
+      assert.deepEqual(row.arrows, [true, true], 'The previous and next arrows at ' + width + ' px');
+      if (row.overflows) assert.ok(row.fadeAfter, 'The row scrolls with no fade at its end at ' + width + ' px');
+      assert.equal(row.page, width, 'The page scrolls sideways at ' + width + ' px');
+    });
+  }
 
   await inContext('each 320 px Tab stop stays clear of the strip edges', {
     viewport: { width: 320, height: 844 }, isMobile: true, hasTouch: true, reducedMotion: 'reduce', serviceWorkers: 'block',
