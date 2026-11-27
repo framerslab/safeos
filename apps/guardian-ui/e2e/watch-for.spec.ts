@@ -330,7 +330,7 @@ test('the Lost & Found page’s start key opens the watch with Lost and Found an
   await expect(shown(page.getByText('1 photo', { exact: true }))).toBeVisible();
 });
 
-test('setup’s Lost & Found opens the watch on Lost and Found, and Motion and sound chosen on the watch is what setup run again shows', async ({ page, context }) => {
+test('setup’s A lost pet opens the watch on Lost and Found, and Motion and sound chosen on the watch is what setup run again shows', async ({ page, context }) => {
   await setUpDevice(context, { scenario: 'pet', lostFoundChosen: true });
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   await expect(lostAndFound(page)).toBeChecked();
@@ -339,11 +339,10 @@ test('setup’s Lost & Found opens the watch on Lost and Found, and Motion and s
   expect(await storedLostFound(page)).toBe(false);
 
   await page.goto('/setup/?again=1', { waitUntil: 'networkidle', timeout: 60_000 });
-  await page.getByRole('button', { name: /Begin Setup/ }).click();
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: /Accept & Continue/ }).click();
-  await expect(page.getByRole('button', { name: /Lost & Found/ })).toHaveAttribute('aria-pressed', 'false');
-  await expect(page.getByRole('button', { name: /Pet Monitoring/ })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'What is it watching?' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'A lost pet', exact: true })).not.toBeChecked();
+  await expect(page.getByRole('radio', { name: 'A pet', exact: true })).toBeChecked();
 });
 
 test('Lost and Found chosen on the watch of a baby device is what setup run again shows', async ({ page, context }) => {
@@ -352,11 +351,10 @@ test('Lost and Found chosen on the watch of a baby device is what setup run agai
   await lostAndFound(page).check();
 
   await page.goto('/setup/?again=1', { waitUntil: 'networkidle', timeout: 60_000 });
-  await page.getByRole('button', { name: /Begin Setup/ }).click();
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: /Accept & Continue/ }).click();
-  await expect(page.getByRole('button', { name: /Lost & Found/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: /Baby Monitoring/ })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'What is it watching?' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'A lost pet', exact: true })).toBeChecked();
+  await expect(page.getByRole('radio', { name: 'A baby', exact: true })).not.toBeChecked();
 });
 
 test('Change pet opens Choose a pet; choosing the other pet names it, and Escape and Close keep the pet', async ({ page, context }) => {
@@ -806,38 +804,32 @@ test('the pet’s meter under the camera’s picture has no key of its own; Watc
   await expect(page.locator('.watch-meter--pet').getByText('Comparing with Miso’s photos', { exact: true })).toBeVisible();
 });
 
-test('Continue in setup run again keeps a baby device’s use, with Lost & Found shown as chosen', async ({ page, context }) => {
+test('setup run again, finished with no other press, keeps a baby device’s use, with A lost pet shown as chosen', async ({ page, context }) => {
   test.setTimeout(120_000);
   await setUpDevice(context, { scenario: 'baby' });
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   await lostAndFound(page).check();
 
-  // Setup again, with the answers it shows: Lost & Found, from the watch.
+  // Setup again, with the answer it shows: A lost pet, from the watch.
   await page.goto('/setup/?again=1', { waitUntil: 'networkidle', timeout: 60_000 });
-  await page.getByRole('button', { name: /Begin Setup/ }).click();
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: /Accept & Continue/ }).click();
-  await expect(page.getByRole('button', { name: /Lost & Found/ })).toHaveAttribute('aria-pressed', 'true');
-  await page.getByRole('button', { name: 'Continue', exact: true }).click();
-  await page.getByRole('button', { name: 'Continue without the camera' }).click();
-  await page.getByRole('checkbox').uncheck();
-  await page.getByRole('button', { name: /Skip & Continue/ }).click();
-  await page.getByRole('button', { name: 'Open Lost and Found' }).click();
+  await page.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'What is it watching?' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'A lost pet', exact: true })).toBeChecked();
+  await page.getByRole('button', { name: 'Open Lost and Found', exact: true }).click();
   await expect(page).toHaveURL(/\/lost-found\/$/);
 
   // The device is a baby device with Lost and Found on, as it was.
   expect(await storedUse(page)).toBe('baby');
   expect(await storedLostFound(page)).toBe(true);
-  // With Motion and sound chosen on the watch, setup shows the use again: Baby Monitoring.
+  // With Motion and sound chosen on the watch, setup shows the use again: A baby.
   await page.goto('/monitor/', { waitUntil: 'networkidle', timeout: 60_000 });
   await expect(lostAndFound(page)).toBeChecked();
   await motionAndSound(page).check();
   await page.goto('/setup/?again=1', { waitUntil: 'networkidle', timeout: 60_000 });
-  await page.getByRole('button', { name: /Begin Setup/ }).click();
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: /Accept & Continue/ }).click();
-  await expect(page.getByRole('button', { name: /Baby Monitoring/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('button', { name: /Pet Monitoring/ })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'What is it watching?' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'A baby', exact: true })).toBeChecked();
+  await expect(page.getByRole('radio', { name: 'A lost pet', exact: true })).not.toBeChecked();
 });
 
 test('a person an earlier version saved, opened and closed on the Lost & Found page, leaves the watch its chosen pet', async ({ page, context }) => {

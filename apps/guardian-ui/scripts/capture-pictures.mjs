@@ -13,7 +13,7 @@
 // control inside the screen from 320 to 1280 pixels, its text is 16 pixels or
 // more and its targets 44 pixels tall; the look switch ("Switch to the dark
 // look" or "Switch to the light look") changes the page; no notification
-// prompt appears; the new H1 and setup's second heading reach their contrast;
+// prompt appears; the new H1 reaches its contrast;
 // at 320 by 480 the open Menu's last row is on screen or reachable by
 // scrolling the Menu, Escape closes it and focus returns to the Menu key; and
 // the alert key on the Test Alerts page starts the alert's two generated tones
@@ -44,18 +44,8 @@
 // When /setup/ is captured, both versions also capture setup with the camera
 // refused (setup-camera-refused-<width>-<look>.png): the two-step setup names
 // the block on its first step, the earlier six-step setup on its camera step
-// after a request.
-// The pull request's own build is then walked from a first visit to the
-// dashboard with no camera: after a refused request, with no camera found and
-// with the runner's own browser, which has no camera and nothing answering
-// for it.
-// Each walk reads what the step says, presses "Continue without the camera",
-// finishes setup, lands on the dashboard and reloads it, and the dashboard
-// stays. At 320, 390 and 1280 pixels it checks that Back, the request key and
-// "Continue without the camera" are whole and on screen, that the new key is
-// a button reached with Tab and pressed with Enter, 44 pixels tall on a phone,
-// and that the line under it is 16 pixels or more at 4.5 to 1; and that the
-// scenario step shows "Continue" beside Back for a scenario already chosen.
+// after a request. The pull request's own build walks setup's two steps in
+// scripts/app-checks.mjs.
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
@@ -263,11 +253,9 @@ try {
     failures += await captureDashboardAfterSetup(browser, baseUrl, outDir);
     if (process.env.PICTURE_VERSION === 'after') failures += await checkModeLinks(browser, baseUrl, outDir);
   }
-  // Setup's camera step after a refused request, in both versions. The pull
-  // request's own build is then walked to the dashboard with no camera.
+  // Setup with the camera refused, in both versions; the pull request's own build walks setup in scripts/app-checks.mjs.
   if (routes.includes('/setup/')) {
     failures += await captureCameraStepRefused(browser, baseUrl, outDir);
-    if (process.env.PICTURE_VERSION === 'after') failures += await checkSetupWithoutCamera(browser, baseUrl, outDir);
   }
   // Exercise the real database lifecycle in fresh contexts. The base build has
   // no notice, so its pictures show the same screen while the upgrade waits.
@@ -746,16 +734,6 @@ async function checkFirstVisit(browser, baseUrl, outDir) {
       await page.waitForFunction((want) => document.documentElement.classList.contains(want), other, { timeout: 5_000 })
         .catch(() => problems.push(`${look}: the look switch left the page as "${before}"`));
       await page.screenshot({ path: path.join(outDir, `home-after-theme-button-390-${look}.png`) });
-
-      // Setup's second step heading.
-      await page.goto(new URL('/setup/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
-      await page.evaluate(() => localStorage.removeItem('guardian-theme'));
-      await page.reload({ waitUntil: 'networkidle' });
-      await page.getByRole('button', { name: /Begin Setup/i }).click();
-      const warning = page.getByText('This is a supplementary monitoring tool.', { exact: true });
-      await warning.waitFor({ timeout: 10_000 });
-      const ratio = await contrastOf(warning);
-      if (ratio < 4.5) problems.push(`${look}: setup step 2 heading contrast ${ratio.toFixed(2)} is below 4.5`);
       console.log(`checked first visit in the ${look} look`);
     } catch (err) {
       problems.push(`first visit in the ${look} look: ${err.message}`);
@@ -1304,17 +1282,14 @@ async function reachCameraStep(page) {
   await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 });
 }
 
-async function reachSetupComplete(step) {
-  await step.getByRole('heading', { name: /Notification Settings/ }).waitFor({ timeout: 10_000 });
-  await step.getByRole('button', { name: /Enable & Continue/ }).click();
-  await step.getByRole('heading', { name: /Setup Complete/ }).waitFor({ timeout: 10_000 });
-}
-
 async function checkHomeUseSetup(browser, baseUrl) {
   let failures = 0;
-  for (const [start, finish, way] of [
-    ['Set it up for a lost pet', 'Open Lost and Found', 'lost-found'],
-    ['Set it up for wildlife', 'Open Wildlife', 'wildlife'],
+  // From each use's key on the home page, through setup's two steps with the
+  // camera left off, to the page the last key names. Lost and Found's row
+  // shows A lost pet chosen with no press; wildlife's shows none.
+  for (const [start, finish, way, choose] of [
+    ['Set it up for a lost pet', 'Open Lost and Found', 'lost-found', null],
+    ['Set it up for wildlife', 'Open Wildlife', 'wildlife', 'A pet'],
   ]) {
     const context = await cameraContext(browser, {
       viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light',
@@ -1328,10 +1303,15 @@ async function checkHomeUseSetup(browser, baseUrl) {
         page.waitForURL((url) => url.pathname === '/setup/' && url.searchParams.get('next') === way, { timeout: 10_000 }),
         key.click(),
       ]);
-      await reachCameraStep(page);
-      const step = setupStep(page);
+      const step = page.locator('#main-content main');
+      await step.getByRole('heading', { level: 1, name: 'Use this device to watch a place', exact: true }).waitFor({ timeout: 20_000 });
       await step.getByRole('button', { name: 'Continue without the camera', exact: true }).click();
-      await reachSetupComplete(step);
+      await step.getByRole('heading', { level: 1, name: 'What is it watching?', exact: true }).waitFor({ timeout: 10_000 });
+      if (choose) {
+        await step.getByRole('radio', { name: choose, exact: true }).check();
+      } else if (!(await step.getByRole('radio', { name: 'A lost pet', exact: true }).isChecked())) {
+        throw new Error(`${start} opened setup with A lost pet not chosen`);
+      }
       await Promise.all([
         page.waitForURL((url) => url.pathname === `/${way}/`, { timeout: 20_000 }),
         step.getByRole('button', { name: finish, exact: true }).click({ timeout: 10_000 }),
@@ -1397,187 +1377,4 @@ async function captureCameraStepRefused(browser, baseUrl, outDir) {
     }
   }
   return failed;
-}
-
-// Pull request build only: setup can be finished with no camera.
-async function checkSetupWithoutCamera(browser, baseUrl, outDir) {
-  // What the camera step says after a failed request.
-  const CAMERA_WORDS = {
-    refused: 'The browser blocked the camera for this site. To allow it, open the site settings from the address bar, set Camera to Allow, then press Try again.',
-    notStarted: 'The camera did not start. Another app or tab may be using it. Close it, then press Try again.',
-    noneFound: 'No camera was found on this device.',
-    savedGone: 'The selected camera is unavailable. Choose another camera.',
-    noSupport: 'This browser cannot use a camera on this page.',
-    other: 'Unable to access the camera or microphone. Check the device and try again.',
-  };
-  const CAMERA_LATER = 'You can allow the camera later, on the Motion and sound page.';
-  const CAMERA_SKIP = 'Continue without the camera';
-  const problems = [];
-  const PHONE = { width: 390, height: 844, isMobile: true };
-  const DESKTOP = { width: 1280, height: 800, isMobile: false };
-  const NARROW = { width: 320, height: 640, isMobile: true };
-  const shown = (locator) => locator.count().then((n) => n > 0);
-  const words = (locator) => locator.innerText().then((text) => text.replace(/\s+/g, ' ').trim().slice(0, 400));
-
-  // Back, the request key and the new key are whole and on screen; the new
-  // key is a button, 44 px tall on a phone; the line under it reads at 16 px.
-  const layoutProblems = (page, size, primary) => setupStep(page).evaluate((root, given) => {
-    const out = [];
-    const screenWidth = document.documentElement.clientWidth;
-    const named = (name) => [...root.querySelectorAll('button')].find((el) => el.textContent.trim() === name);
-    for (const name of ['Back', given.primary, given.skip]) {
-      const el = named(name);
-      if (!el) { out.push(`no "${name}" button`); continue; }
-      const box = el.getBoundingClientRect();
-      if (box.width === 0 || box.height === 0 || getComputedStyle(el).visibility === 'hidden') out.push(`"${name}" is not shown`);
-      if (box.left < -0.5 || box.right > screenWidth + 0.5) {
-        out.push(`"${name}" runs off the screen (${Math.round(box.left)} to ${Math.round(box.right)} of ${screenWidth})`);
-      }
-      if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) out.push(`the words of "${name}" are cut off`);
-      if (el.disabled) out.push(`"${name}" is disabled`);
-      if (name === given.skip && given.phone && box.height < 43.5) out.push(`"${name}" is ${Math.round(box.height)} px tall`);
-    }
-    const line = [...root.querySelectorAll('p')].find((el) => el.textContent.trim() === given.later);
-    if (!line) out.push(`no line "${given.later}"`);
-    else {
-      const size = parseFloat(getComputedStyle(line).fontSize);
-      if (size < 16) out.push(`"${given.later}" is ${size} px`);
-      const box = line.getBoundingClientRect();
-      if (box.left < -0.5 || box.right > screenWidth + 0.5) out.push(`"${given.later}" runs off the screen`);
-      const key = named(given.skip);
-      if (key && box.top < key.getBoundingClientRect().bottom - 0.5) out.push(`"${given.later}" is not under the keys`);
-    }
-    return out;
-  }, { primary, skip: CAMERA_SKIP, later: CAMERA_LATER, phone: size.isMobile });
-
-  // One walk: a first visit to the camera step, the request (unless
-  // request is false), "Continue without the camera", the rest of setup, the
-  // dashboard, and a reload of the dashboard.
-  const walk = async ({ name, picture, size, look, answer = null, request = true, expected, keyboard = false, scenario = false }) => {
-    const label = `${name} at ${size.width} px`;
-    const fail = (problem) => problems.push(`${label}: ${problem}`);
-    const context = await cameraContext(browser, {
-      viewport: { width: size.width, height: size.height },
-      isMobile: size.isMobile, hasTouch: size.isMobile, colorScheme: look, deviceScaleFactor: 1,
-    }, answer);
-    const page = await context.newPage();
-    try {
-      await openCameraStep(page, baseUrl);
-      const step = setupStep(page);
-      const skip = step.getByRole('button', { name: CAMERA_SKIP, exact: true });
-
-      if (scenario) {
-        // Back shows the scenario chosen; "Continue" beside Back confirms it.
-        await step.getByRole('button', { name: 'Back', exact: true }).click();
-        await step.getByRole('heading', { name: /Select Monitoring Scenario/ }).waitFor({ timeout: 10_000 });
-        const go = step.getByRole('button', { name: 'Continue', exact: true });
-        if (!(await shown(go))) {
-          fail('the scenario step has no "Continue" for the scenario already chosen');
-          return;
-        }
-        const back = await step.getByRole('button', { name: 'Back', exact: true }).boundingBox();
-        const beside = await go.boundingBox();
-        if (Math.abs(back.y - beside.y) > 1 || beside.x < back.x + back.width) {
-          fail(`the scenario step's "Continue" is not beside Back (Back at ${Math.round(back.x)}, ${Math.round(back.y)}; Continue at ${Math.round(beside.x)}, ${Math.round(beside.y)})`);
-        }
-        await settleForPicture(page);
-        await page.screenshot({ path: path.join(outDir, `setup-scenario-continue-${size.width}-${look}.png`), fullPage: true });
-        await go.click();
-        await step.getByRole('heading', { name: /Device Access/ }).waitFor({ timeout: 10_000 });
-        const saved = await page.evaluate(() => (JSON.parse(localStorage.getItem('safeos-onboarding') || '{}').state || {}).selectedScenario);
-        if (saved !== 'pet') fail(`after the scenario step's "Continue" the saved scenario is ${saved}, not pet`);
-      }
-
-      let primary = 'Grant Permissions';
-      if (request) {
-        await step.getByRole('button', { name: 'Grant Permissions', exact: true }).click();
-        const again = step.getByRole('button', { name: 'Try again', exact: true });
-        await again.waitFor({ timeout: 10_000 }).catch(() => {});
-        const said = [];
-        for (const sentence of Object.values(CAMERA_WORDS)) {
-          if (await shown(step.getByText(sentence, { exact: true }))) said.push(sentence);
-        }
-        primary = 'Try again';
-        if (!(await shown(again))) fail(`after the failed request the request key does not read "Try again"; the step reads: ${await words(step)}`);
-        if (said.length !== 1 || said[0] !== expected) fail(`the step does not say only "${expected}"; it reads: ${await words(step)}`);
-        else console.log(`${label}: the step says "${said[0]}"`);
-      }
-
-      if (!(await shown(skip))) {
-        fail(`the camera step has no "${CAMERA_SKIP}" button, so setup cannot go on; the step reads: ${await words(step)}`);
-        return;
-      }
-      for (const p of await layoutProblems(page, size, primary)) fail(p);
-      const line = step.getByText(CAMERA_LATER, { exact: true });
-      if (await shown(line)) {
-        const ratio = await contrastOf(line);
-        if (ratio < 4.5) fail(`the contrast of "${CAMERA_LATER}" is ${ratio.toFixed(2)}, below 4.5, in the ${look} look`);
-      }
-      await settleForPicture(page);
-      await page.screenshot({ path: path.join(outDir, `setup-camera-${picture}-check-${size.width}-${look}.png`), fullPage: true });
-
-      if (keyboard) {
-        // From Back, Tab reaches the new key; Enter presses it.
-        await step.getByRole('button', { name: 'Back', exact: true }).focus();
-        let reached = false;
-        for (let presses = 0; presses < 4 && !reached; presses += 1) {
-          await page.keyboard.press('Tab');
-          reached = await skip.evaluate((el) => el === document.activeElement && el.tagName === 'BUTTON');
-        }
-        if (!reached) {
-          fail(`Tab from Back does not reach "${CAMERA_SKIP}" as a button`);
-          return;
-        }
-        await page.keyboard.press('Enter');
-      } else {
-        await skip.click();
-      }
-
-      await reachSetupComplete(step);
-      await Promise.all([
-        page.waitForURL((url) => /^\/dashboard\/?$/.test(url.pathname), { timeout: 20_000 }),
-        step.getByRole('button', { name: 'Open dashboard', exact: true }).click(),
-      ]);
-      const state = page.getByRole('heading', { level: 1, name: /^(Not watching|Watching in another tab)$/ });
-      if (!(await state.waitFor({ timeout: 20_000 }).then(() => true, () => false))) {
-        fail(`after setup the dashboard is not shown; the address is ${new URL(page.url()).pathname}`);
-        return;
-      }
-
-      // A reload of the dashboard stays on the dashboard.
-      await page.reload({ waitUntil: 'networkidle', timeout: 60_000 });
-      await state.waitFor({ timeout: 20_000 }).catch(() => {});
-      const address = new URL(page.url()).pathname;
-      if (!/^\/dashboard\/?$/.test(address) || !(await shown(state))) {
-        fail(`after a reload the dashboard is not shown; the address is ${address}`);
-      }
-      const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('safeos-onboarding') || '{}').state || {});
-      if (saved.isComplete !== true) fail(`setup is saved as isComplete ${saved.isComplete}`);
-      if (saved.cameraPermissionGranted !== false || saved.microphonePermissionGranted !== false) {
-        fail(`the permissions are saved as camera ${saved.cameraPermissionGranted}, microphone ${saved.microphonePermissionGranted}, not false and false`);
-      }
-      console.log(`checked setup with no camera: ${label}, ended at ${address} and stayed after a reload`);
-    } catch (err) {
-      fail(`${err.message.split('\n')[0]} (at ${new URL(page.url()).pathname})`);
-    } finally {
-      await context.close();
-    }
-  };
-
-  // A refused request, at both widths and in both looks.
-  await walk({ name: 'camera refused', picture: 'refused', size: PHONE, look: 'dark', answer: 'NotAllowedError', expected: CAMERA_WORDS.refused });
-  await walk({ name: 'camera refused', picture: 'refused', size: DESKTOP, look: 'light', answer: 'NotAllowedError', expected: CAMERA_WORDS.refused });
-  // No camera on the device, with "Default camera" chosen.
-  await walk({ name: 'no camera found', picture: 'none-found', size: PHONE, look: 'light', answer: 'NotFoundError', expected: CAMERA_WORDS.noneFound });
-  // The runner's own headless browser, with nothing answering for it. The
-  // runner has no camera, so its browser finds none.
-  await walk({ name: "the runner's own browser", picture: 'own-browser', size: DESKTOP, look: 'dark', expected: CAMERA_WORDS.noneFound });
-  // No request at all, at the narrowest width, by keyboard, with the scenario
-  // step's "Continue" on the way.
-  await walk({ name: 'no request, by keyboard', picture: 'first', size: NARROW, look: 'dark', request: false, keyboard: true, scenario: true });
-  // After a refused request at the narrowest width, by keyboard.
-  await walk({ name: 'camera refused, by keyboard', picture: 'refused', size: NARROW, look: 'light', answer: 'NotAllowedError', expected: CAMERA_WORDS.refused, keyboard: true });
-
-  for (const p of problems) console.error(`failed setup-without-camera check: ${p}`);
-  return problems.length;
 }
