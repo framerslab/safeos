@@ -181,19 +181,32 @@ function groupBy<T>(records: T[], key: (record: T) => string): Map<string, T[]> 
 /**
  * The frames to mark as seen so that each alert keeps its seen state when the
  * frames in `removed` go (the frame limit removes the oldest seen frames): a
- * run that is seen and keeps frames, none of them marked, has its first kept
- * frame marked. `frames` is one group, as groupAlerts counts it (one pet's
- * frames that raised an alert, or People's), cut into runs as groupAlerts
- * cuts them.
+ * run that is seen keeps its seen state in every run its kept frames make,
+ * since a removed frame can leave a gap that cuts the run in two. Each such
+ * run with no frame marked has its first frame marked. `frames` is one group,
+ * as groupAlerts counts it (one pet's frames that raised an alert, or
+ * People's), cut into runs as groupAlerts cuts them.
  */
 export function seenAfterRemoval<T extends { id: string; acknowledged: boolean }>(frames: T[], removed: ReadonlySet<string>): T[] {
   const marks: T[] = [];
   for (const run of runsOf(frames)) {
     if (!run.some((timed) => timed.record.acknowledged === true)) continue;
-    const kept = run.filter((timed) => !removed.has(timed.record.id));
-    if (kept.length > 0 && !kept.some((timed) => timed.record.acknowledged === true)) marks.push(kept[0].record);
+    const kept = run.filter((timed) => !removed.has(timed.record.id)).map((timed) => timed.record);
+    for (const part of runsOf(kept)) {
+      if (!part.some((timed) => timed.record.acknowledged === true)) marks.push(part[0].record);
+    }
   }
   return marks;
+}
+
+/**
+ * Whether a Lost and Found frame is part of an alert: it raised the alert, or,
+ * saved before the `alerted` field, it reaches the alert threshold as it is
+ * set now (0 to 100).
+ */
+export function matchFrameAlerted(frame: Pick<MatchFrameDB, 'alerted' | 'confidence'>, alertThreshold: number): boolean {
+  if (typeof frame.alerted === 'boolean') return frame.alerted;
+  return frame.confidence >= alertThreshold;
 }
 
 const animalWord = (type: unknown) => (type === 'unknown_animal' || typeof type !== 'string' || type === '' ? 'animal' : type);
@@ -237,11 +250,9 @@ export function groupAlerts(records: SavedRecords): DeviceAlert[] {
   // is saved, is a pet or another thing, and the frame raised the alert. A
   // frame saved before the `alerted` field is judged by the threshold as it
   // is set now.
-  const counted = records.matchFrames.filter((frame) => {
-    if (!subjects.has(frame.subjectId)) return false;
-    if (typeof frame.alerted === 'boolean') return frame.alerted;
-    return frame.confidence >= records.alertThreshold;
-  });
+  const counted = records.matchFrames.filter((frame) => (
+    subjects.has(frame.subjectId) && matchFrameAlerted(frame, records.alertThreshold)
+  ));
   for (const [subjectId, frames] of groupBy(counted, (frame) => frame.subjectId)) {
     const name = subjects.get(subjectId)?.name ?? '';
     for (const run of runsOf(frames)) alerts.push(alertOfRun(run, 'lost-found', `Colours like ${name}’s`, pictureOf(run[0].record)));

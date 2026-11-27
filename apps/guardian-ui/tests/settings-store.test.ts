@@ -50,7 +50,6 @@ interface DetectionZone {
 
 interface AudioSettings {
   frequencyRange: 'all' | 'baby_cry' | 'pet_sounds' | 'elderly_fall' | 'custom';
-  backgroundNoiseFilter: boolean;
   customLowFreq: number;
   customHighFreq: number;
 }
@@ -274,7 +273,6 @@ class SettingsStore {
   detectionZones: DetectionZone[] = [...DEFAULT_DETECTION_ZONES];
   audioSettings: AudioSettings = {
     frequencyRange: 'all',
-    backgroundNoiseFilter: true,
     customLowFreq: 20,
     customHighFreq: 20000,
   };
@@ -436,7 +434,6 @@ class SettingsStore {
     this.detectionZones = [...DEFAULT_DETECTION_ZONES];
     this.audioSettings = {
       frequencyRange: 'all',
-      backgroundNoiseFilter: true,
       customLowFreq: 20,
       customHighFreq: 20000,
     };
@@ -761,7 +758,6 @@ describe('Settings Store', () => {
 
     it('should have default audio settings', () => {
       expect(store.audioSettings.frequencyRange).toBe('all');
-      expect(store.audioSettings.backgroundNoiseFilter).toBe(true);
     });
 
     it('should update frequency range', () => {
@@ -780,10 +776,6 @@ describe('Settings Store', () => {
       expect(store.audioSettings.customHighFreq).toBe(3000);
     });
 
-    it('should toggle background noise filter', () => {
-      store.updateAudioSettings({ backgroundNoiseFilter: false });
-      expect(store.audioSettings.backgroundNoiseFilter).toBe(false);
-    });
   });
 
   describe('Timing Settings', () => {

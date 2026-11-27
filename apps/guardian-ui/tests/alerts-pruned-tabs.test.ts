@@ -2,10 +2,9 @@
 /**
  * Frames the limit removes, in every tab
  *
- * A device keeps up to 500 Lost and Found frames and 100 of People's. A save
- * past the limit removes the oldest frames marked as seen, and the tabs hear
- * of it after the removal, so a tab that reads the frames when it hears does
- * not keep showing the removed ones.
+ * At the limit, the oldest seen pictures go first. People's library also
+ * removes its oldest unseen pictures if it has more than 100. Tabs hear of
+ * the removal after it finishes.
  */
 
 import { openDB } from 'idb';
@@ -148,4 +147,97 @@ it("keeps a People's alert seen when the limit removes the only frame of its run
   expect(frames).toHaveLength(100);
   expect(frames.map((frame) => frame.id)).not.toContain('people-0');
   expect(frames.find((frame) => frame.id === 'people-1')?.acknowledged).toBe(true);
+});
+
+it('keeps the newest 100 of 130 unseen People pictures', async () => {
+  await getAllIntrusionFrames();
+  await empty('intrusion_frame');
+  await fill('intrusion_frame', Array.from({ length: 129 }, (_, i) => person(`unseen-${i}`, i + 1000, false)));
+
+  await saveIntrusionFrame(person('unseen-129', 1129, false));
+
+  // The save itself keeps 100; the read below would trim the store too.
+  const database = await openDB('safeos-guardian');
+  try {
+    expect((await database.getAllKeys('intrusion_frame')).sort()).toEqual(
+      Array.from({ length: 100 }, (_, i) => `unseen-${30 + i}`).sort(),
+    );
+  } finally {
+    database.close();
+  }
+
+  const kept = await getAllIntrusionFrames();
+  expect(kept).toHaveLength(100);
+  expect(kept.map((frame) => frame.id)).toEqual(Array.from({ length: 100 }, (_, i) => `unseen-${129 - i}`));
+  expect(kept.every((frame) => !frame.acknowledged)).toBe(true);
+});
+
+it('repairs a People picture store already over its limit when the pictures are opened', async () => {
+  await getAllIntrusionFrames();
+  await empty('intrusion_frame');
+  await fill('intrusion_frame', Array.from({ length: 130 }, (_, i) => (
+    person(`older-${i}`, i * 60_000, i === 129)
+  )));
+
+  const kept = await getAllIntrusionFrames();
+
+  expect(kept).toHaveLength(100);
+  expect(kept[0]?.id).toBe('older-128');
+  expect(kept[99]?.id).toBe('older-29');
+  const database = await openDB('safeos-guardian');
+  try {
+    expect(await database.count('intrusion_frame')).toBe(100);
+  } finally {
+    database.close();
+  }
+});
+
+// Removing a seen frame from the middle of a run can leave a gap over 30
+// seconds, which cuts the run in two. Both parts stay seen.
+it("keeps both parts of a People's seen alert seen when the limit removes the frame between them", async () => {
+  await getAllIntrusionFrames();
+  await empty('intrusion_frame');
+  await fill('intrusion_frame', Array.from({ length: 100 }, (_, i) => person(`split-${i}`, 1_000_000 + i * 20_000, i === 50)));
+
+  await saveIntrusionFrame(person('split-100', 1_000_000 + 100 * 20_000, false));
+
+  const frames = await getAllIntrusionFrames();
+  expect(frames.map((frame) => frame.id)).not.toContain('split-50');
+  const alerts = groupAlerts({
+    alerts: [], intrusionFrames: frames, sightings: [], matchFrames: [], alertThreshold: 70, subjects: [],
+  });
+  expect(alerts.filter((alert) => alert.way === 'security').map((alert) => alert.seen)).toEqual([true, true]);
+});
+
+// A frame saved before `alerted` counts in its alert only when it reaches the
+// alert threshold as it is set now (70 by default). The limit cuts runs from
+// the same frames, so a frame under the threshold never joins a seen run to
+// another alert, and an unseen alert never takes the seen mark.
+it('keeps an unseen Lost and Found alert new when an older frame under the threshold sat between it and a seen one', async () => {
+  await getAllMatchFrames();
+  await empty('match_frame');
+  const start = 2_000_000;
+  await fill('match_frame', [
+    ...Array.from({ length: 498 }, (_, i) => ({ ...match(`other-${i}`, 1000 + i, false), subjectId: 'pet-2' })),
+    match('older-1', start, true),
+    match('older-2', start + 20_000, false),
+    { ...match('older-3', start + 40_000, true), confidence: 10 },
+  ]);
+
+  await saveMatchFrame(match('older-4', start + 60_000, false));
+
+  const frames = await getAllMatchFrames();
+  expect(frames.map((frame) => frame.id)).not.toContain('older-1');
+  expect(frames.map((frame) => frame.id)).not.toContain('older-3');
+  const alerts = groupAlerts({
+    alerts: [], intrusionFrames: [], sightings: [], matchFrames: frames, alertThreshold: 70,
+    subjects: [{
+      id: 'pet-1', name: 'Mittens', type: 'pet', description: '', fingerprint: null, referenceImages: [],
+      createdAt: '2026-01-01T00:00:00.000Z', lastActiveAt: null, matchCount: 0,
+    }],
+  });
+  expect(alerts.filter((alert) => alert.way === 'lost-found').map((alert) => [alert.id, alert.seen])).toEqual([
+    ['older-4', false],
+    ['older-2', true],
+  ]);
 });

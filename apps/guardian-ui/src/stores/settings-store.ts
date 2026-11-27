@@ -59,9 +59,23 @@ export interface DetectionZone {
 
 export interface AudioSettings {
   frequencyRange: 'all' | 'baby_cry' | 'pet_sounds' | 'elderly_fall' | 'custom';
-  backgroundNoiseFilter: boolean;
   customLowFreq: number;   // Hz
   customHighFreq: number;  // Hz
+}
+
+const DEFAULT_AUDIO_SETTINGS: AudioSettings = {
+  frequencyRange: 'all',
+  customLowFreq: 20,
+  customHighFreq: 20000,
+};
+
+/** Read the pitch settings from either a saved preference or an imported file. */
+function readAudioSettings(saved: Partial<AudioSettings> | undefined, fallback: AudioSettings): AudioSettings {
+  return {
+    frequencyRange: saved?.frequencyRange ?? fallback.frequencyRange,
+    customLowFreq: saved?.customLowFreq ?? fallback.customLowFreq,
+    customHighFreq: saved?.customHighFreq ?? fallback.customHighFreq,
+  };
 }
 
 export interface TimingSettings {
@@ -566,6 +580,8 @@ interface SettingsState {
   
   // Audio settings
   audioSettings: AudioSettings;
+  // An online voice the person chose in this browser.
+  spokenAlertVoiceURI: string | null;
   
   // Timing settings
   timingSettings: TimingSettings;
@@ -611,6 +627,7 @@ interface SettingsState {
   
   // Audio settings actions
   updateAudioSettings: (settings: Partial<AudioSettings>) => void;
+  setSpokenAlertVoice: (voiceURI: string | null) => void;
   
   // Timing settings actions
   updateTimingSettings: (settings: Partial<TimingSettings>) => void;
@@ -670,12 +687,8 @@ export const useSettingsStore = create<SettingsState>()(
       globalSettings: { ...DEFAULT_PRESETS.maximum },
       scenarioOverrides: {},
       detectionZones: [...DEFAULT_DETECTION_ZONES],
-      audioSettings: {
-        frequencyRange: 'all',
-        backgroundNoiseFilter: true,
-        customLowFreq: 20,
-        customHighFreq: 20000,
-      },
+      audioSettings: { ...DEFAULT_AUDIO_SETTINGS },
+      spokenAlertVoiceURI: null,
       timingSettings: {
         cooldownPeriod: 30,
         minimumMotionDuration: 500,
@@ -815,6 +828,8 @@ export const useSettingsStore = create<SettingsState>()(
       },
       
       // Audio settings actions
+      setSpokenAlertVoice: (voiceURI) => set({ spokenAlertVoiceURI: voiceURI }),
+
       updateAudioSettings: (settings) => {
         set((state) => ({
           audioSettings: { ...state.audioSettings, ...settings },
@@ -966,7 +981,7 @@ export const useSettingsStore = create<SettingsState>()(
             globalSettings: data.globalSettings || DEFAULT_PRESETS.maximum,
             scenarioOverrides: data.scenarioOverrides || {},
             detectionZones: data.detectionZones || DEFAULT_DETECTION_ZONES,
-            audioSettings: data.audioSettings || get().audioSettings,
+            audioSettings: readAudioSettings(data.audioSettings, get().audioSettings),
             timingSettings: data.timingSettings || get().timingSettings,
             severityCooldowns: data.severityCooldowns || get().severityCooldowns,
             quietHoursSettings: data.quietHoursSettings || get().quietHoursSettings,
@@ -989,12 +1004,8 @@ export const useSettingsStore = create<SettingsState>()(
           activeSleepPreset: null,
           scenarioOverrides: {},
           detectionZones: [...DEFAULT_DETECTION_ZONES],
-          audioSettings: {
-            frequencyRange: 'all',
-            backgroundNoiseFilter: true,
-            customLowFreq: 20,
-            customHighFreq: 20000,
-          },
+          audioSettings: { ...DEFAULT_AUDIO_SETTINGS },
+          spokenAlertVoiceURI: null,
           timingSettings: {
             cooldownPeriod: 30,
             minimumMotionDuration: 500,
@@ -1040,6 +1051,14 @@ export const useSettingsStore = create<SettingsState>()(
       // A browser that refuses storage keeps the change for the visit; the
       // settings pages say it was not saved, and nothing throws.
       storage: createJSONStorage(() => guardedStorage),
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<SettingsState> | undefined;
+        return {
+          ...current,
+          ...saved,
+          audioSettings: readAudioSettings(saved?.audioSettings, current.audioSettings),
+        };
+      },
       partialize: (state) => ({
         settingsSourceId: state.settingsSourceId,
         activePresetId: state.activePresetId,
@@ -1048,6 +1067,7 @@ export const useSettingsStore = create<SettingsState>()(
         scenarioOverrides: state.scenarioOverrides,
         detectionZones: state.detectionZones,
         audioSettings: state.audioSettings,
+        spokenAlertVoiceURI: state.spokenAlertVoiceURI,
         timingSettings: state.timingSettings,
         severityCooldowns: state.severityCooldowns,
         quietHoursSettings: state.quietHoursSettings,
