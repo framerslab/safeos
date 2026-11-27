@@ -325,9 +325,10 @@ jobs:
           done
           node scripts/alert-picture-captures.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/alert-pictures" "$RUNNER_TEMP/sample-clip.y4m" "$RUNNER_TEMP/sample-clip.wav"
 
-      # Enrols the Lost and Found example's three photos as a person would,
+      # Enrols the Lost and Found example's photos as a person would, the
+      # three of them (set A) and photo 1 alone (set B, the home page run's),
       # watches the sample clip through the fake camera at the app's default
-      # settings and fails when the watch does not alert. Its result,
+      # settings and fails when the watch does not alert for a set. Its result,
       # lost-found-probe.json, goes into the capture's folder, so the
       # home-pictures artifact carries it. It runs after a failed capture as
       # well, but not in a run that was cancelled.
