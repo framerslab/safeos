@@ -36,7 +36,7 @@ not count what this device keeps." and its keys still work.
 sign-out. They retain the device's server connection so the next account can
 sign in to the same server. Clear all data on this device also removes that connection. Saved frames, history, subjects, sounds and settings do not carry over
 to the next person using that browser. Both actions also remove this device's
-setup record, so the next person goes through setup and its notice. Export
+setup record, so the next person goes through setup again. Export
 anything you want to keep first.
 This removes local copies; it does not delete records held by a connected server.
 Log Out asks the server to end the session and waits at most 15 seconds for its
