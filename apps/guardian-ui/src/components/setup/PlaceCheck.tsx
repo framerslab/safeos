@@ -101,7 +101,8 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
   const [drawn, setDrawn] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const zones = useSettingsStore((state) => state.detectionZones);
-  const levels = useLiveLevels(stream, video, { zones, line: lines.motion }, reducedMotion ? 250 : 100);
+  // With motion alerts off the bar has no line; the measure still runs, against the top of the bar.
+  const levels = useLiveLevels(stream, video, { zones, line: lines.motion ?? 100 }, reducedMotion ? 250 : 100);
   const stoppedRef = useRef(onStopped);
   stoppedRef.current = onStopped;
 
@@ -158,7 +159,7 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
 
   const motion = state === 'on' ? levels.motion ?? 0 : 0;
   const sound = state === 'on' ? levels.sound ?? 0 : 0;
-  const motionLine = levels.motionLine ?? lines.motion;
+  const motionLine = lines.motion === null ? null : levels.motionLine ?? lines.motion;
 
   // The frame's sentence, said once the state becomes off, stopped or failed.
   const [frameSaid, setFrameSaid] = useState('');
@@ -171,7 +172,7 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
   const wasOver = useRef({ motion: false, sound: false });
   const lastSaid = useRef({ motion: -Infinity, sound: -Infinity });
   const clearSaid = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const motionOver = state === 'on' && motion >= motionLine;
+  const motionOver = state === 'on' && motionLine !== null && motion >= motionLine;
   const soundOver = state === 'on' && microphone && lines.sound !== null && sound >= lines.sound;
   useEffect(() => {
     const now = Date.now();

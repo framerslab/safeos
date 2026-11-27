@@ -3,7 +3,7 @@
  *
  * Each bar's line stands where the watch will alert once setup ends with the
  * answer shown chosen: 100 less the sensitivity of the setting the watch will
- * read for that use. The Motion and Audio set for a use on Settings,
+ * read for that use, and no line where that setting raises no such alert. The Motion and Audio set for a use on Settings,
  * Detection go over the setting through the watch's own rule
  * (effectiveSettings), so a change to that rule moves the watch's lines and
  * setup's together.
@@ -15,18 +15,25 @@ import { DEFAULT_PRESETS, effectiveSettings, type ScenarioOverrides, type Securi
 import { USE_SETTING, type SetupUse } from './setup-steps';
 
 export interface AlertLines {
-  /** Where the motion alert starts, 0 to 100. */
-  motion: number;
+  /** Where the motion alert starts, 0 to 100, or null where the setting has motion alerts off. */
+  motion: number | null;
   /** Where the sound alert starts, or null where the setting raises no sound alert. */
   sound: number | null;
 }
 
 const held = (value: number) => Math.max(0, Math.min(100, value));
 
-/** 100 less each sensitivity, as the watch reads it; no sound line where the setting does not listen for an alert. */
-export function linesOf(setting: Pick<SecurityPreset, 'motionSensitivity' | 'audioSensitivity' | 'audioDetectionEnabled'>): AlertLines {
+/**
+ * 100 less each sensitivity, as the watch reads it; no motion line where the
+ * setting has motion alerts off (the watch reads no motion then), and no
+ * sound line where it does not listen for an alert.
+ */
+export function linesOf(
+  setting: Pick<SecurityPreset, 'motionSensitivity' | 'audioSensitivity' | 'audioDetectionEnabled'> &
+    Partial<Pick<SecurityPreset, 'motionDetectionEnabled'>>,
+): AlertLines {
   return {
-    motion: held(100 - setting.motionSensitivity),
+    motion: setting.motionDetectionEnabled === false ? null : held(100 - setting.motionSensitivity),
     sound: setting.audioDetectionEnabled ? held(100 - setting.audioSensitivity) : null,
   };
 }

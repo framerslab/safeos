@@ -1,7 +1,9 @@
 /**
  * The last key of setup: a press with no use names what is missing; a press
  * with a use writes setup's record, then ends the camera and opens the
- * dashboard or the way named, in place of setup in the browser's history.
+ * dashboard or the way named, in place of setup in the browser's history:
+ * from step 2 the browser first returns to step 1's entry, and the page takes
+ * that entry's place (lib/setup-history, leaveSetup).
  * When the browser refuses to store the record, the first press says so and
  * the second opens the page for this visit.
  *
@@ -14,6 +16,7 @@ import { useCallback, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { WAYS, type Way } from './app-routes';
 import { finishSetup, type SetupAnswers, type SetupRun } from './setup-answers';
+import { leaveSetup } from './setup-history';
 import type { SetupUse } from './setup-steps';
 
 export type LastKeyState = 'rest' | 'opening' | 'unsaved';
@@ -73,7 +76,7 @@ export function useFinish(options: FinishOptions): { state: LastKeyState; press:
     stage.current = 'opening';
     setState('opening');
     closeCamera();
-    router.replace(finishHref(way));
+    leaveSetup(() => router.replace(finishHref(way)));
   }, [router]);
 
   return { state, press };

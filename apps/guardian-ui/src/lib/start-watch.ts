@@ -34,15 +34,20 @@ export interface StartChoice {
  * The way last watched. Lost and Found only while its pet is saved and is a
  * subject of the kind pet or other; in every other case Motion and sound.
  * A Lost and Found way that names no pet is setup's answer before any watch
- * has run: it takes the first saved pet in the order the subjects are given
- * (the device's saved subjects, newest first), and with none saved it stays
- * Lost and Found with no pet, which the line and the key say.
+ * has run: it takes the first subject of the kind pet in the order the
+ * subjects are given (the device's saved subjects, newest first), as the
+ * watch's Watch for takes one (lib/next-way, petForWatch): a thing saved as
+ * an object is the watch's only once chosen. With none saved it stays Lost
+ * and Found with no pet, which the line and the key say.
  */
 export function startChoice(last: LastWay | null, subjects: SubjectProfileDB[]): StartChoice {
   if (!last || last.way === 'monitor') return { way: 'monitor' };
   if (last.way === 'lost-found') {
     const pets = subjects.filter((subject) => subject.type === 'pet' || subject.type === 'other');
-    if (last.pet === undefined) return pets.length > 0 ? { way: 'lost-found', pet: pets[0] } : { way: 'lost-found' };
+    if (last.pet === undefined) {
+      const newest = pets.find((subject) => subject.type === 'pet');
+      return newest ? { way: 'lost-found', pet: newest } : { way: 'lost-found' };
+    }
     const pet = pets.find((subject) => subject.id === last.pet);
     return pet ? { way: 'lost-found', pet } : { way: 'monitor' };
   }

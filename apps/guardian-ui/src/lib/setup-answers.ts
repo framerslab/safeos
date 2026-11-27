@@ -123,7 +123,8 @@ export type SetupRun = 'first' | 'again';
  * answered; the saved camera removed when Use the default camera was pressed;
  * the saved choice of Lost and Found on every run; the way the dashboard's
  * start reads, so the dashboard follows setup's answer until a watch has run:
- * Lost and Found with no pet when a lost pet is the answer, and Motion and
+ * Lost and Found with no pet when a lost pet is the answer (a way that is
+ * Lost and Found with its pet already stays as it is), and Motion and
  * sound when another answer follows a finish that left Lost and Found with no
  * pet; then isComplete. True when every write of the setup record took and
  * the browser gives the site its storage at all.
@@ -150,7 +151,9 @@ export function finishSetup(answers: SetupAnswers, run: SetupRun, usedBefore: Se
   took = tried(() => onboarding().setLostFoundChosen(answers.lostFound)) && took;
   // The way the dashboard's start reads; a refused write is held for the visit.
   if (answers.lostFound) {
-    rememberWay('lost-found');
+    // A run again after a watch of Lost and Found keeps the pet it watched.
+    const last = readLastWay();
+    if (!(last?.way === 'lost-found' && last.pet !== undefined)) rememberWay('lost-found');
   } else {
     const last = readLastWay();
     if (last?.way === 'lost-found' && last.pet === undefined) rememberWay('monitor');
