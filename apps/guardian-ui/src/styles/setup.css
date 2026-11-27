@@ -1,0 +1,222 @@
+/* =============================================================================
+   Setup: the frame
+   Setup's two steps share one column: Back and the step's glyph in one row,
+   the step, and on a phone the look row under the first screen. Every
+   colour and size comes from the look's tokens.
+   ============================================================================= */
+
+.setup {
+  container: setup / inline-size;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  margin-inline: auto;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  color: var(--color-steel-50);
+}
+
+@media (min-width: 48em) {
+  .setup {
+    max-width: 48rem;
+    padding-inline: max(32px, env(safe-area-inset-left, 0px)) max(32px, env(safe-area-inset-right, 0px));
+  }
+}
+
+@media (min-width: 64em) {
+  .setup {
+    max-width: 79rem;
+  }
+}
+
+@media (min-width: 90em) {
+  .setup {
+    max-width: 90.5rem;
+    padding-inline: max(64px, env(safe-area-inset-left, 0px)) max(64px, env(safe-area-inset-right, 0px));
+  }
+}
+
+/* The screen's height under the top bar holds the Back row and the step alone. */
+.setup-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100svh - var(--site-header-height) - env(safe-area-inset-top, 0px));
+}
+
+.setup-step {
+  flex: 1 0 auto;
+}
+
+.setup-step[data-entered='change'] {
+  animation: setup-in 200ms ease-out;
+}
+
+@keyframes setup-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.setup-back-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+}
+
+.setup-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  min-width: 64px;
+  padding: 0 8px 0 0;
+  border-radius: 4px;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.setup-back:hover {
+  background: var(--color-steel-900);
+}
+
+.setup-back:active {
+  transform: translateY(1px);
+}
+
+.setup-back svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.setup-progress {
+  display: block;
+  flex: none;
+  width: 52px;
+  height: 4px;
+}
+
+.setup-progress__on {
+  fill: var(--look-accent);
+}
+
+.setup-progress__off {
+  fill: none;
+  stroke: var(--color-steel-300);
+  stroke-width: 1;
+}
+
+.setup-progress--under {
+  display: none;
+  margin-top: 8px;
+}
+
+/* At large text the glyph leaves the Back row and stands under the heading. */
+@container setup (max-width: 12em) {
+  .setup-back-row .setup-progress {
+    display: none;
+  }
+
+  .setup-progress--under {
+    display: block;
+  }
+}
+
+.setup-heading {
+  margin: 8px 0 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  font-size: 1.875rem;
+  line-height: 2.875rem;
+  color: var(--color-steel-50);
+  text-wrap: balance;
+}
+
+@media (min-width: 48em) {
+  .setup-heading {
+    font-size: 2.5rem;
+    line-height: 3.75rem;
+  }
+}
+
+@media (min-width: 64em) {
+  .setup-heading {
+    font-size: 3rem;
+    line-height: 4.5rem;
+  }
+}
+
+/* Focus moved by script is not a ring a person asked for; the next Tab shows it. */
+.setup-heading:focus {
+  outline: none;
+}
+
+.setup-look {
+  margin-top: 32px;
+}
+
+@media (min-width: 48em) {
+  .setup-look {
+    display: none;
+  }
+}
+
+.setup-look-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--color-steel-300);
+  background: transparent;
+  color: var(--color-steel-50);
+  font-family: var(--font-sans);
+  font-size: var(--type-word-size);
+  line-height: var(--type-word-line);
+  font-weight: var(--weight-bold);
+  text-align: left;
+}
+
+.setup-look-row:hover {
+  background: var(--color-steel-900);
+}
+
+.setup-look-row:active {
+  transform: translateY(1px);
+}
+
+.setup-look-row__glyph {
+  display: inline-flex;
+  flex: none;
+  width: 22px;
+  height: 22px;
+}
+
+.setup-look-row--place {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .setup-step[data-entered='change'] {
+    animation: none;
+  }
+
+  .setup-back:active,
+  .setup-look-row:active {
+    transform: none;
+  }
+}

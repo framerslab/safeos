@@ -13,7 +13,15 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { StepFrame, StepHeading } from '@/components/setup/StepFrame';
 import { useThemeStore } from '@/lib/theme-manager';
-import { bare, words } from './helpers/served-html';
+
+// The served-html helpers load jsdom themselves, which this environment
+// cannot (it has no TextEncoder), so their two readers are written here as
+// they are there: an element's words as a reader takes them, with a straight
+// and a curly apostrophe as one; an address without its closing slash, which
+// next/link drops outside a build.
+const words = (element: Element | null | undefined) =>
+  (element?.textContent || '').replace(/\u2019/g, "'").replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+const bare = (address: string | null | undefined) => (address || '').replace(/(?<=[^/])\/(?=$|[?#])/, '');
 
 const HEADING = 'Use this device to watch a place';
 
