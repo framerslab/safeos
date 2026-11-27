@@ -2,14 +2,14 @@
 // Run with: node --test scripts/home-run-scripts.test.mjs (needs ffmpeg).
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { copyFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkFlashFrames, spool } from './home-run-frames.mjs';
 import { checkHeldAlert } from './home-run-held.mjs';
-import { cssReferences } from './home-run-inputs.mjs';
+import { cssReferences, recordingInputs, verifyBundle } from './home-run-inputs.mjs';
 import { omittedRuns, recipes, recordAgainOnSlowStart } from './home-run-list.mjs';
 import { barredWording } from './home-wording.cjs';
 
@@ -192,4 +192,53 @@ test('a variant whose camera starts slowly is recorded again, at most twice, and
     throw new Error('The possible sighting left the frame');
   }, () => {}), /left the frame/);
   assert.equal(tries, 1, 'Only a slow camera start is recorded again');
+});
+
+test('every script the recorder loads for a run is a recording input', () => {
+  // The scripts home-runs.mjs loads, directly or through the run list and the Lost and Found helpers.
+  const loaded = new Set();
+  const load = (file) => {
+    if (loaded.has(file)) return;
+    loaded.add(file);
+    const code = readFileSync(path.join(scripts, file), 'utf8');
+    for (const [, specifier] of code.matchAll(/(?:\bfrom|\bimport|\brequire)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/g)) {
+      const target = path.relative(scripts, path.resolve(scripts, path.dirname(file), specifier));
+      if (!target.startsWith('..')) load(target.split(path.sep).join('/'));
+    }
+  };
+  load('home-runs.mjs');
+  for (const file of ['home-run-list.mjs', 'lost-found-walk.mjs', 'lost-found-verdict.mjs']) {
+    assert.ok(loaded.has(file), 'The recorder does not load ' + file);
+  }
+  const prefix = path.relative(path.resolve(scripts, '../../..'), scripts).split(path.sep).join('/') + '/';
+  const { inputs } = recordingInputs(recipes.map(({ id }) => id));
+  const missing = [...loaded].filter((file) => !Object.hasOwn(inputs, prefix + file));
+  assert.deepEqual(missing, [], 'The recorder loads scripts that are not recording inputs: ' + missing.join(', '));
+});
+
+// A copy of the committed home folder whose Lost and Found entry says the recorder gave the page `enrolled`.
+function homeEnrolling(enrolled) {
+  const folder = mkdtempSync(path.join(scratch, 'home-'));
+  cpSync(path.join(scripts, '..', 'public', 'home'), path.join(folder, 'home'), { recursive: true });
+  const manifestFile = path.join(folder, 'home', 'runs', 'runs.json');
+  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  const run = manifest.runs.find(({ id }) => id === 'lost-found');
+  if (enrolled === undefined) delete run.enrolled;
+  else run.enrolled = enrolled;
+  writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
+  return folder;
+}
+
+test('the committed Lost and Found run names the photos the recorder gave the page, with their SHA-256', () => {
+  const photos = JSON.parse(readFileSync(path.join(scripts, '..', 'public', 'home', 'lost-found', 'photos.json'), 'utf8')).photos;
+  const given = (file) => ({ file, sha256: photos.find((photo) => photo.file === file).sha256 });
+  const photo1 = given('home/lost-found/photo-1.jpg');
+  const photo2 = given('home/lost-found/photo-2.jpg');
+  assert.doesNotThrow(() => verifyBundle(homeEnrolling([photo1])));
+  // Photo 2 given while the recipe's photos stay photo 1 alone.
+  assert.throws(() => verifyBundle(homeEnrolling([photo2])), /enrolled/);
+  assert.throws(() => verifyBundle(homeEnrolling([photo1, photo2])), /enrolled/);
+  // Photo 1's name with other bytes.
+  assert.throws(() => verifyBundle(homeEnrolling([{ ...photo1, sha256: photo2.sha256 }])), /enrolled/);
+  assert.throws(() => verifyBundle(homeEnrolling(undefined)), /enrolled/);
 });

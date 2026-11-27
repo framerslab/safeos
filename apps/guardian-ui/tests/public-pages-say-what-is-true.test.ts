@@ -202,6 +202,10 @@ const UNBACKED_CLAIMS: Phrase[] = [
     why: 'the hybrid setting only slows the same local matcher from 500 to 900 ms (monitor/page.tsx)',
   },
   {
+    pattern: /900 ms in the others/i,
+    why: 'Lost and Found has two processing modes, local and hybrid (lost-found-store.ts), and every 900 ms is not twice a second (monitor/page.tsx)',
+  },
+  {
     pattern: /local\/offline AI|browser-based vision AI/i,
     why: 'the monitor runs no model; COCO-SSD runs on Security and Wildlife only',
   },
