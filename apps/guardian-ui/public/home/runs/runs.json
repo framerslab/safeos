@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "commit": "70c13b7166a45ef73490c01f9ba66a2d7b33b764",
-  "run": "https://github.com/framerslab/safeos/actions/runs/46039124559",
-  "inputDigest": "70dd2bb3bea56b6c8e99b41d8add620c4e7c8d0216bfa90120288df7c8e8ded0",
+  "commit": "84eee246406ce7dc16d447418e3be60b159565e7",
+  "run": "https://github.com/framerslab/safeos/actions/runs/46059739041",
+  "inputDigest": "d490d2e5bdd17d9d2015a5d078ff5f471c245e8a1a28e188779d0472a90a8c6c",
   "inputs": {
     ".github/workflows/pictures.yml#record-home-runs": "5f18cbe7c55be3c92fb9c5e617d1d532d6fd3e28",
     "apps/guardian-ui/next.config.js": "99fd32331c349da96aea4e32dfb61f4a5c1f8fc5",
@@ -73,7 +73,7 @@
     "apps/guardian-ui/src/components/layout/SiteShell.tsx": "d2cea7a210b00768e1935b5d501b582d6e9a2140",
     "apps/guardian-ui/src/components/layout/index.tsx": "c276b18e5c62fcd10d2ae546f1d853986909c0e7",
     "apps/guardian-ui/src/components/monitor/ExpandableSection.tsx": "a126f05007492c0f652114ef0dbc834f122dbebc",
-    "apps/guardian-ui/src/components/monitor/InlineSettingsPanel.tsx": "5caff37e29edf80e39d1982cfbe15ce95e1ed0fb",
+    "apps/guardian-ui/src/components/monitor/InlineSettingsPanel.tsx": "ea1a87d4f838271b28f855b70a696d4bb70e5275",
     "apps/guardian-ui/src/components/monitor/Tooltip.tsx": "419d61b2e06d51857de7656b0f11f813f20f6f02",
     "apps/guardian-ui/src/components/monitor/WatchFor.tsx": "dd0817603e9c5370d6abe183029cebc14b67fa9c",
     "apps/guardian-ui/src/components/monitor/index.ts": "78bd6085a434af9d98fc0872c2b469faae27973d",
@@ -86,7 +86,7 @@
     "apps/guardian-ui/src/components/settings/SettingsList.tsx": "809a610f1dfd34d1d6738093b8bcb7924916a286",
     "apps/guardian-ui/src/components/settings/StorageLine.tsx": "befbefe03b7167c63d08e48705d40fed3eafc82d",
     "apps/guardian-ui/src/components/settings/glyphs.tsx": "73074b479b274ed269d4e8f4ba2eda3af949d683",
-    "apps/guardian-ui/src/components/visitor/GitHubLink.tsx": "21bd81a5de7963cf2aa9e8e4aa0294a26f04aeda",
+    "apps/guardian-ui/src/components/visitor/GitHubLink.tsx": "1e2fbdde78bb73c4641766c4a22068d42b58c6df",
     "apps/guardian-ui/src/components/visitor/LookSwitch.tsx": "6381f0db00ec56237a2c6707b66a5f6014263e32",
     "apps/guardian-ui/src/components/visitor/MakerMark.tsx": "99b977e9916008d5b101e21a792f2b1da3e7e0ef",
     "apps/guardian-ui/src/components/visitor/Num.tsx": "b04f4792a7af1d41d4b73226bf67ce28b6dfaab6",
@@ -113,7 +113,7 @@
     "apps/guardian-ui/src/lib/animal-detection.ts": "a3f5eadf5dd3536d6bdedfbf4c30d137ef07d31d",
     "apps/guardian-ui/src/lib/animal-kinds.ts": "7b77673ce6a058038dc08b12d5a9528a339610b2",
     "apps/guardian-ui/src/lib/app-routes.ts": "7d0dc8dd872b7ae71c75a8ada5adb7252c3be3b3",
-    "apps/guardian-ui/src/lib/audio-levels.ts": "490e403805c62bfb544aa384dd7504819831cb66",
+    "apps/guardian-ui/src/lib/audio-levels.ts": "28654201437f50e81cd5d89a7607b33c3e712f17",
     "apps/guardian-ui/src/lib/browser-asks.ts": "de1119900141339ad7ed922653218eb031b9c848",
     "apps/guardian-ui/src/lib/browser-notification.ts": "d7e30ccd49656488d7308f1a961156137e3ad57a",
     "apps/guardian-ui/src/lib/camera-constraints.ts": "cc73d282a0f0d9833bc5497b1fb63da1ae17b93c",
@@ -294,8 +294,8 @@
         "Motion crosses its line and a movement alert arrives.",
         "The watch scrolls to Alerts and holds the movement alert and its picture in view."
       ],
-      "eventAt": 3.8635001182556152,
-      "posterAt": 0.28668999671936035,
+      "eventAt": 3.8683998584747314,
+      "posterAt": 0.2826817035675049,
       "visibleWords": [
         "Motion",
         "Quiet",
@@ -317,8 +317,8 @@
               "width": 984,
               "height": 984,
               "seconds": 9,
-              "bytes": 284969,
-              "sha256": "e777af66e127ab9170c04aad029cb24f8638f3ca263da4ef8b16b588bd37853b"
+              "bytes": 277951,
+              "sha256": "d2d03fa64207b5aa2e5cebe05bc78c2e0e268442486f41b718ee0f5b1e38e9fe"
             },
             "poster": {
               "webp": {
@@ -351,8 +351,8 @@
               "height": 328
             },
             "scale": 3,
-            "eventAt": 3.8635001182556152,
-            "posterAt": 0.28668999671936035,
+            "eventAt": 3.8683998584747314,
+            "posterAt": 0.2826817035675049,
             "words": [
               {
                 "word": "Motion",
@@ -396,23 +396,23 @@
               "sound": 8
             },
             "posterReading": {
-              "clipAt": 22.278059005737305
+              "clipAt": 22.288818836212158
             },
             "motionLine": 13,
-            "motionOverAt": 3.2565839290618896,
-            "pictureAt": 4.085393905639648,
+            "motionOverAt": 3.2623648643493652,
+            "pictureAt": 4.097892761230469,
             "watchEvents": [
               {
                 "kind": "motion",
-                "at": "1795799340273",
-                "clipAt": 25.867019
+                "at": "1795809414708",
+                "clipAt": 25.866889
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Medium, 5:09:00 PM."
+                "body": "Medium, 7:56:54 PM."
               }
             ]
           },
@@ -425,8 +425,8 @@
               "width": 984,
               "height": 984,
               "seconds": 9,
-              "bytes": 277101,
-              "sha256": "e6de8bac5488f26eb023cd6c698fca3508124b902ac061cde8f6d8802ac52dda"
+              "bytes": 276297,
+              "sha256": "b3fdcee4e7829964d05b4b52cf70e206b8808dd68995f8eddc8c5f8c961bf321"
             },
             "poster": {
               "webp": {
@@ -459,8 +459,8 @@
               "height": 328
             },
             "scale": 3,
-            "eventAt": 3.8701999187469482,
-            "posterAt": 0.3239750862121582,
+            "eventAt": 3.8665997982025146,
+            "posterAt": 0.3300149440765381,
             "words": [
               {
                 "word": "Motion",
@@ -504,23 +504,23 @@
               "sound": 8
             },
             "posterReading": {
-              "clipAt": 22.317118883132935
+              "clipAt": 22.317252159118652
             },
             "motionLine": 13,
-            "motionOverAt": 3.2595760822296143,
-            "pictureAt": 4.118718147277832,
+            "motionOverAt": 3.2605109214782715,
+            "pictureAt": 4.029635906219482,
             "watchEvents": [
               {
                 "kind": "motion",
-                "at": "1795799359663",
-                "clipAt": 25.867057
+                "at": "1795809431906",
+                "clipAt": 25.866912
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Medium, 5:09:19 PM."
+                "body": "Medium, 7:57:11 PM."
               }
             ]
           }
@@ -535,8 +535,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 9,
-              "bytes": 1090647,
-              "sha256": "92f379145adef0771ccad609c57795417ad9af99c06f78d82c835fbf964ed9a9"
+              "bytes": 1168271,
+              "sha256": "a46d6d528a48aec381c91849f56d56bac7e5f0b7f4e33f0d4eb5e7d3c52f4c1e"
             },
             "poster": {
               "webp": {
@@ -545,8 +545,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 104360,
-                "sha256": "c6f2d253db1aa4ba7693b6f00c6491625c9729a6a4e4b3e4eb196edf6daf4ebd"
+                "bytes": 102200,
+                "sha256": "d529d6a737ea4d771641ca455ab9709b04cb5d28b7325993777c353a738072b3"
               },
               "avif": {
                 "path": "home/runs/watching-wide-dark.avif",
@@ -554,8 +554,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 68964,
-                "sha256": "72b4b2c46aa8bf45aa8473411c1b193da2079fb82a5ec579ea78edfbd13a14b9"
+                "bytes": 66196,
+                "sha256": "7d47eebbf4505e14b66365eb8b16370e0955af538a8052962e1b1a3816d3990c"
               }
             },
             "viewport": {
@@ -569,116 +569,8 @@
               "height": 480
             },
             "scale": 2.5,
-            "eventAt": 3.737300157546997,
-            "posterAt": 1.8567309379577637,
-            "words": [
-              {
-                "word": "Motion",
-                "size": 16,
-                "x": 16,
-                "y": 442.8000183105469,
-                "width": 53.868751525878906,
-                "height": 19.600006103515625,
-                "inkHeight": 13
-              },
-              {
-                "word": "Quiet",
-                "size": 16,
-                "x": 331.8625183105469,
-                "y": 442.8000183105469,
-                "width": 40.137481689453125,
-                "height": 19.600006103515625,
-                "inkHeight": 13
-              },
-              {
-                "word": "Sound",
-                "size": 16,
-                "x": 396,
-                "y": 442.8000183105469,
-                "width": 49.71875,
-                "height": 19.600006103515625,
-                "inkHeight": 12
-              },
-              {
-                "word": "Quiet",
-                "size": 16,
-                "x": 711.8624877929688,
-                "y": 442.8000183105469,
-                "width": 40.13751220703125,
-                "height": 19.600006103515625,
-                "inkHeight": 13
-              }
-            ],
-            "meterPeaks": {
-              "motion": 35,
-              "sound": 8
-            },
-            "posterReading": {
-              "clipAt": 24.00577402114868
-            },
-            "motionLine": 13,
-            "motionOverAt": 3.727916955947876,
-            "pictureAt": 4.046002149581909,
-            "watchEvents": [
-              {
-                "kind": "motion",
-                "at": "1795799378863",
-                "clipAt": 25.867192
-              }
-            ],
-            "notifications": [
-              {
-                "path": "service-worker",
-                "title": "Motion alert",
-                "body": "Medium, 5:09:38 PM."
-              }
-            ]
-          },
-          "light": {
-            "video": {
-              "path": "home/runs/watching-wide-light.mp4",
-              "kind": "video",
-              "format": "mp4",
-              "codec": "h264",
-              "width": 1920,
-              "height": 1200,
-              "seconds": 9,
-              "bytes": 1108301,
-              "sha256": "c436339e1491987ba3f8893e196f5cfabb50868b31c2310c28d1e2a593c8a437"
-            },
-            "poster": {
-              "webp": {
-                "path": "home/runs/watching-wide-light.webp",
-                "kind": "poster",
-                "format": "webp",
-                "width": 1920,
-                "height": 1200,
-                "bytes": 106448,
-                "sha256": "35d9cd19e07f2dd3c752cb2479ab6ad19b4f2c0a5d9d9def082008f082278e3c"
-              },
-              "avif": {
-                "path": "home/runs/watching-wide-light.avif",
-                "kind": "poster",
-                "format": "avif",
-                "width": 1920,
-                "height": 1200,
-                "bytes": 69790,
-                "sha256": "8cd455b24fbd6c1acff208e154e465390985f8ef201272b9f928ef4f7879695f"
-              }
-            },
-            "viewport": {
-              "width": 768,
-              "height": 548
-            },
-            "crop": {
-              "x": 0,
-              "y": 68,
-              "width": 768,
-              "height": 480
-            },
-            "scale": 2.5,
-            "eventAt": 3.875999927520752,
-            "posterAt": 1.1497149467468262,
+            "eventAt": 3.8616998195648193,
+            "posterAt": 0.298569917678833,
             "words": [
               {
                 "word": "Motion",
@@ -722,23 +614,131 @@
               "sound": 7
             },
             "posterReading": {
-              "clipAt": 23.215172052383423
+              "clipAt": 22.313703060150146
             },
             "motionLine": 13,
-            "motionOverAt": 3.3387019634246826,
-            "pictureAt": 4.212171792984009,
+            "motionOverAt": 3.2962427139282227,
+            "pictureAt": 4.232724905014038,
             "watchEvents": [
               {
                 "kind": "motion",
-                "at": "1795799400245",
-                "clipAt": 25.933631
+                "at": "1795809449140",
+                "clipAt": 25.866934999999998
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Medium, 5:10:00 PM."
+                "body": "Medium, 7:57:29 PM."
+              }
+            ]
+          },
+          "light": {
+            "video": {
+              "path": "home/runs/watching-wide-light.mp4",
+              "kind": "video",
+              "format": "mp4",
+              "codec": "h264",
+              "width": 1920,
+              "height": 1200,
+              "seconds": 9,
+              "bytes": 755395,
+              "sha256": "3e7b024da608a480bbe4ef180b8caae861a33bad377ff85984631e33db67869d"
+            },
+            "poster": {
+              "webp": {
+                "path": "home/runs/watching-wide-light.webp",
+                "kind": "poster",
+                "format": "webp",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 101772,
+                "sha256": "d3117a1a65b11c972f2d27cabde1b9b2cbe712883e5bea6dfc2cc9e3a796a5f9"
+              },
+              "avif": {
+                "path": "home/runs/watching-wide-light.avif",
+                "kind": "poster",
+                "format": "avif",
+                "width": 1920,
+                "height": 1200,
+                "bytes": 66047,
+                "sha256": "bece47742e7cf09242421e0f05b28cf55cdc7bb102fc5c05ca4f60537bd4363e"
+              }
+            },
+            "viewport": {
+              "width": 768,
+              "height": 548
+            },
+            "crop": {
+              "x": 0,
+              "y": 68,
+              "width": 768,
+              "height": 480
+            },
+            "scale": 2.5,
+            "eventAt": 3.86080002784729,
+            "posterAt": 0.29684996604919434,
+            "words": [
+              {
+                "word": "Motion",
+                "size": 16,
+                "x": 16,
+                "y": 442.8000183105469,
+                "width": 53.868751525878906,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Quiet",
+                "size": 16,
+                "x": 331.8625183105469,
+                "y": 442.8000183105469,
+                "width": 40.137481689453125,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              },
+              {
+                "word": "Sound",
+                "size": 16,
+                "x": 396,
+                "y": 442.8000183105469,
+                "width": 49.71875,
+                "height": 19.600006103515625,
+                "inkHeight": 12
+              },
+              {
+                "word": "Quiet",
+                "size": 16,
+                "x": 711.8624877929688,
+                "y": 442.8000183105469,
+                "width": 40.13751220703125,
+                "height": 19.600006103515625,
+                "inkHeight": 13
+              }
+            ],
+            "meterPeaks": {
+              "motion": 35,
+              "sound": 8
+            },
+            "posterReading": {
+              "clipAt": 22.301403045654297
+            },
+            "motionLine": 13,
+            "motionOverAt": 3.3269050121307373,
+            "pictureAt": 4.194799900054932,
+            "watchEvents": [
+              {
+                "kind": "motion",
+                "at": "1795809468255",
+                "clipAt": 25.866926
+              }
+            ],
+            "notifications": [
+              {
+                "path": "service-worker",
+                "title": "Motion alert",
+                "body": "Medium, 7:57:48 PM."
               }
             ]
           }
@@ -766,14 +766,14 @@
         "looked",
         "Movement",
         "at",
-        "5:11",
+        "7:59",
         "PM",
         "Motion",
         "and",
         "sound",
         "Sound",
         "at",
-        "5:11",
+        "7:59",
         "PM",
         "Motion",
         "and",
@@ -796,8 +796,8 @@
               "width": 984,
               "height": 984,
               "seconds": 7,
-              "bytes": 297780,
-              "sha256": "c0a1cab7cc5d55412552b61f5dc76c22ccd2a422bc71fdbd1d30c4e4a9094993"
+              "bytes": 331301,
+              "sha256": "4aecf2f5b7bb531b7f7d5b12633d75d555740bab6199d084adc619ed9efe5e43"
             },
             "poster": {
               "webp": {
@@ -806,8 +806,8 @@
                 "format": "webp",
                 "width": 984,
                 "height": 984,
-                "bytes": 37438,
-                "sha256": "9c6bad8795d5b4f8b46d9288907f0270bcdb1a26b20300a33df40181ce2090ea"
+                "bytes": 38192,
+                "sha256": "f943bdfbb7c1288575a31d786216010c7ebcccfba3a981f50235e218da5ce36f"
               },
               "avif": {
                 "path": "home/runs/dashboard-square-dark.avif",
@@ -815,8 +815,8 @@
                 "format": "avif",
                 "width": 984,
                 "height": 984,
-                "bytes": 28202,
-                "sha256": "9e77aa028ae59e3f1c2115e6b64c29f44752aa2df1d930c28eaa4281024ceb6e"
+                "bytes": 28875,
+                "sha256": "d764a25de172f701918e7f0501b7b0197ff14669f5f724913a13d4a81ed3a52f"
               }
             },
             "viewport": {
@@ -888,7 +888,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "5:11",
+                "word": "7:59",
                 "size": 18,
                 "x": 207.875,
                 "y": 81,
@@ -951,7 +951,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "5:11",
+                "word": "7:59",
                 "size": 18,
                 "x": 172.77084350585938,
                 "y": 150,
@@ -1050,29 +1050,29 @@
                 "inkHeight": 18
               }
             ],
-            "pictureAt": 2.613499879837036,
+            "pictureAt": 2.6099002361297607,
             "watchEvents": [
               {
                 "kind": "sound",
-                "at": "1795799483939",
-                "clipAt": 6.267088
+                "at": "1795809553525",
+                "clipAt": 6.266957
               },
               {
                 "kind": "motion",
-                "at": "1795799499937",
-                "clipAt": 22.266908
+                "at": "1795809569523",
+                "clipAt": 22.266781
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 5:11:23 PM."
+                "body": "Medium, 7:59:13 PM."
               },
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Low, 5:11:39 PM."
+                "body": "Low, 7:59:29 PM."
               }
             ]
           },
@@ -1085,8 +1085,8 @@
               "width": 984,
               "height": 984,
               "seconds": 7,
-              "bytes": 282959,
-              "sha256": "ff8deffd4bc2f7062fd529b5521e9280346093a346d7349e0fed4bf5139b6ccb"
+              "bytes": 306282,
+              "sha256": "7a42d3c11c9e6321d1e42db4e6834625da6dad676024015e30285d703f6e7b90"
             },
             "poster": {
               "webp": {
@@ -1095,8 +1095,8 @@
                 "format": "webp",
                 "width": 984,
                 "height": 984,
-                "bytes": 37818,
-                "sha256": "af38158b1e6bc5542a9197cb69523565962c908df2f2760874884396d593b80f"
+                "bytes": 38544,
+                "sha256": "053fec302b4965262ceb0c8ac4fc9b7514cbdb06d7f664cbeb277751ffb70a43"
               },
               "avif": {
                 "path": "home/runs/dashboard-square-light.avif",
@@ -1104,8 +1104,8 @@
                 "format": "avif",
                 "width": 984,
                 "height": 984,
-                "bytes": 29034,
-                "sha256": "5e31a66d46c930986584c0c626549d4d7d71c5c6415356c40a47f3a87b9a7387"
+                "bytes": 29590,
+                "sha256": "3653f0d528d8021a1ab3c7bb6d74329779253cc3098d061b9715f5aeef12edbe"
               }
             },
             "viewport": {
@@ -1119,7 +1119,7 @@
               "height": 328
             },
             "scale": 3,
-            "eventAt": 2.001500129699707,
+            "eventAt": 2.0019001960754395,
             "posterAt": 0,
             "words": [
               {
@@ -1177,7 +1177,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "5:12",
+                "word": "8:00",
                 "size": 18,
                 "x": 207.875,
                 "y": 81,
@@ -1240,7 +1240,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "5:11",
+                "word": "7:59",
                 "size": 18,
                 "x": 172.77084350585938,
                 "y": 150,
@@ -1339,29 +1339,29 @@
                 "inkHeight": 18
               }
             ],
-            "pictureAt": 2.5994999408721924,
+            "pictureAt": 2.482800006866455,
             "watchEvents": [
               {
                 "kind": "sound",
-                "at": "1795799518328",
-                "clipAt": 6.267076
+                "at": "1795809586659",
+                "clipAt": 6.267017
               },
               {
                 "kind": "motion",
-                "at": "1795799534326",
-                "clipAt": 22.266888
+                "at": "1795809602656",
+                "clipAt": 22.266893
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 5:11:58 PM."
+                "body": "Medium, 7:59:46 PM."
               },
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Low, 5:12:14 PM."
+                "body": "Low, 8:00:02 PM."
               }
             ]
           }
@@ -1376,8 +1376,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 7,
-              "bytes": 441832,
-              "sha256": "7ef3d20ac9724487c98ce71c8feb4babadfba9c5a8f195b8dc31de543882f305"
+              "bytes": 462535,
+              "sha256": "8b1da7d8498349fdf4a0d6ead675876dc75a721b27b00e6cd444fe737ccbc570"
             },
             "poster": {
               "webp": {
@@ -1386,8 +1386,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 43864,
-                "sha256": "c42ecc8603e4f544f9ef3c27ae278cd62d8385fdc11b9d3a104bf3a8d6a00448"
+                "bytes": 44586,
+                "sha256": "761e6d2e549b677b60a00460dc9abdd2afca65bd345b093a6ebdd6d98c35f538"
               },
               "avif": {
                 "path": "home/runs/dashboard-wide-dark.avif",
@@ -1395,8 +1395,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 49690,
-                "sha256": "026c0abba364b5356856d6ef09eb4a37a8fe3b9ccbd8dee1bc685bc02f5f1850"
+                "bytes": 50625,
+                "sha256": "1d70d3abe14585885425b953d2ad3e849a667d94bd07f8d16e10e992c86ab8e7"
               }
             },
             "viewport": {
@@ -1410,7 +1410,7 @@
               "height": 400
             },
             "scale": 3,
-            "eventAt": 2.0012001991271973,
+            "eventAt": 2.00219988822937,
             "posterAt": 0,
             "words": [
               {
@@ -1468,7 +1468,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "5:12",
+                "word": "8:00",
                 "size": 18,
                 "x": 207.875,
                 "y": 130,
@@ -1531,7 +1531,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "5:12",
+                "word": "8:00",
                 "size": 18,
                 "x": 172.77084350585938,
                 "y": 199,
@@ -1630,29 +1630,29 @@
                 "inkHeight": 18
               }
             ],
-            "pictureAt": 2.678299903869629,
+            "pictureAt": 2.356415033340454,
             "watchEvents": [
               {
                 "kind": "sound",
-                "at": "1795799552671",
-                "clipAt": 6.267019
+                "at": "1795809619717",
+                "clipAt": 6.266924
               },
               {
                 "kind": "motion",
-                "at": "1795799568668",
-                "clipAt": 22.266846
+                "at": "1795809635715",
+                "clipAt": 22.266838
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 5:12:32 PM."
+                "body": "Medium, 8:00:19 PM."
               },
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Low, 5:12:48 PM."
+                "body": "Low, 8:00:35 PM."
               }
             ]
           },
@@ -1665,8 +1665,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 7,
-              "bytes": 461558,
-              "sha256": "f7d40c1ad8fc48f3b0732cd6576648d2b430f85df8d1012ef74e3e421979f2d0"
+              "bytes": 458240,
+              "sha256": "3f53c30b8a2053c050f49cd8420c77055b70baeee9e2cd3d6f676fb1e72a6101"
             },
             "poster": {
               "webp": {
@@ -1675,8 +1675,8 @@
                 "format": "webp",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 44516,
-                "sha256": "e13cc529bf4e74490547279e94531b7203594f2eea399d6df8f4ed5ef4614108"
+                "bytes": 44928,
+                "sha256": "e807c748ff57f01729f0f4f04c47fcdc2a6576978fe1af4d11daf7ab0312471e"
               },
               "avif": {
                 "path": "home/runs/dashboard-wide-light.avif",
@@ -1684,8 +1684,8 @@
                 "format": "avif",
                 "width": 1920,
                 "height": 1200,
-                "bytes": 52452,
-                "sha256": "1d5a098821cdede0e1e6680fd3ecf65d69a2682dc4ddd4fa225cdb8c5215aefd"
+                "bytes": 53003,
+                "sha256": "bfae2ab6b1c09c932318813ba0f3263eafc71de5fecbd743eb5a9a957830f5ad"
               }
             },
             "viewport": {
@@ -1699,7 +1699,7 @@
               "height": 400
             },
             "scale": 3,
-            "eventAt": 2.001000165939331,
+            "eventAt": 2.000999927520752,
             "posterAt": 0,
             "words": [
               {
@@ -1757,7 +1757,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "5:13",
+                "word": "8:01",
                 "size": 18,
                 "x": 207.875,
                 "y": 130,
@@ -1820,7 +1820,7 @@
                 "inkHeight": 13
               },
               {
-                "word": "5:13",
+                "word": "8:00",
                 "size": 18,
                 "x": 172.77084350585938,
                 "y": 199,
@@ -1919,29 +1919,29 @@
                 "inkHeight": 18
               }
             ],
-            "pictureAt": 2.423305034637451,
+            "pictureAt": 2.401960849761963,
             "watchEvents": [
               {
                 "kind": "sound",
-                "at": "1795799587159",
-                "clipAt": 6.267031
+                "at": "1795809652886",
+                "clipAt": 6.266977
               },
               {
                 "kind": "motion",
-                "at": "1795799603156",
-                "clipAt": 22.266909
+                "at": "1795809668884",
+                "clipAt": 22.266857
               }
             ],
             "notifications": [
               {
                 "path": "service-worker",
                 "title": "Sound alert",
-                "body": "Medium, 5:13:07 PM."
+                "body": "Medium, 8:00:52 PM."
               },
               {
                 "path": "service-worker",
                 "title": "Motion alert",
-                "body": "Low, 5:13:23 PM."
+                "body": "Low, 8:01:08 PM."
               }
             ]
           }
@@ -1990,8 +1990,8 @@
               "width": 984,
               "height": 984,
               "seconds": 6,
-              "bytes": 343274,
-              "sha256": "5910b197aeeb002310cce44171563f251bb66383d98c2a5e87047ed6c0716342"
+              "bytes": 387643,
+              "sha256": "822ce333a7a2e12bbc63831b02167f297164f916e5f9481c93dc592f11b16e7e"
             },
             "poster": {
               "webp": {
@@ -2164,8 +2164,8 @@
               "width": 984,
               "height": 984,
               "seconds": 6,
-              "bytes": 387547,
-              "sha256": "04af5ffac84b74927702d41d7ab1cced39631b929559c116225a9c82535fad40"
+              "bytes": 255047,
+              "sha256": "e01a7316a0b5978c08c17823902a46121c66853ace2bb363f0f92f344fdab951"
             },
             "poster": {
               "webp": {
@@ -2340,8 +2340,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 6,
-              "bytes": 267518,
-              "sha256": "06cb9d18639f0d573a667e91bfa44255ca5a03b98cf8a0c49eb5a08e431299a4"
+              "bytes": 254471,
+              "sha256": "48949dd3d1b42393cecdaea958d35e1bcaba87021a33f1e947f06ac0f3a2d503"
             },
             "poster": {
               "webp": {
@@ -2658,8 +2658,8 @@
               "width": 1920,
               "height": 1200,
               "seconds": 6,
-              "bytes": 249887,
-              "sha256": "5594b546cc52aef78a8fd2c6630d8e22268b31e880ea189acb282d1a15fdbc3b"
+              "bytes": 269743,
+              "sha256": "6953ef86b69136cedd312d0e5dbc57ed5ac5d0cc35ed9551a25ca5f354e078b1"
             },
             "poster": {
               "webp": {
