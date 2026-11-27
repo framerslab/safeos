@@ -371,6 +371,9 @@ export class CustomMediaPlayer {
         src: [audio.data],
         format: [audio.mimeType.split('/')[1] || 'mp3'],
         onend: () => {
+          // Howler reports the end from a timer, so a stopped playback's sound
+          // can end after the next playback began its own.
+          if (this.playbacks !== playback) return;
           // A finished sound is let go, so ending a pause never plays it again.
           this.stopCurrentAudio();
           this.callbacks.onAudioPlay?.(audio, this.state.currentAudioIndex);
@@ -422,6 +425,7 @@ export class CustomMediaPlayer {
     utterance.volume = 1.0;
     
     utterance.onend = () => {
+      if (this.playbacks !== playback) return;
       this.callbacks.onMessageSpeak?.(message, this.state.currentMessageIndex);
       this.continueLater(playback);
     };
