@@ -22,11 +22,14 @@ jest.mock('@/lib/browser-asks', () => ({
 const microphone = useMicrophoneAsk as jest.Mock;
 
 // The served-html helpers load jsdom themselves, which this environment
-// cannot (it has no TextEncoder), so their reader is written here as it is
-// there: an element's words as a reader takes them, with a straight and a
-// curly apostrophe as one.
+// cannot (it has no TextEncoder), so their readers are written here as they
+// are there: an element's words as a reader takes them, with a straight and a
+// curly apostrophe as one; a sentence read the same way; an address without
+// its closing slash, which next/link drops outside a build.
 const words = (element: Element | null | undefined) =>
   (element?.textContent || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+const plain = (text: string) => text.replace(/\u2019/g, "'").replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+const bare = (address: string | null | undefined) => (address || '').replace(/(?<=[^/])\/(?=$|[?#])/, '');
 
 const LEAD =
   'SafeOS watches with the camera and microphone and sounds an alert here when something moves, makes a sound or, for a lost pet, when its colours come into view.';
