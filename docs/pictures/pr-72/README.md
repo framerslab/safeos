@@ -1,7 +1,7 @@
 # Lost and Found on the home page, the FAQ answer and the blog post
 
-Paired captures from CI. [Pictures run](https://github.com/framerslab/safeos/actions/runs/46032645224)
-The before build uses `d70ec8f0e4bcbf315c90d66243aaa9ff50fb8141`. The after build is for the pull request head `c7eefbe8f0dfe992cef74410e6a7cda20a673ff3`.
+Paired captures from CI. [Pictures run](https://github.com/framerslab/safeos/actions/runs/46053993095)
+The before build uses `b53259885dbdb3ccbe955810227400a8071877c0`, the base on master. The after build is for the pull request head `ec654b7bec065cf3b33c17a0ddec44db555e96a6`.
 The home pictures show the recorded run the player holds at the moment of capture.
 
 | View | Before | After |
