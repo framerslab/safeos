@@ -101,6 +101,9 @@ export class CustomMediaPlayer {
   private playbacks = 0;
   // A sound or message that came due during a pause; it plays once the pause ends.
   private pausedStep: { voicesAwaited: boolean } | null = null;
+  // Waits for a voice when a message has none; it ends with its playback.
+  private voiceWait: (() => void) | null = null;
+  private noVoiceReportedFor = 0;
 
   constructor(
     config: Partial<CustomMediaConfig> = {},
@@ -178,6 +181,7 @@ export class CustomMediaPlayer {
     this.state.isPlaying = false;
     this.state.isPaused = false;
     this.pausedStep = null;
+    this.stopWaitingForVoice();
     
     this.callbacks.onPlaybackEnd?.(reason);
   }
@@ -307,7 +311,46 @@ export class CustomMediaPlayer {
       this.playNextAudio();
     } else if (voice) {
       this.speakNextMessage(voice);
+    } else if (wantsSpeech) {
+      this.waitForVoice();
     }
+  }
+
+  /**
+   * A message with no voice to read it, and no sound to play instead, is
+   * reported once and waits for the browser to list a voice.
+   */
+  private waitForVoice(): void {
+    const synth = this.speechSynth;
+    if (this.voiceWait) return;
+    if (this.noVoiceReportedFor !== this.playbacks) {
+      this.noVoiceReportedFor = this.playbacks;
+      this.callbacks.onError?.(new Error('No voice on this device can read the spoken message.'));
+    }
+    if (!synth || typeof synth.addEventListener !== 'function') return;
+    const playback = this.playbacks;
+    const listed = () => {
+      this.stopWaitingForVoice();
+      if (this.playbacks === playback) this.playNextMedia(true);
+    };
+    this.voiceWait = () => synth.removeEventListener('voiceschanged', listed);
+    synth.addEventListener('voiceschanged', listed);
+  }
+
+  private stopWaitingForVoice(): void {
+    this.voiceWait?.();
+    this.voiceWait = null;
+  }
+
+  /**
+   * The next step, 500 ms after a sound or message ends, belongs to the
+   * playback that scheduled it.
+   */
+  private continueLater(): void {
+    const playback = this.playbacks;
+    setTimeout(() => {
+      if (this.playbacks === playback) this.playNextMedia();
+    }, 500);
   }
 
   /**
@@ -331,19 +374,19 @@ export class CustomMediaPlayer {
           // A finished sound is let go, so ending a pause never plays it again.
           this.stopCurrentAudio();
           this.callbacks.onAudioPlay?.(audio, this.state.currentAudioIndex);
-          setTimeout(() => this.playNextMedia(), 500);
+          this.continueLater();
         },
         onloaderror: (_, error) => {
           console.error('[CustomMediaPlayer] Audio load error:', error);
           this.callbacks.onError?.(new Error(`Failed to load audio: ${audio.name}`));
-          setTimeout(() => this.playNextMedia(), 500);
+          this.continueLater();
         },
       });
       
       this.currentHowl.play();
     } catch (error) {
       console.error('[CustomMediaPlayer] Audio playback error:', error);
-      setTimeout(() => this.playNextMedia(), 500);
+      this.continueLater();
     }
   }
 
@@ -378,11 +421,11 @@ export class CustomMediaPlayer {
     
     utterance.onend = () => {
       this.callbacks.onMessageSpeak?.(message, this.state.currentMessageIndex);
-      setTimeout(() => this.playNextMedia(), 500);
+      this.continueLater();
     };
     
     utterance.onerror = () => {
-      setTimeout(() => this.playNextMedia(), 500);
+      this.continueLater();
     };
     
     this.cancelSpeech();

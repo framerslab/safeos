@@ -11,8 +11,10 @@ export function wildlifeShortfall(results) {
   if (results.wildlife.error) {
     return `Wildlife’s watch stopped before both plays of the sample clip (${results.wildlife.error}).`;
   }
+  const stopped = results.wildlife.attempts?.find((attempt) => attempt.error);
+  if (stopped) return `Wildlife’s watch ${stopped.attempt} stopped (${stopped.error}).`;
   if (results.wildlife.attempts?.length !== 2
-    || results.wildlife.attempts.some((attempt) => attempt.error || attempt.frameReads < 2 || !attempt.inferences.length)) {
+    || results.wildlife.attempts.some((attempt) => attempt.frameReads < 2 || !attempt.inferences.length)) {
     return 'Wildlife did not complete a model check through its motion gate on both plays of the sample clip.';
   }
   if (results.wildlife.attempts.some((attempt) => attempt.catSecond === null)) {

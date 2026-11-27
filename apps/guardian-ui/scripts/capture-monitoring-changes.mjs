@@ -172,6 +172,8 @@ try {
       });
       await open(page, '/settings/sounds/');
       await page.getByRole('slider', { name: 'Alert volume' }).waitFor();
+      // The voice list is read after the first render.
+      await page.locator('#spoken-alert-voice option', { hasText: /\(online\)$/ }).first().waitFor({ state: 'attached' });
       return page.locator('.set-on-page').first();
     });
 
@@ -181,6 +183,7 @@ try {
       });
       await open(page, '/settings/sounds/');
       await page.getByRole('slider', { name: 'Alert volume' }).waitFor();
+      await page.getByText('This browser offers no voice, so spoken alerts stay quiet.').waitFor();
       return page.locator('.set-on-page').first();
     });
   }

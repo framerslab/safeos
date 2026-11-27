@@ -14,11 +14,15 @@ export function SpokenAlertVoice() {
 
   useEffect(() => {
     const synth = window.speechSynthesis;
-    const read = () => setVoices(synth?.getVoices() ?? []);
-    read();
-    // A browser may fill an empty list without firing voiceschanged, so the
-    // list is read again after the wait a spoken alert gives it.
-    const reread = synth && synth.getVoices().length === 0 ? setTimeout(read, VOICE_LIST_WAIT_MS) : undefined;
+    const read = () => {
+      const listed = synth?.getVoices() ?? [];
+      setVoices(listed);
+      return listed;
+    };
+    // A browser may fill an empty list without firing voiceschanged, so an
+    // empty first read is read again after the wait a spoken alert gives it.
+    const first = read();
+    const reread = synth && first.length === 0 ? setTimeout(read, VOICE_LIST_WAIT_MS) : undefined;
     synth?.addEventListener('voiceschanged', read);
     return () => {
       clearTimeout(reread);
@@ -51,15 +55,17 @@ export function SpokenAlertVoice() {
         {online.map((voice) => <option key={voice.voiceURI} value={voice.voiceURI}>{voice.name} (online)</option>)}
       </select>
       <p id="spoken-alert-privacy" className="set-line">Some browsers’ voices send the alert’s words to the browser maker.</p>
-      {noLocal && (
-        <p id="spoken-alert-availability" className="set-line">
-          {choiceIsAvailable
-            ? 'This browser offers no voice that stays on this device.'
-            : online.length > 0
-              ? 'This browser offers no voice that stays on this device. Spoken alerts stay quiet unless you choose an online voice.'
-              : 'This browser offers no voice, so spoken alerts stay quiet.'}
-        </p>
-      )}
+      <div role="status" aria-live="polite">
+        {noLocal && (
+          <p id="spoken-alert-availability" className="set-line">
+            {choiceIsAvailable
+              ? 'This browser offers no voice that stays on this device.'
+              : online.length > 0
+                ? 'This browser offers no voice that stays on this device. Spoken alerts stay quiet unless you choose an online voice.'
+                : 'This browser offers no voice, so spoken alerts stay quiet.'}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
