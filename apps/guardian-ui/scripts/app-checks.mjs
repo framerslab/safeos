@@ -5415,6 +5415,15 @@ export async function checkApp(browser, baseUrl, outDir) {
   };
   const USE_NAMES = Object.keys(USE_WORDS);
   const useWords = async (page) => plain(await page.locator('#setup-use-words').innerText());
+  // A whole-page picture is taken from the top, once the chosen answer's words have faded in.
+  const settleForPicture = async (page) => {
+    await page.waitForTimeout(600);
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      window.scrollTo(0, 0);
+    });
+    await page.waitForTimeout(300);
+  };
   // The page scrolls smoothly; a walk that reads the end of the page jumps there.
   const toTheEnd = async (page) => {
     await page.evaluate(() => {
@@ -5877,6 +5886,7 @@ export async function checkApp(browser, baseUrl, outDir) {
               'Safe-sleep guidance from the NIH, opens in a new tab', 'Keep this device and its cord at least 3 feet (1 metre) from the crib.', 'Cord safety from the CPSC, opens in a new tab'];
             check(JSON.stringify(parts) === JSON.stringify(want), `A baby's words read ${JSON.stringify(parts)}`);
             if (width === 390) {
+              await settleForPicture(page);
               await page.screenshot({ path: path.join(outDir, `setup-baby-390-${look}.png`), fullPage: true });
               console.log(`captured setup-baby-390-${look}.png`);
             }
@@ -5890,6 +5900,7 @@ export async function checkApp(browser, baseUrl, outDir) {
             check(glyph && Math.abs(glyph.width - 24) <= 0.5, `A lost pet's glyph is ${glyph ? glyph.width : 'not'} px wide`);
             check(glyph && glyph.stroke === INK[look], `A lost pet's glyph is stroked ${glyph && glyph.stroke}, not ${INK[look]}`);
             check((await keyWords(page)) === 'Open Lost and Found', `with A lost pet the last key reads "${await keyWords(page)}"`);
+            await settleForPicture(page);
             await page.screenshot({ path: path.join(outDir, `setup-lost-pet-${width}-${look}.png`), fullPage: true });
             console.log(`captured setup-lost-pet-${width}-${look}.png`);
           }
