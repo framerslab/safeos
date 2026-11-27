@@ -12,6 +12,7 @@
 
 import type { SetupUse } from './setup-steps';
 import { useOnboardingStore } from '@/stores/onboarding-store';
+import { useCameraStore } from '@/stores/camera-store';
 
 export interface SetupAnswers {
   /** The statement stood on step 1 when a key there was pressed. */
@@ -60,5 +61,6 @@ export function writeNow(patch: Partial<SetupAnswers>): boolean {
     const microphone = patch.microphone;
     took = tried(() => store.setMicrophonePermission(microphone)) && took;
   }
+  if (patch.defaultCamera) took = tried(() => useCameraStore.getState().setDeviceId('')) && took;
   return took;
 }
