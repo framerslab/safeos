@@ -37,7 +37,8 @@
  * device sentence (the home page is read with the components it renders),
  * that each file describing the motion gate names the five-second check
  * during a Security alert, that the README names the cloud models the server
- * selects, that every public page has its own title, description, canonical
+ * selects and claims no sound detection in its folder map for an analyser the
+ * server never calls, that every public page has its own title, description, canonical
  * address and social card, that every internal link and every link into
  * the repository on GitHub has a destination, and that the blog's links to
  * lines of code are pinned to a commit and open the lines their words name.
@@ -675,6 +676,26 @@ describe('the public pages say what the software does', () => {
     expect(models.length).toBe(3);
     const readme = readable(README);
     expect(models.filter((m) => !readme.includes(m))).toEqual([]);
+  });
+
+  it('the README folder map claims no sound detection for an analyser the server never calls', () => {
+    const readFolder = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) return readFolder(full);
+        return entry.name.endsWith('.ts') ? [full] : [];
+      });
+    const audio = path.join(REPO_ROOT, 'src', 'lib', 'audio');
+    const callers = readFolder(path.join(REPO_ROOT, 'src'))
+      .filter((file) => !file.startsWith(audio + path.sep))
+      .filter((file) => /from '[^']*\/audio\//.test(fs.readFileSync(file, 'utf8')))
+      .map(rel);
+    const line = fs.readFileSync(README, 'utf8').split('\n').find((l) => /── audio\/\s+#/.test(l)) ?? '';
+    const said = line.slice(line.indexOf('#') + 1).trim();
+    if (callers.length === 0) {
+      expect([said, /detect|recogni|identif|classif/i.test(said)]).toEqual([said, false]);
+      expect(said).toMatch(/nothing in the server calls it/);
+    }
   });
 
   it('every internal link and every link into the repository has a destination', () => {
