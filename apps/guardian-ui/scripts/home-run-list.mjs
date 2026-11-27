@@ -637,12 +637,29 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   await sleepUntil(page, start, LOST_FOUND_START_AT);
   await scrollSubject(page, '.watch-frame__screen', crop.y + 4, 0);
   await settleEdges(page, crop, ['.watch-frame__screen'], { controls: false });
-  await pose(page, 'Start watching').click();
-  await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 3 * SECOND });
-  const liveAt = await browserTime(page);
-  if (liveAt - start > LOST_FOUND_START_AT + 1.5) {
-    throw Object.assign(new Error(`The camera took ${(liveAt - start).toFixed(2)} s to start`), { slowStart: true });
-  }
+  // The page notes the press and the moment the frame shows the live picture, so the time the
+  // recorder takes to ask is not counted as the camera's. The frame was settled in view just
+  // now, so the press skips the waits that make sure a key is still and in view.
+  await page.evaluate(() => {
+    const now = () => (performance.timeOrigin + performance.now()) / 1000;
+    window.homeStartTimes = { press: null, live: null };
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('button')?.textContent.trim() === 'Start watching') window.homeStartTimes.press ??= now();
+    }, { capture: true });
+    const observer = new MutationObserver(() => {
+      if (!document.querySelector('.watch-frame[data-phase="live"]')) return;
+      window.homeStartTimes.live = now();
+      observer.disconnect();
+    });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-phase'] });
+  });
+  await pose(page, 'Start watching').click({ force: true });
+  const slowStart = ({ press, live }) => Object.assign(new Error(`The camera took ${((live ?? Infinity) - start).toFixed(2)} s to start`
+    + ` (Start watching pressed at ${((press ?? Infinity) - start).toFixed(2)} s)`), { slowStart: true });
+  const live = await page.locator('.watch-frame[data-phase="live"]').waitFor({ timeout: 3 * SECOND }).then(() => true, () => false);
+  const { press: pressAt, live: liveAt } = await page.evaluate(() => window.homeStartTimes);
+  assert.ok(pressAt, 'Start watching did not receive a click');
+  if (!live || !liveAt || liveAt - start > LOST_FOUND_START_AT + 1.5) throw slowStart({ press: pressAt, live: liveAt });
 
   // 2–5 seconds: the watch compares the clip with Toffee's photo; the possible sighting arrives.
   const sightingBy = start + LOST_FOUND_HOLD_AT - 0.25;
@@ -653,7 +670,7 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   const arrival = events.find(({ kind }) => kind === 'sighting');
   assert.ok(arrival && arrival.observedAt <= sightingBy,
     `No possible sighting ${LOST_FOUND_HOLD_AT - LOST_FOUND_START_AT} s after Start watching: ` + JSON.stringify({ liveAt: liveAt - start, events }));
-  console.log(`Lost and Found: camera live at ${(liveAt - start).toFixed(2)} s, possible sighting at ${(arrival.observedAt - start).toFixed(2)} s, clip ${arrival.clipAt.toFixed(3)} s`);
+  console.log(`Lost and Found: Start watching pressed at ${(pressAt - start).toFixed(2)} s, camera live at ${(liveAt - start).toFixed(2)} s, possible sighting at ${(arrival.observedAt - start).toFixed(2)} s, clip ${arrival.clipAt.toFixed(3)} s`);
 
   // The entry's pictures are read before the hold, so the move into view is the hold's first step.
   const card = `.watch-list__body [data-alert-card][data-kind="sighting"][data-alert-at="${arrival.at}"]`;

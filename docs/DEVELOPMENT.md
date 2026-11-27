@@ -599,8 +599,10 @@ a photo taken on another day; photos 2 and 3 are stills from the recording the
 clip comes from, so the run never enrols them) and opens the watch from the
 page's Start Monitoring. Before the recording it opens the fake camera and
 microphone once and closes them, so the browser's capture service runs when
-Start watching is pressed; the camera must show within 1.5 seconds, and a
-variant whose camera starts later is recorded again, at most twice. It
+Start watching is pressed. The page notes the press and the moment the frame
+shows the live picture, which must come by 3.5 seconds into the run; a
+variant whose camera starts later is recorded again, at
+most twice. It
 holds Watch for with Toffee's one saved photo for
 two seconds, then presses Start watching, and the watch compares the sample
 clip at the app's default Lost and Found settings. The possible sighting must
