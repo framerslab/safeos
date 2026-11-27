@@ -45,10 +45,14 @@ export interface UseChoiceProps {
   onChoose: (choice: SetupChoice) => void;
 }
 
-/** A link to another site, named as one that opens in a new tab. */
+/**
+ * A link to another site, named as one that opens in a new tab. The name is
+ * also given whole, since a reader that takes the hidden words as a block of
+ * their own would put a space before the comma.
+ */
 function OutLink({ href, children }: { href: string; children: string }) {
   return (
-    <a className="link-row" href={href} target="_blank" rel="noopener noreferrer">
+    <a className="link-row" href={href} target="_blank" rel="noopener noreferrer" aria-label={`${children}, opens in a new tab`}>
       {children}
       <span className="sr-only">, opens in a new tab</span>
     </a>
