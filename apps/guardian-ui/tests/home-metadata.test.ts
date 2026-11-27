@@ -138,7 +138,7 @@ describe('structured data', () => {
   it('asks for what setup asks for: a camera, with a microphone for sound alerts only', () => {
     // Setup tries again without the microphone when a device has none, and
     // the monitor watches with the camera alone.
-    expect(fs.readFileSync(path.join(APP_ROOT, 'src', 'app', 'setup', 'page.tsx'), 'utf8')).toContain('audio: false');
+    expect(fs.readFileSync(path.join(APP_ROOT, 'src', 'lib', 'setup-camera.ts'), 'utf8')).toContain('cameraConstraints(deviceId, false)');
     expect(application.browserRequirements).toBe('Requires JavaScript and a camera; a microphone adds sound alerts');
   });
 

@@ -7064,41 +7064,36 @@ export async function checkApp(browser, baseUrl, outDir) {
     }
   }
 
-  if (partRuns("setup, Chromium's own camera")) try {
-    const real = await browser.browserType().launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
-    try {
-      const context = await real.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light' });
-      await context.grantPermissions(['camera', 'microphone'], { origin: new URL(baseUrl).origin });
-      const page = await context.newPage();
-      const what = (text) => `setup, Chromium's own camera at 390 px, light: ${text}`;
-      try {
-        await visit(page, '/setup/');
-        await step1Shown(page);
-        const on = await turnOn(page);
-        expect(on, what('Turn on the camera does not show the picture'));
-        const motion = new Set();
-        const sound = new Set();
-        for (let i = 0; i < 30; i += 1) {
-          const now = await page.evaluate(() => ({
-            motion: document.querySelector('[role="meter"][aria-label="Motion"]')?.getAttribute('aria-valuenow'),
-            sound: document.querySelector('[role="meter"][aria-label="Sound"]')?.getAttribute('aria-valuenow'),
-          }));
-          motion.add(now.motion);
-          sound.add(now.sound);
-          await page.waitForTimeout(100);
-        }
-        expect(motion.size >= 2, what(`Motion took ${motion.size} values in 3 s`));
-        expect(sound.size >= 2, what(`Sound took ${sound.size} values in 3 s`));
-      } catch (err) {
-        fail(what(err.message.split('\n')[0]));
-      } finally {
-        await context.close();
+  {
+    // A browser profile of its own, launched with Chromium's own fake camera and microphone.
+    const name = "setup, Chromium's own camera";
+    const check = (ok, what) => expect(ok, `${name} at 390 px, light: ${what}`);
+    await walk({ name, width: 390, look: 'light' }, async (made) => {
+      made.folder = await mkdtemp(path.join(os.tmpdir(), 'safeos-profile-'));
+      made.context = await browser.browserType().launchPersistentContext(made.folder, {
+        viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: 'light',
+        permissions: ['camera', 'microphone'],
+        args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'],
+      });
+      return made.context.pages()[0] || made.context.newPage();
+    }, async (page) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      check(await turnOn(page), 'Turn on the camera does not show the picture');
+      const motion = new Set();
+      const sound = new Set();
+      for (let i = 0; i < 30; i += 1) {
+        const now = await page.evaluate(() => ({
+          motion: document.querySelector('[role="meter"][aria-label="Motion"]')?.getAttribute('aria-valuenow'),
+          sound: document.querySelector('[role="meter"][aria-label="Sound"]')?.getAttribute('aria-valuenow'),
+        }));
+        motion.add(now.motion);
+        sound.add(now.sound);
+        await page.waitForTimeout(100);
       }
-    } finally {
-      await real.close();
-    }
-  } catch (err) {
-    fail(`setup, Chromium's own camera at 390 px, light: its browser did not start: ${err.message.split('\n')[0]}`);
+      check(motion.size >= 2, `Motion took ${motion.size} values in 3 s`);
+      check(sound.size >= 2, `Sound took ${sound.size} values in 3 s`);
+    }, check);
   }
 
   await open({ name: "setup, a pet's alert in History", width: 390, look: 'light' }, async (page, context, check) => {
