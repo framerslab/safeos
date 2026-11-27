@@ -39,8 +39,9 @@
  * address and social card, and that every internal link and every link into
  * the repository on GitHub has a destination.
  *
- * One sentence is allowed to name breathing and SIDS: the statement that
- * SafeOS is not a medical device. It is removed before the check.
+ * Two sentences are allowed to name breathing and SIDS: the statement that
+ * SafeOS is not a medical device, and the newer wording setup shows while A
+ * baby is chosen. They are removed before the check.
  */
 
 import fs from 'fs';
@@ -160,8 +161,10 @@ const CLIP_FILES = [
 // The one statement that may name breathing and SIDS (the not-a-medical-device
 // line); it is cut out before the phrases are matched.
 const MEDICAL_SENTENCE = 'SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.';
+const BABY_STATEMENT = 'SafeOS is not a medical device. It does not watch breathing or any vital sign and cannot detect or prevent SIDS. Follow safe-sleep guidance.';
 const ALLOWED_SENTENCES = [
   /SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS\./g,
+  /SafeOS is not a medical device\. It does not watch breathing or any vital sign and cannot detect or prevent SIDS\. Follow safe-sleep guidance\./g,
 ];
 
 type Phrase = { pattern: RegExp; why: string };
@@ -308,8 +311,9 @@ const UNBACKED_CLAIMS: Phrase[] = [
 // Lost and Found's screens: setup, the pet's cards, the gallery, the
 // full-screen pictures, the Lost & Found page and its gallery, the watch (the
 // notification and the link to the saved pictures) and the store (the spoken
-// line).
+// line), and the app's setup, where A lost pet is an answer.
 const LOST_FOUND_SCREENS = [
+  component('setup', 'UseChoice.tsx'),
   component('LostFoundSetup.tsx'),
   component('SubjectPreview.tsx'),
   component('MatchGallery.tsx'),
@@ -573,14 +577,20 @@ describe('the public pages say what the software does', () => {
     ];
     // The home page's words are in the components it renders, so it is read with them.
     const homeComponents = listFiles(component('home'), ['.tsx']);
+    // Setup's words are in its parts, so the setup page is read with them.
+    const setupPage = app('src', 'app', 'setup', 'page.tsx');
+    const setupParts = listFiles(component('setup'), ['.tsx', '.ts']);
     const missing: string[] = [];
     for (const page of pages) {
       const layout = path.join(path.dirname(page), 'layout.tsx');
-      const files = page === home ? [page, ...homeComponents] : [page, ...(fs.existsSync(layout) ? [layout] : [])];
+      const withParts = page === home ? homeComponents : page === setupPage ? setupParts : [];
+      const files = withParts.length ? [page, ...withParts] : [page, ...(fs.existsSync(layout) ? [layout] : [])];
       const own = files.map((f) => stripComments(f, fs.readFileSync(f, 'utf8'))).join('\n');
       if (!/\bbab(y|ies)\b/i.test(own)) continue;
-      const source = (page === home ? files : [page]).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
-      if (!source.includes('<NotAMedicalDevice') && !source.includes(MEDICAL_SENTENCE)) missing.push(rel(page));
+      const source = (withParts.length ? files : [page]).map((f) => fs.readFileSync(f, 'utf8')).join('\n');
+      if (!source.includes('<NotAMedicalDevice') && !source.includes(MEDICAL_SENTENCE) && !source.includes(BABY_STATEMENT)) {
+        missing.push(rel(page));
+      }
     }
     if (/\bbab(y|ies)\b/i.test(readable(README)) && !fs.readFileSync(README, 'utf8').includes(MEDICAL_SENTENCE)) {
       missing.push(rel(README));
