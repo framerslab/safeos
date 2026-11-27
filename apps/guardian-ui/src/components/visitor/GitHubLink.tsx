@@ -70,6 +70,8 @@ export function GitHubLink({ className, place, full = false, newTab = false, onC
   const stars = starCount();
   const inHeader = place === 'row';
   const tab = newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {};
+  /** A label, when the link has one, ends with the new-tab words too: it is the whole name. */
+  const named = (name: string) => (newTab ? `${name} ${NEW_TAB_WORDS}` : name);
 
   if (!stars) {
     return full ? (
@@ -79,7 +81,7 @@ export function GitHubLink({ className, place, full = false, newTab = false, onC
         {newTab && <NewTabWords />}
       </a>
     ) : (
-      <a href={GITHUB_URL} className={className} aria-label={githubLinkName(null)} onClick={onClick}>
+      <a href={GITHUB_URL} className={className} aria-label={named(githubLinkName(null))} onClick={onClick} {...tab}>
         {inHeader && <GitHubMark />}
         <span translate="no">GitHub</span>
       </a>
@@ -92,7 +94,7 @@ export function GitHubLink({ className, place, full = false, newTab = false, onC
       <a
         href={GITHUB_URL}
         className={className}
-        aria-label={inHeader ? headerLinkName(stars) : undefined}
+        aria-label={inHeader ? named(headerLinkName(stars)) : undefined}
         aria-describedby={described}
         onClick={onClick}
         {...tab}

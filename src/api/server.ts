@@ -88,18 +88,35 @@ const MAX_MISSED_HEARTBEATS = 3; // Disconnect after 3 missed heartbeats (90 sec
  * (capacitor.config.ts serves the app from capacitor://localhost on iOS and
  * https://localhost on Android) and http on localhost, 127.0.0.1 and [::1] at
  * any port, for development. With it set: the comma-separated origins it
- * lists and no other, read in small letters as a browser sends them. An entry
- * that is not an origin (a scheme and a host, with a port if any) can never
- * be allowed, and the server says so when it starts. A page on the server's
- * own address needs no CORS answer.
+ * lists and no other, read in small letters and without the scheme's default
+ * port, as a browser sends them. An entry that is not an origin (a scheme
+ * and a host, with a port if any) can never be allowed, and the server says
+ * so when it starts. A page on the server's own address needs no CORS answer.
  */
 const DEFAULT_ALLOWED_ORIGINS = ['https://safeos.sh', 'capacitor://localhost', 'https://localhost'];
 const LOCAL_DEVELOPMENT_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/;
 const AN_ORIGIN = /^[a-z][a-z0-9+.-]*:\/\/[^\s/?#@]+$/;
 
+/**
+ * A listed origin as a browser sends it: in small letters and, for http and
+ * https, without the scheme's default port (https://host:443 is sent as
+ * https://host). A scheme whose URLs have no origin, such as capacitor:, is
+ * kept as written in small letters.
+ */
+function asBrowserSendsIt(entry: string): string {
+  const lower = entry.toLowerCase();
+  if (!AN_ORIGIN.test(lower)) return lower;
+  try {
+    const origin = new URL(lower).origin;
+    return origin === 'null' ? lower : origin;
+  } catch {
+    return lower;
+  }
+}
+
 function allowedOrigins(value: string | undefined): (origin: string) => boolean {
   const entries = (value ?? '').split(',').map((origin) => origin.trim().replace(/\/+$/, '')).filter(Boolean);
-  const listed = entries.map((origin) => origin.toLowerCase());
+  const listed = entries.map(asBrowserSendsIt);
   const notOrigins = entries.filter((origin) => !AN_ORIGIN.test(origin.toLowerCase()));
   if (notOrigins.length) {
     console.warn(

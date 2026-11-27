@@ -32,7 +32,7 @@ We will answer as soon as we can and keep you updated while we look into it.
 ### With a server you run
 
 - Once a server address is saved and the processing mode uses it, the monitor sends camera frames to that server over a WebSocket.
-- The server analyses those frames with Ollama. With a cloud AI key set, it sends a frame to that provider when Ollama is down or its analysis fails.
+- The server analyses those frames with Ollama. With cloud AI keys set, when Ollama is down or its analysis fails, it sends the frame to the first of OpenRouter, OpenAI and Anthropic it has a key for and, if that one fails, to the next.
 
 ## Data storage
 

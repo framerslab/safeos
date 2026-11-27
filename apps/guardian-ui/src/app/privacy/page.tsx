@@ -196,9 +196,10 @@ export default function PrivacyPage() {
                 <strong className="text-white">AI Processing:</strong> Security and Wildlife run
                 their detection model in your browser (TensorFlow.js) and download it from
                 Google&apos;s servers, which see your IP address. A server you run yourself analyses
-                the frames it receives with Ollama. If you give that server a key for a cloud AI
-                provider, it sends a frame to that provider when Ollama is down or its analysis fails;
-                with no cloud key set, frames stay on your server. safeos.sh offers no cloud AI service.
+                the frames it receives with Ollama. If you give that server keys for cloud AI
+                providers, then when Ollama is down or its analysis fails it sends the frame to the
+                first of OpenRouter, OpenAI and Anthropic it has a key for and, if that one fails, to
+                the next; with no cloud key set, frames stay on your server. safeos.sh offers no cloud AI service.
                 The GitHub link makes no request until you open it.
               </p>
               <p>

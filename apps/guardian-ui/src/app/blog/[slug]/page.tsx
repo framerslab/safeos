@@ -170,8 +170,9 @@ const blogContent: Record<string, BlogContent> = {
           </a>{' '}
           install on the same network: moondream takes a first look at each frame, and llava:7b a
           closer one when the first finds a concern, and they describe the scene in words. If you also
-          give that server your own OpenRouter, OpenAI or Anthropic key, it sends a frame to that
-          provider when Ollama is down or its analysis fails.
+          give that server your own OpenRouter, OpenAI or Anthropic keys, then when Ollama is down or
+          its analysis fails it sends the frame to the first of these it has a key for and, if that one
+          fails, to the next.
         </p>
 
         <h2>The sound check</h2>

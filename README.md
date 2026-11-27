@@ -57,7 +57,7 @@ docker pull ghcr.io/framerslab/safeos-ui:latest
 
 The two images run together: `safeos-ui` is the interface you open, `safeos-api` is the backend it talks to for notifications and the local-AI bridge. The compose starts both, plus Ollama, and wires them on one network. (`docker run … safeos-api` on its own gives you just the headless API.)
 
-**Local AI with Ollama:** the compose runs an Ollama container and pre-pulls its models on first start, so local scene analysis works with no extra setup. To use an Ollama instance you already run, set `OLLAMA_HOST` in `.env` (e.g. `http://192.168.1.50:11434`). Choose which models to cache with `OLLAMA_MODELS` (default `moondream llava:7b`, the two models the server uses). Frames reach the server, and so Ollama, only in a processing mode that uses the server. With no cloud AI key in `.env` they stay on your network; with one, the server sends a frame to that provider when Ollama is down or its analysis fails. Details in [docs/DOCKER.md](docs/DOCKER.md).
+**Local AI with Ollama:** the compose runs an Ollama container and pre-pulls its models on first start, so local scene analysis works with no extra setup. To use an Ollama instance you already run, set `OLLAMA_HOST` in `.env` (e.g. `http://192.168.1.50:11434`). Choose which models to cache with `OLLAMA_MODELS` (default `moondream llava:7b`, the two models the server uses). Frames reach the server, and so Ollama, only in a processing mode that uses the server. With no cloud AI key in `.env` they stay on your network; with one or more, when Ollama is down or its analysis fails, the server sends the frame to each provider it has a key for in turn until one answers. Details in [docs/DOCKER.md](docs/DOCKER.md).
 
 **Build from source instead:**
 

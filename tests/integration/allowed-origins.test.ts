@@ -9,9 +9,10 @@
  * and no other. A page on the server's own address needs no such header.
  * Behind the bundled Caddy, its one CORS_ORIGIN replaces the server's header,
  * so an answer never carries two. A listed origin is read whatever its
- * capitals, as a browser sends an origin in small letters, and the server
- * says when it starts which listed entries are not an origin, since none of
- * them can ever be allowed.
+ * capitals and with or without its scheme's default port, as a browser sends
+ * an origin in small letters and leaves out https's 443 and http's 80, and
+ * the server says when it starts which listed entries are not an origin,
+ * since none of them can ever be allowed.
  */
 
 import { afterAll, describe, expect, it, vi } from 'vitest';

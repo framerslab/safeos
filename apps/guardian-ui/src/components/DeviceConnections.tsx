@@ -48,7 +48,7 @@ export const CONNECTIONS: Connection[] = [
   {
     name: 'A server you connect',
     when: 'Only after you save the address of a server you run and choose a processing mode that uses it.',
-    sees: 'The monitor sends camera frames, with their motion and sound readings, to that server, and whoever runs it can see them. With a cloud AI key set, the server sends a frame to that provider when Ollama is down or its analysis fails.',
+    sees: 'The monitor sends camera frames, with their motion and sound readings, to that server, and whoever runs it can see them. With cloud AI keys set, when Ollama is down or its analysis fails, the server sends the frame to the first of OpenRouter, OpenAI and Anthropic it has a key for and, if that one fails, to the next.',
     stop: 'Choose Local instant under Processing Mode on Settings, Models, or clear the server address.',
   },
 ];

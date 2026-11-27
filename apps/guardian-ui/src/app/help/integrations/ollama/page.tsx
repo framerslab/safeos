@@ -54,8 +54,8 @@ export default function OllamaHelpPage() {
             </a>
             . You provide the hardware. With no cloud AI key on the server, frames stay on your LAN.
             If you set <code>OPENROUTER_API_KEY</code>, <code>OPENAI_API_KEY</code> or{' '}
-            <code>ANTHROPIC_API_KEY</code>, the server sends a frame to that provider when Ollama is
-            down or its analysis fails.
+            <code>ANTHROPIC_API_KEY</code>, then when Ollama is down or its analysis fails, the server
+            sends the frame to the first of these it has a key for and, if that one fails, to the next.
           </p>
         </header>
 

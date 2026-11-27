@@ -241,7 +241,7 @@ const UNBACKED_CLAIMS: Phrase[] = [
   },
   {
     pattern: /nothing leaves|processing happens either in your browser/i,
-    why: 'a server with a cloud key sends frames to that provider when Ollama is down or fails (analysis-queue.ts)',
+    why: 'a server with cloud keys sends frames to those providers when Ollama is down or fails (analysis-queue.ts)',
   },
   {
     pattern: /sends? a frame to that provider/i,
