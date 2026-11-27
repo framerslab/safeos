@@ -175,6 +175,12 @@ jobs:
       - name: Run Jest
         run: npx jest --ci
 
+      # A stylesheet that names an animation with no @keyframes leaves it
+      # standing still; the check reads every stylesheet the app ships.
+      - name: Check that every stylesheet animation has its keyframes
+        if: ${{ !cancelled() }}
+        run: node --test scripts/css-animations.test.mjs
+
   # Walks the monitor in Chromium against the static export: a test camera
   # whose picture keeps changing, and the alerts that come while it does
   # (e2e/alerts-repeat.spec.ts); then each alert's picture, its box and its
