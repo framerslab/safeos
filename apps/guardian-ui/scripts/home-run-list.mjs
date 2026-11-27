@@ -583,6 +583,19 @@ async function prepareLostFound({ page, baseUrl, view }) {
   await photo.waitFor();
   await photo.evaluate((image) => image.decode());
   await pose(page, 'Start watching').waitFor();
+  // Open the fake camera and microphone once and close them before the recording. The first
+  // open in a new browser starts Chromium's capture service, which took up to 2.3 s on a CI
+  // runner; with it running, Start watching shows the camera within the run's 1.5 seconds.
+  await page.evaluate(async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const video = document.createElement('video');
+    video.muted = true;
+    video.srcObject = stream;
+    await video.play();
+    await new Promise((resolve) => video.requestVideoFrameCallback(resolve));
+    stream.getTracks().forEach((track) => track.stop());
+    video.srcObject = null;
+  });
   if (view.size === 'wide') {
     // Set the camera's picture beside the pair and the words, so the whole entry fits the capture.
     await page.addStyleTag({ content: `
