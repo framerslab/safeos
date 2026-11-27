@@ -307,6 +307,10 @@ const UNBACKED_CLAIMS: Phrase[] = [
   // Privacy: GitHub Pages logs each visitor's IP address
   { pattern: /nothing about you is collected|We collect nothing/i, why: 'the host logs each visitor\'s IP address' },
   { pattern: /\bsix steps\b|Accept the Disclaimer|Choose Your Profile|Grant Permissions|Device Access/i, why: 'setup has two steps: it turns on the camera, then asks what the device is watching' },
+  {
+    pattern: /Press Open dashboard, then Start watching/i,
+    why: "setup's last key also reads Open Motion and sound, Open Lost and Found, Open People or Open Wildlife (LastKey.tsx), and Lost and Found starts with Start Monitoring",
+  },
 ];
 
 // Lost and Found's screens: setup, the pet's cards, the gallery, the

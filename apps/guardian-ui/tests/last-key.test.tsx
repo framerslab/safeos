@@ -112,4 +112,33 @@ describe("setup's last key", () => {
     expect(root.classList.contains('setup-bar-fixed')).toBe(false);
     expect(root.style.getPropertyValue('--setup-bar')).toBe('');
   });
+
+  it('follows the width where the media query has only addListener and removeListener', () => {
+    listeners = [];
+    const removed: Array<(event: { matches: boolean }) => void> = [];
+    window.matchMedia = ((query: string) => ({
+      get matches() {
+        return wide;
+      },
+      media: query,
+      addListener: (listener: (event: { matches: boolean }) => void) => listeners.push(listener),
+      removeListener: (listener: (event: { matches: boolean }) => void) => {
+        removed.push(listener);
+        listeners = listeners.filter((kept) => kept !== listener);
+      },
+    })) as unknown as typeof window.matchMedia;
+    const root = document.documentElement;
+    const { unmount } = key();
+    expect(root.classList.contains('setup-bar-fixed')).toBe(true);
+    expect(listeners).toHaveLength(1);
+    fire(true);
+    expect(root.classList.contains('setup-bar-fixed')).toBe(false);
+    expect(root.style.getPropertyValue('--setup-bar')).toBe('');
+    fire(false);
+    expect(root.classList.contains('setup-bar-fixed')).toBe(true);
+    const heard = listeners[0];
+    unmount();
+    expect(removed).toEqual([heard]);
+    expect(listeners).toEqual([]);
+  });
 });

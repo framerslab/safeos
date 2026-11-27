@@ -80,7 +80,9 @@ describe("setup's camera request", () => {
     ['NotAllowedError', 'blocked', false, 'blocked'],
     ['SecurityError', 'blocked', false, 'blocked'],
     ['NotAllowedError', 'not-asked', false, 'closed'],
-    ['NotAllowedError', 'unknown', false, 'blocked'],
+    ['NotAllowedError', 'unknown', false, 'not-allowed'],
+    ['SecurityError', 'unknown', false, 'not-allowed'],
+    ['SecurityError', 'not-asked', false, 'closed'],
     ['NotAllowedError', 'granted', false, 'other'],
     ['NotReadableError', 'granted', false, 'in-use'],
     ['AbortError', 'granted', false, 'in-use'],
@@ -100,6 +102,8 @@ describe("setup's camera request", () => {
     expect(FAILURE_WORDS).toEqual({
       blocked: 'The camera is blocked for safeos.sh in this browser. Allow it in the site’s settings, then press Try again.',
       closed: 'The browser’s question closed without an answer. Press Try again to see it again.',
+      'not-allowed':
+        'The camera did not open. Press Try again, then Allow when the browser asks. If it does not ask, the camera is blocked for safeos.sh: allow it in the site’s settings, then press Try again.',
       'in-use': 'The camera did not start. Another app or tab may be using it. Close it, then press Try again.',
       'no-camera': 'No camera was found on this device. Connect one, then press Try again.',
       'saved-gone': 'The camera chosen on this device is not connected. Connect it, then press Try again.',
