@@ -12,8 +12,8 @@
  * metadata, the helper that owns every page's title and cards, the sitemap,
  * the web app manifest, the social card, the README's diagram, the README's
  * product sections (its models, notification channels and privacy among
- * them), the security policy every page's footer links, and the changelog's
- * Unreleased section. Code comments are
+ * them), the security policy every page's footer links, the quick start
+ * guide in docs/, and the changelog's Unreleased section. Code comments are
  * left out: the check is on what a visitor reads. It fails on any phrase from
  * two lists:
  *
@@ -133,6 +133,8 @@ const README = path.join(REPO_ROOT, 'README.md');
 const CHANGELOG = path.join(REPO_ROOT, 'CHANGELOG.md');
 // The security policy: every page's footer links it.
 const SECURITY = path.join(REPO_ROOT, 'SECURITY.md');
+// The quick start guide, with its tips for each use and its privacy lines.
+const QUICKSTART = path.join(REPO_ROOT, 'docs', 'QUICKSTART.md');
 // The README's sections read with the pages: all of them before "Running from source".
 const README_SECTIONS_READ = ['## How the deep learning runs in your browser', '## Models', '## Notification channels', '## Privacy guarantees'];
 
@@ -269,7 +271,7 @@ const UNBACKED_CLAIMS: Phrase[] = [
   { pattern: /night vision/i, why: 'nothing implements night vision' },
   { pattern: /unusual (activity|stillness)/i, why: 'nothing detects unusual activity' },
   { pattern: /\bbark(s|ing)?\b|\bmeow/i, why: 'the sound alert is a loudness threshold; it recognises no animal sound' },
-  { pattern: /cry (recognition|detection)|distress detection|distinguish between normal sleep sounds/i, why: 'a crying pattern only shows in the overlay; the alert is a loudness threshold' },
+  { pattern: /cry (recognition|detection)|distress (detection|calls?)|distinguish between normal sleep sounds/i, why: 'a crying pattern only shows in the overlay; the alert is a loudness threshold' },
   { pattern: /escape attempt|\bescaping\b|\bescaped\b|escape artist/i, why: 'nothing detects an escape; the monitor compares frames' },
   { pattern: /theft prevention|intruder detection/i, why: 'Security counts people in view; it prevents nothing' },
   {
@@ -352,12 +354,16 @@ const UNBACKED_CLAIMS: Phrase[] = [
     why: 'Lost and Found checks every 500 ms only while the device keeps up (monitor/page.tsx setInterval)',
   },
   { pattern: /low-power state/i, why: 'nothing reads or sets the graphics chip\'s power state' },
-  // Spoken alerts: People and Wildlife speak by default (security-store.ts, animal-alert-store.ts),
-  // and tts-alerts.ts picks Chrome's "Google UK English Male", an online voice, where no local
-  // Daniel or Alex voice is installed, so the alert's words reach the browser's maker.
+  // Spoken alerts: People, Wildlife and Lost & Found speak with a voice on this device, and
+  // with an online voice once the person chooses one under Spoken alert voice
+  // (tts-alerts.ts findSpokenAlertVoice); that voice's maker receives the words.
   {
     pattern: /No cloud uploads|nothing (is )?uploaded in PWA-only/i,
-    why: 'a spoken alert can go through an online voice run by the browser\'s maker, which receives its words (tts-alerts.ts)',
+    why: 'a spoken alert in an online voice the person chose sends its words to the browser\'s maker (tts-alerts.ts)',
+  },
+  {
+    pattern: /(speak (their|its) alerts?|a spoken alert) through one of the browser(&apos;|'|’)s voices|can go through one of the browser(&apos;|'|’)s online voices|some voices are an online service/i,
+    why: 'spoken alerts use a voice on this device, and an online voice only once the person chooses one (tts-alerts.ts findSpokenAlertVoice)',
   },
 ];
 
@@ -438,7 +444,7 @@ function collapse(source: string): { text: string; lineOf: number[] } {
 
 const rel = (file: string) => path.relative(REPO_ROOT, file);
 
-function findPhrases(phrases: Phrase[], files: string[] = [...SCANNED, README, CHANGELOG, SECURITY]): Hit[] {
+function findPhrases(phrases: Phrase[], files: string[] = [...SCANNED, README, CHANGELOG, SECURITY, QUICKSTART]): Hit[] {
   const hits: Hit[] = [];
   for (const file of files) {
     const { text, lineOf } = collapse(readable(file));
@@ -588,7 +594,7 @@ function metadataProblems(): string[] {
 
 describe('the public pages say what the software does', () => {
   it('reads every file it names', () => {
-    const missing = [...PUBLIC_FILES, ...CLIP_FILES, README, CHANGELOG, SECURITY].filter((f) => !fs.existsSync(f)).map(rel);
+    const missing = [...PUBLIC_FILES, ...CLIP_FILES, README, CHANGELOG, SECURITY, QUICKSTART].filter((f) => !fs.existsSync(f)).map(rel);
     expect(missing).toEqual([]);
     // The README's models, notification channels and privacy are among its sections read.
     const readme = readable(README);

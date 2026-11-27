@@ -4,9 +4,9 @@
  *
  * The privacy page renders one table of the connections SafeOS makes or
  * leads to: the host's log, the detection model's download from Google's
- * storage after the person agrees, a spoken alert through one of the
- * browser's voices (some are an online service run by the browser's maker)
- * and a server the person connects. Each row says when, who sees what and
+ * storage after the person agrees, a spoken alert in an online voice the
+ * person chose (a service run by the browser's maker, which receives the
+ * words) and a server the person connects. Each row says when, who sees what and
  * how to stop it. The table is its own component, so another page can render
  * it too.
  *
@@ -17,7 +17,9 @@
  * The spoken alert's row names every page that hands words to the browser's
  * voices, found in the code itself, with the switch that stops it: People and
  * Wildlife through lib/tts-alerts.ts, and Lost & Found's full-screen photos
- * through lib/custom-media-player.ts. SECURITY.md names the same pages.
+ * through lib/custom-media-player.ts. SECURITY.md names the same pages. The
+ * row says what the voice choice does: a voice on this device speaks unless
+ * the person chooses an online one, read from findSpokenAlertVoice itself.
  */
 
 import fs from 'fs';
@@ -25,6 +27,8 @@ import path from 'path';
 import React from 'react';
 import { render, screen, within } from '@testing-library/react';
 import PrivacyPage from '@/app/privacy/page';
+import { findSpokenAlertVoice } from '@/lib/tts-alerts';
+import { useSettingsStore } from '@/stores/settings-store';
 
 const words = (element: Element | null | undefined) => (element?.textContent ?? '').replace(/\s+/g, ' ').trim();
 
@@ -54,8 +58,8 @@ it('lists each connection with when it happens, who sees what and how to stop it
   expect(row('The host’s log')).toContain('GitHub, which hosts safeos.sh, logs your IP address');
   expect(row('The detection model')).toContain('Only after you agree');
   expect(row('The detection model')).toContain('Google’s storage (storage.googleapis.com) sees your IP address');
-  expect(row('A spoken alert')).toContain('People, Wildlife and Lost & Found speak their alerts through one of the browser’s voices.');
-  expect(row('A spoken alert')).toContain('Some voices are an online service run by the browser’s maker, which receives the words to speak.');
+  expect(row('A spoken alert')).toContain('People, Wildlife and Lost & Found speak their alerts with a voice on this device.');
+  expect(row('A spoken alert')).toContain('An online voice is a service run by the browser’s maker, which receives the words to speak.');
   expect(row('A spoken alert')).toContain('Voice Warnings');
   expect(row('A spoken alert')).toContain('Alert Mode');
   expect(row('A server you connect')).toContain('when Ollama is down or its analysis fails');
@@ -95,7 +99,31 @@ it('names every page that speaks through the browser’s voices, with the switch
     expect([page, spoken.includes(page)]).toEqual([page, true]);
     expect([stop, spoken.includes(stop)]).toEqual([stop, true]);
   }
-  expect(security).toContain('People, Wildlife and Lost & Found speak their alerts through one of the browser');
+  expect(security).toContain('People, Wildlife and Lost & Found speak their alerts with a voice on this device');
+  expect(security).toContain('They use an online voice only when you choose one under **Spoken alert voice**');
+});
+
+it('says a spoken alert takes an online voice only once you choose one, as the voice choice does', () => {
+  const online = { name: 'Google UK English Male', lang: 'en-GB', voiceURI: 'online-en', localService: false, default: true } as SpeechSynthesisVoice;
+  const onDevice = { name: 'English on this device', lang: 'en-US', voiceURI: 'device-en', localService: true, default: false } as SpeechSynthesisVoice;
+  useSettingsStore.getState().resetToDefaults();
+  try {
+    // With no choice saved, the voice on this device speaks, though the online one is listed first as the default.
+    expect(findSpokenAlertVoice([online, onDevice], 'en')).toBe(onDevice);
+    // With no voice on this device and no choice, nothing speaks.
+    expect(findSpokenAlertVoice([online], 'en')).toBeUndefined();
+    // Once chosen, the online voice speaks.
+    useSettingsStore.getState().setSpokenAlertVoice(online.voiceURI);
+    expect(findSpokenAlertVoice([online, onDevice], 'en')).toBe(online);
+  } finally {
+    useSettingsStore.getState().resetToDefaults();
+  }
+
+  const { container } = render(<PrivacyPage />);
+  const spoken = connections().row('A spoken alert');
+  expect(spoken).toContain('Only after you choose an online voice under Spoken alert voice, on Settings, Alert sounds');
+  expect(spoken).toContain('Choose Use a voice on this device under Spoken alert voice.');
+  expect(words(container)).toContain('speak their alerts with a voice on this device, and with an online voice only when you choose one.');
 });
 
 it('says the spoken alerts can leave the device among what leaves it', () => {
