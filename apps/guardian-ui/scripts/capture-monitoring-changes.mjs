@@ -172,8 +172,10 @@ try {
       });
       await open(page, '/settings/sounds/');
       await page.getByRole('slider', { name: 'Alert volume' }).waitFor();
-      // The voice list is read after the first render.
-      await page.locator('#spoken-alert-voice option', { hasText: /\(online\)$/ }).first().waitFor({ state: 'attached' });
+      // The voice list is read after the first render. The base branch has no
+      // voice choice, so its picture waits for the slider alone.
+      const voice = page.locator('#spoken-alert-voice');
+      if (await voice.count()) await voice.locator('option', { hasText: /\(online\)$/ }).first().waitFor({ state: 'attached' });
       return page.locator('.set-on-page').first();
     });
 
@@ -183,7 +185,9 @@ try {
       });
       await open(page, '/settings/sounds/');
       await page.getByRole('slider', { name: 'Alert volume' }).waitFor();
-      await page.getByText('This browser offers no voice, so spoken alerts stay quiet.').waitFor();
+      if (await page.locator('#spoken-alert-voice').count()) {
+        await page.getByText('This browser offers no voice, so spoken alerts stay quiet.').waitFor();
+      }
       return page.locator('.set-on-page').first();
     });
   }
