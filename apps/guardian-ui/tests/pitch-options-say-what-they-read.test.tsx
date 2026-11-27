@@ -49,7 +49,11 @@ it('on Settings, Detection, names the pitches each option reads and claims to li
 });
 
 it("in the watch page's Audio Settings, names the pitches each option reads and claims to listen for nothing", () => {
-  const panel = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'monitor', 'InlineSettingsPanel.tsx'), 'utf8');
+  const source = fs.readFileSync(path.join(__dirname, '..', 'src', 'components', 'monitor', 'InlineSettingsPanel.tsx'), 'utf8');
+  // The Audio Settings section alone: other sections list options of the same shape.
+  const start = source.indexOf('id="audio"');
+  const panel = source.slice(start, source.indexOf("audioSettings.frequencyRange === 'custom' &&", start));
+  expect(panel.length).toBeGreaterThan(0);
   const options = Array.from(panel.matchAll(/\{ value: '(\w+)', label: '([^']*)', desc: '([^']*)' \}/g)).map((m) => ({
     value: m[1],
     said: `${m[2]} ${m[3]}`,
