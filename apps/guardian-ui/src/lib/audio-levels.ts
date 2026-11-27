@@ -88,7 +88,7 @@ export interface PitchSettings {
 
 /**
  * The pitch range the sound check reads: the two pitches set under Custom
- * Range, 300 to 600 Hz under Baby Cry Detection (the range its line names),
+ * Range, 300 to 600 Hz under Baby Cry Pitches (the range its line names),
  * and every pitch (null) otherwise.
  */
 export function pitchRangeOf(settings: PitchSettings): PitchRange | null {

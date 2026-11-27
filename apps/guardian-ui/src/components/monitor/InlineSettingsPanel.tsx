@@ -449,9 +449,9 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'], serverCon
         summary={
           <span>
             {audioSettings.frequencyRange === 'all' ? 'All Frequencies' :
-             audioSettings.frequencyRange === 'baby_cry' ? 'Baby Cry' :
+             audioSettings.frequencyRange === 'baby_cry' ? 'Baby Cry Pitches' :
              audioSettings.frequencyRange === 'pet_sounds' ? 'Pet Sounds' :
-             audioSettings.frequencyRange === 'elderly_fall' ? 'Elderly Fall' : 'Custom'}
+             audioSettings.frequencyRange === 'elderly_fall' ? 'Elderly Care' : 'Custom'}
           </span>
         }
         defaultExpanded={expandedSections.has('audio')}
@@ -459,11 +459,11 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'], serverCon
       >
         <div className="space-y-2">
           {[
-            { value: 'all', label: 'All Frequencies', desc: 'Monitor all audio' },
-            { value: 'baby_cry', label: 'Baby Cry Detection', desc: '300-600Hz focus' },
-            { value: 'pet_sounds', label: 'Pet Sounds', desc: 'Barks, whines' },
-            { value: 'elderly_fall', label: 'Elderly Fall', desc: 'Impact sounds' },
-            { value: 'custom', label: 'Custom Range', desc: 'Define your own' },
+            { value: 'all', label: 'All Frequencies', desc: 'Reads every pitch' },
+            { value: 'baby_cry', label: 'Baby Cry Pitches', desc: 'Reads 300 to 600 Hz only' },
+            { value: 'pet_sounds', label: 'Pet Sounds', desc: 'Reads every pitch' },
+            { value: 'elderly_fall', label: 'Elderly Care', desc: 'Reads every pitch' },
+            { value: 'custom', label: 'Custom Range', desc: 'Reads the two pitches you set' },
           ].map((opt) => (
             <label
               key={opt.value}

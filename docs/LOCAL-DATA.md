@@ -163,7 +163,9 @@ installed models is shown as an empty list, not an offline server.
 ## Controls and notifications
 
 Navigation displays a GitHub link without fetching a star count. Opening that
-link contacts GitHub. Model downloads remain separate network requests.
+link contacts GitHub; on the app's pages it opens in a new tab, as the
+footer's links to other sites do there, so a running watch goes on. Model
+downloads remain separate network requests.
 
 Browser notifications show only while **Send browser notifications** is on in
 Settings → Notifications (on until it is turned off), and the browser allows

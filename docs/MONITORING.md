@@ -25,6 +25,13 @@ missing or blocked microphone while Motion goes on; a microphone lost while watc
 A polite status says the microphone's problem once, and never a reading.
 Setup's **Turn on the camera** also goes on with the camera alone.
 
+The GitHub mark in the app's header, on a phone too, opens GitHub in a new tab,
+and its name says so ("SafeOS on GitHub (opens in a new tab)"), so a watch
+running on Monitor, People or Wildlife goes on while GitHub is open. The footer
+under an app page opens each of its links to another site in a new tab too,
+its name ending "(opens in a new tab)". The public pages' header and footer
+open them in the same tab.
+
 ## The meters
 
 Under the live picture, a strip holds a meter for each kind the setting in use
@@ -207,7 +214,7 @@ to defaults** clears it, and the use shows the setting's values again.
 
 Under **Audio Frequency Filtering** the sound check reads the Audio level from
 the pitches chosen: **Custom Range** reads the two pitches set below it and
-the baby cry choice reads 300 to 600 Hz. A range of up to 128 bins reads the root
+**Baby Cry Pitches** reads 300 to 600 Hz. A range of up to 128 bins reads the root
 mean square of the analyser's bins inside it; the baby cry range holds 13 bins at
 48 kHz. Up to 128 bins, a wider range spreads a sound's energy over more bins and
 reads it lower. A range wider than 128 bins reads the energy of its bins against
@@ -218,7 +225,7 @@ to 20,000 Hz. A sound well outside the range leaves the level near 0.
 The analyser applies a Blackman window before its transform, so a tone just outside an
 edge spreads into the nearest bin inside the range and can raise the level a little.
 With a range set the analyser uses 2,048 points (about 23 Hz a bin at 48 kHz) in
-place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
+place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Care**
 read every pitch, as the root mean square of every bin, so a sensitivity saved
 for them means what it did.
 The old noise filter switch is gone. Devices that used it keep their pitch settings.
@@ -333,7 +340,7 @@ short window and its severity's cooldown.
 
 ## A Lost and Found sighting
 
-While the watch compares, each check (twice a second) scores what the camera sees against the
+While the watch compares, each check (up to twice a second, fewer on a slow device) scores what the camera sees against the
 pet's photos. A check at or over the alert line is a sighting. A run of sightings is one alert
 entry: its first sighting raises the alert, and while sightings go on the same entry alerts
 again each time the **Cooldown Period** has passed, with "Repeated N times". A run ends after

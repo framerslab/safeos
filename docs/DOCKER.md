@@ -73,41 +73,40 @@ on later runs `ollama pull` is a fast no-op because the layers are already in th
 
 ## Models
 
-The three tiers are defined in [`src/lib/ollama/models.ts`](../src/lib/ollama/models.ts):
+The server asks two models ([`src/lib/ollama/client.ts`](../src/lib/ollama/client.ts)):
+`moondream` takes a first look at each frame, and `llava:7b` a closer one when the
+first finds a concern. The downloads are the sizes ollama.com lists for
+[`moondream`](https://ollama.com/library/moondream) and [`llava:7b`](https://ollama.com/library/llava).
 
 | Model | Tier | Download | RAM | Pulled by default |
 | --- | --- | --- | --- | --- |
-| `moondream` | triage | ~1.7 GB | ~2 GB | yes |
-| `llava:7b` | analysis | ~4 GB | ~8 GB | yes |
-| `llama3.2-vision:11b` | complex | ~7 GB | ~16 GB | no |
+| `moondream` | triage | 1.7 GB | ~2 GB | yes |
+| `llava:7b` | analysis | 4.7 GB | ~8 GB | yes |
 
-The default set (`moondream llava:7b`) matches the two models the backend uses for
-triage and analysis. The 11B model is left out of the default because it needs a
-16 GB host to run without swapping.
+[`src/lib/ollama/models.ts`](../src/lib/ollama/models.ts) also lists
+`llama3.2-vision:11b`, but the server never asks it, so pulling it only fills the disk.
 
 ### Choosing which models to cache
 
 Set `OLLAMA_MODELS` in `.env` (space or comma separated):
 
 ```env
-# Minimal: fast triage only (~830 MB)
+# Minimal: pre-pull the first look only (1.7 GB). The API still pulls llava:7b
+# itself when it starts and finds Ollama (src/api/server.ts).
 OLLAMA_MODELS=moondream
 
-# Default: triage + detailed analysis
+# Default: the first look and the closer one (6.4 GB)
 OLLAMA_MODELS=moondream llava:7b
-
-# Everything, including complex scene understanding (needs ~16 GB RAM)
-OLLAMA_MODELS=moondream llava:7b llama3.2-vision:11b
 ```
 
 Pull or add models later without restarting the stack:
 
 ```bash
 # Through the running Ollama container
-docker compose exec ollama ollama pull llama3.2-vision:11b
+docker compose exec ollama ollama pull llava:7b
 
 # Or, on a host that has the ollama CLI
-OLLAMA_MODELS="moondream llava:7b llama3.2-vision:11b" ./scripts/pull-ollama-models.sh
+OLLAMA_MODELS="moondream llava:7b" ./scripts/pull-ollama-models.sh
 ```
 
 ## GPU
@@ -191,7 +190,7 @@ docker compose down -v                  # stop and delete volumes (re-downloads 
   changed it, rebuild the UI: `docker compose up -d --build ui`.
 - **`api` never becomes healthy.** Check `docker compose logs api`. If it is stuck
   pulling a model, confirm `ollama-pull` finished: `docker compose logs ollama-pull`.
-- **Out of memory on `llava:7b` / `llama3.2-vision:11b`.** Drop back to
+- **Out of memory on `llava:7b`.** Drop back to
   `OLLAMA_MODELS=moondream` or give the host more RAM.
 - **Slow inference on CPU.** Expected. Use the GPU override on an NVIDIA host, or
   rely on the cloud fallback by setting `OPENROUTER_API_KEY` / `OPENAI_API_KEY` /

@@ -48,9 +48,11 @@ export async function checkHeaders(browser, baseUrl) {
             for (const size of [100, 200]) {
               if (size === 200) await enlarge(page);
               const at = `${route}, ${width} px, ${size}% text, ${look}`;
-              const shown = header.getByRole('link', { name: githubName, exact: true });
+              // The app header's link opens a new tab and says so; the public header's opens in the same tab.
+              const name = route === '/' ? githubName : `${githubName} (opens in a new tab)`;
+              const shown = header.getByRole('link', { name, exact: true });
               const present = await shown.isVisible();
-              check(present, `${at}: missing the header link named "${githubName}"`);
+              check(present, `${at}: missing the header link named "${name}"`);
               if (present) {
                 const box = await shown.boundingBox();
                 check(await shown.getAttribute('href') === REPOSITORY, `${at}: GitHub points outside the repository`);

@@ -89,7 +89,9 @@ services:
       - SAFEOS_PORT=3001
       - SAFEOS_DB_PATH=/app/db_data/safeos.sqlite3
       - OLLAMA_HOST=http://ollama:11434
-      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost:3000}
+      # Origins whose pages may read the API's answers, comma-separated; empty means
+      # https://safeos.sh, the phone app shells and localhost (docs/CONFIGURATION.md)
+      - SAFEOS_ALLOWED_ORIGINS=${SAFEOS_ALLOWED_ORIGINS:-}
       - REDIS_URL=${REDIS_URL:-}
       - RATE_LIMIT_RPM=${RATE_LIMIT_RPM:-60}
       - LOG_LEVEL=${LOG_LEVEL:-info}

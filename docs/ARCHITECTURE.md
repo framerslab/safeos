@@ -29,8 +29,8 @@ SafeOS Guardian operates in two modes:
 |  +---------------------------------------------------------------+|
 |                                                                   |
 |  +---------------------------------------------------------------+|
-|  |                    IndexedDB Storage                          ||
-|  |  - Settings        - Alert history       - Fingerprints       ||
+|  |        Browser storage (localStorage and IndexedDB)           ||
+|  |  - Settings        - Alert history       - Pets, fingerprints ||
 |  +---------------------------------------------------------------+|
 +------------------------------------------------------------------+
 
@@ -167,68 +167,82 @@ apps/guardian-ui/src/
 
 ### Frame Analysis Pipeline
 
+Each page watches in its own way. Code: `apps/guardian-ui/src/components/CameraFeed.tsx`,
+`apps/guardian-ui/src/app/monitor/page.tsx`, `apps/guardian-ui/src/lib/person-detection.ts`,
+`src/api/server.ts` and `src/queues/analysis-queue.ts`.
+
 ```
-Camera Frame
-     |
-     v
-+--------------------+
-|   Motion Detection |  (Browser: pixel diff)
-+--------------------+
-     |
-     v (motion detected?)
-+--------------------+
-|   Audio Analysis   |  (Browser: Web Audio API)
-+--------------------+
-     |
-     v
-+--------------------+
-|   TensorFlow.js    |  (Browser: COCO-SSD)
-|   Object Detection |
-+--------------------+
-     |
-     v (uncertain?)
-+--------------------+
-|   Ollama LLM       |  (Server: moondream/llava)
-+--------------------+
-     |
-     v (still uncertain?)
-+--------------------+
-|   Cloud Fallback   |  (Server: Gemini/GPT-4o)
-+--------------------+
-     |
-     v
-+--------------------+
-|   Alert Generation |
-+--------------------+
-     |
-     v
-+--------------------+
-|   Notification     |  (Browser Push / SMS / Telegram)
-+--------------------+
+Motion and sound (/monitor/) - runs no model
+  Camera frame -> pixel and motion check every 200 ms (browser)
+  Microphone   -> sound level every 100 ms (browser)
+       |
+       +--> local alerts: motion, picture change, sound (browser)
+       |
+       +--> only with a saved server and a processing mode that uses it:
+            at most once a second, while motion, sound or the picture change
+            is over its line, the frame goes to the server over the WebSocket
+                 |
+                 v
+            Server: stores the frame; queues it when its motion or sound
+            score is over the server's line
+                 |
+                 v
+            Ollama: moondream takes a first look; llava:7b a closer one
+            when the first finds a concern
+                 |
+                 v (only when Ollama is down or its analysis fails,
+                    and a cloud key is set)
+            Cloud: OpenRouter, then OpenAI, then Anthropic, until one answers
+                 |
+                 v
+            Alert to the browser over the WebSocket, and email, SMS and
+            Telegram as the profile chose
+
+Lost and Found (/monitor/) - runs no model
+  Camera frame -> colours and outline compared with the pet's photos,
+                  up to twice a second (every 500 ms, 900 ms in hybrid mode),
+                  fewer when the device cannot keep up (browser)
+
+People (/security/) and Wildlife (/wildlife/) - send nothing to the server
+  Camera frame -> their own motion check (browser)
+       |
+       v (motion over the line; People also every 5 s while triggered or alerting)
+  COCO-SSD on TensorFlow.js: WebGL on the graphics chip, or the processor
+  without hardware WebGL (browser); People at most every 500 ms,
+  Wildlife at most once a second
+       |
+       v
+  Alert, sound or spoken words, and a browser notification (browser)
 ```
 
 ### Alert Escalation Flow
 
+An alert nobody acknowledges climbs five levels, each louder. The browser and the
+server count the waits differently.
+
+In the browser (`apps/guardian-ui/src/components/AlertPanel.tsx`), each level's wait
+follows the level before (`delaySeconds`, `apps/guardian-ui/src/stores/settings-store.ts`),
+so with the default waits the levels come at:
+
 ```
-Alert Created
-     |
-     v
-Level 1 (0s): Soft chime @ 30% volume
-     |
-     v (30s, not acknowledged)
-Level 2: Medium tone @ 50% volume
-     |
-     v (60s, not acknowledged)
-Level 3: Attention tone @ 70% volume
-     |
-     v (90s, not acknowledged)
-Level 4: Urgent tone @ 90% volume
-     |
-     v (120s, not acknowledged)
-Level 5: Continuous alarm @ 100% volume
-     |
-     v (acknowledged)
-Alert Silenced
+Level 1: at once
+Level 2: 30 s
+Level 3: 90 s   (60 s after level 2)
+Level 4: 210 s  (120 s after level 3)
+Level 5: 390 s  (180 s after level 4), repeating until acknowledged
+```
+
+Settings, Alert Escalation (`/settings/escalation`) changes each wait.
+
+On the server (`src/lib/alerts/escalation.ts`), each level's delay counts from the
+alert's creation:
+
+```
+Level 1: at once     browser
+Level 2: 30 s        browser, Telegram
+Level 3: 60 s        browser, Telegram
+Level 4: 120 s       browser, Telegram, SMS
+Level 5: 180 s       browser, Telegram, SMS
 ```
 
 ---
@@ -405,35 +419,24 @@ HTTP API:
 ## AI Model Hierarchy
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Tier 1: Browser (Free)                    │
-│  ┌─────────────────┐  ┌─────────────────────────────────┐   │
-│  │ TensorFlow.js   │  │ Cache Storage                   │   │
-│  │ COCO-SSD (18MB) │  │ Shared COCO-SSD weights         │   │
-│  │ Real-time       │  │ Saved after explicit agreement  │   │
-│  └─────────────────┘  └─────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              v (uncertain?)
-┌─────────────────────────────────────────────────────────────┐
-│                 Tier 2: Local LLM (Ollama)                   │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
-│  │ moondream       │  │ llava:7b        │  │ llama3.2    │  │
-│  │ (~1.7GB)        │  │ (~4GB)          │  │ vision:11b  │  │
-│  │ Fast triage     │  │ Detailed        │  │ Complex     │  │
-│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              v (still uncertain?)
-┌─────────────────────────────────────────────────────────────┐
-│                   Tier 3: Cloud Fallback                     │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────┐  │
-│  │ Gemini Flash    │  │ GPT-4o-mini     │  │ Claude 3    │  │
-│  │ (OpenRouter)    │  │ (OpenAI)        │  │ Haiku       │  │
-│  │ Fast, cheap     │  │ Reliable        │  │ Last resort │  │
-│  └─────────────────┘  └─────────────────┘  └─────────────┘  │
-└─────────────────────────────────────────────────────────────┘
+Browser (People and Wildlife only)
+  COCO-SSD lite_mobilenet_v2 on TensorFlow.js, 18.6 MB, downloaded from
+  Google's storage after the person agrees and kept in Cache Storage.
+  People and Wildlife hand no frame on to the server's models.
+
+Server you run (frames from Motion and sound, in a processing mode that uses it)
+  Ollama: moondream (1.7 GB), a first look at each queued frame
+          llava:7b (4.7 GB), a closer look when the first finds a concern
+      |
+      v (only when Ollama is down or its analysis fails, and a key is set)
+  Cloud, in this order until one answers (src/lib/analysis/cloud-fallback.ts):
+          google/gemini-2.5-flash via OpenRouter
+          gpt-5.6-terra via OpenAI
+          claude-haiku-5-5 via Anthropic
 ```
+
+The download sizes are the ones ollama.com lists for
+[moondream](https://ollama.com/library/moondream) and [llava](https://ollama.com/library/llava).
 
 ---
 

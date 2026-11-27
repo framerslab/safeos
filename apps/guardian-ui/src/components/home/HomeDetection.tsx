@@ -49,7 +49,7 @@ const cards: DetectionCard[] = [
     title: 'People and animals',
     tags: ['COCO-SSD on TensorFlow.js', <>{modelSize}, after you agree</>],
     glyph: <HomeBirdGlyph />,
-    summary: 'The People and Wildlife pages run an object-detection model in your browser, on the graphics chip.',
+    summary: 'The People and Wildlife pages run an object-detection model in your browser, on the graphics chip; without hardware WebGL it runs on the processor, slower.',
     details: [
       <>It finds people and <Num>{COCO_ANIMAL_CLASSES.length}</Num> kinds of animal: {animals}.</>,
       'People checks up to twice a second and Wildlife once a second at most, each after its own motion check.',
@@ -61,7 +61,7 @@ const cards: DetectionCard[] = [
     title: 'Lost and Found',
     tags: ['Colour and outline', 'No model'],
     glyph: <WayGlyph way="lost-found" />,
-    summary: <>Add <Num>{MIN_PET_PHOTOS}</Num> to <Num>{MAX_PET_PHOTOS}</Num> photos of your pet. The browser reads each photo’s colours, its <Num>5</Num> main colours, its outline on an <Num>8</Num> by <Num>8</Num> grid and its size, and compares parts of the camera’s picture with them twice a second.</>,
+    summary: <>Add <Num>{MIN_PET_PHOTOS}</Num> to <Num>{MAX_PET_PHOTOS}</Num> photos of your pet. The browser reads each photo’s colours, its <Num>5</Num> main colours, its outline on an <Num>8</Num> by <Num>8</Num> grid and its size, and compares parts of the camera’s picture with them up to twice a second, fewer on a slow device.</>,
     details: [
       'It alerts when a part of the picture has colours and shape like your pet’s photos, so you can look and compare.',
       'Another animal, or something of a similar colour, can raise it too.',
@@ -85,7 +85,7 @@ const cards: DetectionCard[] = [
     glyph: <IconDatabase />,
     summary: 'Frames are compared in your browser. Settings, alerts, your pet’s photos and the frames a page saves stay in this browser’s storage.',
     details: [
-      'Settings sit in localStorage; alerts, saved frames and your pet’s photos in IndexedDB; the model in Cache Storage.',
+      'Settings, alerts, saved frames and your pet’s photos are kept in this browser’s own storage, and the model in its Cache Storage.',
     ],
     link: { href: '/privacy/', label: 'Read the privacy page' },
   },
@@ -153,14 +153,14 @@ const checks: DiagramNode[] = [
   {
     id: 'lost-found',
     name: 'Lost and Found',
-    detail: 'colours and outline compared twice a second',
+    detail: 'colours and outline compared up to twice a second, fewer on a slow device',
     glyph: <WayGlyph way="lost-found" />,
     sources: ['camera', 'pet-photos'],
   },
   {
     id: 'people-wildlife',
     name: 'People and Wildlife',
-    detail: <>COCO-SSD on TensorFlow.js, run on the graphics chip, {modelSize}, saved after you agree</>,
+    detail: <>COCO-SSD on TensorFlow.js, on the graphics chip or else the processor, {modelSize}, saved after you agree</>,
     glyph: <HomeBirdGlyph />,
     sources: ['camera'],
   },

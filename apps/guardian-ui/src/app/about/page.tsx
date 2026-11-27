@@ -189,8 +189,8 @@ export default function AboutPage() {
             <p className="text-slate-300 leading-relaxed mb-4">
               On safeos.sh, SafeOS runs in your browser, and its saved frames, settings and alerts stay on
               your device. If you connect a server you run yourself, alerts go to that
-              server, and camera frames go to it in a processing mode that uses it. If you also give that server a key for a cloud AI provider, it can
-              send a frame to that provider when its local analysis is unavailable.
+              server, and camera frames go to it in a processing mode that uses it. If you also give that server keys for cloud AI providers, it can
+              send a frame to each of them in turn when its local analysis is unavailable.
             </p>
             <p className="text-slate-400 leading-relaxed">
               <strong className="text-emerald-400">Important:</strong> SafeOS is experimental software. It
@@ -323,7 +323,7 @@ export default function AboutPage() {
                 step={4}
                 icon={<IconDatabase size={16} />}
                 title="Local Storage"
-                description="Settings are kept in your browser's localStorage, and saved frames and reference photos in IndexedDB, all on your device."
+                description="Settings, saved frames and your pets’ photos are kept in this browser’s own storage, on your device."
               />
               <ArchitectureStep
                 step={5}

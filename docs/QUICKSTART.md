@@ -36,7 +36,7 @@ ollama serve &
 
 # Pull required models (one-time)
 ollama pull moondream    # Fast triage (~1.7GB)
-ollama pull llava:7b     # Detailed analysis (~4GB)
+ollama pull llava:7b     # Detailed analysis (4.7 GB)
 ```
 
 ### 3. Start SafeOS
@@ -181,19 +181,18 @@ Remote delivery (phone away from home) requires a self-hosted SafeOS API server.
 - Position camera to see food/water bowls
 - Include litter box area if monitoring cats
 - Use "low" motion sensitivity for sleeping pets
-- Enable audio for barking/meowing detection
+- Turn on sound alerts: they go off when a sound stays loud, whatever made it
 
 ### For Baby Monitoring
 - Camera should see the crib clearly
-- Audio sensitivity is crucial for cry detection
-- Enable "breathing pattern" detection
+- Turn on sound alerts: they go off when a sound, such as crying, stays loud. A crying pattern shows in the camera overlay, but it does not raise an alert on its own
+- SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS.
 - Use nightlight for low-light visibility
 
 ### For Elderly Care
 - Cover common areas (living room, bathroom entrance)
-- Higher motion sensitivity for fall detection
-- Set inactivity alerts (e.g., 30 min no movement)
-- Include audio for distress calls
+- Turn on **Enable Inactivity Alerts** on **Settings > Detection** for an alert when nothing has moved for the minutes you set (for example 30)
+- Turn on sound alerts: they go off when a sound stays loud, whatever made it
 
 ---
 
@@ -243,17 +242,8 @@ Access SafeOS from your phone:
 
 ## 🔐 Privacy & Data
 
-### What We Store
-- **Local Only**: Frames are processed and discarded
-- **5-10 Minute Buffer**: Rolling buffer for context
-- **IndexedDB**: Session data stored in your browser
-- **No Cloud Upload by Default**: Optional backend features are opt-in and self-hosted
-
-### What We Don't Store
-- Raw video footage
-- Audio recordings
-- Personal information
-- IP addresses (for monitoring)
+- **In this browser:** the motion check keeps only the last three frames in memory. SafeOS keeps your settings, alerts, saved pictures, pets and recorded sounds in this browser's own storage (localStorage and IndexedDB), and records no video.
+- **What leaves the device:** the host's log of your IP address, the detection model's download from Google's storage after you agree to it, a spoken alert in an online voice you choose, and camera frames sent to a server you run. The [privacy page](https://safeos.sh/privacy/) says when each happens, who sees what and how to stop it.
 
 ---
 

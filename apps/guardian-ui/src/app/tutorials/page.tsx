@@ -311,7 +311,7 @@ const TUTORIALS: TutorialSection[] = [
     steps: [
       {
         title: 'Local-First Storage',
-        content: `Settings are stored in your browser\'s localStorage, and saved frames and photos in its IndexedDB. Nothing is uploaded unless you connect a server you run yourself. This means your saved frames and settings are private but also only exist on your device.`,
+        content: `Settings, saved frames and photos are kept in this browser\'s own storage. Nothing is uploaded unless you connect a server you run yourself. This means your saved frames and settings are private but also only exist on your device.`,
         tips: [
           'Data is lost if you clear browser cache',
           'Export important data regularly',
