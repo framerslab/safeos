@@ -344,10 +344,9 @@ export class CustomMediaPlayer {
 
   /**
    * The next step, 500 ms after a sound or message ends, belongs to the
-   * playback that scheduled it.
+   * playback that began that sound or message.
    */
-  private continueLater(): void {
-    const playback = this.playbacks;
+  private continueLater(playback = this.playbacks): void {
     setTimeout(() => {
       if (this.playbacks === playback) this.playNextMedia();
     }, 500);
@@ -363,6 +362,7 @@ export class CustomMediaPlayer {
       (this.state.currentAudioIndex + 1) % this.config.audioFiles.length;
     
     const audio = this.config.audioFiles[this.state.currentAudioIndex];
+    const playback = this.playbacks;
     
     this.stopCurrentAudio();
     
@@ -374,19 +374,19 @@ export class CustomMediaPlayer {
           // A finished sound is let go, so ending a pause never plays it again.
           this.stopCurrentAudio();
           this.callbacks.onAudioPlay?.(audio, this.state.currentAudioIndex);
-          this.continueLater();
+          this.continueLater(playback);
         },
         onloaderror: (_, error) => {
           console.error('[CustomMediaPlayer] Audio load error:', error);
           this.callbacks.onError?.(new Error(`Failed to load audio: ${audio.name}`));
-          this.continueLater();
+          this.continueLater(playback);
         },
       });
       
       this.currentHowl.play();
     } catch (error) {
       console.error('[CustomMediaPlayer] Audio playback error:', error);
-      this.continueLater();
+      this.continueLater(playback);
     }
   }
 
@@ -411,6 +411,8 @@ export class CustomMediaPlayer {
       (this.state.currentMessageIndex + 1) % this.config.ttsMessages.length;
     
     const message = this.config.ttsMessages[this.state.currentMessageIndex];
+    // A browser can report a cancelled message after the next playback began.
+    const playback = this.playbacks;
     
     const utterance = new SpeechSynthesisUtterance(message);
     utterance.voice = voice;
@@ -421,11 +423,11 @@ export class CustomMediaPlayer {
     
     utterance.onend = () => {
       this.callbacks.onMessageSpeak?.(message, this.state.currentMessageIndex);
-      this.continueLater();
+      this.continueLater(playback);
     };
     
     utterance.onerror = () => {
-      this.continueLater();
+      this.continueLater(playback);
     };
     
     this.cancelSpeech();

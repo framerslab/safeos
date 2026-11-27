@@ -2056,18 +2056,26 @@ async function cleanupExcessMatchFrames(): Promise<void> {
     const count = await db.count('match_frame');
     
     if (count > MAX_MATCH_FRAMES) {
-      // Get oldest frames that are acknowledged
-      const frames = await db.getAll('match_frame');
-      const sortedByTime = frames
-        .filter(f => f.acknowledged)
-        .sort((a, b) => a.timestamp - b.timestamp);
-      
-      const toDelete = sortedByTime.slice(0, count - MAX_MATCH_FRAMES);
-      // An alert whose only seen frames go stays seen: its first kept frame is marked.
       // An alert is made of the frames that raised it, as History counts them, so a
       // frame under the alert threshold neither joins a run nor takes the mark.
       const { useLostFoundStore } = await import('../stores/lost-found-store');
       const alertThreshold = useLostFoundStore.getState().settings.minConfidenceForAlert;
+
+      // The frames are read in the write that removes and marks them, so a
+      // picture deleted in the meantime is neither kept nor written back.
+      tx = db.transaction('match_frame', 'readwrite');
+      const frames = await tx.store.getAll();
+      if (frames.length <= MAX_MATCH_FRAMES) {
+        await tx.done;
+        return;
+      }
+      // Get oldest frames that are acknowledged
+      const sortedByTime = frames
+        .filter(f => f.acknowledged)
+        .sort((a, b) => a.timestamp - b.timestamp);
+      
+      const toDelete = sortedByTime.slice(0, frames.length - MAX_MATCH_FRAMES);
+      // An alert whose only seen frames go stays seen: its first kept frame is marked.
       const removed = new Set(toDelete.map((frame) => frame.id));
       const bySubject = new Map<string, MatchFrameDB[]>();
       for (const frame of frames) {
@@ -2078,7 +2086,6 @@ async function cleanupExcessMatchFrames(): Promise<void> {
       }
       const toMark = Array.from(bySubject.values()).flatMap((group) => seenAfterRemoval(group, removed));
       
-      tx = db.transaction('match_frame', 'readwrite');
       for (const frame of toDelete) {
         await tx.store.delete(frame.id);
       }

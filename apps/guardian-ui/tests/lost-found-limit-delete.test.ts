@@ -53,8 +53,9 @@ it('does not bring back a picture deleted while the limit makes room', async () 
 
     const ids = (await getAllMatchFrames()).map((frame) => frame.id);
     expect(deleted).toBeDefined();
-    expect(ids).not.toContain('run-0');
     expect(ids).not.toContain('run-1');
+    // The deletion made the room, so the limit removes nothing more.
+    expect(ids).toHaveLength(500);
     expect(ids).toContain('run-500');
   } finally {
     whileTheLimitWaits = null;

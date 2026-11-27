@@ -265,7 +265,9 @@ Emergency mode and the Emergency trigger always play.
 
 People, Wildlife and Lost and Found’s custom spoken messages use a voice on
 this device by default. SafeOS’s own alert words are English and take an
-English voice; a message you write takes a voice in the language of the page.
+English voice when the device has one; a device with no English voice reads
+them with a voice it has, so the alert is heard. A message you write takes a
+voice in the language of the page.
 A browser can take a moment to list its voices, so an alert waits up to a
 second for the list. A newer alert replaces one that is still waiting, and a
 Lost and Found message that waits through a pause speaks once the pause ends. If
