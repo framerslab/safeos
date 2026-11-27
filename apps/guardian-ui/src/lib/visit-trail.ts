@@ -2,7 +2,10 @@
  * The page before setup in this tab's history. Each entry of the browser's
  * history this document shows is marked, in the entry's own state, with the
  * path this document showed before it: none for the entry the document opened
- * on. An entry the browser's back or forward button returns to keeps its mark.
+ * on, and none for an entry the browser's back or forward button reaches
+ * before it was marked (setup's step 2, pushed on the same address, is one),
+ * since the page before such an entry is not known. An entry the browser
+ * returns to keeps its mark.
  * So setup's Back on its first step goes back only when the entry before
  * setup's is a page of this site this document showed, and otherwise opens
  * the home page; a person who came to setup from another site and returned to
@@ -24,6 +27,14 @@ interface Mark {
 
 let lastShown: string | null = null;
 
+/** True from the browser's back or forward button until the shell notes the path it shows. */
+let traversed = false;
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => {
+    traversed = true;
+  });
+}
+
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null;
 
 /** This document's mark on the entry shown, or null. */
@@ -40,7 +51,7 @@ export function notePath(pathname: string | null | undefined): void {
   const path = barePath(pathname);
   if (typeof window !== 'undefined' && markOfEntry() === null) {
     const state: unknown = window.history.state;
-    const mark: Mark = { document: DOCUMENT, from: lastShown };
+    const mark: Mark = { document: DOCUMENT, from: traversed ? null : lastShown };
     try {
       window.history.replaceState({ ...(isRecord(state) ? state : {}), [MARK]: mark }, '');
     } catch {
@@ -48,6 +59,7 @@ export function notePath(pathname: string | null | undefined): void {
     }
   }
   lastShown = path;
+  traversed = false;
 }
 
 /**
