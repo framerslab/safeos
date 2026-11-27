@@ -21,7 +21,7 @@ const WATCH_POSTER_AT = 22.25;
 const PET = 'Toffee';
 const LOST_FOUND_PHOTOS = ['home/lost-found/photo-1.jpg'];
 const LOST_FOUND_START_AT = 2;
-const LOST_FOUND_HOLD_AT = 6;
+const LOST_FOUND_HOLD_AT = 5;
 const between = (value, { from, to }) => value >= from && value <= to;
 const pose = (page, name) => page.getByRole('button', { name, exact: true });
 
@@ -625,7 +625,7 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   const liveAt = await browserTime(page);
   assert.ok(liveAt - start <= LOST_FOUND_START_AT + 1.5, `The camera took ${(liveAt - start).toFixed(2)} s to start`);
 
-  // 2–6 seconds: the watch compares the clip with Toffee's photo; the possible sighting arrives.
+  // 2–5 seconds: the watch compares the clip with Toffee's photo; the possible sighting arrives.
   const sightingBy = start + LOST_FOUND_HOLD_AT - 0.25;
   await page.waitForFunction(() => window.homeWatchEvents.some(({ kind }) => kind === 'sighting'), null,
     // A timeout of 0 would wait for ever: wait at least a millisecond.
@@ -636,8 +636,7 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
     `No possible sighting ${LOST_FOUND_HOLD_AT - LOST_FOUND_START_AT} s after Start watching: ` + JSON.stringify({ liveAt: liveAt - start, events }));
   console.log(`Lost and Found: camera live at ${(liveAt - start).toFixed(2)} s, possible sighting at ${(arrival.observedAt - start).toFixed(2)} s, clip ${arrival.clipAt.toFixed(3)} s`);
 
-  // 6–9 seconds: the possible sighting's entry, the camera's picture beside the saved photo.
-  await sleepUntil(page, start, LOST_FOUND_HOLD_AT);
+  // The entry's pictures are read before the hold, so the move into view is the hold's first step.
   const card = `.watch-list__body [data-alert-card][data-kind="sighting"][data-alert-at="${arrival.at}"]`;
   const entry = page.locator(card);
   const petPhoto = entry.getByRole('img', { name: `${PET}’s saved photo`, exact: true });
@@ -648,6 +647,9 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
     ? [`${card} .alert-picture__frame img`, `${card} .alert-picture__pair`, `${card} .alert-picture__words`]
     : [`${card} .alert-picture__pair`, `${card} .alert-picture__lead`];
   if (view.size === 'wide') await readPicture(entry.locator('.alert-picture__frame img').first());
+
+  // 5–9 seconds: the possible sighting's entry, the camera's picture beside the saved photo.
+  await sleepUntil(page, start, LOST_FOUND_HOLD_AT);
   await scrollSubject(page, view.size === 'wide' ? card : `${card} .alert-picture__pair`, crop.y + 6, 0);
   await settleEdges(page, crop, keep);
   const checkEntry = async () => {
@@ -730,8 +732,8 @@ export const recipes = [
     description: 'The kitten clip compared with a photo from another day, and a possible sighting.',
     longDescription: [
       '0–2 seconds. Lost and Found holds Toffee’s one saved photo, a kitten lying on a beige carpet.',
-      '2–6 seconds. The watch compares the kitten clip, on a grey carpet, with that photo twice a second.',
-      '6–9 seconds. A possible sighting asks "Could this be Toffee?" with the camera’s picture beside the saved photo, to check by eye.',
+      '2–5 seconds. The watch compares the kitten clip, on a grey carpet, with that photo twice a second.',
+      '5–9 seconds. A possible sighting asks "Could this be Toffee?" with the camera’s picture beside the saved photo, to check by eye.',
     ],
     prepare: prepareLostFound,
     record: lostFound,

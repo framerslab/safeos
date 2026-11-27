@@ -155,8 +155,8 @@ test('the Lost and Found run enrols photo 1 alone, plays the sample clip and com
   assert.ok(run.description.length <= 87, 'The caption is longer than the Watching run’s');
   assert.deepEqual(run.longDescription, [
     '0–2 seconds. Lost and Found holds Toffee’s one saved photo, a kitten lying on a beige carpet.',
-    '2–6 seconds. The watch compares the kitten clip, on a grey carpet, with that photo twice a second.',
-    '6–9 seconds. A possible sighting asks "Could this be Toffee?" with the camera’s picture beside the saved photo, to check by eye.',
+    '2–5 seconds. The watch compares the kitten clip, on a grey carpet, with that photo twice a second.',
+    '5–9 seconds. A possible sighting asks "Could this be Toffee?" with the camera’s picture beside the saved photo, to check by eye.',
   ]);
   assert.doesNotMatch([run.key, run.description, ...run.longDescription].join(' '), barredWording);
   // The spans follow each other from 0 to the end of the recording.

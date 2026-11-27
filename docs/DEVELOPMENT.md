@@ -594,8 +594,8 @@ Start watching is pressed and the camera must show within 1.5 seconds. It
 holds Watch for with Toffee's one saved photo for
 two seconds, then presses Start watching, and the watch compares the sample
 clip at the app's default Lost and Found settings. The possible sighting must
-arrive before six seconds; the run then holds its entry, the camera's picture
-beside the saved photo, through the end of the nine-second run. Its Motion
+arrive before five seconds; from five seconds the run holds its entry, the
+camera's picture beside the saved photo, through the end of the nine-second run. Its Motion
 starts at its least sensitive setting and its microphone hears silence, so no
 other alert joins the entry; a run with any other alert fails. Settings records a scroll of
 the actual settings list. The producer captures native frames and encodes silent MP4s and WebP posters, with AVIF
