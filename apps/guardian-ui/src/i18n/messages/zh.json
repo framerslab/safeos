@@ -248,7 +248,7 @@
     "status": { "detected": "检测到", "status": "状态", "excess": "超出", "intruder": "入侵者", "intruders": "入侵者", "unauthorized": "未授权人员", "personsDetected": "检测到人员" },
     "gallery": { "title": "入侵历史", "noEvents": "无事件", "noEventsDesc": "检测到的入侵者将显示在此处。", "totalEvents": "总计", "unreviewed": "未审核", "last24h": "最近24小时", "avgPersons": "平均人数", "acknowledge": "确认", "delete": "删除", "exportJson": "导出JSON", "exportCsv": "导出CSV", "deleteSelected": "删除选中", "selectAll": "全选", "clear": "清除" },
     "tts": { "authoritative": { "warning1": "警告！您正在被录像。立即离开。", "warning2": "安全警报。当局已被通知。", "warning3": "检测到入侵者。此区域正在监控中。", "warning4": "检测到未授权进入。" }, "alarm": { "alert1": "入侵警报！救命！", "alert2": "离开！离开！", "alert3": "警报！入侵者！", "alert4": "危险！" } },
-    "settings": { "confidenceThreshold": "检测置信度", "motionThreshold": "运动灵敏度", "armingCountdown": "布防倒计时", "triggerCooldown": "触发冷却", "maxStoredFrames": "最大帧数", "autoDeleteDays": "自动删除（天后）" },
+    "settings": { "confidenceThreshold": "检测置信度", "motionThreshold": "运动灵敏度", "armingCountdown": "布防倒计时", "triggerCooldown": "触发冷却", "maxStoredFrames": "最大帧数" },
     "notifications": { "intruderDetected": "入侵者警报！", "intruderBody": "检测到{count}人。{excess}人未授权。" },
     "silentModeInfo": "静音模式：入侵将被记录但不会发出声音警报。您可以在图库中查看捕获的帧。"
   },

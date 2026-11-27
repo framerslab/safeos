@@ -9,6 +9,7 @@
 
 import { animalAtTime } from './alert-pictures/words';
 import { loadDetectionModel } from './detection-model';
+import { subjectMotionLevel } from './subject-motion-gate';
 import { COCO_TO_ANIMAL, COCO_ANIMAL_CLASSES } from './animal-kinds';
 
 // =============================================================================
@@ -214,32 +215,6 @@ export class AnimalDetector {
   }
 
   /**
-   * Detect motion between frames
-   */
-  private detectMotion(currentFrame: ImageData): number {
-    if (!this.previousFrame) {
-      this.previousFrame = currentFrame;
-      return 0;
-    }
-
-    const prev = this.previousFrame.data;
-    const curr = currentFrame.data;
-    let diff = 0;
-    let count = 0;
-
-    for (let i = 0; i < curr.length; i += 16) {
-      const rDiff = Math.abs(curr[i] - prev[i]);
-      const gDiff = Math.abs(curr[i + 1] - prev[i + 1]);
-      const bDiff = Math.abs(curr[i + 2] - prev[i + 2]);
-      diff += (rDiff + gDiff + bDiff) / 3;
-      count++;
-    }
-
-    this.previousFrame = currentFrame;
-    return (diff / count / 255) * 100;
-  }
-
-  /**
    * Capture frame as base64
    */
   private captureFrame(): string | undefined {
@@ -296,7 +271,8 @@ export class AnimalDetector {
         this.config.detectionHeight
       );
 
-      const motionLevel = this.detectMotion(frameData);
+      const motionLevel = subjectMotionLevel(frameData, this.previousFrame);
+      this.previousFrame = frameData;
       if (motionLevel < this.config.motionThreshold) {
         return {
           animals: [],

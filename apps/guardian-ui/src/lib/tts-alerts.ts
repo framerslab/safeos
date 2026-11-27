@@ -8,6 +8,8 @@
  * @module lib/tts-alerts
  */
 
+import { useSettingsStore } from '@/stores/settings-store';
+
 // =============================================================================
 // Types
 // =============================================================================
@@ -21,8 +23,6 @@ export interface TTSConfig {
   pitch: number;
   /** Speech volume (0 to 1) */
   volume: number;
-  /** Preferred voice name (if available) */
-  preferredVoice?: string;
   /** Delay between repeated messages in ms */
   repeatDelay: number;
   /** Whether to use random message selection */
@@ -72,6 +72,54 @@ export const PRESET_MESSAGES: Record<MessageCategory, string[]> = {
   custom: [],
 };
 
+/** How long a spoken alert waits for a browser to list its voices. */
+export const VOICE_LIST_WAIT_MS = 1000;
+
+/**
+ * The browser's voices. A browser may list none until it has read them, and
+ * then fires voiceschanged, so an empty list waits for that event once, for
+ * up to a second.
+ */
+export function voicesWhenListed(synth: SpeechSynthesis): Promise<SpeechSynthesisVoice[]> {
+  const voices = synth.getVoices();
+  if (voices.length > 0 || typeof synth.addEventListener !== 'function') return Promise.resolve(voices);
+  return new Promise((resolve) => {
+    const listed = () => {
+      clearTimeout(timer);
+      synth.removeEventListener('voiceschanged', listed);
+      resolve(synth.getVoices());
+    };
+    const timer = setTimeout(listed, VOICE_LIST_WAIT_MS);
+    synth.addEventListener('voiceschanged', listed);
+  });
+}
+
+/**
+ * The voice for words in `language`, which is the page's language unless the
+ * words are SafeOS's own English ones. A named online voice is used only when
+ * the person chose that voice on this browser, and first only when it speaks
+ * `language`. Otherwise a voice on this device in `language`, then the chosen
+ * online voice, then any voice on this device.
+ */
+export function findSpokenAlertVoice(
+  voices: SpeechSynthesisVoice[],
+  language = (typeof document !== 'undefined' && document.documentElement.lang) || 'en',
+): SpeechSynthesisVoice | undefined {
+  const wanted = language.toLowerCase();
+  const primaryLanguage = wanted.split('-')[0];
+  const speaks = (voice: SpeechSynthesisVoice) => voice.lang.toLowerCase().split('-')[0] === primaryLanguage;
+
+  const chosenURI = useSettingsStore.getState().spokenAlertVoiceURI;
+  const chosen = chosenURI ? voices.find((voice) => voice.localService === false && voice.voiceURI === chosenURI) : undefined;
+  if (chosen && speaks(chosen)) return chosen;
+
+  const local = voices.filter((voice) => voice.localService === true);
+  return local.find((voice) => voice.lang.toLowerCase() === wanted)
+    ?? local.find(speaks)
+    ?? chosen
+    ?? local[0];
+}
+
 // =============================================================================
 // TTS Manager Class
 // =============================================================================
@@ -79,8 +127,6 @@ export const PRESET_MESSAGES: Record<MessageCategory, string[]> = {
 export class TTSManager {
   private config: TTSConfig;
   private synth: SpeechSynthesis | null = null;
-  private voices: SpeechSynthesisVoice[] = [];
-  private selectedVoice: SpeechSynthesisVoice | null = null;
   private repeatInterval: ReturnType<typeof setInterval> | null = null;
   private currentCategory: MessageCategory = 'authoritative';
   private messageIndex: number = 0;
@@ -88,6 +134,9 @@ export class TTSManager {
   private isRepeating: boolean = false;
   private isSpeaking: boolean = false;
   private currentMessage: string | null = null;
+  // Counts messages and stops, so a message that waited for the voice list is
+  // dropped after a stop or a newer message.
+  private requests = 0;
 
   constructor(config: Partial<TTSConfig> = {}) {
     this.config = { ...DEFAULT_TTS_CONFIG, ...config };
@@ -103,68 +152,13 @@ export class TTSManager {
     }
 
     this.synth = window.speechSynthesis;
-
-    // Load voices (may be async in some browsers)
-    return new Promise((resolve) => {
-      const loadVoices = () => {
-        this.voices = this.synth?.getVoices() || [];
-        this.selectBestVoice();
-        resolve();
-      };
-
-      // Some browsers load voices asynchronously
-      if (this.synth && this.synth.onvoiceschanged !== undefined) {
-        this.synth.onvoiceschanged = loadVoices;
-      }
-
-      // Try loading immediately too
-      loadVoices();
-
-      // Fallback timeout
-      setTimeout(resolve, 1000);
-    });
+    // Ask for the list now, so a browser that reads it late has it by the first alert.
+    this.synth.getVoices();
   }
 
-  /**
-   * Select the best available voice
-   */
-  private selectBestVoice(): void {
-    if (!this.voices.length) return;
-
-    // Priority: Preferred voice > English voices > Default
-    if (this.config.preferredVoice) {
-      const preferred = this.voices.find(v => 
-        v.name.toLowerCase().includes(this.config.preferredVoice!.toLowerCase())
-      );
-      if (preferred) {
-        this.selectedVoice = preferred;
-        return;
-      }
-    }
-
-    // Prefer English voices that sound authoritative
-    const englishVoices = this.voices.filter(v => 
-      v.lang.startsWith('en') && !v.name.includes('Whisper')
-    );
-
-    // Prefer male voices for authority (configurable)
-    const preferredVoice = englishVoices.find(v =>
-      v.name.includes('Daniel') || 
-      v.name.includes('Alex') ||
-      v.name.includes('Google UK English Male')
-    );
-
-    this.selectedVoice = preferredVoice || englishVoices[0] || this.voices[0];
-  }
-
-  /**
-   * Update configuration
-   */
+  /** Update configuration. */
   updateConfig(config: Partial<TTSConfig>): void {
     this.config = { ...this.config, ...config };
-    if (config.preferredVoice) {
-      this.selectBestVoice();
-    }
   }
 
   /**
@@ -187,7 +181,7 @@ export class TTSManager {
    * Get available voices
    */
   getVoices(): SpeechSynthesisVoice[] {
-    return this.voices;
+    return this.synth?.getVoices() ?? [];
   }
 
   /**
@@ -198,7 +192,7 @@ export class TTSManager {
       isSpeaking: this.isSpeaking,
       isRepeating: this.isRepeating,
       currentMessage: this.currentMessage,
-      availableVoices: this.voices,
+      availableVoices: this.getVoices(),
     };
   }
 
@@ -211,6 +205,24 @@ export class TTSManager {
       return;
     }
 
+    this.requests += 1;
+    const voices = this.getVoices();
+    if (voices.length > 0) {
+      this.speakWith(message, voices);
+      return;
+    }
+    const synth = this.synth;
+    const request = this.requests;
+    void voicesWhenListed(synth).then((listed) => {
+      if (this.synth === synth && this.requests === request) this.speakWith(message, listed);
+    });
+  }
+
+  private speakWith(message: string, voices: SpeechSynthesisVoice[]): void {
+    // People's and Wildlife's own words are English; a message the person wrote takes the page's language.
+    const voice = findSpokenAlertVoice(voices, this.customMessages.includes(message) ? undefined : 'en');
+    if (!voice || !this.synth) return;
+
     // Cancel any ongoing speech
     this.synth.cancel();
 
@@ -219,9 +231,8 @@ export class TTSManager {
     utterance.pitch = this.config.pitch;
     utterance.volume = this.config.volume;
 
-    if (this.selectedVoice) {
-      utterance.voice = this.selectedVoice;
-    }
+    utterance.voice = voice;
+    utterance.lang = voice.lang;
 
     utterance.onstart = () => {
       this.isSpeaking = true;
@@ -297,6 +308,7 @@ export class TTSManager {
    */
   stopContinuousAlert(): void {
     this.isRepeating = false;
+    this.requests += 1;
 
     if (this.repeatInterval) {
       clearInterval(this.repeatInterval);
@@ -348,8 +360,6 @@ export class TTSManager {
   dispose(): void {
     this.stop();
     this.synth = null;
-    this.voices = [];
-    this.selectedVoice = null;
   }
 }
 

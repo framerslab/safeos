@@ -310,8 +310,7 @@
       "motionThreshold": "Motion Sensitivity",
       "armingCountdown": "Arming Countdown",
       "triggerCooldown": "Trigger Cooldown",
-      "maxStoredFrames": "Max Stored Frames",
-      "autoDeleteDays": "Auto-delete after (days)"
+      "maxStoredFrames": "Max Stored Frames"
     },
     "notifications": {
       "intruderDetected": "INTRUDER ALERT!",

@@ -256,3 +256,17 @@ it('says in Fine-Tune that its values last until the preset changes for a use wi
   openFineTune();
   expect(screen.getByText('Override until preset changes')).toBeTruthy();
 });
+
+it('reads the saved pitch range from older settings and leaves out the unused noise switch', async () => {
+  localStorage.setItem('safeos-settings', JSON.stringify({ state: {
+    audioSettings: { frequencyRange: 'custom', customLowFreq: 300, customHighFreq: 3000, backgroundNoiseFilter: false },
+  }, version: 0 }));
+  await useSettingsStore.persist.rehydrate();
+
+  render(<DetectionSettingsPage />);
+
+  expect(useSettingsStore.getState().audioSettings).toEqual({
+    frequencyRange: 'custom', customLowFreq: 300, customHighFreq: 3000,
+  });
+  expect(screen.queryByRole('switch', { name: /background noise filter/i })).toBeNull();
+});
