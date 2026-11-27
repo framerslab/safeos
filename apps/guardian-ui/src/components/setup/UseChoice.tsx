@@ -33,7 +33,7 @@ export const BABY_STATEMENT = 'SafeOS is not a medical device. It does not watch
 export const CORD_SAFETY_URL = 'https://www.cpsc.gov/content/baby-monitor-cords-have-strangled-children';
 
 /** What setup says while A lost pet is chosen. One string, so a page check finds it whole. */
-export const LOST_PET_WORDS = 'SafeOS watches for your pet’s colours near home and keeps a picture of each possible sighting. Add your pet’s photos on the Lost and Found page, then press Start watching there.';
+export const LOST_PET_WORDS = 'SafeOS watches for your pet’s colours near home and keeps a picture of each possible sighting. Add your pet’s photos on the Lost and Found page, then press Start Monitoring there.';
 
 export interface UseChoiceProps {
   /** The answer shown chosen; null shows none. */
