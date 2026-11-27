@@ -6118,8 +6118,17 @@ export async function checkApp(browser, baseUrl, outDir) {
   await open({ name: 'setup, storage out of reach', width: 390, look: 'light' }, async (page, context, check) => {
     const errors = [];
     page.on('pageerror', (err) => errors.push(err.message.split('\n')[0]));
+    page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text().split('\n')[0]}`); });
     await visit(page, '/setup/');
-    check(await step1Shown(page, 10_000), `"${STEP1_H1}" does not show within 10 s; errors: ${errors.join(' | ') || 'none'}`);
+    if (!(await step1Shown(page, 10_000))) {
+      const seen = await page.evaluate(() => ({
+        path: location.pathname,
+        h1: [...document.querySelectorAll('h1')].map((h) => (h.textContent || '').trim()),
+        main: (document.querySelector('main')?.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 200),
+      })).catch((err) => ({ unreadable: err.message.split('\n')[0] }));
+      check(false, `"${STEP1_H1}" does not show within 10 s; the page shows ${JSON.stringify(seen)}; errors: ${errors.slice(0, 6).join(' | ') || 'none'}`);
+      return;
+    }
     await continueOn(page);
     await choose(page, 'A pet');
     await lastKey(page).click();
