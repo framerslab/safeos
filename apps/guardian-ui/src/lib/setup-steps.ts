@@ -34,3 +34,9 @@ export const USE_SETTING: Readonly<Record<SetupUse, PresetId>> = {
   elderly: 'maximum',
   security: 'night',
 };
+
+/** An answer to "What is it watching?": one of the four uses, or a lost pet, which watches with Lost and Found and saves the pet use. */
+export type SetupChoice = SetupUse | 'lost_found';
+
+/** The five answers, in the order setup shows them. */
+export const SETUP_CHOICES: readonly SetupChoice[] = ['pet', 'baby', 'elderly', 'security', 'lost_found'];
