@@ -539,3 +539,27 @@ it('reports a Lost and Found message with no voice and speaks it once the browse
   }
 });
 
+it('ignores a late message error from a stopped playback', async () => {
+  // A browser can report a cancelled message after the next playback began.
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [local]);
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    const first = mockSpeechSynthesis.speak.mock.calls[0][0] as { onerror: () => void };
+    player.stop();
+    player.start();
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(2);
+    player.pause();
+    first.onerror();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    player.resume();
+
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(2);
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});
+
