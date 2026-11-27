@@ -270,9 +270,12 @@ A browser can take a moment to list its voices, so an alert waits up to a
 second for the list. A newer alert replaces one that is still waiting, and a
 Lost and Found message that waits through a pause speaks once the pause ends. If
 the browser offers no voice on this device, spoken alerts stay quiet. **Settings > Alert sounds > Spoken alert voice** lets you
-choose a specific online voice when the browser offers one. Some browsers'
+choose a specific online voice when the browser offers one. When the chosen
+voice speaks another language, SafeOS's English words take an English voice on
+this device, if there is one. Some browsers'
 voices send the alert's words to the browser maker. Choose **Use a voice on
-this device** to return to the default.
+this device** to return to the default. Settings reads the browser's voice
+list again after a second, for a browser that fills it without saying so.
 
 ## When an alert comes again
 

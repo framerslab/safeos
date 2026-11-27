@@ -51,9 +51,29 @@ function instrument() {
   };
 }
 
+/**
+ * Two Wildlife watches of the sample clip. A failure of the watch itself, such
+ * as a closed browser or a folder it cannot write, is returned as `error`, so
+ * the model measurement that ran first keeps its own result.
+ */
 export async function probeWildlife({ context, baseUrl, modelHost, outDir, seed, settings }) {
   const attempts = [];
-  await mkdir(outDir, { recursive: true });
+  let failure;
+  try {
+    await mkdir(outDir, { recursive: true });
+    await watchTwice({ context, baseUrl, modelHost, outDir, seed, settings, attempts });
+  } catch (error) {
+    failure = String(error).split('\n')[0];
+  }
+  const report = failure === undefined ? { attempts } : { attempts, error: failure };
+  await writeFile(path.join(outDir, 'wildlife-probe.json'), `${JSON.stringify(report, null, 2)}\n`).catch((error) => {
+    report.error ??= String(error).split('\n')[0];
+  });
+  console.log(`Wildlife on the sample clip: ${JSON.stringify(report)}`);
+  return report;
+}
+
+async function watchTwice({ context, baseUrl, modelHost, outDir, seed, settings, attempts }) {
   for (const attempt of [1, 2]) {
     const page = await context.newPage();
     let result;
@@ -85,8 +105,4 @@ export async function probeWildlife({ context, baseUrl, modelHost, outDir, seed,
     }
     attempts.push({ attempt, ...result });
   }
-  const report = { attempts };
-  await writeFile(path.join(outDir, 'wildlife-probe.json'), `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`Wildlife on the sample clip: ${JSON.stringify(report)}`);
-  return report;
 }

@@ -8,6 +8,9 @@ export function wildlifeShortfall(results) {
     const laptop = results.runs?.find((run) => run.class === 'laptop' && run.cpuThrottlingRate?.value === 1);
     return `Wildlife’s watch did not run: the laptop’s model measurement stopped first (${laptop?.model?.error ?? 'no result'}).`;
   }
+  if (results.wildlife.error) {
+    return `Wildlife’s watch stopped before both plays of the sample clip (${results.wildlife.error}).`;
+  }
   if (results.wildlife.attempts?.length !== 2
     || results.wildlife.attempts.some((attempt) => attempt.error || attempt.frameReads < 2 || !attempt.inferences.length)) {
     return 'Wildlife did not complete a model check through its motion gate on both plays of the sample clip.';

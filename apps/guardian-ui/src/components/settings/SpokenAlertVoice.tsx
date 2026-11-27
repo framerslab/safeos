@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSettingsStore } from '@/stores/settings-store';
 import { useSaveNote } from '@/lib/settings-save';
+import { VOICE_LIST_WAIT_MS } from '@/lib/tts-alerts';
 import { SavedNote } from './SavedNote';
 
 export function SpokenAlertVoice() {
@@ -15,8 +16,14 @@ export function SpokenAlertVoice() {
     const synth = window.speechSynthesis;
     const read = () => setVoices(synth?.getVoices() ?? []);
     read();
+    // A browser may fill an empty list without firing voiceschanged, so the
+    // list is read again after the wait a spoken alert gives it.
+    const reread = synth && synth.getVoices().length === 0 ? setTimeout(read, VOICE_LIST_WAIT_MS) : undefined;
     synth?.addEventListener('voiceschanged', read);
-    return () => synth?.removeEventListener('voiceschanged', read);
+    return () => {
+      clearTimeout(reread);
+      synth?.removeEventListener('voiceschanged', read);
+    };
   }, []);
 
   const online = voices?.filter((voice) => voice.localService === false) ?? [];

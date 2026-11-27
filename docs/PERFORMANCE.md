@@ -121,7 +121,9 @@ browser contexts.
   shows that the gate opened and the model returned. Each watch must finish
   at least one inference and save a cat sighting. When the laptop model
   measurement stops first, the Wildlife watch never starts, and the run
-  fails with that measurement's error. The job summary and
+  fails with that measurement's error. When the watch itself stops, for
+  example because its page closes or its folder cannot be written, the model
+  measurement keeps its result and the run fails with the watch's error. The job summary and
   `wildlife-probe.json` in the
   `measurements` artifact give the frame's time in the clip and the time
   of the first cat sighting.

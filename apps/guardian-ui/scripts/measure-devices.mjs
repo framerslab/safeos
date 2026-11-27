@@ -760,6 +760,7 @@ const wildlifeLines = (results.wildlife?.attempts ?? []).map((attempt) => {
   const cat = attempt.catSecond === null ? 'no cat sighting' : `first cat sighting at ${attempt.catSecond} s`;
   return `- Watch ${attempt.attempt}: ${gate}, ${cat}.`;
 });
+if (results.wildlife?.error) wildlifeLines.push(`- The watch stopped: ${results.wildlife.error}`);
 const summary = `${table(results)}
 ### Wildlife on the sample clip
 

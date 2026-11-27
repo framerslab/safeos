@@ -73,7 +73,7 @@ export const PRESET_MESSAGES: Record<MessageCategory, string[]> = {
 };
 
 /** How long a spoken alert waits for a browser to list its voices. */
-const VOICE_LIST_WAIT_MS = 1000;
+export const VOICE_LIST_WAIT_MS = 1000;
 
 /**
  * The browser's voices. A browser may list none until it has read them, and
@@ -95,23 +95,28 @@ export function voicesWhenListed(synth: SpeechSynthesis): Promise<SpeechSynthesi
 }
 
 /**
- * A named online voice is used only when the person chose that voice on this
- * browser. Otherwise a voice on this device in `language`, which is the page's
- * language unless the words are SafeOS's own English ones.
+ * The voice for words in `language`, which is the page's language unless the
+ * words are SafeOS's own English ones. A named online voice is used only when
+ * the person chose that voice on this browser, and first only when it speaks
+ * `language`. Otherwise a voice on this device in `language`, then the chosen
+ * online voice, then any voice on this device.
  */
 export function findSpokenAlertVoice(
   voices: SpeechSynthesisVoice[],
   language = (typeof document !== 'undefined' && document.documentElement.lang) || 'en',
 ): SpeechSynthesisVoice | undefined {
-  const chosenURI = useSettingsStore.getState().spokenAlertVoiceURI;
-  const chosen = chosenURI ? voices.find((voice) => voice.localService === false && voice.voiceURI === chosenURI) : undefined;
-  if (chosen) return chosen;
-
   const wanted = language.toLowerCase();
   const primaryLanguage = wanted.split('-')[0];
+  const speaks = (voice: SpeechSynthesisVoice) => voice.lang.toLowerCase().split('-')[0] === primaryLanguage;
+
+  const chosenURI = useSettingsStore.getState().spokenAlertVoiceURI;
+  const chosen = chosenURI ? voices.find((voice) => voice.localService === false && voice.voiceURI === chosenURI) : undefined;
+  if (chosen && speaks(chosen)) return chosen;
+
   const local = voices.filter((voice) => voice.localService === true);
   return local.find((voice) => voice.lang.toLowerCase() === wanted)
-    ?? local.find((voice) => voice.lang.toLowerCase().split('-')[0] === primaryLanguage)
+    ?? local.find(speaks)
+    ?? chosen
     ?? local[0];
 }
 
