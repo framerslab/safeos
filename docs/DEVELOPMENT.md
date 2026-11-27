@@ -588,7 +588,10 @@ its saved picture for at least 2.5 seconds. Lost and Found enrols "Toffee"
 through `/lost-found/` from photo 1 alone (`public/home/lost-found/photo-1.jpg`,
 a photo taken on another day; photos 2 and 3 are stills from the recording the
 clip comes from, so the run never enrols them) and opens the watch from the
-page's Start Monitoring. It holds Watch for with Toffee's one saved photo for
+page's Start Monitoring. Before the recording it opens the fake camera and
+microphone once and closes them, so the browser's capture service runs when
+Start watching is pressed and the camera must show within 1.5 seconds. It
+holds Watch for with Toffee's one saved photo for
 two seconds, then presses Start watching, and the watch compares the sample
 clip at the app's default Lost and Found settings. The possible sighting must
 arrive before six seconds; the run then holds its entry, the camera's picture
