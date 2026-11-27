@@ -12,6 +12,7 @@ import React from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { CameraStep, type CameraStepProps } from '@/components/setup/CameraStep';
 import { useMicrophoneAsk } from '@/lib/browser-asks';
+import { FAILURE_WORDS, type CameraFailure } from '@/lib/setup-camera';
 
 jest.mock('@/lib/browser-asks', () => ({
   ...jest.requireActual('@/lib/browser-asks'),
@@ -157,5 +158,123 @@ describe("setup's step 1", () => {
     cleanup();
     const lasts = step();
     expect(words(lasts.container.querySelector('p[role="status"]'))).toBe('');
+  });
+});
+
+describe('step 1 when the camera does not turn on', () => {
+  it.each(['blocked', 'closed', 'in-use', 'no-camera', 'saved-gone', 'unsupported', 'other'] as const)(
+    'draws the %s failure inside the frame with its way on',
+    (failure: CameraFailure) => {
+      const { container } = step({ failure, savedCamera: failure === 'saved-gone' });
+      const frame = container.querySelector('.setup-frame[data-state="failed"]') as HTMLElement;
+      expect(frame).not.toBeNull();
+      expect(frame.querySelector('svg.problem-mark')).not.toBeNull();
+      expect(words(frame)).toContain(plain(FAILURE_WORDS[failure]));
+      expect(frame.querySelector('.setup-camera-drawing')).toBeNull();
+      expect(container.querySelector('#setup-frame-line')).toBeNull();
+      if (failure === 'unsupported') {
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+        expect(screen.queryByRole('button', { name: 'Turn on the camera' })).toBeNull();
+      } else {
+        expect(frame.contains(screen.getByRole('button', { name: 'Try again' }))).toBe(true);
+      }
+      if (failure === 'blocked') {
+        const link = screen.getByRole('link', { name: 'How to allow the camera' });
+        expect(bare(link.getAttribute('href'))).toBe('/help#camera');
+      }
+      if (failure === 'saved-gone') {
+        expect(frame.contains(screen.getByRole('button', { name: 'Use the default camera' }))).toBe(true);
+      }
+      const skip = screen.getByRole('button', { name: 'Continue without the camera' });
+      expect(frame.contains(skip)).toBe(false);
+      expect(follows(frame, skip)).toBe(true);
+    }
+  );
+
+  it('keeps focus on the pressed key when its failure shows', () => {
+    const { rerender } = step();
+    const key = screen.getByRole('button', { name: 'Turn on the camera' });
+    key.focus();
+    rerender(
+      <CameraStep
+        ask="not-asked"
+        asking={null}
+        failure="in-use"
+        savedCamera={false}
+        serverSaved={false}
+        storageEnds={false}
+        focus={false}
+        onTurnOn={onTurnOn}
+        onDefaultCamera={onDefaultCamera}
+        onContinue={onContinue}
+      />
+    );
+    expect(document.activeElement).toBe(key);
+    expect(words(key)).toBe('Try again');
+  });
+
+  it('moves focus to Continue when the browser cannot use a camera', () => {
+    const { rerender } = step();
+    screen.getByRole('button', { name: 'Turn on the camera' }).focus();
+    rerender(
+      <CameraStep
+        ask="not-asked"
+        asking={null}
+        failure="unsupported"
+        savedCamera={false}
+        serverSaved={false}
+        storageEnds={false}
+        focus={false}
+        onTurnOn={onTurnOn}
+        onDefaultCamera={onDefaultCamera}
+        onContinue={onContinue}
+      />
+    );
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Continue without the camera' }));
+  });
+
+  it("says the failure from the step's status region", () => {
+    const failed = step({ failure: 'closed' });
+    expect(words(failed.container.querySelector('.setup-frame-says[role="status"]'))).toBe(plain(FAILURE_WORDS.closed));
+    cleanup();
+    const rest = step();
+    expect(words(rest.container.querySelector('.setup-frame-says[role="status"]'))).toBe('');
+  });
+
+  it('waits on Use the default camera with Try again inactive, the same key kept while its request is out', () => {
+    const props = {
+      ask: 'not-asked' as const,
+      serverSaved: false,
+      storageEnds: false,
+      focus: false,
+      onTurnOn,
+      onDefaultCamera,
+      onContinue,
+    };
+    const { container, rerender } = render(<CameraStep {...props} asking={null} failure="saved-gone" savedCamera />);
+    const fallback = screen.getByRole('button', { name: 'Use the default camera' });
+    fallback.focus();
+    rerender(<CameraStep {...props} asking="default" failure="saved-gone" savedCamera={false} />);
+    const waiting = container.querySelector('.setup-default') as HTMLElement;
+    expect(waiting).toBe(fallback);
+    expect(document.activeElement).toBe(fallback);
+    expect(words(waiting)).toBe('Waiting for your answer…');
+    expect(waiting.getAttribute('aria-busy')).toBe('true');
+    expect(container.querySelector('.setup-frame')?.getAttribute('data-state')).toBe('failed');
+    const again = screen.getByRole('button', { name: 'Try again' });
+    expect(again.getAttribute('aria-disabled')).toBe('true');
+    expect(again.hasAttribute('aria-busy')).toBe(false);
+    fireEvent.click(again);
+    fireEvent.click(waiting);
+    expect(onTurnOn).not.toHaveBeenCalled();
+    expect(onDefaultCamera).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
+    expect(onContinue).toHaveBeenCalledTimes(1);
+  });
+
+  it('presses Use the default camera', () => {
+    step({ failure: 'saved-gone', savedCamera: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Use the default camera' }));
+    expect(onDefaultCamera).toHaveBeenCalledTimes(1);
   });
 });

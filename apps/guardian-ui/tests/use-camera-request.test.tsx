@@ -29,8 +29,8 @@ let answers: string[];
 
 const named = (name: string) => Object.assign(new Error(name), { name });
 
-function Request() {
-  const camera = useCameraRequest('');
+function Request({ deviceId = '' }: { deviceId?: string }) {
+  const camera = useCameraRequest(deviceId);
   const press = (which: Asking) => {
     void camera.request(which).then((answer) => answers.push(answer));
   };
@@ -48,6 +48,12 @@ function Request() {
       </button>
       <button type="button" onClick={camera.close}>
         Close
+      </button>
+      <button type="button" onClick={camera.readAgain}>
+        Read again
+      </button>
+      <button type="button" onClick={() => press('default')}>
+        Default
       </button>
     </>
   );
@@ -201,5 +207,133 @@ describe("setup's camera request on the page", () => {
       expect(reads('failure')).toBe('');
       expect(reads('asking')).toBe('');
     }
+  });
+});
+
+describe('when the camera does not turn on', () => {
+  it('names a camera blocked before any press', async () => {
+    askHook.mockReturnValue('blocked');
+    render(<Request />);
+    await settle();
+    expect(reads('failure')).toBe('blocked');
+    expect(browser.getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it("asks again by itself when the site's setting turns to allow", async () => {
+    askHook.mockReturnValue('blocked');
+    const { rerender } = render(<Request />);
+    await settle();
+    askHook.mockReturnValue('granted');
+    rerender(<Request />);
+    await settle();
+    expect(browser.getUserMedia).toHaveBeenCalledTimes(1);
+    expect(reads('stream')).toBe('open');
+  });
+
+  it('names a browser with no camera request as soon as the step opens', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+    render(<Request />);
+    await settle();
+    expect(reads('failure')).toBe('unsupported');
+  });
+
+  it('forgets the failure of a camera the person went on without', async () => {
+    browser.getUserMedia.mockRejectedValueOnce(named('NotReadableError'));
+    render(<Request />);
+    press('Turn on');
+    await settle();
+    expect(reads('failure')).toBe('in-use');
+    press('Drop');
+    await settle();
+    expect(reads('failure')).toBe('');
+    cleanup();
+
+    askHook.mockReturnValue('blocked');
+    const { rerender } = render(<Request />);
+    await settle();
+    expect(reads('failure')).toBe('blocked');
+    press('Drop');
+    await settle();
+    for (const ask of ['not-asked', 'blocked', 'granted']) {
+      askHook.mockReturnValue(ask);
+      rerender(<Request />);
+      await settle();
+      expect(reads('failure')).toBe('');
+    }
+    expect(browser.getUserMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it("names a blocked camera again on a return to step 1, and moves on once the site's setting allows it", async () => {
+    askHook.mockReturnValue('blocked');
+    const { rerender } = render(<Request />);
+    await settle();
+    expect(reads('failure')).toBe('blocked');
+    press('Drop');
+    await settle();
+    expect(reads('failure')).toBe('');
+    press('Read again');
+    await settle();
+    expect(reads('failure')).toBe('blocked');
+    expect(browser.getUserMedia).not.toHaveBeenCalled();
+    askHook.mockReturnValue('granted');
+    rerender(<Request />);
+    await settle();
+    expect(browser.getUserMedia).toHaveBeenCalledTimes(1);
+    expect(reads('stream')).toBe('open');
+  });
+
+  it('names a browser with no camera request again on a return to step 1', async () => {
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+    render(<Request />);
+    await settle();
+    expect(reads('failure')).toBe('unsupported');
+    press('Drop');
+    await settle();
+    expect(reads('failure')).toBe('');
+    press('Read again');
+    await settle();
+    expect(reads('failure')).toBe('unsupported');
+    expect(browser.getUserMedia).not.toHaveBeenCalled();
+  });
+
+  it('names nothing again for a camera that is not blocked', async () => {
+    browser.getUserMedia.mockRejectedValueOnce(named('NotReadableError'));
+    const { rerender } = render(<Request />);
+    press('Turn on');
+    await settle();
+    expect(reads('failure')).toBe('in-use');
+    press('Drop');
+    press('Read again');
+    await settle();
+    expect(reads('failure')).toBe('');
+    askHook.mockReturnValue('blocked');
+    rerender(<Request />);
+    await settle();
+    expect(reads('failure')).toBe('blocked');
+    askHook.mockReturnValue('granted');
+    rerender(<Request />);
+    await settle();
+    expect(browser.getUserMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks nothing by itself after any other failure', async () => {
+    browser.getUserMedia.mockRejectedValueOnce(named('NotReadableError'));
+    const { rerender } = render(<Request />);
+    press('Turn on');
+    await settle();
+    expect(reads('failure')).toBe('in-use');
+    askHook.mockReturnValue('granted');
+    rerender(<Request />);
+    await settle();
+    expect(browser.getUserMedia).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks for the default camera for Use the default camera', async () => {
+    render(<Request deviceId="usb" />);
+    press('Default');
+    await settle();
+    const asked = browser.getUserMedia.mock.calls[0][0];
+    expect(asked.video).toEqual(expect.objectContaining({ facingMode: 'environment' }));
+    expect(asked.video).not.toHaveProperty('deviceId');
   });
 });

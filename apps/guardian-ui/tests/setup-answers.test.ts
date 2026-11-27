@@ -10,6 +10,7 @@
 
 import { writeNow } from '@/lib/setup-answers';
 import { useOnboardingStore } from '@/stores/onboarding-store';
+import { useCameraStore } from '@/stores/camera-store';
 
 beforeEach(() => {
   localStorage.clear();
@@ -49,5 +50,11 @@ describe('what a press on setup writes', () => {
       result = writeNow({ statement: true });
     }).not.toThrow();
     expect(result).toBe(false);
+  });
+
+  it('removes the saved camera for Use the default camera', () => {
+    useCameraStore.getState().setDeviceId('usb');
+    expect(writeNow({ defaultCamera: true })).toBe(true);
+    expect(useCameraStore.getState().deviceId).toBe('');
   });
 });

@@ -270,3 +270,29 @@ describe("setup's step 2, the place and its test", () => {
     expect(browser.audio.stop).not.toHaveBeenCalled();
   });
 });
+
+describe('step 2 when the camera does not turn on', () => {
+  it('draws a failure on step 2 inside the frame, with Try again as an outlined key', () => {
+    const { container } = place({ stream: null, failure: 'blocked' });
+    const off = container.querySelector('.setup-picture[data-state="failed"] .setup-off') as HTMLElement;
+    expect(off).not.toBeNull();
+    expect(off.querySelector('svg.problem-mark')).not.toBeNull();
+    expect(words(off)).toContain("The camera is blocked for safeos.sh in this browser. Allow it in the site's settings, then press Try again.");
+    const again = screen.getByRole('button', { name: 'Try again' });
+    expect(off.contains(again)).toBe(true);
+    expect(again.classList.contains('key--outline')).toBe(true);
+    expect(off.contains(screen.getByRole('link', { name: 'How to allow the camera' }))).toBe(true);
+  });
+
+  it('keeps Use the default camera on step 2 while its request is out', () => {
+    const { container } = place({ stream: null, failure: 'saved-gone', savedCamera: false, asking: 'default' });
+    const off = container.querySelector('.setup-off') as HTMLElement;
+    const waiting = off.querySelector('button.setup-default') as HTMLElement;
+    expect(words(waiting)).toBe('Waiting for your answer…');
+    expect(waiting.getAttribute('aria-busy')).toBe('true');
+    const again = off.querySelector('.setup-again') as HTMLElement;
+    expect(words(again)).toBe('Try again');
+    expect(again.getAttribute('aria-disabled')).toBe('true');
+    expect(again.hasAttribute('aria-busy')).toBe(false);
+  });
+});
