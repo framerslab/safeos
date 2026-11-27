@@ -18,7 +18,7 @@ const words = (element: Element | null | undefined) =>
 const plain = (text: string) => text.replace(/’/g, "'");
 
 const LOST_PET =
-  'SafeOS watches for your pet’s colours near home and keeps a picture of each possible sighting. Add your pet’s photos on the Lost and Found page, then press Start watching there.';
+  'SafeOS watches for your pet’s colours near home and keeps a picture of each possible sighting. Add your pet’s photos on the Lost and Found page, then press Start Monitoring there.';
 const BABY =
   'SafeOS is not a medical device. It does not watch breathing or any vital sign and cannot detect or prevent SIDS. Follow safe-sleep guidance.';
 const NAMES = ['A pet', 'A baby', 'An elderly relative', 'An empty place', 'A lost pet'];

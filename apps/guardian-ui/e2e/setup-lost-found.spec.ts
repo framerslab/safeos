@@ -40,7 +40,7 @@ test('setup offers A lost pet, and its last key opens the Lost and Found page', 
 
   await page.getByRole('radio', { name: 'A lost pet', exact: true }).check();
   await expect(page.getByText('SafeOS watches for your pet’s colours near home and keeps a picture of each possible sighting.', { exact: false })).toBeVisible();
-  await expect(page.getByText('Add your pet’s photos on the Lost and Found page, then press Start watching there.', { exact: false })).toBeVisible();
+  await expect(page.getByText('Add your pet’s photos on the Lost and Found page, then press Start Monitoring there.', { exact: false })).toBeVisible();
   const open = page.getByRole('button', { name: 'Open Lost and Found', exact: true });
   await expect(open).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('setup-lost-pet-1280.png'), fullPage: true });

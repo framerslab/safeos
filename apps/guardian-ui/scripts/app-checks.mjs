@@ -5412,7 +5412,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     'A baby': 'For a nap while you stay close enough to hear this device.',
     'An elderly relative': 'SafeOS sounds an alert here when they move or make a sound, and, if you set a time in Settings, when nothing moves for that long.',
     'An empty place': 'SafeOS sounds an alert here when anything moves in the picture or this device hears a sound. Point it at a room, a doorway or a yard.',
-    'A lost pet': "SafeOS watches for your pet's colours near home and keeps a picture of each possible sighting. Add your pet's photos on the Lost and Found page, then press Start watching there.",
+    'A lost pet': "SafeOS watches for your pet's colours near home and keeps a picture of each possible sighting. Add your pet's photos on the Lost and Found page, then press Start Monitoring there.",
   };
   const USE_NAMES = Object.keys(USE_WORDS);
   const useWords = async (page) => plain(await page.locator('#setup-use-words').innerText());
@@ -6280,6 +6280,15 @@ export async function checkApp(browser, baseUrl, outDir) {
 
       if (width !== 390 || look !== 'light') return;
       await seedAlerts(page, { pets: [{ id: 'pet-mittens', name: 'Mittens' }] });
+      // The words name the Lost and Found page's own start key, so a rename of
+      // that key fails here until the words change with it.
+      const keyNamed = (USE_WORDS['A lost pet'].match(/then press (.+) there\.$/) || [])[1] || '';
+      await visit(page, '/lost-found/');
+      await firstHeading(page);
+      await page.locator('#main-content h3', { hasText: 'Mittens' }).first().click();
+      const pageKey = page.locator('#main-content').getByRole('button', { name: keyNamed, exact: true });
+      const keyShown = await pageKey.waitFor({ timeout: 20_000 }).then(() => true, () => false);
+      check(keyNamed !== '' && keyShown, `with Mittens saved the Lost and Found page shows no key named "${keyNamed}"; its keys read ${(await page.locator('#main-content button').allInnerTexts()).map(plain).join(', ')}`);
       await openDash(page);
       const named = await lineOf(page);
       check(named === 'Start watching uses Lost and Found, for Mittens.', `with Mittens saved the line reads "${named}"`);
@@ -7139,20 +7148,27 @@ export async function checkApp(browser, baseUrl, outDir) {
     await pressTo(page, startKey(page), '/monitor');
     await noticeStart(page).click({ timeout: 20_000 }).catch(() => check(false, 'the notice before the first watch does not show'));
     if (!(await watchRuns(page))) { check(false, 'the watch does not run'); return; }
-    const alerted = await page.waitForFunction(async () => {
+    // The saved alerts are read each second. waitForFunction is not used: it
+    // takes the promise an async test returns as a yes at once.
+    const savedAlerts = () => page.evaluate(async () => {
       const db = await new Promise((resolve) => { const r = indexedDB.open('safeos-guardian'); r.onsuccess = () => resolve(r.result); r.onerror = () => resolve(null); });
-      if (!db || !db.objectStoreNames.contains('alert_cache')) return false;
+      if (!db || !db.objectStoreNames.contains('alert_cache')) return 0;
       const count = await new Promise((resolve) => { const r = db.transaction('alert_cache').objectStore('alert_cache').count(); r.onsuccess = () => resolve(r.result); r.onerror = () => resolve(0); });
       db.close();
-      return count > 0;
-    }, null, { timeout: 20_000, polling: 1_000 }).then(() => true, () => false);
+      return count;
+    });
+    let alerted = false;
+    for (const until = Date.now() + 20_000; !alerted && Date.now() < until;) {
+      alerted = (await savedAlerts()) > 0;
+      if (!alerted) await page.waitForTimeout(1_000);
+    }
     check(alerted, 'no alert within 20 s of watching');
     await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
     // The device's own alerts are History's local timeline.
     await visit(page, '/history/?view=local');
     // History says how long ago each alert was: "Just now", "2 mins ago" or a clock time.
     const listed = await page.waitForFunction(() => /Just now|\bmins? ago\b|\d{1,2}:\d{2}/.test(document.getElementById('main-content')?.innerText || ''), null, { timeout: 15_000 }).then(() => true, () => false);
-    check(listed, `History lists no alert with its time; its page reads "${plain(await page.locator('#main-content').innerText().catch(() => '')).slice(0, 240)}"`);
+    check(listed, `History lists no alert with its time; its page ends "${plain(await page.locator('#main-content').innerText().catch(() => '')).slice(-240)}"`);
   }, { ...NEW_DEVICE, script: FAKE_CAMERA });
 
   const FIT_STATES = [
