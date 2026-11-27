@@ -6719,17 +6719,17 @@ export async function checkApp(browser, baseUrl, outDir) {
       await visit(page, '/setup/');
       await throughSetup(page, 'A pet');
       const before = routeData;
-      await lastKey(page).click();
-      // The key's words while the dashboard opens, once its change of look has run its course.
-      await page.waitForFunction(() => (document.querySelector('#main-content main .setup-last-key')?.textContent || '').includes('Opening'), null, { timeout: 1_000, polling: 'raf' }).catch(() => {});
+      // The key's look while the dashboard opens is read at the first frame that shows it, with
+      // its change of colour made at once: the dashboard can open before a transition ends.
+      await page.addStyleTag({ content: '.setup-last-key { transition: none !important; }' });
       await page.mouse.move(0, 0);
-      await page.waitForTimeout(400);
-      const seen = await page.evaluate(() => {
+      await lastKey(page).click();
+      const seen = await page.waitForFunction(() => {
         const el = document.querySelector('#main-content main .setup-last-key');
-        if (!el) return null;
+        if (!el || !el.textContent.includes('Opening')) return null;
         const style = getComputedStyle(el);
         return { words: el.textContent.trim(), busy: el.getAttribute('aria-busy'), ground: style.backgroundColor, edge: `${style.borderTopWidth} ${style.borderTopStyle} ${style.borderTopColor}` };
-      });
+      }, null, { timeout: 1_000, polling: 'raf' }).then((handle) => handle.jsonValue(), () => null);
       check(seen && seen.words === 'Opening the dashboard…' && seen.busy === 'true', `while the dashboard opens the key is ${JSON.stringify(seen)}`);
       check(seen && seen.ground === 'rgba(0, 0, 0, 0)' && seen.edge === `2px solid ${LINE[look]}`, `the opening key is drawn ${JSON.stringify(seen)}`);
       await lastKey(page).click({ timeout: 1_000 }).catch(() => {});
@@ -7016,7 +7016,9 @@ export async function checkApp(browser, baseUrl, outDir) {
       check((await page.getByRole('link', { name: 'Open dashboard', exact: true }).count()) + (await page.getByRole('button', { name: 'Open dashboard', exact: true }).count()) >= 1, 'the offline page has no Open dashboard');
       await context.setOffline(false);
       if (worker) await worker.evaluate(() => { if (self.__fetch) self.fetch = self.__fetch; });
-      await page.getByRole('button', { name: 'Try again', exact: true }).click({ force: true });
+      // The offline page may try again by itself once the window is online; otherwise its key does.
+      const again = page.getByRole('button', { name: 'Try again', exact: true });
+      if (await again.count()) await again.click({ force: true, timeout: 5_000 }).catch(() => {});
       check(await step1Shown(page), `online again, Try again does not show "${STEP1_H1}"`);
     }, NEW_DEVICE);
   }
@@ -7150,7 +7152,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     await visit(page, '/history/?view=local');
     // History says how long ago each alert was: "Just now", "2 mins ago" or a clock time.
     const listed = await page.waitForFunction(() => /Just now|\bmins? ago\b|\d{1,2}:\d{2}/.test(document.getElementById('main-content')?.innerText || ''), null, { timeout: 15_000 }).then(() => true, () => false);
-    check(listed, 'History lists no alert with its time');
+    check(listed, `History lists no alert with its time; its page reads "${plain(await page.locator('#main-content').innerText().catch(() => '')).slice(0, 240)}"`);
   }, { ...NEW_DEVICE, script: FAKE_CAMERA });
 
   const FIT_STATES = [
