@@ -99,12 +99,12 @@ it('forgets the entry when the address moves to another fragment, so a later Tro
   expect(scrolled).not.toContain(camera);
 });
 
-it('Getting Started leads to setup, which asks for the camera and the microphone together, and then to Start watching', () => {
+it('Getting Started leads to setup, which turns on the camera and the microphone together, and then to Start watching', () => {
   render(<HelpPage />);
   const steps = screen.getByRole('heading', { name: 'Getting Started with SafeOS' }).parentElement as HTMLElement;
   const links = Array.from(steps.querySelectorAll('a')).map((link) => bare(link.getAttribute('href')));
   expect(links).toContain('/setup');
-  expect(steps.textContent).toMatch(/camera and the microphone/);
+  expect(steps.textContent).toMatch(/Turn on the camera, then allow the camera and microphone/);
   expect(steps.textContent).not.toMatch(/optionally microphone/);
   expect(steps.textContent).toMatch(/Start watching/);
   expect(steps.textContent).not.toMatch(/Click "Start Monitoring"/);
