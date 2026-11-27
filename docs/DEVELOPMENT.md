@@ -584,7 +584,17 @@ from a watch on the sample clip. It shows the list for about two seconds,
 opens the movement alert and holds its kept picture through the end of the
 seven-second run. Watching shows the kitten facing the camera and walking
 past it. Motion crosses its line and the watch scrolls to the alert and
-its saved picture for at least 2.5 seconds. Settings records a scroll of
+its saved picture for at least 2.5 seconds. Lost and Found enrols "Toffee"
+through `/lost-found/` from photo 1 alone (`public/home/lost-found/photo-1.jpg`,
+a photo taken on another day; photos 2 and 3 are stills from the recording the
+clip comes from, so the run never enrols them) and opens the watch from the
+page's Start Monitoring. It holds Watch for with Toffee's one saved photo for
+two seconds, then presses Start watching, and the watch compares the sample
+clip at the app's default Lost and Found settings. The possible sighting must
+arrive before six seconds; the run then holds its entry, the camera's picture
+beside the saved photo, through the end of the nine-second run. Its Motion
+starts at its least sensitive setting and its microphone hears silence, so no
+other alert joins the entry; a run with any other alert fails. Settings records a scroll of
 the actual settings list. The producer captures native frames and encodes silent MP4s and WebP posters, with AVIF
 alternatives when available. It records the source commit, run URL, clip
 credits, visible words, recording positions and file hashes in `runs.json`.
@@ -598,7 +608,10 @@ dimensions at 3×. The wide recordings and posters are 1920 by 1200 native
 pixels. Watching crops a 768 by 480 CSS pixel window below the app header
 in a 768 by 548 viewport at 2.5×. Dashboard crops a 640 by 400 window of the
 alert list between the watch links and the app footer in a 640 by 640
-viewport at 3×. Settings uses the full 768 by 480 viewport at 2.5×.
+viewport at 3×. Lost and Found crops the same window as Watching; in it the
+entry sets the camera's picture beside the pair of pictures and the words,
+while the square crop holds the close-up and the saved photo with the
+question under them. Settings uses the full 768 by 480 viewport at 2.5×.
 
 The pull request's capture also walks the home's run keys at 320, 360, 390,
 430, 480 and 768 px (`scripts/home-run-checks.mjs`): the keys read Watching,
@@ -784,9 +797,10 @@ step of the walk or of the database reads fails, with a picture of the page,
 one entry a set under `sets` and is in the
 run's `home-pictures` artifact beside `home/`. Each set of photos the probe
 tries is copied into the `tried` list of `public/home/lost-found/photos.json`,
-the sets that did not alert as well as the one that did, and the last set
-listed is the one that alerted, with the digests of the photos and the clip it
-ran on. The list is held by `tests/home-lost-found-photos.test.ts`, with each
+the tries that did not alert as well as those that did, with the digests of
+the photos and the clip each ran on, and the newest try of set A and of set B
+must have alerted on the committed photos and clip. The list is held by
+`tests/home-lost-found-photos.test.ts`, with each
 photo's size, digest, source, crop box and licence, so a photo or the clip
 changed without a new probe fails the test.
 
