@@ -70,7 +70,7 @@ async function recordVariant(browser, recipe, view, avif) {
   try {
     await captureNotifications(context);
     const cdp = await context.newCDPSession(page);
-    const prepared = await recipe.prepare({ page, baseUrl, view });
+    const prepared = await recipe.prepare({ page, baseUrl, view, photos: recipe.photos });
     const actualLook = await page.evaluate(() => document.documentElement.classList.contains('dark') ? 'dark' : 'light');
     assert.equal(actualLook, view.look, 'The site look differs from the browser');
     const viewport = await page.evaluate(() => [innerWidth, innerHeight, devicePixelRatio]);
@@ -129,6 +129,8 @@ async function recordVariant(browser, recipe, view, avif) {
         watchEvents: cut.watchEvents.map(({ kind, at, clipAt }) => ({ kind, at, clipAt })),
       } : {}),
       ...(cut.notices?.length ? { notifications: cut.notices } : {}),
+      // The files the page was given and the SHA-256 of their bytes, as the recorder handed them over.
+      ...(prepared?.enrolled ? { enrolled: prepared.enrolled } : {}),
     };
   } catch (cause) {
     const diagnostics = path.join(scratch, 'home-run-diagnostics');
@@ -164,8 +166,15 @@ async function recordSet(browsers, recipe, avif) {
   }
   const { id, key, route, state, clip, seconds, description, longDescription } = recipe;
   const first = variants.square.dark;
+  // Every variant enrols the pet on its own device: the run's entry keeps the one list they all gave.
+  const given = ['square', 'wide'].flatMap((size) => looks.map((look) => variants[size][look]));
+  const enrolled = first.enrolled;
+  for (const variant of given) {
+    assert.deepEqual(variant.enrolled, enrolled, `${id}: the variants gave the page different files`);
+    delete variant.enrolled;
+  }
   return {
-    id, key, route, state, clip, ...(recipe.photos ? { photos: recipe.photos } : {}), seconds, description, longDescription,
+    id, key, route, state, clip, ...(recipe.photos ? { photos: recipe.photos } : {}), ...(enrolled ? { enrolled } : {}), seconds, description, longDescription,
     eventAt: first.eventAt, posterAt: first.posterAt, visibleWords: first.words.map(({ word }) => word),
     ...(first.meterPeaks ? { meterPeaks: first.meterPeaks } : {}), variants,
   };

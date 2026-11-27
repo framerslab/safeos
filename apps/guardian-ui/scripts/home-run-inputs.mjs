@@ -40,6 +40,7 @@ const common = [
   'scripts/home-run-list.mjs',
   'scripts/home-run-seed.mjs',
   'scripts/lost-found-walk.mjs',
+  'scripts/lost-found-verdict.mjs',
   'scripts/home-runs.mjs',
   'scripts/home-wording.cjs',
 ];
@@ -195,6 +196,14 @@ export function verifyBundle(directory) {
     assert.ok(description?.trim() && longDescription?.length, id + ': missing text equivalent');
     assert.doesNotMatch([run.key, description, ...longDescription].join(' '), barredWording, id + ': barred caption');
     checkWords(visibleWords, id);
+    if (id === 'lost-found') {
+      // The files the recorder gave the page, with the SHA-256 of the bytes it handed over: the
+      // run's photos, each with the SHA-256 that photos.json records for it.
+      const catalogue = JSON.parse(readFileSync(path.join(folder, 'home', 'lost-found', 'photos.json'), 'utf8')).photos;
+      const expected = (run.photos ?? []).map((file) => ({ file, sha256: catalogue.find((photo) => photo.file === file)?.sha256 }));
+      assert.deepEqual(run.enrolled, expected,
+        id + ': the files the recording enrolled differ from its photos and their SHA-256 in photos.json: ' + JSON.stringify(run.enrolled));
+    }
     assert.deepEqual(Object.keys(variants).sort(), sizes, id + ': size variants');
     for (const size of sizes) {
       assert.deepEqual(Object.keys(variants[size]).sort(), looks, id + ': look variants');

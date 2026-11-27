@@ -609,7 +609,10 @@ clip at the app's default Lost and Found settings. The possible sighting must
 arrive before five seconds; from five seconds the run holds its entry, the
 camera's picture beside the saved photo, through the end of the nine-second run. Its Motion
 starts at its least sensitive setting and its microphone hears silence, so no
-other alert joins the entry; a run with any other alert fails. Settings records a scroll of
+other alert joins the entry; a run with any other alert fails. The recorder hands the page
+the files the run's `photos` name and nothing else, reads each file once and gives the file
+input those bytes; the run's entry in `runs.json` lists them as `enrolled`, each with the
+SHA-256 of the bytes handed over. Settings records a scroll of
 the actual settings list. The producer captures native frames and encodes silent MP4s and WebP posters, with AVIF
 alternatives when available. It records the source commit, run URL, clip
 credits, visible words, recording positions and file hashes in `runs.json`.
@@ -628,7 +631,13 @@ in a 640 by 640 viewport at 3×, so its entry's words show a fifth larger in
 the home's frame than a 768 px window would show them; in it the entry sets
 the camera's picture beside the pair of pictures and the words, while the
 square crop holds the close-up and the saved photo with the question under
-them. Settings uses the full 768 by 480 viewport at 2.5×.
+them. The square crop cannot hold the whole camera frame with the meters under
+it, so from the press of Start watching to the hold at five seconds the page
+moves up, before each paint, by the fewest pixels that keep the pet's row,
+"Comparing with Toffee’s photos", whole above the crop's foot; the camera's
+picture gives up its top. A Lost and Found recording that cuts a word at the
+crop's edges when the camera starts or when the possible sighting arrives
+fails. Settings uses the full 768 by 480 viewport at 2.5×.
 
 The pull request's capture also walks the home's run keys at 320, 360, 390,
 430, 480 and 768 px (`scripts/home-run-checks.mjs`): the keys read Watching,
@@ -721,7 +730,12 @@ stopped changing, a DevTools screenshot of the same size is kept as that
 frame.
 The same job runs `scripts/home-run-scripts.test.mjs` with `node --test`:
 tests of the screencast timing, the flash check, the held-alert check and
-the stylesheet inputs, on generated frames and clips.
+the stylesheet inputs, on generated frames and clips; a test that every script
+`home-runs.mjs` loads, directly or through the run list and the Lost and Found
+helpers, is a recording input; and a test that the committed runs fail when the
+Lost and Found entry's `enrolled` files differ from the run's `photos` or from
+their SHA-256 in `public/home/lost-found/photos.json`, which **Check the
+committed home runs** also checks.
 A source change requires a new recording. Evidence and documentation edits
 are outside the recording inputs. Pages checks the exported media before
 uploading a deployable build.

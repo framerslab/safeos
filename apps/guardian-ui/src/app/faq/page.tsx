@@ -112,7 +112,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How does Lost and Found compare my pet\'s photos?',
-        answer: 'Twice a second, the browser compares each part of the camera\'s picture that moved with your pet\'s photos: their colours, 5 main colours, outline on an 8 by 8 grid and size. When a part comes close enough, Lost and Found shows a possible sighting with that picture beside your photo, so you can check it yourself. It reads colours and outline with no model, so another animal, or a cushion or bag of similar colours, can raise one too. Crop each photo close to your pet: the background in a photo counts as well.',
+        answer: 'Twice a second, the browser compares the colours of the whole camera picture with your pet\'s photos. When they are far apart, it goes no further. When they are close, it compares each part of the picture that moved since the comparison before, or every part on the first picture after you start watching, with your pet\'s photos: their colours, 5 main colours, outline on an 8 by 8 grid and size. When a part comes close enough, Lost and Found shows a possible sighting with that picture beside your photo, so you can check it yourself. It reads colours and outline with no model, so another animal, or a cushion or bag of similar colours, can raise one too. Crop each photo close to your pet: the background in a photo counts as well.',
       },
       {
         question: 'How do I reduce false positives?',

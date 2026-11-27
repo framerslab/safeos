@@ -3,6 +3,7 @@
 // Chromium, with the fake camera fed from the sample clip; these functions
 // seed a device, enrol a pet through /lost-found/ with its photos, start the
 // watch and read what the watch kept from the browser's own database.
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,7 +51,9 @@ export async function seededContext(browser, options, settings = CAPTURE_SETTING
  * photos' fingerprints with a Done key first, `atFingerprints` is awaited on
  * that step before Done is pressed. Returns once the page shows the pet under
  * "Currently Watching" and the device holds the saved pet with the photos
- * setup showed, in their order; throws when it does not.
+ * setup showed, in their order; throws when it does not. Each photo is read
+ * once and those bytes are what the file input receives; `given` lists each
+ * file with the SHA-256 of the bytes handed over, in the order they were.
  */
 export async function enrol(page, baseUrl, { name, photos, atFingerprints }) {
   await page.goto(new URL('/lost-found/', baseUrl).toString(), { waitUntil: 'networkidle', timeout: 60_000 });
@@ -64,8 +67,11 @@ export async function enrol(page, baseUrl, { name, photos, atFingerprints }) {
 
   // One photo at a time, each waited for, so the pet keeps them in this order.
   const previews = page.locator('img[src^="data:image"]');
+  const given = [];
   for (let i = 0; i < photos.length; i++) {
-    await fileInput.setInputFiles(photos[i]);
+    const buffer = await readFile(photos[i]);
+    given.push({ file: photos[i], sha256: createHash('sha256').update(buffer).digest('hex') });
+    await fileInput.setInputFiles({ name: path.basename(photos[i]), mimeType: photoType(photos[i]), buffer });
     await page.waitForFunction((count) => document.querySelectorAll('img[src^="data:image"]').length >= count, i + 1, { timeout: 30_000 });
   }
   const shown = await previews.count();
@@ -90,7 +96,14 @@ export async function enrol(page, baseUrl, { name, photos, atFingerprints }) {
   await page.getByText(name, { exact: true }).first().waitFor({ timeout: 30_000 });
   const problem = savedPetProblem(await readPet(page, name), photos.length, shownPictures);
   if (problem) throw new Error(problem);
-  return { sawFingerprints };
+  return { sawFingerprints, given };
+}
+
+// The type a browser gives a photo file it is handed, from its name.
+function photoType(file) {
+  const type = { '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp' }[path.extname(file).toLowerCase()];
+  if (!type) throw new Error(`no photo type for ${file}`);
+  return type;
 }
 
 /**

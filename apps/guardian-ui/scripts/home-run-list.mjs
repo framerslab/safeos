@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { recordingSettings as settings } from './home-run-seed.mjs';
 import { enrol } from './lost-found-walk.mjs';
@@ -575,9 +576,14 @@ async function siteSettings({ page, view, top, sample, whole, nextFrameAfter, ca
   return { start, words, poster: start + 1, event: start + 2 };
 }
 
-async function prepareLostFound({ page, baseUrl, view }) {
-  const photos = LOST_FOUND_PHOTOS.map((file) => fileURLToPath(new URL('../public/' + file, import.meta.url)));
-  await enrol(page, baseUrl, { name: PET, photos });
+// The files the recorder gives the page come from the run's photos alone; the
+// run's entry in runs.json lists the files the page was given, by their place
+// under public/, with the SHA-256 of the bytes handed over.
+async function prepareLostFound({ page, baseUrl, view, photos }) {
+  assert.ok(Array.isArray(photos) && photos.length, 'The Lost and Found run names no photos');
+  const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
+  const { given } = await enrol(page, baseUrl, { name: PET, photos: photos.map((file) => path.join(publicDir, file)) });
+  const enrolled = given.map(({ file, sha256 }) => ({ file: path.relative(publicDir, file).split(path.sep).join('/'), sha256 }));
   // The Lost & Found page opens the watch with Lost and Found and its pet.
   await page.getByRole('button', { name: 'Start Monitoring' }).first().click();
   await page.waitForURL((url) => url.pathname === WATCH, { timeout: 15 * SECOND });
@@ -620,6 +626,7 @@ async function prepareLostFound({ page, baseUrl, view }) {
     ` });
   }
   await trackWatchAlerts(page);
+  return { enrolled };
 }
 
 async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, captureFrame }) {
@@ -637,6 +644,27 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   await sleepUntil(page, start, LOST_FOUND_START_AT);
   await scrollSubject(page, '.watch-frame__screen', crop.y + 4, 0);
   await settleEdges(page, crop, ['.watch-frame__screen'], { controls: false });
+  if (view.size === 'square') {
+    // The square crop cannot hold the whole frame with the meters under it: from the press, when
+    // the meters come in, the pet's row "Comparing with Toffee’s photos" would run past the crop's
+    // foot. Each time the page lays out, before it paints, the page moves up by the fewest pixels
+    // that bring the row whole into the crop, 4 px above its foot; the camera's picture gives up
+    // its top instead. It never moves back, and it stops before the hold at five seconds.
+    await page.evaluate((foot) => {
+      const keepRow = () => {
+        const row = document.querySelector('.watch-meter--pet');
+        if (!row) return;
+        const over = row.getBoundingClientRect().bottom - foot;
+        if (over > 0.5) window.scrollBy({ top: Math.ceil(over), behavior: 'instant' });
+      };
+      const mutations = new MutationObserver(keepRow);
+      mutations.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+      const sizes = new ResizeObserver(keepRow);
+      sizes.observe(document.body);
+      for (const part of document.querySelectorAll('.watch-grid__frame, .watch-frame')) sizes.observe(part);
+      window.homeStopKeepingRow = () => { mutations.disconnect(); sizes.disconnect(); };
+    }, crop.y + crop.height - 4);
+  }
   // The page notes the press and the moment the frame shows the live picture, so the time the
   // recorder takes to ask is not counted as the camera's. The frame was settled in view just
   // now, so the press skips the waits that make sure a key is still and in view.
@@ -660,6 +688,7 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   const { press: pressAt, live: liveAt } = await page.evaluate(() => window.homeStartTimes);
   assert.ok(pressAt, 'Start watching did not receive a click');
   if (!live || !liveAt || liveAt - start > LOST_FOUND_START_AT + 1.5) throw slowStart({ press: pressAt, live: liveAt });
+  await whole('The watch’s live picture with the meters', { controls: false });
 
   // 2–5 seconds: the watch compares the clip with Toffee's photo; the possible sighting arrives.
   const sightingBy = start + LOST_FOUND_HOLD_AT - 0.25;
@@ -671,6 +700,7 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
   assert.ok(arrival && arrival.observedAt <= sightingBy,
     `No possible sighting ${LOST_FOUND_HOLD_AT - LOST_FOUND_START_AT} s after Start watching: ` + JSON.stringify({ liveAt: liveAt - start, events }));
   console.log(`Lost and Found: Start watching pressed at ${(pressAt - start).toFixed(2)} s, camera live at ${(liveAt - start).toFixed(2)} s, possible sighting at ${(arrival.observedAt - start).toFixed(2)} s, clip ${arrival.clipAt.toFixed(3)} s`);
+  await whole('The watch comparing, with the possible sighting’s box', { controls: false });
 
   // The entry's pictures are read before the hold, so the move into view is the hold's first step.
   const card = `.watch-list__body [data-alert-card][data-kind="sighting"][data-alert-at="${arrival.at}"]`;
@@ -691,6 +721,7 @@ async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, capt
 
   // 5–9 seconds: the possible sighting's entry, the camera's picture beside the saved photo.
   await sleepUntil(page, start, LOST_FOUND_HOLD_AT);
+  await page.evaluate(() => window.homeStopKeepingRow?.());
   await scrollSubject(page, view.size === 'wide' ? card : `${card} .alert-picture__pair`, crop.y + 6, 0);
   await settleEdges(page, crop, keep);
   const checkEntry = async () => {

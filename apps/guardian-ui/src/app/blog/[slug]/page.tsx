@@ -193,8 +193,10 @@ const blogContent: Record<string, BlogContent> = {
           The matcher uses no trained model. Each reference photo reduces to three
           signatures: a 32-bin color histogram, the top-5 dominant colors via k-means, and an 8&times;8
           grid of edge strengths taken from differences between neighbouring pixels. Together they
-          take under 1 KB a photo. The matcher samples the live feed twice a second (every 500 ms in the local processing mode, 900 ms in the others), scores each
-          frame on average colour first, then region by region on a weighted mix: histogram 40%,
+          take under 1 KB a photo. The matcher samples the live feed every 500 ms in Lost &amp; Found&apos;s
+          local processing mode, its default, and every 900 ms in its hybrid mode. The page runs one
+          comparison at a time, so a comparison that takes longer than that holds back the next one until
+          it ends. Each frame is scored on average colour first, then region by region on a weighted mix: histogram 40%,
           dominant colours 35%, edges 15%, size 10%. The code is in{' '}
           <a
             href="https://github.com/framerslab/safeos/blob/master/apps/guardian-ui/src/lib/visual-fingerprint.ts"
