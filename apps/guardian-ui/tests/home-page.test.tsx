@@ -387,6 +387,24 @@ describe('recorded app runs', () => {
     }
   });
 
+  it('plays Lost and Found third, enrolled from photo 1 alone, and holds its possible sighting at the end', () => {
+    const run = recorded.runs.find(({ id }) => id === 'lost-found');
+    expect(recorded.runs.map(({ id }) => id)).toEqual(['watching', 'dashboard', 'lost-found', 'settings']);
+    expect(recorded.omitted.map(({ id }) => id)).toEqual(['alert']);
+    // Photos 2 and 3 are stills from the recording the clip comes from.
+    expect(run?.photos).toEqual(['home/lost-found/photo-1.jpg']);
+    expect(run?.clip).toBe('home/sample-clip.mp4');
+    for (const size of ['square', 'wide'] as const) {
+      for (const variant of Object.values(run!.variants[size])) {
+        const text = variant.words.map(({ word }) => word).join(' ');
+        expect(text).toMatch(/Could this be Toffee\?/);
+        expect(text).toMatch(/Toffee’s saved photo/);
+        expect(variant.watchEvents?.map(({ kind }) => kind)).toEqual(['sighting']);
+        expect(run!.seconds - variant.pictureAt!).toBeGreaterThanOrEqual(2.5);
+      }
+    }
+  });
+
   it('starts the Watching crops below the sticky header divider', () => {
     const watching = recorded.runs.find(({ id }) => id === 'watching')!;
     // The square and wide headers are 56px and 64px tall, with a 1px shadow below.

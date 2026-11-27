@@ -150,8 +150,9 @@ test('the Lost and Found run enrols photo 1 alone, plays the sample clip and com
     assert.ok(photo, 'The run enrols a photo with no record: ' + file);
     assert.notEqual(photo.source.page, clip.sources[0].page, file + ' is cut from the clip’s own recording');
   }
-  assert.equal(run.description,
-    'On a kitten clip, Lost and Found compares the picture with a photo taken on another day and shows a possible sighting beside it.');
+  // The caption keeps two lines at 320 px and one from 1280 px, as the home's checks require.
+  assert.equal(run.description, 'The kitten clip compared with a photo from another day, and a possible sighting.');
+  assert.ok(run.description.length <= 87, 'The caption is longer than the Watching run’s');
   assert.deepEqual(run.longDescription, [
     '0–2 seconds. Lost and Found holds Toffee’s one saved photo, a kitten lying on a beige carpet.',
     '2–6 seconds. The watch compares the kitten clip, on a grey carpet, with that photo twice a second.',
