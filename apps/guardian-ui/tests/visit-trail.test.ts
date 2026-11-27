@@ -101,6 +101,21 @@ describe('the page before setup', () => {
     expect(pathBefore('/setup')).toBe('/history');
   });
 
+  it("gives nothing for setup's step 2 entry when the browser's back button returns to it from a page opened there", async () => {
+    // The input: setup's step 2 pushed its own entry on the same address, a link opened Help, and the browser's back button returned to step 2's entry.
+    const { notePath, pathBefore } = freshTrail();
+    openOn('/');
+    notePath('/');
+    follow('/setup/');
+    notePath('/setup/');
+    window.history.pushState({ setupStep: 2 }, '', '/setup/');
+    follow('/help/');
+    notePath('/help/');
+    await browserBack();
+    notePath('/setup/');
+    expect(pathBefore('/setup')).toBeNull();
+  });
+
   it('gives nothing for an entry an earlier document of the tab opened', () => {
     const first = freshTrail();
     openOn('/');
