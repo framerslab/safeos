@@ -29,7 +29,12 @@ let lastShown: string | null = null;
 
 /** True from the browser's back or forward button until the shell notes the path it shows. */
 let traversed = false;
-if (typeof window !== 'undefined') {
+let listening = false;
+
+/** Hears the browser's back and forward buttons from the first path noted on; the page's server render has no window to hear. */
+function hearTraversals(): void {
+  if (listening || typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+  listening = true;
   window.addEventListener('popstate', () => {
     traversed = true;
   });
@@ -48,6 +53,7 @@ function markOfEntry(): Mark | null {
 
 /** Notes a path this tab's document shows; the site's shell calls it on every change of address. */
 export function notePath(pathname: string | null | undefined): void {
+  hearTraversals();
   const path = barePath(pathname);
   if (typeof window !== 'undefined' && markOfEntry() === null) {
     const state: unknown = window.history.state;
