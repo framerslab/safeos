@@ -116,6 +116,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The bell and its panel; the dashboard's second setup wizard, its number tiles, its streams and system panels, its own header strip and its own footer; the header's menu, its GitHub key and its "?" key (the keyboard's ? key opens the list of keys as before); and the floating "Enable notifications" and "Install SafeOS" cards. The browser's own install entry stays.
 
 ### Fixed
+- A browser that gives the site no storage at all, as one set to keep no data for the site does, throws on the first read of localStorage. Two reads let that error out, the read of the old settings record that every page makes and the look's own check of the theme store, and the page showed "This page stopped working". Both hold the error, and CI walks setup in such a browser to its last key.
 - People and Wildlife start their model check when the average pixel change in any one part of the picture reaches the motion line. Wildlife’s setting explains the reading.
 - Picture change alerts use the same line as their meter to set their severity. In share mode, a change just over the line now raises a low alert.
 - People keeps up to 100 pictures on the device. It makes room with the oldest seen pictures first, then the oldest unseen pictures.
