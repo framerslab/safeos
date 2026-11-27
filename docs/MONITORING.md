@@ -212,7 +212,7 @@ to defaults** clears it, and the use shows the setting's values again.
 
 Under **Audio Frequency Filtering** the sound check reads the Audio level from
 the pitches chosen: **Custom Range** reads the two pitches set below it and
-the baby cry choice reads 300 to 600 Hz. A range of up to 128 bins reads the root
+**Baby Cry Pitches** reads 300 to 600 Hz. A range of up to 128 bins reads the root
 mean square of the analyser's bins inside it; the baby cry range holds 13 bins at
 48 kHz. Up to 128 bins, a wider range spreads a sound's energy over more bins and
 reads it lower. A range wider than 128 bins reads the energy of its bins against
@@ -223,7 +223,7 @@ to 20,000 Hz. A sound well outside the range leaves the level near 0.
 The analyser applies a Blackman window before its transform, so a tone just outside an
 edge spreads into the nearest bin inside the range and can raise the level a little.
 With a range set the analyser uses 2,048 points (about 23 Hz a bin at 48 kHz) in
-place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Fall Detection**
+place of 256. **All Frequencies**, **Pet Sounds** and **Elderly Care**
 read every pitch, as the root mean square of every bin, so a sensitivity saved
 for them means what it did.
 The old noise filter switch is gone. Devices that used it keep their pitch settings.

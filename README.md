@@ -276,7 +276,7 @@ safeos/
 │   ├── lib/
 │   │   ├── analysis/        # Frame analyzer + cloud fallback
 │   │   ├── alerts/          # Escalation, Twilio, Telegram, browser push
-│   │   ├── audio/           # Distress / cry detection
+│   │   ├── audio/           # A sound analyser; nothing in the server calls it
 │   │   ├── ollama/          # Local LLM client
 │   │   └── webrtc/          # Signaling
 │   └── queues/              # Job queues (analysis, human review)
