@@ -2,7 +2,7 @@
 // Run with: node --test scripts/home-run-scripts.test.mjs (needs ffmpeg).
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { checkFlashFrames, spool } from './home-run-frames.mjs';
 import { checkHeldAlert } from './home-run-held.mjs';
 import { cssReferences } from './home-run-inputs.mjs';
+import { omittedRuns, recipes } from './home-run-list.mjs';
+import { barredWording } from './home-wording.cjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const scratch = mkdtempSync(path.join(process.env.RUNNER_TEMP ?? os.tmpdir(), 'home-run-scripts-'));
@@ -129,4 +131,38 @@ test('a stylesheet named by @import url() is a recording input', () => {
   assert.deepEqual(cssReferences("@import url( './a.css' ) screen;"), ['./a.css']);
   assert.deepEqual(cssReferences('@import "./b.css";'), ['./b.css']);
   assert.deepEqual(cssReferences('.mark { background: url(/logo.svg); }'), ['/logo.svg']);
+});
+
+test('the Lost and Found run enrols photo 1 alone, plays the sample clip and comes third of four', () => {
+  assert.deepEqual(recipes.map(({ id }) => id), ['watching', 'dashboard', 'lost-found', 'settings']);
+  assert.deepEqual(omittedRuns.map(({ id }) => id), ['alert']);
+  const run = recipes.find(({ id }) => id === 'lost-found');
+  assert.equal(run.key, 'Lost and Found');
+  assert.equal(run.route, '/monitor/');
+  assert.equal(run.clip, 'home/sample-clip.mp4');
+  // Photos 2 and 3 are stills from the recording the clip comes from; photo 1 was taken on another day.
+  assert.deepEqual(run.photos, ['home/lost-found/photo-1.jpg']);
+  const publicDir = path.join(scripts, '..', 'public');
+  const photos = JSON.parse(readFileSync(path.join(publicDir, 'home/lost-found/photos.json'), 'utf8')).photos;
+  const clip = JSON.parse(readFileSync(path.join(publicDir, 'home/sample-clip.json'), 'utf8'));
+  for (const file of run.photos) {
+    const photo = photos.find((entry) => entry.file === file);
+    assert.ok(photo, 'The run enrols a photo with no record: ' + file);
+    assert.notEqual(photo.source.page, clip.sources[0].page, file + ' is cut from the clip’s own recording');
+  }
+  assert.equal(run.description,
+    'On a kitten clip, Lost and Found compares the picture with a photo taken on another day and shows a possible sighting beside it.');
+  assert.deepEqual(run.longDescription, [
+    '0–2 seconds. Lost and Found holds Toffee’s one saved photo, a kitten lying on a beige carpet.',
+    '2–6 seconds. The watch compares the kitten clip, on a grey carpet, with that photo twice a second.',
+    '6–9 seconds. A possible sighting asks "Could this be Toffee?" with the camera’s picture beside the saved photo, to check by eye.',
+  ]);
+  assert.doesNotMatch([run.key, run.description, ...run.longDescription].join(' '), barredWording);
+  // The spans follow each other from 0 to the end of the recording.
+  const spans = run.longDescription.map((line) => line.match(/^(\d+)–(\d+) seconds\. /)?.slice(1).map(Number));
+  assert.ok(spans.every(Boolean), 'Each line starts with its seconds');
+  assert.equal(spans[0][0], 0);
+  spans.slice(1).forEach(([from], index) => assert.equal(from, spans[index][1]));
+  assert.equal(spans.at(-1)[1], run.seconds);
+  assert.ok(run.seconds >= 6 && run.seconds <= 9, 'A run lasts 6 to 9 seconds');
 });
