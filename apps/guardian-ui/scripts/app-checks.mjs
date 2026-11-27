@@ -6719,11 +6719,13 @@ export async function checkApp(browser, baseUrl, outDir) {
       await throughSetup(page, 'A pet');
       const before = routeData;
       await lastKey(page).click();
-      await page.waitForTimeout(400);
-      const seen = await lastKey(page).evaluate((el) => {
+      // The key's words while the dashboard opens, read at the first frame that shows them.
+      const seen = await page.waitForFunction(() => {
+        const el = document.querySelector('#main-content main .setup-last-key');
+        if (!el || !el.textContent.includes('Opening')) return null;
         const style = getComputedStyle(el);
         return { words: el.textContent.trim(), busy: el.getAttribute('aria-busy'), ground: style.backgroundColor, edge: `${style.borderTopWidth} ${style.borderTopStyle} ${style.borderTopColor}` };
-      }).catch(() => null);
+      }, null, { timeout: 1_000, polling: 'raf' }).then((handle) => handle.jsonValue(), () => null);
       check(seen && seen.words === 'Opening the dashboard…' && seen.busy === 'true', `while the dashboard opens the key is ${JSON.stringify(seen)}`);
       check(seen && seen.ground === 'rgba(0, 0, 0, 0)' && seen.edge === `2px solid ${LINE[look]}`, `the opening key is drawn ${JSON.stringify(seen)}`);
       await lastKey(page).click({ timeout: 1_000 }).catch(() => {});
@@ -7001,7 +7003,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       });
       // The worker asks the network for what its copy does not hold; offline, those requests fail too.
       const worker = context.serviceWorkers().at(-1);
-      if (worker) await worker.evaluate(() => { self.fetch = () => Promise.reject(new TypeError('Failed to fetch')); });
+      if (worker) await worker.evaluate(() => { self.__fetch = self.__fetch || self.fetch; self.fetch = () => Promise.reject(new TypeError('Failed to fetch')); });
       await context.setOffline(true);
       await visit(page, '/setup/').catch(() => {});
       const offline = await heading(page, OFFLINE_H1).waitFor({ timeout: 15_000 }).then(() => true, () => false);
@@ -7009,6 +7011,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       check((await page.getByRole('button', { name: 'Try again', exact: true }).count()) === 1, 'the offline page has no Try again');
       check((await page.getByRole('link', { name: 'Open dashboard', exact: true }).count()) + (await page.getByRole('button', { name: 'Open dashboard', exact: true }).count()) >= 1, 'the offline page has no Open dashboard');
       await context.setOffline(false);
+      if (worker) await worker.evaluate(() => { if (self.__fetch) self.fetch = self.__fetch; });
       await page.getByRole('button', { name: 'Try again', exact: true }).click();
       check(await step1Shown(page), `online again, Try again does not show "${STEP1_H1}"`);
     }, NEW_DEVICE);
@@ -7140,7 +7143,8 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(alerted, 'no alert within 20 s of watching');
     await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
     await visit(page, '/history/');
-    const listed = await page.waitForFunction(() => /\d{1,2}:\d{2}/.test(document.getElementById('main-content')?.innerText || ''), null, { timeout: 15_000 }).then(() => true, () => false);
+    // History says how long ago each alert was: "Just now", "2 mins ago" or a clock time.
+    const listed = await page.waitForFunction(() => /Just now|\bmins? ago\b|\d{1,2}:\d{2}/.test(document.getElementById('main-content')?.innerText || ''), null, { timeout: 15_000 }).then(() => true, () => false);
     check(listed, 'History lists no alert with its time');
   }, { ...NEW_DEVICE, script: FAKE_CAMERA });
 
