@@ -528,8 +528,10 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs) {
         const page = await context.newPage();
         const home = new URL('/', baseUrl).href;
         const release = new Map();
+        // The runs with a poster and a playing frame of their own, where the build has them.
+        const pictured = ['watching', 'dashboard', 'lost-found'].filter((id) => runs?.some((run) => run.id === id));
         if (runs) {
-          for (const id of ['watching', 'dashboard']) {
+          for (const id of pictured) {
             const held = new Promise((resolve) => release.set(id, resolve));
             await context.route('**/home/runs/' + id + '-*.mp4', async (route) => {
               await held;
@@ -563,7 +565,7 @@ async function captureHomeFirst(browser, baseUrl, outDir, homeChecks, runs) {
           console.log('captured ' + first);
           if (!runs) continue;
 
-          for (const id of ['watching', 'dashboard']) {
+          for (const id of pictured) {
             const key = page.locator('button[data-run="' + id + '"]');
             if (await key.getAttribute('aria-current') !== 'step') await key.click();
             await page.waitForFunction((id) => {

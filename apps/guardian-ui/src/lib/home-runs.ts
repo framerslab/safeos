@@ -48,6 +48,8 @@ export interface HomeRun {
   route: string;
   state: string;
   clip: string | null;
+  /** The saved photos the run enrols, under `public/` (Lost and Found's). */
+  photos?: string[];
   seconds: number;
   posterAt: number;
   eventAt: number;

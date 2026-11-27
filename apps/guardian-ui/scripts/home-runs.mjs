@@ -165,13 +165,19 @@ async function recordSet(browsers, recipe, avif) {
   const { id, key, route, state, clip, seconds, description, longDescription } = recipe;
   const first = variants.square.dark;
   return {
-    id, key, route, state, clip, seconds, description, longDescription,
+    id, key, route, state, clip, ...(recipe.photos ? { photos: recipe.photos } : {}), seconds, description, longDescription,
     eventAt: first.eventAt, posterAt: first.posterAt, visibleWords: first.words.map(({ word }) => word),
     ...(first.meterPeaks ? { meterPeaks: first.meterPeaks } : {}), variants,
   };
 }
 
 function sampleInput(recipe) {
+  if (recipe.microphone === 'silence') {
+    // The camera plays the sample clip from its start; the microphone hears silence.
+    const microphone = path.join(workspace, `${recipe.id}.wav`);
+    ffmpeg(['-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono', '-t', '30', '-c:a', 'pcm_s16le', microphone]);
+    return [video, microphone];
+  }
   if (!recipe.inputOffset) return [video, audio];
   assert.equal(clips.find(({ path }) => path === recipe.clip)?.clipOffset, recipe.inputOffset);
   const input = fileURLToPath(new URL(recipe.clip, publicRoot));

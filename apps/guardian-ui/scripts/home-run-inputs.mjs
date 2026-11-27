@@ -132,7 +132,7 @@ export function recordingInputs(ids) {
 }
 
 const ordered = ['watching', 'dashboard', 'alert', 'lost-found', 'settings'];
-const launch = ['watching', 'dashboard', 'settings'];
+const launch = ['watching', 'dashboard', 'lost-found', 'settings'];
 const sizes = ['square', 'wide'];
 const looks = ['dark', 'light'];
 const mediaPrefix = 'home/runs/';
@@ -246,6 +246,15 @@ export function verifyBundle(directory) {
           assert.ok(run.seconds >= 6 && run.seconds <= 8 && eventAt >= 1.9 && eventAt <= 2.5
             && pictureAt > eventAt && run.seconds - pictureAt >= 3.5,
           label + ': the Dashboard must show the list, open its movement alert and hold its picture');
+        }
+        if (id === 'lost-found') {
+          const { eventAt, pictureAt, watchEvents } = variant;
+          // Photo 1 alone: photos 2 and 3 are stills from the recording the clip comes from.
+          assert.deepEqual(run.photos, ['home/lost-found/photo-1.jpg'], label + ': the run enrols photo 1 alone');
+          assert.deepEqual(watchEvents?.map(({ kind }) => kind), ['sighting'],
+            label + ': the recording must show one possible sighting and no other alert');
+          assert.ok(eventAt >= 2 && eventAt <= 6 && pictureAt >= 6 && pictureAt > eventAt && run.seconds - pictureAt >= 2.5,
+            label + ': the watch must raise its possible sighting after Start watching and hold its entry for 2.5 seconds at the end');
         }
         for (const { word, x, y, width, height, size: font } of words) {
           assert.ok([x, y, width, height, font].every(Number.isFinite) && x >= -0.5 && y >= -0.5
