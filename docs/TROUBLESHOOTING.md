@@ -103,10 +103,10 @@ See [WebSocket API](API.md#websocket-api).
 **Symptoms:**
 - Black video feed
 - "Camera access denied" error
-- Setup's camera step shows a message and **Try again**
+- Setup's first step names the problem inside the camera's frame, with **Try again**
 
-During Setup, **Continue without the camera** finishes setup without it. Fix the
-camera with the steps below, then click **Start watching** on Monitor.
+During setup, **Continue without the camera** goes on with the camera off. Fix the
+camera with the steps below, then press **Start watching** on the dashboard.
 
 **Solutions:**
 

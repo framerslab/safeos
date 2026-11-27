@@ -41,8 +41,8 @@ export const plain = (text) => (text || '').replace(/’/g, "'").replace(/ /g, 
 
 // A person who has finished setup on this device. Seeded on the first page of
 // the visit only: later pages read what the earlier ones left, so a page that
-// cleared the saved setup is seen. Setup's camera step answers the notice
-// about alert pictures, with what it offers at first.
+// cleared the saved setup is seen. It has answered the notice about alert
+// pictures, as a device that has watched once has.
 export const SETUP_DONE = () => {
   if (sessionStorage.getItem('home-checks-seeded')) return;
   sessionStorage.setItem('home-checks-seeded', '1');
@@ -1084,7 +1084,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
         page.waitForURL((url) => /^\/setup\/?$/.test(url.pathname), { timeout: 15_000 }),
         page.getByRole('link', { name: 'Run setup again', exact: true }).click(),
       ]);
-      await page.getByRole('button', { name: /Begin Setup/i }).waitFor({ timeout: 15_000 });
+      await page.getByRole('heading', { level: 1, name: 'Use this device to watch a place', exact: true }).waitFor({ timeout: 15_000 });
       await page.waitForTimeout(2_000);
       const address = new URL(page.url());
       expect(/^\/setup\/?$/.test(address.pathname) && address.search === '?again=1', `start key: "Run setup again" ended at ${address.pathname}${address.search}`);
@@ -1356,7 +1356,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       page.waitForURL((url) => /^\/setup\/?$/.test(url.pathname), { timeout: 15_000 }),
       page.locator('.home-first a.key--start').click(),
     ]);
-    await page.getByRole('button', { name: /Begin Setup/i }).waitFor({ timeout: 15_000 });
+    await page.getByRole('heading', { level: 1, name: 'Use this device to watch a place', exact: true }).waitFor({ timeout: 15_000 });
   });
 
   // ---------------------------------------------------------------------------
@@ -1507,7 +1507,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
     expect(seen.noteLink === 'https://github.com/framerslab/safeos/blob/master/docs/DEPLOYMENT.md#option-b-full-stack-deployment', `server guide: ${seen.noteLink}`);
     expect(seen.codeLink === 'https://github.com/framerslab/safeos/tree/master/apps/guardian-ui/src/lib', `detection code: ${seen.codeLink}`);
     expect(seen.qr === 'QR code for https://safeos.sh/', `device: QR alternative text is "${seen.qr}"`);
-    same(seen.closing, ['Start with the device you have', 'Setup has 6 short steps and asks for the camera at step 4.', 'Start setup'], 'closing block');
+    same(seen.closing, ['Start with the device you have', 'Setup has 2 short steps and asks for the camera at step 1.', 'Start setup'], 'closing block');
     const slashless = (line) => line.replace(/(\/[a-z-]+)\/(?= |$)/g, '$1');
     same(seen.footer.map(slashless), [
       'Use it: Start setup /setup',
@@ -1654,7 +1654,7 @@ export async function checkHomePage(browser, baseUrl, outDir) {
       page.waitForURL((url) => /^\/setup\/?$/.test(url.pathname), { timeout: 15_000 }),
       page.locator('.home-first a.key--start').click(),
     ]);
-    await page.getByRole('button', { name: /Begin Setup/i }).waitFor({ timeout: 15_000 });
+    await page.getByRole('heading', { level: 1, name: 'Use this device to watch a place', exact: true }).waitFor({ timeout: 15_000 });
   });
 
   // The row's links, GitHub with its count, the keys and the makers' marks.

@@ -141,7 +141,10 @@ export function useTheme() {
   // a default state value before localStorage has been read.
   useEffect(() => {
     if (typeof document === 'undefined') return;
-    if (!useThemeStore.persist.hasHydrated() || resolvedTheme !== useThemeStore.getState().resolvedTheme) return;
+    // A browser that gives the site no storage leaves the store with nothing
+    // to read and no persist API, so its state is the one to apply.
+    const persisted: { hasHydrated: () => boolean } | undefined = useThemeStore.persist;
+    if ((persisted && !persisted.hasHydrated()) || resolvedTheme !== useThemeStore.getState().resolvedTheme) return;
 
     const root = document.documentElement;
     // The look changes in one frame. A key's fill eases under the pointer;

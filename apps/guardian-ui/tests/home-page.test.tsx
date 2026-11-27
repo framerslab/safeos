@@ -323,17 +323,17 @@ describe('start action and the limit statement', () => {
   });
 
   it('closes with the heading, the step count and the camera step read from setup\'s own list, and the start key again', () => {
-    expect(SETUP_STEPS).toEqual(['welcome', 'disclaimer', 'scenario', 'permissions', 'notifications', 'complete']);
-    expect(SETUP_STEP_COUNT).toBe(6);
-    expect(SETUP_CAMERA_STEP).toBe(4);
+    expect(SETUP_STEPS).toEqual(['camera', 'use']);
+    expect(SETUP_STEP_COUNT).toBe(2);
+    expect(SETUP_CAMERA_STEP).toBe(1);
     expect(all('.home-closing h2, .home-closing p, .home-closing a').map(words)).toEqual([
       'Start with the device you have',
       `Setup has ${SETUP_STEP_COUNT} short steps and asks for the camera at step ${SETUP_CAMERA_STEP}.`,
       'Start setup',
     ]);
     expect(bare(one('.home-closing a')?.getAttribute('href'))).toBe('/setup');
-    // The setup page walks the same list.
-    expect(source('src', 'app', 'setup', 'page.tsx')).toMatch(/const STEPS: Step\[\] = SETUP_STEPS;/);
+    // Setup draws its steps from the same list.
+    expect(source('src', 'components', 'setup', 'SetupFlow.tsx')).toMatch(/SETUP_STEPS\[step - 1\]/);
   });
 });
 
@@ -524,7 +524,7 @@ describe('watching and alerting on one device', () => {
       ],
       [
         'Go through setup.',
-        `It has ${SETUP_STEP_COUNT} short steps. You say what you are watching, and at step ${SETUP_CAMERA_STEP} the browser asks for the camera and microphone.`,
+        `It has ${SETUP_STEP_COUNT} short steps. At step ${SETUP_CAMERA_STEP} the browser asks for the camera and microphone, then you say what the device is watching.`,
       ],
       [
         'Stay within earshot.',

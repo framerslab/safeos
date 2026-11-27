@@ -955,107 +955,44 @@ test.describe('The dashboard’s start before the notice is answered, 390 px', (
   });
 });
 
-/** Setup's choice of what an alert keeps, in its camera step. */
-const setupChoice = (page: Page) => page.getByRole('group', { name: 'Each alert keeps a picture', exact: true });
-
-/** A first visit: setup not finished and no alert pictures settings saved. Setup is walked to its camera step. */
-async function setupToCameraStep(page: Page, context: BrowserContext): Promise<void> {
-  await context.grantPermissions(['camera', 'microphone']);
-  await context.addInitScript(() => {
-    localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
-    localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
-  });
-  await canvasCamera(page, LEFT_THIRD);
-  await page.goto('/setup/', { waitUntil: 'networkidle' });
-  await page.getByRole('button', { name: /Begin Setup/ }).click();
-  await page.getByRole('checkbox').check();
-  await page.getByRole('button', { name: /Accept & Continue/ }).click();
-  await page.getByRole('button', { name: /Pet Monitoring/ }).click();
-  await expect(page.getByRole('heading', { name: 'Device Access' })).toBeVisible();
-}
+/** The choice of what an alert keeps, as a group; neither of setup's steps holds it. */
+const keepsGroup = (page: Page) => page.getByRole('group', { name: 'Each alert keeps a picture', exact: true });
 
 for (const look of ['dark', 'light'] as const) {
-  test.describe(`Setup's camera step, 390 px, ${look}`, () => {
+  test.describe(`Setup's two steps, 390 px, ${look}`, () => {
     test.use({ colorScheme: look, viewport: { width: 390, height: 844 } });
 
-    test(`a device that saw the choice in setup's camera step starts its first watch with no notice, ${look}`, async ({ page, context }) => {
+    test(`a device set up through setup's two steps gets the notice before its first watch, ${look}`, async ({ page, context }) => {
       test.setTimeout(150_000);
-      await setupToCameraStep(page, context);
-
-      // The camera step holds the notice's choice and its four lines, as set at first.
-      const choice = setupChoice(page);
-      await expect(choice).toBeVisible();
-      await expect(choice.locator('.alert-pictures-drawing')).toBeVisible();
-      await expect(keepSwitch(choice)).toHaveAttribute('aria-checked', 'true');
-      await expect(afterSelect(choice).locator('option:checked')).toHaveText('3 days');
-      expect(await afterSelect(choice).locator('option').allTextContents()).toEqual(AFTER_CHOICES);
-      for (const line of [FIRST_LINE, STAY_LINE, ASK_LINE, STREET_LINE]) {
-        await expect(choice.getByText(line, { exact: true })).toBeVisible();
-      }
-      await expect(choice.getByRole('link', { name: ICO_LINK })).toHaveAttribute('href', 'https://ico.org.uk/for-the-public/home-cctv-systems/');
-      expect(await readable(choice, BLOCK_READABILITY), 'the choice’s words').toEqual([]);
-      expect(await controlEdges(choice, EDGE[look]), 'the choice’s control edges').toEqual([]);
-      for (const control of [keepSwitch(choice), afterSelect(choice)]) {
-        expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
-      }
-      expect(await scrollsSideways(page), `nothing scrolls sideways: ${await sidewaysParts(page)}`).toBe(false);
-      // Nothing is answered while the step shows.
-      expect((await storedPictures(page)).noticeAnswered ?? false).toBe(false);
-
-      await afterSelect(choice).selectOption({ label: '7 days' });
-      await page.getByRole('button', { name: 'Grant Permissions', exact: true }).click();
-      await page.getByRole('button', { name: /^Continue$/ }).click();
-      await page.getByRole('checkbox').uncheck();
-      await page.getByRole('button', { name: /Skip & Continue/ }).click();
+      // A first visit: setup not finished and no alert pictures settings saved.
+      await context.grantPermissions(['camera', 'microphone']);
+      await context.addInitScript(() => {
+        localStorage.setItem('safeos-notification-prompt-dismissed', String(Date.now()));
+        localStorage.setItem('safeos-pwa-prompt-dismissed', String(Date.now()));
+      });
+      await canvasCamera(page, LEFT_THIRD);
+      await page.goto('/setup/', { waitUntil: 'networkidle' });
+      await expect(page.getByRole('heading', { level: 1, name: 'Use this device to watch a place' })).toBeVisible();
+      await expect(keepsGroup(page)).toHaveCount(0);
+      await page.getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      await expect(page.getByRole('heading', { level: 1, name: 'What is it watching?' })).toBeVisible({ timeout: 30_000 });
+      await expect(keepsGroup(page)).toHaveCount(0);
+      await page.getByRole('radio', { name: 'A pet', exact: true }).check();
       await page.getByRole('button', { name: 'Open dashboard', exact: true }).click();
       await expect(page).toHaveURL(/\/dashboard\/?$/);
-      expect(await storedPictures(page)).toMatchObject({ noticeAnswered: true, keep: true, deleteAfterDays: 7 });
-
-      // The first watch starts at once, with the choice made in setup.
-      await page.goto('/monitor/', { waitUntil: 'networkidle' });
-      await startKey(page).click();
-      await live(page).waitFor({ state: 'visible', timeout: 30_000 });
-      await expect(notice(page)).toHaveCount(0);
-      const found = await openWatchGroup(page);
-      await expect(afterSelect(found).locator('option:checked')).toHaveText('7 days');
-      await expect(keepSwitch(found)).toHaveAttribute('aria-checked', 'true');
-    });
-
-    test(`setup left at its camera step leaves the notice for the first watch, ${look}`, async ({ page, context }) => {
-      test.setTimeout(120_000);
-      await setupToCameraStep(page, context);
-      await expect(setupChoice(page)).toBeVisible();
-      // Back from the camera step: the choice was shown, and nothing is answered until the step is passed.
-      await page.getByRole('button', { name: 'Back', exact: true }).click();
-      await expect(setupChoice(page)).toHaveCount(0);
       expect((await storedPictures(page)).noticeAnswered ?? false).toBe(false);
+
+      // The first watch asks what an alert keeps before it starts.
       await page.goto('/monitor/', { waitUntil: 'networkidle' });
       await startKey(page).click();
       await expect(notice(page)).toBeVisible();
       await expect(live(page)).toHaveCount(0);
+      await notice(page).getByRole('button', { name: 'Start watching', exact: true }).click();
+      await live(page).waitFor({ state: 'visible', timeout: 30_000 });
+      expect((await storedPictures(page)).noticeAnswered).toBe(true);
     });
   });
 }
-
-test.describe('Setup’s age for pictures, 390 px', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
-
-  test('an age chosen in setup deletes the pictures past it as setup goes on', async ({ page, context }) => {
-    test.setTimeout(150_000);
-    // A device that kept a picture two days ago, then runs setup.
-    const at = Date.now() - 2 * DAY;
-    const id = `picture-${at}-kept`;
-    await seedPictureRows(page, [{ alert: savedAlert(`motion-${at}-kept`, at, { kind: 'motion', pictureId: id }), picture: keptPicture(id, at) }]);
-    expect(keptRows(await readDatabase(page)).map((row) => row.id)).toEqual([id]);
-    await setupToCameraStep(page, context);
-    await afterSelect(setupChoice(page)).selectOption({ label: '1 day' });
-    await page.getByRole('button', { name: 'Grant Permissions', exact: true }).click();
-    await page.getByRole('button', { name: /^Continue$/ }).click();
-    // Setup's next step shows: no watch has started and History has not opened, and the picture has gone.
-    await expect.poll(async () => keptRows(await readDatabase(page)).map((row) => row.id), { timeout: 10_000 }).toEqual([]);
-    expect(await storedPictures(page)).toMatchObject({ noticeAnswered: true, deleteAfterDays: 1 });
-  });
-});
 
 for (const look of ['light', 'dark'] as const) {
   test.describe(`Keeping pictures, 390 px, ${look}`, () => {

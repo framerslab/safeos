@@ -558,7 +558,6 @@ html.light {
 
 .alert-pictures-group,
 .alert-pictures-notice,
-.alert-pictures-setup,
 .alert-pictures-question {
   background: var(--ap-ground);
   color: var(--ap-ink);
@@ -569,7 +568,6 @@ html.light {
 
 .alert-pictures-group p,
 .alert-pictures-notice p,
-.alert-pictures-setup p,
 .alert-pictures-question p {
   margin: 0;
   overflow-wrap: anywhere;
@@ -969,25 +967,6 @@ html.light .alert-pictures-select {
   flex: none;
   padding: 8px 12px;
   border-top: 1px solid var(--ap-divider);
-}
-
-/* Setup's camera step: the notice's title, choice and lines in a block of
-   their own, on the look's ground. */
-.alert-pictures-setup {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--ap-edge);
-  border-radius: 6px;
-}
-
-.alert-pictures-setup__title {
-  margin: 0;
-  font-size: 1.25rem;
-  line-height: 1.3;
-  font-weight: 600;
-  color: var(--ap-ink);
 }
 
 .alert-pictures-question {

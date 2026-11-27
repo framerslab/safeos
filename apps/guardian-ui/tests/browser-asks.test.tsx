@@ -10,10 +10,14 @@
 
 import React from 'react';
 import { act, cleanup, fireEvent, render, renderHook, screen } from '@testing-library/react';
-import { useCameraAsk, useNotificationAsk } from '@/lib/browser-asks';
+import { cameraAskNow, useCameraAsk, useMicrophoneAsk, useNotificationAsk } from '@/lib/browser-asks';
 
 function CameraAnswer() {
   return <p data-testid="camera">{useCameraAsk()}</p>;
+}
+
+function MicrophoneAnswer() {
+  return <p data-testid="microphone">{useMicrophoneAsk()}</p>;
 }
 
 function NotificationAnswer() {
@@ -127,4 +131,48 @@ it('answers unknown in a browser without notifications', async () => {
     await result.current.request();
   });
   expect(result.current.ask).toBe('unknown');
+});
+
+it("reads the camera's answer once", async () => {
+  for (const [state, ask] of [
+    ['denied', 'blocked'],
+    ['prompt', 'not-asked'],
+    ['granted', 'granted'],
+  ] as const) {
+    permissionsAnswer(async () => ({ state, onchange: null }));
+    await expect(cameraAskNow()).resolves.toBe(ask);
+  }
+  permissionsAnswer(() => Promise.reject(new TypeError('no')));
+  await expect(cameraAskNow()).resolves.toBe('unknown');
+  delete (navigator as unknown as { permissions?: unknown }).permissions;
+  await expect(cameraAskNow()).resolves.toBe('unknown');
+});
+
+it("reads the microphone's answer and follows a change", async () => {
+  const status: StatusStandIn = { state: 'prompt', onchange: null };
+  const stand = permissionsAnswer(async () => status);
+  stand.query.mockImplementation(async (descriptor?: { name: string }) => {
+    if (descriptor?.name !== 'microphone') throw new TypeError('not this one');
+    return status;
+  });
+  render(<MicrophoneAnswer />);
+  await settle();
+  expect(reads('microphone')).toBe('not-asked');
+  act(() => {
+    status.state = 'granted';
+    status.onchange?.();
+  });
+  expect(reads('microphone')).toBe('granted');
+
+  cleanup();
+  permissionsAnswer(() => Promise.reject(new TypeError('no')));
+  render(<MicrophoneAnswer />);
+  await settle();
+  expect(reads('microphone')).toBe('unknown');
+
+  cleanup();
+  delete (navigator as unknown as { permissions?: unknown }).permissions;
+  render(<MicrophoneAnswer />);
+  await settle();
+  expect(reads('microphone')).toBe('unknown');
 });

@@ -34,6 +34,9 @@
 /* Import the settings pages' list and rows */
 @import '../styles/settings.css';
 
+/* Import setup's two steps, last, so its rules follow the keys' and the app's */
+@import '../styles/setup.css';
+
 /* =============================================================================
    Additional Base Styles
    ============================================================================= */

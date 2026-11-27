@@ -253,7 +253,7 @@ export default function HelpPage() {
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
                   <h2 className="text-2xl font-bold text-white mb-4">Getting Started with SafeOS</h2>
                   <p className="text-slate-300 mb-6">
-                    Welcome to SafeOS Guardian! <Link href="/setup/" className="text-emerald-400 hover:underline">Setup</Link> takes you through the first three steps, then the dashboard starts the watch.
+                    Welcome to SafeOS Guardian! <Link href="/setup/" className="text-emerald-400 hover:underline">Setup</Link> takes you through the first two steps, then the dashboard starts the watch.
                   </p>
 
                   <div className="space-y-6">
@@ -263,9 +263,9 @@ export default function HelpPage() {
                         1
                       </div>
                       <div>
-                        <h3 className="text-white font-medium mb-1">Accept the Disclaimer</h3>
+                        <h3 className="text-white font-medium mb-1">Turn on the camera</h3>
                         <p className="text-sm text-slate-400">
-                          Read and accept our safety disclaimer. This is required to continue.
+                          Setup&apos;s first step says what SafeOS does on this device. Press Turn on the camera, then allow the camera and microphone when your browser asks.
                         </p>
                       </div>
                     </div>
@@ -276,9 +276,9 @@ export default function HelpPage() {
                         2
                       </div>
                       <div>
-                        <h3 className="text-white font-medium mb-1">Choose Your Profile</h3>
+                        <h3 className="text-white font-medium mb-1">Say what it is watching</h3>
                         <p className="text-sm text-slate-400">
-                          Select what you&apos;re monitoring: pets, babies, or elderly. Each profile has optimized settings.
+                          Step 2 shows the live picture with a Motion bar and a Sound bar. Wave or clap to test it, then choose a pet, a baby, an elderly relative, an empty place or a lost pet.
                         </p>
                       </div>
                     </div>
@@ -289,22 +289,9 @@ export default function HelpPage() {
                         3
                       </div>
                       <div>
-                        <h3 className="text-white font-medium mb-1">Allow Camera Access</h3>
-                        <p className="text-sm text-slate-400">
-                          Setup asks the browser for the camera and the microphone together. With no microphone, the camera watches for movement and not for sound.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Step 4 */}
-                    <div className="flex gap-4">
-                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold flex-shrink-0">
-                        4
-                      </div>
-                      <div>
                         <h3 className="text-white font-medium mb-1">Start watching</h3>
                         <p className="text-sm text-slate-400">
-                          Open the dashboard, press &quot;Start watching&quot; and position your camera. SafeOS starts watching for motion and sound.
+                          Press Open dashboard, then Start watching. SafeOS sounds an alert on this device when something moves or makes a sound.
                         </p>
                       </div>
                     </div>

@@ -33,6 +33,7 @@ import { StatusBanner } from '../StatusBanner';
 import { isAppRoute, isLookBuiltRoute, showsPhoneBar } from '@/lib/app-routes';
 import { DeviceAlertsProvider, useDeviceAlerts } from '@/lib/device-alerts';
 import { isHomeRoute } from '@/lib/visitor-routes';
+import { notePath } from '@/lib/visit-trail';
 
 export function SiteShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -40,6 +41,11 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     document.documentElement.setAttribute('data-app-started', 'true');
   }, []);
+
+  // Setup's Back on its first step returns to the page shown before setup.
+  useEffect(() => {
+    notePath(pathname);
+  }, [pathname]);
 
   if (!isAppRoute(pathname)) {
     return (

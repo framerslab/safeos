@@ -15,7 +15,7 @@ import { openCamera } from '@/lib/camera-constraints';
 import { dropStart, takeStart } from '@/lib/camera-handoff';
 import type { SubjectProfileDB } from '@/lib/client-db';
 import { modelOnDevice } from '@/lib/model-on-device';
-import { startAddress, startChoice, startLine, startWatch } from '@/lib/start-watch';
+import { rowPet, startAddress, startChoice, startLine, startWatch } from '@/lib/start-watch';
 import { useCameraStore } from '@/stores/camera-store';
 import { installTabChannel } from './helpers/tab-channel-stand-in';
 
@@ -51,6 +51,7 @@ function subject(id: string, name: string, type: SubjectProfileDB['type']): Subj
 
 const mittens = subject('pet-1', 'Mittens', 'pet');
 const sam = subject('person-1', 'Sam', 'person');
+const rex = subject('pet-2', 'Rex', 'pet');
 
 function standInCamera() {
   const video = { kind: 'video', readyState: 'live', stop: jest.fn() };
@@ -100,13 +101,57 @@ it('uses the way last watched', () => {
   expect(startLine(lostFound)).toBe('Start watching uses Lost and Found, for Mittens.');
 });
 
-it('falls back to Motion and sound when the pet is gone, is a person, or was never named', () => {
+it('falls back to Motion and sound when the pet the watch last looked for is gone or is a person', () => {
   expect(startChoice({ way: 'lost-found', pet: 'pet-1' }, [])).toEqual({ way: 'monitor' });
   expect(startChoice({ way: 'lost-found', pet: 'pet-1' }, [{ ...mittens, type: 'person' }])).toEqual({ way: 'monitor' });
-  expect(startChoice({ way: 'lost-found' }, [mittens])).toEqual({ way: 'monitor' });
+  expect(startChoice({ way: 'lost-found', pet: 'pet-1' }, [rex])).toEqual({ way: 'monitor' });
   const person = startChoice({ way: 'lost-found', pet: sam.id }, [sam]);
   expect(person).toEqual({ way: 'monitor' });
   expect(startLine(person)).not.toContain('Sam');
+});
+
+it('takes the first saved pet for a Lost and Found way that names none, as setup leaves it', () => {
+  const one = startChoice({ way: 'lost-found' }, [mittens]);
+  expect(one).toEqual({ way: 'lost-found', pet: mittens });
+  expect(startLine(one)).toBe('Start watching uses Lost and Found, for Mittens.');
+  expect(startAddress(one)).toBe('/monitor/');
+
+  // Rex was saved after Mittens; the device reads its subjects newest first.
+  const newer = { ...rex, createdAt: new Date(2000).toISOString() };
+  const older = { ...mittens, createdAt: new Date(1000).toISOString() };
+  const several = startChoice({ way: 'lost-found' }, [sam, newer, older]);
+  expect(several).toEqual({ way: 'lost-found', pet: newer });
+  expect(startLine(several)).toBe('Start watching uses Lost and Found, for Rex.');
+  expect(startLine(several)).not.toContain('Sam');
+  expect(rowPet({ way: 'lost-found' }, [sam, newer, older])).toEqual(newer);
+});
+
+it('takes no thing saved as an object for a Lost and Found way that names none, as the watch takes none until it is chosen', () => {
+  // The input: a ball saved as an object after Mittens, and setup ended on A lost pet.
+  const ball = { ...subject('other-1', 'Ball', 'other'), createdAt: new Date(3000).toISOString() };
+  const older = { ...mittens, createdAt: new Date(1000).toISOString() };
+  const choice = startChoice({ way: 'lost-found' }, [ball, older]);
+  expect(choice).toEqual({ way: 'lost-found', pet: older });
+  expect(startLine(choice)).toBe('Start watching uses Lost and Found, for Mittens.');
+  expect(startChoice({ way: 'lost-found' }, [ball])).toEqual({ way: 'lost-found' });
+  // A thing the watch last looked for, by its own choice, is kept.
+  expect(startChoice({ way: 'lost-found', pet: ball.id }, [ball, older])).toEqual({ way: 'lost-found', pet: ball });
+});
+
+it("says to add the pet's photos first while no pet is saved", () => {
+  expect(startChoice({ way: 'lost-found' }, [])).toEqual({ way: 'lost-found' });
+  expect(startChoice({ way: 'lost-found' }, [sam])).toEqual({ way: 'lost-found' });
+  expect(startLine({ way: 'lost-found' })).toBe('Start watching uses Lost and Found. Add your pet’s photos first.');
+  expect(startAddress({ way: 'lost-found' })).toBe('/lost-found/');
+});
+
+it('opens the Lost and Found page for a pet not saved yet, and asks for no camera', async () => {
+  await expect(startWatch({ way: 'lost-found' }, go)).resolves.toBe('needs-pet');
+  expect(go.mock.calls).toEqual([['/lost-found/']]);
+  expect(opened).not.toHaveBeenCalled();
+  expect(takeStart('monitor')).toBeNull();
+  await arrive();
+  expect(other.heard).toEqual([]);
 });
 
 it("opens Motion and sound's page for Motion and sound and for Lost and Found", () => {

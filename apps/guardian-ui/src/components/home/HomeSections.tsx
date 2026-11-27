@@ -183,8 +183,8 @@ export function HomeHow({ siteAddress }: { siteAddress: string }) {
               <div>
                 <h3 className="home-h3">Go through setup.</h3>
                 <p className="home-p">
-                  It has <Num>{SETUP_STEP_COUNT}</Num> short steps. You say what you are watching, and at step <Num>{SETUP_CAMERA_STEP}</Num>{' '}
-                  the browser asks for the camera and microphone.
+                  It has <Num>{SETUP_STEP_COUNT}</Num> short steps. At step <Num>{SETUP_CAMERA_STEP}</Num> the browser asks for the camera
+                  and microphone, then you say what the device is watching.
                 </p>
               </div>
             </li>
