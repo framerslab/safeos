@@ -125,7 +125,8 @@ export type SetupRun = 'first' | 'again';
  * start reads, so the dashboard follows setup's answer until a watch has run:
  * Lost and Found with no pet when a lost pet is the answer, and Motion and
  * sound when another answer follows a finish that left Lost and Found with no
- * pet; then isComplete. True when every write of the setup record took.
+ * pet; then isComplete. True when every write of the setup record took and
+ * the browser gives the site its storage at all.
  */
 export function finishSetup(answers: SetupAnswers, run: SetupRun, usedBefore: SetupUse | null): boolean {
   let took = true;
@@ -155,5 +156,19 @@ export function finishSetup(answers: SetupAnswers, run: SetupRun, usedBefore: Se
     if (last?.way === 'lost-found' && last.pet === undefined) rememberWay('monitor');
   }
   took = tried(() => onboarding().setComplete(true)) && took;
-  return took;
+  return took && storageReached();
+}
+
+/**
+ * False when the browser gives the site no storage at all. A browser set to
+ * keep no data for the site throws on the first read of localStorage itself,
+ * so every store keeps its writes for the visit and throws nothing, and no
+ * write above can tell.
+ */
+function storageReached(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage !== null && window.localStorage !== undefined;
+  } catch {
+    return false;
+  }
 }
