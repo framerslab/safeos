@@ -648,3 +648,84 @@
     max-width: 25rem;
   }
 }
+
+/* =============================================================================
+   Setup: the last key
+   ============================================================================= */
+
+.setup-last {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  padding: 12px max(16px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+  border-top: 1px solid var(--color-steel-300);
+  background: var(--color-steel-950);
+}
+
+/* The page colour comes up to the bar's top line over the answer cut under it. */
+.setup-last::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 1px);
+  height: 24px;
+  background: linear-gradient(to bottom, transparent, var(--color-steel-950));
+  pointer-events: none;
+}
+
+html.setup-bar-fixed {
+  scroll-padding-bottom: var(--setup-bar);
+}
+
+html.setup-bar-fixed body {
+  padding-bottom: var(--setup-bar);
+}
+
+.setup-last-key {
+  width: 100%;
+}
+
+.setup-last-says:empty {
+  display: none;
+}
+
+.setup-unsaved {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.setup-unsaved .problem-mark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+@media (min-width: 48em) {
+  .setup-last {
+    position: static;
+    z-index: auto;
+    margin-top: 24px;
+    padding: 0;
+    border-top: 0;
+    background: none;
+  }
+
+  .setup-last::before {
+    display: none;
+  }
+
+  .setup-last-key {
+    max-width: 25rem;
+  }
+}
+
+@media (min-width: 90em) {
+  .setup-last-key {
+    min-height: 56px;
+  }
+}
