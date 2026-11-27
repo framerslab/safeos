@@ -244,6 +244,10 @@ const UNBACKED_CLAIMS: Phrase[] = [
     why: 'a server with a cloud key sends frames to that provider when Ollama is down or fails (analysis-queue.ts)',
   },
   {
+    pattern: /sends? a frame to that provider/i,
+    why: 'cloud-fallback.ts tries OpenRouter, then OpenAI, then Anthropic, so with more than one key a frame one of them fails on goes to the next',
+  },
+  {
     pattern: /kept in memory and clear on reload/i,
     why: 'Monitor alerts are saved in IndexedDB and restored after a reload (monitoring-store.ts)',
   },

@@ -91,6 +91,14 @@ describe('allowed origins', () => {
     expect(await allowedBy(app, 'https://other.example')).toBeNull();
   });
 
+  it("reads a listed origin written with its scheme's default port as a browser sends it, without the port", async () => {
+    const app = appWith('https://guardian.example.test:443, http://192.168.1.20:80, http://localhost:8080');
+    expect(await allowedBy(app, 'https://guardian.example.test')).toBe('https://guardian.example.test');
+    expect(await allowedBy(app, 'http://192.168.1.20')).toBe('http://192.168.1.20');
+    expect(await allowedBy(app, 'http://localhost:8080')).toBe('http://localhost:8080');
+    expect(await allowedBy(app, 'https://guardian.example.test:8443')).toBeNull();
+  });
+
   it('says when it starts which listed entries are not an origin, and names no good one', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {

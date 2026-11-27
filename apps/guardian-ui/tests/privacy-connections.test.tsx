@@ -63,6 +63,8 @@ it('lists each connection with when it happens, who sees what and how to stop it
   expect(row('A spoken alert')).toContain('Voice Warnings');
   expect(row('A spoken alert')).toContain('Alert Mode');
   expect(row('A server you connect')).toContain('when Ollama is down or its analysis fails');
+  expect(row('A server you connect')).toContain('OpenRouter, OpenAI and Anthropic');
+  expect(row('A server you connect')).toContain('if that one fails, to the next');
   expect(row('A server you connect')).toContain('Local instant');
 });
 
