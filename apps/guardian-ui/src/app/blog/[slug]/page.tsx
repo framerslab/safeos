@@ -193,7 +193,7 @@ const blogContent: Record<string, BlogContent> = {
           The matcher uses no trained model. Each reference photo reduces to three
           signatures: a 32-bin color histogram, the top-5 dominant colors via k-means, and an 8&times;8
           grid of edge strengths taken from differences between neighbouring pixels. Together they
-          take under 1 KB a photo. The matcher samples the live feed at 1&ndash;2 FPS, scores each
+          take under 1 KB a photo. The matcher samples the live feed twice a second (every 500 ms in the local processing mode, 900 ms in the others), scores each
           frame on average colour first, then region by region on a weighted mix: histogram 40%,
           dominant colours 35%, edges 15%, size 10%. The code is in{' '}
           <a
@@ -208,7 +208,7 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <p>
-          It matches colours and a coarse outline, so it cannot tell your dog from another dog of the
+          It compares colours and a coarse outline, so it cannot tell your dog from another dog of the
           same colour. It needs no model download, and it costs little enough to run on every
           sample. The Lost &amp; Found loop is in{' '}
           <a
@@ -219,7 +219,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             <code>monitor/page.tsx</code>
           </a>{' '}
-          around lines 258&ndash;271.
+          around lines 279&ndash;337.
         </p>
 
         <h2>State and storage</h2>
@@ -245,8 +245,8 @@ const blogContent: Record<string, BlogContent> = {
           On iOS, installing the app goes through Safari&apos;s Share menu, and listening in the
           background is limited. The detection model is an {MODEL_SIZE_MB} MB download, so on a slow
           connection the first Security or Wildlife start is slow.
-          The Lost &amp; Found matcher compares colours, not identity, so another animal or an object
-          of the same colour also matches. Most of these are tracked in{' '}
+          The Lost &amp; Found matcher compares colours and a coarse outline, so another animal or an object
+          of the same colour can also raise a possible sighting. Most of these are tracked in{' '}
           <a
             href="https://github.com/framerslab/safeos/issues"
             target="_blank"

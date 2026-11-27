@@ -111,6 +111,10 @@ const faqCategories: FAQCategory[] = [
         answer: 'Yes! SafeOS Guardian includes multiple alert sounds—gentle chimes for routine alerts, urgent alarms for high-priority events, and custom sound options. You can also adjust volume, enable vibration on mobile devices, and configure quiet hours to prevent alerts during specified times.',
       },
       {
+        question: 'How does Lost and Found compare my pet\'s photos?',
+        answer: 'Twice a second, the browser compares each part of the camera\'s picture that moved with your pet\'s photos: their colours, 5 main colours, outline on an 8 by 8 grid and size. When a part comes close enough, Lost and Found shows a possible sighting with that picture beside your photo, so you can check it yourself. It reads colours and outline with no model, so another animal, or a cushion or bag of similar colours, can raise one too. Crop each photo close to your pet: the background in a photo counts as well.',
+      },
+      {
         question: 'How do I reduce false positives?',
         answer: 'To reduce false alerts: 1) Adjust sensitivity sliders lower, 2) Use appropriate presets for your scenario, 3) Ensure stable lighting (sudden light changes can trigger motion), 4) Position the camera to avoid windows or moving objects in the background, 5) Use the alert delay setting to require sustained motion before alerting.',
       },
@@ -122,7 +126,7 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         question: 'What AI models does SafeOS Guardian use?',
-        answer: 'Security and Wildlife modes use COCO-SSD, a TensorFlow.js object detection model, to find people and animals. The monitor page uses no model: it compares video frames for motion and measures sound levels. Everything runs in the browser.',
+        answer: 'Security and Wildlife modes use COCO-SSD, a TensorFlow.js object detection model, to find people and animals. The monitor page uses no model: it compares video frames for motion, measures sound levels and, for Lost and Found, compares the picture with your pet\'s photos by colour and outline. Everything runs in the browser.',
       },
       {
         question: 'How does TensorFlow.js work in the browser?',
