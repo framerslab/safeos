@@ -133,7 +133,7 @@ describe("setup's live measures on the stream", () => {
 
   it('reads the pitches set on Detection, as the watch does', () => {
     useSettingsStore.setState({
-      audioSettings: { ...useSettingsStore.getState().audioSettings, frequencyRange: 'custom', backgroundNoiseFilter: true, customLowFreq: 300, customHighFreq: 600 },
+      audioSettings: { ...useSettingsStore.getState().audioSettings, frequencyRange: 'custom', customLowFreq: 300, customHighFreq: 600 },
     });
     const kept = { context: { sampleRate: 48000 }, fftSize: 256, frequencyBinCount: 1024, getByteFrequencyData: (data: Uint8Array) => data.fill(0) };
     jest.spyOn(AudioContext.prototype, 'createAnalyser').mockReturnValue(kept as unknown as AnalyserNode);
