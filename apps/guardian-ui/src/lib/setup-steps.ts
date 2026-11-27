@@ -1,9 +1,9 @@
 /**
  * Setup's steps
  *
- * The one list of the steps setup walks, in order. The setup page shows them,
- * and the home page reads the count and the step that asks for the camera
- * from here, so the two cannot differ. It also holds the setting each use
+ * The one list of setup's two steps, in order: the camera, then what the
+ * device watches. Setup shows them, and the home page reads the count and
+ * the step that asks for the camera from here, so the two cannot differ. It also holds the setting each use
  * applies, since a page file exports its page alone.
  *
  * @module lib/setup-steps
@@ -11,15 +11,15 @@
 
 import type { PresetId } from '@/stores/settings-store';
 
-export type SetupStep = 'welcome' | 'disclaimer' | 'scenario' | 'permissions' | 'notifications' | 'complete';
+export type SetupStep = 'camera' | 'use';
 
-export const SETUP_STEPS: SetupStep[] = ['welcome', 'disclaimer', 'scenario', 'permissions', 'notifications', 'complete'];
+export const SETUP_STEPS: SetupStep[] = ['camera', 'use'];
 
 /** How many steps setup has. */
 export const SETUP_STEP_COUNT = SETUP_STEPS.length;
 
 /** The step at which the browser asks for the camera and microphone, counted from 1. */
-export const SETUP_CAMERA_STEP = SETUP_STEPS.indexOf('permissions') + 1;
+export const SETUP_CAMERA_STEP = SETUP_STEPS.indexOf('camera') + 1;
 
 /**
  * The setting each use applies, as the first-visit wizard applied it. Every
@@ -34,3 +34,9 @@ export const USE_SETTING: Readonly<Record<SetupUse, PresetId>> = {
   elderly: 'maximum',
   security: 'night',
 };
+
+/** An answer to "What is it watching?": one of the four uses, or a lost pet, which watches with Lost and Found and saves the pet use. */
+export type SetupChoice = SetupUse | 'lost_found';
+
+/** The five answers, in the order setup shows them. */
+export const SETUP_CHOICES: readonly SetupChoice[] = ['pet', 'baby', 'elderly', 'security', 'lost_found'];

@@ -144,6 +144,7 @@ apps/guardian-ui/src/
 │   ├── dashboard/             # The dashboard's parts
 │   ├── DetectionZoneEditor.tsx # Zone configuration
 │   ├── LostFoundSetup.tsx     # Lost pet/person setup
+│   ├── setup/                 # Setup's two steps and their frame
 │   ├── SettingsPanel.tsx      # Settings UI
 │   └── StreamGrid.tsx         # Multi-stream grid
 │

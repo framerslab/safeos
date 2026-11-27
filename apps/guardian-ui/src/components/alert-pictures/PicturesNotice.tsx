@@ -5,16 +5,14 @@
  * whichever key starts the watch. It shows the same switch, select and
  * lines as the group "Alert pictures": Start watching keeps the choice and
  * starts the watch, Go back closes it and leaves the watch not started. No
- * picture is kept before it is answered. Setup's camera step shows the same
- * title, choice and lines (`SetupPicturesChoice`); a device that went on
- * past that step has answered, and its first watch starts with no notice.
+ * picture is kept before it is answered.
  *
  * @module components/alert-pictures/PicturesNotice
  */
 
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { postPictureNews, settingsNews } from '../../lib/alert-pictures/channel';
@@ -58,21 +56,6 @@ export function PicturesChoice({ keep, days, onKeep, onDays }: PicturesChoicePro
       <p className="alert-pictures-line" data-lead="">{ASK_LINE}</p>
       <StreetLine />
     </>
-  );
-}
-
-/**
- * Setup's camera step: the notice's title, choice and lines in a group of
- * their own. Setup keeps the choice and answers the notice with it when the
- * person goes on past the step.
- */
-export function SetupPicturesChoice(props: PicturesChoiceProps) {
-  const title = useId();
-  return (
-    <div role="group" aria-labelledby={title} className="alert-pictures-setup">
-      <h3 id={title} className="alert-pictures-setup__title" data-lead="">{NOTICE_TITLE}</h3>
-      <PicturesChoice {...props} />
-    </div>
   );
 }
 

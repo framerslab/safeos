@@ -2,7 +2,10 @@
  * Start watching
  *
  * The dashboard's key starts the way last watched, and Motion and sound
- * before any watch on this device. It opens the camera while the dashboard is
+ * before any watch on this device. Once setup ended with a lost pet and
+ * before any watch, it starts Lost and Found for the first saved pet, and
+ * with none saved it opens the Lost and Found page, where the photos are
+ * added. It opens the camera while the dashboard is
  * on screen, so the dashboard can say why the camera did not open, and holds
  * the open camera for the way's page, which takes it with no second request
  * (lib/camera-handoff). The tab holds the device's one watch from before the
@@ -30,13 +33,23 @@ export interface StartChoice {
 /**
  * The way last watched. Lost and Found only while its pet is saved and is a
  * subject of the kind pet or other; in every other case Motion and sound.
+ * A Lost and Found way that names no pet is setup's answer before any watch
+ * has run: it takes the first subject of the kind pet in the order the
+ * subjects are given (the device's saved subjects, newest first), as the
+ * watch's Watch for takes one (lib/next-way, petForWatch): a thing saved as
+ * an object is the watch's only once chosen. With none saved it stays Lost
+ * and Found with no pet, which the line and the key say.
  */
 export function startChoice(last: LastWay | null, subjects: SubjectProfileDB[]): StartChoice {
   if (!last || last.way === 'monitor') return { way: 'monitor' };
   if (last.way === 'lost-found') {
-    const petId = last.pet;
-    const pet = petId ? subjects.find((subject) => subject.id === petId) : undefined;
-    return pet && (pet.type === 'pet' || pet.type === 'other') ? { way: 'lost-found', pet } : { way: 'monitor' };
+    const pets = subjects.filter((subject) => subject.type === 'pet' || subject.type === 'other');
+    if (last.pet === undefined) {
+      const newest = pets.find((subject) => subject.type === 'pet');
+      return newest ? { way: 'lost-found', pet: newest } : { way: 'lost-found' };
+    }
+    const pet = pets.find((subject) => subject.id === last.pet);
+    return pet ? { way: 'lost-found', pet } : { way: 'monitor' };
   }
   return { way: last.way };
 }
@@ -66,19 +79,23 @@ export function rowPet(last: LastWay | null, subjects: SubjectProfileDB[]): Subj
 
 const nameOf = (way: WayId) => WAYS.find((one) => one.id === way)?.name ?? 'Motion and sound';
 
-/** "Start watching uses Lost and Found, for Mittens." */
+/** "Start watching uses Lost and Found, for Mittens."; with no pet saved, "Start watching uses Lost and Found. Add your pet’s photos first." */
 export function startLine(choice: StartChoice): string {
-  return choice.way === 'lost-found' && choice.pet
-    ? `Start watching uses ${nameOf('lost-found')}, for ${choice.pet.name}.`
-    : `Start watching uses ${nameOf(choice.way)}.`;
+  if (choice.way === 'lost-found') {
+    return choice.pet
+      ? `Start watching uses ${nameOf('lost-found')}, for ${choice.pet.name}.`
+      : `Start watching uses ${nameOf('lost-found')}. Add your pet’s photos first.`;
+  }
+  return `Start watching uses ${nameOf(choice.way)}.`;
 }
 
-/** The address the press opens: /monitor/ for Motion and sound and for Lost and Found, else the way's own page. */
+/** The address the press opens: /monitor/ for Motion and sound and for Lost and Found with its pet, the Lost and Found page while no pet is saved, else the way's own page. */
 export function startAddress(choice: StartChoice): string {
+  if (choice.way === 'lost-found' && !choice.pet) return '/lost-found/';
   return choice.way === 'security' ? '/security/' : choice.way === 'wildlife' ? '/wildlife/' : '/monitor/';
 }
 
-export type StartOutcome = 'opened' | 'needs-model' | 'blocked' | 'in-use' | 'failed' | 'stopped';
+export type StartOutcome = 'opened' | 'needs-model' | 'needs-pet' | 'blocked' | 'in-use' | 'failed' | 'stopped';
 
 /**
  * Opens the camera while the dashboard is on screen and hands it to the way's
@@ -89,6 +106,12 @@ export type StartOutcome = 'opened' | 'needs-model' | 'blocked' | 'in-use' | 'fa
  * nothing opened.
  */
 export async function startWatch(choice: StartChoice, go: (address: string) => void): Promise<StartOutcome> {
+  // Lost and Found with no pet saved opens its page, where the photos are
+  // added, and asks for no camera.
+  if (choice.way === 'lost-found' && !choice.pet) {
+    go(startAddress(choice));
+    return 'needs-pet';
+  }
   const needsModel = choice.way === 'security' || choice.way === 'wildlife';
   if (needsModel && !(await modelOnDevice())) {
     go(startAddress(choice));

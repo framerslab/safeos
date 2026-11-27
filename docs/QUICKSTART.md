@@ -64,46 +64,15 @@ That's it! You're ready to monitor.
 
 ### Setting Up Your First Monitor
 
-#### Step 1: Accept the Disclaimer
+#### Step 1: Turn on the camera
 
-When you first open SafeOS, you'll see our critical disclaimer. Read it carefully:
+Setup's first step says what SafeOS does on this device and that it adds an alert; it does not replace a person nearby. Press **Turn on the camera** and allow the camera and microphone when the browser asks. A camera without a microphone is enough. **Continue without the camera** goes on with the camera off; the dashboard asks for the camera when you press **Start watching**. When a request fails, the step names what happened inside the camera's frame, with **Try again**, and with **How to allow the camera** when the browser blocks it.
 
-> **SafeOS is NOT a replacement for human supervision.**
-> This is a supplementary tool only.
+#### Step 2: Say what it is watching
 
-Click **Begin Setup**, tick the box and click **Accept & Continue**.
+Step 2 shows the live picture with a Motion bar and a Sound bar. Wave or clap to test it. Choose **A pet**, **A baby**, **An elderly relative**, **An empty place** or **A lost pet**; the choice sets the Motion and sound setting the watch starts with. With **A baby** chosen, setup says: SafeOS is not a medical device. It does not watch breathing or any vital sign and cannot detect or prevent SIDS. Follow safe-sleep guidance. Press **Open dashboard**, then **Start watching**. **A lost pet** watches with Lost and Found: it saves the pet use, and its key, **Open Lost and Found**, opens the Lost & Found page: add the photos there and press **Start Monitoring**, then press **Start watching** on the Motion and sound page to start the camera and the comparison. Back on the dashboard, **Start watching** then uses Lost and Found for that pet; before a pet is saved, the dashboard says to add the pet's photos first and its key opens the Lost & Found page. To change the answer later, run setup again from the home page. Lost and Found is also chosen or left on Monitor, under **Watch for**, and setup shows the choice Monitor last had.
 
-#### Step 2: Choose What You Are Watching
-
-Setup asks what this device watches. To change it later, run setup again from the home page. Lost & Found is also chosen or left on Monitor, under **Watch for**, and setup shows the choice Monitor last had.
-
-| Choice | What it does |
-|--------|--------------|
-| **Pet Monitoring** | Motion and sound alerts while your pet is in another room or in the yard |
-| **Baby Monitoring** | Motion and sound alerts during a nap you stay nearby for. SafeOS is not a medical device: it does not monitor breathing and cannot prevent SIDS. |
-| **Elderly Care** | Motion and sound alerts, and an optional alert when nothing has moved for a time you set |
-| **Security Mode** | Motion and sound alerts while the place is empty. The People page counts the people in view |
-| **Lost & Found** | Compares what the camera sees with your missing pet's photos, by colour and shape, and alerts you to take a look. It saves the pet use, and the last step's **Open Lost and Found** opens the Lost & Found page: add the photos there and press **Start Monitoring**, then press **Start watching** on the Motion and sound page to start the camera and the comparison |
-
-#### Step 3: Choose a Camera and Allow Access
-
-Choose **Camera** in this step; the choice is saved in this browser and can be
-changed later on Monitor. Click **Grant Permissions**, allow camera and microphone
-access, then **Continue** to finish Setup. A camera without a microphone is enough.
-
-Setup can be finished without a camera. Until access is granted the step shows
-**Continue without the camera**, which goes on to the next step; Monitor asks
-for the camera when you click **Start watching**. When a request fails, the
-step says what happened (the browser blocked the camera, the camera did not
-start, or no camera was found) and the key reads **Try again**.
-
-The same step says what an alert keeps on this device: the camera's picture of
-the moment, a box round what changed and a close-up (a Sound alert keeps the
-picture alone). It has the **Keep alert pictures** switch, on unless you turn
-it off, and **Delete pictures after**, 3 days unless you choose 1, 7 or 30 days
-or "Until I delete them". Going on past the step keeps your choice, so the
-first watch starts without asking again. Both settings are also under **Alert
-pictures** in the watch's settings and on **Settings > Detection**.
+The first watch on a device asks once what an alert keeps on it ("Each alert keeps a picture"): the **Keep alert pictures** switch, on unless you turn it off, and **Delete pictures after**, 3 days unless you choose 1, 7 or 30 days or "Until I delete them". **Start watching** keeps your choice. Both settings are also under **Alert pictures** in the watch's settings and on **Settings > Detection**.
 
 Monitor opens with one row: **Watch for** and **Mute alerts**. **Motion and sound** sounds an alert on this
 device when something moves or makes a sound; **Lost and Found** also compares
@@ -127,7 +96,7 @@ The **Local** processing mode sends no camera frames to a connected server. Aler
 survive reload in **History → Local Timeline** when browser storage is available.
 See [Camera monitoring](MONITORING.md) for camera choice and lifecycle details.
 
-#### Step 4: Position Your Camera
+#### Step 3: Position Your Camera
 
 For best results:
 - Place camera at eye level with the subject
@@ -135,7 +104,7 @@ For best results:
 - Keep the entire area of interest in frame
 - Stable mounting reduces false motion alerts
 
-#### Step 5: Adjust Sensitivity
+#### Step 4: Adjust Sensitivity
 
 On Monitor, **Show settings** under **Settings for this watch** opens the watch's settings; there, adjust:
 - **Motion Sensitivity**: Higher = more alerts on movement
