@@ -621,7 +621,10 @@ The pull request's capture also walks the home's run keys at 320, 360, 390,
 430, 480 and 768 px (`scripts/home-run-checks.mjs`): the keys read Watching,
 Dashboard, Lost and Found and Settings in that order on one row with the
 Play key and the previous and next arrows, no key wraps, a row that runs
-out of room scrolls sideways behind its fade, and the page does not.
+out of room scrolls sideways behind its fade, and the page does not. Up to
+352 px the row reaches 12 px into the page's side margins and its run keys
+narrow their padding, so the Lost and Found key shows whole between the fades
+when Tab reaches it.
 
 The Pictures job checks every recorded word on the exported home poster.
 Each word needs 7:1 pixel contrast and a displayed font size of at least
