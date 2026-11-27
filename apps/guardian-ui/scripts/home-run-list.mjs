@@ -611,7 +611,11 @@ async function prepareLostFound({ page, baseUrl, view }) {
 
 async function lostFound({ page, crop, view, sample, whole, nextFrameAfter, captureFrame }) {
   // 0–2 seconds: Watch for, Lost and Found chosen, with Toffee's one saved photo.
-  await settleEdges(page, crop, ['.watch-for__heading', '.watch-pet .watch-pet__photo']);
+  // The wide crop cannot hold the heading with the whole Start watching key under the pet's row,
+  // so it keeps the choice, Lost and Found, and the photo, with the heading above the crop.
+  await settleEdges(page, crop, view.size === 'wide'
+    ? ['.watch-for__options', '.watch-pet .watch-pet__photo']
+    : ['.watch-for__heading', '.watch-pet .watch-pet__photo']);
   await whole('Watch for with Toffee’s saved photo');
   const start = await browserTime(page);
   const end = start + view.seconds;
