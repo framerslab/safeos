@@ -591,3 +591,60 @@
     transition: none;
   }
 }
+
+/* =============================================================================
+   Setup: when the camera does not turn on
+   ============================================================================= */
+
+.setup-frame[data-state='failed'] {
+  align-items: stretch;
+  justify-content: flex-start;
+}
+
+.setup-frame-says:empty {
+  display: none;
+}
+
+.setup-failure {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  text-align: left;
+}
+
+.setup-failure .problem-mark {
+  flex: none;
+  width: 12px;
+  height: 12px;
+}
+
+.setup-default {
+  width: 100%;
+  min-height: 44px;
+}
+
+.setup-frame .link-row,
+.setup-off .link-row {
+  align-self: flex-start;
+}
+
+.setup-picture[data-state='failed'] .setup-off {
+  align-items: stretch;
+  text-align: left;
+}
+
+@media (max-width: 47.99em) {
+  .setup-frame[data-state='failed'] {
+    gap: 12px;
+    padding-block: 16px;
+  }
+}
+
+@media (min-width: 48em) {
+  .setup-frame[data-state='failed'] .setup-key,
+  .setup-picture[data-state='failed'] .setup-again,
+  .setup-default {
+    align-self: center;
+    max-width: 25rem;
+  }
+}
