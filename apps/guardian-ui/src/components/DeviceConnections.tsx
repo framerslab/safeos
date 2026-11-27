@@ -8,7 +8,8 @@
  *
  * What each row rests on: GitHub's statement on Pages visitor logs; the
  * model's address in lib/detection-model-facts.ts, fetched only after the
- * agreement (lib/detection-model.ts); the voices in lib/tts-alerts.ts, the
+ * agreement (lib/detection-model.ts); the voice choice in lib/tts-alerts.ts
+ * (findSpokenAlertVoice) and components/settings/SpokenAlertVoice.tsx, the
  * Voice Warnings switch in components/SecurityPanel.tsx and Wildlife's Alert
  * Mode in app/wildlife/page.tsx, and Lost & Found's spoken message in
  * lib/custom-media-player.ts with its Speak alert message switch in
@@ -40,9 +41,9 @@ export const CONNECTIONS: Connection[] = [
   },
   {
     name: 'A spoken alert',
-    when: 'Each time People, Wildlife or Lost & Found speaks an alert.',
-    sees: 'People, Wildlife and Lost & Found speak their alerts through one of the browser’s voices. Some voices are an online service run by the browser’s maker, which receives the words to speak. In Chrome, the voices named Google are.',
-    stop: 'On People, turn off Voice Warnings. On Wildlife, choose Sound or Silent under Alert Mode. On Lost & Found, turn off Speak alert message under Image Flash Overlay.',
+    when: 'Only after you choose an online voice under Spoken alert voice, on Settings, Alert sounds; then each time People, Wildlife or Lost & Found speaks an alert with it.',
+    sees: 'People, Wildlife and Lost & Found speak their alerts with a voice on this device. An online voice is a service run by the browser’s maker, which receives the words to speak. Alert sounds names each online voice with “(online)”.',
+    stop: 'Choose Use a voice on this device under Spoken alert voice. To stop spoken alerts as well: on People, turn off Voice Warnings; on Wildlife, choose Sound or Silent under Alert Mode; on Lost & Found, turn off Speak alert message under Image Flash Overlay.',
   },
   {
     name: 'A server you connect',

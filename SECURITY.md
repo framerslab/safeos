@@ -26,7 +26,7 @@ We will answer as soon as we can and keep you updated while we look into it.
 - People and Wildlife run the COCO-SSD detection model with TensorFlow.js in the browser, and send nothing to a server.
 - The browser downloads the detection model from Google's storage (`storage.googleapis.com`) only after you agree to it, and Google sees your IP address when it does.
 - safeos.sh is hosted on GitHub Pages, which logs each visitor's IP address ([GitHub's words](https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#data-collection)).
-- People, Wildlife and Lost & Found speak their alerts through one of the browser's voices (Lost & Found while Image Flash Overlay shows the pet's photos). Some voices are an online service run by the browser's maker, which receives the words to speak: in Chrome, the voices named Google are ([Chromium's source](https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/resources/network_speech_synthesis/manifest.json)).
+- People, Wildlife and Lost & Found speak their alerts with a voice on this device (Lost & Found while Image Flash Overlay shows the pet's photos). They use an online voice only when you choose one under **Spoken alert voice** on Settings, Alert sounds. An online voice is a service run by the browser's maker, which receives the words to speak: in Chrome, the voices named Google are online voices ([Chromium's source](https://chromium.googlesource.com/chromium/src/+/main/chrome/browser/resources/network_speech_synthesis/manifest.json)).
 - The app loads no analytics or tracking script.
 
 ### With a server you run

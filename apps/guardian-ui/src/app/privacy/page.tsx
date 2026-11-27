@@ -236,7 +236,7 @@ export default function PrivacyPage() {
           </h2>
           <p className="text-slate-400 mb-4">
             A spoken alert can leave this device too: People, Wildlife and Lost &amp; Found speak their
-            alerts through one of the browser&apos;s voices, and some voices are an online service. The table lists
+            alerts with a voice on this device, and with an online voice only when you choose one. The table lists
             each connection SafeOS makes or leads to, when it happens, who sees what and how to stop it.
           </p>
           <DeviceConnections />
