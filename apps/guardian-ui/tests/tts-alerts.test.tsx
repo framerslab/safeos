@@ -188,3 +188,30 @@ it('reads the voice list again in Settings when the browser fills it without voi
 
   expect(screen.queryByText('This browser offers no voice, so spoken alerts stay quiet.')).toBeNull();
 });
+
+it('reads the voice list again in Settings when the first read is empty and a later read is not', async () => {
+  // The list can fill between two reads; the reread follows the read that set the state.
+  let reads = 0;
+  const synth = speech([]);
+  synth.getVoices = () => (reads++ === 0 ? [] : [local]);
+  await act(async () => { render(<SoundsSettingsPage />); });
+  await act(async () => { await new Promise((resolve) => setTimeout(resolve, 1100)); });
+
+  expect(screen.queryByText('This browser offers no voice, so spoken alerts stay quiet.')).toBeNull();
+});
+
+it('announces a change in voice availability through a status that stays in place', async () => {
+  let listed: SpeechSynthesisVoice[] = [];
+  const synth = speech([]);
+  synth.getVoices = () => listed;
+  await act(async () => { render(<SoundsSettingsPage />); });
+  const region = screen.getByText('This browser offers no voice, so spoken alerts stay quiet.').closest('[role="status"]');
+  expect(region).not.toBeNull();
+  expect(region?.getAttribute('aria-live')).toBe('polite');
+
+  listed = [remote];
+  await act(async () => { synth.dispatchEvent(new Event('voiceschanged')); });
+  expect(region?.isConnected).toBe(true);
+  expect(region?.textContent).toBe('This browser offers no voice that stays on this device. Spoken alerts stay quiet unless you choose an online voice.');
+});
+

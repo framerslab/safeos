@@ -472,3 +472,70 @@ it('does not play a finished sound again when a pause ends between a sound and a
     mockSpeechSynthesis.getVoices.mockImplementation(() => []);
   }
 });
+
+it('lets a step from a stopped playback play nothing in the next one', async () => {
+  // A sound ends and its next step comes due 500 ms later. Before then the
+  // playback stops, a new one starts with its own sound and pauses.
+  const howler = jest.requireActual('howler') as { Howl: unknown };
+  const sound = { play: jest.fn(), pause: jest.fn(), stop: jest.fn(), unload: jest.fn() };
+  let options: { onend: () => void } | undefined;
+  const made = jest.spyOn(howler as any, 'Howl').mockImplementation((given: any) => {
+    options = given;
+    return sound;
+  });
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  const clip: UploadedAudio = { id: 'a1', name: 'bark.mp3', data: 'data:audio/mpeg;base64,AA', mimeType: 'audio/mpeg', uploadedAt: 0 };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [local]);
+  const player = new CustomMediaPlayer({ audioFiles: [clip], ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    options?.onend();
+    player.stop();
+    player.start();
+    expect(made).toHaveBeenCalledTimes(2);
+    player.pause();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    player.resume();
+
+    expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
+  } finally {
+    player.dispose();
+    made.mockRestore();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});
+
+it('reports a Lost and Found message with no voice and speaks it once the browser lists one', async () => {
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  let listed: unknown[] = [];
+  const events = new EventTarget();
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => listed);
+  Object.assign(mockSpeechSynthesis, {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+  });
+  const onError = jest.fn();
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] }, { onError });
+  try {
+    player.start();
+    // The voice list stays empty past the wait.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(player.getState().isPlaying).toBe(true);
+
+    listed = [local];
+    events.dispatchEvent(new Event('voiceschanged'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: local }));
+    expect(onError).toHaveBeenCalledTimes(1);
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+    Reflect.deleteProperty(mockSpeechSynthesis, 'addEventListener');
+    Reflect.deleteProperty(mockSpeechSynthesis, 'removeEventListener');
+  }
+});
+

@@ -41,3 +41,10 @@ it('gives the watch’s own error when the watch stopped, and keeps the model me
   expect(shortfall({ runs: [laptop({})], wildlife: { attempts: [], error: 'Error: Target page, context or browser has been closed' } }))
     .toBe('Wildlife’s watch stopped before both plays of the sample clip (Error: Target page, context or browser has been closed).');
 });
+
+it('gives a watch’s own error when it stopped after its model check, in place of blaming the motion gate', () => {
+  const stopped = { attempt: 1, ...play(3.76), error: 'Error: page.screenshot: Timeout 30000ms exceeded.' };
+  expect(shortfall({ runs: [laptop({})], wildlife: { attempts: [stopped, { attempt: 2, ...play(4.03) }] } }))
+    .toBe('Wildlife’s watch 1 stopped (Error: page.screenshot: Timeout 30000ms exceeded.).');
+});
+
