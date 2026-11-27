@@ -540,7 +540,11 @@ The `pictures` artifact includes `home-readability.json` with the named
 ranges, measured ratios, sizes and any failures. For the runs, the walk
 projects each recorded word onto the visible poster and samples both looks
 at 320, 390, 768, 1024, 1280 and 1440 px. A poster word must display at
-least 14 CSS px with 7:1 contrast on the captured page.
+least 14 CSS px with 7:1 contrast on the captured page. At 390 px the walk
+also samples the run keys: each key the strip shows only in part at its start
+is pictured with the strip scrolled to it
+(`home-readability-run-steps-<run>-390-<look>.png`), and the strip's end is
+pictured last.
 
 The Pages build hashes `out/index.html`. After the master Pages deploy,
 `apps/guardian-ui/scripts/check-published-home.mjs` opens

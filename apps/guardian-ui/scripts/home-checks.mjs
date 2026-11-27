@@ -711,12 +711,34 @@ export async function checkHomePage(browser, baseUrl, outDir) {
           variant.push({ file, disclosure: id, ...sample });
         });
         if (width === 390) {
-          await page.locator('.home-run__strip').evaluate((strip) => { strip.scrollLeft = strip.scrollWidth; });
-          await page.evaluate(paint);
-          const file = `home-readability-run-steps-${width}-${look}.png`;
-          const { clip, ...steps } = await page.evaluate(pageWordBoxes, 'run-steps');
-          await page.screenshot({ path: path.join(outDir, file), clip, fullPage: true, scale: 'device', caret: 'hide' });
-          variant.push({ file, ...steps });
+          // Each run key the strip shows only in part at its start is pictured with the strip
+          // scrolled to it; the last picture holds the strip's end.
+          const hidden = await page.locator('.home-run__strip').evaluate((strip) => {
+            const outer = strip.getBoundingClientRect();
+            return [...strip.querySelectorAll('button[data-run]')].filter((key) => {
+              const box = key.getBoundingClientRect();
+              return box.left < outer.left || box.right > outer.right;
+            }).map((key) => key.dataset.run);
+          });
+          const stops = [
+            ...hidden.slice(0, -1).map((id) => ({ id, file: `home-readability-run-steps-${id}-${width}-${look}.png` })),
+            { id: null, file: `home-readability-run-steps-${width}-${look}.png` },
+          ];
+          for (const { id, file } of stops) {
+            await page.locator('.home-run__strip').evaluate((strip, id) => {
+              if (!id) {
+                strip.scrollLeft = strip.scrollWidth;
+                return;
+              }
+              const outer = strip.getBoundingClientRect();
+              const box = strip.querySelector(`button[data-run="${id}"]`).getBoundingClientRect();
+              strip.scrollLeft += box.right - outer.right + 8;
+            }, id);
+            await page.evaluate(paint);
+            const { clip, ...steps } = await page.evaluate(pageWordBoxes, 'run-steps');
+            await page.screenshot({ path: path.join(outDir, file), clip, fullPage: true, scale: 'device', caret: 'hide' });
+            variant.push({ file, ...steps });
+          }
         }
         readability.push(...variant);
         const stepIds = new Set(variant.flatMap(({ boxes }) => boxes.map(({ runStep }) => runStep)));
