@@ -253,7 +253,7 @@ export function verifyBundle(directory) {
           assert.deepEqual(run.photos, ['home/lost-found/photo-1.jpg'], label + ': the run enrols photo 1 alone');
           assert.deepEqual(watchEvents?.map(({ kind }) => kind), ['sighting'],
             label + ': the recording must show one possible sighting and no other alert');
-          assert.ok(eventAt >= 2 && eventAt <= 6 && pictureAt >= 6 && pictureAt > eventAt && run.seconds - pictureAt >= 2.5,
+          assert.ok(eventAt >= 2 && eventAt <= 5 && pictureAt >= 5 && pictureAt > eventAt && run.seconds - pictureAt >= 2.5,
             label + ': the watch must raise its possible sighting after Start watching and hold its entry for 2.5 seconds at the end');
         }
         for (const { word, x, y, width, height, size: font } of words) {
