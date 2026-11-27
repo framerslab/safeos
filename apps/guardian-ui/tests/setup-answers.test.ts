@@ -50,11 +50,18 @@ describe('what a press on setup writes', () => {
     jest.spyOn(localStorage, 'setItem').mockImplementation(() => {
       throw new DOMException('full', 'QuotaExceededError');
     });
+    const before = localStorage.getItem('safeos-onboarding');
     let result = true;
     expect(() => {
       result = writeNow({ statement: true });
     }).not.toThrow();
     expect(result).toBe(false);
+    // The statement stands for the visit, with its time; the stored record is as it was.
+    const held = useOnboardingStore.getState();
+    expect(held.acceptedDisclaimers.main).toBe(true);
+    expect(held.acceptedDisclaimers.scenario).toBe(true);
+    expect(typeof held.disclaimerAcceptedAt).toBe('string');
+    expect(localStorage.getItem('safeos-onboarding')).toBe(before);
   });
 
   it('removes the saved camera for Use the default camera', () => {

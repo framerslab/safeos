@@ -137,6 +137,8 @@ it('notes each address it shows, so a page knows the page before it', async () =
   const { pathBefore } = await import('@/lib/visit-trail');
   open('/');
   cleanup();
+  // A press on a link to setup: a new entry of the browser's history.
+  window.history.pushState(null, '', '/setup/');
   open('/setup/');
   expect(pathBefore('/setup')).toBe('/');
 });

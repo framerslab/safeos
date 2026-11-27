@@ -61,6 +61,14 @@ describe("where setup draws each bar's line", () => {
     expect(alertLines('baby', 'baby', DEFAULT_PRESETS.infant_sleep, reset, 'baby')).toEqual({ motion: 2, sound: 5 });
   });
 
+  it('draws no motion line where the setting has motion alerts off, as the watch raises none', () => {
+    // The input: the device's own setting with motion alerts off, at a motion sensitivity of 60.
+    const saved = { ...DEFAULT_PRESETS.infant_sleep, motionSensitivity: 60, motionDetectionEnabled: false };
+    expect(alertLines(null, null, saved, {}, null)).toEqual({ motion: null, sound: 5 });
+    expect(alertLines('baby', 'baby', saved, {}, 'baby')).toEqual({ motion: null, sound: 5 });
+    expect(alertLines('pet', 'baby', saved, {}, 'baby').motion).toBe(10);
+  });
+
   it('reads the use the watch reads when no use is shown chosen', () => {
     expect(alertLines(null, null, DEFAULT_PRESETS.maximum, { security: { motionSensitivity: 50 } }, 'security')).toEqual({
       motion: 50,

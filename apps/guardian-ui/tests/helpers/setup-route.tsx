@@ -42,10 +42,17 @@ export function chooseUse(name: string) {
   fireEvent.click(screen.getByRole('radio', { name }));
 }
 
-/** A press on the last key, whatever it reads. */
+/**
+ * A press on the last key, whatever it reads, and the browser's return to
+ * step 1's entry that a press on step 2 makes before the page opens (jsdom
+ * moves through its history after a timer).
+ */
 export async function pressLastKey() {
   const key = document.querySelector('.setup-last button') as HTMLButtonElement | null;
   if (!key) throw new Error('setup shows no last key');
   fireEvent.click(key);
   await act(async () => {});
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  });
 }

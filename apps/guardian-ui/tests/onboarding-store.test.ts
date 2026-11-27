@@ -50,22 +50,25 @@ it('keeps the choice of Lost and Found that setup and the watch share', () => {
 });
 
 it('counts setup as done only with the record marked complete, the statement\'s two flags and a use', () => {
-  const rows: Array<[boolean, boolean, boolean]> = [];
+  // Each of the statement's two flags is read on its own: a record with one of them alone is not done.
+  const rows: Array<[boolean, boolean, boolean, boolean]> = [];
   for (const complete of [false, true]) {
-    for (const statement of [false, true]) {
-      for (const use of [false, true]) rows.push([complete, statement, use]);
+    for (const main of [false, true]) {
+      for (const scenario of [false, true]) {
+        for (const use of [false, true]) rows.push([complete, main, scenario, use]);
+      }
     }
   }
-  const done = rows.filter(([complete, statement, use]) =>
+  const done = rows.filter(([complete, main, scenario, use]) =>
     canSkipOnboarding({
       ...useOnboardingStore.getState(),
       isComplete: complete,
-      acceptedDisclaimers: { main: statement, scenario: statement, privacy: false, terms: false },
+      acceptedDisclaimers: { main, scenario, privacy: false, terms: false },
       selectedScenario: use ? 'pet' : null,
     } as OnboardingState)
   );
-  expect(rows).toHaveLength(8);
-  expect(done).toEqual([[true, true, true]]);
+  expect(rows).toHaveLength(16);
+  expect(done).toEqual([[true, true, true, true]]);
 });
 
 it('records that the statement stood, with its time, and leaves the other two flags', () => {

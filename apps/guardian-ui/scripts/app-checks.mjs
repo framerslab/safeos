@@ -5534,6 +5534,22 @@ export async function checkApp(browser, baseUrl, outDir) {
     }, NEW_DEVICE);
   }
 
+  await open({ name: 'setup, Back on step 1 after the browser came back', width: 390, look: 'light' }, async (page, context, check) => {
+    // The input: another site opened setup, the header opened the dashboard, and the browser's back button returned to setup.
+    await page.goto('data:text/html,<title>Another site</title><p>Another site</p>');
+    await visit(page, '/setup/');
+    await step1Shown(page);
+    const toDashboard = page.locator('header a[href="/dashboard/"]').first();
+    if (!(await toDashboard.isVisible())) { check(false, "setup's header shows no link to the dashboard"); return; }
+    await pressTo(page, toDashboard, '/dashboard');
+    check(pathOf(page) === '/dashboard', `the header's link opened ${pathOf(page)}, not /dashboard`);
+    await page.goBack();
+    check(await step1Shown(page, 10_000), `the browser's back button does not show "${STEP1_H1}"`);
+    await setupMain(page).getByRole('link', { name: 'Back', exact: true }).click();
+    await reaches(page, '/', 10_000);
+    check(page.url() === address('/'), `Back on step 1 opened ${page.url()}, not the home page`);
+  }, NEW_DEVICE);
+
   for (const reducedMotion of ['no-preference', 'reduce']) {
     await open({ name: 'setup, focus between the steps', width: 390, look: 'light', reducedMotion }, async (page, context, check) => {
       await visit(page, '/setup/');
@@ -5933,6 +5949,23 @@ export async function checkApp(browser, baseUrl, outDir) {
     acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
   });
   for (const look of LOOKS) {
+    await open({ name: 'setup, Back after a run again', width: 390, look }, async (page, context, check) => {
+      // The input: setup run again to its last key on step 2, then the browser's back button on the dashboard.
+      await visit(page, '/');
+      await visit(page, '/setup/?again=1');
+      await step1Shown(page);
+      if (!(await continueOn(page))) { check(false, 'Continue does not open step 2'); return; }
+      await choose(page, 'A pet');
+      await pressTo(page, lastKey(page), '/dashboard');
+      check(pathOf(page) === '/dashboard', `the last key of a run again opened ${pathOf(page)}, not /dashboard`);
+      await page.goBack();
+      await reaches(page, '/', 10_000);
+      check(pathOf(page) === '/', `Back from the dashboard after a run again opened ${pathOf(page)}, not the page before setup`);
+      check((await heading(page, STEP1_H1).count()) === 0, `Back from the dashboard after a run again shows "${STEP1_H1}"`);
+    }, { ...NEW_DEVICE, script: SET_UP_WITH('pet') });
+  }
+
+  for (const look of LOOKS) {
     await open({ name: 'setup, chosen on opening', width: 390, look }, async (page, context, check) => {
       for (const [next, want, key] of [['lost-found', ['A lost pet'], 'Open Lost and Found'], ['security', ['An empty place'], 'Open People'], ['monitor', [], null], ['wildlife', [], null], [null, [], null]]) {
         await visit(page, next ? `/setup/?next=${next}` : '/setup/');
@@ -6049,9 +6082,10 @@ export async function checkApp(browser, baseUrl, outDir) {
       await step1Shown(page);
       await turnOn(page);
       await choose(page, 'A pet');
+      check((await camerasOn(page)) >= 1, 'step 2 shows no live camera before the last key');
       await lastKey(page).click();
       await stateShown(page);
-      check((await camerasOn(page).catch(() => 0)) === 0, 'the camera is on when the dashboard shows');
+      check((await camerasOn(page)) === 0, `${await camerasOn(page)} cameras are on when the dashboard shows`);
     }, { ...NEW_DEVICE, script: FAKE_CAMERA });
   }
 
@@ -6062,6 +6096,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
       await continueOn(page);
       await page.waitForTimeout(3_000);
+      check((await page.evaluate(() => window.__camera.live.length)) >= 1, 'three seconds after Continue the late answer has not come');
       check((await setupWords(page)).includes(CAMERA_OFF), 'three seconds after Continue the frame no longer says the camera is off');
       check((await camerasOn(page)) === 0, `a late answer left ${await camerasOn(page)} cameras on`);
       check((await onboardingOf(page)).cameraPermissionGranted === false, 'a late answer was written as the camera allowed');
@@ -6791,7 +6826,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(seen && seen.words === 'Opening the dashboard…' && seen.busy === 'true', `while the dashboard opens the key is ${JSON.stringify(seen)}`);
       check(seen && seen.ground === 'rgba(0, 0, 0, 0)' && seen.edge === `2px solid ${LINE[look]}`, `the opening key is drawn ${JSON.stringify(seen)}`);
       await lastKey(page).click({ timeout: 1_000 }).catch(() => {});
-      await page.locator('main.dash h1').waitFor({ timeout: 20_000 }).catch(() => {});
+      const dashboard = await page.locator('main.dash h1').waitFor({ timeout: 20_000 }).then(() => true, () => false);
+      check(dashboard && pathOf(page) === '/dashboard', `after the last key the page is ${pathOf(page)} with ${dashboard ? 'the' : 'no'} dashboard heading`);
       check(routeData - before <= 1, `the last key asked for the dashboard's route data ${routeData - before} times`);
     }, NEW_DEVICE);
   }
@@ -7219,7 +7255,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     // The device's own alerts are History's local timeline.
     await visit(page, '/history/?view=local');
     // History says how long ago each alert was: "Just now", "2 mins ago" or a clock time.
-    const listed = await page.waitForFunction(() => /Just now|\bmins? ago\b|\d{1,2}:\d{2}/.test(document.getElementById('main-content')?.innerText || ''), null, { timeout: 15_000 }).then(() => true, () => false);
+    const listed = await page.waitForFunction(() => /Just now|\bmins? ago\b|\d{1,2}:\d{2}/.test(document.querySelector('#main-content [role="list"] > *')?.innerText || ''), null, { timeout: 15_000 }).then(() => true, () => false);
     check(listed, `History lists no alert with its time; its page ends "${plain(await page.locator('#main-content').innerText().catch(() => '')).slice(-240)}"`);
   }, { ...NEW_DEVICE, script: FAKE_CAMERA });
 
@@ -7254,11 +7290,14 @@ export async function checkApp(browser, baseUrl, outDir) {
           await visit(page, '/setup/');
           await step1Shown(page);
           if (press) await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
-          await page.locator('.setup-frame[data-state="failed"]').waitFor({ timeout: 10_000 }).catch(() => {});
+          const named = await page.locator('.setup-frame[data-state="failed"]').waitFor({ timeout: 10_000 }).then(() => true, () => false);
+          check(named, `${state}: at ${height} px the frame does not name the failure`);
           await page.waitForTimeout(300);
           const again = await bottomOf(page, '.setup-frame .setup-key');
           const skip = await bottomOf(page, '.setup-skip');
-          check(again === null || again <= height, `${state}: at ${height} px Try again ends at ${again}`);
+          // Every failure but a browser with no camera request offers Try again.
+          if (state === 'no camera request') check(again === null, `${state}: at ${height} px the frame offers Try again`);
+          else check(again !== null && again <= height, `${state}: at ${height} px Try again ends at ${again}`);
           check(skip !== null && skip <= height, `${state}: at ${height} px Continue ends at ${skip}`);
         }, { ...NEW_DEVICE, script: setupScript(made) });
       }

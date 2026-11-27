@@ -147,9 +147,16 @@ describe("what setup's last key writes", () => {
     expect(way).toBeGreaterThanOrEqual(0);
     expect(way).toBeLessThan(done);
     expect(stored(calls[done]).state.isComplete).toBe(true);
+  });
 
+  it('keeps the pet Lost and Found last watched when a run again ends on A lost pet', () => {
+    // The input: a watch of Lost and Found for pet-1 has run, then setup is run again and ends on A lost pet.
     rememberWay('lost-found', 'pet-1');
-    finishSetup({ ...NO_ANSWERS, use: 'baby', lostFound: true }, 'again', 'baby');
+    expect(finishSetup({ ...NO_ANSWERS, use: 'pet', lostFound: true }, 'again', 'pet')).toBe(true);
+    expect(readLastWay()).toEqual({ way: 'lost-found', pet: 'pet-1' });
+    // Another way last watched gives way to Lost and Found with no pet.
+    rememberWay('security');
+    finishSetup({ ...NO_ANSWERS, use: 'pet', lostFound: true }, 'again', 'pet');
     expect(readLastWay()).toEqual({ way: 'lost-found' });
   });
 

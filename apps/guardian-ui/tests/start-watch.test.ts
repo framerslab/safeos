@@ -126,6 +126,18 @@ it('takes the first saved pet for a Lost and Found way that names none, as setup
   expect(rowPet({ way: 'lost-found' }, [sam, newer, older])).toEqual(newer);
 });
 
+it('takes no thing saved as an object for a Lost and Found way that names none, as the watch takes none until it is chosen', () => {
+  // The input: a ball saved as an object after Mittens, and setup ended on A lost pet.
+  const ball = { ...subject('other-1', 'Ball', 'other'), createdAt: new Date(3000).toISOString() };
+  const older = { ...mittens, createdAt: new Date(1000).toISOString() };
+  const choice = startChoice({ way: 'lost-found' }, [ball, older]);
+  expect(choice).toEqual({ way: 'lost-found', pet: older });
+  expect(startLine(choice)).toBe('Start watching uses Lost and Found, for Mittens.');
+  expect(startChoice({ way: 'lost-found' }, [ball])).toEqual({ way: 'lost-found' });
+  // A thing the watch last looked for, by its own choice, is kept.
+  expect(startChoice({ way: 'lost-found', pet: ball.id }, [ball, older])).toEqual({ way: 'lost-found', pet: ball });
+});
+
 it("says to add the pet's photos first while no pet is saved", () => {
   expect(startChoice({ way: 'lost-found' }, [])).toEqual({ way: 'lost-found' });
   expect(startChoice({ way: 'lost-found' }, [sam])).toEqual({ way: 'lost-found' });
