@@ -6095,6 +6095,29 @@ export async function checkApp(browser, baseUrl, outDir) {
     } });
   }
 
+  // A browser set to keep no data for the site throws on the first read of
+  // localStorage and sessionStorage themselves, before any call, so every
+  // store keeps its writes for the visit and throws nothing.
+  await open({ name: 'setup, storage out of reach', width: 390, look: 'light' }, async (page, context, check) => {
+    const errors = [];
+    page.on('pageerror', (err) => errors.push(err.message.split('\n')[0]));
+    await visit(page, '/setup/');
+    check(await step1Shown(page, 10_000), `"${STEP1_H1}" does not show within 10 s; errors: ${errors.join(' | ') || 'none'}`);
+    await continueOn(page);
+    await choose(page, 'A pet');
+    await lastKey(page).click();
+    await page.waitForTimeout(1_000);
+    check(pathOf(page) === '/setup', `the first press opened ${pathOf(page)}; errors: ${errors.join(' | ') || 'none'}`);
+    const says = plain(await page.locator('.setup-last-says').innerText({ timeout: 2_000 }).catch(() => ''));
+    check(says === UNSAVED, `beside the key: "${says}"`);
+    if (pathOf(page) !== '/setup') return;
+    await pressTo(page, lastKey(page), '/dashboard');
+    check(pathOf(page) === '/dashboard', `the second press opened ${pathOf(page)}; errors: ${errors.join(' | ') || 'none'}`);
+  }, { ...NEW_DEVICE, script: () => {
+    const refuse = () => { throw new DOMException('denied', 'SecurityError'); };
+    for (const name of ['localStorage', 'sessionStorage']) Object.defineProperty(window, name, { configurable: true, get: refuse });
+  } });
+
   for (const look of LOOKS) {
     await open({ name: 'setup, the camera stops', width: 390, look }, async (page, context, check) => {
       await visit(page, '/setup/');

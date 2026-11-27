@@ -208,4 +208,35 @@ describe("what setup's last key writes", () => {
     expect(answer).toBe(false);
     expect(useOnboardingStore.getState().isComplete).toBe(true);
   });
+
+  it('names what was not saved when the browser lets the site reach no storage at all', () => {
+    // A browser set to keep no data for the site throws on the first read of
+    // localStorage itself, so each store is made with no storage at all and
+    // keeps its writes for the visit, throwing nothing.
+    const kept = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new DOMException('denied', 'SecurityError');
+      },
+    });
+    let answer = true;
+    let complete = false;
+    try {
+      jest.isolateModules(() => {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const fresh = require('@/lib/setup-answers') as typeof import('@/lib/setup-answers');
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const onboarding = require('@/stores/onboarding-store') as typeof import('@/stores/onboarding-store');
+        expect(() => {
+          answer = fresh.finishSetup({ ...fresh.NO_ANSWERS, statement: true, use: 'pet' }, 'first', null);
+        }).not.toThrow();
+        complete = onboarding.useOnboardingStore.getState().isComplete;
+      });
+    } finally {
+      if (kept) Object.defineProperty(window, 'localStorage', kept);
+    }
+    expect(answer).toBe(false);
+    expect(complete).toBe(true);
+  });
 });
