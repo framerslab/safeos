@@ -240,6 +240,7 @@ export function SetupFlow(): JSX.Element {
                 void camera.request(stopped || camera.failure ? 'try-again' : 'turn-on');
               }}
               onDefaultCamera={askDefaultCamera}
+              onOpenedFromKey={() => document.getElementById('setup-step2-heading')?.focus()}
             />
           </div>
           <div className="setup-answer">

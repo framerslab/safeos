@@ -6,7 +6,9 @@
  * past its line says Alert and is announced, at most once in 5 seconds for
  * each bar. The camera off, stopped or failed each say so in the picture's
  * frame with the way on. The test line stands under the picture in every
- * state. The part closes no camera: the flow does.
+ * state. A key in the frame that turns the camera on leaves the page as the
+ * picture comes; focus then goes on through onOpenedFromKey, never to the
+ * page's body. The part closes no camera: the flow does.
  *
  * @module components/setup/PlaceCheck
  */
@@ -35,6 +37,8 @@ export interface PlaceCheckProps {
   onStopped: () => void;
   onTurnOn: () => void;
   onDefaultCamera: () => void;
+  /** The camera opened while focus was on a key in the picture's frame, which has now left the page. */
+  onOpenedFromKey: () => void;
 }
 
 export const TEST_LINE =
@@ -96,7 +100,19 @@ export function AgainKey({ asking, words, onPress }: { asking: Asking | null; wo
   );
 }
 
-export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines, savedCamera, onStopped, onTurnOn, onDefaultCamera }: PlaceCheckProps) {
+export function PlaceCheck({
+  stream,
+  microphone,
+  stopped,
+  failure,
+  asking,
+  lines,
+  savedCamera,
+  onStopped,
+  onTurnOn,
+  onDefaultCamera,
+  onOpenedFromKey,
+}: PlaceCheckProps) {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [drawn, setDrawn] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -105,6 +121,10 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
   const levels = useLiveLevels(stream, video, { zones, line: lines.motion ?? 100 }, reducedMotion ? 250 : 100);
   const stoppedRef = useRef(onStopped);
   stoppedRef.current = onStopped;
+  const openedRef = useRef(onOpenedFromKey);
+  openedRef.current = onOpenedFromKey;
+  const frame = useRef<HTMLDivElement>(null);
+  const keyFocused = useRef(false);
 
   const state: PictureState = stream ? (drawn ? 'on' : 'starting') : failure ? 'failed' : stopped ? 'stopped' : 'off';
 
@@ -115,6 +135,25 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
       setReducedMotion(false);
     }
   }, []);
+
+  // Whether focus is in the picture's frame, kept past its key's leaving the page.
+  useEffect(() => {
+    const moved = (event: FocusEvent) => {
+      keyFocused.current = event.target instanceof Node && Boolean(frame.current?.contains(event.target));
+    };
+    document.addEventListener('focusin', moved);
+    return () => document.removeEventListener('focusin', moved);
+  }, []);
+
+  // The camera opened from Turn on the camera, Try again or Use the default
+  // camera: that key has left the page with the picture's coming, and focus
+  // goes on from the page's body.
+  useEffect(() => {
+    if (!stream || !keyFocused.current) return;
+    keyFocused.current = false;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (lost) openedRef.current();
+  }, [stream]);
 
   // The picture shows the stream; its first frame turns the state on.
   useEffect(() => {
@@ -197,7 +236,7 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
 
   return (
     <div className="setup-place">
-      <div className="setup-picture" data-state={state}>
+      <div className="setup-picture" data-state={state} ref={frame}>
         <CornerTicks />
         {stream ? (
           <>

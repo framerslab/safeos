@@ -8,7 +8,8 @@
  * and its saved subjects are read, the heading's and the key's places are
  * held, so nothing moves when the state appears. With Lost and Found chosen
  * in setup and no pet saved yet, the line says to add the pet's photos first
- * and the key opens the Lost and Found page.
+ * and the key opens the Lost and Found page; that key asks for no camera, so
+ * the dashboard says nothing of the camera then.
  *
  * @module components/dashboard/WatchState
  */
@@ -136,9 +137,10 @@ export function WatchState({ setUp, subjects, newAlerts }: WatchStateProps) {
 
   // The camera's sentence: the last press's outcome, or the browser's own
   // answer at rest. It asks for a press of Start watching, so it shows on a
-  // set-up device, and not while a press waits.
+  // set-up device, not while a press waits, and not while the key opens the
+  // Lost and Found page, which asks for no camera.
   const camera: CameraProblem | null =
-    setUp && !starting ? (outcome ?? (cameraAsk === 'blocked' ? 'blocked' : null)) : null;
+    setUp && !starting && !opensPage ? (outcome ?? (cameraAsk === 'blocked' ? 'blocked' : null)) : null;
 
   const problems: ReactNode[] = [];
   if (camera) problems.push(<Problem key="camera">{CAMERA_WORDS[camera]}</Problem>);

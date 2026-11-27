@@ -48,7 +48,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How do I set up my first monitor?',
-        answer: 'Open safeos.sh and press Start setup. Setup has two steps: turn on the camera, then say what the device is watching (a pet, a baby, an elderly relative, an empty place or a lost pet). Then press Start watching on the dashboard. You can change sensitivity in Settings at any time.',
+        answer: 'Open safeos.sh and press Start setup. Setup has two steps: turn on the camera, then say what the device is watching (a pet, a baby, an elderly relative, an empty place or a lost pet). Its last key opens the dashboard, or the page of the way you came from, or Lost and Found for a lost pet. Start the watch there: Start watching on the dashboard and on Motion and sound, Start Monitoring on Wildlife, ARM SYSTEM on People. On Lost and Found, add your pet\'s photos and press Start Monitoring, then Start watching. You can change sensitivity in Settings at any time.',
       },
       {
         question: 'Does it work offline?',
