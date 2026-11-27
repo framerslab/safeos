@@ -1,0 +1,1 @@
+- 03:3xZ Deploy build red on 8f00eda = rule 17 stale recordings (expected). Cancelled stale CI 45932536109 (its Jest/type check reds already read). c6bf9de Task 4 tests committed locally; f3121d1 Task 3 code.

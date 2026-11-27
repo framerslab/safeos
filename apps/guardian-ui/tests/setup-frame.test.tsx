@@ -69,7 +69,7 @@ describe('the frame both setup steps share', () => {
 
   it("fills the glyph's segments by its step", () => {
     const first = framed();
-    const rowGlyph = (container: HTMLElement) => container.querySelector('.setup-back-row svg') as SVGElement;
+    const rowGlyph = (container: HTMLElement) => container.querySelector('.setup-back-row svg.setup-progress') as SVGElement;
     expect(rowGlyph(first.container).querySelectorAll('rect.setup-progress__on')).toHaveLength(1);
     expect(rowGlyph(first.container).querySelectorAll('rect.setup-progress__off')).toHaveLength(1);
     cleanup();
