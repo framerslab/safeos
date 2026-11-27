@@ -194,6 +194,16 @@ it('marks the way Start watching uses with a square before its name', async () =
   expect(squared()).toEqual(['Motion and sound']);
 });
 
+it('marks Lost and Found as the way Start watching uses once setup chose a lost pet', async () => {
+  rememberWay('lost-found');
+  await shown({ subjects: [mittens] });
+  expect(squared()).toEqual(['Lost and Found']);
+  expect(row('Lost and Found').getAttribute('aria-label')).toMatch(/Start watching uses this way$/);
+  await again({ subjects: [] });
+  expect(squared()).toEqual(['Lost and Found']);
+  expect(lineOf('Lost and Found')).toBe("Watches for your pet's colours.");
+});
+
 it('before setup each row opens setup with its way named, and none carries the square', async () => {
   await shown({ setUp: false });
 

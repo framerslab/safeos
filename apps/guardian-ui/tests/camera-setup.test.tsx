@@ -1,289 +1,365 @@
 /** @jest-environment jsdom */
-import React from 'react';
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import SetupPage from '@/app/setup/page';
-import { canSkipOnboarding, useOnboardingStore } from '@/stores/onboarding-store';
+/**
+ * The camera through setup's two steps
+ *
+ * Step 1's key asks once for the camera and the microphone, as the watch
+ * asks, and step 2 opens on the live picture. Continue without the camera
+ * goes on with both off. A camera blocked earlier is named before any press
+ * and again whenever step 1 shows, and setup goes on by itself once the site
+ * allows it. Every way off a step ends the camera, so an answer that arrives
+ * after the person left keeps nothing. Step 2's lines stand where the watch
+ * alerts for the use shown chosen.
+ */
+
+import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { sendsToServer } from '@/components/setup/SetupFlow';
+import { useStorageEnds } from '@/lib/short-lived-storage';
+import { forgetStorageFull } from '@/lib/storage-full';
+import { forgetVisit } from '@/lib/visit-store';
 import { useCameraStore } from '@/stores/camera-store';
+import { canSkipOnboarding, useOnboardingStore } from '@/stores/onboarding-store';
+import { useSettingsStore, type ProcessingMode } from '@/stores/settings-store';
 import { installCameraBrowser } from './helpers/camera-browser';
+import { chooseUse, continueWithoutCamera, finishedSetup, openSetup, pressLastKey } from './helpers/setup-route';
 
-const mockRouter = { push: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn() };
 jest.mock('next/navigation', () => ({ useRouter: () => mockRouter }));
-afterEach(() => { cleanup(); jest.restoreAllMocks(); });
 
-it('lets setup choose a camera for the permission check and later monitoring', async () => {
+const BLANK_CONFIG = { apiUrl: '', wsUrl: '', ollamaUrl: '', configured: false };
+const mockBackend = { config: { ...BLANK_CONFIG } };
+jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => mockBackend }));
+
+jest.mock('@/lib/short-lived-storage', () => ({
+  ...jest.requireActual('@/lib/short-lived-storage'),
+  useStorageEnds: jest.fn(() => false),
+}));
+
+const permissionsAtStart = Object.getOwnPropertyDescriptor(navigator, 'permissions');
+const setupMatchMedia = window.matchMedia;
+
+let camera: ReturnType<typeof installCameraBrowser>;
+
+beforeEach(() => {
+  mockBackend.config = { ...BLANK_CONFIG };
+  jest.mocked(useStorageEnds).mockReturnValue(false);
+  if (permissionsAtStart) Object.defineProperty(navigator, 'permissions', permissionsAtStart);
+  else delete (navigator as unknown as { permissions?: unknown }).permissions;
   localStorage.clear();
   useOnboardingStore.getState().reset();
-  const browser = installCameraBrowser();
-  render(<SetupPage />);
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
-  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
-  await act(async () => {});
-  fireEvent.change(screen.getByRole('combobox', { name: 'Camera' }), { target: { value: 'usb' } });
-  fireEvent.click(screen.getByRole('button', { name: /Grant|Enable.*Access/i }));
-  await act(async () => {});
-  expect(browser.getUserMedia).toHaveBeenLastCalledWith(expect.objectContaining({
-    video: expect.objectContaining({ deviceId: { exact: 'usb' } }),
-  }));
-  expect(browser.video.stop).toHaveBeenCalled();
-});
-
-
-it.each(['OverconstrainedError', 'NotFoundError'])('reports missing hardware separately from permission denial: %s', async (name) => {
-  useOnboardingStore.getState().reset();
-  // A camera chosen in the menu that the browser cannot open.
-  useCameraStore.getState().setDeviceId('usb');
-  const browser = installCameraBrowser();
-  browser.getUserMedia.mockRejectedValue(new DOMException('', name));
-  render(<SetupPage />);
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
-  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
-  await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: /Grant Permissions/ }));
-  await act(async () => {});
-  expect(screen.getByText('The selected camera is unavailable. Choose another camera.')).toBeTruthy();
-  expect(screen.queryByText(/Permission denied/)).toBeNull();
-});
-
-it('lets setup continue with video alone on a device without a microphone', async () => {
-  useOnboardingStore.getState().reset();
-  const browser = installCameraBrowser();
-  browser.getUserMedia.mockImplementation(async (constraints: MediaStreamConstraints) => {
-    if (constraints.audio) throw new DOMException('Requested device not found', 'NotFoundError');
-    return browser.stream;
-  });
-  render(<SetupPage />);
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
-  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
-  await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: /Grant Permissions/ }));
-  expect(await screen.findByRole('button', { name: 'Continue' })).toBeTruthy();
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(true);
-  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
-  expect(browser.video.stop).toHaveBeenCalled();
-});
-
-// -----------------------------------------------------------------------------
-// The camera step always has a way forward
-// -----------------------------------------------------------------------------
-
-const REFUSED = 'The browser blocked the camera for this site. To allow it, open the site settings from the address bar, set Camera to Allow, then press Try again.';
-const NOT_STARTED = 'The camera did not start. Another app or tab may be using it. Close it, then press Try again.';
-const NONE_FOUND = 'No camera was found on this device.';
-const SAVED_GONE = 'The selected camera is unavailable. Choose another camera.';
-const NO_SUPPORT = 'This browser cannot use a camera on this page.';
-const OTHER = 'Unable to access the camera or microphone. Check the device and try again.';
-const LATER = 'You can allow the camera later, on the Motion and sound page.';
-
-/** A first visit with `camera` chosen in the menu ('' is "Default camera"). */
-function firstVisit(camera = '') {
-  localStorage.clear();
-  useOnboardingStore.getState().reset();
-  useCameraStore.getState().setDeviceId(camera);
+  useSettingsStore.getState().resetToDefaults();
+  useCameraStore.getState().setDeviceId('');
+  camera = installCameraBrowser();
+  window.matchMedia = ((query: string) => ({ ...setupMatchMedia(query), matches: false })) as typeof window.matchMedia;
   mockRouter.push.mockClear();
-  return installCameraBrowser();
-}
-
-async function openScenarioStep() {
-  render(<SetupPage />);
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
-  await act(async () => {});
-}
-
-async function openCameraStep() {
-  await openScenarioStep();
-  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
-  await act(async () => {});
-  expect(screen.getByRole('heading', { name: /Device Access/ })).toBeTruthy();
-}
-
-it.each([
-  ['NotAllowedError', '', REFUSED],
-  ['SecurityError', '', REFUSED],
-  ['NotReadableError', '', NOT_STARTED],
-  ['AbortError', '', NOT_STARTED],
-  ['TrackStartError', '', NOT_STARTED],
-  ['NotFoundError', '', NONE_FOUND],
-  ['OverconstrainedError', '', NONE_FOUND],
-  ['NotFoundError', 'usb', SAVED_GONE],
-  ['OverconstrainedError', 'usb', SAVED_GONE],
-  ['InvalidStateError', '', OTHER],
-])('after %s with the camera "%s" chosen, the step says what happened and offers Try again and a way on', async (name, camera, words) => {
-  const browser = firstVisit(camera);
-  browser.getUserMedia.mockRejectedValue(new DOMException('', name));
-  await openCameraStep();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
-  await act(async () => {});
-  expect(screen.getByText(words)).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Grant Permissions' })).toBeNull();
-  expect(screen.getByRole('button', { name: 'Continue without the camera' })).toBeTruthy();
-  expect(screen.getByText(LATER)).toBeTruthy();
-});
-
-it.each([
-  ['no navigator.mediaDevices', undefined],
-  ['no getUserMedia', Object.assign(new EventTarget(), { enumerateDevices: async () => [] })],
-])('in a browser with %s, the step says the browser cannot use a camera and offers a way on', async (_shape, mediaDevices) => {
-  firstVisit();
-  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: mediaDevices });
-  await openCameraStep();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
-  await act(async () => {});
-  expect(screen.getByText(NO_SUPPORT)).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Continue without the camera' })).toBeTruthy();
-});
-
-it('asks again on Try again and goes on when the camera answers', async () => {
-  const browser = firstVisit();
-  browser.getUserMedia.mockRejectedValueOnce(new DOMException('', 'NotAllowedError'));
-  await openCameraStep();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
-  await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-  expect(await screen.findByRole('button', { name: 'Continue' })).toBeTruthy();
-  expect(browser.getUserMedia).toHaveBeenCalledTimes(2);
-  expect(screen.queryByText(REFUSED)).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Continue without the camera' })).toBeNull();
-  expect(screen.queryByText(LATER)).toBeNull();
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(true);
-});
-
-it.each([
-  ['before any request', false],
-  ['after a refused request', true],
-])('Continue without the camera, %s, records both permissions as off and setup finishes on the dashboard', async (_when, refusedFirst) => {
-  const browser = firstVisit();
-  browser.getUserMedia.mockRejectedValue(new DOMException('', 'NotAllowedError'));
-  // An earlier yes saved in this browser: the choice made here replaces it.
-  useOnboardingStore.getState().setCameraPermission(true);
-  useOnboardingStore.getState().setMicrophonePermission(true);
-  await openCameraStep();
-  if (refusedFirst) {
-    fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
-    await act(async () => {});
-  }
-  expect(screen.getByText(LATER)).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
-  await act(async () => {});
-  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
-  expect(browser.getUserMedia).toHaveBeenCalledTimes(refusedFirst ? 1 : 0);
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
-  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
-
-  fireEvent.click(screen.getByRole('button', { name: /Enable & Continue/ }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Open dashboard' }));
-  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
-  expect(canSkipOnboarding(useOnboardingStore.getState())).toBe(true);
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
-  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
-});
-
-it('the scenario step shows Continue once a scenario is chosen, and Continue goes on with it', async () => {
-  firstVisit();
-  await openScenarioStep();
-  expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
-  // Pressing a scenario selects it and goes on.
-  fireEvent.click(screen.getByRole('button', { name: /Baby/ }));
-  await act(async () => {});
-  expect(screen.getByRole('heading', { name: /Device Access/ })).toBeTruthy();
-  // Back shows the choice highlighted; Continue confirms it.
-  fireEvent.click(screen.getByRole('button', { name: /Back/ }));
-  expect(screen.getByRole('heading', { name: /Select Monitoring Scenario/ })).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-  await act(async () => {});
-  expect(screen.getByRole('heading', { name: /Device Access/ })).toBeTruthy();
-  expect(useOnboardingStore.getState().selectedScenario).toBe('baby');
-});
-
-it('the scenario step shows Continue for a scenario saved earlier', async () => {
-  firstVisit();
-  useOnboardingStore.getState().setScenario('elderly');
-  await openScenarioStep();
-  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
-  await act(async () => {});
-  expect(screen.getByRole('heading', { name: /Device Access/ })).toBeTruthy();
-  expect(useOnboardingStore.getState().selectedScenario).toBe('elderly');
-});
-
-it.each([
-  ['allowed', true],
-  ['refused', false],
-])('a camera request %s after Continue without the camera changes nothing', async (_answer, allowed) => {
-  const browser = firstVisit();
-  // The browser's prompt stays open while the person goes on.
-  let allow!: (stream: MediaStream) => void;
-  let refuse!: (error: Error) => void;
-  browser.getUserMedia.mockReturnValue(new Promise<MediaStream>((resolve, reject) => { allow = resolve; refuse = reject; }));
-  await openCameraStep();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
-  await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
-  await act(async () => {});
-  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
-
-  // The prompt is answered only now.
-  await act(async () => {
-    if (allowed) allow(browser.stream);
-    else refuse(new DOMException('', 'NotAllowedError'));
+  mockRouter.replace.mockClear();
+  // The browser's back button: history.back() announces step 1's entry, as a browser does.
+  jest.spyOn(window.history, 'back').mockImplementation(() => {
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
   });
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
-  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
-  // A camera that did open for the late answer is released.
-  if (allowed) expect(browser.video.stop).toHaveBeenCalled();
-
-  // Back on the camera step, the step asks afresh.
-  fireEvent.click(screen.getByRole('button', { name: /Back/ }));
-  expect(screen.getByRole('heading', { name: /Device Access/ })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Grant Permissions' })).toBeTruthy();
-  expect(screen.queryByRole('button', { name: 'Continue' })).toBeNull();
-  expect(screen.queryByText(REFUSED)).toBeNull();
-  expect(screen.getByRole('button', { name: 'Continue without the camera' })).toBeTruthy();
 });
 
-it('only the newest camera request counts: an older answer that arrives later is dropped', async () => {
-  const browser = firstVisit();
-  let allowFirst!: (stream: MediaStream) => void;
-  browser.getUserMedia
-    .mockReturnValueOnce(new Promise<MediaStream>((resolve) => { allowFirst = resolve; }))
-    .mockRejectedValue(new DOMException('', 'NotReadableError'));
-  await openCameraStep();
-  // Two presses while the first prompt is open; the second request fails.
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
-  await act(async () => {});
-  expect(screen.getByText(NOT_STARTED)).toBeTruthy();
-  await act(async () => { allowFirst(browser.stream); });
-  // The step keeps the newest answer.
-  expect(screen.getByText(NOT_STARTED)).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
-  expect(browser.video.stop).toHaveBeenCalled();
+afterEach(() => {
+  jest.restoreAllMocks();
+  forgetStorageFull();
+  forgetVisit();
+  cleanup();
+  window.matchMedia = setupMatchMedia;
+  window.history.replaceState(null, '', '/');
 });
 
-it('a request left behind before its microphone-free second try asks the browser nothing more', async () => {
-  const browser = firstVisit();
-  // A device with a camera and no microphone, whose first answer is slow.
-  let answerNoMicrophone!: (error: Error) => void;
-  browser.getUserMedia.mockReturnValueOnce(new Promise<MediaStream>((_resolve, reject) => { answerNoMicrophone = reject; }));
-  await openCameraStep();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant Permissions' }));
+const STEP1 = 'Use this device to watch a place';
+const STEP2 = 'What is it watching?';
+const OFF = "The camera is off. SafeOS cannot watch until you turn it on.";
+const BLOCKED = "The camera is blocked for safeos.sh in this browser. Allow it in the site's settings, then press Try again.";
+const UNSUPPORTED = 'This browser cannot use a camera on this page.';
+const SERVER_LINE = 'This device sends the picture to your own server while it watches.';
+const STAYS_LINE = 'The picture stays on this device.';
+
+const words = (element: Element | null | undefined) =>
+  (element?.textContent || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+const setupWords = () => words(document.querySelector('main.setup'));
+const h1 = () => words(screen.getByRole('heading', { level: 1 }));
+const lineAt = (meter: 'Motion' | 'Sound') =>
+  (screen.getByRole('meter', { name: meter }).querySelector('.setup-track__line') as HTMLElement | null)?.style.left ?? null;
+
+/** The camera's permission as the browser reports it, with a way to change it as the site's settings do. */
+function cameraPermission(initial: PermissionState) {
+  const listeners = new Set<(event: Event) => void>();
+  const status = {
+    state: initial,
+    onchange: null as ((event: Event) => void) | null,
+    addEventListener: (type: string, listener: (event: Event) => void) => {
+      if (type === 'change') listeners.add(listener);
+    },
+    removeEventListener: (_type: string, listener: (event: Event) => void) => {
+      listeners.delete(listener);
+    },
+  };
+  const other = { state: 'prompt', onchange: null, addEventListener: () => undefined, removeEventListener: () => undefined };
+  const query = jest.fn(async ({ name }: { name: string }) => (name === 'camera' ? status : other));
+  Object.defineProperty(navigator, 'permissions', { configurable: true, value: { query } });
+  return {
+    set(state: PermissionState) {
+      status.state = state;
+      const event = new Event('change');
+      status.onchange?.(event);
+      listeners.forEach((listener) => listener(event));
+    },
+  };
+}
+
+/** An answer the case gives when it chooses. */
+function heldCamera() {
+  let allow!: (stream: MediaStream) => void;
+  camera.getUserMedia.mockReturnValueOnce(new Promise<MediaStream>((resolve) => { allow = resolve; }));
+  return { allow: () => allow(camera.stream) };
+}
+
+async function turnOn() {
+  fireEvent.click(screen.getByRole('button', { name: 'Turn on the camera' }));
   await act(async () => {});
-  fireEvent.click(screen.getByRole('button', { name: 'Continue without the camera' }));
   await act(async () => {});
-  await act(async () => { answerNoMicrophone(new DOMException('', 'NotFoundError')); });
-  // No second request, so no camera prompt opens on a later step.
-  expect(browser.getUserMedia).toHaveBeenCalledTimes(1);
-  expect(browser.video.stop).not.toHaveBeenCalled();
-  expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
-  expect(useOnboardingStore.getState().microphonePermissionGranted).toBe(false);
-  expect(screen.getByRole('heading', { name: /Notification Settings/ })).toBeTruthy();
+}
+
+it('asks once for the camera and the microphone, as the watch asks, and opens step 2 with the picture', async () => {
+  openSetup('/setup/');
+  await act(async () => {});
+  await turnOn();
+  await screen.findByRole('heading', { level: 1, name: STEP2 });
+  expect(screen.getByLabelText('Live picture from this device’s camera').tagName).toBe('VIDEO');
+  expect(camera.getUserMedia).toHaveBeenCalledTimes(1);
+  const asked = camera.getUserMedia.mock.calls[0][0];
+  expect(asked.video).toEqual(expect.objectContaining({ facingMode: 'environment' }));
+  expect(asked.audio).toBe(true);
+  const saved = useOnboardingStore.getState();
+  expect(saved.cameraPermissionGranted).toBe(true);
+  expect(saved.microphonePermissionGranted).toBe(true);
+  expect(saved.acceptedDisclaimers.main).toBe(true);
+  expect(saved.acceptedDisclaimers.scenario).toBe(true);
 });
+
+it('asks for the camera saved on this device', async () => {
+  useCameraStore.getState().setDeviceId('usb');
+  openSetup('/setup/');
+  await act(async () => {});
+  await turnOn();
+  const asked = camera.getUserMedia.mock.calls[0][0];
+  expect(asked.video).toEqual(expect.objectContaining({ deviceId: { exact: 'usb' } }));
+});
+
+it('Continue without the camera records both as off and opens step 2 with the camera off', async () => {
+  openSetup('/setup/');
+  await act(async () => {});
+  await continueWithoutCamera();
+  expect(setupWords()).toContain(OFF);
+  const again = screen.getByRole('button', { name: 'Turn on the camera' });
+  expect(again.className).toContain('key--outline');
+  expect(camera.getUserMedia).not.toHaveBeenCalled();
+  const saved = useOnboardingStore.getState();
+  expect(saved.cameraPermissionGranted).toBe(false);
+  expect(saved.microphonePermissionGranted).toBe(false);
+});
+
+it('names a camera blocked earlier before any press', async () => {
+  cameraPermission('denied');
+  openSetup('/setup/');
+  await act(async () => {});
+  await act(async () => {});
+  expect(setupWords()).toContain(BLOCKED);
+  expect(screen.getByRole('link', { name: 'How to allow the camera' })).toBeTruthy();
+  expect(camera.getUserMedia).not.toHaveBeenCalled();
+});
+
+it('goes on by itself once the browser allows the camera, and counts the statement as read', async () => {
+  const permission = cameraPermission('denied');
+  openSetup('/setup/');
+  await act(async () => {});
+  await act(async () => {});
+  expect(setupWords()).toContain(BLOCKED);
+  await act(async () => {
+    permission.set('granted');
+  });
+  await act(async () => {});
+  await screen.findByRole('heading', { level: 1, name: STEP2 });
+  expect(camera.getUserMedia).toHaveBeenCalledTimes(1);
+  chooseUse('A pet');
+  await pressLastKey();
+  const saved = useOnboardingStore.getState();
+  expect(saved.acceptedDisclaimers.main).toBe(true);
+  expect(saved.acceptedDisclaimers.scenario).toBe(true);
+  expect(saved.isComplete).toBe(true);
+  expect(canSkipOnboarding(useOnboardingStore.getState())).toBe(true);
+});
+
+it.each([['Back'], ['the browser’s back button']])(
+  'names the blocked camera again on step 1 after Continue and %s, and goes on once the site allows it',
+  async (way) => {
+    const permission = cameraPermission('denied');
+    openSetup('/setup/');
+    await act(async () => {});
+    await act(async () => {});
+    expect(setupWords()).toContain(BLOCKED);
+    await continueWithoutCamera();
+    expect(setupWords()).toContain(OFF);
+    expect(setupWords()).not.toContain(BLOCKED);
+    if (way === 'Back') {
+      fireEvent.click(screen.getByRole('link', { name: 'Back' }));
+    } else {
+      act(() => {
+        window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+      });
+    }
+    await act(async () => {});
+    await act(async () => {});
+    expect(h1()).toBe(STEP1);
+    const frame = document.querySelector('.setup-frame[data-state="failed"]');
+    expect(frame).not.toBeNull();
+    expect(words(frame)).toContain(BLOCKED);
+    expect(frame?.querySelector('button')?.textContent).toBe('Try again');
+    expect(screen.getByRole('link', { name: 'How to allow the camera' })).toBeTruthy();
+    expect(document.getElementById('setup-frame-line')).toBeNull();
+    expect(camera.getUserMedia).not.toHaveBeenCalled();
+    await act(async () => {
+      permission.set('granted');
+    });
+    await act(async () => {});
+    await screen.findByRole('heading', { level: 1, name: STEP2 });
+    expect(camera.getUserMedia).toHaveBeenCalledTimes(1);
+  }
+);
+
+it('names a browser with no camera request again on step 1 after Continue and Back', async () => {
+  Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: undefined });
+  openSetup('/setup/');
+  await act(async () => {});
+  expect(setupWords()).toContain(UNSUPPORTED);
+  await continueWithoutCamera();
+  fireEvent.click(screen.getByRole('link', { name: 'Back' }));
+  await act(async () => {});
+  expect(h1()).toBe(STEP1);
+  expect(setupWords()).toContain(UNSUPPORTED);
+  expect(screen.queryByRole('button', { name: 'Turn on the camera' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+});
+
+it("draws step 2's Motion line where the watch alerts for the use, with Motion set for it on Detection", async () => {
+  finishedSetup('baby');
+  useSettingsStore.getState().setActivePreset('infant_sleep');
+  useSettingsStore.getState().setScenarioOverride('baby', { motionSensitivity: 60 });
+  openSetup('/setup/?again=1');
+  await act(async () => {});
+  await turnOn();
+  await screen.findByRole('heading', { level: 1, name: STEP2 });
+  const watched = 100 - useSettingsStore.getState().getEffectiveSettings('baby').motionSensitivity;
+  expect(lineAt('Motion')).toBe('40%');
+  expect(lineAt('Motion')).toBe(`${watched}%`);
+  expect(lineAt('Sound')).toBe('5%');
+  chooseUse('A pet');
+  expect(lineAt('Motion')).toBe('10%');
+  await pressLastKey();
+  expect(useSettingsStore.getState().scenarioOverrides.baby).toEqual(expect.objectContaining({ motionSensitivity: 60 }));
+});
+
+it('ends every track on Back from step 2 and shows step 1', async () => {
+  openSetup('/setup/');
+  await act(async () => {});
+  await turnOn();
+  await screen.findByRole('heading', { level: 1, name: STEP2 });
+  fireEvent.click(screen.getByRole('link', { name: 'Back' }));
+  await act(async () => {});
+  expect(camera.video.stop).toHaveBeenCalled();
+  expect(camera.audio.stop).toHaveBeenCalled();
+  expect(h1()).toBe(STEP1);
+});
+
+it('ends every track before the destination opens', async () => {
+  openSetup('/setup/');
+  await act(async () => {});
+  await turnOn();
+  await screen.findByRole('heading', { level: 1, name: STEP2 });
+  chooseUse('A pet');
+  await pressLastKey();
+  expect(camera.video.stop).toHaveBeenCalled();
+  expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+  expect(camera.video.stop.mock.invocationCallOrder[0]).toBeLessThan(mockRouter.replace.mock.invocationCallOrder[0]);
+});
+
+it.each([['Back on step 2'], ['the browser’s back button'], ['the last key']])(
+  'a camera answer that arrives after %s is closed and keeps nothing',
+  async (way) => {
+    openSetup('/setup/');
+    await act(async () => {});
+    await continueWithoutCamera();
+    if (way === 'the last key') chooseUse('A pet');
+    const answer = heldCamera();
+    fireEvent.click(screen.getByRole('button', { name: 'Turn on the camera' }));
+    await act(async () => {});
+    if (way === 'Back on step 2') {
+      fireEvent.click(screen.getByRole('link', { name: 'Back' }));
+    } else if (way === 'the last key') {
+      await pressLastKey();
+    } else {
+      act(() => {
+        window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+      });
+    }
+    await act(async () => {});
+    await act(async () => {
+      answer.allow();
+    });
+    await act(async () => {});
+    expect(camera.video.stop).toHaveBeenCalled();
+    expect(camera.audio.stop).toHaveBeenCalled();
+    expect(useOnboardingStore.getState().cameraPermissionGranted).toBe(false);
+    if (way === 'the last key') {
+      expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+    } else {
+      expect(h1()).toBe(STEP1);
+      expect(screen.queryByRole('heading', { name: STEP2 })).toBeNull();
+    }
+  }
+);
+
+it("shows step 2 with the camera off after the browser's back and forward buttons", async () => {
+  openSetup('/setup/');
+  await act(async () => {});
+  await turnOn();
+  await screen.findByRole('heading', { level: 1, name: STEP2 });
+  act(() => {
+    window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+  });
+  await act(async () => {});
+  act(() => {
+    window.dispatchEvent(new PopStateEvent('popstate', { state: { setupStep: 2 } }));
+  });
+  await act(async () => {});
+  expect(camera.video.stop).toHaveBeenCalled();
+  expect(camera.audio.stop).toHaveBeenCalled();
+  expect(h1()).toBe(STEP2);
+  expect(setupWords()).toContain(OFF);
+});
+
+it.each([
+  ['', 'hybrid', false],
+  ['https://server.example', 'local', false],
+  ['https://server.example', 'hybrid', true],
+  ['https://server.example', 'ai_enhanced', true],
+] as Array<[string, ProcessingMode, boolean]>)(
+  'says the picture goes to a server saved as %s only while the setting processes there (%s)',
+  async (apiUrl, mode, sends) => {
+    expect(sendsToServer(apiUrl, mode)).toBe(sends);
+    mockBackend.config = { ...BLANK_CONFIG, apiUrl, configured: apiUrl !== '' };
+    if (mode !== useSettingsStore.getState().globalSettings.processingMode) {
+      useSettingsStore.getState().updateGlobalSettings({ processingMode: mode });
+    }
+    openSetup('/setup/');
+    await act(async () => {});
+    if (sends) {
+      expect(setupWords()).toContain(SERVER_LINE);
+      expect(setupWords()).not.toContain(STAYS_LINE);
+    } else {
+      expect(setupWords()).toContain(STAYS_LINE);
+      expect(setupWords()).not.toContain(SERVER_LINE);
+    }
+  }
+);

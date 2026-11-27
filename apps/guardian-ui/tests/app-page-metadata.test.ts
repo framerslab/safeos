@@ -37,7 +37,7 @@ const PAGES: [string, string, string, Metadata][] = [
   [
     '/setup/',
     'Setup',
-    'Set up SafeOS Guardian in six steps: a welcome, the safety notice, what you are watching, camera and microphone access, notifications and a summary.',
+    'Set up SafeOS on this device in two steps: turn on the camera, then say what it is watching.',
     setupMetadata,
   ],
   ['/nap/', 'Nap Mode', 'A watch while you rest, with a reminder when your planned time is up.', napMetadata],

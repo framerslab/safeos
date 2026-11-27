@@ -115,8 +115,8 @@ const PUBLIC_FILES = [
   component('LostFoundSetup.tsx'), // Lost & Found
   component('SubjectPreview.tsx'), // Lost & Found
   component('MatchGallery.tsx'), // Lost & Found matches
-  component('CameraPicker.tsx'), // Setup
-  component('Logo.tsx'), // header, Setup, not-found
+  component('CameraPicker.tsx'), // Motion and sound
+  component('Logo.tsx'), // header, not-found
   component('StatusBanner.tsx'), // root layout: every page
   component('KeyboardShortcutsModal.tsx'), // root layout: every page
   component('app', 'AppHeader.tsx'), // app pages

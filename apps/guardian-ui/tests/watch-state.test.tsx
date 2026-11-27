@@ -93,6 +93,7 @@ function subject(id: string, name: string, type: SubjectProfileDB['type']): Subj
 
 const mittens = subject('pet-1', 'Mittens', 'pet');
 const sam = subject('person-1', 'Sam', 'person');
+const rex = subject('pet-2', 'Rex', 'pet');
 
 const started = jest.mocked(startWatch);
 const otherTabWatches = jest.mocked(useOtherTabWatch);
@@ -182,6 +183,41 @@ it('names the way and the pet last watched, and when the last watch ended', () =
 
   expect(words(line())).toBe(`Start watching uses Lost and Found, for Mittens. The last watch ended at ${time(2000)}.`);
   expect(words(line()?.querySelector('.num'))).toBe(time(2000));
+});
+
+it('names Lost and Found and the first saved pet once setup chose a lost pet, before any watch', async () => {
+  rememberWay('lost-found');
+  started.mockResolvedValue('opened');
+  shown({ subjects: [sam, mittens] });
+  expect(words(line())).toBe('Start watching uses Lost and Found, for Mittens.');
+  await press(key());
+  expect(started).toHaveBeenCalledTimes(1);
+  expect(started.mock.calls[0][0]).toEqual({ way: 'lost-found', pet: mittens });
+});
+
+it("says to add the pet's photos first, and its key opens the Lost and Found page with no camera asked for", async () => {
+  rememberWay('lost-found');
+  shown();
+  expect(words(line())).toBe("Start watching uses Lost and Found. Add your pet's photos first.");
+  const buttons = within(section()).getAllByRole('button');
+  expect(buttons.map((button) => words(button))).toEqual(['Start watching']);
+  expect(buttons[0].getAttribute('aria-describedby')).toBe('dash-line');
+  await press(key());
+  expect(mockPush).toHaveBeenCalledTimes(1);
+  expect(mockPush).toHaveBeenCalledWith('/lost-found/');
+  expect(started).not.toHaveBeenCalled();
+  expect(asked).not.toHaveBeenCalled();
+  expect(screen.queryByRole('button', { name: 'Starting the camera…' })).toBeNull();
+  expect(problemWords()).toEqual([]);
+});
+
+it('falls back to Motion and sound once the pet the watch last looked for is deleted', () => {
+  rememberWay('lost-found', 'pet-1');
+  shown({ subjects: [] });
+  expect(words(line())).toBe('Start watching uses Motion and sound.');
+  cleanup();
+  shown({ subjects: [rex] });
+  expect(words(line())).toBe('Start watching uses Motion and sound.');
 });
 
 it('says how long a watch is known to have run when it wrote no end', () => {

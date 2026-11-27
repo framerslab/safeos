@@ -1,89 +1,88 @@
 /** @jest-environment jsdom */
 /**
- * Where setup ends
+ * Where setup's last key goes
  *
- * A row of the dashboard opens setup with its way named in the address
- * (/setup/?next=lost-found). Setup's last key names where its press goes,
- * that way's page or the dashboard, and opens it once; any other value names
- * no way. A device whose setup is done goes on to the way named. Choosing a
- * use applies the Motion and sound setting it stands for, unless it is the
- * use this device has already, so a second run keeps a person's own setting.
- * The camera step and the use step name the two pages as the app names them,
- * and the uses name a place the device can watch, a yard as well as a room.
+ * The last key names the page it opens: the dashboard, or the way whose row
+ * on the dashboard opened setup (/setup/?next=<way>), and opens it once, in
+ * place of setup in the browser's history. The answer the address names is
+ * shown chosen on a new device, and a use the device holds wins over it. A
+ * use's Motion and sound setting is applied at its press on a first setup
+ * and at the last key on a run again. A press with no use, or a record the
+ * browser will not keep, is named beside the key.
  */
 
-import React from 'react';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import SetupPage from '@/app/setup/page';
+import { act, cleanup, screen } from '@testing-library/react';
+import { useStorageEnds } from '@/lib/short-lived-storage';
+import { forgetStorageFull } from '@/lib/storage-full';
+import { forgetVisit } from '@/lib/visit-store';
+import { useCameraStore } from '@/stores/camera-store';
 import { canSkipOnboarding, useOnboardingStore } from '@/stores/onboarding-store';
 import { useSettingsStore } from '@/stores/settings-store';
 import { installCameraBrowser } from './helpers/camera-browser';
+import { chooseUse, continueWithoutCamera, finishedSetup, openSetup, pressLastKey } from './helpers/setup-route';
 
-const mockRouter = { push: jest.fn() };
+const mockRouter = { push: jest.fn(), replace: jest.fn() };
 jest.mock('next/navigation', () => ({ useRouter: () => mockRouter }));
 
-function finishSetup() {
-  useOnboardingStore.setState({
-    isComplete: true,
-    selectedScenario: 'pet',
-    acceptedDisclaimers: { main: true, scenario: true, privacy: true, terms: true },
-  });
-}
+const BLANK_CONFIG = { apiUrl: '', wsUrl: '', ollamaUrl: '', configured: false };
+const mockBackend = { config: { ...BLANK_CONFIG } };
+jest.mock('@/contexts/BackendStatusContext', () => ({ useBackendStatus: () => mockBackend }));
+
+jest.mock('@/lib/short-lived-storage', () => ({
+  ...jest.requireActual('@/lib/short-lived-storage'),
+  useStorageEnds: jest.fn(() => false),
+}));
+
+const permissionsAtStart = Object.getOwnPropertyDescriptor(navigator, 'permissions');
+const setupMatchMedia = window.matchMedia;
 
 beforeEach(() => {
+  mockBackend.config = { ...BLANK_CONFIG };
+  jest.mocked(useStorageEnds).mockReturnValue(false);
+  if (permissionsAtStart) Object.defineProperty(navigator, 'permissions', permissionsAtStart);
+  else delete (navigator as unknown as { permissions?: unknown }).permissions;
   localStorage.clear();
   useOnboardingStore.getState().reset();
   useSettingsStore.getState().resetToDefaults();
-  mockRouter.push.mockClear();
+  useCameraStore.getState().setDeviceId('');
   installCameraBrowser();
+  window.matchMedia = ((query: string) => ({ ...setupMatchMedia(query), matches: false })) as typeof window.matchMedia;
+  mockRouter.push.mockClear();
+  mockRouter.replace.mockClear();
 });
+
 afterEach(() => {
+  jest.restoreAllMocks();
+  forgetStorageFull();
+  forgetVisit();
   cleanup();
-  window.history.replaceState({}, '', '/');
+  window.matchMedia = setupMatchMedia;
+  window.history.replaceState(null, '', '/');
 });
 
-/** Opens setup at `address`, once the page has read it. */
-async function open(address: string) {
-  window.history.replaceState({}, '', address);
-  render(<SetupPage />);
+const words = (element: Element | null | undefined) =>
+  (element?.textContent || '').replace(/’/g, "'").replace(/ /g, ' ').replace(/\s+/g, ' ').trim();
+const lastKey = () => document.querySelector('.setup-last button') as HTMLButtonElement;
+const checked = (name: string) => (screen.getByRole('radio', { name }) as HTMLInputElement).checked;
+const checkedNames = () =>
+  (screen.getAllByRole('radio') as HTMLInputElement[]).filter((radio) => radio.checked).map((radio) => radio.value);
+
+async function opened(address: string) {
+  const shown = openSetup(address);
   await act(async () => {});
+  await continueWithoutCamera();
+  return shown;
 }
 
-/** Through the first two steps to the use step. */
-function toUseStep() {
-  fireEvent.click(screen.getByRole('button', { name: /Begin Setup/ }));
-  fireEvent.click(screen.getByRole('checkbox'));
-  fireEvent.click(screen.getByRole('button', { name: /Accept & Continue/ }));
-}
-
-/**
- * Through setup's steps to its last: the notice, the use given, the camera
- * step left with no request, and the notification step. Returns the last
- * step's key, whatever it reads.
- */
-async function toLastStep(use: RegExp = /Pet/): Promise<HTMLElement> {
-  toUseStep();
-  fireEvent.click(screen.getByRole('button', { name: use }));
-  fireEvent.click(await screen.findByRole('button', { name: 'Continue without the camera' }));
-  fireEvent.click(await screen.findByRole('button', { name: /Enable & Continue/ }));
-  const done = await screen.findByRole('heading', { name: 'Setup Complete' });
-  return within(done.closest('.panel') as HTMLElement).getByRole('button');
-}
-
-async function press(key: HTMLElement) {
-  fireEvent.click(key);
-  await act(async () => {});
-}
-
-const pushed = () => mockRouter.push.mock.calls.map(([to]) => to);
-
-it('names the dashboard on its last key and opens it once', async () => {
-  await open('/setup/');
-  await toLastStep();
-  const key = await screen.findByRole('button', { name: 'Open dashboard' });
+it('names the dashboard on its last key and opens it once, in place of setup', async () => {
+  await opened('/setup/');
+  chooseUse('A pet');
+  expect(screen.getByRole('button', { name: 'Open dashboard' })).toBeTruthy();
   expect(screen.queryByRole('button', { name: /Launch Dashboard/ })).toBeNull();
-  await press(key);
-  expect(pushed()).toEqual(['/dashboard']);
+  await pressLastKey();
+  expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+  expect(mockRouter.replace).toHaveBeenCalledWith('/dashboard');
+  expect(mockRouter.push).not.toHaveBeenCalled();
   expect(canSkipOnboarding(useOnboardingStore.getState())).toBe(true);
 });
 
@@ -92,53 +91,78 @@ it.each([
   ['lost-found', 'Open Lost and Found', '/lost-found/'],
   ['security', 'Open People', '/security/'],
   ['wildlife', 'Open Wildlife', '/wildlife/'],
-])('names the way %s that opened setup on its last key, and opens its page once', async (way, name, address) => {
-  await open(`/setup/?next=${way}`);
-  await toLastStep();
-  await press(await screen.findByRole('button', { name }));
-  expect(pushed()).toEqual([address]);
+])('names the way %s that opened setup on its last key, and opens its page once', async (id, name, href) => {
+  await opened(`/setup/?next=${id}`);
+  chooseUse('A pet');
+  expect(words(lastKey())).toBe(name);
+  await pressLastKey();
+  expect(mockRouter.replace).toHaveBeenCalledTimes(1);
+  expect(mockRouter.replace).toHaveBeenCalledWith(href);
 });
 
 it('takes any other value as no way', async () => {
   for (const address of ['/setup/?next=nap', '/setup/?next=Monitor']) {
-    await open(address);
-    await toLastStep();
-    expect(await screen.findByRole('button', { name: 'Open dashboard' })).toBeTruthy();
+    await opened(address);
+    chooseUse('A pet');
+    expect(words(lastKey())).toBe('Open dashboard');
     cleanup();
-    useOnboardingStore.getState().reset();
   }
 });
 
-it('sends a device whose setup is done on to the way named, or to the dashboard', async () => {
-  finishSetup();
-  await open('/setup/?next=wildlife');
-  expect(mockRouter.push).toHaveBeenCalledWith('/wildlife/');
-
-  cleanup();
-  mockRouter.push.mockClear();
-  await open('/setup/');
-  expect(mockRouter.push).toHaveBeenCalledWith('/dashboard');
+it('sends a device whose setup is done on to the way named', async () => {
+  finishedSetup('pet');
+  openSetup('/setup/?next=wildlife');
+  await act(async () => {});
+  expect(mockRouter.replace).toHaveBeenCalledWith('/wildlife/');
 });
 
 it('running setup again keeps the way named', async () => {
-  finishSetup();
-  await open('/setup/?again=1&next=security');
-  expect(mockRouter.push).not.toHaveBeenCalled();
-  await toLastStep();
-  await press(await screen.findByRole('button', { name: 'Open People' }));
-  expect(pushed()).toEqual(['/security/']);
+  finishedSetup('pet');
+  openSetup('/setup/?again=1&next=security');
+  await act(async () => {});
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  await continueWithoutCamera();
+  expect(words(lastKey())).toBe('Open People');
+});
+
+it("chooses A lost pet for Lost and Found's row and An empty place for People's, and none for the others", async () => {
+  await opened('/setup/?next=lost-found');
+  expect(checked('A lost pet')).toBe(true);
+  expect(checked('A pet')).toBe(false);
+  expect(words(lastKey())).toBe('Open Lost and Found');
+  expect(useOnboardingStore.getState().selectedScenario).toBeNull();
+  expect(useOnboardingStore.getState().lostFoundChosen).toBe(false);
+  cleanup();
+
+  await opened('/setup/?next=security');
+  expect(checked('An empty place')).toBe(true);
+  cleanup();
+
+  for (const address of ['/setup/?next=monitor', '/setup/?next=wildlife', '/setup/']) {
+    await opened(address);
+    expect(checkedNames()).toEqual([]);
+    cleanup();
+  }
+});
+
+it('keeps a use held on the device whatever the address names', async () => {
+  useOnboardingStore.setState({ selectedScenario: 'pet' });
+  await opened('/setup/?next=security');
+  expect(checked('A pet')).toBe(true);
+  expect(words(lastKey())).toBe('Open People');
+  expect(useOnboardingStore.getState().selectedScenario).toBe('pet');
+  expect(useSettingsStore.getState().activePresetId).toBe('maximum');
 });
 
 it.each([
-  ['Baby', 'infant_sleep', 98],
-  ['Pet', 'pet_sleep', 90],
-  ['Elderly', 'maximum', 80],
-  ['Security', 'night', 40],
-])('choosing the %s use applies its Motion and sound setting', async (use, preset, motion) => {
-  await open('/setup/');
-  toUseStep();
-  fireEvent.click(screen.getByRole('button', { name: new RegExp(use) }));
-  await act(async () => {});
+  ['A baby', 'infant_sleep', 98],
+  ['A pet', 'pet_sleep', 90],
+  ['An elderly relative', 'maximum', 80],
+  ['An empty place', 'night', 40],
+  ['A lost pet', 'pet_sleep', 90],
+])('choosing %s on a first setup applies its Motion and sound setting at once', async (name, preset, motion) => {
+  await opened('/setup/');
+  chooseUse(name);
   const settings = useSettingsStore.getState();
   expect(settings.activePresetId).toBe(preset);
   expect(settings.globalSettings.motionSensitivity).toBe(motion);
@@ -146,42 +170,44 @@ it.each([
   expect(settings.globalSettings.alertVolume).toBeGreaterThan(0);
 });
 
-it("a second run applies a different use's setting at its last step, and keeps the person's own setting for the same use", async () => {
-  finishSetup();
+it('a run again applies another use\'s setting at the last key and keeps a tuned setting for the same use', async () => {
+  finishedSetup('pet');
+  useSettingsStore.getState().setActivePreset('pet_sleep');
   useSettingsStore.getState().updateGlobalSettings({ motionSensitivity: 33 });
 
-  await open('/setup/?again=1');
-  await press(await toLastStep(/Pet/));
+  await opened('/setup/?again=1');
+  expect(checked('A pet')).toBe(true);
+  await pressLastKey();
   expect(useSettingsStore.getState().globalSettings.motionSensitivity).toBe(33);
-
   cleanup();
-  await open('/setup/?again=1');
-  const key = await toLastStep(/Elderly/);
+
+  await opened('/setup/?again=1');
+  chooseUse('An elderly relative');
   expect(useSettingsStore.getState().globalSettings.motionSensitivity).toBe(33);
-  await press(key);
+  await pressLastKey();
   expect(useSettingsStore.getState().globalSettings.motionSensitivity).toBe(80);
   expect(useSettingsStore.getState().activePresetId).toBe('maximum');
 });
 
-it('names the two pages as they are named', async () => {
-  await open('/setup/');
-  toUseStep();
-  const emptyPlace = screen.getByRole('button', { name: /Security Mode/ });
-  expect(emptyPlace.textContent).toContain('The People page counts the people in view.');
-  expect(document.body.textContent).not.toMatch(/The Security page|on the Monitor page/);
-
-  fireEvent.click(screen.getByRole('button', { name: /Pet Monitoring/ }));
-  await screen.findByRole('heading', { name: /Device Access/ });
-  expect(screen.getByText('You can allow the camera later, on the Motion and sound page.').tagName).toBe('P');
-  expect(document.body.textContent).not.toMatch(/The Security page|on the Monitor page/);
+it('names what is missing when the last key is pressed with no use', async () => {
+  await opened('/setup/');
+  await pressLastKey();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(words(document.querySelector('.setup-use-says'))).toBe('Choose what this device is watching.');
+  expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'A pet' }));
 });
 
-it('names a place a use can watch, a yard as well as a room', async () => {
-  await open('/setup/');
-  toUseStep();
-  expect(screen.getByRole('button', { name: /Pet Monitoring/ }).textContent)
-    .toContain('Motion and sound alerts while your pet is in another room or in the yard');
-  expect(screen.getByRole('button', { name: /Security Mode/ }).textContent)
-    .toContain('Motion and sound alerts while the place is empty.');
-  expect(document.body.textContent).not.toMatch(/the room is empty|in another room(?! or in the yard)/);
+it('names what was not saved and opens the destination on a second press', async () => {
+  await opened('/setup/');
+  chooseUse('A pet');
+  jest.spyOn(localStorage, 'setItem').mockImplementation(() => {
+    throw new DOMException('full', 'QuotaExceededError');
+  });
+  await pressLastKey();
+  expect(mockRouter.replace).not.toHaveBeenCalled();
+  expect(words(document.querySelector('.setup-last-says'))).toBe(
+    'This browser did not save setup. SafeOS works for this visit and asks for setup again next time.'
+  );
+  await pressLastKey();
+  expect(mockRouter.replace).toHaveBeenCalledTimes(1);
 });
