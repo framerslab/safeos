@@ -292,10 +292,12 @@
   width: 100%;
 }
 
-/* A waiting key keeps a solid edge in the line colour. */
+/* A waiting key keeps a solid edge in the line colour, and its words their
+   weight, so the quiet tone reads at 7:1 on the strokes themselves. */
 .setup .key[aria-disabled='true'],
 .setup .key.setup-key--waiting {
   border: 2px solid var(--color-steel-300);
+  font-weight: var(--weight-bold);
 }
 
 /* A key grows taller with its words wrapped inside at large text. */
@@ -417,10 +419,12 @@
   margin-top: 16px;
 }
 
+/* The picture and the strip under it are one panel inside the corner ticks. */
 .setup-picture {
   position: relative;
   display: flex;
   flex-direction: column;
+  background: var(--color-steel-900);
 }
 
 .setup-video {
@@ -428,7 +432,6 @@
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: contain;
-  background: var(--color-steel-900);
 }
 
 .setup-starting {
@@ -470,7 +473,6 @@
   column-gap: 16px;
   row-gap: 12px;
   padding: 12px 0 16px;
-  background: var(--color-steel-900);
 }
 
 .setup-meter__label {
@@ -546,7 +548,6 @@
   padding: 20px;
   min-height: 0;
   aspect-ratio: 4 / 3;
-  background: var(--color-steel-900);
   text-align: center;
 }
 
@@ -635,8 +636,8 @@
 
 @media (max-width: 47.99em) {
   .setup-frame[data-state='failed'] {
-    gap: 12px;
-    padding-block: 16px;
+    gap: 8px;
+    padding-block: 12px;
   }
 }
 
@@ -872,6 +873,14 @@ html.setup-bar-fixed body {
 
 .setup-answer {
   margin-top: 24px;
+}
+
+/* On a phone the answers start a little lower, so the row the bar cuts shows
+   its top above the bar and the last whole row ends close over it. */
+@media (max-width: 47.99em) {
+  .setup-answer {
+    margin-top: 40px;
+  }
 }
 
 @media (min-width: 64em) {
