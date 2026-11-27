@@ -306,6 +306,7 @@ const UNBACKED_CLAIMS: Phrase[] = [
   { pattern: /coming soon/i, why: 'an empty block for an unbuilt video' },
   // Privacy: GitHub Pages logs each visitor's IP address
   { pattern: /nothing about you is collected|We collect nothing/i, why: 'the host logs each visitor\'s IP address' },
+  { pattern: /\bsix steps\b|Accept the Disclaimer|Choose Your Profile|Grant Permissions|Device Access/i, why: 'setup has two steps: it turns on the camera, then asks what the device is watching' },
 ];
 
 // Lost and Found's screens: setup, the pet's cards, the gallery, the
