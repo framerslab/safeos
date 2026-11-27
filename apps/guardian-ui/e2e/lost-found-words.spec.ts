@@ -454,3 +454,42 @@ test('no Lost and Found screen says match, detected, confidence, accurate or lik
   await holdsNoBarredWord('an opened picture');
   await page.screenshot({ path: testInfo.outputPath('lost-found-words-read-1280.png') });
 });
+
+// =============================================================================
+// The FAQ and How it works
+// =============================================================================
+
+const COMPARE_QUESTION = 'How does Lost and Found compare my pet\'s photos?';
+const COMPARE_ANSWER = 'Twice a second, the browser compares each part of the camera\'s picture that moved with your pet\'s photos: their colours, 5 main colours, outline on an 8 by 8 grid and size. When a part comes close enough, Lost and Found shows a possible sighting with that picture beside your photo, so you can check it yourself. It reads colours and outline with no model, so another animal of similar colours, or a cushion or bag of those colours, can raise one too. Crop each photo close to your pet: the background in a photo counts as well.';
+const MODELS_QUESTION = 'What AI models does SafeOS Guardian use?';
+const MODELS_ANSWER = 'Security and Wildlife modes use COCO-SSD, a TensorFlow.js object detection model, to find people and animals. The monitor page uses no model: it compares video frames for motion, measures sound levels and, for Lost and Found, compares the picture with your pet\'s photos by colour and outline. Everything runs in the browser.';
+const HOW_IT_WORKS_LEAD = 'Motion and sound alerts compare camera frames and measure the sound level in your browser, with no model. Lost and Found compares the camera’s picture with your pet’s photos by colour and outline, also with no model. The People and Wildlife pages add an object-detection model that runs in your browser too. Open a card to see how each part works.';
+
+const plain = (text: string | null) => (text ?? '').replace(/\s+/g, ' ').trim();
+
+/** Opens an FAQ question in its section and returns the answer it shows. */
+async function faqAnswer(page: Page, section: string, question: string): Promise<string> {
+  // The section's heading carries its number before its name; its questions follow it.
+  const part = page.getByRole('heading', { name: section }).locator('xpath=following-sibling::div[1]');
+  const asked = part.getByRole('button', { name: question, exact: true });
+  await expect(asked).toBeVisible();
+  await asked.click();
+  await expect(asked).toHaveAttribute('aria-expanded', 'true');
+  const answer = asked.locator('xpath=following-sibling::div[1]').locator('p');
+  await expect(answer).toBeVisible();
+  return plain(await answer.textContent());
+}
+
+test('the FAQ says how Lost and Found compares a pet\'s photos, and the models answer and How it works name it', async ({ page }) => {
+  await page.goto('/faq/', { waitUntil: 'networkidle', timeout: 60_000 });
+  expect(await faqAnswer(page, 'Detection & Alerts', COMPARE_QUESTION)).toBe(COMPARE_ANSWER);
+  expect(await faqAnswer(page, 'Technical', MODELS_QUESTION)).toBe(MODELS_ANSWER);
+  for (const words of [COMPARE_ANSWER, MODELS_ANSWER]) expect(words).not.toMatch(BARRED);
+
+  await page.goto('/', { waitUntil: 'networkidle', timeout: 60_000 });
+  const lead = page.locator('#how-it-works .home-detection__lead');
+  await lead.scrollIntoViewIfNeeded();
+  await expect(lead).toBeVisible();
+  expect(plain(await lead.textContent())).toBe(HOW_IT_WORKS_LEAD);
+  expect(plain(await lead.textContent())).not.toMatch(BARRED);
+});
