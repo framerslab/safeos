@@ -451,8 +451,7 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'], serverCon
             {audioSettings.frequencyRange === 'all' ? 'All Frequencies' :
              audioSettings.frequencyRange === 'baby_cry' ? 'Baby Cry' :
              audioSettings.frequencyRange === 'pet_sounds' ? 'Pet Sounds' :
-             audioSettings.frequencyRange === 'elderly_fall' ? 'Elderly Fall' : 'Custom'} |
-            Noise Filter: {audioSettings.backgroundNoiseFilter ? 'ON' : 'OFF'}
+             audioSettings.frequencyRange === 'elderly_fall' ? 'Elderly Fall' : 'Custom'}
           </span>
         }
         defaultExpanded={expandedSections.has('audio')}
@@ -514,21 +513,6 @@ export function InlineSettingsPanel({ defaultExpanded = ['detection'], serverCon
             />
           </div>
         )}
-
-        <div className="flex items-center justify-between p-3 bg-slate-900/50 rounded-lg mt-4">
-          <div>
-            <div className="flex items-center">
-              <span className="text-sm text-white">Background Noise Filter</span>
-              <InfoTooltip content="Reduces false positives from ambient noise like fans, traffic, or appliances." />
-            </div>
-            <span className="text-xs text-slate-500">Reduce false positives</span>
-          </div>
-          <ToggleSwitch
-            enabled={audioSettings.backgroundNoiseFilter}
-            onChange={(enabled) => updateAudioSettings({ backgroundNoiseFilter: enabled })}
-            aria-label="Toggle background noise filter"
-          />
-        </div>
       </ExpandableSection>
 
       {/* Quiet Hours */}

@@ -318,7 +318,7 @@
     "status": { "detected": "تم الكشف", "status": "الحالة", "excess": "زيادة", "intruder": "متسلل", "intruders": "متسللون", "unauthorized": "شخص(أشخاص) غير مصرح لهم", "personsDetected": "الأشخاص المكتشفون" },
     "gallery": { "title": "سجل الاختراقات", "noEvents": "لا توجد أحداث", "noEventsDesc": "سيظهر المتسللون المكتشفون هنا.", "totalEvents": "الإجمالي", "unreviewed": "غير مراجع", "last24h": "آخر 24 ساعة", "avgPersons": "متوسط الأشخاص", "acknowledge": "إقرار", "delete": "حذف", "exportJson": "تصدير JSON", "exportCsv": "تصدير CSV", "deleteSelected": "حذف المحدد", "selectAll": "تحديد الكل", "clear": "مسح" },
     "tts": { "authoritative": { "warning1": "تحذير! يتم تسجيلك. غادر فوراً.", "warning2": "تنبيه أمني. تم إخطار السلطات.", "warning3": "تم كشف متسلل. هذه المنطقة تحت المراقبة.", "warning4": "تم اكتشاف دخول غير مصرح به." }, "alarm": { "alert1": "تنبيه متسلل! النجدة!", "alert2": "اخرج! اخرج!", "alert3": "تنبيه! متسلل!", "alert4": "خطر!" } },
-    "settings": { "confidenceThreshold": "ثقة الكشف", "motionThreshold": "حساسية الحركة", "armingCountdown": "العد التنازلي", "triggerCooldown": "فترة التبريد", "maxStoredFrames": "الحد الأقصى للإطارات", "autoDeleteDays": "حذف تلقائي بعد (أيام)" },
+    "settings": { "confidenceThreshold": "ثقة الكشف", "motionThreshold": "حساسية الحركة", "armingCountdown": "العد التنازلي", "triggerCooldown": "فترة التبريد", "maxStoredFrames": "الحد الأقصى للإطارات" },
     "notifications": { "intruderDetected": "تنبيه متسلل!", "intruderBody": "تم كشف {count} شخص(أشخاص). {excess} غير مصرح لهم." },
     "silentModeInfo": "الوضع الصامت: سيتم تسجيل الاختراقات بدون تنبيهات صوتية. يمكنك مراجعة الإطارات الملتقطة في المعرض."
   },

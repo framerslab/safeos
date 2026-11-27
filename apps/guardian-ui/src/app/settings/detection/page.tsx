@@ -372,27 +372,6 @@ export default function DetectionSettingsPage() {
               </div>
             </div>
           )}
-
-          {/* Background Noise Filter */}
-          <div className="mt-4 flex items-center justify-between p-4 bg-slate-900/50 rounded-lg">
-            <div>
-              <div className="text-sm font-medium text-white">Background Noise Filter</div>
-              <div className="text-xs text-slate-400">Reduce false positives from ambient noise</div>
-            </div>
-            <button
-              role="switch"
-              aria-checked={audioSettings.backgroundNoiseFilter}
-              aria-label="Toggle background noise filter"
-              onClick={() => updateAudioSettings({ backgroundNoiseFilter: !audioSettings.backgroundNoiseFilter })}
-              className={`relative w-14 h-7 rounded-full transition-colors ${
-                audioSettings.backgroundNoiseFilter ? 'bg-emerald-500' : 'bg-slate-600'
-              }`}
-            >
-              <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                audioSettings.backgroundNoiseFilter ? 'left-8' : 'left-1'
-              }`} />
-            </button>
-          </div>
         </section>
 
         {/* Section 3: Person Detection Config (conditional) */}

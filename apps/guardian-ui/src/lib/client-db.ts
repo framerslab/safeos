@@ -17,7 +17,7 @@ import { isCurrentFingerprint } from './visual-fingerprint';
 import { expiredPictureIds, type AlertKind, type Box } from './alert-pictures/rules';
 import { alertsChanged } from './tab-channel';
 import { noteStorageFull } from './storage-full';
-import { recordTime, seenAfterRemoval } from './alert-groups';
+import { matchFrameAlerted, recordTime, seenAfterRemoval } from './alert-groups';
 
 // =============================================================================
 // Database Schema
@@ -2056,27 +2056,36 @@ async function cleanupExcessMatchFrames(): Promise<void> {
     const count = await db.count('match_frame');
     
     if (count > MAX_MATCH_FRAMES) {
+      // An alert is made of the frames that raised it, as History counts them, so a
+      // frame under the alert threshold neither joins a run nor takes the mark.
+      const { useLostFoundStore } = await import('../stores/lost-found-store');
+      const alertThreshold = useLostFoundStore.getState().settings.minConfidenceForAlert;
+
+      // The frames are read in the write that removes and marks them, so a
+      // picture deleted in the meantime is neither kept nor written back.
+      tx = db.transaction('match_frame', 'readwrite');
+      const frames = await tx.store.getAll();
+      if (frames.length <= MAX_MATCH_FRAMES) {
+        await tx.done;
+        return;
+      }
       // Get oldest frames that are acknowledged
-      const frames = await db.getAll('match_frame');
       const sortedByTime = frames
         .filter(f => f.acknowledged)
         .sort((a, b) => a.timestamp - b.timestamp);
       
-      const toDelete = sortedByTime.slice(0, count - MAX_MATCH_FRAMES);
+      const toDelete = sortedByTime.slice(0, frames.length - MAX_MATCH_FRAMES);
       // An alert whose only seen frames go stays seen: its first kept frame is marked.
-      // An alert is made of the frames that raised it, so a frame saved under the alert
-      // threshold (`alerted: false`) neither joins a run nor takes the mark.
       const removed = new Set(toDelete.map((frame) => frame.id));
       const bySubject = new Map<string, MatchFrameDB[]>();
       for (const frame of frames) {
-        if (frame.alerted === false) continue;
+        if (!matchFrameAlerted(frame, alertThreshold)) continue;
         const group = bySubject.get(frame.subjectId);
         if (group) group.push(frame);
         else bySubject.set(frame.subjectId, [frame]);
       }
       const toMark = Array.from(bySubject.values()).flatMap((group) => seenAfterRemoval(group, removed));
       
-      tx = db.transaction('match_frame', 'readwrite');
       for (const frame of toDelete) {
         await tx.store.delete(frame.id);
       }
@@ -2090,28 +2099,6 @@ async function cleanupExcessMatchFrames(): Promise<void> {
   } catch {
     // Ignore cleanup errors
     await abandonTransaction(tx);
-  }
-}
-
-export async function cleanupOldMatchFrames(olderThanDays: number): Promise<number> {
-  let tx: IDBPTransaction<SafeOSDB, ['match_frame'], 'readwrite'> | undefined;
-  try {
-    const db = await getDB();
-    const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
-    
-    const frames = await db.getAll('match_frame');
-    const toDelete = frames.filter(f => f.timestamp < cutoff && f.acknowledged);
-    
-    tx = db.transaction('match_frame', 'readwrite');
-    for (const frame of toDelete) {
-      await tx.store.delete(frame.id);
-    }
-    await tx.done;
-    
-    return toDelete.length;
-  } catch {
-    await abandonTransaction(tx);
-    return 0;
   }
 }
 
@@ -2239,13 +2226,21 @@ export interface IntrusionFrameDB {
   exported: boolean;
 }
 
+type IntrusionFrameStore = IDBPObjectStore<SafeOSDB, ['intrusion_frame'], 'intrusion_frame', 'readwrite'>;
+
 export async function saveIntrusionFrame(frame: IntrusionFrameDB): Promise<void> {
+  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
   try {
     const db = await getDB();
-    await db.put('intrusion_frame', frame);
+    tx = db.transaction('intrusion_frame', 'readwrite');
+    await tx.store.put(frame);
+    if (await tx.store.count() > MAX_INTRUSION_FRAMES) {
+      await pruneIntrusionFrames(tx.store, await tx.store.getAll());
+    }
+    await tx.done;
     alertsChanged();
-    await cleanupExcessIntrusionFrames();
   } catch (error) {
+    await abandonTransaction(tx);
     noteStorageFull(error);
     console.warn('[ClientDB] Failed to save intrusion frame:', error);
   }
@@ -2264,7 +2259,23 @@ export async function getIntrusionFrame(id: string): Promise<IntrusionFrameDB | 
 /** Every People frame, newest first. Unlike getAllIntrusionFrames, a read that fails throws. */
 export async function readAllIntrusionFrames(): Promise<IntrusionFrameDB[]> {
   const db = await getDB();
-  const frames = await db.getAll('intrusion_frame');
+  let frames = await db.getAll('intrusion_frame');
+  if (frames.length > MAX_INTRUSION_FRAMES) {
+    // Older builds could leave an oversized library. Read it again inside
+    // the write transaction so a save or an acknowledgement in another tab holds.
+    const tx = db.transaction('intrusion_frame', 'readwrite');
+    try {
+      const current = await tx.store.getAll();
+      const kept = await pruneIntrusionFrames(tx.store, current);
+      await tx.done;
+      frames = kept;
+      if (kept.length < current.length) alertsChanged();
+    } catch (error) {
+      await abandonTransaction(tx);
+      noteStorageFull(error);
+      console.warn('[ClientDB] Failed to trim saved People pictures:', error);
+    }
+  }
   return frames.sort((a, b) => b.timestamp - a.timestamp);
 }
 
@@ -2313,15 +2324,25 @@ export async function getIntrusionsByTimeRange(
   }
 }
 
+async function updateIntrusionFrame(
+  id: string, updates: Partial<Pick<IntrusionFrameDB, 'acknowledged' | 'notes'>>,
+): Promise<boolean> {
+  const db = await getDB();
+  const tx = db.transaction('intrusion_frame', 'readwrite');
+  try {
+    const frame = await tx.store.get(id);
+    if (frame) await tx.store.put({ ...frame, ...updates });
+    await tx.done;
+    return Boolean(frame);
+  } catch (error) {
+    await abandonTransaction(tx);
+    throw error;
+  }
+}
+
 export async function acknowledgeIntrusionFrame(id: string): Promise<void> {
   try {
-    const db = await getDB();
-    const frame = await db.get('intrusion_frame', id);
-    if (frame) {
-      frame.acknowledged = true;
-      await db.put('intrusion_frame', frame);
-      alertsChanged();
-    }
+    if (await updateIntrusionFrame(id, { acknowledged: true })) alertsChanged();
   } catch (error) {
     console.warn('[ClientDB] Failed to acknowledge intrusion frame:', error);
   }
@@ -2329,12 +2350,7 @@ export async function acknowledgeIntrusionFrame(id: string): Promise<void> {
 
 export async function updateIntrusionFrameNotes(id: string, notes: string): Promise<void> {
   try {
-    const db = await getDB();
-    const frame = await db.get('intrusion_frame', id);
-    if (frame) {
-      frame.notes = notes;
-      await db.put('intrusion_frame', frame);
-    }
+    await updateIntrusionFrame(id, { notes });
   } catch (error) {
     console.warn('[ClientDB] Failed to update intrusion frame notes:', error);
   }
@@ -2407,57 +2423,27 @@ export async function clearAllIntrusionFrames(): Promise<void> {
   }
 }
 
-async function cleanupExcessIntrusionFrames(): Promise<void> {
-  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
-  try {
-    const db = await getDB();
-    const count = await db.count('intrusion_frame');
-    
-    if (count > MAX_INTRUSION_FRAMES) {
-      const frames = await db.getAllFromIndex('intrusion_frame', 'by-timestamp');
-      const toDelete = frames
-        .filter(f => f.acknowledged)
-        .slice(0, count - MAX_INTRUSION_FRAMES);
-      // An alert whose only seen frames go stays seen: its first kept frame is marked.
-      const toMark = seenAfterRemoval(frames, new Set(toDelete.map((frame) => frame.id)));
-      
-      tx = db.transaction('intrusion_frame', 'readwrite');
-      for (const frame of toDelete) {
-        await tx.store.delete(frame.id);
-      }
-      for (const frame of toMark) {
-        await tx.store.put({ ...frame, acknowledged: true });
-      }
-      await tx.done;
-      // The other tabs hear of the frames the limit removed.
-      if (toDelete.length > 0) alertsChanged();
-    }
-  } catch {
-    // Ignore cleanup errors
-    await abandonTransaction(tx);
-  }
-}
+async function pruneIntrusionFrames(
+  store: IntrusionFrameStore, frames: IntrusionFrameDB[],
+): Promise<IntrusionFrameDB[]> {
+  const excess = frames.length - MAX_INTRUSION_FRAMES;
+  if (excess <= 0) return frames;
 
-export async function cleanupOldIntrusionFrames(olderThanDays: number): Promise<number> {
-  let tx: IDBPTransaction<SafeOSDB, ['intrusion_frame'], 'readwrite'> | undefined;
-  try {
-    const db = await getDB();
-    const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
-    
-    const frames = await db.getAll('intrusion_frame');
-    const toDelete = frames.filter(f => f.timestamp < cutoff && f.acknowledged);
-    
-    tx = db.transaction('intrusion_frame', 'readwrite');
-    for (const frame of toDelete) {
-      await tx.store.delete(frame.id);
-    }
-    await tx.done;
-    
-    return toDelete.length;
-  } catch {
-    await abandonTransaction(tx);
-    return 0;
+  frames.sort((a, b) => (recordTime(a) ?? Infinity) - (recordTime(b) ?? Infinity));
+  const toDelete = [
+    ...frames.filter((frame) => frame.acknowledged),
+    ...frames.filter((frame) => !frame.acknowledged),
+  ].slice(0, excess);
+
+  const removed = new Set(toDelete.map((frame) => frame.id));
+  // An alert whose only seen frames go stays seen.
+  const toMark = seenAfterRemoval(frames, removed);
+  for (const frame of toDelete) await store.delete(frame.id);
+  for (const frame of toMark) {
+    frame.acknowledged = true;
+    await store.put(frame);
   }
+  return frames.filter((frame) => !removed.has(frame.id));
 }
 
 // =============================================================================
@@ -2843,28 +2829,6 @@ async function cleanupExcessAnimalDetections(): Promise<void> {
   } catch {
     // Ignore cleanup errors
     await abandonTransaction(tx);
-  }
-}
-
-export async function cleanupOldAnimalDetections(olderThanDays: number): Promise<number> {
-  let tx: IDBPTransaction<SafeOSDB, ['animal_detection'], 'readwrite'> | undefined;
-  try {
-    const db = await getDB();
-    const cutoff = Date.now() - olderThanDays * 24 * 60 * 60 * 1000;
-    
-    const detections = await db.getAll('animal_detection');
-    const toDelete = detections.filter(d => d.timestamp < cutoff && d.acknowledged);
-    
-    tx = db.transaction('animal_detection', 'readwrite');
-    for (const d of toDelete) {
-      await tx.store.delete(d.id);
-    }
-    await tx.done;
-    
-    return toDelete.length;
-  } catch {
-    await abandonTransaction(tx);
-    return 0;
   }
 }
 

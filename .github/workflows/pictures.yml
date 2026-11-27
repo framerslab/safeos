@@ -92,6 +92,7 @@ jobs:
           git fetch origin "$CAPTURE_REF"
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/capture-pictures.mjs" > scripts/capture-pictures.mjs
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/base-routes.mjs" > scripts/base-routes.mjs
+          git show "$CAPTURE_REF:apps/guardian-ui/scripts/capture-monitoring-changes.mjs" > scripts/capture-monitoring-changes.mjs
           git show "$CAPTURE_REF:apps/guardian-ui/scripts/watch-page-captures.mjs" > scripts/watch-page-captures.mjs
 
       - name: Setup Node.js
@@ -125,16 +126,37 @@ jobs:
           NEXT_PUBLIC_WS_URL: ''
 
       - name: Install Chromium for Playwright
+        id: pictures-chromium
         # The Ubuntu runner already supplies the shared browser libraries.
         # Install the pinned browser without an unrelated apt/font refresh.
         run: npx playwright install chromium
 
+      - name: Capture monitoring alert and setting changes
+        if: github.event_name == 'pull_request'
+        run: |
+          curl -sf http://127.0.0.1:4173/ >/dev/null || (python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &)
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:4173/ >/dev/null && break
+            sleep 1
+          done
+          node scripts/capture-monitoring-changes.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/monitoring-pictures"
+
+      - name: Upload monitoring pictures
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && steps.pictures-chromium.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-pictures-${{ matrix.version }}
+          path: ${{ runner.temp }}/monitoring-pictures/*.png
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Serve the site and capture
+        if: ${{ !cancelled() && steps.pictures-chromium.outcome == 'success' }}
         env:
           PICTURE_VERSION: ${{ matrix.version }}
           ROUTES: ${{ github.event_name == 'workflow_dispatch' && inputs.routes || env.DEFAULT_ROUTES }}
         run: |
-          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &
+          curl -sf http://127.0.0.1:4173/ >/dev/null || (python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/http.log 2>&1 &)
           for i in $(seq 1 30); do
             curl -sf http://127.0.0.1:4173/ >/dev/null && break
             sleep 1

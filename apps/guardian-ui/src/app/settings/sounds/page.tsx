@@ -24,6 +24,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SoundUploader } from '@/components/SoundUploader';
 import { AlertVolume } from '@/components/settings/AlertVolume';
+import { SpokenAlertVoice } from '@/components/settings/SpokenAlertVoice';
 import { BackButton } from '@/components/BackButton';
 import { IconChevronLeft } from '@/components/icons';
 import {
@@ -236,6 +237,7 @@ export default function SoundsSettingsPage() {
         {/* How loud alerts play, with a key that plays it */}
         <div className="settings look-part set-on-page">
           <AlertVolume />
+          <SpokenAlertVoice />
         </div>
 
         {/* Usage Guide */}

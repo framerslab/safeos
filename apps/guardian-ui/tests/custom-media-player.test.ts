@@ -56,6 +56,7 @@ import {
   type UploadedAudio,
   type PlaybackMode,
 } from '../src/lib/custom-media-player';
+import { SPOKEN_DEFAULT } from '../src/lib/lost-found-words';
 
 describe('CustomMediaPlayer', () => {
   beforeEach(() => {
@@ -343,3 +344,276 @@ describe('Playback Modes', () => {
   });
 });
 
+
+it('keeps a Lost and Found spoken alert quiet when only an online voice is available', () => {
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockReturnValueOnce([
+    { name: 'Online English', lang: 'en-US', voiceURI: 'remote-en', localService: false, default: true },
+  ]);
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
+  } finally {
+    player.dispose();
+  }
+});
+
+it('speaks a Lost and Found message once the browser lists its voices', async () => {
+  // A browser may list no voices until it has read them, then fire voiceschanged.
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  let listed: unknown[] = [];
+  const events = new EventTarget();
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => listed);
+  Object.assign(mockSpeechSynthesis, {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+  });
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    listed = [local];
+    events.dispatchEvent(new Event('voiceschanged'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: local }));
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+    Reflect.deleteProperty(mockSpeechSynthesis, 'addEventListener');
+    Reflect.deleteProperty(mockSpeechSynthesis, 'removeEventListener');
+  }
+});
+
+it('speaks a Lost and Found message that waited for the voice list once a pause ends', async () => {
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  let listed: unknown[] = [];
+  const events = new EventTarget();
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => listed);
+  Object.assign(mockSpeechSynthesis, {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+  });
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    player.pause();
+    listed = [local];
+    events.dispatchEvent(new Event('voiceschanged'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
+
+    player.resume();
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(1);
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: local }));
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+    Reflect.deleteProperty(mockSpeechSynthesis, 'addEventListener');
+    Reflect.deleteProperty(mockSpeechSynthesis, 'removeEventListener');
+  }
+});
+
+it("reads Lost and Found's own English line in an English voice on a page in another language", () => {
+  const english = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: false };
+  const french = { name: 'Local French', lang: 'fr-FR', voiceURI: 'local-fr', localService: true, default: true };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [french, english]);
+  (global as any).document = { documentElement: { lang: 'fr' } };
+  const own = new CustomMediaPlayer({ ttsMessages: [SPOKEN_DEFAULT] });
+  const written = new CustomMediaPlayer({ ttsMessages: ['Est-ce Minou ?'] });
+  try {
+    own.start();
+    expect(mockSpeechSynthesis.speak).toHaveBeenLastCalledWith(expect.objectContaining({ voice: english }));
+    own.stop();
+    written.start();
+    expect(mockSpeechSynthesis.speak).toHaveBeenLastCalledWith(expect.objectContaining({ voice: french }));
+  } finally {
+    own.dispose();
+    written.dispose();
+    Reflect.deleteProperty(global, 'document');
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});
+
+it('does not play a finished sound again when a pause ends between a sound and a message', async () => {
+  // The player loads Howler before the mock above is set, so the sound is
+  // made through the module it holds; this sound records its plays.
+  const howler = jest.requireActual('howler') as { Howl: unknown };
+  const sound = { play: jest.fn(), pause: jest.fn(), stop: jest.fn(), unload: jest.fn() };
+  let options: { onend: () => void } | undefined;
+  const made = jest.spyOn(howler as any, 'Howl').mockImplementation((given: any) => {
+    options = given;
+    return sound;
+  });
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  const clip: UploadedAudio = { id: 'a1', name: 'bark.mp3', data: 'data:audio/mpeg;base64,AA', mimeType: 'audio/mpeg', uploadedAt: 0 };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [local]);
+  const player = new CustomMediaPlayer({ audioFiles: [clip], ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    expect(made).toHaveBeenCalledTimes(1);
+    expect(sound.play).toHaveBeenCalledTimes(1);
+
+    // The sound ends; the next step comes due 500 ms later, during a pause.
+    options?.onend();
+    player.pause();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    player.resume();
+
+    expect(sound.play).toHaveBeenCalledTimes(1);
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(1);
+  } finally {
+    player.dispose();
+    made.mockRestore();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});
+
+it('lets a step from a stopped playback play nothing in the next one', async () => {
+  // A sound ends and its next step comes due 500 ms later. Before then the
+  // playback stops, a new one starts with its own sound and pauses.
+  const howler = jest.requireActual('howler') as { Howl: unknown };
+  const sound = { play: jest.fn(), pause: jest.fn(), stop: jest.fn(), unload: jest.fn() };
+  let options: { onend: () => void } | undefined;
+  const made = jest.spyOn(howler as any, 'Howl').mockImplementation((given: any) => {
+    options = given;
+    return sound;
+  });
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  const clip: UploadedAudio = { id: 'a1', name: 'bark.mp3', data: 'data:audio/mpeg;base64,AA', mimeType: 'audio/mpeg', uploadedAt: 0 };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [local]);
+  const player = new CustomMediaPlayer({ audioFiles: [clip], ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    options?.onend();
+    player.stop();
+    player.start();
+    expect(made).toHaveBeenCalledTimes(2);
+    player.pause();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    player.resume();
+
+    expect(mockSpeechSynthesis.speak).not.toHaveBeenCalled();
+  } finally {
+    player.dispose();
+    made.mockRestore();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});
+
+it('reports a Lost and Found message with no voice and speaks it once the browser lists one', async () => {
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  let listed: unknown[] = [];
+  const events = new EventTarget();
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => listed);
+  Object.assign(mockSpeechSynthesis, {
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+  });
+  const onError = jest.fn();
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] }, { onError });
+  try {
+    player.start();
+    // The voice list stays empty past the wait.
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(player.getState().isPlaying).toBe(true);
+
+    listed = [local];
+    events.dispatchEvent(new Event('voiceschanged'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledWith(expect.objectContaining({ voice: local }));
+    expect(onError).toHaveBeenCalledTimes(1);
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+    Reflect.deleteProperty(mockSpeechSynthesis, 'addEventListener');
+    Reflect.deleteProperty(mockSpeechSynthesis, 'removeEventListener');
+  }
+});
+
+it('ignores a late message error from a stopped playback', async () => {
+  // A browser can report a cancelled message after the next playback began.
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [local]);
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] });
+  try {
+    player.start();
+    const first = mockSpeechSynthesis.speak.mock.calls[0][0] as { onerror: () => void };
+    player.stop();
+    player.start();
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(2);
+    player.pause();
+    first.onerror();
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    player.resume();
+
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(2);
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});
+
+
+it("keeps the next playback's sound when a stopped playback's sound ends late", () => {
+  // Howler reports a sound's end from a timer, so the end of a sound from a
+  // stopped playback can arrive after the next playback began its own.
+  const howler = jest.requireActual('howler') as { Howl: unknown };
+  const sounds: any[] = [];
+  const ends: Array<() => void> = [];
+  const made = jest.spyOn(howler as any, 'Howl').mockImplementation((given: any) => {
+    ends.push(given.onend);
+    const sound = { play: jest.fn(), pause: jest.fn(), stop: jest.fn(), unload: jest.fn() };
+    sounds.push(sound);
+    return sound;
+  });
+  const onAudioPlay = jest.fn();
+  const clip: UploadedAudio = { id: 'a1', name: 'bark.mp3', data: 'data:audio/mpeg;base64,AA', mimeType: 'audio/mpeg', uploadedAt: 0 };
+  const player = new CustomMediaPlayer({ audioFiles: [clip], ttsEnabled: false }, { onAudioPlay });
+  try {
+    player.start();
+    player.stop();
+    player.start();
+    expect(sounds).toHaveLength(2);
+
+    ends[0]();
+
+    expect(sounds[1].stop).not.toHaveBeenCalled();
+    expect(sounds[1].unload).not.toHaveBeenCalled();
+    expect(onAudioPlay).not.toHaveBeenCalled();
+  } finally {
+    player.dispose();
+    made.mockRestore();
+  }
+});
+
+it('does not report the next playback\'s message for a late message end from a stopped playback', () => {
+  const local = { name: 'Local English', lang: 'en-US', voiceURI: 'local-en', localService: true, default: true };
+  mockSpeechSynthesis.speak.mockClear();
+  mockSpeechSynthesis.getVoices.mockImplementation(() => [local]);
+  const onMessageSpeak = jest.fn();
+  const player = new CustomMediaPlayer({ ttsMessages: ['Could this be Stripes?'] }, { onMessageSpeak });
+  try {
+    player.start();
+    const first = mockSpeechSynthesis.speak.mock.calls[0][0] as { onend: () => void };
+    player.stop();
+    player.start();
+    expect(mockSpeechSynthesis.speak).toHaveBeenCalledTimes(2);
+
+    first.onend();
+
+    expect(onMessageSpeak).not.toHaveBeenCalled();
+  } finally {
+    player.dispose();
+    mockSpeechSynthesis.getVoices.mockImplementation(() => []);
+  }
+});

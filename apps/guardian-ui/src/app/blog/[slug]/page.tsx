@@ -92,7 +92,7 @@ const blogContent: Record<string, BlogContent> = {
           >
             <code>CameraFeed.tsx</code>
           </a>{' '}
-          at lines 74&ndash;76:
+          at lines 99&ndash;101:
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
@@ -117,7 +117,7 @@ const blogContent: Record<string, BlogContent> = {
         </p>
 
         <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 my-6 font-mono text-sm overflow-x-auto">
-          <div className="text-slate-500">{`// lines 258-264: run detection when the motion level crosses its threshold`}</div>
+          <div className="text-slate-500">{`// lines 233-240: run detection when the motion level crosses its threshold`}</div>
           <div className="text-emerald-400">const motionTriggered = motionLevel &gt;= this.config.motionThreshold;</div>
           <div className="text-emerald-400">if (!motionTriggered) return null;</div>
         </div>
