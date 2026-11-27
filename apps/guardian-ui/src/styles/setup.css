@@ -859,3 +859,50 @@ html.setup-bar-fixed body {
     animation: none;
   }
 }
+
+/* =============================================================================
+   Setup: step 2
+   One column on a phone and a tablet, in the page's order: the heading, the
+   picture with its strip and test line, the answers, their words and the
+   key. From 64em the picture takes the left 7 columns and the answers the
+   right 5, with the key at the foot of the right columns: level with the
+   test line's foot when the words are shorter, 24 px under them when longer.
+   ============================================================================= */
+
+.setup-answer {
+  margin-top: 24px;
+}
+
+@media (min-width: 64em) {
+  .setup-step--2 {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: stretch;
+  }
+
+  .setup-step--2 > .setup-heading,
+  .setup-step--2 > .setup-progress--under {
+    grid-column: 1 / -1;
+  }
+
+  .setup-check {
+    grid-column: 1 / span 7;
+  }
+
+  .setup-answer {
+    grid-column: 8 / span 5;
+    display: flex;
+    flex-direction: column;
+    margin-top: 16px;
+  }
+
+  .setup-answer .setup-uses {
+    margin-top: 0;
+  }
+
+  .setup-answer .setup-last {
+    margin-top: auto;
+    padding-top: 24px;
+  }
+}

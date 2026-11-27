@@ -1,7 +1,9 @@
 /**
  * Onboarding Store
  *
- * Zustand store for onboarding and consent management.
+ * Zustand store for onboarding and consent management. Setup writes the
+ * statement's two flags, the use, the choice of Lost and Found and the camera
+ * answers. Fields an earlier setup saved stay in the saved record.
  *
  * @module stores/onboarding-store
  */
@@ -15,8 +17,6 @@ import { persist } from 'zustand/middleware';
 
 export interface OnboardingState {
   // Onboarding progress
-  currentStep: number;
-  completedSteps: number[];
   isComplete: boolean;
 
   // Disclaimers
@@ -37,42 +37,20 @@ export interface OnboardingState {
    * Lost and Found, so setup and the watch show the same choice.
    */
   lostFoundChosen: boolean;
-  profileName: string;
-
-  // Notifications
-  notificationsEnabled: boolean;
-  browserPushEnabled: boolean;
-  smsEnabled: boolean;
-  telegramEnabled: boolean;
-  telegramChatId: string | null;
 
   // Camera permissions
   cameraPermissionGranted: boolean;
   microphonePermissionGranted: boolean;
 
   // Actions
-  setStep: (step: number) => void;
-  completeStep: (step: number) => void;
   setComplete: (complete: boolean) => void;
-  acceptDisclaimer: (type: keyof OnboardingState['acceptedDisclaimers']) => void;
-  acceptAllDisclaimers: () => void;
   setScenario: (scenario: 'pet' | 'baby' | 'elderly' | 'security' | null) => void;
   setLostFoundChosen: (chosen: boolean) => void;
-  setProfileName: (name: string) => void;
-  setNotifications: (settings: Partial<NotificationSettings>) => void;
   setCameraPermission: (granted: boolean) => void;
   setMicrophonePermission: (granted: boolean) => void;
   /** Records that setup's statement stood on the step the person went on from: the two flags the done-check reads, and the time. */
   recordStatement: () => void;
   reset: () => void;
-}
-
-interface NotificationSettings {
-  notificationsEnabled: boolean;
-  browserPushEnabled: boolean;
-  smsEnabled: boolean;
-  telegramEnabled: boolean;
-  telegramChatId: string | null;
 }
 
 // =============================================================================
@@ -94,69 +72,20 @@ export const useOnboardingStore = create<OnboardingState>()(
   persist(
     (set, get) => ({
       // Initial state
-      currentStep: 0,
-      completedSteps: [],
       isComplete: false,
       acceptedDisclaimers: INITIAL_DISCLAIMERS,
       disclaimerAcceptedAt: null,
       selectedScenario: null,
       lostFoundChosen: false,
-      profileName: '',
-      notificationsEnabled: true,
-      browserPushEnabled: false,
-      smsEnabled: false,
-      telegramEnabled: false,
-      telegramChatId: null,
       cameraPermissionGranted: false,
       microphonePermissionGranted: false,
 
       // Actions
-      setStep: (step) => set({ currentStep: step }),
-
-      completeStep: (step) =>
-        set((state) => ({
-          completedSteps: state.completedSteps.includes(step)
-            ? state.completedSteps
-            : [...state.completedSteps, step],
-          currentStep: Math.max(state.currentStep, step + 1),
-        })),
-
       setComplete: (complete) => set({ isComplete: complete }),
-
-      acceptDisclaimer: (type) =>
-        set((state) => ({
-          acceptedDisclaimers: {
-            ...state.acceptedDisclaimers,
-            [type]: true,
-          },
-          disclaimerAcceptedAt: new Date().toISOString(),
-        })),
-
-      acceptAllDisclaimers: () =>
-        set({
-          acceptedDisclaimers: {
-            main: true,
-            scenario: true,
-            privacy: true,
-            terms: true,
-          },
-          disclaimerAcceptedAt: new Date().toISOString(),
-        }),
 
       setScenario: (scenario) => set({ selectedScenario: scenario }),
 
       setLostFoundChosen: (chosen) => set({ lostFoundChosen: chosen }),
-
-      setProfileName: (name) => set({ profileName: name }),
-
-      setNotifications: (settings) =>
-        set((state) => ({
-          notificationsEnabled: settings.notificationsEnabled ?? state.notificationsEnabled,
-          browserPushEnabled: settings.browserPushEnabled ?? state.browserPushEnabled,
-          smsEnabled: settings.smsEnabled ?? state.smsEnabled,
-          telegramEnabled: settings.telegramEnabled ?? state.telegramEnabled,
-          telegramChatId: settings.telegramChatId ?? state.telegramChatId,
-        })),
 
       setCameraPermission: (granted) => set({ cameraPermissionGranted: granted }),
 
@@ -170,19 +99,11 @@ export const useOnboardingStore = create<OnboardingState>()(
 
       reset: () =>
         set({
-          currentStep: 0,
-          completedSteps: [],
           isComplete: false,
           acceptedDisclaimers: INITIAL_DISCLAIMERS,
           disclaimerAcceptedAt: null,
           selectedScenario: null,
           lostFoundChosen: false,
-          profileName: '',
-          notificationsEnabled: true,
-          browserPushEnabled: false,
-          smsEnabled: false,
-          telegramEnabled: false,
-          telegramChatId: null,
           cameraPermissionGranted: false,
           microphonePermissionGranted: false,
         }),
@@ -196,50 +117,6 @@ export const useOnboardingStore = create<OnboardingState>()(
 // =============================================================================
 // Helpers
 // =============================================================================
-
-/**
- * Get onboarding steps configuration
- */
-export function getOnboardingSteps() {
-  return [
-    {
-      id: 0,
-      name: 'Welcome',
-      description: 'Introduction to SafeOS Guardian',
-      required: true,
-    },
-    {
-      id: 1,
-      name: 'Safety Disclaimer',
-      description: 'Read and accept important safety information',
-      required: true,
-    },
-    {
-      id: 2,
-      name: 'Select Scenario',
-      description: 'Choose what you want to monitor',
-      required: true,
-    },
-    {
-      id: 3,
-      name: 'Camera Access',
-      description: 'Grant camera and microphone permissions',
-      required: true,
-    },
-    {
-      id: 4,
-      name: 'Notifications',
-      description: 'Set up alert notifications',
-      required: false,
-    },
-    {
-      id: 5,
-      name: 'Ready',
-      description: 'Start monitoring',
-      required: false,
-    },
-  ];
-}
 
 /**
  * Check if all required disclaimers are accepted
