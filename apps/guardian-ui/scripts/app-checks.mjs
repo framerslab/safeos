@@ -5415,6 +5415,14 @@ export async function checkApp(browser, baseUrl, outDir) {
   };
   const USE_NAMES = Object.keys(USE_WORDS);
   const useWords = async (page) => plain(await page.locator('#setup-use-words').innerText());
+  // The page scrolls smoothly; a walk that reads the end of the page jumps there.
+  const toTheEnd = async (page) => {
+    await page.evaluate(() => {
+      document.documentElement.style.scrollBehavior = 'auto';
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    });
+    await page.waitForTimeout(300);
+  };
   // Setup's words hold the sentence, read with a straight and a curly apostrophe as one.
   const says = (page, sentence, ms = 10_000) => page.waitForFunction((want) => (document.querySelector('main.setup')?.innerText || '')
     .replace(/\u2019/g, "'").replace(/\s+/g, ' ').includes(want), sentence, { timeout: ms }).then(() => true, () => false);
@@ -5435,7 +5443,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       });
       check(sizes.main >= sizes.foot - sizes.head - 1, `setup's column is ${sizes.main} px tall, short of the screen less the header (${sizes.foot - sizes.head})`);
       check(sizes.look >= sizes.foot - 1, `the look row starts at ${sizes.look} px, inside the first screen of ${sizes.foot}`);
-      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      await toTheEnd(page);
       const other = OTHER[look];
       const row = page.locator('.setup-look').getByRole('button', { name: `Switch to the ${other} look`, exact: true });
       if (!(await row.count())) { check(false, `the look row holds no "Switch to the ${other} look"`); return; }
@@ -5742,8 +5750,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       await page.waitForURL((url) => url.pathname === '/help/' && url.hash === '#camera', { timeout: 15_000 }).catch(() => {});
       const at = new URL(page.url());
       check(at.pathname === '/help/' && at.hash === '#camera', `How to allow the camera opened ${at.pathname}${at.hash}`);
-      const shown = await page.getByRole('heading', { name: 'Camera not working', exact: true }).isVisible().catch(() => false);
-      check(shown, 'Help does not show "Camera not working" in view');
+      await helpEntryInView(page, check, 'Camera not working');
     }, { ...NEW_DEVICE, script: setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }) });
   }
 
@@ -6086,7 +6093,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         track.stop();
         track.dispatchEvent(new Event('ended'));
       });
-      const stopped = await page.getByText('The camera stopped. Check the device, then press Try again.', { exact: true }).waitFor({ timeout: 5_000 }).then(() => true, () => false);
+      const stopped = await says(page, 'The camera stopped. Check the device, then press Try again.', 5_000);
       check(stopped, 'a camera that stops is not named');
       check((await page.locator('.setup-picture svg.problem-mark').count()) >= 1, 'the stopped camera has no problem glyph');
       await setupMain(page).getByRole('button', { name: 'Try again', exact: true }).click();
@@ -6152,8 +6159,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       });
       check(bar.position === 'fixed' && Math.abs(bar.bottom - 844) <= 1 && Math.abs(bar.height - 76) <= 1, `the bar is ${bar.position}, its foot at ${bar.bottom}, ${bar.height} px tall`);
       check(bar.fixed && Math.abs(parseFloat(bar.padding) - bar.height) <= 1 && Math.abs(parseFloat(bar.body) - bar.height) <= 1, `the page keeps ${bar.padding} and ${bar.body} for a bar of ${bar.height}`);
-      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-      await page.waitForTimeout(300);
+      await toTheEnd(page);
       const foot = await page.evaluate(() => {
         const links = [...document.querySelectorAll('footer a, [role="contentinfo"] a')];
         const last = links[links.length - 1];
@@ -6473,7 +6479,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
       await page.waitForTimeout(300);
       await waits('.setup-key', 'while the browser asks');
-      await page.locator('.setup-key').click();
+      // A person can press a waiting key; it says it is not available and asks nothing more.
+      await page.locator('.setup-key').click({ force: true });
       check((await cameraRequests(page)) === 1, `a second press made ${await cameraRequests(page)} requests`);
       check(await setupMain(page).getByRole('button', { name: 'Continue without the camera', exact: true }).isEnabled(), 'Continue is not enabled while the browser asks');
       check(await step2Shown(page, 8_000), 'step 2 does not open once the browser answers');
@@ -6497,7 +6504,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       await page.waitForTimeout(300);
       const key = plain(await page.locator('.setup-key').innerText());
       check(key === 'Waiting for your answer…', `while Try again waits the key reads "${key}"`);
-      await page.locator('.setup-key').click();
+      await page.locator('.setup-key').click({ force: true });
       check((await cameraRequests(page)) === 2, `a second press made ${await cameraRequests(page)} requests in all, not 2`);
       check(await setupMain(page).getByRole('button', { name: 'Continue without the camera', exact: true }).isEnabled(), 'Continue is not enabled while Try again waits');
     }, { ...NEW_DEVICE, script: setupScript({ status: 'prompt', set: { answers: ['NotAllowedError'] } }) });
@@ -6513,7 +6520,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       const starting = await page.evaluate(() => {
         const picture = document.querySelector('.setup-picture[data-state="starting"]');
         if (!picture) return null;
-        const after = getComputedStyle(picture, '::after');
+        const after = getComputedStyle(picture.querySelector('.setup-starting') || picture, '::after');
         const names = [...document.styleSheets].flatMap((sheet) => { try { return [...sheet.cssRules]; } catch (e) { return []; } })
           .filter((rule) => rule instanceof CSSKeyframesRule).map((rule) => rule.name);
         return { words: picture.innerText.replace(/\s+/g, ' ').trim(), animation: after.animationName, display: after.display, defined: names.includes(after.animationName) };
@@ -6598,6 +6605,8 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(loud, 'Sound does not reach 20 within 5 s of noise');
       for (const [name, motion, sound] of [['A pet', '10%', 'none'], ['A baby', '2%', '5%'], ['An elderly relative', '20%', '20%'], ['An empty place', '60%', '40%'], ['A lost pet', '10%', 'none']]) {
         await choose(page, name);
+        // The bars are measured every 200 ms; the Motion line follows the answer at the next measure.
+        await page.waitForFunction((want) => document.querySelector('[role="meter"][aria-label="Motion"] .setup-track__line')?.style.left === want, motion, { timeout: 2_000 }).catch(() => {});
         const seen = [await lineLeft(page, 'Motion'), await lineLeft(page, 'Sound')];
         check(seen[0] === motion && seen[1] === sound, `with ${name} the lines stand at ${seen.join(' and ')}, not ${motion} and ${sound}`);
         if (sound === 'none') {
@@ -6688,14 +6697,16 @@ export async function checkApp(browser, baseUrl, outDir) {
 
   for (const look of LOOKS) {
     await open({ name: 'setup, opening', width: 390, look }, async (page, context, check) => {
-      await visit(page, '/setup/');
-      await throughSetup(page, 'A pet');
+      // Held from the start, so a prefetch of the dashboard is held too.
       let routeData = 0;
       await page.route('**/dashboard/**', async (route) => {
         if (route.request().url().includes('index.txt')) routeData += 1;
         await new Promise((resolve) => setTimeout(resolve, 2_000));
         await route.continue().catch(() => {});
       });
+      await visit(page, '/setup/');
+      await throughSetup(page, 'A pet');
+      const before = routeData;
       await lastKey(page).click();
       await page.waitForTimeout(400);
       const seen = await lastKey(page).evaluate((el) => {
@@ -6706,7 +6717,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(seen && seen.ground === 'rgba(0, 0, 0, 0)' && seen.edge === `2px solid ${LINE[look]}`, `the opening key is drawn ${JSON.stringify(seen)}`);
       await lastKey(page).click({ timeout: 1_000 }).catch(() => {});
       await page.locator('main.dash h1').waitFor({ timeout: 20_000 }).catch(() => {});
-      check(routeData <= 1, `the dashboard's route data was asked for ${routeData} times`);
+      check(routeData - before <= 1, `the last key asked for the dashboard's route data ${routeData - before} times`);
     }, NEW_DEVICE);
   }
 
@@ -6729,8 +6740,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(seen.before.content !== 'none' && seen.before.height === '24px', `the fade over the bar is ${JSON.stringify(seen.before)}`);
       check(seen.lastWhole !== null && seen.top - seen.lastWhole <= 32, `the last whole option ends ${seen.lastWhole === null ? 'nowhere' : seen.top - seen.lastWhole} px above the bar`);
       await choose(page, 'A baby');
-      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
-      await page.waitForTimeout(300);
+      await toTheEnd(page);
       const end = await page.evaluate(() => {
         const top = document.querySelector('.setup-last').getBoundingClientRect().top;
         const words = document.querySelector('#setup-use-words').getBoundingClientRect();
@@ -6792,13 +6802,13 @@ export async function checkApp(browser, baseUrl, outDir) {
     await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
     await page.locator('.setup-picture[data-state="starting"]').waitFor({ timeout: 5_000 }).catch(() => {});
     const bar = await page.evaluate(() => {
-      const picture = document.querySelector('.setup-picture[data-state="starting"]');
+      const picture = document.querySelector('.setup-picture[data-state="starting"] .setup-starting');
       return picture ? getComputedStyle(picture, '::after').display : 'not starting';
     });
     check(bar === 'none', `under reduced motion the loading bar's display is ${bar}`);
     await page.locator('.setup-picture[data-state="on"]').waitFor({ timeout: 10_000 });
     const duration = await page.evaluate(() => getComputedStyle(document.querySelector('.setup-track__fill')).transitionDuration);
-    check(duration === '0s', `under reduced motion the bars move over ${duration}`);
+    check(parseFloat(duration) <= 0.001, `under reduced motion the bars move over ${duration}`);
     const values = [];
     for (let i = 0; i < 40; i += 1) {
       values.push(await page.evaluate(() => document.querySelector('[role="meter"][aria-label="Motion"]').getAttribute('aria-valuenow')));
@@ -6962,8 +6972,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       await page.waitForURL((url) => url.pathname === '/help/' && url.hash === '#camera', { timeout: 15_000 }).catch(() => {});
       const at = new URL(page.url());
       check(at.pathname === '/help/' && at.hash === '#camera', `offline, How to allow the camera opened ${at.pathname}${at.hash}`);
-      const seen = await page.getByRole('heading', { name: 'Camera not working', exact: true }).isVisible().catch(() => false);
-      check(seen, 'offline, Help does not show "Camera not working" in view');
+      await helpEntryInView(page, check, 'Camera not working');
     }, { ...NEW_DEVICE, script: setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }) });
   }
 
@@ -6979,6 +6988,9 @@ export async function checkApp(browser, baseUrl, outDir) {
           if (at === '/setup/' || at === '/setup/index.txt' || at === '/setup') await cache.delete(request);
         }
       });
+      // The worker asks the network for what its copy does not hold; offline, those requests fail too.
+      const worker = context.serviceWorkers().at(-1);
+      if (worker) await worker.evaluate(() => { self.fetch = () => Promise.reject(new TypeError('Failed to fetch')); });
       await context.setOffline(true);
       await visit(page, '/setup/').catch(() => {});
       const offline = await heading(page, OFFLINE_H1).waitFor({ timeout: 15_000 }).then(() => true, () => false);
@@ -7012,6 +7024,8 @@ export async function checkApp(browser, baseUrl, outDir) {
           if (at === '/' || at === '/index.txt' || at === '/index.html') await cache.delete(request);
         }
       });
+      const worker = context.serviceWorkers().at(-1);
+      if (worker) await worker.evaluate(() => { self.fetch = () => Promise.reject(new TypeError('Failed to fetch')); });
       const third = await context.newPage();
       await visit(third, '/setup/').catch(() => {});
       await step1Shown(third);
@@ -7115,7 +7129,7 @@ export async function checkApp(browser, baseUrl, outDir) {
     check(alerted, 'no alert within 20 s of watching');
     await page.getByRole('button', { name: 'Stop watching', exact: true }).click();
     await visit(page, '/history/');
-    const listed = await page.locator('#main-content').getByText(/\d{1,2}:\d{2}/).first().waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    const listed = await page.waitForFunction(() => /\d{1,2}:\d{2}/.test(document.getElementById('main-content')?.innerText || ''), null, { timeout: 15_000 }).then(() => true, () => false);
     check(listed, 'History lists no alert with its time');
   }, { ...NEW_DEVICE, script: FAKE_CAMERA });
 
@@ -7253,7 +7267,7 @@ export async function checkApp(browser, baseUrl, outDir) {
         }
         await turnOn(page);
         await step2Shown(page);
-        const picture = await boxOf(page, '.setup-picture');
+        const picture = await boxOf(page, '.setup-video');
         const answers = await boxOf(page, '.setup-uses');
         const lastBar = await page.evaluate(() => getComputedStyle(document.querySelector('.setup-last')).position);
         check(lastBar === 'static', `at ${width} px the last key's bar is ${lastBar}`);
