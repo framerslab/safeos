@@ -178,12 +178,15 @@ happened inside the camera's frame:
 | What happened | What the step says |
 |---------------|--------------------|
 | The camera is blocked for the site | The camera is blocked for safeos.sh in this browser. Allow it in the site’s settings, then press Try again. |
+| The browser refused the camera and its permission cannot be read (the permission query for the camera fails), with **How to allow the camera** | The camera did not open. Press Try again, then Allow when the browser asks. If it does not ask, the camera is blocked for safeos.sh: allow it in the site’s settings, then press Try again. |
 | The browser's question closed without an answer | The browser’s question closed without an answer. Press Try again to see it again. |
 | Another app or tab holds the camera | The camera did not start. Another app or tab may be using it. Close it, then press Try again. |
 | No camera on the device | No camera was found on this device. Connect one, then press Try again. |
 | The camera chosen on this device is not connected, with **Use the default camera** | The camera chosen on this device is not connected. Connect it, then press Try again. |
 | The browser has no camera request on the page | This browser cannot use a camera on this page. |
 | Anything else | The camera did not start. Check the device, then press Try again. |
+
+When the camera opens from **Turn on the camera**, **Try again** or **Use the default camera** in step 2's picture, that key leaves the page and focus moves to step 2's heading, so the next Tab reaches the first answer.
 
 On the watch, a selected camera that is unavailable and is connected again clears
 its failure once the browser lists it, and the frame offers **Start watching**.

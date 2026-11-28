@@ -469,8 +469,11 @@ names the block on its first step, the earlier six-step setup on its camera step
 after a request. For the pull request's own build the job **Walk setup** walks
 setup's two steps (`apps/guardian-ui/scripts/setup-checks.mjs` runs the setup
 walks of `apps/guardian-ui/scripts/app-checks.mjs`): each state of the camera
-(allowed, blocked before and after a press, the question closed, in use,
-missing, a saved camera gone, no camera request in the browser, stopped), each of
+(allowed, blocked before and after a press, the question closed, refused with
+its permission unread, in use, missing, a saved camera gone, no camera request in
+the browser, stopped), focus once the camera opens from a key in step 2's
+picture, one press of Back on step 1 after step 2's entry is reloaded or reached
+by the browser's back button, each of
 the five answers and its words, the last key to the dashboard, to each way's page
 and to Lost and Found for a lost pet, the dashboard's line and key after a lost
 pet with and without a saved pet, a run again, storage refused, offline, the
@@ -486,7 +489,7 @@ request's own build the script also walks the app's pages
 (`apps/guardian-ui/scripts/app-checks.mjs`): the header, the phone bar and the
 footer at every width from 320 px, each page with scripts off and with its
 script held, the dashboard in each state (before setup, the camera blocked or
-in use, notifications blocked or not asked, a second tab, alerts new, the
+in use, the camera blocked with A lost pet chosen and no pet saved, notifications blocked or not asked, a second tab, alerts new, the
 stores held, a private window) at every width with its first screen counted,
 sizes and contrast against the readable look's figures, the old addresses and
 the offline page, and Settings: the list of settings pages with each row's
