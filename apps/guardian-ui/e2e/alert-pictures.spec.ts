@@ -849,6 +849,12 @@ const keptCount = async (page: Page) => {
   return reading ? keptRows(reading).length : -1;
 };
 
+/** True when the two parts stand on one row: their boxes share some height. */
+const onOneRow = async (a: Locator, b: Locator) => {
+  const [first, second] = [(await a.boundingBox())!, (await b.boundingBox())!];
+  return first.y < second.y + second.height && second.y < first.y + first.height;
+};
+
 /** Opens the watch's settings group "Alert pictures" and answers it. */
 async function openWatchGroup(page: Page): Promise<Locator> {
   const settings = page.getByRole('button', { name: 'Show settings', exact: true });
@@ -1768,6 +1774,139 @@ test.describe('The group and the notice: order, sizes and faults', () => {
     expect(read.frames.slice(1), 'what the page changed after the text step returned').toEqual([]);
   });
 
+  // The measure of one row reads two boxes, and they are of one page only when nothing moves
+  // between the two reads. Here the page moves on every task: the row steps down by more than
+  // its own height each time, as a page does while the sizes above the row are changing.
+  test('the measure of one row holds while the page moves under it, 320 px', async ({ page, context }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await seedDevice(context, { settings: MOTION_ONLY });
+    await seedKept(page, 2);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    const found = await openWatchGroup(page);
+    const label = found.getByText('Keep alert pictures', { exact: true }).first();
+    expect(await onOneRow(label, keepSwitch(found)), 'at rest the switch stands beside its label').toBe(true);
+    await keepSwitch(found).evaluate((key) => {
+      const row = key.closest<HTMLElement>('.alert-pictures-row')!;
+      const channel = new MessageChannel();
+      let step = 0;
+      channel.port1.onmessage = () => {
+        if (row.dataset.moving === 'over') {
+          row.style.marginTop = '';
+          return;
+        }
+        step = (step + 1) % 2000;
+        row.style.marginTop = `${step * 400}px`;
+        channel.port2.postMessage(null);
+      };
+      row.dataset.moving = 'yes';
+      channel.port2.postMessage(null);
+    });
+    const reads: boolean[] = [];
+    for (let read = 0; read < 5; read++) reads.push(await onOneRow(label, keepSwitch(found)));
+    await keepSwitch(found).evaluate((key) => { key.closest<HTMLElement>('.alert-pictures-row')!.dataset.moving = 'over'; });
+    expect(reads, 'the switch stands beside its label in every read of the moving page').toEqual([true, true, true, true, true]);
+  });
+
+  // What the text step moves, from the moment the size changes: the switch's row frame by frame
+  // for three seconds, the transitions the change starts and the folds round the row.
+  for (const look of ['dark', 'light'] as const) {
+    test(`what the 200 per cent text step moves, frame by frame, 320 px, ${look}`, async ({ page, context }) => {
+      test.setTimeout(120_000);
+      await page.emulateMedia({ colorScheme: look });
+      await page.setViewportSize({ width: 320, height: 700 });
+      await seedDevice(context, { settings: MOTION_ONLY });
+      await canvasCamera(page, LEFT_THIRD);
+      await seedKept(page, 2);
+      await page.goto('/monitor/', { waitUntil: 'networkidle' });
+      await startKey(page).click();
+      await notice(page).getByRole('button', { name: 'Start watching', exact: true }).click();
+      await live(page).waitFor({ state: 'visible', timeout: 30_000 });
+      await page.reload({ waitUntil: 'networkidle' });
+      const found = await openWatchGroup(page);
+      const label = found.getByText('Keep alert pictures', { exact: true }).first();
+      // How long the measure's second read takes to land after its first.
+      const gaps: number[] = [];
+      for (let pair = 0; pair < 10; pair++) {
+        await label.boundingBox();
+        const between = performance.now();
+        await keepSwitch(found).boundingBox();
+        gaps.push(Math.round((performance.now() - between) * 10) / 10);
+      }
+      const read = await keepSwitch(found).evaluate(async (key) => {
+        const row = key.closest('.alert-pictures-row')!;
+        const words = row.querySelector('.alert-pictures-row__label')!;
+        const before = (part: Element) => !part.contains(row) && (part.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+        const running = () => document.getAnimations()
+          .filter((animation): animation is CSSTransition => animation instanceof CSSTransition && animation.playState !== 'finished' && animation.playState !== 'idle');
+        const reading = () => {
+          const [wordsBox, keyBox] = [words.getBoundingClientRect(), key.getBoundingClientRect()];
+          const now = running();
+          return {
+            label: Math.round(wordsBox.top),
+            labelHeight: Math.round(wordsBox.height),
+            key: Math.round(keyBox.top),
+            keyHeight: Math.round(keyBox.height),
+            scroll: Math.round(scrollY),
+            page: document.documentElement.scrollHeight,
+            running: now.length,
+            runningAbove: now.filter((transition) => {
+              const target = (transition.effect as KeyframeEffect | null)?.target;
+              return target ? before(target) : false;
+            }).length,
+          };
+        };
+        const folds = () => Array.from(document.querySelectorAll<HTMLElement>('[id$="-content"]')).map((fold) => ({
+          id: fold.id,
+          max: fold.style.maxHeight,
+          shown: fold.clientHeight,
+          content: fold.scrollHeight,
+          place: fold.contains(row) ? 'holds the row' : before(fold) ? 'above the row' : 'below the row',
+        }));
+        const start = { ...reading(), folds: folds() };
+        const style = document.createElement('style');
+        style.textContent = 'html { font-size: 200% !important; }';
+        document.head.appendChild(style);
+        const began = performance.now();
+        const frames = [{ ms: 0, ...reading() }];
+        // The transitions the change started, by the part they run on.
+        const started: Record<string, { parts: number; properties: string[]; ms: number }> = {};
+        const seen = new Map<Element, string>();
+        for (const transition of running()) {
+          const effect = transition.effect as KeyframeEffect | null;
+          const target = effect?.target;
+          if (!target) continue;
+          const name = `${before(target) ? 'above' : target.contains(row) ? 'round' : 'below'} ${target.tagName.toLowerCase()}.${String(target.getAttribute('class') ?? '').slice(0, 60)}`;
+          started[name] ??= { parts: 0, properties: [], ms: Number(effect!.getTiming().duration) };
+          if (seen.get(target) !== name) {
+            seen.set(target, name);
+            started[name].parts += 1;
+          }
+          if (!started[name].properties.includes(transition.transitionProperty)) started[name].properties.push(transition.transitionProperty);
+        }
+        while (performance.now() - began < 3000) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+          const now = { ms: Math.round(performance.now() - began), ...reading() };
+          const last = frames[frames.length - 1];
+          if (now.label !== last.label || now.key !== last.key || now.labelHeight !== last.labelHeight || now.scroll !== last.scroll
+            || now.page !== last.page || now.running !== last.running || now.runningAbove !== last.runningAbove) frames.push(now);
+        }
+        return { start, started, frames, end: { ...reading(), folds: folds() } };
+      });
+      // The pairs of frames the two-read measure calls two rows, and the shortest time between such a pair.
+      let apart = 0;
+      let soonest = Infinity;
+      for (let first = 0; first < read.frames.length; first++) {
+        for (let second = first + 1; second < read.frames.length; second++) {
+          const [a, b] = [read.frames[first], read.frames[second]];
+          if (a.label < b.key + b.keyHeight && b.key < a.label + a.labelHeight) continue;
+          apart += 1;
+          soonest = Math.min(soonest, b.ms - a.ms);
+        }
+      }
+      console.log(`TEXT-STEP ${look} ${JSON.stringify({ gaps, apart, soonest: apart ? soonest : null, ...read })}`);
+    });
+  }
+
   for (const look of ['dark', 'light'] as const) {
     test.describe(`in the ${look} look`, () => {
       test.use({ colorScheme: look });
@@ -1782,10 +1921,6 @@ test.describe('The group and the notice: order, sizes and faults', () => {
         await startKey(page).click();
         const dialog = notice(page);
         await expect(dialog).toBeVisible();
-        const sameRow = async (a: Locator, b: Locator) => {
-          const [first, second] = [(await a.boundingBox())!, (await b.boundingBox())!];
-          return first.y < second.y + second.height && second.y < first.y + first.height;
-        };
         // Nothing reaches past the root's edges and no line is cut. Keys in a row that scrolls
         // inside itself are reached by scrolling the row, and a select shows its chosen words.
         const fits = async (root: Locator) => root.evaluate((el) => {
@@ -1802,7 +1937,7 @@ test.describe('The group and the notice: order, sizes and faults', () => {
         const start = dialog.getByRole('button', { name: 'Start watching', exact: true });
         for (const text of [100, 200]) {
           if (text === 200) await doubleText(page);
-          expect(await sameRow(goBack, start), `the notice's two keys keep one row at ${text} per cent`).toBe(true);
+          expect(await onOneRow(goBack, start), `the notice's two keys keep one row at ${text} per cent`).toBe(true);
           // Where the keys do not fit, the row scrolls inside itself between its two arrow keys.
           const keys = dialog.locator('.alert-pictures-keys');
           if (await keys.locator('.alert-pictures-keys__row').evaluate((row) => row.scrollWidth > row.clientWidth + 1)) {
@@ -1832,7 +1967,7 @@ test.describe('The group and the notice: order, sizes and faults', () => {
         const found = await openWatchGroup(page);
         for (const text of [100, 200]) {
           if (text === 200) await doubleText(page);
-          expect(await sameRow(found.getByText('Keep alert pictures', { exact: true }).first(), keepSwitch(found)), `the switch's row keeps one row at ${text} per cent`).toBe(true);
+          expect(await onOneRow(found.getByText('Keep alert pictures', { exact: true }).first(), keepSwitch(found)), `the switch's row keeps one row at ${text} per cent`).toBe(true);
           expect(await fits(found), `nothing in the group is cut at ${text} per cent`).toEqual([]);
         }
         for (const control of [keepSwitch(found), afterSelect(found), deleteAll(found)]) {
@@ -2431,11 +2566,6 @@ async function openSaved(page: Page): Promise<{ card: Locator; dialog: Locator; 
   await expect(dialog).toBeVisible();
   return { card, dialog, time };
 }
-
-const onOneRow = async (a: Locator, b: Locator) => {
-  const [first, second] = [(await a.boundingBox())!, (await b.boundingBox())!];
-  return first.y < second.y + second.height && second.y < first.y + first.height;
-};
 
 /** The words under `root` that reach past its edges or are cut. */
 const cutWords = (root: Locator) => root.evaluate((el) => {
