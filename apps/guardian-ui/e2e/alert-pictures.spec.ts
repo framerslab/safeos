@@ -3785,7 +3785,7 @@ describeInBothLooks('The privacy page and the notices, 1280 px', () => {
     await page.goto('/privacy/', { waitUntil: 'networkidle' });
     const words = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
     for (const sentence of [
-      'saved frames, alert pictures and reference photos in its IndexedDB',
+      'alerts, alert pictures and Lost & Found’s sightings in its IndexedDB; People’s saved frames and your pets’ photos in both.',
       'Alert pictures are not sent to that server.',
       'For each Motion and Picture change alert on the monitor page, SafeOS keeps the camera\'s picture of the moment and, where it can mark what changed, a box round it and a close-up of that box.',
       'A box over more than half of the picture has no close-up, and a Picture change over more than half of the picture has no box.',
@@ -3800,7 +3800,7 @@ describeInBothLooks('The privacy page and the notices, 1280 px', () => {
       'Clear all data on this device, on Settings, Data on this device, also removes recorded sounds, alert pictures and the offline cache.',
       'clears the alerts and their pictures, frames, recordings and personal settings saved in this browser',
       'If you turn on Show the picture in alert notifications, the picture shows in the notification, and on some phones on the lock screen, to anyone who can see this device.',
-      'Last updated: November 24, 2026',
+      'Last updated: November 26, 2026',
     ]) {
       expect(words, `the privacy page says: ${sentence}`).toContain(sentence);
     }
@@ -3830,6 +3830,42 @@ describeInBothLooks('The privacy page and the notices, 1280 px', () => {
       const link = page.getByRole('link', { name: 'Third-party notices', exact: true });
       await expect(link, `${address} links the notices`).toBeVisible();
       expect(await link.getAttribute('href')).toMatch(/\/third-party-notices\.txt$/);
+    }
+  });
+});
+
+describeInBothLooks('What leaves this device on a phone, 390 px', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('each connection reads whole in the window, with no sideways scroll, and each part says what it is', async ({ page }) => {
+    await page.goto('/privacy/', { waitUntil: 'networkidle' });
+    const table = page.getByRole('table', { name: 'What leaves this device' });
+    await table.scrollIntoViewIfNeeded();
+
+    const region = page.getByRole('region', { name: 'What leaves this device' });
+    const sideways = await region.evaluate((element) => element.scrollWidth - element.clientWidth);
+    expect(sideways, 'pixels the table scrolls sideways').toBeLessThanOrEqual(0);
+
+    // Every name and every cell lies inside the 390 px window.
+    const outside = await table.locator('tbody th, tbody td').evaluateAll((cells) =>
+      cells
+        .map((cell) => ({ words: (cell.textContent ?? '').trim().slice(0, 40), box: cell.getBoundingClientRect() }))
+        .filter(({ box }) => box.left < 0 || box.right > window.innerWidth)
+        .map(({ words, box }) => `${words} (${Math.round(box.left)} to ${Math.round(box.right)} px)`)
+    );
+    expect(outside, 'cells outside the window').toEqual([]);
+
+    // The table keeps its header, rows and cells for a screen reader.
+    await expect(table.getByRole('columnheader')).toHaveCount(4);
+    await expect(table.getByRole('rowheader')).toHaveCount(4);
+    await expect(table.getByRole('cell')).toHaveCount(12);
+
+    // With the header row out of sight, each part of a connection says what it is.
+    for (const row of await table.locator('tbody tr').all()) {
+      const words = (await row.innerText()).replace(/\s+/g, ' ');
+      for (const label of ['When', 'Who sees what', 'How to stop it']) {
+        expect(words, `a connection names its part ${label}`).toContain(label);
+      }
     }
   });
 });

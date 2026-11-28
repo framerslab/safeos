@@ -54,8 +54,8 @@ export default function OllamaHelpPage() {
             </a>
             . You provide the hardware. With no cloud AI key on the server, frames stay on your LAN.
             If you set <code>OPENROUTER_API_KEY</code>, <code>OPENAI_API_KEY</code> or{' '}
-            <code>ANTHROPIC_API_KEY</code>, the server sends a frame to that provider when Ollama is
-            down or its analysis fails.
+            <code>ANTHROPIC_API_KEY</code>, then when Ollama is down or its analysis fails, the server
+            sends the frame to the first of these it has a key for and, if that one fails, to the next.
           </p>
         </header>
 
@@ -87,29 +87,20 @@ ollama serve              # starts on http://localhost:11434`}
               <thead>
                 <tr className="border-b border-slate-700">
                   <th className="text-left py-2 px-2 text-slate-400 font-medium">Model</th>
-                  <th className="text-left py-2 px-2 text-slate-400 font-medium">Size</th>
-                  <th className="text-left py-2 px-2 text-slate-400 font-medium">Latency</th>
-                  <th className="text-left py-2 px-2 text-slate-400 font-medium">Best for</th>
+                  <th className="text-left py-2 px-2 text-slate-400 font-medium">Download</th>
+                  <th className="text-left py-2 px-2 text-slate-400 font-medium">What the server asks it</th>
                 </tr>
               </thead>
               <tbody className="text-slate-300">
                 <tr className="border-b border-slate-800">
                   <td className="py-2 px-2 font-mono">moondream</td>
-                  <td className="py-2 px-2">~1.7 GB</td>
-                  <td className="py-2 px-2">~500 ms</td>
-                  <td className="py-2 px-2">Fast triage</td>
-                </tr>
-                <tr className="border-b border-slate-800">
-                  <td className="py-2 px-2 font-mono">llava:7b</td>
-                  <td className="py-2 px-2">~4 GB</td>
-                  <td className="py-2 px-2">2–5 s</td>
-                  <td className="py-2 px-2">Detailed analysis</td>
+                  <td className="py-2 px-2">1.7 GB</td>
+                  <td className="py-2 px-2">A first look at each frame</td>
                 </tr>
                 <tr>
-                  <td className="py-2 px-2 font-mono">llama3.2-vision:11b</td>
-                  <td className="py-2 px-2">~7 GB</td>
-                  <td className="py-2 px-2">5–10 s</td>
-                  <td className="py-2 px-2">Complex reasoning</td>
+                  <td className="py-2 px-2 font-mono">llava:7b</td>
+                  <td className="py-2 px-2">4.7 GB</td>
+                  <td className="py-2 px-2">A closer look when the first one finds a concern</td>
                 </tr>
               </tbody>
             </table>

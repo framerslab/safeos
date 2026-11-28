@@ -4,6 +4,8 @@
  * One row on every app page: the mark and the wordmark as a link to the
  * dashboard, then a navigation named "App" with the four destinations
  * (Dashboard, History, Settings and Help), then GitHub and the look switch.
+ * GitHub opens in a new tab, so a watch running on Monitor, People or
+ * Wildlife goes on, and the link's name says so.
  * On a phone the header holds the plain brand and GitHub, and the bar at the
  * foot of the screen is the navigation named "App". When the row runs short
  * (a narrow window or larger text) it folds: the wordmark leaves first, then
@@ -203,7 +205,7 @@ export function AppHeader({ newAlerts = 0 }: { newAlerts?: number }) {
           <div className="app-header__links">{DESTINATIONS.map((d) => link(d, 'app-header__link'))}</div>
         </nav>
         <div className="app-header__actions">
-          <GitHubIconLink className="app-header__github" />
+          <GitHubIconLink className="app-header__github" newTab />
           {fold >= 2 && (
             <button
               ref={moreRef}

@@ -22,14 +22,14 @@ it('states who sees saved alerts, the limits, what a clear and a sign-out reach 
   expect(screen.getByText(/One case differs: a session that ran out on this device just as the notice came is kept, and alerts from a configured server pause in that tab until it is reloaded\./)).toBeTruthy();
   expect(screen.getByText(/Everything already saved comes back as it was after you reload\. If an update of your saved history cannot finish, the page says so; nothing is deleted, and a reload tries again\./)).toBeTruthy();
   expect(container.textContent).not.toContain('Clear All Local Data');
-  expect(screen.getByText(/November 24, 2026/)).toBeTruthy();
+  expect(screen.getByText(/November 26, 2026/)).toBeTruthy();
 });
 
 it('says what an alert keeps, where, for how long and how to delete it', () => {
   const { container } = render(<PrivacyPage />);
   const page = (container.textContent ?? '').replace(/\s+/g, ' ');
   for (const sentence of [
-    'Your settings are stored in your browser\'s localStorage, and saved frames, alert pictures and reference photos in its IndexedDB.',
+    'On this device, SafeOS keeps what it saves in this browser’s own storage: your settings, and Wildlife’s sightings with their pictures, in its localStorage; alerts, alert pictures and Lost & Found’s sightings in its IndexedDB; People’s saved frames and your pets’ photos in both.',
     'Alert pictures are not sent to that server.',
     'Alert pictures: For each Motion and Picture change alert on the monitor page, SafeOS keeps the camera\'s picture of the moment and, where it can mark what changed, a box round it and a close-up of that box.',
     'A box over more than half of the picture has no close-up, and a Picture change over more than half of the picture has no box.',

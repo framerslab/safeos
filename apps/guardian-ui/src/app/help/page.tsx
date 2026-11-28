@@ -122,7 +122,7 @@ const faqs: FAQItem[] = [
   {
     category: 'privacy',
     question: 'Do you store my data on servers?',
-    answer: 'No. safeos.sh runs no server of ours. Settings stay in your browser\'s localStorage, and saved frames and alerts in IndexedDB. If you run the optional SafeOS server yourself, it stores what it receives on that server.',
+    answer: 'No. safeos.sh runs no server of ours. Settings, alerts and saved frames are kept in this browser\'s own storage. If you run the optional SafeOS server yourself, it stores what it receives on that server.',
   },
   {
     category: 'privacy',

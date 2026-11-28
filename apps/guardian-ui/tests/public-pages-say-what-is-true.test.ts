@@ -11,7 +11,9 @@
  * header's and phone bar's), the root layout's
  * metadata, the helper that owns every page's title and cards, the sitemap,
  * the web app manifest, the social card, the README's diagram, the README's
- * product sections and the changelog's Unreleased section. Code comments are
+ * product sections (its models, notification channels and privacy among
+ * them), the security policy every page's footer links, the quick start
+ * guide in docs/, and the changelog's Unreleased section. Code comments are
  * left out: the check is on what a visitor reads. It fails on any phrase from
  * two lists:
  *
@@ -35,9 +37,11 @@
  * device sentence (the home page is read with the components it renders),
  * that each file describing the motion gate names the five-second check
  * during a Security alert, that the README names the cloud models the server
- * selects, that every public page has its own title, description, canonical
- * address and social card, and that every internal link and every link into
- * the repository on GitHub has a destination.
+ * selects and claims no sound detection in its folder map for an analyser the
+ * server never calls, that every public page has its own title, description, canonical
+ * address and social card, that every internal link and every link into
+ * the repository on GitHub has a destination, and that the blog's links to
+ * lines of code are pinned to a commit and open the lines their words name.
  *
  * Two sentences are allowed to name breathing and SIDS: the statement that
  * SafeOS is not a medical device, and the newer wording setup shows while A
@@ -116,6 +120,7 @@ const PUBLIC_FILES = [
   component('SubjectPreview.tsx'), // Lost & Found
   component('MatchGallery.tsx'), // Lost & Found matches
   component('CameraPicker.tsx'), // Motion and sound
+  component('DeviceConnections.tsx'), // Privacy
   component('Logo.tsx'), // header, not-found
   component('StatusBanner.tsx'), // root layout: every page
   component('KeyboardShortcutsModal.tsx'), // root layout: every page
@@ -128,6 +133,12 @@ const PUBLIC_FILES = [
 
 const README = path.join(REPO_ROOT, 'README.md');
 const CHANGELOG = path.join(REPO_ROOT, 'CHANGELOG.md');
+// The security policy: every page's footer links it.
+const SECURITY = path.join(REPO_ROOT, 'SECURITY.md');
+// The quick start guide, with its tips for each use and its privacy lines.
+const QUICKSTART = path.join(REPO_ROOT, 'docs', 'QUICKSTART.md');
+// The README's sections read with the pages: all of them before "Running from source".
+const README_SECTIONS_READ = ['## How the deep learning runs in your browser', '## Models', '## Notification channels', '## Privacy guarantees'];
 
 // Every file of the components built in the readable look is read, so one
 // added there is read too.
@@ -243,7 +254,11 @@ const UNBACKED_CLAIMS: Phrase[] = [
   },
   {
     pattern: /nothing leaves|processing happens either in your browser/i,
-    why: 'a server with a cloud key sends frames to that provider when Ollama is down or fails (analysis-queue.ts)',
+    why: 'a server with cloud keys sends frames to those providers when Ollama is down or fails (analysis-queue.ts)',
+  },
+  {
+    pattern: /sends? a frame to that provider/i,
+    why: 'cloud-fallback.ts tries OpenRouter, then OpenAI, then Anthropic, so with more than one key a frame one of them fails on goes to the next',
   },
   {
     pattern: /kept in memory and clear on reload/i,
@@ -273,7 +288,7 @@ const UNBACKED_CLAIMS: Phrase[] = [
   { pattern: /night vision/i, why: 'nothing implements night vision' },
   { pattern: /unusual (activity|stillness)/i, why: 'nothing detects unusual activity' },
   { pattern: /\bbark(s|ing)?\b|\bmeow/i, why: 'the sound alert is a loudness threshold; it recognises no animal sound' },
-  { pattern: /cry (recognition|detection)|distress detection|distinguish between normal sleep sounds/i, why: 'a crying pattern only shows in the overlay; the alert is a loudness threshold' },
+  { pattern: /cry (recognition|detection)|distress (detection|calls?)|distinguish between normal sleep sounds/i, why: 'a crying pattern only shows in the overlay; the alert is a loudness threshold' },
   { pattern: /escape attempt|\bescaping\b|\bescaped\b|escape artist/i, why: 'nothing detects an escape; the monitor compares frames' },
   { pattern: /theft prevention|intruder detection/i, why: 'Security counts people in view; it prevents nothing' },
   {
@@ -306,6 +321,67 @@ const UNBACKED_CLAIMS: Phrase[] = [
   { pattern: /coming soon/i, why: 'an empty block for an unbuilt video' },
   // Privacy: GitHub Pages logs each visitor's IP address
   { pattern: /nothing about you is collected|We collect nothing/i, why: 'the host logs each visitor\'s IP address' },
+  // Storage: Wildlife keeps its sightings with their pictures in localStorage
+  // (stores/animal-alert-store.ts); People's frames (stores/security-store.ts and
+  // client-db.ts) and the pets (stores/lost-found-store.ts and client-db.ts) are
+  // in both localStorage and IndexedDB.
+  {
+    pattern: /saved frames[^.]{0,100}\b(in|to) (its |(your|the) browser(\\?'|&apos;|’)s )?\[?IndexedDB/i,
+    why: 'Wildlife keeps its sightings and their pictures in localStorage; People\'s frames and the pets are in localStorage and IndexedDB',
+  },
+  // The security policy: src/api/server.ts, src/auth/email-auth.ts,
+  // src/api/routes/auth.ts and src/components/BackendSettings.tsx
+  {
+    pattern: /All AI processing runs in (your|the) browser/i,
+    why: 'a server the person runs analyses frames with Ollama, or a cloud provider when Ollama is down or fails (analysis-queue.ts)',
+  },
+  {
+    pattern: /No data leaves your device|Camera feeds are never transmitted/i,
+    why: 'the model download reaches Google, the host logs addresses, a spoken alert may use an online voice and the monitor sends frames to a server the person connects',
+  },
+  { pattern: /\bJWT\b/, why: 'a server session token is 32 random bytes or a random UUID (email-auth.ts generateToken, routes/auth.ts)' },
+  {
+    pattern: /CORS configured for specific origins/i,
+    why: 'name the setting: the server answers the origins in SAFEOS_ALLOWED_ORIGINS, or with none set safeos.sh, the app shells and localhost (server.ts)',
+  },
+  {
+    pattern: /(backend|server) connections require HTTPS|cloud sync uses HTTPS/i,
+    why: 'the app saves any server address it is given; nothing in it requires https (BackendSettings.tsx)',
+  },
+  { pattern: /within 48 hours/i, why: 'no answer time is promised' },
+  { pattern: /permission each session/i, why: 'a browser may keep a camera permission between visits' },
+  { pattern: /\d+\s?MB IndexedDB/i, why: 'the browser sets how much a site may store; SafeOS sets no figure' },
+  { pattern: /Export IndexedDB data/i, why: 'Data on this device exports the settings alone' },
+  // The README: public/sw.js, src/lib/ollama/client.ts, the web app's notifications
+  { pattern: /activates after tabs[^.]{0,40}close/i, why: 'the service worker skips waiting once the new build is stored whole (public/sw.js)' },
+  { pattern: /Every model runs client-side/i, why: 'the optional server runs Ollama and cloud models' },
+  { pattern: /~\s?500\s?ms|\b2\s?(–|-|&ndash;)\s?5\s?s\b|\b5\s?(–|-|&ndash;)\s?10\s?s\b/, why: 'no run measured the server models\' latency' },
+  { pattern: /llama3\.2-vision/i, why: 'the server pulls and uses moondream and llava:7b alone (ollama/client.ts)' },
+  { pattern: /~\s?4\s?GB\b/, why: 'llava:7b is a 4.7 GB download (https://ollama.com/library/llava)' },
+  { pattern: /push works straight from/i, why: 'the web app makes no push subscription; its notifications come from the open page' },
+  // Lost and Found: nothing measures a fingerprint's size
+  { pattern: /(under|<)\s?1\s?KB/i, why: 'nothing measures the size of a fingerprint' },
+  // Detection: lib/detection-model.ts asks for WebGL; TensorFlow.js runs on the processor without it
+  {
+    pattern: /graphics chip(?![^.]{0,100}processor)/i,
+    why: 'without hardware WebGL, TensorFlow.js runs the model on the processor, slower (detection-model.ts setBackend)',
+  },
+  {
+    pattern: /(?<!(up to|at most) )twice a second/i,
+    why: 'Lost and Found checks every 500 ms only while the device keeps up (monitor/page.tsx setInterval)',
+  },
+  { pattern: /low-power state/i, why: 'nothing reads or sets the graphics chip\'s power state' },
+  // Spoken alerts: People, Wildlife and Lost & Found speak with a voice on this device, and
+  // with an online voice once the person chooses one under Spoken alert voice
+  // (tts-alerts.ts findSpokenAlertVoice); that voice's maker receives the words.
+  {
+    pattern: /No cloud uploads|nothing (is )?uploaded in PWA-only/i,
+    why: 'a spoken alert in an online voice the person chose sends its words to the browser\'s maker (tts-alerts.ts)',
+  },
+  {
+    pattern: /(speak (their|its) alerts?|a spoken alert) through one of the browser(&apos;|'|’)s voices|can go through one of the browser(&apos;|'|’)s online voices|some voices are an online service/i,
+    why: 'spoken alerts use a voice on this device, and an online voice only once the person chooses one (tts-alerts.ts findSpokenAlertVoice)',
+  },
   { pattern: /\bsix steps\b|Accept the Disclaimer|Choose Your Profile|Grant Permissions|Device Access/i, why: 'setup has two steps: it turns on the camera, then asks what the device is watching' },
   {
     pattern: /Press Open dashboard, then Start watching/i,
@@ -391,7 +467,7 @@ function collapse(source: string): { text: string; lineOf: number[] } {
 
 const rel = (file: string) => path.relative(REPO_ROOT, file);
 
-function findPhrases(phrases: Phrase[], files: string[] = [...SCANNED, README, CHANGELOG]): Hit[] {
+function findPhrases(phrases: Phrase[], files: string[] = [...SCANNED, README, CHANGELOG, SECURITY, QUICKSTART]): Hit[] {
   const hits: Hit[] = [];
   for (const file of files) {
     const { text, lineOf } = collapse(readable(file));
@@ -541,8 +617,11 @@ function metadataProblems(): string[] {
 
 describe('the public pages say what the software does', () => {
   it('reads every file it names', () => {
-    const missing = [...PUBLIC_FILES, ...CLIP_FILES, README, CHANGELOG].filter((f) => !fs.existsSync(f)).map(rel);
+    const missing = [...PUBLIC_FILES, ...CLIP_FILES, README, CHANGELOG, SECURITY, QUICKSTART].filter((f) => !fs.existsSync(f)).map(rel);
     expect(missing).toEqual([]);
+    // The README's models, notification channels and privacy are among its sections read.
+    const readme = readable(README);
+    expect(README_SECTIONS_READ.filter((heading) => !readme.includes(`\n${heading}\n`))).toEqual([]);
     expect(SCANNED.length).toBeGreaterThan(PUBLIC_FILES.length);
     // The home page's, the visitor shell's, the app frame's, Settings' own
     // rows' and the dashboard's files are among them.
@@ -623,8 +702,43 @@ describe('the public pages say what the software does', () => {
     expect(models.filter((m) => !readme.includes(m))).toEqual([]);
   });
 
+  it('the README folder map claims no sound detection for an analyser the server never calls', () => {
+    const readFolder = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) return readFolder(full);
+        return entry.name.endsWith('.ts') ? [full] : [];
+      });
+    const audio = path.join(REPO_ROOT, 'src', 'lib', 'audio');
+    const callers = readFolder(path.join(REPO_ROOT, 'src'))
+      .filter((file) => !file.startsWith(audio + path.sep))
+      .filter((file) => /from '[^']*\/audio\//.test(fs.readFileSync(file, 'utf8')))
+      .map(rel);
+    const line = fs.readFileSync(README, 'utf8').split('\n').find((l) => /── audio\/\s+#/.test(l)) ?? '';
+    const said = line.slice(line.indexOf('#') + 1).trim();
+    if (callers.length === 0) {
+      expect([said, /detect|recogni|identif|classif/i.test(said)]).toEqual([said, false]);
+      expect(said).toMatch(/nothing in the server calls it/);
+    }
+  });
+
   it('every internal link and every link into the repository has a destination', () => {
     expect(linkProblems()).toEqual([]);
+  });
+
+  it('the blog\'s links to lines of code are pinned to a commit, so the lines stay the ones it quotes', () => {
+    const blog = stripComments('page.tsx', fs.readFileSync(app('src', 'app', 'blog', '[slug]', 'page.tsx'), 'utf8'));
+    const toLines = Array.from(blog.matchAll(/href="(https:\/\/github\.com\/framerslab\/safeos\/blob\/[^"]*(CameraFeed\.tsx|monitor\/page\.tsx|person-detection\.ts)[^"]*)"/g))
+      .map((m) => m[1]);
+    expect(toLines.length).toBeGreaterThanOrEqual(3);
+    expect(toLines.filter((link) => !/\/blob\/[0-9a-f]{40}\/[^#]+#L\d+-L\d+$/.test(link))).toEqual([]);
+    // The lines a link opens are the lines its words name, and the reverse.
+    const linked = new Set(toLines.map((link) => link.replace(/^.*#L(\d+)-L(\d+)$/, '$1-$2')));
+    const named = new Set(Array.from(blog.matchAll(/(?:at lines|around lines|\/\/ lines) (\d+)(?:&ndash;|-)(\d+)/g))
+      .map((m) => `${m[1]}-${m[2]}`));
+    expect(named.size).toBeGreaterThanOrEqual(3);
+    expect(Array.from(named).filter((range) => !linked.has(range))).toEqual([]);
+    expect(Array.from(linked).filter((range) => !named.has(range))).toEqual([]);
   });
 
   it('every public page has its own title, description, canonical address and social card', () => {

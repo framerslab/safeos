@@ -45,9 +45,16 @@ it('is a banner whose row holds the mark as a link to the dashboard and a naviga
   ]);
   const github = page.querySelector('.app-header__github');
   expect(github?.getAttribute('href')).toBe('https://github.com/framerslab/safeos');
-  expect(github?.getAttribute('aria-label')).toMatch(/^SafeOS on GitHub(?:, [\d,]+ stars?)?$/);
   expect(github?.querySelector('svg')?.getAttribute('aria-hidden')).toBe('true');
   expect(page.querySelectorAll('.app-header__bar button')).toHaveLength(0);
+});
+
+it('opens GitHub in a new tab, so a watch running on the page goes on, and its name says so', () => {
+  for (const pathname of ['/monitor/', '/security/', '/wildlife/', '/dashboard/']) {
+    const github = header(pathname).querySelector('.app-header__github');
+    expect([pathname, github?.getAttribute('target'), github?.getAttribute('rel')]).toEqual([pathname, '_blank', 'noopener noreferrer']);
+    expect(github?.getAttribute('aria-label')).toMatch(/^SafeOS on GitHub(?:, [\d,]+ stars?)? \(opens in a new tab\)$/);
+  }
 });
 
 it('shows the brand plain for a phone, with its name as text', () => {
