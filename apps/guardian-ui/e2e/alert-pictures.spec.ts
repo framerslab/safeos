@@ -1713,6 +1713,61 @@ test.describe('The group and the notice: order, sizes and faults', () => {
     });
   });
 
+  // The walks below double the text and then read one box after another, each in its own call.
+  // Those boxes are of one page only when the page has stopped changing by the time the text
+  // step returns. This reads the switch's row frame by frame from that moment.
+  test('the 200 per cent text step returns with the page at rest, 320 px', async ({ page, context }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await seedDevice(context, { settings: MOTION_ONLY });
+    await seedKept(page, 2);
+    await page.goto('/monitor/', { waitUntil: 'networkidle' });
+    const found = await openWatchGroup(page);
+    await doubleText(page);
+    const read = await keepSwitch(found).evaluate(async (key) => {
+      const label = key.closest('.alert-pictures-row')!.querySelector('.alert-pictures-row__label')!;
+      const fold = key.closest('[id$="-content"]') as HTMLElement;
+      const running = () => document.getAnimations()
+        .filter((animation): animation is CSSTransition => animation instanceof CSSTransition && animation.playState === 'running');
+      const reading = () => {
+        const counts: Record<string, number> = {};
+        for (const { transitionProperty } of running()) counts[transitionProperty] = (counts[transitionProperty] ?? 0) + 1;
+        const [labelBox, keyBox] = [label.getBoundingClientRect(), key.getBoundingClientRect()];
+        return {
+          labelTop: Math.round(labelBox.top),
+          switchTop: Math.round(keyBox.top),
+          rowHeight: Math.round(Math.max(labelBox.height, keyBox.height)),
+          scrollY: Math.round(scrollY),
+          pageHeight: document.documentElement.scrollHeight,
+          labelSize: getComputedStyle(label).fontSize,
+          transitions: Object.entries(counts).map(([property, count]) => `${property} x${count}`).sort().join(', '),
+        };
+      };
+      const began = performance.now();
+      const first = reading();
+      const frames = [{ ms: 0, ...first }];
+      let last = JSON.stringify(first);
+      // Every frame that differs from the one before it, until twelve frames in a row are the same.
+      for (let same = 0; same < 12 && frames.length < 240;) {
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        const now = reading();
+        if (JSON.stringify(now) === last) same += 1;
+        else {
+          same = 0;
+          last = JSON.stringify(now);
+          frames.push({ ms: Math.round(performance.now() - began), ...now });
+        }
+      }
+      return {
+        frames,
+        // The fold round the group: the height it allows, and the height its content takes.
+        fold: { maxHeight: fold.style.maxHeight, shown: fold.clientHeight, content: fold.scrollHeight },
+      };
+    });
+    await test.info().attach('text-step-frames.json', { body: JSON.stringify(read, null, 2), contentType: 'application/json' });
+    expect.soft(read.frames[0].transitions, 'transitions still running when the text step returned').toBe('');
+    expect(read.frames.slice(1), 'what the page changed after the text step returned').toEqual([]);
+  });
+
   for (const look of ['dark', 'light'] as const) {
     test.describe(`in the ${look} look`, () => {
       test.use({ colorScheme: look });
