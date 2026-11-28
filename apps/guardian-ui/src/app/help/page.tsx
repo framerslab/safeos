@@ -253,7 +253,7 @@ export default function HelpPage() {
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
                   <h2 className="text-2xl font-bold text-white mb-4">Getting Started with SafeOS</h2>
                   <p className="text-slate-300 mb-6">
-                    Welcome to SafeOS Guardian! <Link href="/setup/" className="text-emerald-400 hover:underline">Setup</Link> takes you through the first two steps, then the dashboard starts the watch.
+                    Welcome to SafeOS Guardian! <Link href="/setup/" className="text-emerald-400 hover:underline">Setup</Link> takes you through the first two steps, then its last key opens the page where the watch starts.
                   </p>
 
                   <div className="space-y-6">
