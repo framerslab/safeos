@@ -387,6 +387,10 @@ const UNBACKED_CLAIMS: Phrase[] = [
     pattern: /Press Open dashboard, then Start watching/i,
     why: "setup's last key also reads Open Motion and sound, Open Lost and Found, Open People or Open Wildlife (LastKey.tsx), and Lost and Found starts with Start Monitoring",
   },
+  {
+    pattern: /then the dashboard starts the watch/i,
+    why: "setup's last key opens the dashboard or the page of another way (LastKey.tsx), and the watch starts on the page it opens",
+  },
 ];
 
 // Lost and Found's screens: setup, the pet's cards, the gallery, the
