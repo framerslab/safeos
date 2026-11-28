@@ -186,7 +186,7 @@ happened inside the camera's frame:
 | The browser has no camera request on the page | This browser cannot use a camera on this page. |
 | Anything else | The camera did not start. Check the device, then press Try again. |
 
-When the camera opens from **Turn on the camera**, **Try again** or **Use the default camera** in step 2's picture, that key leaves the page and focus moves to step 2's heading, so the next Tab reaches the first answer.
+When the camera opens from **Turn on the camera**, **Try again** or **Use the default camera** in step 2's picture, that key leaves the page and focus moves to step 2's heading, so the next Tab reaches the first answer. Focus moved off the key while the browser asked, by a click on the page's words, stays off it: the heading takes no focus and the page keeps its place.
 
 On the watch, a selected camera that is unavailable and is connected again clears
 its failure once the browser lists it, and the frame offers **Start watching**.

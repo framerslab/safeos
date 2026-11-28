@@ -472,7 +472,8 @@ walks of `apps/guardian-ui/scripts/app-checks.mjs`): each state of the camera
 (allowed, blocked before and after a press, the question closed, refused with
 its permission unread, in use, missing, a saved camera gone, no camera request in
 the browser, stopped), focus once the camera opens from a key in step 2's
-picture, one press of Back on step 1 after step 2's entry is reloaded or reached
+picture and focus left where a click on the page's words put it while the camera
+asks, one press of Back on step 1 after step 2's entry is reloaded or reached
 by the browser's back button, each of
 the five answers and its words, the last key to the dashboard, to each way's page
 and to Lost and Found for a lost pet, the dashboard's line and key after a lost

@@ -15,7 +15,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CornerTicks, ProblemMark } from '../dashboard/Drawn';
 import type { AlertLines } from '@/lib/alert-lines';
 import { useLiveLevels } from '@/lib/live-levels';
@@ -136,13 +136,13 @@ export function PlaceCheck({
     }
   }, []);
 
-  // Whether focus is in the picture's frame, kept past its key's leaving the page.
-  useEffect(() => {
-    const moved = (event: FocusEvent) => {
-      keyFocused.current = event.target instanceof Node && Boolean(frame.current?.contains(event.target));
-    };
-    document.addEventListener('focusin', moved);
-    return () => document.removeEventListener('focusin', moved);
+  // Whether focus was in the picture's frame at the moment its keys left the
+  // page. React clears this ref before it takes the keys out, so the focus is
+  // read while the key is still there. A click on plain text while the
+  // browser asks moves focus to the page's body with no focus event, so focus
+  // read before that moment can be out of date.
+  const keysHeld = useCallback((keys: HTMLDivElement | null) => {
+    keyFocused.current = keys ? false : Boolean(document.activeElement && frame.current?.contains(document.activeElement));
   }, []);
 
   // The camera opened from Turn on the camera, Try again or Use the default
@@ -271,13 +271,13 @@ export function PlaceCheck({
             </div>
           </>
         ) : state === 'failed' && failure ? (
-          <div className="setup-off">
+          <div className="setup-off" ref={keysHeld}>
             <FailureSentence failure={failure} />
             {failure !== 'unsupported' ? <AgainKey asking={asking} words="Try again" onPress={onTurnOn} /> : null}
             <FailureWays failure={failure} savedCamera={savedCamera} asking={asking} onDefaultCamera={onDefaultCamera} />
           </div>
         ) : state === 'stopped' ? (
-          <div className="setup-off">
+          <div className="setup-off" ref={keysHeld}>
             <p className="setup-body setup-problem">
               <ProblemMark />
               <span>{STOPPED}</span>
@@ -285,7 +285,7 @@ export function PlaceCheck({
             <AgainKey asking={asking} words="Try again" onPress={onTurnOn} />
           </div>
         ) : state === 'off' ? (
-          <div className="setup-off">
+          <div className="setup-off" ref={keysHeld}>
             <CameraDrawing />
             <p className="setup-body">{OFF}</p>
             <AgainKey asking={asking} words="Turn on the camera" onPress={onTurnOn} />
