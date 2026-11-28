@@ -1,6 +1,6 @@
 # Setup, Help and dashboard words that say what is true
 
-The after pictures come from Pictures run 46098054937 on commit 81dc247700a08b2ae4b901a74d43f8f4d8b4498f: the setup pictures from its job Walk setup, the others from its job Capture pictures. The before pictures come from Pictures run 46083140872 on commit af20e43, which holds master's code (29d28f4) with this change's new tests and captures: the setup pictures from its job Walk setup, the others from its job Capture pictures. Master's own capture list had none of the first two states.
+The after pictures come from Pictures run 46118277967 on commit 295bc3ca58fbb918474207ec771b1371ecf4fbe4, which has this change's code on master 19a286c: the setup pictures from its job Walk setup, the others from its job Capture pictures. The before pictures come from Pictures run 46083140872 on commit af20e43, which holds master's code (29d28f4) with this change's new tests and captures: the setup pictures from its job Walk setup, the others from its job Capture pictures. Master's own capture list had none of the first two states.
 
 - `before/setup-camera-unread-390-light.png`: Setup's first step after a refusal in a browser whose permission query for the camera fails, 390 px, light, before: it says the camera is blocked.
 - `after/setup-camera-unread-390-light.png`: The same, after: the camera did not open; press Try again, then Allow, or allow it in the site's settings if the browser does not ask; with Try again and How to allow the camera.
@@ -11,7 +11,7 @@ The after pictures come from Pictures run 46098054937 on commit 81dc247700a08b2a
 - `before/dashboard-lost-pet-camera-blocked-390-dark.png`: The same state, 390 px, dark, before.
 - `after/dashboard-lost-pet-camera-blocked-390-dark.png`: The same state, 390 px, dark, after.
 - `before/help-1280-light.png`: Help's Getting Started, 1280 px, light, before: "Press Open dashboard, then Start watching."
-- `after/help-1280-light.png`: The same, after: step 3 names every last key setup can show and the key that starts the watch on each page.
+- `after/help-1280-light.png`: The same, after: step 3 names every last key setup can show and the key that starts the watch on each page, and says that Wildlife and People wait for Download detection model on a device that has not saved the model.
 - `before/help-1280-dark.png`: Help's Getting Started, 1280 px, dark, before.
 - `after/help-1280-dark.png`: Help's Getting Started, 1280 px, dark, after.
 - `before/help-390-light.png`: Help's Getting Started, 390 px, light, before.
