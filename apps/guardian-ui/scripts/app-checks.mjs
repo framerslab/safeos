@@ -4302,6 +4302,10 @@ export async function checkApp(browser, baseUrl, outDir) {
           loading: (document.querySelector('p.dash-loading')?.textContent || '').trim(),
           frame: !!frameBox && frameBox.width > 0 && frameBox.height > 0 && getComputedStyle(frame).visibility !== 'hidden',
           bar: after ? { display: after.display, content: after.content } : null,
+          // The bar's own animations: the CSS animations on the frame's ::after.
+          moving: frame ? document.getAnimations()
+            .filter((animation) => animation.effect?.target === frame && animation.effect.pseudoElement === '::after')
+            .map((animation) => ({ name: animation.animationName, state: animation.playState })) : [],
           place: placeBox ? { top: placeBox.top, height: placeBox.height, empty: place.children.length === 0 && !place.textContent.trim() } : null,
           key: (place?.querySelector('a, button')?.textContent || '').trim(),
           line: (document.getElementById('dash-line')?.textContent || '').trim(),
@@ -4320,6 +4324,7 @@ export async function checkApp(browser, baseUrl, outDir) {
       check(early.frame, `${said}at once the drawn frame is not shown loading`);
       if (reduced) check(!!early.bar && early.bar.display === 'none', `${said}the loading bar is drawn with display ${early.bar ? early.bar.display : 'nothing'}`);
       else check(!!early.bar && early.bar.display !== 'none' && early.bar.content !== 'none', `at once the loading bar is ${early.bar ? `display ${early.bar.display}, content ${early.bar.content}` : 'not there'}`);
+      if (!reduced) check(early.moving.some(({ name, state }) => name === 'capture-loading' && state === 'running'), `at once the loading bar runs ${early.moving.length ? early.moving.map(({ name, state }) => `${name} (${state})`).join(', ') : 'no animation'}, not capture-loading`);
       check(!!early.place && early.place.height >= 52 && early.place.empty, `${said}at once the key's place is ${early.place ? `${early.place.height} px tall and ${early.place.empty ? 'empty' : 'not empty'}` : 'not there'}`);
       const hrefs = early.rows.map((row) => row.href).join(', ');
       check(early.rows.length === 4 && early.rows.every((row) => row.shown), `${said}at once ${early.rows.filter((row) => row.shown).length} of 4 rows are shown`);

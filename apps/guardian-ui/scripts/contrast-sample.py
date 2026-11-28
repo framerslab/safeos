@@ -123,6 +123,12 @@ def main():
         }
         expected.update(dict.fromkeys(poster_words, "poster"))
     files = [source["file"] for source in sources]
+    # A run key the strip shows only in part at its start has a strip picture of its own.
+    expected.update({
+        file: "steps" for file in files
+        if any(file == f"home-readability-run-steps-{run['id']}-390-{look}.png"
+               for run in runs for look in ("dark", "light"))
+    })
     missing = expected.keys() - set(files)
     unexpected = set(files) - expected.keys()
     if missing or unexpected or len(files) != len(set(files)):
@@ -130,7 +136,8 @@ def main():
                       f", {len(files) - len(set(files))} duplicates")
     for width in (390, 1440):
         for look in ("dark", "light"):
-            files = {f"home-readability-{width}-{look}.png", f"home-readability-run-steps-{width}-{look}.png"}
+            files = {f"home-readability-{width}-{look}.png", f"home-readability-run-steps-{width}-{look}.png",
+                     *(f"home-readability-run-steps-{run['id']}-{width}-{look}.png" for run in runs)}
             strip_views = [source["boxes"] for source in sources if source["file"] in files]
             for run in runs:
                 if not any(" ".join(box["name"] for box in boxes if box.get("runStep") == run["id"]) == run["key"]

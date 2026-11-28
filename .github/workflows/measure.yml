@@ -69,7 +69,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Install ffmpeg
-        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+        run: command -v ffmpeg || (sudo apt-get update || true; sudo apt-get install -y --no-install-recommends ffmpeg)
 
       # Chromium's fake camera reads a .y4m file and its fake microphone a
       # .wav file, made here from the committed sample clip as the Pictures

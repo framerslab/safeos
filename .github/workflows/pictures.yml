@@ -353,7 +353,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Install ffmpeg
-        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+        run: command -v ffmpeg || (sudo apt-get update || true; sudo apt-get install -y --no-install-recommends ffmpeg)
 
       # Chromium's fake camera reads a .y4m file and its fake microphone a
       # .wav file. Both are made here from the committed clip and never
@@ -410,9 +410,10 @@ jobs:
           done
           node scripts/alert-picture-captures.mjs http://127.0.0.1:4173 "$RUNNER_TEMP/alert-pictures" "$RUNNER_TEMP/sample-clip.y4m" "$RUNNER_TEMP/sample-clip.wav"
 
-      # Enrols the Lost and Found example's three photos as a person would,
+      # Enrols the Lost and Found example's photos as a person would, the
+      # three of them (set A) and photo 1 alone (set B, the home page run's),
       # watches the sample clip through the fake camera at the app's default
-      # settings and fails when the watch does not alert. Its result,
+      # settings and fails when the watch does not alert for a set. Its result,
       # lost-found-probe.json, goes into the capture's folder, so the
       # home-pictures artifact carries it. It runs after a failed capture as
       # well, but not in a run that was cancelled.
@@ -492,7 +493,7 @@ jobs:
         run: npx playwright install chromium
 
       - name: Install ffmpeg
-        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+        run: command -v ffmpeg || (sudo apt-get update || true; sudo apt-get install -y --no-install-recommends ffmpeg)
 
       - name: Prepare the sample clip for the camera and microphone
         run: |
@@ -579,7 +580,7 @@ jobs:
 
       - name: Install ffmpeg
         if: ${{ !cancelled() }}
-        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg)
+        run: command -v ffmpeg || (sudo apt-get update || true; sudo apt-get install -y --no-install-recommends ffmpeg)
 
       - name: Test the recording scripts
         if: ${{ !cancelled() }}

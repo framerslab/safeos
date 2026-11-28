@@ -225,6 +225,10 @@ const UNBACKED_CLAIMS: Phrase[] = [
     why: 'the hybrid setting only slows the same local matcher from 500 to 900 ms (monitor/page.tsx)',
   },
   {
+    pattern: /900 ms in the others/i,
+    why: 'Lost and Found has two processing modes, local and hybrid (lost-found-store.ts), and every 900 ms is not twice a second (monitor/page.tsx)',
+  },
+  {
     pattern: /local\/offline AI|browser-based vision AI/i,
     why: 'the monitor runs no model; COCO-SSD runs on Security and Wildlife only',
   },
@@ -643,6 +647,16 @@ describe('the public pages say what the software does', () => {
   it('no Lost and Found screen shows a score word', () => {
     expect(LOST_FOUND_SCREENS.filter((f) => !fs.existsSync(f)).map(rel)).toEqual([]);
     expect(findPhrases(LOST_FOUND_SCORE_WORDS, LOST_FOUND_SCREENS)).toEqual([]);
+  });
+
+  it('the blog explains how Lost and Found compares with no score or percentage', () => {
+    const blog = stripComments('page.tsx', fs.readFileSync(app('src', 'app', 'blog', '[slug]', 'page.tsx'), 'utf8'));
+    const from = blog.indexOf('<h2>How Lost &amp; Found compares</h2>');
+    expect(from).toBeGreaterThan(-1);
+    const to = blog.indexOf('<h2>', from + 1);
+    const section = blog.slice(from, to === -1 ? undefined : to);
+    expect(section).toMatch(/compares/);
+    expect(section.match(/\bscor\w*|\d+\s*%|per ?cent\w*/gi) ?? []).toEqual([]);
   });
 
   it('no page makes a claim the code does not back', () => {

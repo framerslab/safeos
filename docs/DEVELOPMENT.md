@@ -398,8 +398,8 @@ prints an error and carries on.
 | `ci.yml` | Server tests | The Vitest suite passes and meets the coverage thresholds in `vitest.config.ts`; the coverage summary (`coverage-summary.json`, `lcov.info`) is uploaded as the `server-coverage` artifact |
 | `ci.yml` | Server build | `npm run build` (`tsc`) compiles the server |
 | `ci.yml` | Web app type check and lint | `tsc --noEmit` and `next lint` pass for `apps/guardian-ui` |
-| `ci.yml` | Web app tests | The web app's Jest suite passes |
-| `ci.yml` | Web app Lost & Found browser test | In Chromium, on the static build: a subject enrolled from a striped picture is compared with the same stripes on the fake camera, and the sighting's saved alert keeps an Edge score above 0 (`apps/guardian-ui/e2e/lost-found-edge.spec.ts`); setup, the watch's pet meter and card, an alert's notification and full-screen pictures, the gallery and each page's title show no score, percentage or quality word, and a pet's count follows the pictures kept for it (`apps/guardian-ui/e2e/lost-found-words.spec.ts`); a sighting tops the alert list with the camera's picture, its box, the close-up and the pet's saved photo, repeats on its entry after the Cooldown Period, starts a new entry after 40 seconds out of view, opens large, lists in History beside an earlier version's frame with no score, keeps nothing with keeping off, sends a notification with no pet photo, and fills the pet's count and the gallery, where a delete reaches History too (`apps/guardian-ui/e2e/lost-found-sighting.spec.ts`); Monitor's Watch for offers Motion and sound and Lost and Found with the pet's photo, name, count and Change pet, No pet saved and Add a pet, Choose a pet, the comparison starting and stopping with the choice during a watch, setup and Monitor showing one choice, one row from 320 to 768 px, and axe finding nothing at 390 and 1280 px in both looks (`apps/guardian-ui/e2e/watch-for.spec.ts`, with axe-core from the dev dependencies); a press on the app header's GitHub mark, and then on the footer's GitHub link, during a watch on Monitor opens a new tab each time while the watch goes on with its camera live (`apps/guardian-ui/e2e/github-link-new-tab.spec.ts`) |
+| `ci.yml` | Web app tests | The web app's Jest suite passes, and every animation named in `src/styles/*.css` and `src/app/**/*.css` has its `@keyframes` in the CSS the app ships (`apps/guardian-ui/scripts/css-animations.test.mjs`, with `node --test`) |
+| `ci.yml` | Web app Lost & Found browser test | In Chromium, on the static build: a subject enrolled from a striped picture is compared with the same stripes on the fake camera, and the sighting's saved alert keeps an Edge score above 0 (`apps/guardian-ui/e2e/lost-found-edge.spec.ts`); setup, the watch's pet meter and card, an alert's notification and full-screen pictures, the gallery and each page's title show no score, percentage or quality word, and a pet's count follows the pictures kept for it, and the FAQ's answer on how Lost and Found compares a pet's photos, the AI-models answer and the lead of the home's How it works read as written (`apps/guardian-ui/e2e/lost-found-words.spec.ts`); a sighting tops the alert list with the camera's picture, its box, the close-up and the pet's saved photo, repeats on its entry after the Cooldown Period, starts a new entry after 40 seconds out of view, opens large, lists in History beside an earlier version's frame with no score, keeps nothing with keeping off, sends a notification with no pet photo, and fills the pet's count and the gallery, where a delete reaches History too (`apps/guardian-ui/e2e/lost-found-sighting.spec.ts`); Monitor's Watch for offers Motion and sound and Lost and Found with the pet's photo, name, count and Change pet, No pet saved and Add a pet, Choose a pet, the comparison starting and stopping with the choice during a watch, setup and Monitor showing one choice, one row from 320 to 768 px, and axe finding nothing at 390 and 1280 px in both looks (`apps/guardian-ui/e2e/watch-for.spec.ts`, with axe-core from the dev dependencies); a press on the app header's GitHub mark, and then on the footer's GitHub link, during a watch on Monitor opens a new tab each time while the watch goes on with its camera live (`apps/guardian-ui/e2e/github-link-new-tab.spec.ts`) |
 | `ci.yml` | Web app alert walk | In Chromium, on the static build, with a test camera whose picture keeps changing and a tone on the microphone (`apps/guardian-ui/e2e/alerts-repeat.spec.ts`): a continuing motion, pixel or sound event alerts again once the longer of its severity's cooldown and the Cooldown Period has passed, on its one card with "Repeated N times"; a rise to critical alerts at once; a picture that pauses for a moment now and then is one event; after Stop and Start, or with a detector turned off and on again, a new event alerts at once on a new card. Then, from the sample clip on Chromium's fake camera (its `.y4m` and `.wav` made with ffmpeg in the job) and from canvas cameras, with two workers, and its notification walks after them with one (`apps/guardian-ui/e2e/alert-pictures.spec.ts`): each alert's picture, box and close-up on its card, the live box, the opened picture with Show the box, Save picture and Delete picture, History's rows, Keep alert pictures with its notice, ages and Delete all pictures, the room rule, other tabs and profiles, the notification's picture, the privacy page's sentences, its table of what leaves this device read whole at 390 px with no sideways scroll, and `/third-party-notices.txt`, and setup's camera step carrying the notice's choice. Both specs skip under Firefox; the same step then checks Settings > Notifications in Firefox itself (`apps/guardian-ui/e2e/notification-picture-firefox.spec.ts`), where the notification's picture switch is inactive because Firefox shows a notification's words alone |
 | `ci.yml` | Compose ports | `scripts/check-compose-ports.sh` resolves every compose file (overrides on top of each base, every profile on) with `docker compose config` and fails when a service other than the `caddy` proxy publishes a port on any address but loopback (`127.0.0.0/8`, `::1`) or uses host networking; the fixtures in `scripts/testdata/compose-ports` must be rejected or accepted as their folder names say |
 | `deploy-pages.yml` | build | The static export builds in static mode (no API, no analytics ids). On `master` it then deploys GitHub Pages; this is the only workflow that deploys the site |
@@ -543,7 +543,11 @@ The `pictures` artifact includes `home-readability.json` with the named
 ranges, measured ratios, sizes and any failures. For the runs, the walk
 projects each recorded word onto the visible poster and samples both looks
 at 320, 390, 768, 1024, 1280 and 1440 px. A poster word must display at
-least 14 CSS px with 7:1 contrast on the captured page.
+least 14 CSS px with 7:1 contrast on the captured page. At 390 px the walk
+also samples the run keys: each key the strip shows only in part at its start
+is pictured with the strip scrolled to it
+(`home-readability-run-steps-<run>-390-<look>.png`), and the strip's end is
+pictured last.
 
 The Pages build hashes `out/index.html`. After the master Pages deploy,
 `apps/guardian-ui/scripts/check-published-home.mjs` opens
@@ -592,7 +596,26 @@ from a watch on the sample clip. It shows the list for about two seconds,
 opens the movement alert and holds its kept picture through the end of the
 seven-second run. Watching shows the kitten facing the camera and walking
 past it. Motion crosses its line and the watch scrolls to the alert and
-its saved picture for at least 2.5 seconds. Settings records a scroll of
+its saved picture for at least 2.5 seconds. Lost and Found enrols "Toffee"
+through `/lost-found/` from photo 1 alone (`public/home/lost-found/photo-1.jpg`,
+a photo taken on another day; photos 2 and 3 are stills from the recording the
+clip comes from, so the run never enrols them) and opens the watch from the
+page's Start Monitoring. Before the recording it opens the fake camera and
+microphone once and closes them, so the browser's capture service runs when
+Start watching is pressed. The page notes the press and the moment the frame
+shows the live picture, which must come by 3.5 seconds into the run; a
+variant whose camera starts later is recorded again, at
+most twice. It
+holds Watch for with Toffee's one saved photo for
+two seconds, then presses Start watching, and the watch compares the sample
+clip at the app's default Lost and Found settings. The possible sighting must
+arrive before five seconds; from five seconds the run holds its entry, the
+camera's picture beside the saved photo, through the end of the nine-second run. Its Motion
+starts at its least sensitive setting and its microphone hears silence, so no
+other alert joins the entry; a run with any other alert fails. The recorder hands the page
+the files the run's `photos` name and nothing else, reads each file once and gives the file
+input those bytes; the run's entry in `runs.json` lists them as `enrolled`, each with the
+SHA-256 of the bytes handed over. Settings records a scroll of
 the actual settings list. The producer captures native frames and encodes silent MP4s and WebP posters, with AVIF
 alternatives when available. It records the source commit, run URL, clip
 credits, visible words, recording positions and file hashes in `runs.json`.
@@ -606,7 +629,26 @@ dimensions at 3×. The wide recordings and posters are 1920 by 1200 native
 pixels. Watching crops a 768 by 480 CSS pixel window below the app header
 in a 768 by 548 viewport at 2.5×. Dashboard crops a 640 by 400 window of the
 alert list between the watch links and the app footer in a 640 by 640
-viewport at 3×. Settings uses the full 768 by 480 viewport at 2.5×.
+viewport at 3×. Lost and Found crops a 640 by 400 window below the app header
+in a 640 by 640 viewport at 3×, so its entry's words show a fifth larger in
+the home's frame than a 768 px window would show them; in it the entry sets
+the camera's picture beside the pair of pictures and the words, while the
+square crop holds the close-up and the saved photo with the question under
+them. The square crop cannot hold the whole camera frame with the meters under
+it, so from the press of Start watching to the hold at five seconds the page
+moves up, before each paint, by the fewest pixels that keep the pet's row,
+"Comparing with Toffee’s photos", whole above the crop's foot; the camera's
+picture gives up its top. A Lost and Found recording that cuts a word at the
+crop's edges when the camera's live picture comes fails. Settings uses the full 768 by 480 viewport at 2.5×.
+
+The pull request's capture also walks the home's run keys at 320, 360, 390,
+430, 480 and 768 px (`scripts/home-run-checks.mjs`): the keys read Watching,
+Dashboard, Lost and Found and Settings in that order on one row with the
+Play key and the previous and next arrows, no key wraps, a row that runs
+out of room scrolls sideways behind its fade, and the page does not. Up to
+352 px the row reaches 12 px into the page's side margins and its run keys
+narrow their padding, so the Lost and Found key shows whole between the fades
+when Tab reaches it.
 
 The Pictures job checks every recorded word on the exported home poster.
 Each word needs 7:1 pixel contrast and a displayed font size of at least
@@ -620,6 +662,10 @@ Missing or unreadable word boxes fail the check.
 | A poster | 60,000 bytes | 120,000 bytes |
 | One run and its largest poster | 460,000 bytes | 1,300,000 bytes |
 | Complete set in one look | 2,300,000 bytes | 6,600,000 bytes |
+
+An MP4 that leaves less of its run's limit than a whole poster's limit is
+encoded once more at a lower quality, so a wide MP4 over 1,180,000 bytes is
+made smaller before its posters are made.
 
 The first poster shows the kitten facing the camera between 22 and 25
 seconds of the sample clip. Watching uses the uncropped view of the same
@@ -686,7 +732,12 @@ stopped changing, a DevTools screenshot of the same size is kept as that
 frame.
 The same job runs `scripts/home-run-scripts.test.mjs` with `node --test`:
 tests of the screencast timing, the flash check, the held-alert check and
-the stylesheet inputs, on generated frames and clips.
+the stylesheet inputs, on generated frames and clips; a test that every script
+`home-runs.mjs` loads, directly or through the run list and the Lost and Found
+helpers, is a recording input; and a test that the committed runs fail when the
+Lost and Found entry's `enrolled` files differ from the run's `photos` or from
+their SHA-256 in `public/home/lost-found/photos.json`, which **Check the
+committed home runs** also checks.
 A source change requires a new recording. Evidence and documentation edits
 are outside the recording inputs. Pages checks the exported media before
 uploading a deployable build.
@@ -760,29 +811,40 @@ reach fails the step and names the state. The files are the run's
 
 After the home and alert captures, the job's step "Probe Lost and Found on the sample clip"
 runs `apps/guardian-ui/scripts/lost-found-probe.mjs` on the same build and the
-same fake camera files. It enrols "Toffee" through `/lost-found/` with the
-three photos under `apps/guardian-ui/public/home/lost-found/`, as a person
-would, checks that the pet was saved on the device with all three photos in
-the order it added them, starts the watch on the sample clip at the app's
-default Lost and Found settings and reads what the watch keeps every 2 s for
-85 s, three plays of the clip, and once more 3 s after, for a frame still
-being saved. Its log gives the alert line, save line and colour sensitivity.
+same fake camera files. It tries two sets of the photos under
+`apps/guardian-ui/public/home/lost-found/`, each on a browser and device of
+its own: set A is the three photos, and set B is photo 1 alone, the photo
+taken on another day, which the home page's Lost and Found run enrols
+(photos 2 and 3 are stills from the recording the clip comes from). For each
+set it enrols "Toffee" through `/lost-found/` as a person would, checks that
+the pet was saved on the device with the set's photos in the order it added
+them, starts the watch on the sample clip at the app's default Lost and Found
+settings and reads what the watch keeps every 2 s for 85 s, three plays of
+the clip, and once more 3 s after, for a frame still being saved. Its log,
+one line a set, gives the alert line, save line and colour sensitivity.
 On a build that keeps sightings it says the build keeps no frame under the alert
 line, gives the first alert's time as "a sighting, its score not kept" with its
 four parts, says there is no best score because the watch saved no frame, then
-gives the counts of frames and sightings and the verdict. On an earlier build
+gives the counts of frames and sightings, the seconds after the watch went live at
+which each sighting was kept, and the verdict. On an earlier build
 that saves frames it gives the first saved frame's time and score, the first
 alert with its score, its four parts and its region, and the best score with
-its four parts. Only what the watch kept inside the 85 s counts. The step
-fails when the watch does not alert, when the camera does not start or its
-picture is not live at the end, and when any step of the walk or of the
-database reads fails, with a picture of the page,
-`failed-lost-found-probe.png`. Its result, `lost-found-probe.json`, is in the
+its four parts. Only what the watch kept inside the 85 s counts. Every set
+runs, and the step fails when the watch does not alert for a set, when the
+camera does not start or its picture is not live at the end, and when any
+step of the walk or of the database reads fails, with a picture of the page,
+`failed-lost-found-probe-<set>.png`. A set that fails, from reading its photos
+and starting the browser on, still gives its entry, with the run, the commit and
+the settings read before it failed (null where none were read), and the next
+set runs. Its result, `lost-found-probe.json`, holds
+one entry a set under `sets` and is in the
 run's `home-pictures` artifact beside `home/`. Each set of photos the probe
 tries is copied into the `tried` list of `public/home/lost-found/photos.json`,
-the sets that did not alert as well as the one that did, and the last set
-listed is the one that alerted, with the digests of the photos and the clip it
-ran on. The list is held by `tests/home-lost-found-photos.test.ts`, with each
+the tries that did not alert as well as those that did, with the digests of
+the photos and the clip each ran on (a try that failed before the settings were
+read has no alert line), and the newest try of set A and of set B
+must have alerted on the committed photos and clip. The list is held by
+`tests/home-lost-found-photos.test.ts`, with each
 photo's size, digest, source, crop box and licence, so a photo or the clip
 changed without a new probe fails the test.
 

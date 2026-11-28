@@ -40,6 +40,7 @@ const common = [
   'scripts/home-run-list.mjs',
   'scripts/home-run-seed.mjs',
   'scripts/lost-found-walk.mjs',
+  'scripts/lost-found-verdict.mjs',
   'scripts/home-runs.mjs',
   'scripts/home-wording.cjs',
 ];
@@ -132,7 +133,7 @@ export function recordingInputs(ids) {
 }
 
 const ordered = ['watching', 'dashboard', 'alert', 'lost-found', 'settings'];
-const launch = ['watching', 'dashboard', 'settings'];
+const launch = ['watching', 'dashboard', 'lost-found', 'settings'];
 const sizes = ['square', 'wide'];
 const looks = ['dark', 'light'];
 const mediaPrefix = 'home/runs/';
@@ -195,6 +196,14 @@ export function verifyBundle(directory) {
     assert.ok(description?.trim() && longDescription?.length, id + ': missing text equivalent');
     assert.doesNotMatch([run.key, description, ...longDescription].join(' '), barredWording, id + ': barred caption');
     checkWords(visibleWords, id);
+    if (id === 'lost-found') {
+      // The files the recorder gave the page, with the SHA-256 of the bytes it handed over: the
+      // run's photos, each with the SHA-256 that photos.json records for it.
+      const catalogue = JSON.parse(readFileSync(path.join(folder, 'home', 'lost-found', 'photos.json'), 'utf8')).photos;
+      const expected = (run.photos ?? []).map((file) => ({ file, sha256: catalogue.find((photo) => photo.file === file)?.sha256 }));
+      assert.deepEqual(run.enrolled, expected,
+        id + ': the files the recording enrolled differ from its photos and their SHA-256 in photos.json: ' + JSON.stringify(run.enrolled));
+    }
     assert.deepEqual(Object.keys(variants).sort(), sizes, id + ': size variants');
     for (const size of sizes) {
       assert.deepEqual(Object.keys(variants[size]).sort(), looks, id + ': look variants');
@@ -246,6 +255,15 @@ export function verifyBundle(directory) {
           assert.ok(run.seconds >= 6 && run.seconds <= 8 && eventAt >= 1.9 && eventAt <= 2.5
             && pictureAt > eventAt && run.seconds - pictureAt >= 3.5,
           label + ': the Dashboard must show the list, open its movement alert and hold its picture');
+        }
+        if (id === 'lost-found') {
+          const { eventAt, pictureAt, watchEvents } = variant;
+          // Photo 1 alone: photos 2 and 3 are stills from the recording the clip comes from.
+          assert.deepEqual(run.photos, ['home/lost-found/photo-1.jpg'], label + ': the run enrols photo 1 alone');
+          assert.deepEqual(watchEvents?.map(({ kind }) => kind), ['sighting'],
+            label + ': the recording must show one possible sighting and no other alert');
+          assert.ok(eventAt >= 2 && eventAt <= 5 && pictureAt >= 5 && pictureAt > eventAt && run.seconds - pictureAt >= 2.5,
+            label + ': the watch must raise its possible sighting after Start watching and hold its entry for 2.5 seconds at the end');
         }
         for (const { word, x, y, width, height, size: font } of words) {
           assert.ok([x, y, width, height, font].every(Number.isFinite) && x >= -0.5 && y >= -0.5

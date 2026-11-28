@@ -35,7 +35,9 @@ export async function testPosterEncoders(directory) {
 }
 
 export function wideView(id) {
-  if (id === 'dashboard') return { width: 640, height: 640, scale: 3 };
+  // Lost and Found's entry holds its words in half the crop's width. A 640 px
+  // window at 3× shows them a fifth larger in the home's frame than 768 px at 2.5×.
+  if (id === 'dashboard' || id === 'lost-found') return { width: 640, height: 640, scale: 3 };
   if (id === 'watching') return { width: 768, height: 548, scale: 2.5 };
   return { width: 768, height: 480, scale: 2.5 };
 }
@@ -454,13 +456,15 @@ export async function encodeVariant({ frames, cut, view, crop, directory, outDir
   const prefix = path.join(outDir, `${id}-${view.size}-${view.look}`);
   const movie = prefix + '.mp4';
   const budget = limits[view.size];
-  // The square file has the tighter transfer cap.
+  // The square file has the tighter transfer cap. A movie is encoded once more
+  // when it leaves too little of the first download for its poster.
+  const movieBudget = Math.min(budget.video, budget.first - budget.poster);
   for (const crf of [26, view.size === 'square' ? 32 : 30]) {
     ffmpeg(['-f', 'concat', '-safe', '0', '-i', concat,
       '-vf', [...filters, `fps=${FPS}`, 'format=yuv420p'].join(','),
       '-t', String(view.seconds), '-an', '-c:v', 'libx264', '-profile:v', 'high', '-crf', String(crf),
       '-preset', 'slow', '-g', '30', '-pix_fmt', 'yuv420p', '-map_metadata', '-1', '-movflags', '+faststart', movie]);
-    if (Number(probe(movie).format.size) <= budget.video) break;
+    if (Number(probe(movie).format.size) <= movieBudget) break;
   }
   const { streams, format } = probe(movie);
   assert.equal(streams.length, 1, 'Expected a single stream, with no audio');
@@ -471,6 +475,9 @@ export async function encodeVariant({ frames, cut, view, crop, directory, outDir
   checkFastStart(await readFile(movie));
   checkFlashes(movie, view.size);
 
+  // A poster over its budget, one full of photographs, is encoded once more at a lower quality.
+  const lower = (encoder) => encoder.map((arg, index) => encoder[index - 1] === '-crf' ? String(Number(arg) + 8)
+    : encoder[index - 1] === '-quality' ? String(Number(arg) - 10) : arg);
   const stills = [
     ['webp', ['-c:v', 'libwebp', '-quality', '86', '-compression_level', '6']],
     ...(avif ? [['avif', avif]] : []),
@@ -478,8 +485,11 @@ export async function encodeVariant({ frames, cut, view, crop, directory, outDir
   const posters = {};
   for (const [extension, encoder] of stills) {
     const file = prefix + '.' + extension;
-    ffmpeg(['-i', poster, ...(filters.length ? ['-vf', filters.join(',')] : []),
-      '-frames:v', '1', '-map_metadata', '-1', ...encoder, file]);
+    for (const tried of [encoder, lower(encoder)]) {
+      ffmpeg(['-i', poster, ...(filters.length ? ['-vf', filters.join(',')] : []),
+        '-frames:v', '1', '-map_metadata', '-1', ...tried, file]);
+      if ((await readFile(file)).length <= budget.poster) break;
+    }
     const [picture] = probe(file).streams;
     assert.deepEqual([picture.width, picture.height], [width, height], `${extension} poster differs from the crop`);
     posters[extension] = await fileRecord(file, { kind: 'poster', format: extension, width, height }, budget.poster);

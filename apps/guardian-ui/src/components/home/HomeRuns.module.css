@@ -3,4 +3,20 @@
     letter-spacing: -0.03em;
     word-spacing: -0.04em;
   }
+
+  /* The row of keys reaches 12 px into the page's side margins and its run
+     keys take 6 px either side, so the longest key, Lost and Found, shows
+     whole between the strip's fades when it takes focus. */
+  .controls {
+    margin-inline: -12px;
+  }
+
+  .controls :global(.home-run__strip) button {
+    padding-inline: 6px;
+  }
+
+  .controls :global(.home-run__strip) [aria-current='step']::after {
+    right: 6px;
+    left: 6px;
+  }
 }
