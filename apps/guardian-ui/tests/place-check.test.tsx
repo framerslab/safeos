@@ -48,6 +48,7 @@ function element(props: Partial<PlaceCheckProps> = {}) {
       onStopped={onStopped}
       onTurnOn={onTurnOn}
       onDefaultCamera={jest.fn()}
+      onOpenedFromKey={jest.fn()}
       {...props}
     />
   );

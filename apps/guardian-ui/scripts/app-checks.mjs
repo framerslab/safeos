@@ -4109,6 +4109,30 @@ export async function checkApp(browser, baseUrl, outDir) {
       await helpEntryInView(page, check, 'Camera not working');
     }, { script: FAKE_CAMERA });
 
+    // With A lost pet chosen and no pet saved the key opens Lost and Found and
+    // asks for no camera: the dashboard says nothing of the blocked camera.
+    // With a pet saved the key starts the camera, and both show again.
+    await open({ name: 'camera blocked, a lost pet', width: 390, look }, async (page, context, check) => {
+      await context.addInitScript(CAMERA_ANSWER, 'denied');
+      await context.addInitScript(() => { localStorage.setItem('safeos-last-way', '{"way":"lost-found"}'); });
+      await openDash(page);
+      const line = await lineOf(page);
+      check(line === "Start watching uses Lost and Found. Add your pet's photos first.", `with no pet saved the line reads "${line}"`);
+      await page.waitForTimeout(1_000);
+      const said = (await problemsOf(page)).map((p) => p.words);
+      check(!said.includes(CAMERA_WORDS.blocked), `while the key opens Lost and Found the dashboard says "${CAMERA_WORDS.blocked}"`);
+      const links = await page.getByRole('link', { name: 'How to allow the camera', exact: true }).count();
+      check(links === 0, 'while the key opens Lost and Found the dashboard offers How to allow the camera');
+      await page.screenshot({ path: path.join(outDir, `dashboard-lost-pet-camera-blocked-390-${look}.png`) });
+      console.log(`captured dashboard-lost-pet-camera-blocked-390-${look}.png`);
+      await dashboardWith(page, { pets: [{ id: 'pet-mittens', name: 'Mittens' }] });
+      const withPet = await lineOf(page);
+      check(withPet === 'Start watching uses Lost and Found, for Mittens.', `with a pet saved the line reads "${withPet}"`);
+      await checkProblem(page, check, CAMERA_WORDS.blocked, '.dash-problems', 'with a pet saved ');
+      const link = await page.getByRole('link', { name: 'How to allow the camera', exact: true }).count();
+      check(link === 1, `with a pet saved the dashboard offers How to allow the camera ${link} times, not once`);
+    });
+
     await open({ name: 'camera blocked', width: 390, look }, async (page, context, check) => {
       await openDash(page);
       await page.evaluate(() => { window.__camera.answer = 'NotAllowedError'; });
@@ -5571,6 +5595,191 @@ export async function checkApp(browser, baseUrl, outDir) {
       const onOne = await page.evaluate(() => ({ focused: (document.activeElement && document.activeElement.textContent || '').trim(), tag: document.activeElement && document.activeElement.tagName }));
       check(onOne.tag === 'H1' && plain(onOne.focused) === STEP1_H1, `after Back the focus is on ${onOne.tag} "${onOne.focused}", not the heading`);
     }, NEW_DEVICE);
+  }
+
+  // The camera opened by a key in step 2's picture: the key leaves the page
+  // as the picture comes, and the focus goes to step 2's heading, as on a
+  // change of step, so the next Tab reaches the first answer.
+  const focusOnceOn = async (page, check, what, picture = null) => {
+    const on = await page.locator('.setup-picture[data-state="on"]').waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    if (!on) { check(false, `${what}: the live picture does not show`); return; }
+    await page.waitForTimeout(300);
+    const focused = await page.evaluate(() => {
+      const el = document.activeElement;
+      return { tag: el ? el.tagName : 'nothing', words: el && el !== document.body ? (el.textContent || '').trim() : '' };
+    });
+    check(focused.tag === 'H1' && plain(focused.words) === STEP2_H1, `${what}: once the camera opens the focus is on ${focused.tag} "${plain(focused.words)}", not the heading "${STEP2_H1}"`);
+    if (picture) {
+      await page.screenshot({ path: path.join(outDir, picture) });
+      console.log(`captured ${picture}`);
+    }
+    await page.keyboard.press('Tab');
+    const next = await page.evaluate(() => {
+      const el = document.activeElement;
+      const name = el && el.type === 'radio' ? el.closest('label')?.querySelector('.setup-use__name') : null;
+      return name ? name.textContent.trim() : `${el ? el.tagName : 'nothing'} "${el && el !== document.body ? (el.textContent || '').trim().slice(0, 40) : ''}"`;
+    });
+    check(next === USE_NAMES[0], `${what}: the next Tab reaches ${next}, not the first answer "${USE_NAMES[0]}"`);
+  };
+  const pressByKeyboard = async (page, name) => {
+    const key = page.locator('.setup-picture').getByRole('button', { name, exact: true });
+    if (!(await key.waitFor({ timeout: 10_000 }).then(() => true, () => false))) return false;
+    await key.focus();
+    await page.keyboard.press('Enter');
+    return true;
+  };
+  for (const look of LOOKS) {
+    await open({ name: 'setup, focus when the camera opens on step 2', width: 390, look }, async (page, context, check) => {
+      // Continue without the camera, then step 2's Turn on the camera by keyboard.
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await continueOn(page);
+      if (!(await pressByKeyboard(page, 'Turn on the camera'))) { check(false, 'step 2 shows no Turn on the camera'); return; }
+      await focusOnceOn(page, check, 'Turn on the camera', `setup-camera-on-focus-390-${look}.png`);
+
+      // Try again after a camera that did not start.
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await continueOn(page);
+      await page.evaluate(() => { window.__camera.answers = ['NotReadableError']; });
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      check(await says(page, FAILURE_SENTENCES.inUse), `a camera in use is not named on step 2`);
+      if (!(await pressByKeyboard(page, 'Try again'))) { check(false, "step 2's failed picture shows no Try again"); return; }
+      await focusOnceOn(page, check, 'Try again after a failure');
+
+      // Try again after the camera stopped.
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await continueOn(page);
+      await turnOn(page);
+      await page.evaluate(() => {
+        const track = window.__camera.live[window.__camera.live.length - 1].getVideoTracks()[0];
+        track.stop();
+        track.dispatchEvent(new Event('ended'));
+      });
+      check(await says(page, 'The camera stopped. Check the device, then press Try again.', 5_000), 'a camera that stops on step 2 is not named');
+      if (!(await pressByKeyboard(page, 'Try again'))) { check(false, "step 2's stopped picture shows no Try again"); return; }
+      await focusOnceOn(page, check, 'Try again after the camera stopped');
+    }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+
+    await open({ name: 'setup, focus when the default camera opens on step 2', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await continueOn(page);
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      check(await says(page, FAILURE_SENTENCES.savedGone), 'the saved camera gone is not named on step 2');
+      await page.evaluate(() => { window.__camera.answer = 'ok'; });
+      if (!(await pressByKeyboard(page, 'Use the default camera'))) { check(false, "step 2's picture shows no Use the default camera"); return; }
+      await focusOnceOn(page, check, 'Use the default camera');
+    }, { ...NEW_DEVICE, script: setupScript({ set: { answer: 'OverconstrainedError' }, more: "localStorage.setItem('safeos-camera', JSON.stringify({ state: { deviceId: 'usb' }, version: 0 }));" }) });
+  }
+
+  // A click on the page's words while the browser asks moves focus off Turn
+  // on the camera. Inside the content, focus goes to the content's region,
+  // which takes focus (tabindex -1); in the footer, outside it, focus goes to
+  // the page's body with no focus event in the page. Either way, once the
+  // camera opens the page stays where the person was reading: the focus does
+  // not go up to step 2's heading.
+  const clickWhileAsking = async (page, check, what, words, onBody) => {
+    await visit(page, '/setup/');
+    await step1Shown(page);
+    await continueOn(page);
+    await choose(page, 'A baby');
+    await page.evaluate(() => { window.__camera.held = new Promise((resolve) => { window.__camera.release = resolve; }); });
+    await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+    const onKey = await page.evaluate(() => {
+      const el = document.activeElement;
+      return { key: Boolean(el && el.tagName === 'BUTTON' && el.closest('.setup-picture')), words: el && el !== document.body ? (el.textContent || '').trim() : el ? el.tagName : 'nothing' };
+    });
+    check(onKey.key, `${what}: a click on Turn on the camera leaves the focus on "${plain(onKey.words)}", not on the key`);
+    const reading = page.locator(words).first();
+    if (!(await reading.waitFor({ timeout: 5_000 }).then(() => true, () => false))) { check(false, `${what}: no ${words} on step 2`); return; }
+    await reading.click();
+    const before = await page.evaluate(() => ({ body: document.activeElement === document.body, y: window.scrollY }));
+    if (onBody) check(before.body, `${what}: the click does not leave the focus on the page's body`);
+    await page.evaluate(() => { window.__camera.release(); window.__camera.held = null; });
+    if (!(await page.locator('.setup-picture[data-state="on"]').waitFor({ timeout: 10_000 }).then(() => true, () => false))) { check(false, `${what}: the live picture does not show`); return; }
+    await page.waitForTimeout(300);
+    const after = await page.evaluate((selector) => {
+      const el = document.activeElement;
+      const box = document.querySelector(selector)?.getBoundingClientRect();
+      return {
+        tag: el ? el.tagName : 'nothing',
+        words: el && el !== document.body ? (el.textContent || '').trim().slice(0, 60) : '',
+        inView: Boolean(box && box.bottom > 0 && box.top < window.innerHeight),
+        y: window.scrollY,
+      };
+    }, words);
+    check(after.tag !== 'H1', `${what}: once the camera opens the focus moved to ${after.tag} "${plain(after.words)}", away from where the person clicked`);
+    check(after.inView, `${what}: once the camera opens the words the person clicked are out of view (scroll ${before.y} -> ${after.y})`);
+  };
+  await open({ name: 'setup, a click elsewhere while the camera asks', width: 390, look: 'light' }, async (page, context, check) => {
+    await clickWhileAsking(page, check, "a click on A baby's medical sentence", '#setup-use-words p:nth-of-type(2)', false);
+    await clickWhileAsking(page, check, "a click on the footer's line", '.site-footer__line', true);
+  }, { ...NEW_DEVICE, script: FAKE_CAMERA });
+
+  // One press of Back on step 1 leaves setup, also on step 2's old entry:
+  // after a reload of step 2, and after the browser's back button returned
+  // from Help to step 2's entry. The page before setup is the home page.
+  const startFromHome = async (page) => {
+    await visit(page, '/');
+    const start = page.locator('main').getByRole('link', { name: 'Start setup', exact: true }).first();
+    await start.click();
+    return step1Shown(page);
+  };
+  const oneBack = async (page, check, what) => {
+    await setupMain(page).getByRole('link', { name: 'Back', exact: true }).click();
+    await reaches(page, '/', 10_000);
+    const words = pathOf(page) === '/setup' ? ` showing "${plain(await page.locator('h1').first().innerText().catch(() => ''))}"` : '';
+    check(pathOf(page) === '/', `${what}: one press of Back on step 1 left the address at ${pathOf(page)}${words}, not the home page`);
+  };
+  await open({ name: 'setup, one Back after a reload of step 2', width: 390, look: 'light' }, async (page, context, check) => {
+    if (!(await startFromHome(page))) { check(false, `Start setup on the home page does not show "${STEP1_H1}"`); return; }
+    if (!(await continueOn(page))) { check(false, 'Continue does not open step 2'); return; }
+    await page.reload({ waitUntil: 'networkidle' });
+    if (!(await step1Shown(page))) { check(false, `a reload of step 2 does not show "${STEP1_H1}"`); return; }
+    await oneBack(page, check, 'after a reload of step 2');
+  }, NEW_DEVICE);
+
+  await open({ name: 'setup, one Back after Help and the back button', width: 390, look: 'light' }, async (page, context, check) => {
+    if (!(await startFromHome(page))) { check(false, `Start setup on the home page does not show "${STEP1_H1}"`); return; }
+    if (!(await continueOn(page))) { check(false, 'Continue does not open step 2'); return; }
+    await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+    const help = page.locator('.setup-picture').getByRole('link', { name: 'How to allow the camera', exact: true });
+    if (!(await help.waitFor({ timeout: 10_000 }).then(() => true, () => false))) { check(false, 'a refusal on step 2 offers no How to allow the camera'); return; }
+    await help.click();
+    await page.waitForURL((url) => url.pathname === '/help/', { timeout: 15_000 }).catch(() => {});
+    check(pathOf(page) === '/help', `How to allow the camera opened ${pathOf(page)}, not /help`);
+    await page.goBack();
+    if (!(await step1Shown(page))) { check(false, `the browser's back button from Help does not show "${STEP1_H1}"`); return; }
+    await oneBack(page, check, "after Help and the browser's back button");
+  }, { ...NEW_DEVICE, script: setupScript({ status: 'denied', set: { answer: 'NotAllowedError' } }) });
+
+  // A refusal while the browser does not say the camera's permission (its
+  // query for 'camera' fails): the words hold whether the person closed the
+  // question or the camera is blocked, with Try again and Help's entry.
+  const CAMERA_UNREAD = () => {
+    const query = navigator.permissions.query.bind(navigator.permissions);
+    navigator.permissions.query = (asked) => (asked && asked.name === 'camera' ? Promise.reject(new TypeError('camera')) : query(asked));
+  };
+  const NOT_ALLOWED_WORDS = "The camera did not open. Press Try again, then Allow when the browser asks. If it does not ask, the camera is blocked for safeos.sh: allow it in the site's settings, then press Try again.";
+  for (const look of LOOKS) {
+    await open({ name: 'setup, the permission unread', width: 390, look }, async (page, context, check) => {
+      await visit(page, '/setup/');
+      await step1Shown(page);
+      await setupMain(page).getByRole('button', { name: 'Turn on the camera', exact: true }).click();
+      const frame = page.locator('.setup-frame');
+      const named = await says(page, NOT_ALLOWED_WORDS);
+      check(named, `a refusal with the permission unread reads "${plain(await frame.innerText().catch(() => ''))}", not "${NOT_ALLOWED_WORDS}"`);
+      check(!(await setupWords(page)).includes(BLOCKED_WORDS), `a refusal with the permission unread says "${BLOCKED_WORDS}"`);
+      const keys = await frame.getByRole('button', { name: 'Try again', exact: true }).count();
+      check(keys === 1, `the frame offers Try again ${keys} times, not once`);
+      const links = await frame.getByRole('link', { name: 'How to allow the camera', exact: true }).count();
+      check(links === 1, `the frame offers How to allow the camera ${links} times, not once`);
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.screenshot({ path: path.join(outDir, `setup-camera-unread-390-${look}.png`) });
+      console.log(`captured setup-camera-unread-390-${look}.png`);
+    }, { ...NEW_DEVICE, script: setupScript({ set: { answer: 'NotAllowedError' }, more: `(${CAMERA_UNREAD})();` }) });
   }
 
   for (const look of LOOKS) {

@@ -253,7 +253,7 @@ export default function HelpPage() {
                 <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
                   <h2 className="text-2xl font-bold text-white mb-4">Getting Started with SafeOS</h2>
                   <p className="text-slate-300 mb-6">
-                    Welcome to SafeOS Guardian! <Link href="/setup/" className="text-emerald-400 hover:underline">Setup</Link> takes you through the first two steps, then the dashboard starts the watch.
+                    Welcome to SafeOS Guardian! <Link href="/setup/" className="text-emerald-400 hover:underline">Setup</Link> takes you through the first two steps, then its last key opens the page where the watch starts.
                   </p>
 
                   <div className="space-y-6">
@@ -291,7 +291,7 @@ export default function HelpPage() {
                       <div>
                         <h3 className="text-white font-medium mb-1">Start watching</h3>
                         <p className="text-sm text-slate-400">
-                          Press Open dashboard, then Start watching. SafeOS sounds an alert on this device when something moves or makes a sound.
+                          Setup ends on one key. It reads Open dashboard, or names the way you came from: Open Motion and sound, Open Lost and Found, Open People or Open Wildlife. With A lost pet chosen it reads Open Lost and Found. Press it, then the key that starts the watch there: Start watching on the dashboard and on Motion and sound, Start Monitoring on Wildlife, and ARM SYSTEM on People. Wildlife and People wait for the detection model: on a device that has not saved it, press Download detection model on that page first. On Lost and Found, add your pet&apos;s photos and press Start Monitoring, then Start watching on the page it opens.
                         </p>
                       </div>
                     </div>

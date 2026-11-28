@@ -211,6 +211,21 @@ it("says to add the pet's photos first, and its key opens the Lost and Found pag
   expect(problemWords()).toEqual([]);
 });
 
+it('says nothing of a blocked camera while its key opens the Lost and Found page, and says it once a pet is saved', () => {
+  cameraAsk.mockReturnValue('blocked');
+  rememberWay('lost-found');
+  shown();
+  expect(words(line())).toBe("Start watching uses Lost and Found. Add your pet's photos first.");
+  expect(problemWords()).toEqual([]);
+  expect(screen.queryByRole('link', { name: 'How to allow the camera' })).toBeNull();
+  cleanup();
+
+  shown({ subjects: [mittens] });
+  expect(words(line())).toBe('Start watching uses Lost and Found, for Mittens.');
+  expect(problemWords()).toEqual([BLOCKED]);
+  expect(screen.getByRole('link', { name: 'How to allow the camera' })).not.toBeNull();
+});
+
 it('falls back to Motion and sound once the pet the watch last looked for is deleted', () => {
   rememberWay('lost-found', 'pet-1');
   shown({ subjects: [] });

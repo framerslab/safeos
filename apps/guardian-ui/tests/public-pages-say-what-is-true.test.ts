@@ -387,6 +387,14 @@ const UNBACKED_CLAIMS: Phrase[] = [
     why: 'spoken alerts use a voice on this device, and an online voice only once the person chooses one (tts-alerts.ts findSpokenAlertVoice)',
   },
   { pattern: /\bsix steps\b|Accept the Disclaimer|Choose Your Profile|Grant Permissions|Device Access/i, why: 'setup has two steps: it turns on the camera, then asks what the device is watching' },
+  {
+    pattern: /Press Open dashboard, then Start watching/i,
+    why: "setup's last key also reads Open Motion and sound, Open Lost and Found, Open People or Open Wildlife (LastKey.tsx), and Lost and Found starts with Start Monitoring",
+  },
+  {
+    pattern: /then the dashboard starts the watch/i,
+    why: "setup's last key opens the dashboard or the page of another way (LastKey.tsx), and the watch starts on the page it opens",
+  },
 ];
 
 // Lost and Found's screens: setup, the pet's cards, the gallery, the
@@ -701,6 +709,21 @@ describe('the public pages say what the software does', () => {
       app('public', 'diagrams', 'how-it-works.svg'),
     ];
     const missing = describing.filter((f) => !/every five seconds/i.test(fs.readFileSync(f, 'utf8'))).map(rel);
+    expect(missing).toEqual([]);
+  });
+
+  it('every paragraph that names the keys that start Wildlife and People names Download detection model', () => {
+    // Start Monitoring on Wildlife is disabled and ARM SYSTEM on People refuses
+    // until the detection model is ready (wildlife/page.tsx, security/page.tsx),
+    // and a device that has not saved it shows Download detection model
+    // (ModelDownloadProgress.tsx). Each paragraph here sits on one line.
+    const naming = [app('src', 'app', 'help', 'page.tsx'), app('src', 'app', 'faq', 'page.tsx'), QUICKSTART];
+    const lines = naming.flatMap((f) =>
+      fs.readFileSync(f, 'utf8').split('\n')
+        .map((line, i) => ({ where: `${rel(f)}:${i + 1}`, text: line.replace(/\*\*/g, '') }))
+        .filter(({ text }) => /ARM SYSTEM/.test(text)));
+    expect(lines.length).toBeGreaterThanOrEqual(naming.length);
+    const missing = lines.filter(({ text }) => !/Download detection model/.test(text)).map(({ where }) => where);
     expect(missing).toEqual([]);
   });
 

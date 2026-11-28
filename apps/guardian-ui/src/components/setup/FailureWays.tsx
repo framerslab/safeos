@@ -2,7 +2,7 @@
  * The ways on from a camera that did not turn on
  *
  * The failure's sentence beside the problem glyph, then Help's entry for a
- * blocked camera, or Use the default camera where the camera chosen on this
+ * camera blocked or refused with its permission unread, or Use the default camera where the camera chosen on this
  * device is not connected. Use the default camera stays the same element
  * while its own request waits, so focus stays on it until the answer.
  *
@@ -25,7 +25,7 @@ export function FailureSentence({ failure }: { failure: CameraFailure }) {
   );
 }
 
-/** The link to Help for a blocked camera; Use the default camera for a saved camera gone, kept while its request waits. */
+/** The link to Help for a camera blocked or refused with its permission unread; Use the default camera for a saved camera gone, kept while its request waits. */
 export function FailureWays({
   failure,
   savedCamera,
@@ -41,7 +41,7 @@ export function FailureWays({
   const waiting = asking === 'default';
   return (
     <>
-      {failure === 'blocked' && !showDefault ? (
+      {(failure === 'blocked' || failure === 'not-allowed') && !showDefault ? (
         <Link href="/help/#camera" className="link-row">
           How to allow the camera
         </Link>

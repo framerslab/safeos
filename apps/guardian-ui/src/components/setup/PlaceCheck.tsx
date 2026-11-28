@@ -6,14 +6,16 @@
  * past its line says Alert and is announced, at most once in 5 seconds for
  * each bar. The camera off, stopped or failed each say so in the picture's
  * frame with the way on. The test line stands under the picture in every
- * state. The part closes no camera: the flow does.
+ * state. A key in the frame that turns the camera on leaves the page as the
+ * picture comes; focus then goes on through onOpenedFromKey, never to the
+ * page's body. The part closes no camera: the flow does.
  *
  * @module components/setup/PlaceCheck
  */
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { CornerTicks, ProblemMark } from '../dashboard/Drawn';
 import type { AlertLines } from '@/lib/alert-lines';
 import { useLiveLevels } from '@/lib/live-levels';
@@ -35,6 +37,8 @@ export interface PlaceCheckProps {
   onStopped: () => void;
   onTurnOn: () => void;
   onDefaultCamera: () => void;
+  /** The camera opened while focus was on a key in the picture's frame, which has now left the page. */
+  onOpenedFromKey: () => void;
 }
 
 export const TEST_LINE =
@@ -96,7 +100,19 @@ export function AgainKey({ asking, words, onPress }: { asking: Asking | null; wo
   );
 }
 
-export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines, savedCamera, onStopped, onTurnOn, onDefaultCamera }: PlaceCheckProps) {
+export function PlaceCheck({
+  stream,
+  microphone,
+  stopped,
+  failure,
+  asking,
+  lines,
+  savedCamera,
+  onStopped,
+  onTurnOn,
+  onDefaultCamera,
+  onOpenedFromKey,
+}: PlaceCheckProps) {
   const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const [drawn, setDrawn] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -105,6 +121,10 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
   const levels = useLiveLevels(stream, video, { zones, line: lines.motion ?? 100 }, reducedMotion ? 250 : 100);
   const stoppedRef = useRef(onStopped);
   stoppedRef.current = onStopped;
+  const openedRef = useRef(onOpenedFromKey);
+  openedRef.current = onOpenedFromKey;
+  const frame = useRef<HTMLDivElement>(null);
+  const keyFocused = useRef(false);
 
   const state: PictureState = stream ? (drawn ? 'on' : 'starting') : failure ? 'failed' : stopped ? 'stopped' : 'off';
 
@@ -115,6 +135,25 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
       setReducedMotion(false);
     }
   }, []);
+
+  // Whether focus was in the picture's frame at the moment its keys left the
+  // page. React clears this ref before it takes the keys out, so the focus is
+  // read while the key is still there. A click on plain text while the
+  // browser asks moves focus to the page's body with no focus event, so focus
+  // read before that moment can be out of date.
+  const keysHeld = useCallback((keys: HTMLDivElement | null) => {
+    keyFocused.current = keys ? false : Boolean(document.activeElement && frame.current?.contains(document.activeElement));
+  }, []);
+
+  // The camera opened from Turn on the camera, Try again or Use the default
+  // camera: that key has left the page with the picture's coming, and focus
+  // goes on from the page's body.
+  useEffect(() => {
+    if (!stream || !keyFocused.current) return;
+    keyFocused.current = false;
+    const lost = !document.activeElement || document.activeElement === document.body;
+    if (lost) openedRef.current();
+  }, [stream]);
 
   // The picture shows the stream; its first frame turns the state on.
   useEffect(() => {
@@ -197,7 +236,7 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
 
   return (
     <div className="setup-place">
-      <div className="setup-picture" data-state={state}>
+      <div className="setup-picture" data-state={state} ref={frame}>
         <CornerTicks />
         {stream ? (
           <>
@@ -232,13 +271,13 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
             </div>
           </>
         ) : state === 'failed' && failure ? (
-          <div className="setup-off">
+          <div className="setup-off" ref={keysHeld}>
             <FailureSentence failure={failure} />
             {failure !== 'unsupported' ? <AgainKey asking={asking} words="Try again" onPress={onTurnOn} /> : null}
             <FailureWays failure={failure} savedCamera={savedCamera} asking={asking} onDefaultCamera={onDefaultCamera} />
           </div>
         ) : state === 'stopped' ? (
-          <div className="setup-off">
+          <div className="setup-off" ref={keysHeld}>
             <p className="setup-body setup-problem">
               <ProblemMark />
               <span>{STOPPED}</span>
@@ -246,7 +285,7 @@ export function PlaceCheck({ stream, microphone, stopped, failure, asking, lines
             <AgainKey asking={asking} words="Try again" onPress={onTurnOn} />
           </div>
         ) : state === 'off' ? (
-          <div className="setup-off">
+          <div className="setup-off" ref={keysHeld}>
             <CameraDrawing />
             <p className="setup-body">{OFF}</p>
             <AgainKey asking={asking} words="Turn on the camera" onPress={onTurnOn} />

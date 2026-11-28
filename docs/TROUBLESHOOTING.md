@@ -104,6 +104,10 @@ See [WebSocket API](API.md#websocket-api).
 - Black video feed
 - "Camera access denied" error
 - Setup's first step names the problem inside the camera's frame, with **Try again**
+- Setup says "The camera did not open": the browser refused the camera and does
+  not say whether it is blocked. Press **Try again** and allow the camera when the
+  browser asks; when it does not ask, allow the camera in the site's settings
+  (step 1 below), then press **Try again**
 
 During setup, **Continue without the camera** goes on with the camera off. Fix the
 camera with the steps below, then press **Start watching** on the dashboard.

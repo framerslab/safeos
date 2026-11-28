@@ -15,7 +15,7 @@ import type { Ask } from './browser-asks';
 import { cameraConstraints } from './camera-constraints';
 import { closeCamera } from './camera-handoff';
 
-export type CameraFailure = 'blocked' | 'closed' | 'in-use' | 'no-camera' | 'saved-gone' | 'unsupported' | 'other';
+export type CameraFailure = 'blocked' | 'not-allowed' | 'closed' | 'in-use' | 'no-camera' | 'saved-gone' | 'unsupported' | 'other';
 
 /** False in a browser with no camera request on this page (no navigator.mediaDevices.getUserMedia). */
 export function canAskForCamera(): boolean {
@@ -63,13 +63,22 @@ function errorName(error: unknown): string {
   return '';
 }
 
-/** What a failed request means, by the browser's error, the camera's permission read after it, and whether a camera is saved. */
+/**
+ * What a failed request means, by the browser's error, the camera's permission
+ * read after it, and whether a camera is saved. A refusal with the permission
+ * unread ('unknown': the query rejects with a TypeError for a permission name
+ * the browser does not support,
+ * https://developer.mozilla.org/en-US/docs/Web/API/Permissions/query) may be
+ * a question closed or a camera blocked, so it has words of its own that hold
+ * for both.
+ */
 export function cameraFailure(error: unknown, ask: Ask, savedCamera: boolean): CameraFailure {
   switch (errorName(error)) {
     case 'NotAllowedError':
     case 'SecurityError':
       if (ask === 'not-asked') return 'closed';
       if (ask === 'granted') return 'other';
+      if (ask === 'unknown') return 'not-allowed';
       return 'blocked';
     case 'NotReadableError':
     case 'AbortError':
@@ -87,6 +96,8 @@ export function cameraFailure(error: unknown, ask: Ask, savedCamera: boolean): C
 /** The sentence setup shows for each failure. */
 export const FAILURE_WORDS: Readonly<Record<CameraFailure, string>> = {
   blocked: 'The camera is blocked for safeos.sh in this browser. Allow it in the site’s settings, then press Try again.',
+  'not-allowed':
+    'The camera did not open. Press Try again, then Allow when the browser asks. If it does not ask, the camera is blocked for safeos.sh: allow it in the site’s settings, then press Try again.',
   closed: 'The browser’s question closed without an answer. Press Try again to see it again.',
   'in-use': 'The camera did not start. Another app or tab may be using it. Close it, then press Try again.',
   'no-camera': 'No camera was found on this device. Connect one, then press Try again.',

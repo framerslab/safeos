@@ -64,9 +64,16 @@ export function LastKey({ way, state, onPress }: LastKeyProps) {
       }
     };
     follow();
-    query?.addEventListener?.('change', follow);
+    // In older browsers a media query list is no event target and has only
+    // addListener and removeListener, kept for a 'change' listener
+    // (https://developer.mozilla.org/en-US/docs/Web/API/MediaQueryList/addListener):
+    // such a list is followed through those.
+    const modern = typeof query?.addEventListener === 'function';
+    if (modern) query?.addEventListener('change', follow);
+    else query?.addListener?.(follow);
     return () => {
-      query?.removeEventListener?.('change', follow);
+      if (modern) query?.removeEventListener('change', follow);
+      else query?.removeListener?.(follow);
       leave();
     };
   }, []);

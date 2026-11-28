@@ -165,7 +165,7 @@ describe("setup's step 1", () => {
 });
 
 describe('step 1 when the camera does not turn on', () => {
-  it.each(['blocked', 'closed', 'in-use', 'no-camera', 'saved-gone', 'unsupported', 'other'] as const)(
+  it.each(['blocked', 'not-allowed', 'closed', 'in-use', 'no-camera', 'saved-gone', 'unsupported', 'other'] as const)(
     'draws the %s failure inside the frame with its way on',
     (failure: CameraFailure) => {
       const { container } = step({ failure, savedCamera: failure === 'saved-gone' });
@@ -181,7 +181,7 @@ describe('step 1 when the camera does not turn on', () => {
       } else {
         expect(frame.contains(screen.getByRole('button', { name: 'Try again' }))).toBe(true);
       }
-      if (failure === 'blocked') {
+      if (failure === 'blocked' || failure === 'not-allowed') {
         const link = screen.getByRole('link', { name: 'How to allow the camera' });
         expect(bare(link.getAttribute('href'))).toBe('/help#camera');
       }
