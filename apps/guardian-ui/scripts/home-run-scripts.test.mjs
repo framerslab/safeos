@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { checkFlashFrames, spool } from './home-run-frames.mjs';
 import { checkHeldAlert } from './home-run-held.mjs';
 import { cssReferences } from './home-run-inputs.mjs';
+import { recipes, settingsMoves } from './home-run-list.mjs';
 
 const scripts = path.dirname(fileURLToPath(import.meta.url));
 const scratch = mkdtempSync(path.join(process.env.RUNNER_TEMP ?? os.tmpdir(), 'home-run-scripts-'));
@@ -89,6 +90,55 @@ test('four flashes in a second fail when each step is large', () => {
 test('one flash and a slow fade pass', () => {
   const levels = [BLACK, GREY, BLACK, ...Array(15).fill(BLACK), BLACK, DIM, DIM, GREY, GREY, GREY, DIM, DIM, BLACK];
   assert.doesNotThrow(() => checkFlashFrames(frames(levels), 'wide'));
+});
+
+// A list of words as the Settings run shows it: lines 12 CSS px tall, one every
+// 32, dark on a light ground. A frame is the 96 rows of one screen, from where
+// the list stands at the frame's moment.
+const GROUND = 245;
+const WORDS = 60;
+
+// Where a list that makes `moves` stands `time` seconds into its run.
+function standsAt(moves, time) {
+  let top = 0;
+  for (const { at, seconds, to } of moves) {
+    if (time <= at) break;
+    if (time >= at + seconds) top = to;
+    else return top + (to - top) * (time - at) / seconds;
+  }
+  return top;
+}
+
+// The page paints sixty times a second and the recording keeps fifteen frames
+// of them. `late` is how many paints before its own moment each kept frame was
+// made.
+function listFrames(moves, { screen, seconds, late }) {
+  const edge = 96;
+  const row = screen / edge;
+  const bytes = Buffer.alloc(edge * edge * 3 * seconds * 15);
+  for (let frame = 0; frame < seconds * 15; frame++) {
+    const top = standsAt(moves, (4 * frame - late) / 60);
+    for (let y = 0; y < edge; y++) {
+      const [from, to] = [top + y * row, top + (y + 1) * row];
+      let words = 0;
+      for (let line = Math.floor((from - 22) / 32); line * 32 + 10 < to; line++) {
+        words += Math.max(0, Math.min(to, line * 32 + 22) - Math.max(from, line * 32 + 10));
+      }
+      const level = Math.round(GROUND + (WORDS - GROUND) * words / row);
+      bytes.fill(level, (frame * edge + y) * edge * 3, (frame * edge + y + 1) * edge * 3);
+    }
+  }
+  return bytes;
+}
+
+// The square run: a 328 px screen and 845 px of list past it.
+test('the Settings run shows a list of words without a flash, wherever its frames fall', () => {
+  const { seconds } = recipes.find(({ id }) => id === 'settings');
+  const moves = settingsMoves(845, 328);
+  for (const late of [0, 1, 2, 3]) {
+    assert.doesNotThrow(() => checkFlashFrames(listFrames(moves, { screen: 328, seconds, late }), 'square'),
+      `Frames made ${late} paints before their moment`);
+  }
 });
 
 // A seven second clip at 15 frames a second: camera noise until the alert,
