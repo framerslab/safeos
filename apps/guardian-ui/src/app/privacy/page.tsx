@@ -11,6 +11,7 @@ import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/page-metadata';
 import type { ComponentType } from 'react';
 import { IconShield, IconLock, IconEye, IconDatabase, IconCheck } from '@/components/icons';
+import { DeviceConnections } from '@/components/DeviceConnections';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Privacy',
@@ -33,7 +34,7 @@ const privacyFeatures: PrivacyFeature[] = [
   {
     icon: IconDatabase,
     title: 'Local-First Storage',
-    description: 'Your settings are stored in your browser\'s localStorage, and saved frames, alert pictures and reference photos in its IndexedDB. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends camera frames to that server only. Alert pictures are not sent to that server.',
+    description: 'On this device, SafeOS keeps what it saves in this browser’s own storage: your settings, and Wildlife’s sightings with their pictures, in its localStorage; alerts, alert pictures and Lost & Found’s sightings in its IndexedDB; People’s saved frames and your pets’ photos in both. Without a configured monitoring server, camera frames stay in your browser. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends camera frames to that server only. Alert pictures are not sent to that server.',
   },
   {
     icon: IconEye,
@@ -139,8 +140,10 @@ export default function PrivacyPage() {
               </p>
               <p>
                 <strong className="text-white">Data Storage:</strong> Your preferences are stored in
-                your browser&apos;s local storage. Saved frames from Security, Lost &amp; Found, and
-                Wildlife, and your reference photos, are stored in IndexedDB. Alerts on the monitor
+                your browser&apos;s localStorage. Wildlife keeps its sightings, with their pictures, in
+                localStorage too. People keeps its saved frames in both localStorage and IndexedDB, and
+                Lost &amp; Found keeps your pets and their photos in both. Lost &amp; Found&apos;s
+                sightings and the alert pictures are kept in IndexedDB. Alerts on the monitor
                 page are saved in IndexedDB and restored in History after a reload.
                 Alerts saved in this browser are shown to anyone who uses SafeOS in this browser, until
                 someone signs out or clears local data. A session that expires and is replaced does not
@@ -193,9 +196,10 @@ export default function PrivacyPage() {
                 <strong className="text-white">AI Processing:</strong> Security and Wildlife run
                 their detection model in your browser (TensorFlow.js) and download it from
                 Google&apos;s servers, which see your IP address. A server you run yourself analyses
-                the frames it receives with Ollama. If you give that server a key for a cloud AI
-                provider, it sends a frame to that provider when Ollama is down or its analysis fails;
-                with no cloud key set, frames stay on your server. safeos.sh offers no cloud AI service.
+                the frames it receives with Ollama. If you give that server keys for cloud AI
+                providers, then when Ollama is down or its analysis fails it sends the frame to the
+                first of OpenRouter, OpenAI and Anthropic it has a key for and, if that one fails, to
+                the next; with no cloud key set, frames stay on your server. safeos.sh offers no cloud AI service.
                 The GitHub link makes no request until you open it.
               </p>
               <p>
@@ -224,6 +228,19 @@ export default function PrivacyPage() {
               </p>
             </div>
           </div>
+        </section>
+
+        {/* What leaves this device */}
+        <section className="mb-12">
+          <h2 className="text-xl font-semibold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
+            What leaves this device
+          </h2>
+          <p className="text-slate-400 mb-4">
+            A spoken alert can leave this device too: People, Wildlife and Lost &amp; Found speak their
+            alerts with a voice on this device, and with an online voice only when you choose one. The table lists
+            each connection SafeOS makes or leads to, when it happens, who sees what and how to stop it.
+          </p>
+          <DeviceConnections />
         </section>
 
         {/* What We Don't Do */}
@@ -289,7 +306,7 @@ export default function PrivacyPage() {
 
         {/* Last Updated */}
         <div className="text-center text-sm text-slate-500 border-t border-white/5 pt-8">
-          Last updated: November 24, 2026
+          Last updated: November 26, 2026
         </div>
       </div>
     </main>

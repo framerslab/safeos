@@ -363,6 +363,7 @@ jobs:
             e2e/quiet-hours-critical.spec.ts e2e/detection-use-values.spec.ts e2e/set-times-apply.spec.ts \
             e2e/lost-found-sound.spec.ts e2e/lost-found-sound-stop.spec.ts e2e/sound-pitch-range.spec.ts e2e/watch-for.spec.ts \
             e2e/watch-for-pet-change.spec.ts e2e/lost-found-sighting.spec.ts e2e/lost-found-words.spec.ts \
+            e2e/github-link-new-tab.spec.ts \
             --project=chromium
 
       - name: Upload the test's report

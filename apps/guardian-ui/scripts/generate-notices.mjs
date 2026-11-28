@@ -13,8 +13,13 @@
 // the packages it belongs to: a text two packages share word for word stands
 // once. A package with no licence file of its own takes the Apache-2.0 text in
 // scripts/licenses/Apache-2.0.txt where it names Apache-2.0, else the first
-// text of a package that names the same licence. The file is made at build
-// time and is not committed.
+// text of a package that names the same licence. Then come the three fonts
+// the site serves itself (next/font/google in src/app/layout.tsx downloads
+// Inter, Space Grotesk and JetBrains Mono at build time and the export carries
+// their files), each with its copyright line and its SIL Open Font License 1.1
+// text, read from scripts/licenses/ where each font's OFL.txt from the
+// google/fonts repository is committed: nothing is fetched. The file is made
+// at build time and is not committed.
 import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +29,13 @@ const outFile = path.resolve(process.argv[2] || path.join(appRoot, 'public/third
 
 const COCO_LINE =
   "The COCO-SSD model was trained on the COCO dataset; COCO's annotations are © COCO Consortium, licensed CC BY 4.0 (https://cocodataset.org/#termsofuse).";
+
+// The fonts the site serves, with the licence file committed for each.
+const FONTS = [
+  { name: 'Inter', file: 'Inter-OFL.txt' },
+  { name: 'Space Grotesk', file: 'SpaceGrotesk-OFL.txt' },
+  { name: 'JetBrains Mono', file: 'JetBrainsMono-OFL.txt' },
+];
 
 const lock = JSON.parse(await readFile(path.join(appRoot, 'package-lock.json'), 'utf8'));
 const apache = await readFile(path.join(appRoot, 'scripts/licenses/Apache-2.0.txt'), 'utf8');
@@ -115,23 +127,39 @@ for (const p of listed) {
   blocks.get(key).packages.push(`${p.name} ${p.version}`);
 }
 
+// Each font's own licence file: its copyright line, then the OFL 1.1 text.
+const fonts = [];
+for (const font of FONTS) {
+  const text = same(await readFile(path.join(appRoot, 'scripts/licenses', font.file), 'utf8'));
+  fonts.push({ ...font, text, copyright: copyrightLine(text) });
+}
+
 const out = [
   'Third-party notices for SafeOS Guardian (safeos.sh)',
   '',
   'The packages SafeOS Guardian depends on to run, as its package-lock.json holds them: each',
   'with its version and its licence, and under it the first copyright line of its licence file.',
-  'The licence texts follow the list.',
+  'Then the fonts the site serves itself, each with its licence and its copyright line.',
+  'The licence texts follow the lists.',
   '',
 ];
 for (const p of listed) {
   out.push(`${p.name} ${p.version} ${p.licence}`);
   if (p.copyright) out.push(`    ${p.copyright}`);
 }
-out.push('', COCO_LINE, '', 'Licence texts', '');
+out.push('', COCO_LINE, '', 'Fonts the site serves', '');
+for (const font of fonts) {
+  out.push(`${font.name} (font) OFL-1.1`);
+  if (font.copyright) out.push(`    ${font.copyright}`);
+}
+out.push('', 'Licence texts', '');
 for (const block of blocks.values()) {
   out.push(`----- ${block.packages.join(', ')} -----`, '', block.text, '');
+}
+for (const font of fonts) {
+  out.push(`----- ${font.name} (font) -----`, '', font.text, '');
 }
 
 await mkdir(path.dirname(outFile), { recursive: true });
 await writeFile(outFile, `${out.join('\n').trimEnd()}\n`);
-console.log(`Third-party notices for ${listed.length} packages written to ${path.relative(process.cwd(), outFile)}`);
+console.log(`Third-party notices for ${listed.length} packages and ${fonts.length} fonts written to ${path.relative(process.cwd(), outFile)}`);

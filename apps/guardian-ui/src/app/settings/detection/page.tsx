@@ -294,16 +294,16 @@ export default function DetectionSettingsPage() {
         <section className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6">
           <h2 className="text-lg font-semibold text-white mb-2">Audio Frequency Filtering</h2>
           <p className="text-sm text-slate-400 mb-6">
-            The sound check reads the Audio level from these pitches. Custom Range reads the two pitches you set and Baby Cry Detection reads 300 to 600 Hz; the others read every pitch.
+            The sound check reads the Audio level from these pitches. Custom Range reads the two pitches you set and Baby Cry Pitches reads 300 to 600 Hz; the others read every pitch.
           </p>
 
           <div className="space-y-3">
             {[
-              { value: 'all', label: 'All Frequencies', description: 'Monitor all audio frequencies (default)' },
-              { value: 'baby_cry', label: 'Baby Cry Detection', description: 'Optimized for 300-600Hz infant vocalizations' },
-              { value: 'pet_sounds', label: 'Pet Sounds', description: 'Barking, whining, and distress sounds' },
-              { value: 'elderly_fall', label: 'Elderly Fall Detection', description: 'Impact sounds and calls for help' },
-              { value: 'custom', label: 'Custom Range', description: 'Define your own frequency range' },
+              { value: 'all', label: 'All Frequencies', description: 'Reads every pitch (the default)' },
+              { value: 'baby_cry', label: 'Baby Cry Pitches', description: 'Reads 300 to 600 Hz only' },
+              { value: 'pet_sounds', label: 'Pet Sounds', description: 'Reads every pitch, as All Frequencies does' },
+              { value: 'elderly_fall', label: 'Elderly Care', description: 'Reads every pitch, as All Frequencies does' },
+              { value: 'custom', label: 'Custom Range', description: 'Reads the two pitches you set' },
             ].map((option) => (
               <label
                 key={option.value}

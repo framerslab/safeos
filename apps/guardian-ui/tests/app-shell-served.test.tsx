@@ -8,12 +8,16 @@
  * none of them hidden and none held to a style a script would lift. The look
  * switch has only its place held. A page built in the readable look is marked
  * on its shell; every other app page marks its header, footer and bar alone.
+ * On an app page, where a watch may be running, each footer link to another
+ * site opens a new tab and its name says so; a public page's footer opens
+ * them in the same tab.
  */
 
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SiteShell } from '@/components/layout/SiteShell';
-import { bare, served } from './helpers/served-html';
+import { VisitorFooter } from '@/components/visitor/VisitorFooter';
+import { bare, served, words } from './helpers/served-html';
 
 let mockPath = '/history/';
 jest.mock('next/navigation', () => ({
@@ -87,5 +91,33 @@ it('marks a page built in the readable look on its shell, and every other app pa
   expect(shell?.classList.contains('look-part')).toBe(false);
   for (const selector of ['header.app-header', '.app-shell__footer', 'nav.phone-bar']) {
     expect([selector, page.querySelector(selector)?.classList.contains('look-part')]).toEqual([selector, true]);
+  }
+});
+
+it('opens each footer link to another site in a new tab on an app page, so a running watch goes on, and its name says so', () => {
+  const outside = (page: Document) => Array.from(page.querySelectorAll('footer.site-footer a[href^="http"]'));
+  for (const pathname of ['/monitor/', '/security/', '/wildlife/', '/dashboard/']) {
+    const links = outside(pageAt(pathname));
+    expect(links.length).toBeGreaterThanOrEqual(7);
+    for (const link of links) {
+      const name = link.getAttribute('aria-label') || words(link);
+      expect([pathname, link.getAttribute('href'), link.getAttribute('target'), link.getAttribute('rel'), name.endsWith('(opens in a new tab)')]).toEqual([
+        pathname,
+        link.getAttribute('href'),
+        '_blank',
+        'noopener noreferrer',
+        true,
+      ]);
+    }
+  }
+  // A public page's footer keeps them in the same tab.
+  const links = outside(served(renderToStaticMarkup(<VisitorFooter />)));
+  expect(links.length).toBeGreaterThanOrEqual(7);
+  for (const link of links) {
+    expect([link.getAttribute('href'), link.getAttribute('target'), words(link).includes('opens in a new tab')]).toEqual([
+      link.getAttribute('href'),
+      null,
+      false,
+    ]);
   }
 });

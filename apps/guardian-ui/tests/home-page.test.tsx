@@ -675,7 +675,7 @@ describe('free and open source', () => {
 describe('answers alongside the features they describe', () => {
   it('describes offline use and storage and links the privacy page and browser list', () => {
     expect(words(one('[data-card="offline"]'))).toContain('Motion and sound alerts then work with no connection, and People and Wildlife once their model is saved.');
-    expect(words(one('[data-card="storage"]'))).toContain("Settings sit in localStorage; alerts, saved frames and your pet's photos in IndexedDB; the model in Cache Storage.");
+    expect(words(one('[data-card="storage"]'))).toContain("Settings, alerts, saved frames and your pet's photos are kept in this browser's own storage, and the model in its Cache Storage.");
     const link = (element: Element | null) => `${words(element)} ${bare(element?.getAttribute('href'))}`;
     expect(link(one('#one-device .home-steps a'))).toBe('See the browser list in the FAQ /faq');
     expect(link(one('[data-card="storage"] a'))).toBe('Read the privacy page /privacy');

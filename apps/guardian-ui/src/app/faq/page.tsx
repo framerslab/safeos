@@ -70,7 +70,7 @@ const faqCategories: FAQCategory[] = [
     items: [
       {
         question: 'Is my video/audio data stored anywhere?',
-        answer: 'Not on any server of ours. Without a server of your own, your video and audio stay in your browser: the monitor compares frames and measures sound levels on your device, and Security and Wildlife run a TensorFlow.js model there. What the app stores stays in your browser: your settings in localStorage, and saved frames and reference photos in IndexedDB. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to that server.',
+        answer: 'Not on any server of ours. Without a server of your own, your video and audio stay in your browser: the monitor compares frames and measures sound levels on your device, and Security and Wildlife run a TensorFlow.js model there. What the app stores is kept in this browser\'s own storage, as the privacy page says. If you connect a server you run yourself and choose a processing mode that uses it, the monitor sends frames to that server.',
       },
       {
         question: 'Does Frame.dev have access to my camera?',
@@ -86,7 +86,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'What data is collected by SafeOS Guardian?',
-        answer: 'We collect no personal data, and the app loads no analytics or tracking script. Your settings stay in your browser. Saved frames from Security, Lost & Found, and Wildlife are kept in your browser\'s IndexedDB. Monitor alerts persist in IndexedDB, reload in History, and remain in history after acknowledgement. Nothing is sent to us.',
+        answer: 'We collect no personal data, and the app loads no analytics or tracking script. Your settings stay in your browser. Saved frames from People, Lost & Found and Wildlife are kept in this browser\'s own storage. Monitor alerts persist in IndexedDB, reload in History, and remain in history after acknowledgement. Nothing is sent to us.',
       },
     ],
   },
@@ -112,7 +112,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How does Lost and Found compare my pet\'s photos?',
-        answer: 'Twice a second, the browser compares the colours of the whole camera picture with your pet\'s photos. When they are far apart, it goes no further. When they are close, it compares each part of the picture that moved since the comparison before, or every part on the first picture after you start watching, with your pet\'s photos: their colours, 5 main colours, outline on an 8 by 8 grid and size. When a part comes close enough, Lost and Found shows a possible sighting with that picture beside your photo, so you can check it yourself. It reads colours and outline with no model, so another animal, or a cushion or bag of similar colours, can raise one too. Crop each photo close to your pet: the background in a photo counts as well.',
+        answer: 'Up to twice a second, the browser compares the colours of the whole camera picture with your pet\'s photos. When they are far apart, it goes no further. When they are close, it compares each part of the picture that moved since the comparison before, or every part on the first picture after you start watching, with your pet\'s photos: their colours, 5 main colours, outline on an 8 by 8 grid and size. When a part comes close enough, Lost and Found shows a possible sighting with that picture beside your photo, so you can check it yourself. It reads colours and outline with no model, so another animal, or a cushion or bag of similar colours, can raise one too. Crop each photo close to your pet: the background in a photo counts as well.',
       },
       {
         question: 'How do I reduce false positives?',
@@ -130,7 +130,7 @@ const faqCategories: FAQCategory[] = [
       },
       {
         question: 'How does TensorFlow.js work in the browser?',
-        answer: 'TensorFlow.js is a JavaScript library that brings machine learning to the browser. SafeOS runs it on WebGL, which uses your graphics chip. This means AI inference runs directly on your device, enabling real-time analysis without sending data to external servers.',
+        answer: 'TensorFlow.js is a JavaScript library that brings machine learning to the browser. SafeOS asks it for WebGL, which runs the model on your graphics chip; without hardware WebGL it runs the model on the processor, slower. Either way the model runs on your device.',
       },
       {
         question: 'Can I export my data?',
