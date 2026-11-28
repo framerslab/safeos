@@ -698,6 +698,21 @@ describe('the public pages say what the software does', () => {
     expect(missing).toEqual([]);
   });
 
+  it('every paragraph that names the keys that start Wildlife and People names Download detection model', () => {
+    // Start Monitoring on Wildlife is disabled and ARM SYSTEM on People refuses
+    // until the detection model is ready (wildlife/page.tsx, security/page.tsx),
+    // and a device that has not saved it shows Download detection model
+    // (ModelDownloadProgress.tsx). Each paragraph here sits on one line.
+    const naming = [app('src', 'app', 'help', 'page.tsx'), app('src', 'app', 'faq', 'page.tsx'), QUICKSTART];
+    const lines = naming.flatMap((f) =>
+      fs.readFileSync(f, 'utf8').split('\n')
+        .map((line, i) => ({ where: `${rel(f)}:${i + 1}`, text: line.replace(/\*\*/g, '') }))
+        .filter(({ text }) => /ARM SYSTEM/.test(text)));
+    expect(lines.length).toBeGreaterThanOrEqual(naming.length);
+    const missing = lines.filter(({ text }) => !/Download detection model/.test(text)).map(({ where }) => where);
+    expect(missing).toEqual([]);
+  });
+
   it('the README names the cloud models the server selects', () => {
     const fallback = fs.readFileSync(path.join(REPO_ROOT, 'src', 'lib', 'analysis', 'cloud-fallback.ts'), 'utf8');
     const models = Array.from(fallback.matchAll(/const \w+_MODEL = '([^']+)'/g)).map((m) => m[1]);
